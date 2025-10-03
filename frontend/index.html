@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 Webarmonium - Collaborative Generative Music</title>
+    <meta name="description" content="Real-time collaborative platform for gesture-controlled generative music">
+
+    <!-- Preload critical resources -->
+    <link rel="preload" href="https://unpkg.com/tone@14.7.77/build/Tone.js" as="script">
+    <link rel="preload" href="https://cdn.socket.io/4.7.5/socket.io.min.js" as="script">
+
+    <!-- Performance and SEO -->
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
+
+    <style>
+        /* Critical CSS for immediate rendering */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #app {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        /* Loading spinner */
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            text-align: center;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Hidden until app loads */
+        .app-content {
+            display: none;
+        }
+
+        .app-content.loaded {
+            display: block;
+        }
+
+        #gestureCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        .room-interface {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+        }
+
+        .room-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .room-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-count {
+            background: rgba(0, 212, 255, 0.2);
+            color: #00d4ff;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .room-id {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .audio-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .audio-toggle {
+            background: #00d4ff;
+            color: #1a1a2e;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .audio-toggle:hover {
+            background: #00b8e6;
+        }
+
+        .audio-toggle.disabled {
+            background: #666;
+            color: #ccc;
+        }
+
+        .instructions {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 25px;
+            border-radius: 25px;
+            text-align: center;
+            font-size: 14px;
+            color: #ccc;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 90%;
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .room-interface {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                padding: 12px;
+            }
+
+            .room-status {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+
+            .instructions {
+                bottom: 10px;
+                font-size: 12px;
+                padding: 12px 20px;
+            }
+        }
+
+        /* Error display */
+        .error-display {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.1);
+            border: 2px solid #ff4444;
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 400px;
+            text-align: center;
+            z-index: 2000;
+        }
+
+        .error-title {
+            color: #ff4444;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .error-message {
+            color: #ccc;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Loading state -->
+        <div class="loading" id="loadingScreen">
+            <div class="spinner"></div>
+            <div>Loading Webarmonium...</div>
+            <div style="font-size: 12px; margin-top: 10px; color: #666;">
+                Initializing audio engine and connecting to collaborative space
+            </div>
+        </div>
+
+        <!-- Main application content -->
+        <div class="app-content" id="appContent">
+            <!-- Room interface -->
+            <div class="room-interface">
+                <div class="room-status">
+                    <div class="room-info">
+                        <div class="user-count" id="userCount">👥 1 user</div>
+                        <div class="room-id" id="roomId">Room: connecting...</div>
+                    </div>
+                    <div class="audio-controls">
+                        <button class="audio-toggle" id="audioToggle">🔊 Start Audio</button>
+                        <div id="audio-controls"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main gesture canvas -->
+            <canvas id="gestureCanvas"></canvas>
+
+            <!-- Cursor overlay canvas for multi-user cursors -->
+            <canvas id="cursorOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
+
+            <!-- Instructions -->
+            <div class="instructions">
+                <div>Move your mouse or touch to create music</div>
+                <div style="margin-top: 5px; font-size: 12px;">
+                    X-axis controls frequency • Y-axis controls amplitude • Intensity affects dynamics
+                </div>
+            </div>
+        </div>
+
+        <!-- Error display (hidden by default) -->
+        <div class="error-display" id="errorDisplay" style="display: none;">
+            <div class="error-title">Connection Error</div>
+            <div class="error-message" id="errorMessage">
+                Unable to connect to the Webarmonium server. Please check that the backend is running.
+            </div>
+        </div>
+    </div>
+
+    <!-- External dependencies -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://unpkg.com/tone@14.7.77/build/Tone.js"></script>
+
+    <!-- Utilities -->
+    <script src="src/utils/ErrorReporter.js"></script>
+
+    <!-- Application services -->
+    <script src="src/services/GestureCapture.js"></script>
+    <script src="src/services/SocketService.js"></script>
+    <script src="src/services/AudioService.js"></script>
+    <script src="src/services/DrawingRenderer.js"></script>
+    <script src="src/services/CursorManager.js"></script>
+
+    <!-- UI components -->
+    <script src="src/components/AudioControls.js"></script>
+
+    <!-- Main application -->
+    <script src="src/main.js"></script>
+</body>
+</html>

@@ -48,7 +48,8 @@
 - [ ] T003 [P] Configure linting and formatting tools
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
-**CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
+**CONSTITUTIONAL REQUIREMENT: Tests MUST be written and MUST FAIL before ANY implementation**
+**Code coverage target: 90%+ - Contract, integration, and unit tests required**
 - [ ] T004 [P] Contract test POST /api/users in tests/contract/test_users_post.py
 - [ ] T005 [P] Contract test GET /api/users/{id} in tests/contract/test_users_get.py
 - [ ] T006 [P] Integration test user registration in tests/integration/test_registration.py
@@ -71,10 +72,12 @@
 
 ## Phase 3.5: Polish
 - [ ] T019 [P] Unit tests for validation in tests/unit/test_validation.py
-- [ ] T020 Performance tests (<200ms)
+- [ ] T020 Performance tests (<200ms p95 API, <100ms UI)
 - [ ] T021 [P] Update docs/api.md
-- [ ] T022 Remove duplication
+- [ ] T022 Code quality check: Remove duplication, eliminate dead code
 - [ ] T023 Run manual-testing.md
+- [ ] T024 Verify 90%+ code coverage requirement
+- [ ] T025 Performance regression testing setup
 
 ## Dependencies
 - Tests (T004-T007) before implementation (T008-T014)

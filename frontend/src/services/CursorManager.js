@@ -31,6 +31,9 @@ class CursorManager {
 
     // Animation frame ID
     this.animationFrameId = null
+
+    // Stale cursor cleanup interval
+    this.staleCheckInterval = null
   }
 
   /**
@@ -43,17 +46,29 @@ class CursorManager {
    */
   updateCursor (userId, x, y, color, isDrawing = false) {
     if (!userId || typeof userId !== 'string') {
-      console.warn('CursorManager: Invalid userId', userId)
+      if (window.ErrorReporter) {
+        window.ErrorReporter.warn('CursorManager', 'Invalid userId', userId)
+      } else {
+        console.warn('CursorManager: Invalid userId', userId)
+      }
       return
     }
 
     if (typeof x !== 'number' || typeof y !== 'number') {
-      console.warn('CursorManager: Invalid coordinates', { x, y })
+      if (window.ErrorReporter) {
+        window.ErrorReporter.warn('CursorManager', 'Invalid coordinates', { x, y })
+      } else {
+        console.warn('CursorManager: Invalid coordinates', { x, y })
+      }
       return
     }
 
     if (!this.isValidColor(color)) {
-      console.warn('CursorManager: Invalid color format', color)
+      if (window.ErrorReporter) {
+        window.ErrorReporter.warn('CursorManager', 'Invalid color format', color)
+      } else {
+        console.warn('CursorManager: Invalid color format', color)
+      }
       return
     }
 
@@ -235,6 +250,16 @@ class CursorManager {
       this.lastRenderTime = performance.now()
       this.renderCursors()
     }
+
+    // Start stale cursor cleanup (check every 10 seconds)
+    if (!this.staleCheckInterval) {
+      this.staleCheckInterval = setInterval(() => {
+        const removed = this.removeStale(5000)
+        if (removed > 0) {
+          console.log(`CursorManager: Removed ${removed} stale cursors`)
+        }
+      }, 10000)
+    }
   }
 
   /**
@@ -317,6 +342,12 @@ class CursorManager {
     console.log('CursorManager: Destroying instance')
     this.stopRendering()
     this.clearAll()
+
+    // Clear stale check interval
+    if (this.staleCheckInterval) {
+      clearInterval(this.staleCheckInterval)
+      this.staleCheckInterval = null
+    }
 
     // Nullify references to prevent memory leaks
     this.canvas = null

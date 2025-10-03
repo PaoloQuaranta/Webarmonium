@@ -1,50 +1,59 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report:
+- Version change: new → 1.0.0
+- Modified principles: Initial creation with 4 core principles
+- Added sections: Performance Standards, Development Workflow
+- Removed sections: None (initial creation)
+- Templates requiring updates: ✅ updated plan-template.md, spec-template.md, tasks-template.md
+- Follow-up TODOs: None
+-->
+
+# Webarmonium Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Code Quality First
+Clean code architecture MUST be maintained at all times. Every piece of code MUST follow established patterns with zero duplication or dead branches. Code MUST be readable, maintainable, and follow single responsibility principles. Legacy code from previous solutions is FORBIDDEN - we are prototyping for optimal architecture, not maintaining backward compatibility. All code MUST pass linting and type checking before commit.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Test-Driven Development (NON-NEGOTIABLE)
+All functionality MUST be test-driven. Tests MUST be written before implementation and MUST fail initially. Red-Green-Refactor cycle is strictly enforced. Contract tests are REQUIRED for all API endpoints, integration tests for all user workflows, and unit tests for all business logic. Code coverage below 90% is unacceptable.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. User Experience Consistency
+User interface and interaction patterns MUST be consistent across all components. Design systems and reusable components are MANDATORY. User feedback and error handling MUST be predictable and helpful. Accessibility standards (WCAG 2.1 AA) MUST be met. All user-facing changes MUST be validated through user scenarios defined in specifications.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Performance By Design
+Performance requirements MUST be defined upfront and validated continuously. All code MUST meet specified performance benchmarks before deployment. Optimization is NOT deferred - it's built-in from the start. Performance regression testing is REQUIRED. Resource usage MUST be monitored and stay within defined constraints.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+## Performance Standards
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+All code MUST meet these non-negotiable performance requirements:
+- API endpoints: <200ms p95 response time
+- UI interactions: <100ms response time
+- Memory usage: <100MB baseline, <500MB peak
+- Build times: <30 seconds for incremental builds
+- Test suite: <60 seconds total execution time
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+Performance testing MUST be automated and run on every commit. Any performance regression blocks deployment.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+## Development Workflow
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+Code quality gates are MANDATORY and MUST pass before merge:
+- All tests passing (contract, integration, unit)
+- Linting and type checking with zero errors
+- Code review approval from at least one other developer
+- Performance benchmarks met
+- Documentation updated for user-facing changes
+
+No exceptions to TDD workflow: Tests → Approval → Red → Green → Refactor → Review → Merge.
+
+Prototype mentality MUST be maintained: refactor aggressively, eliminate technical debt immediately, prioritize clean architecture over quick fixes.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution supersedes all other development practices. All pull requests and code reviews MUST verify constitutional compliance. Any complexity that violates these principles MUST be justified in writing or the approach MUST be simplified.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+Amendments require documented rationale, technical review, and update of all dependent templates and workflows. Constitutional violations during development trigger immediate refactoring requirements.
+
+Use `.claude/commands/*.md` for runtime development guidance that aligns with these principles.
+
+**Version**: 1.0.0 | **Ratified**: 2025-09-29 | **Last Amended**: 2025-09-29

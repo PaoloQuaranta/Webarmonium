@@ -1,0 +1,30 @@
+{
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "module"
+  },
+  "rules": {
+    "quotes": ["error", "single", { "avoidEscape": true }],
+    "semi": ["error", "never"],
+    "indent": ["error", 2],
+    "no-unused-vars": ["warn"],
+    "no-console": ["off"]
+  },
+  "globals": {
+    "Tone": "readonly",
+    "io": "readonly",
+    "WebarmoniumApp": "writable",
+    "AudioService": "writable",
+    "SocketService": "writable",
+    "GestureCapture": "writable",
+    "DrawingRenderer": "writable",
+    "CursorManager": "writable",
+    "AudioControls": "writable",
+    "ErrorReporter": "writable"
+  }
+}

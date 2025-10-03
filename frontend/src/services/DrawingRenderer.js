@@ -27,7 +27,11 @@ class DrawingRenderer {
    */
   renderStroke (stroke) {
     if (!stroke || !stroke.points || stroke.points.length < 2) {
-      console.warn('DrawingRenderer: Invalid stroke data', stroke)
+      if (window.ErrorReporter) {
+        window.ErrorReporter.warn('DrawingRenderer', 'Invalid stroke data', stroke)
+      } else {
+        console.warn('DrawingRenderer: Invalid stroke data', stroke)
+      }
       return
     }
 
@@ -35,7 +39,11 @@ class DrawingRenderer {
 
     // Validate color format
     if (!this.isValidColor(stroke.color)) {
-      console.warn('DrawingRenderer: Invalid color format', stroke.color)
+      if (window.ErrorReporter) {
+        window.ErrorReporter.warn('DrawingRenderer', 'Invalid color format', stroke.color)
+      } else {
+        console.warn('DrawingRenderer: Invalid color format', stroke.color)
+      }
       return
     }
 

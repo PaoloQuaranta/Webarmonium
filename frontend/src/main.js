@@ -27,6 +27,9 @@ class WebarmoniumApp {
     this.frameCount = 0
     this.fps = 60
 
+    // Bound event handlers for cleanup
+    this.boundResizeHandler = null
+
     // Initialize the application
     this.init()
   }
@@ -80,8 +83,9 @@ class WebarmoniumApp {
     // Set canvas size to match viewport
     this.resizeCanvas()
 
-    // Handle window resize
-    window.addEventListener('resize', () => this.resizeCanvas())
+    // Handle window resize - store bound handler for cleanup
+    this.boundResizeHandler = () => this.resizeCanvas()
+    window.addEventListener('resize', this.boundResizeHandler)
   }
 
   resizeCanvas() {
@@ -146,8 +150,12 @@ class WebarmoniumApp {
     // Start cursor rendering loop (60fps)
     this.cursorManager.startRendering()
 
+    // Track gesture time for optimized canvas clearing
+    this.lastGestureRenderTime = 0
+
     // Setup gesture handling
     this.gestureCapture.onGesture = (gesture) => {
+      this.lastGestureRenderTime = performance.now()
       console.log('🎯 Gesture callback triggered:', gesture)
       this.handleGesture(gesture)
     }
@@ -458,12 +466,15 @@ class WebarmoniumApp {
       }
       this.frameCount++
 
-      // Clear canvas with fade effect for trails
-      this.ctx.save()
-      this.ctx.globalCompositeOperation = 'source-over'
-      this.ctx.fillStyle = 'rgba(26, 26, 46, 0.1)'
-      this.ctx.fillRect(0, 0, window.innerWidth, window.innerHeight)
-      this.ctx.restore()
+      // Only clear canvas with fade effect if there was a recent gesture (within 2 seconds)
+      // This optimizes performance by avoiding unnecessary clearing when idle
+      if (timestamp - this.lastGestureRenderTime < 2000) {
+        this.ctx.save()
+        this.ctx.globalCompositeOperation = 'source-over'
+        this.ctx.fillStyle = 'rgba(26, 26, 46, 0.1)'
+        this.ctx.fillRect(0, 0, window.innerWidth, window.innerHeight)
+        this.ctx.restore()
+      }
 
       requestAnimationFrame(render)
     }
@@ -536,6 +547,12 @@ class WebarmoniumApp {
    */
   destroy() {
     console.log('🧹 Cleaning up Webarmonium app...')
+
+    // Remove event listeners
+    if (this.boundResizeHandler) {
+      window.removeEventListener('resize', this.boundResizeHandler)
+      this.boundResizeHandler = null
+    }
 
     // Stop rendering loops
     if (this.cursorManager) {

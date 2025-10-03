@@ -1,0 +1,47 @@
+{
+  "name": "webarmonium-frontend",
+  "version": "1.0.0",
+  "description": "Webarmonium frontend for gesture-controlled generative music",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "npx http-server . -p 3000",
+    "dev": "npx http-server . -p 3000 -c-1",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "puppeteer-jest tests/integration/",
+    "lint": "eslint src/ tests/",
+    "lint:fix": "eslint src/ tests/ --fix",
+    "build": "echo 'Frontend uses vanilla JS - no build step required'"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.5",
+    "tone": "^14.7.77"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-promise": "^6.1.1",
+    "eslint-browser-globals": "^1.0.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "puppeteer": "^21.6.1",
+    "http-server": "^14.1.1",
+    "prettier": "^3.1.1"
+  },
+  "keywords": [
+    "canvas",
+    "web-audio",
+    "gesture-control",
+    "real-time",
+    "generative-music"
+  ],
+  "author": "Webarmonium Project",
+  "license": "MIT",
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
+}

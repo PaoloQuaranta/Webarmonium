@@ -47,7 +47,28 @@
 ## Constitution Check
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+### Code Quality Gates
+- [ ] Architecture follows single responsibility and zero duplication principles
+- [ ] No legacy code patterns from previous solutions
+- [ ] All code paths have linting and type checking configured
+
+### Testing Requirements
+- [ ] TDD approach planned (tests before implementation)
+- [ ] Contract tests planned for all API endpoints
+- [ ] Integration tests planned for all user workflows
+- [ ] 90%+ code coverage target established
+
+### Performance Standards
+- [ ] Performance requirements defined upfront
+- [ ] API endpoints target <200ms p95 response time
+- [ ] UI interactions target <100ms response time
+- [ ] Memory constraints defined (<100MB baseline, <500MB peak)
+- [ ] Performance testing approach planned
+
+### User Experience Consistency
+- [ ] Design system approach defined
+- [ ] Accessibility standards (WCAG 2.1 AA) considered
+- [ ] User feedback and error handling patterns planned
 
 ## Project Structure
 
@@ -216,4 +237,4 @@ directories captured above]
 - [ ] Complexity deviations documented
 
 ---
-*Based on Constitution v2.1.1 - See `/memory/constitution.md`*
+*Based on Constitution v1.0.0 - See `.specify/memory/constitution.md`*
