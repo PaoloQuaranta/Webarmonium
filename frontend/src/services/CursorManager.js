@@ -165,6 +165,11 @@ class CursorManager {
   renderSingleCursor (cursor, userId) {
     const { x, y, color, isDrawing } = cursor
 
+    // Convert normalized coordinates (0-1) to canvas pixel coordinates
+    // Account for devicePixelRatio since canvas.width includes it
+    const pixelX = x * this.canvas.width
+    const pixelY = y * this.canvas.height
+
     // Set alpha transparency
     this.ctx.globalAlpha = this.cursorAlpha
 
@@ -173,7 +178,7 @@ class CursorManager {
 
     // Draw cursor circle
     this.ctx.beginPath()
-    this.ctx.arc(x, y, size, 0, Math.PI * 2)
+    this.ctx.arc(pixelX, pixelY, size, 0, Math.PI * 2)
     this.ctx.strokeStyle = color
     this.ctx.lineWidth = this.cursorLineWidth
     this.ctx.stroke()
@@ -185,10 +190,10 @@ class CursorManager {
     }
 
     // Draw crosshair
-    this.drawCrosshair(x, y, color, size + 4)
+    this.drawCrosshair(pixelX, pixelY, color, size + 4)
 
     // Draw user label (first 8 chars of userId)
-    this.drawUserLabel(x, y + size + 15, userId.substring(0, 8), color)
+    this.drawUserLabel(pixelX, pixelY + size + 15, userId.substring(0, 8), color)
 
     // Reset alpha
     this.ctx.globalAlpha = 1.0
@@ -254,8 +259,12 @@ class CursorManager {
    */
   startRendering () {
     if (!this.animationFrameId) {
+      console.log('🖱️  CursorManager: Starting rendering loop')
       this.lastRenderTime = performance.now()
-      this.renderCursors()
+      // CRITICAL FIX: Set animationFrameId to a truthy value before calling renderCursors
+      // This ensures renderCursors doesn't exit immediately on the animationFrameId check
+      this.animationFrameId = true
+      this.animationFrameId = requestAnimationFrame(() => this.renderCursors())
     }
 
     // Start stale cursor cleanup (check every 10 seconds)

@@ -497,24 +497,30 @@ const socketHandlers = {
   registerCursorMoveHandler (socket) {
     socket.on('cursor-move', async (data) => {
       try {
+        console.log(`👆 cursor-move received from ${socket.userId?.substring(0, 8)}`, data)
+
         // Validate user is in a room
         if (!socket.userId || !socket.roomId) {
+          console.log('❌ cursor-move: No userId or roomId')
           return
         }
 
         // Validate data
         if (!data || typeof data.x !== 'number' || typeof data.y !== 'number' || typeof data.isDrawing !== 'boolean') {
+          console.log('❌ cursor-move: Invalid data', data)
           return
         }
 
         // Get room and user
         const room = socket.services.roomManager.getUserRoom(socket.userId)
         if (!room) {
+          console.log('❌ cursor-move: No room found')
           return
         }
 
         const user = room.getUser(socket.userId)
         if (!user || !user.assignedColor) {
+          console.log('❌ cursor-move: No user or color')
           return
         }
 
@@ -532,7 +538,9 @@ const socketHandlers = {
         socket.services.roomManager.updateCursorPosition(socket.userId, cursorPosition)
 
         // Broadcast cursor position to other users in room
-        socket.to(socket.roomId).emit('cursor-position', cursorPosition.toEventPayload(user.assignedColor))
+        const payload = cursorPosition.toEventPayload(user.assignedColor)
+        console.log(`✅ Broadcasting cursor-position to room ${socket.roomId}:`, payload)
+        socket.to(socket.roomId).emit('cursor-position', payload)
       } catch (error) {
         console.error('cursor-move error:', error)
       }

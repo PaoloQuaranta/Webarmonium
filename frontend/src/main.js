@@ -209,6 +209,7 @@ class WebarmoniumApp {
     this.socketService.on('cursor-position', (data) => {
       console.log('👆 Cursor position received:', data.userId.substring(0, 8), `(${data.x.toFixed(2)}, ${data.y.toFixed(2)})`, data.color)
       if (this.cursorManager) {
+        console.log('✅ Updating cursor in CursorManager')
         this.cursorManager.updateCursor(
           data.userId,
           data.x,
@@ -216,6 +217,8 @@ class WebarmoniumApp {
           data.color,
           data.isDrawing
         )
+      } else {
+        console.error('❌ CursorManager not initialized!')
       }
     })
 
@@ -253,6 +256,10 @@ class WebarmoniumApp {
     let isDrawing = false
     let currentStrokeId = null
 
+    // Throttle cursor-move to 50ms (20fps) for performance (FR-006)
+    let lastCursorEmit = 0
+    const cursorThrottleMs = 50
+
     const getCanvasCoordinates = (e) => {
       const rect = this.canvas.getBoundingClientRect()
       let clientX, clientY
@@ -270,6 +277,20 @@ class WebarmoniumApp {
       const y = (clientY - rect.top) / rect.height
 
       return { x, y }
+    }
+
+    const emitCursorPosition = (x, y, isDrawingState) => {
+      const now = Date.now()
+      if (now - lastCursorEmit >= cursorThrottleMs) {
+        console.log(`📍 Emitting cursor-move: (${x.toFixed(2)}, ${y.toFixed(2)}), drawing: ${isDrawingState}`)
+        this.socketService.socket.emit('cursor-move', {
+          x,
+          y,
+          isDrawing: isDrawingState,
+          timestamp: now
+        })
+        lastCursorEmit = now
+      }
     }
 
     const startDrawing = (e) => {
@@ -292,20 +313,15 @@ class WebarmoniumApp {
     }
 
     const draw = (e) => {
+      const { x, y } = getCanvasCoordinates(e)
+
       if (!isDrawing) {
-        // Still emit cursor position even when not drawing
-        const { x, y } = getCanvasCoordinates(e)
-        this.socketService.socket.emit('cursor-move', {
-          x,
-          y,
-          isDrawing: false,
-          timestamp: Date.now()
-        })
+        // Emit cursor position with throttling (FR-006)
+        emitCursorPosition(x, y, false)
         return
       }
 
       e.preventDefault()
-      const { x, y } = getCanvasCoordinates(e)
 
       // Emit draw-point event
       this.socketService.socket.emit('draw-point', {
@@ -315,13 +331,8 @@ class WebarmoniumApp {
         timestamp: Date.now()
       })
 
-      // Also emit cursor-move with isDrawing=true
-      this.socketService.socket.emit('cursor-move', {
-        x,
-        y,
-        isDrawing: true,
-        timestamp: Date.now()
-      })
+      // Also emit cursor-move with throttling
+      emitCursorPosition(x, y, true)
     }
 
     const endDrawing = (e) => {

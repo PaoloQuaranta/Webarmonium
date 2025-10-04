@@ -157,25 +157,25 @@ class AudioService {
    * System MUST continuously generate ambient music even when no users are present
    */
   createContinuousGenerativeSystem() {
+    // Create master volume node for centralized control (FR-011)
+    this.masterVolume = new Tone.Volume(-10).toDestination()
+
     // Create ambient oscillators for continuous generation
     this.ambientSynth = new Tone.PolySynth({
       oscillator: { type: 'sine' },
       envelope: { attack: 0.5, decay: 0.3, sustain: 0.4, release: 2 }
-    }).toDestination()
+    }).connect(this.masterVolume)
 
     // Create gesture-responsive synth for user interactions
     this.gestureSynth = new Tone.PolySynth({
       oscillator: { type: 'sawtooth' },
       envelope: { attack: 0.05, decay: 0.1, sustain: 0.6, release: 0.5 }
-    }).toDestination()
-
-    // Set master volume to ensure audibility
-    Tone.Destination.volume.rampTo(-10, 0.1) // -10dB instead of default
+    }).connect(this.masterVolume)
 
     // Set up continuous ambient generation
     this.startAmbientGeneration()
 
-    console.log('🎵 Continuous generative system created with audible levels')
+    console.log('🎵 Continuous generative system created with master volume control')
   }
 
   /**
@@ -198,12 +198,12 @@ class AudioService {
       const baseFrequencies = [220, 293.66, 369.99, 440, 554.37] // A3, D4, F#4, A4, C#5
       const frequency = baseFrequencies[Math.floor(Math.random() * baseFrequencies.length)]
 
-      // Play ambient note ONLY if not muted, with current volume
+      // Play ambient note (volume controlled by masterVolume node)
       if (!this.muted) {
         try {
-          const effectiveVolume = this.volume * 0.3 // Use current volume setting
-          this.ambientSynth.triggerAttackRelease(frequency, '2n', undefined, effectiveVolume)
-          console.log(`🎵 Playing ambient note: ${frequency.toFixed(1)}Hz at volume ${effectiveVolume.toFixed(2)}`)
+          // Use fixed base volume (0.3), let masterVolume control overall level
+          this.ambientSynth.triggerAttackRelease(frequency, '2n', undefined, 0.3)
+          console.log(`🎵 Playing ambient note: ${frequency.toFixed(1)}Hz`)
         } catch (error) {
           console.error('🎵 Error playing ambient note:', error)
         }
@@ -284,8 +284,9 @@ class AudioService {
         filter: { frequency: filterFreq }
       })
 
-      // Trigger gesture-responsive note with audible volume
-      this.gestureSynth.triggerAttackRelease(frequency, '8n', undefined, volume * 0.5)
+      // Trigger gesture-responsive note (volume controlled by masterVolume)
+      // Use volume from gesture as velocity parameter (0.3-0.7 range)
+      this.gestureSynth.triggerAttackRelease(frequency, '8n', undefined, 0.3 + (volume * 0.4))
 
       // Log for performance monitoring per FR-006 (<200ms latency)
       const timestamp = performance.now()
@@ -325,14 +326,48 @@ class AudioService {
 
   /**
    * Update sound patterns from collaborative data
+   * Plays audio feedback for remote users' gestures (FR-003)
    * @param {Array} patterns - Sound patterns from other users
    */
   updatePatterns(patterns) {
-    if (!this.isInitialized) return
+    if (!this.isInitialized || this.muted) {
+      console.log('🔇 updatePatterns blocked - initialized:', this.isInitialized, 'muted:', this.muted)
+      return
+    }
 
     // Store patterns for later processing
     this.collaborativePatterns = patterns || []
-    console.log('Updated collaborative patterns:', patterns?.length || 0)
+    console.log('🎵 Updated collaborative patterns:', patterns?.length || 0)
+
+    // Play audio feedback for each pattern from remote users (FR-003, FR-006)
+    if (patterns && patterns.length > 0 && this.gestureSynth) {
+      patterns.forEach((pattern, index) => {
+        // Stagger sounds slightly to avoid clipping (20ms per pattern)
+        const delay = index * 0.02
+
+        try {
+          // Use pattern frequency if available, otherwise derive from position
+          const frequency = pattern.frequency ||
+                          (pattern.x ? 200 + (pattern.x * 600) : 400) // 200-800Hz range
+
+          // Use pattern intensity as velocity parameter
+          const intensity = pattern.intensity || pattern.y || 0.5
+          const velocity = 0.1 + (intensity * 0.3) // 0.1-0.4 range for subtle collaborative audio
+
+          console.log(`🎵 Playing collaborative pattern ${index}: ${frequency.toFixed(1)}Hz, intensity: ${intensity.toFixed(2)}`)
+
+          // Play short note (FR-006: <200ms latency, volume controlled by masterVolume)
+          this.gestureSynth.triggerAttackRelease(
+            frequency,
+            '32n', // Very short note (~62ms at 120bpm)
+            `+${delay}`,
+            velocity
+          )
+        } catch (error) {
+          console.warn('🔇 Error playing collaborative pattern:', error)
+        }
+      })
+    }
   }
 
   /**
@@ -357,10 +392,9 @@ class AudioService {
         return
       }
 
-      // Play short beep with current volume
-      const effectiveVolume = this.volume * 0.3 // Scale down for UI feedback
-      console.log(`🎵 Playing sound at frequency ${frequency}Hz, volume ${effectiveVolume}`)
-      this.gestureSynth.triggerAttackRelease(frequency, '16n', undefined, effectiveVolume)
+      // Play short beep (volume controlled by masterVolume)
+      console.log(`🎵 Playing draw sound at frequency ${frequency}Hz`)
+      this.gestureSynth.triggerAttackRelease(frequency, '16n', undefined, 0.3)
 
     } catch (error) {
       console.warn('AudioService: Error playing draw sound', error)
@@ -396,20 +430,39 @@ class AudioService {
   }
 
   /**
-   * Set mute state
+   * Set mute state (FR-011)
+   * Controls master volume node in real-time
    * @param {boolean} muted - True to mute, false to unmute
    */
   setMuted(muted) {
     this.muted = Boolean(muted)
+
+    // Apply to master volume node if initialized
+    if (this.masterVolume) {
+      this.masterVolume.mute = this.muted
+      console.log(`🔇 Master volume ${this.muted ? 'MUTED' : 'UNMUTED'}`)
+    }
   }
 
   /**
-   * Set volume level
+   * Set volume level (FR-011)
+   * Controls master volume node in real-time
    * @param {number} volume - Volume level (0-1)
    */
   setVolume(volume) {
     // Validate and clamp volume
     this.volume = Math.max(0, Math.min(1, Number(volume) || 0))
+
+    // Apply to master volume node if initialized
+    if (this.masterVolume) {
+      // Convert 0-1 to dB range (-60dB to 0dB)
+      // At volume=0 → -Infinity (silent)
+      // At volume=0.5 → -30dB
+      // At volume=1 → 0dB
+      const db = this.volume === 0 ? -Infinity : (this.volume - 1) * 60
+      this.masterVolume.volume.rampTo(db, 0.1) // Smooth 100ms ramp
+      console.log(`🔊 Master volume set to ${(this.volume * 100).toFixed(0)}% (${db === -Infinity ? '-∞' : db.toFixed(1)}dB)`)
+    }
   }
 
   /**

@@ -161,6 +161,20 @@ class SocketService {
       this.handleSonicUpdate(data)
     })
 
+    // Multi-user canvas events
+    this.socket.on('cursor-position', (data) => {
+      console.log('🖱️ SocketService received cursor-position:', data)
+      this.emit('cursor-position', data)
+    })
+
+    this.socket.on('draw-stroke', (data) => {
+      this.emit('draw-stroke', data)
+    })
+
+    this.socket.on('drawing-history', (data) => {
+      this.emit('drawing-history', data)
+    })
+
     // System events
     this.socket.on('users-inactive', (data) => {
       this.handleUsersInactive(data)

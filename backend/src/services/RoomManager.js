@@ -30,7 +30,7 @@ class RoomManager {
    * @param {Object} userData - User connection data
    * @returns {Object} Room join result
    */
-  async joinRoom(userId, roomId, userData = {}) {
+  async joinRoom (userId, roomId, userData = {}) {
     // Validate inputs
     if (!userId || !roomId) {
       throw new Error('User ID and Room ID are required')
@@ -40,7 +40,10 @@ class RoomManager {
     if (this.userRoomMap.has(userId)) {
       const currentRoomId = this.userRoomMap.get(userId)
       if (currentRoomId === roomId) {
-        throw new Error('User already in this room')
+        // Idempotency: User already in this room, return current room instead of error
+        // This handles reconnection cases where client doesn't properly disconnect
+        const room = this.rooms.get(roomId)
+        return room
       }
       // Auto-leave current room
       await this.leaveRoom(userId)
@@ -88,7 +91,7 @@ class RoomManager {
     return {
       success: true,
       userId: user.id,
-      assignedColor: assignedColor,
+      assignedColor,
       users: allUsers,
       room: room.toRoomJoinedResponse(),
       user: user.toUserProfile(),
@@ -104,7 +107,7 @@ class RoomManager {
    * @param {string} userId - User ID to remove
    * @returns {Object} Leave result
    */
-  async leaveRoom(userId) {
+  async leaveRoom (userId) {
     const roomId = this.userRoomMap.get(userId)
     if (!roomId) {
       throw new Error('User not in any room')
@@ -158,7 +161,7 @@ class RoomManager {
    * @param {string} roomId - Room ID
    * @returns {Room|null} Room instance or null
    */
-  getRoom(roomId) {
+  getRoom (roomId) {
     return this.rooms.get(roomId) || null
   }
 
@@ -167,7 +170,7 @@ class RoomManager {
    * @param {string} userId - User ID
    * @returns {Room|null} Room instance or null
    */
-  getUserRoom(userId) {
+  getUserRoom (userId) {
     const roomId = this.userRoomMap.get(userId)
     return roomId ? this.rooms.get(roomId) : null
   }
@@ -176,7 +179,7 @@ class RoomManager {
    * Get all active rooms
    * @returns {Room[]} Array of active room instances
    */
-  getActiveRooms() {
+  getActiveRooms () {
     return Array.from(this.rooms.values()).filter(room => room.isActive)
   }
 
@@ -184,7 +187,7 @@ class RoomManager {
    * Get room statistics
    * @returns {Object} Room statistics
    */
-  getRoomStatistics() {
+  getRoomStatistics () {
     const rooms = Array.from(this.rooms.values())
     const activeRooms = rooms.filter(room => room.isActive)
     const totalUsers = rooms.reduce((sum, room) => sum + room.getUserCount(), 0)
@@ -196,8 +199,9 @@ class RoomManager {
       emptyRooms: rooms.filter(room => room.isEmpty()).length,
       totalUsers,
       roomsWithMemory: roomsWithMemory.length,
-      averageUsersPerRoom: activeRooms.length > 0 ?
-        totalUsers / activeRooms.length : 0
+      averageUsersPerRoom: activeRooms.length > 0
+        ? totalUsers / activeRooms.length
+        : 0
     }
   }
 
@@ -206,7 +210,7 @@ class RoomManager {
    * @param {string} userId - User ID
    * @returns {boolean} True if user activity updated
    */
-  updateUserActivity(userId) {
+  updateUserActivity (userId) {
     const room = this.getUserRoom(userId)
     if (!room) {
       return false
@@ -228,7 +232,7 @@ class RoomManager {
    * @param {Gesture} gesture - Processed gesture
    * @returns {Object} Processing result
    */
-  processGesture(userId, gesture) {
+  processGesture (userId, gesture) {
     const room = this.getUserRoom(userId)
     if (!room) {
       throw new Error('User not in any room')
@@ -265,7 +269,7 @@ class RoomManager {
    * @param {SoundPattern[]} patterns - Current sound patterns
    * @returns {Object} Sonic update data
    */
-  generateSonicUpdate(roomId, patterns) {
+  generateSonicUpdate (roomId, patterns) {
     const room = this.getRoom(roomId)
     if (!room) {
       throw new Error('Room not found')
@@ -290,7 +294,7 @@ class RoomManager {
    * @param {string} userId - User ID
    * @returns {Object} Heartbeat result
    */
-  handleHeartbeat(userId) {
+  handleHeartbeat (userId) {
     const room = this.getUserRoom(userId)
     if (!room) {
       return {
@@ -406,7 +410,7 @@ class RoomManager {
   /**
    * Start periodic cleanup of expired rooms and sessions
    */
-  startPeriodicCleanup() {
+  startPeriodicCleanup () {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval)
     }
@@ -421,7 +425,7 @@ class RoomManager {
    * Perform cleanup of expired rooms and sessions
    * @returns {Object} Cleanup statistics
    */
-  performCleanup() {
+  performCleanup () {
     const stats = {
       roomsCleaned: 0,
       sessionsExpired: 0,
@@ -476,7 +480,7 @@ class RoomManager {
   /**
    * Stop periodic cleanup
    */
-  stopPeriodicCleanup() {
+  stopPeriodicCleanup () {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval)
       this.cleanupInterval = null
@@ -488,7 +492,7 @@ class RoomManager {
    * @param {number} limit - Maximum number of rooms to return
    * @returns {Object[]} Array of room lobby data
    */
-  getRoomLobby(limit = 10) {
+  getRoomLobby (limit = 10) {
     return Array.from(this.rooms.values())
       .filter(room => room.isActive && !room.isFull())
       .sort((a, b) => b.getUserCount() - a.getUserCount()) // Most active first
@@ -498,8 +502,9 @@ class RoomManager {
         userCount: room.getUserCount(),
         maxUsers: room.maxUsers,
         hasMemory: room.memoryState && !room.memoryState.isExpired(),
-        memoryAge: room.memoryState ?
-          Date.now() - room.memoryState.createdAt.getTime() : 0,
+        memoryAge: room.memoryState
+          ? Date.now() - room.memoryState.createdAt.getTime()
+          : 0,
         lastActivity: room.lastActivity.getTime(),
         createdAt: room.createdAt.getTime()
       }))
@@ -511,7 +516,7 @@ class RoomManager {
    * @param {string} reason - Disconnect reason
    * @returns {Object} Disconnect result
    */
-  forceDisconnectUser(userId, reason = 'Administrative disconnect') {
+  forceDisconnectUser (userId, reason = 'Administrative disconnect') {
     try {
       const result = this.leaveRoom(userId)
       result.forced = true
@@ -531,7 +536,7 @@ class RoomManager {
    * Constitutional requirement: Ensure service integrity
    * @throws {Error} If state is inconsistent
    */
-  validateState() {
+  validateState () {
     // Validate room-user mappings consistency
     this.userRoomMap.forEach((roomId, userId) => {
       const room = this.rooms.get(roomId)
@@ -572,7 +577,7 @@ class RoomManager {
   /**
    * Shutdown room manager gracefully
    */
-  shutdown() {
+  shutdown () {
     this.stopPeriodicCleanup()
 
     // Disconnect all users
