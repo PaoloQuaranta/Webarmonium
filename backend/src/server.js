@@ -18,7 +18,7 @@ const socketHandlers = require('./api/socketHandlers')
  * Constitutional requirements: <100ms WebSocket latency, secure CORS, graceful scaling
  */
 class WebarmoniumServer {
-  constructor(options = {}) {
+  constructor (options = {}) {
     this.port = options.port || process.env.PORT || 3001
     this.environment = options.environment || process.env.NODE_ENV || 'development'
 
@@ -65,21 +65,22 @@ class WebarmoniumServer {
    * Get allowed CORS origins based on environment
    * @returns {string|string[]} Allowed origins
    */
-  getAllowedOrigins() {
+  getAllowedOrigins () {
     if (this.environment === 'production') {
       return [
         'https://webarmonium.app',
         'https://www.webarmonium.app'
       ]
     } else {
-      return ['http://localhost:3000', 'http://127.0.0.1:3000']
+      // Development: Allow localhost and local network access
+      return true // Allow all origins in development for LAN access
     }
   }
 
   /**
    * Setup Express middleware
    */
-  setupMiddleware() {
+  setupMiddleware () {
     // CORS configuration
     this.app.use(cors({
       origin: this.getAllowedOrigins(),
@@ -113,7 +114,7 @@ class WebarmoniumServer {
   /**
    * Setup REST API routes
    */
-  setupRoutes() {
+  setupRoutes () {
     // Health check endpoint
     this.app.get('/health', (req, res) => {
       const uptime = Date.now() - this.metrics.startTime
@@ -121,7 +122,7 @@ class WebarmoniumServer {
 
       res.json({
         status: 'healthy',
-        uptime: uptime,
+        uptime,
         environment: this.environment,
         version: '1.0.0',
         memory: {
@@ -221,7 +222,7 @@ class WebarmoniumServer {
   /**
    * Setup Socket.io event handlers
    */
-  setupSocketHandlers() {
+  setupSocketHandlers () {
     // Connection handling
     this.io.on('connection', (socket) => {
       this.metrics.connections++
@@ -275,7 +276,7 @@ class WebarmoniumServer {
   /**
    * Setup global error handling
    */
-  setupErrorHandling() {
+  setupErrorHandling () {
     // Express error handler
     this.app.use((error, req, res, next) => {
       console.error('Express error:', error)
@@ -306,7 +307,7 @@ class WebarmoniumServer {
   /**
    * Setup graceful shutdown handling
    */
-  setupGracefulShutdown() {
+  setupGracefulShutdown () {
     const gracefulShutdown = (signal) => {
       console.log(`Received ${signal}. Starting graceful shutdown...`)
       this.shutdown(signal)
@@ -320,7 +321,7 @@ class WebarmoniumServer {
    * Generate unique room ID
    * @returns {string} Room ID
    */
-  generateRoomId() {
+  generateRoomId () {
     const adjectives = ['sonic', 'harmonic', 'melodic', 'rhythmic', 'ambient', 'textural']
     const nouns = ['space', 'realm', 'chamber', 'studio', 'lab', 'zone']
 
@@ -335,7 +336,7 @@ class WebarmoniumServer {
    * Start the server
    * @returns {Promise} Server start promise
    */
-  async start() {
+  async start () {
     return new Promise((resolve, reject) => {
       try {
         // Validate service states before starting
@@ -344,12 +345,14 @@ class WebarmoniumServer {
         this.memoryCoordinator.validateCoordinatorState()
         this.patternGenerator.validateGeneratorState()
 
-        this.server.listen(this.port, () => {
+        this.server.listen(this.port, '0.0.0.0', () => {
           console.log(`
 🎵 Webarmonium Server Started
    Environment: ${this.environment}
    Port: ${this.port}
-   WebSocket: ws://localhost:${this.port}
+   WebSocket: ws://0.0.0.0:${this.port}
+   Local: http://localhost:${this.port}
+   Network: http://172.21.234.223:${this.port}
    Health: http://localhost:${this.port}/health
 
    Constitutional Requirements:
@@ -375,7 +378,7 @@ class WebarmoniumServer {
    * Shutdown the server gracefully
    * @param {string} reason - Shutdown reason
    */
-  async shutdown(reason = 'Manual shutdown') {
+  async shutdown (reason = 'Manual shutdown') {
     console.log(`Shutting down server: ${reason}`)
 
     try {
@@ -403,7 +406,7 @@ class WebarmoniumServer {
    * Get server instance (for testing)
    * @returns {http.Server} HTTP server instance
    */
-  getServer() {
+  getServer () {
     return this.server
   }
 
@@ -411,7 +414,7 @@ class WebarmoniumServer {
    * Get Socket.io instance (for testing)
    * @returns {socketIo.Server} Socket.io server instance
    */
-  getSocketServer() {
+  getSocketServer () {
     return this.io
   }
 }

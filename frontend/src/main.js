@@ -126,7 +126,11 @@ class WebarmoniumApp {
     this.audioService = new AudioService()
 
     // Initialize socket service
-    this.socketService = new SocketService('ws://localhost:3001')
+    // Use current hostname for LAN access (e.g., if accessing via 192.168.x.x, connect to 192.168.x.x:3001)
+    const serverHost = window.location.hostname || 'localhost'
+    const serverUrl = `ws://${serverHost}:3001`
+    console.log(`🔌 Connecting to WebSocket server: ${serverUrl}`)
+    this.socketService = new SocketService(serverUrl)
 
     // Initialize gesture capture
     console.log('🎯 Initializing GestureCapture with canvas:', this.canvas)
