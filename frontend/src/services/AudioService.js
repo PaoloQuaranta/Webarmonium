@@ -187,7 +187,7 @@ class AudioService {
     this.ambientGenerationActive = true
 
     const generateAmbientNote = () => {
-      console.log(`🎵 generateAmbientNote called - active: ${this.ambientGenerationActive}, initialized: ${this.isInitialized}`)
+      console.log(`🎵 generateAmbientNote called - active: ${this.ambientGenerationActive}, initialized: ${this.isInitialized}, muted: ${this.muted}`)
 
       if (!this.ambientGenerationActive || !this.isInitialized) {
         console.log('🎵 Ambient generation stopped or not initialized')
@@ -198,12 +198,17 @@ class AudioService {
       const baseFrequencies = [220, 293.66, 369.99, 440, 554.37] // A3, D4, F#4, A4, C#5
       const frequency = baseFrequencies[Math.floor(Math.random() * baseFrequencies.length)]
 
-      // Play ambient note with audible volume
-      try {
-        this.ambientSynth.triggerAttackRelease(frequency, '2n', undefined, 0.3)
-        console.log(`🎵 Playing ambient note: ${frequency.toFixed(1)}Hz at volume 0.3`)
-      } catch (error) {
-        console.error('🎵 Error playing ambient note:', error)
+      // Play ambient note ONLY if not muted, with current volume
+      if (!this.muted) {
+        try {
+          const effectiveVolume = this.volume * 0.3 // Use current volume setting
+          this.ambientSynth.triggerAttackRelease(frequency, '2n', undefined, effectiveVolume)
+          console.log(`🎵 Playing ambient note: ${frequency.toFixed(1)}Hz at volume ${effectiveVolume.toFixed(2)}`)
+        } catch (error) {
+          console.error('🎵 Error playing ambient note:', error)
+        }
+      } else {
+        console.log(`🔇 Ambient note skipped (muted)`)
       }
 
       // Schedule next note (shorter delay for testing: 3-5 seconds)
@@ -336,7 +341,10 @@ class AudioService {
    * @param {string} color - User's assigned color (hex format #rrggbb)
    */
   playDrawSound(color) {
+    console.log(`🔊 playDrawSound called - muted: ${this.muted}, volume: ${this.volume}, initialized: ${this.isInitialized}`)
+
     if (!this.isInitialized || this.muted || !this.gestureSynth) {
+      console.log(`🔇 Audio blocked - muted: ${this.muted}, initialized: ${this.isInitialized}`)
       return
     }
 
@@ -351,6 +359,7 @@ class AudioService {
 
       // Play short beep with current volume
       const effectiveVolume = this.volume * 0.3 // Scale down for UI feedback
+      console.log(`🎵 Playing sound at frequency ${frequency}Hz, volume ${effectiveVolume}`)
       this.gestureSynth.triggerAttackRelease(frequency, '16n', undefined, effectiveVolume)
 
     } catch (error) {

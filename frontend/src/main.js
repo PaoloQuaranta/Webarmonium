@@ -207,6 +207,7 @@ class WebarmoniumApp {
     })
 
     this.socketService.on('cursor-position', (data) => {
+      console.log('👆 Cursor position received:', data.userId.substring(0, 8), `(${data.x.toFixed(2)}, ${data.y.toFixed(2)})`, data.color)
       if (this.cursorManager) {
         this.cursorManager.updateCursor(
           data.userId,
@@ -331,9 +332,11 @@ class WebarmoniumApp {
 
       const { x, y } = getCanvasCoordinates(e)
 
-      // Emit draw-end event
+      // Emit draw-end event with coordinates
       this.socketService.socket.emit('draw-end', {
         strokeId: currentStrokeId,
+        x,
+        y,
         timestamp: Date.now()
       })
 
@@ -528,16 +531,18 @@ class WebarmoniumApp {
   }
 
   handleMuteChange(muted) {
+    console.log(`🔇 handleMuteChange called with: ${muted}, audioService exists: ${!!this.audioService}`)
     if (this.audioService) {
       this.audioService.setMuted(muted)
-      console.log(`🔇 Audio ${muted ? 'muted' : 'unmuted'}`)
+      console.log(`🔇 Audio ${muted ? 'muted' : 'unmuted'}, audioService.muted is now: ${this.audioService.muted}`)
     }
   }
 
   handleVolumeChange(volume) {
+    console.log(`🔊 handleVolumeChange called with: ${volume}, audioService exists: ${!!this.audioService}`)
     if (this.audioService) {
       this.audioService.setVolume(volume / 100) // Convert 0-100 to 0-1
-      console.log(`🔊 Volume set to ${volume}%`)
+      console.log(`🔊 Volume set to ${volume}%, audioService.volume is now: ${this.audioService.volume}`)
     }
   }
 

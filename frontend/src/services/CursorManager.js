@@ -45,6 +45,8 @@ class CursorManager {
    * @param {boolean} isDrawing - Whether user is currently drawing
    */
   updateCursor (userId, x, y, color, isDrawing = false) {
+    console.log(`👆 CursorManager.updateCursor called - userId: ${userId?.substring(0,8)}, x: ${x}, y: ${y}, color: ${color}`)
+
     if (!userId || typeof userId !== 'string') {
       if (window.ErrorReporter) {
         window.ErrorReporter.warn('CursorManager', 'Invalid userId', userId)
@@ -79,6 +81,8 @@ class CursorManager {
       isDrawing,
       timestamp: Date.now()
     })
+
+    console.log(`✅ Cursor updated! Total cursors: ${this.cursors.size}`)
   }
 
   /**
@@ -140,6 +144,9 @@ class CursorManager {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
     // Render each cursor
+    if (this.cursors.size > 0) {
+      console.log(`🖱️  Rendering ${this.cursors.size} cursor(s)`)
+    }
     this.cursors.forEach((cursor, userId) => {
       this.renderSingleCursor(cursor, userId)
     })
