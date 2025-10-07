@@ -127,6 +127,19 @@ const socketHandlers = {
           timestamp: Date.now()
         })
 
+        // Send user-joined events for existing users to the new user
+        // This ensures the new user sees all users already in the room
+        const existingUsers = result.users.filter(u => u.id !== socket.userId)
+        existingUsers.forEach(existingUser => {
+          socket.emit('user-joined', {
+            userId: existingUser.id,
+            color: existingUser.color,
+            user: existingUser,
+            userCount: result.room.userCount,
+            timestamp: Date.now()
+          })
+        })
+
         // Send drawing history to new user (T018: drawing-history emission)
         const drawingHistory = socket.services.roomManager.getDrawingHistory(roomId)
         socket.emit('drawing-history', {
