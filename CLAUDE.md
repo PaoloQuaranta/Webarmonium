@@ -104,10 +104,36 @@ specs/001-example-feature/
 - **Performance Gates**: Integrated into plan and task validation
 - **Dependency Management**: Task ordering respects constitutional principles
 
+## Environment Requirements
+
+### Node.js Version
+**IMPORTANT**: This project requires Node.js v20+ for Chrome DevTools MCP support.
+
+**Always use Node 20** by loading nvm before running any commands:
+```bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm use 20
+```
+
+To verify Node version:
+```bash
+node --version  # Should show v20.x.x
+```
+
+### MCP Servers
+The project uses Model Context Protocol (MCP) servers for browser automation:
+- **chrome-devtools-mcp**: Chrome DevTools integration (requires Node 20+)
+- **playwright-mcp**: Playwright browser automation
+
+Configuration in [.vscode/settings.json](.vscode/settings.json)
+
 ## Project State
 
 Currently initialized with:
 - Constitution v1.0.0 (code quality, TDD, UX consistency, performance)
 - Complete slash command workflow
 - Template synchronization completed
+- Node.js v20.19.5 with nvm
+- Chrome DevTools MCP and Playwright MCP configured
 - No active features (clean prototype state)
