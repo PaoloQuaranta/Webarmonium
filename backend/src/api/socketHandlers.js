@@ -24,6 +24,7 @@ const socketHandlers = {
     this.registerLeaveRoomHandler(socket)
     this.registerGestureHandler(socket)
     this.registerHeartbeatHandler(socket)
+    this.registerDisconnectionHandler(socket)
 
     // Multi-user canvas handlers
     this.registerDrawStartHandler(socket)
@@ -247,61 +248,165 @@ const socketHandlers = {
     socket.on('gesture', async (data, callback) => {
       const startTime = Date.now()
 
+      // Ensure callback exists and provide timeout safety
+      const timeoutId = setTimeout(() => {
+        console.warn('⚠️ Gesture processing timeout - sending fallback response')
+        if (typeof callback === 'function') {
+          callback({
+            success: true,
+            gesture: { id: `fallback_${Date.now()}` },
+            memoryUpdated: false,
+            totalLatency: Date.now() - startTime,
+            timestamp: Date.now()
+          })
+        }
+      }, 4000) // 4 second timeout
+
       try {
         // Validate user is in a room
         if (!socket.userId || !socket.roomId) {
+          clearTimeout(timeoutId)
           return this.sendError(callback, 'NO_ACTIVE_SESSION', 'No active room session')
         }
 
         // Validate gesture data
         if (!data || !data.type || !data.coordinates || data.intensity === undefined) {
+          clearTimeout(timeoutId)
           return this.sendError(callback, 'INVALID_GESTURE_DATA', 'Invalid gesture data')
         }
 
-        // Process gesture with latency tracking
-        const gesture = socket.services.gestureProcessor.processGesture(
-          socket.userId,
-          socket.roomId,
-          data
-        )
+        // Process gesture through our updated GestureToMusicService
+        const gestureData = {
+          userId: socket.userId,
+          roomId: socket.roomId,
+          gesture: data
+        }
+
+        console.log('🎵 Processing gesture with GestureToMusicService:', {
+          userId: socket.userId,
+          roomId: socket.roomId,
+          gestureAction: data.action,
+          gestureType: data.type
+        })
+
+        let musicalResult = null
+        try {
+          const GestureToMusicService = require('../services/GestureToMusicService')
+          const gestureToMusicService = new GestureToMusicService()
+          musicalResult = gestureToMusicService.processGesture(gestureData)
+          console.log('🎵 GestureToMusicService result:', Array.isArray(musicalResult) ? `Array[${musicalResult.length}]` : 'Single event')
+        } catch (error) {
+          console.error('🎵 GestureToMusicService failed:', error)
+          // Continue with fallback gesture processing instead of throwing
+          musicalResult = null
+        }
 
         // Constitutional requirement: <200ms processing
-        const processingLatency = gesture.getProcessingLatency()
+        const processingLatency = Date.now() - startTime
         if (processingLatency > 200) {
           console.warn(`Gesture processing exceeded 200ms: ${processingLatency}ms`)
         }
 
-        // Process gesture for room memory and broadcasting
-        const memoryResult = socket.services.roomManager.processGesture(socket.userId, gesture)
+        // Store gesture in room memory using old system for compatibility
+        // BUT NOT for hover gestures - they should only generate filter modulation, not notes
+        let gesture = null
+        let memoryResult = null
+        let memoryUpdate = null
 
-        // Update environmental memory
-        const room = socket.services.roomManager.getRoom(socket.roomId)
-        const memoryUpdate = socket.services.memoryCoordinator.processGestureMemory(
-          gesture,
-          { activeUsers: room.getUserCount() }
-        )
+        if (data.action !== 'hover') {
+          gesture = socket.services.gestureProcessor.processGesture(
+            socket.userId,
+            socket.roomId,
+            data
+          )
+          memoryResult = socket.services.roomManager.processGesture(socket.userId, gesture)
+
+          // Update environmental memory
+          const room = socket.services.roomManager.getRoom(socket.roomId)
+          memoryUpdate = socket.services.environmentalMemoryCoordinator.processGestureMemory(
+            gesture,
+            { activeUsers: room.getUserCount() }
+          )
+        } else {
+          console.log('🎛️ Hover gesture - skipping musical note generation and memory updates')
+          // Create empty memory update for hover gestures
+          memoryUpdate = { success: false, patternsEvolved: 0, newPatterns: 0 }
+        }
 
         // Generate sonic update if patterns evolved
         let sonicUpdate = null
         if (memoryUpdate.success && (memoryUpdate.patternsEvolved > 0 || memoryUpdate.newPatterns > 0)) {
-          sonicUpdate = socket.services.memoryCoordinator.generateSonicUpdate(socket.roomId)
+          sonicUpdate = socket.services.environmentalMemoryCoordinator.generateSonicUpdate(socket.roomId)
         }
 
         // Calculate total latency
         const totalLatency = Date.now() - startTime
 
         // Send gesture-processed response to sender
+        let gestureResponse
+        if (data.action === 'hover') {
+          // For hover gestures, create a minimal response since we don't process musical notes
+          gestureResponse = {
+            id: `hover_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            action: 'hover',
+            coordinates: data.coordinates,
+            intensity: data.intensity,
+            timestamp: Date.now()
+          }
+        } else {
+          // For normal gestures, use the processed response
+          gestureResponse = gesture.toProcessedResponse()
+        }
+
         const response = {
           success: true,
-          gesture: gesture.toProcessedResponse(),
-          memoryUpdated: memoryUpdate.success,
-          patternsEvolved: memoryUpdate.patternsEvolved || 0,
-          newPatterns: memoryUpdate.newPatterns || 0,
+          gesture: gestureResponse,
+          memoryUpdated: memoryUpdate ? memoryUpdate.success : false,
+          patternsEvolved: memoryUpdate ? memoryUpdate.patternsEvolved || 0 : 0,
+          newPatterns: memoryUpdate ? memoryUpdate.newPatterns || 0 : 0,
           totalLatency,
           timestamp: Date.now()
         }
 
+        // Clear timeout before sending response
+        clearTimeout(timeoutId)
         this.sendResponse(callback, response)
+
+        // Broadcast musical events to all users in room
+        const musicalEvents = Array.isArray(musicalResult) ? musicalResult : [musicalResult]
+        console.log(`🎵 Broadcasting ${musicalEvents.length} musical events to room ${socket.roomId}:`)
+
+        musicalEvents.forEach((musicalEvent, index) => {
+          const eventType = musicalEvent.eventType || 'musical'
+          console.log(`  Event ${index + 1}: type=${eventType}, id=${musicalEvent.id}`)
+
+          const musicalEventBroadcast = {
+            id: musicalEvent.id,
+            userId: socket.userId,
+            roomId: socket.roomId,
+            event: musicalEvent.toJSON ? musicalEvent.toJSON() : musicalEvent,
+            timestamp: Date.now()
+          }
+
+          // For filter modulation events, include sender as well using global emit
+          if (eventType === 'filter_modulation') {
+            // Get global io instance by accessing socket's server
+            const io = socket.server || socket.nsp.server
+            if (io) {
+              io.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
+              console.log(`  ✅ Broadcasted filter_modulation event to all users in room (including sender)`)
+            } else {
+              console.warn(`  ⚠️ Cannot access global io instance, falling back to local emit`)
+              // Fallback: send to all in room including sender using adapter
+              socket.adapter.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
+              console.log(`  ✅ Broadcasted filter_modulation using socket adapter`)
+            }
+          } else {
+            // Send to other users only for regular musical events
+            socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
+            console.log(`  ✅ Broadcasted musical event to other users in room`)
+          }
+        })
 
         // Broadcast gesture-echo to other users in room
         if (memoryResult.broadcastTo.length > 0) {
@@ -313,7 +418,7 @@ const socketHandlers = {
 
         // Broadcast sonic-update if patterns changed
         if (sonicUpdate) {
-          socket.services.io.to(socket.roomId).emit('sonic-update', sonicUpdate)
+          socket.to(socket.roomId).emit('sonic-update', sonicUpdate)
         }
 
         // Update user activity
@@ -325,6 +430,7 @@ const socketHandlers = {
         }
       } catch (error) {
         console.error('Gesture processing error:', error)
+        clearTimeout(timeoutId)
         return this.sendError(callback, 'GESTURE_PROCESSING_FAILED', 'Gesture processing failed')
       }
     })
@@ -577,6 +683,16 @@ const socketHandlers = {
   },
 
   /**
+   * Register disconnect event handler
+   * @param {Socket} socket - Socket instance
+   */
+  registerDisconnectionHandler (socket) {
+    socket.on('disconnect', () => {
+      this.handleDisconnection(socket, socket.services.roomManager)
+    })
+  },
+
+  /**
    * Handle socket disconnection cleanup
    * @param {Socket} socket - Socket instance
    * @param {RoomManager} roomManager - Room manager service
@@ -724,7 +840,7 @@ const socketHandlers = {
 
         const GestureToMusicService = require('../services/GestureToMusicService')
         const gestureToMusicService = new GestureToMusicService()
-        const musicalEvent = gestureToMusicService.processGesture(gestureData)
+        const musicalResult = gestureToMusicService.processGesture(gestureData)
 
         // Store gesture in room memory
         socket.services.roomManager.addGestureToRoom(socket.roomId, {
@@ -733,19 +849,24 @@ const socketHandlers = {
           timestamp: Date.now()
         })
 
-        // Emit musical event to all users in room
-        const musicalEventBroadcast = {
-          id: musicalEvent.id,
-          userId: socket.userId,
-          roomId: socket.roomId,
-          event: musicalEvent.toJSON(),
-          timestamp: Date.now()
-        }
+        // Handle both single events and arrays of events
+        const musicalEvents = Array.isArray(musicalResult) ? musicalResult : [musicalResult]
 
-        socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
+        // Emit musical events to all users in room
+        musicalEvents.forEach(musicalEvent => {
+          const musicalEventBroadcast = {
+            id: musicalEvent.id,
+            userId: socket.userId,
+            roomId: socket.roomId,
+            event: musicalEvent.toJSON ? musicalEvent.toJSON() : musicalEvent,
+            timestamp: Date.now()
+          }
 
-        // Store gesture for multi-user synchronization
-        this.storeGestureForMultiUserSync(socket.roomId, socket.userId, data.gesture, musicalEventBroadcast)
+          socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
+
+          // Store gesture for multi-user synchronization
+          this.storeGestureForMultiUserSync(socket.roomId, socket.userId, data.gesture, musicalEventBroadcast)
+        })
 
         // Broadcast gesture to other users for test compatibility
         socket.to(socket.roomId).emit('gesture-broadcast', {
@@ -1194,7 +1315,10 @@ const socketHandlers = {
         // Process gesture through GestureToMusicService
         const GestureToMusicService = require('../services/GestureToMusicService')
         const gestureToMusicService = new GestureToMusicService()
-        const musicalEvent = gestureToMusicService.processGesture(gestureData)
+        const musicalResult = gestureToMusicService.processGesture(gestureData)
+
+        // Handle both single events and arrays of events
+        const musicalEvents = Array.isArray(musicalResult) ? musicalResult : [musicalResult]
 
         // Store gesture in room memory
         const enhancedGesture = {
@@ -1234,18 +1358,20 @@ const socketHandlers = {
 
         socket.services.roomManager.processGesture(socket.userId, enhancedGesture)
 
-        // Create musical event broadcast
-        const musicalEventBroadcast = {
-          id: musicalEvent.id,
-          type: musicalEvent.type,
-          userId: socket.userId,
-          roomId: socket.roomId,
-          musicalData: musicalEvent.musicalData,
-          timestamp: Date.now()
-        }
+        // Emit musical events to all users in room
+        musicalEvents.forEach(musicalEvent => {
+          const musicalEventBroadcast = {
+            id: musicalEvent.id,
+            type: musicalEvent.type || 'musical',
+            userId: socket.userId,
+            roomId: socket.roomId,
+            musicalData: musicalEvent.musicalData || musicalEvent,
+            timestamp: Date.now()
+          }
 
-        // Broadcast musical event to all users in room
-        socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
+          // Broadcast musical event to all users in room
+          socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
+        })
 
         // Broadcast gesture to other users for test compatibility
         socket.to(socket.roomId).emit('gesture-broadcast', {

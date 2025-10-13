@@ -48,7 +48,7 @@ class AudioService {
     this.currentParameters = {
       frequency: 440,
       amplitude: 0.5,
-      waveform: 'sine',
+      waveform: 'sawtooth',
       filter: {
         type: 'none',
         cutoffFrequency: 1000,
@@ -67,6 +67,13 @@ class AudioService {
         elevation: 0
       }
     }
+
+    // Collaborative pattern rate limiting
+    this.lastCollaborativePatternTime = 0
+    this.lastCollaborativePatterns = null
+
+    // Ambient synth state tracking
+    this.ambientSynthActive = false
 
     // Performance tracking
     this.performanceMetrics = {
@@ -162,15 +169,40 @@ class AudioService {
 
     // Create ambient oscillators for continuous generation
     this.ambientSynth = new Tone.PolySynth({
-      oscillator: { type: 'sine' },
+      oscillator: { type: 'sawtooth' }, // Sawtooth for rich harmonics that respond well to filtering
       envelope: { attack: 0.5, decay: 0.3, sustain: 0.4, release: 2 }
-    }).connect(this.masterVolume)
+    })
+
+    // Create separate volume control for ambient synth to make it more audible
+    this.ambientVolume = new Tone.Volume(-5).toDestination() // Louder than master volume
+
+    // Add filter to ambient synth for hover modulation
+    this.ambientFilter = new Tone.Filter({
+      type: 'lowpass',
+      frequency: 1500,
+      Q: 5 // Higher Q for more dramatic filtering effect
+    })
+
+    // Correct routing: synth -> filter -> volume -> master
+    this.ambientSynth.connect(this.ambientFilter)
+    this.ambientFilter.connect(this.ambientVolume)
+    this.ambientVolume.connect(this.masterVolume)
 
     // Create gesture-responsive synth for user interactions
     this.gestureSynth = new Tone.PolySynth({
       oscillator: { type: 'sawtooth' },
       envelope: { attack: 0.05, decay: 0.1, sustain: 0.6, release: 0.5 }
-    }).connect(this.masterVolume)
+    })
+
+    // Add filter to gesture synth for hover modulation
+    this.gestureFilter = new Tone.Filter({
+      type: 'lowpass',
+      frequency: 2000,
+      Q: 1
+    }).toDestination()
+
+    this.gestureSynth.connect(this.gestureFilter)
+    this.gestureFilter.connect(this.masterVolume)
 
     // Set up continuous ambient generation
     this.startAmbientGeneration()
@@ -196,19 +228,36 @@ class AudioService {
 
       // Generate ambient frequencies based on room state
       const baseFrequencies = [220, 293.66, 369.99, 440, 554.37] // A3, D4, F#4, A4, C#5
-      const frequency = baseFrequencies[Math.floor(Math.random() * baseFrequencies.length)]
 
-      // Play ambient note (volume controlled by masterVolume node)
-      if (!this.muted) {
+      // Create continuous ambient sound with multiple voices for rich texture
+      if (!this.muted && !this.ambientSynthActive) {
         try {
-          // Use fixed base volume (0.3), let masterVolume control overall level
-          this.ambientSynth.triggerAttackRelease(frequency, '2n', undefined, 0.3)
-          console.log(`🎵 Playing ambient note: ${frequency.toFixed(1)}Hz`)
+          // Trigger multiple notes simultaneously for continuous sound
+          const frequencies = [
+            baseFrequencies[0], // A3 - bass foundation
+            baseFrequencies[2], // F#4 - mid harmony
+            baseFrequencies[4]  // C#5 - high harmony
+          ]
+
+          // Use triggerAttack for sustained notes (not release)
+          frequencies.forEach(freq => {
+            this.ambientSynth.triggerAttack(freq, undefined, 0.2)
+          })
+
+          this.ambientSynthActive = true
+          console.log(`🎵 Started continuous ambient sound with frequencies: ${frequencies.join(', ')}Hz`)
         } catch (error) {
-          console.error('🎵 Error playing ambient note:', error)
+          console.error('🎵 Error starting ambient sound:', error)
         }
-      } else {
-        console.log(`🔇 Ambient note skipped (muted)`)
+      } else if (this.muted && this.ambientSynthActive) {
+        // Stop all ambient notes when muted
+        try {
+          this.ambientSynth.releaseAll()
+          this.ambientSynthActive = false
+          console.log('🔇 Stopped ambient sound (muted)')
+        } catch (error) {
+          console.error('🎵 Error stopping ambient sound:', error)
+        }
       }
 
       // Schedule next note (shorter delay for testing: 3-5 seconds)
@@ -249,8 +298,11 @@ class AudioService {
 
       // Stop ambient generation
       this.ambientGenerationActive = false
+      this.ambientSynthActive = false
 
+      // Stop all sustained notes before disposing
       if (this.ambientSynth) {
+        this.ambientSynth.releaseAll()
         this.ambientSynth.dispose()
         this.ambientSynth = null
       }
@@ -335,9 +387,24 @@ class AudioService {
       return
     }
 
+    // Rate limiting: prevent spamming collaborative patterns
+    const now = Date.now()
+    if (this.lastCollaborativePatternTime && (now - this.lastCollaborativePatternTime < 500)) {
+      console.log('🔇 Collaborative patterns rate limited')
+      return
+    }
+    this.lastCollaborativePatternTime = now
+
     // Store patterns for later processing
     this.collaborativePatterns = patterns || []
     console.log('🎵 Updated collaborative patterns:', patterns?.length || 0)
+
+    // Check if patterns are the same as last time to avoid repetition
+    if (this.lastCollaborativePatterns && this.arePatternsEqual(this.lastCollaborativePatterns, patterns)) {
+      console.log('🔇 Skipping duplicate collaborative patterns')
+      return
+    }
+    this.lastCollaborativePatterns = [...(patterns || [])]
 
     // Play audio feedback for each pattern from remote users (FR-003, FR-006)
     if (patterns && patterns.length > 0 && this.gestureSynth) {
@@ -346,12 +413,23 @@ class AudioService {
         const delay = index * 0.02
 
         try {
-          // Use pattern frequency if available, otherwise derive from position
-          const frequency = pattern.frequency ||
-                          (pattern.x ? 200 + (pattern.x * 600) : 400) // 200-800Hz range
+          // Use pattern frequency if available, otherwise derive from position with added variation
+          let frequency = pattern.frequency
+          if (!frequency) {
+            if (pattern.x) {
+              frequency = 200 + (pattern.x * 600) // 200-800Hz range
+            } else {
+              // Add variation to prevent same note spam
+              frequency = 300 + Math.random() * 400 // 300-700Hz range with randomness
+            }
+          }
 
-          // Use pattern intensity as velocity parameter
-          const intensity = pattern.intensity || pattern.y || 0.5
+          // Use pattern intensity as velocity parameter with variation
+          let intensity = pattern.intensity || pattern.y || 0.5
+          if (!pattern.intensity && !pattern.y) {
+            // Add some randomness if no intensity provided
+            intensity = 0.3 + Math.random() * 0.4 // 0.3-0.7 range
+          }
           const velocity = 0.1 + (intensity * 0.3) // 0.1-0.4 range for subtle collaborative audio
 
           console.log(`🎵 Playing collaborative pattern ${index}: ${frequency.toFixed(1)}Hz, intensity: ${intensity.toFixed(2)}`)
@@ -985,6 +1063,129 @@ class AudioService {
       totalUpdates: 0
     }
     console.log('AudioService performance metrics reset')
+  }
+
+  /**
+   * Update filter parameters for all active voices
+   * @param {Object} filterParams - Filter modulation parameters
+   * @param {number} filterParams.cutoffFrequency - Filter cutoff (20-20000 Hz)
+   * @param {number} filterParams.resonance - Filter resonance (0-30)
+   * @param {number} filterParams.intensity - Modulation intensity (0-1)
+   */
+  updateFilterParams(filterParams) {
+    if (!filterParams) {
+      console.log('updateFilterParams: no filter params')
+      return
+    }
+
+    try {
+      console.log('🎛️ Applying filter modulation:', filterParams)
+
+      // Apply to ambient synth filter (for hover modulation)
+      if (this.ambientFilter) {
+        // Use values directly from backend (they're already in the correct range)
+        const cutoffFrequency = Math.max(100, Math.min(8000, filterParams.cutoffFrequency)) // Clamp to audible range
+        this.ambientFilter.frequency.setValueAtTime(cutoffFrequency, Tone.context.currentTime)
+
+        let resonanceValue = 2 // Default resonance
+        if (this.ambientFilter.Q && filterParams.resonance) {
+          // Backend sends resonance 0.1-5.0, convert to Q range 1-10
+          resonanceValue = Math.max(1, Math.min(10, 1 + filterParams.resonance * 2))
+          this.ambientFilter.Q.setValueAtTime(resonanceValue, Tone.context.currentTime)
+        }
+        console.log('✨ Applied filter to ambient synth:', { cutoff: cutoffFrequency, resonance: resonanceValue })
+      }
+
+      // Apply to ambient pads (if they exist)
+      if (this.audioEngine && this.audioEngine.voices && this.audioEngine.voices.ambient) {
+        Object.values(this.audioEngine.voices.ambient).forEach(voice => {
+          if (voice.filter && voice.filter.frequency) {
+            // Map cutoff frequency to appropriate range (200-8000 Hz)
+            const cutoffRange = filterParams.cutoffFrequency * 80 + 200 // 0-1 to 200-8000Hz
+            voice.filter.frequency.setValueAtTime(cutoffRange, Tone.context.currentTime)
+
+            // Apply resonance if available
+            if (voice.filter.Q && filterParams.resonance) {
+              const resonanceRange = filterParams.resonance * 15 // 0-1 to 0-15
+              voice.filter.Q.setValueAtTime(resonanceRange, Tone.context.currentTime)
+            }
+          }
+        })
+        console.log('✨ Applied filter to ambient voices')
+      }
+
+      // Apply to gesture voices
+      if (this.audioEngine && this.audioEngine.voices && this.audioEngine.voices.gesture) {
+        Object.values(this.audioEngine.voices.gesture).forEach(voice => {
+          if (voice.filter && voice.filter.frequency) {
+            const cutoffRange = filterParams.cutoffFrequency * 80 + 200
+            voice.filter.frequency.setValueAtTime(cutoffRange, Tone.context.currentTime)
+
+            if (voice.filter.Q && filterParams.resonance) {
+              const resonanceRange = filterParams.resonance * 15
+              voice.filter.Q.setValueAtTime(resonanceRange, Tone.context.currentTime)
+            }
+          }
+        })
+        console.log('✨ Applied filter to gesture voices')
+      }
+
+      // Apply to main gesture synth filter
+      if (this.gestureFilter) {
+        const cutoffRange = filterParams.cutoffFrequency * 80 + 200 // 0-1 to 200-8000Hz
+        this.gestureFilter.frequency.setValueAtTime(cutoffRange, Tone.context.currentTime)
+
+        let resonanceRange = 0
+        if (this.gestureFilter.Q && filterParams.resonance) {
+          resonanceRange = filterParams.resonance * 15 // 0-1 to 0-15
+          this.gestureFilter.Q.setValueAtTime(resonanceRange, Tone.context.currentTime)
+        }
+        console.log('✨ Applied filter to gesture synth:', { cutoff: cutoffRange, resonance: resonanceRange })
+      }
+
+      // Also apply to collaborative pattern voices if they exist
+      if (this.audioEngine && this.audioEngine.collaborativePatterns) {
+        this.audioEngine.collaborativePatterns.forEach(pattern => {
+          if (pattern.oscillator && pattern.filter) {
+            const cutoffRange = filterParams.cutoffFrequency * 80 + 200
+            pattern.filter.frequency.setValueAtTime(cutoffRange, Tone.context.currentTime)
+
+            if (pattern.filter.Q && filterParams.resonance) {
+              const resonanceRange = filterParams.resonance * 15
+              pattern.filter.Q.setValueAtTime(resonanceRange, Tone.context.currentTime)
+            }
+          }
+        })
+        console.log('✨ Applied filter to collaborative patterns')
+      }
+
+    } catch (error) {
+      console.error('❌ Filter modulation failed:', error)
+    }
+  }
+
+  /**
+   * Check if two pattern arrays are equal (for duplicate prevention)
+   * @param {Array} patterns1 - First pattern array
+   * @param {Array} patterns2 - Second pattern array
+   * @returns {boolean} True if patterns are effectively the same
+   */
+  arePatternsEqual(patterns1, patterns2) {
+    if (!patterns1 || !patterns2) return false
+    if (patterns1.length !== patterns2.length) return false
+
+    return patterns1.every((pattern1, index) => {
+      const pattern2 = patterns2[index]
+      // Add more detailed logging to debug pattern values
+      console.log('🔍 Comparing patterns:', {
+        pattern1: { x: pattern1.x, y: pattern1.y, intensity: pattern1.intensity, frequency: pattern1.frequency },
+        pattern2: { x: pattern2.x, y: pattern2.y, intensity: pattern2.intensity, frequency: pattern2.frequency }
+      })
+      return pattern1.x === pattern2.x &&
+             pattern1.y === pattern2.y &&
+             pattern1.intensity === pattern2.intensity &&
+             pattern1.frequency === pattern2.frequency
+    })
   }
 
   /**

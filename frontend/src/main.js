@@ -240,8 +240,28 @@ class WebarmoniumApp {
     })
 
     this.socketService.on('gesture-processed', (response) => {
-      if (this.isAudioStarted && response.sonicParams) {
+      // Only process non-hover gestures for theremin-style audio
+      if (this.isAudioStarted && response.sonicParams && response.gesture?.action !== 'hover') {
         this.audioService.updateSonicParams(response.sonicParams)
+      }
+    })
+
+    // Handle musical events from backend (drag phrases, etc.)
+    this.socketService.on('musical-event', (musicalEvent) => {
+      if (this.isAudioStarted && musicalEvent) {
+        console.log('🎵 Playing musical event:', musicalEvent)
+        this.audioService.playMusicalEvent(musicalEvent)
+      }
+    })
+
+    // Handle filter modulation events (hover)
+    this.socketService.on('filter-modulation', (filterParams) => {
+      console.log('🎛️ Received filter-modulation event:', filterParams)
+      if (this.isAudioStarted && filterParams) {
+        console.log('🎛️ Applying filter modulation:', filterParams)
+        this.audioService.updateFilterParams(filterParams)
+      } else {
+        console.log('🎛️ Audio not started or no filter params, skipping')
       }
     })
 
@@ -432,7 +452,8 @@ class WebarmoniumApp {
     this.socketService.sendGesture(gesture)
 
     // Immediate local audio feedback per FR-006 (<200ms latency)
-    if (this.isAudioStarted) {
+    // BUT NOT for hover gestures - they only affect filters, not note generation
+    if (this.isAudioStarted && gesture.action !== 'hover') {
       const sonicParams = {
         x: gesture.coordinates.x,
         y: gesture.coordinates.y,
@@ -441,6 +462,8 @@ class WebarmoniumApp {
       }
       console.log('🎵 Processing gesture for audio:', sonicParams)
       this.audioService.updateSonicParams(sonicParams)
+    } else if (gesture.action === 'hover') {
+      console.log('🎛️ Hover gesture - no local audio generation, only filter modulation')
     } else {
       console.log('🎵 Gesture captured but audio not started')
     }
@@ -510,7 +533,8 @@ class WebarmoniumApp {
     }
 
     if (roomIdEl && this.currentRoom) {
-      roomIdEl.textContent = `Room: ${this.currentRoom.id}`
+      const roomId = this.currentRoom.id || this.currentRoom.roomId
+      roomIdEl.textContent = `Room: ${roomId}`
     }
   }
 
