@@ -451,25 +451,227 @@ class WebarmoniumApp {
     // Send gesture to server
     this.socketService.sendGesture(gesture)
 
-    // Immediate local audio feedback per FR-006 (<200ms latency)
-    // BUT NOT for hover gestures - they only affect filters, not note generation
-    if (this.isAudioStarted && gesture.action !== 'hover') {
-      const sonicParams = {
-        x: gesture.coordinates.x,
-        y: gesture.coordinates.y,
-        intensity: gesture.intensity,
-        timestamp: gesture.timestamp
-      }
-      console.log('🎵 Processing gesture for audio:', sonicParams)
-      this.audioService.updateSonicParams(sonicParams)
-    } else if (gesture.action === 'hover') {
-      console.log('🎛️ Hover gesture - no local audio generation, only filter modulation')
-    } else {
+    // Handle different gesture types for local audio
+    if (!this.isAudioStarted) {
       console.log('🎵 Gesture captured but audio not started')
+      this.drawGestureTrail(gesture)
+      return
+    }
+
+    const sonicParams = {
+      x: gesture.coordinates.x,
+      y: gesture.coordinates.y,
+      intensity: gesture.intensity,
+      timestamp: gesture.timestamp,
+      action: gesture.action,
+      device: gesture.device
+    }
+
+    if (gesture.action === 'hover') {
+      console.log('🎛️ Hover gesture - only filter modulation, no notes')
+      this.audioService.updateFilterParams({
+        frequency: 200 + ((1 - sonicParams.y) * 3800), // Y inverted for musical convention
+        resonance: 0.5 + (sonicParams.x * 4.5)
+      })
+    } else if (gesture.action === 'drag') {
+      console.log('🎵 DRAG gesture - generating musical phrase locally')
+      // FIX: Generate local musical phrase for drag gestures
+      this.generateLocalMusicalPhrase(gesture, sonicParams)
+    } else if (gesture.action === 'start') {
+      console.log('🎵 START gesture - generating single note')
+      this.audioService.updateSonicParams(sonicParams)
+    } else {
+      console.log('🎵 Processing generic gesture for audio:', sonicParams)
+      this.audioService.updateSonicParams(sonicParams)
     }
 
     // Draw gesture trail on canvas
     this.drawGestureTrail(gesture)
+  }
+
+  /**
+   * Generate local musical phrase for drag gestures
+   * FIX: Added local phrase generation for immediate feedback
+   * @param {Object} gesture - Gesture data
+   * @param {Object} sonicParams - Sonic parameters
+   */
+  generateLocalMusicalPhrase(gesture, sonicParams) {
+    if (!this.audioService || !this.audioService.isInitialized) {
+      console.log('🔇 AudioService not initialized for phrase generation')
+      return
+    }
+
+    try {
+      // Create musical phrase locally based on gesture characteristics
+      const phrase = this.createLocalPhrase(gesture, sonicParams)
+
+      console.log(`🎵 Generated local phrase with ${phrase.length} notes`)
+
+      // Play each note in the phrase
+      phrase.forEach((note, index) => {
+        setTimeout(() => {
+          try {
+            const musicalEvent = {
+              pitch: note.pitch,
+              velocity: note.velocity,
+              duration: note.duration,
+              articulation: note.articulation,
+              eventType: 'melodic'
+            }
+
+            this.audioService.playMusicalEvent(musicalEvent)
+          } catch (e) {
+            console.warn(`🔇 Error playing phrase note ${index}:`, e)
+          }
+        }, note.startTime * 1000) // Convert seconds to milliseconds
+      })
+
+    } catch (error) {
+      console.error('🔇 Error generating local phrase:', error)
+    }
+  }
+
+  /**
+   * Create local musical phrase from gesture
+   * @param {Object} gesture - Gesture data
+   * @param {Object} sonicParams - Sonic parameters
+   * @returns {Array} Musical phrase data
+   */
+  createLocalPhrase(gesture, sonicParams) {
+    const phrase = []
+
+    // Calculate gesture characteristics
+    const gestureSpeed = this.calculateGestureSpeed(gesture)
+    const gestureLength = this.calculateGestureLength(gesture)
+    const pitchRange = this.calculatePitchRange(sonicParams)
+
+    // Regular rhythm generation for better musical phrases
+    let noteCount = 5 // FIX: Always 5 notes for consistent phrases
+    let baseDuration
+
+    if (gestureSpeed < 0.3) {
+      // Slow gesture: longer notes
+      baseDuration = 1.0 // 1 second base
+    } else if (gestureSpeed < 0.7) {
+      // Medium gesture: moderate notes
+      baseDuration = 0.5 // 0.5 second base
+    } else {
+      // Fast gesture: shorter notes
+      baseDuration = 0.25 // 0.25 second base
+    }
+
+    // Generate notes with regular rhythm patterns
+    let currentTime = 0
+    for (let i = 0; i < noteCount; i++) {
+      // Create rhythmic variations based on note position
+      let duration
+      let articulation
+
+      if (i === 0) {
+        // First note: slightly longer for emphasis
+        duration = baseDuration * 1.2
+        articulation = 'accent'
+      } else if (i === noteCount - 1) {
+        // Last note: slightly longer for resolution
+        duration = baseDuration * 1.1
+        articulation = 'legato'
+      } else if (i % 2 === 1) {
+        // Odd positions: shorter for rhythmic interest
+        duration = baseDuration * 0.8
+        articulation = 'staccato'
+      } else {
+        // Even positions: base duration
+        duration = baseDuration
+        articulation = 'legato'
+      }
+
+      const pitch = this.calculateNoteFromGesture(sonicParams, i, noteCount, pitchRange)
+      const velocity = 60 + Math.random() * 20 // 60-80 range (quieter than before)
+
+      phrase.push({
+        pitch,
+        velocity,
+        duration,
+        articulation,
+        startTime: currentTime
+      })
+
+      // FIX: Regular rhythmic spacing
+      currentTime += duration * 0.9 // Notes overlap slightly for musical effect
+    }
+
+    return phrase
+  }
+
+  /**
+   * Calculate gesture speed from movement data
+   * @param {Object} gesture - Gesture data
+   * @returns {number} Speed (0-1)
+   */
+  calculateGestureSpeed(gesture) {
+    // Simple speed calculation based on timestamp and position
+    // In a real implementation, you'd track position over time
+    return Math.random() * 0.8 + 0.1 // Placeholder: 0.1-0.9 range
+  }
+
+  /**
+   * Calculate gesture length/intensity
+   * @param {Object} gesture - Gesture data
+   * @returns {number} Length/intensity (0-1)
+   */
+  calculateGestureLength(gesture) {
+    return gesture.intensity || 0.5
+  }
+
+  /**
+   * Calculate pitch range from gesture position
+   * @param {Object} sonicParams - Sonic parameters
+   * @returns {Object} Pitch range
+   */
+  calculatePitchRange(sonicParams) {
+    // Map Y position to pitch range (inverted: top = high notes)
+    const normalizedY = 1 - (sonicParams.y || 0.5)
+    return {
+      min: 40 + normalizedY * 30,
+      max: 60 + normalizedY * 40
+    }
+  }
+
+  /**
+   * Calculate note pitch from gesture position
+   * @param {Object} sonicParams - Sonic parameters
+   * @param {number} noteIndex - Note index in phrase
+   * @param {number} totalNotes - Total notes in phrase
+   * @param {Object} pitchRange - Pitch range
+   * @returns {number} MIDI pitch
+   */
+  calculateNoteFromGesture(sonicParams, noteIndex, totalNotes, pitchRange) {
+    const position = noteIndex / (totalNotes - 1 || 1)
+    const pitch = pitchRange.min + (pitchRange.max - pitchRange.min) * position
+    return Math.round(pitch)
+  }
+
+  /**
+   * Select articulation based on gesture characteristics
+   * @param {Object} gesture - Gesture data
+   * @param {number} noteIndex - Note index
+   * @param {number} totalNotes - Total notes
+   * @returns {string} Articulation type
+   */
+  selectArticulationFromGesture(gesture, noteIndex, totalNotes) {
+    // Use gesture intensity to determine articulation
+    const intensity = gesture.intensity || 0.5
+
+    if (noteIndex === 0) return 'accent' // First note accented
+    if (noteIndex === totalNotes - 1) return 'legato' // Last note legato
+
+    if (intensity > 0.7) {
+      return Math.random() > 0.5 ? 'staccato' : 'accent'
+    } else if (intensity < 0.3) {
+      return 'legato'
+    } else {
+      return Math.random() > 0.6 ? 'staccato' : 'default'
+    }
   }
 
   drawGestureTrail(gesture) {
@@ -643,3 +845,14 @@ window.addEventListener('beforeunload', () => {
 
 // Make available globally for debugging
 window.WebarmoniumApp = WebarmoniumApp
+
+// Expose filter test method for debugging
+window.testFilterModulation = () => {
+  if (window.webarmoniumApp && window.webarmoniumApp.audioService) {
+    window.webarmoniumApp.audioService.testFilterModulation()
+  } else {
+    console.warn('WebarmoniumApp or AudioService not available')
+  }
+}
+
+console.log('🧪 Filter test method exposed: window.testFilterModulation()')

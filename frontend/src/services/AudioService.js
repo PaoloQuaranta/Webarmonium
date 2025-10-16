@@ -75,6 +75,11 @@ class AudioService {
     // Ambient synth state tracking
     this.ambientSynthActive = false
 
+    // Filter modulation throttling to prevent stuttering
+    this.lastFilterUpdateTime = 0
+    this.filterUpdateInterval = 50 // 50ms = 20 updates per second maximum
+    this.lastFilterLogTime = 0
+
     // Performance tracking
     this.performanceMetrics = {
       gestureToSoundLatency: [],
@@ -162,39 +167,75 @@ class AudioService {
   /**
    * Create continuous generative music system per FR-001
    * System MUST continuously generate ambient music even when no users are present
+   * EVOLUTIVE: Now creates dynamic, evolving background composition with polyphony management
    */
   createContinuousGenerativeSystem() {
     // Create master volume node for centralized control (FR-011)
     this.masterVolume = new Tone.Volume(-10).toDestination()
 
-    // Create ambient oscillators for continuous generation
-    this.ambientSynth = new Tone.PolySynth({
-      oscillator: { type: 'sawtooth' }, // Sawtooth for rich harmonics that respond well to filtering
-      envelope: { attack: 0.5, decay: 0.3, sustain: 0.4, release: 2 }
+    // Initialize generative composition state
+    this.generativeState = {
+      currentScale: [0, 2, 4, 7, 9], // Pentatonic major
+      currentTonic: 220, // A3
+      harmonicProgression: 0,
+      evolutionCycle: 0,
+      userInfluence: 0,
+      lastUserActivity: Date.now(),
+      ambientVoices: [],
+      evolutionSpeed: 8000, // Base evolution cycle
+      complexity: 0.3, // Starting complexity
+      activeVoices: new Map() // Track active voices for polyphony management
+    }
+
+    // Create multi-layer ambient synth system with LIMITED polyphony
+    this.ambientLayers = {
+      bass: new Tone.PolySynth({
+        oscillator: { type: 'sine' }, // Deep bass foundation
+        envelope: { attack: 2, decay: 1, sustain: 0.8, release: 3 },
+        maxPolyphony: 2 // REDUCED: was 3
+      }),
+
+      harmony: new Tone.PolySynth({
+        oscillator: { type: 'triangle' }, // Warm harmonic layer
+        envelope: { attack: 1.5, decay: 0.8, sustain: 0.6, release: 2.5 },
+        maxPolyphony: 3 // REDUCED: was 4
+      }),
+
+      texture: new Tone.PolySynth({
+        oscillator: { type: 'sawtooth' }, // Rich textural layer
+        envelope: { attack: 0.5, decay: 0.3, sustain: 0.4, release: 2 },
+        maxPolyphony: 3 // REDUCED: was 5
+      })
+    }
+
+    // Create individual filters and volumes for each layer
+    this.ambientFilters = {
+      bass: new Tone.Filter({ type: 'lowpass', frequency: 200, Q: 2 }),
+      harmony: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 3 }),
+      texture: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 5 })
+    }
+
+    this.ambientVolumes = {
+      bass: new Tone.Volume(-8), // Subtle bass
+      harmony: new Tone.Volume(-12), // Gentle harmony
+      texture: new Tone.Volume(-15) // Subtle texture
+    }
+
+    // Connect each layer: synth -> filter -> volume -> master
+    Object.keys(this.ambientLayers).forEach(layer => {
+      this.ambientLayers[layer].connect(this.ambientFilters[layer])
+      this.ambientFilters[layer].connect(this.ambientVolumes[layer])
+      this.ambientVolumes[layer].connect(this.masterVolume)
     })
 
-    // Create separate volume control for ambient synth to make it more audible
-    this.ambientVolume = new Tone.Volume(-5).toDestination() // Louder than master volume
-
-    // Add filter to ambient synth for hover modulation
-    this.ambientFilter = new Tone.Filter({
-      type: 'lowpass',
-      frequency: 1500,
-      Q: 5 // Higher Q for more dramatic filtering effect
-    })
-
-    // Correct routing: synth -> filter -> volume -> master
-    this.ambientSynth.connect(this.ambientFilter)
-    this.ambientFilter.connect(this.ambientVolume)
-    this.ambientVolume.connect(this.masterVolume)
-
-    // Create gesture-responsive synth for user interactions
+    // Create gesture-responsive synth with LIMITED polyphony
     this.gestureSynth = new Tone.PolySynth({
       oscillator: { type: 'sawtooth' },
-      envelope: { attack: 0.05, decay: 0.1, sustain: 0.6, release: 0.5 }
+      envelope: { attack: 0.05, decay: 0.1, sustain: 0.6, release: 0.5 },
+      maxPolyphony: 4 // LIMITED polyphony
     })
 
-    // Add filter to gesture synth for hover modulation
+    // Add filter to gesture synth for hover modulation - FIX: restore filter modulation
     this.gestureFilter = new Tone.Filter({
       type: 'lowpass',
       frequency: 2000,
@@ -204,75 +245,240 @@ class AudioService {
     this.gestureSynth.connect(this.gestureFilter)
     this.gestureFilter.connect(this.masterVolume)
 
-    // Set up continuous ambient generation
-    this.startAmbientGeneration()
+    // Polyphony management
+    this.maxTotalVoices = 8 // Maximum total voices across all synths
 
-    console.log('🎵 Continuous generative system created with master volume control')
+    // Start evolving generative system
+    this.startEvolvingGeneration()
+
+    console.log('🎵 Evolutive generative system created with limited polyphony management')
   }
 
   /**
-   * Start ambient music generation per FR-001
+   * Start evolving generative music system per FR-001
+   * EVOLUTIVE: Creates dynamic, context-aware background composition
    */
-  startAmbientGeneration() {
-    if (this.ambientGenerationActive) return
+  startEvolvingGeneration() {
+    if (this.evolvingGenerationActive) return
 
-    this.ambientGenerationActive = true
+    this.evolvingGenerationActive = true
 
-    const generateAmbientNote = () => {
-      console.log(`🎵 generateAmbientNote called - active: ${this.ambientGenerationActive}, initialized: ${this.isInitialized}, muted: ${this.muted}`)
-
-      if (!this.ambientGenerationActive || !this.isInitialized) {
-        console.log('🎵 Ambient generation stopped or not initialized')
+    const evolveComposition = () => {
+      if (!this.evolvingGenerationActive || !this.isInitialized) {
+        console.log('🎵 Evolving generation stopped or not initialized')
         return
       }
 
-      // Generate ambient frequencies based on room state
-      const baseFrequencies = [220, 293.66, 369.99, 440, 554.37] // A3, D4, F#4, A4, C#5
+      try {
+        // Update generative state based on user activity and time
+        this.updateGenerativeState()
 
-      // Create continuous ambient sound with multiple voices for rich texture
-      if (!this.muted && !this.ambientSynthActive) {
-        try {
-          // Trigger multiple notes simultaneously for continuous sound
-          const frequencies = [
-            baseFrequencies[0], // A3 - bass foundation
-            baseFrequencies[2], // F#4 - mid harmony
-            baseFrequencies[4]  // C#5 - high harmony
-          ]
+        // Generate new musical material for each layer
+        this.generateEvolvingLayer('bass')
+        this.generateEvolvingLayer('harmony')
+        this.generateEvolvingLayer('texture')
 
-          // Use triggerAttack for sustained notes (not release)
-          frequencies.forEach(freq => {
-            this.ambientSynth.triggerAttack(freq, undefined, 0.2)
-          })
+        // Log evolution details
+        console.log(`🎵 Evolution cycle ${this.generativeState.evolutionCycle}: complexity=${this.generativeState.complexity.toFixed(2)}, userInfluence=${this.generativeState.userInfluence.toFixed(2)}`)
 
-          this.ambientSynthActive = true
-          console.log(`🎵 Started continuous ambient sound with frequencies: ${frequencies.join(', ')}Hz`)
-        } catch (error) {
-          console.error('🎵 Error starting ambient sound:', error)
-        }
-      } else if (this.muted && this.ambientSynthActive) {
-        // Stop all ambient notes when muted
-        try {
-          this.ambientSynth.releaseAll()
-          this.ambientSynthActive = false
-          console.log('🔇 Stopped ambient sound (muted)')
-        } catch (error) {
-          console.error('🎵 Error stopping ambient sound:', error)
-        }
+      } catch (error) {
+        console.error('🎵 Error in evolution cycle:', error)
       }
 
-      // Schedule next note (shorter delay for testing: 3-5 seconds)
-      const nextDelay = 3000 + Math.random() * 2000
-      console.log(`🎵 Next ambient note in ${nextDelay}ms`)
-      setTimeout(generateAmbientNote, nextDelay)
+      // Schedule next evolution based on current speed
+      const evolutionDelay = this.generativeState.evolutionSpeed * (0.7 + Math.random() * 0.6)
+      setTimeout(evolveComposition, evolutionDelay)
     }
 
-    // Start ambient generation after a short delay to let test audio finish
+    // Start evolution after initial delay
     setTimeout(() => {
-      console.log('🎵 Starting ambient generation loop')
-      generateAmbientNote()
-    }, 2000)
+      console.log('🎵 Starting evolving composition system')
+      evolveComposition()
+    }, 3000)
 
-    console.log('🎵 Ambient music generation scheduled')
+    // FIX: Force start background with immediate notes
+    setTimeout(() => {
+      this.forceStartBackground()
+    }, 5000)
+
+    // FIX: Test filter modulation to ensure it works
+    setTimeout(() => {
+      this.testFilterModulation()
+    }, 7000)
+
+    console.log('🎵 Evolving composition system initialized with forced start and filter test')
+  }
+
+  /**
+   * Update generative state based on user activity and musical context
+   */
+  updateGenerativeState() {
+    const state = this.generativeState
+    state.evolutionCycle++
+
+    // Time-based evolution (organic change over time)
+    const timeFactor = Math.sin(state.evolutionCycle * 0.05) * 0.5 + 0.5
+    state.complexity = 0.2 + timeFactor * 0.4 + state.userInfluence * 0.4
+
+    // User activity influence (recent gestures increase complexity)
+    const timeSinceActivity = Date.now() - state.lastUserActivity
+    const activityDecay = Math.max(0, 1 - timeSinceActivity / 30000) // 30 second decay
+    state.userInfluence *= 0.95 // Gradual decay
+    state.userInfluence = Math.max(0.1, state.userInfluence)
+
+    // Harmonic progression advancement
+    if (Math.random() < 0.3 + state.complexity * 0.2) {
+      state.harmonicProgression = (state.harmonicProgression + 1) % state.currentScale.length
+    }
+
+    // Occasional key changes (based on evolution cycles)
+    if (state.evolutionCycle % 20 === 0) {
+      this.mutateHarmonicContext()
+    }
+
+    // Adjust evolution speed based on complexity
+    state.evolutionSpeed = 4000 + (1 - state.complexity) * 6000 + Math.random() * 2000
+  }
+
+  /**
+   * Mutate harmonic context for variety
+   */
+  mutateHarmonicContext() {
+    const state = this.generativeState
+    const mutationTypes = ['tonic_shift', 'scale_change', 'mode_change']
+    const mutation = mutationTypes[Math.floor(Math.random() * mutationTypes.length)]
+
+    switch (mutation) {
+      case 'tonic_shift':
+        // Shift tonic by a musical interval
+        const intervals = [3, 4, 5, 7, 9] // Minor third, major third, perfect fourth, fifth, major sixth
+        const interval = intervals[Math.floor(Math.random() * intervals.length)]
+        state.currentTonic = 110 + (state.currentTonic + interval * 20) % 440 // Keep in reasonable range
+        break
+
+      case 'scale_change':
+        // Change scale type
+        const scales = {
+          pentatonic_major: [0, 2, 4, 7, 9],
+          pentatonic_minor: [0, 3, 5, 7, 10],
+          natural_minor: [0, 2, 3, 5, 7, 8, 10],
+          dorian: [0, 2, 3, 5, 7, 9, 10],
+          mixolydian: [0, 2, 4, 5, 7, 9, 10]
+        }
+        const scaleNames = Object.keys(scales)
+        const newScaleName = scaleNames[Math.floor(Math.random() * scaleNames.length)]
+        state.currentScale = scales[newScaleName]
+        break
+
+      case 'mode_change':
+        // Invert or modify current scale
+        if (Math.random() > 0.5) {
+          // Add chromatic tones
+          state.currentScale = [...state.currentScale, 1, 6, 8, 11].slice(0, 7)
+        }
+        break
+    }
+
+    console.log(`🎵 Harmonic mutation: ${mutation}, new tonic: ${state.currentTonic}Hz`)
+  }
+
+  /**
+   * Generate evolving musical material for a specific layer
+   * @param {string} layer - Layer name ('bass', 'harmony', 'texture')
+   */
+  generateEvolvingLayer(layer) {
+    const state = this.generativeState
+    const synth = this.ambientLayers[layer]
+    const filter = this.ambientFilters[layer]
+
+    if (!synth || this.muted) return
+
+    // Release existing notes in this layer to avoid overlap
+    synth.releaseAll()
+
+    // Determine layer-specific parameters
+    let notes, octaveRange, durationRange, velocity
+
+    switch (layer) {
+      case 'bass':
+        notes = this.selectNotesForLayer(state, 0, 2) // Root and third
+        octaveRange = [0, 1] // Low octaves
+        durationRange = [4, 8] // Long durations
+        velocity = 0.3 + state.complexity * 0.2
+        break
+
+      case 'harmony':
+        notes = this.selectNotesForLayer(state, 2, 4) // Middle scale degrees
+        octaveRange = [1, 2] // Middle octaves
+        durationRange = [2, 4] // Medium durations
+        velocity = 0.2 + state.complexity * 0.3
+        break
+
+      case 'texture':
+        notes = this.selectNotesForLayer(state, 1, 6) // Wider range
+        octaveRange = [2, 3] // Higher octaves
+        durationRange = [0.5, 2] // Shorter durations
+        velocity = 0.1 + state.complexity * 0.2
+        break
+    }
+
+    // Generate frequencies from selected notes
+    const frequencies = notes.map(note => {
+      const octave = octaveRange[0] + Math.floor(Math.random() * (octaveRange[1] - octaveRange[0] + 1))
+      return state.currentTonic * Math.pow(2, (note + octave * 12) / 12)
+    })
+
+    // Apply dynamic filter modulation based on complexity
+    const baseFrequency = {
+      bass: 200,
+      harmony: 800,
+      texture: 1500
+    }[layer]
+
+    const filterModulation = 1 + state.complexity * Math.sin(Date.now() * 0.001) * 0.3
+    filter.frequency.setValueAtTime(baseFrequency * filterModulation, Tone.context.currentTime)
+
+    // Trigger notes with staggered timing for organic feel
+    frequencies.forEach((freq, index) => {
+      const delay = index * 0.1 + Math.random() * 0.2
+      const duration = durationRange[0] + Math.random() * (durationRange[1] - durationRange[0])
+
+      synth.triggerAttack(freq, `+${delay}`, velocity)
+
+      // Schedule release for sustained notes
+      if (layer !== 'texture' || Math.random() > 0.5) {
+        synth.triggerRelease(freq, `+${delay + duration}`)
+      }
+    })
+
+    console.log(`🎵 Generated ${layer} layer: ${frequencies.length} notes, complexity=${state.complexity.toFixed(2)}`)
+  }
+
+  /**
+   * Select appropriate notes for a layer based on current harmonic context
+   * @param {Object} state - Current generative state
+   * @param {number} startIndex - Start index in scale
+   * @param {number} range - Number of scale degrees to choose from
+   * @returns {Array<number>} Selected scale degrees
+   */
+  selectNotesForLayer(state, startIndex, range) {
+    const scale = state.currentScale
+    const progression = state.harmonicProgression
+
+    // Create chord-like structures based on harmonic progression
+    const chordDegrees = []
+    for (let i = 0; i < 3; i++) {
+      const degree = (progression * 2 + i * 2 + startIndex) % scale.length
+      chordDegrees.push(scale[degree])
+    }
+
+    // Add passing tones based on complexity
+    if (state.complexity > 0.5 && Math.random() < state.complexity) {
+      const passingTone = scale[(progression + Math.floor(Math.random() * scale.length)) % scale.length]
+      chordDegrees.push(passingTone)
+    }
+
+    return chordDegrees
   }
 
   /**
@@ -296,15 +502,36 @@ class AudioService {
     if (this.isInitialized) {
       this.stopUpdateLoop()
 
-      // Stop ambient generation
-      this.ambientGenerationActive = false
-      this.ambientSynthActive = false
+      // Stop evolving generation
+      this.evolvingGenerationActive = false
 
       // Stop all sustained notes before disposing
-      if (this.ambientSynth) {
-        this.ambientSynth.releaseAll()
-        this.ambientSynth.dispose()
-        this.ambientSynth = null
+      if (this.ambientLayers) {
+        Object.keys(this.ambientLayers).forEach(layer => {
+          if (this.ambientLayers[layer]) {
+            this.ambientLayers[layer].releaseAll()
+            this.ambientLayers[layer].dispose()
+          }
+        })
+        this.ambientLayers = null
+      }
+
+      if (this.ambientFilters) {
+        Object.keys(this.ambientFilters).forEach(layer => {
+          if (this.ambientFilters[layer]) {
+            this.ambientFilters[layer].dispose()
+          }
+        })
+        this.ambientFilters = null
+      }
+
+      if (this.ambientVolumes) {
+        Object.keys(this.ambientVolumes).forEach(layer => {
+          if (this.ambientVolumes[layer]) {
+            this.ambientVolumes[layer].dispose()
+          }
+        })
+        this.ambientVolumes = null
       }
 
       if (this.gestureSynth) {
@@ -312,14 +539,20 @@ class AudioService {
         this.gestureSynth = null
       }
 
+      if (this.gestureFilter) {
+        this.gestureFilter.dispose()
+        this.gestureFilter = null
+      }
+
       this.isInitialized = false
-      console.log('🔇 AudioService stopped')
+      console.log('🔇 Evolutive AudioService stopped')
     }
   }
 
   /**
    * Update sonic parameters from gesture data per FR-002
    * System MUST translate user gestures into real-time sonic parameter modifications
+   * FIX: Restored background filter modulation and added polyphony management
    * @param {Object} sonicParams - Parameters from gesture processing
    */
   updateSonicParams(sonicParams) {
@@ -331,7 +564,22 @@ class AudioService {
       const volume = this.mapGestureToVolume(sonicParams)
       const filterFreq = this.mapGestureToFilter(sonicParams)
 
-      // Apply real-time parameters to gesture synth
+      // FIX: Apply real-time parameters to gesture filter for hover modulation
+      if (this.gestureFilter) {
+        // FIX: Validate filter frequency to prevent null errors
+        const validFreq = filterFreq && !isNaN(filterFreq) ? filterFreq : 1000
+        const clampedFreq = Math.max(100, Math.min(8000, validFreq))
+
+        this.gestureFilter.frequency.linearRampToValueAtTime(clampedFreq, Tone.context.currentTime + 0.05)
+
+        const filterQ = 1 + (sonicParams.z || 0.5) * 3
+        const clampedQ = Math.max(0.1, Math.min(10, filterQ))
+        this.gestureFilter.Q.linearRampToValueAtTime(clampedQ, Tone.context.currentTime + 0.05)
+
+        console.log(`🎛️ Applied gesture filter: ${clampedFreq.toFixed(1)}Hz, Q=${clampedQ.toFixed(2)}`)
+      }
+
+      // Apply filter frequency to gesture synth
       this.gestureSynth.set({
         filter: { frequency: filterFreq }
       })
@@ -340,6 +588,9 @@ class AudioService {
       // Use volume from gesture as velocity parameter (0.3-0.7 range)
       this.gestureSynth.triggerAttackRelease(frequency, '8n', undefined, 0.3 + (volume * 0.4))
 
+      // FIX: Update background filters with gesture modulation
+      this.updateBackgroundFilters(sonicParams)
+
       // Log for performance monitoring per FR-006 (<200ms latency)
       const timestamp = performance.now()
       console.log(`🎵 Gesture processed: ${frequency.toFixed(1)}Hz at ${timestamp.toFixed(1)}ms`)
@@ -347,6 +598,242 @@ class AudioService {
     } catch (error) {
       console.warn('Audio playback error:', error)
     }
+  }
+
+  /**
+   * Update filter parameters directly (for remote filter modulation)
+   * FIX: Added this missing method for hover and remote filter modulation
+   * @param {Object} filterParams - Filter parameters
+   */
+  updateFilterParams(filterParams) {
+    if (!this.isInitialized) {
+      console.log('🔇 updateFilterParams blocked - audio not initialized')
+      return
+    }
+
+    // THROTTLING: Prevent stuttering by limiting filter update frequency
+    const now = Date.now()
+    if (now - this.lastFilterUpdateTime < this.filterUpdateInterval) {
+      // Skip this update to prevent audio stuttering
+      return
+    }
+    this.lastFilterUpdateTime = now
+
+    try {
+      // Reduce console log frequency to prevent spam
+      if (now - (this.lastFilterUpdateTime || 0) > 500) {
+        console.log('🎛️ Applying filter params:', filterParams)
+      }
+
+      // Ensure Tone.js context is started
+      if (Tone.context.state !== 'running') {
+        console.log('🎛️ Starting Tone.js context for filter modulation')
+        Tone.start()
+        // Give it a moment to start
+        setTimeout(() => this.applyFilterModulation(filterParams), 100)
+        return
+      }
+
+      this.applyFilterModulation(filterParams)
+
+    } catch (error) {
+      console.warn('🔇 Error updating filter params:', error)
+    }
+  }
+
+  /**
+   * Helper method to safely apply filter modulation
+   * @param {Object} filterParams - Filter parameters
+   */
+  applyFilterModulation(filterParams) {
+    try {
+      // Validate Tone context is ready
+      if (!Tone.context || !Tone.context.currentTime) {
+        console.warn('🔇 Tone context not ready for filter modulation')
+        return
+      }
+
+      // Apply to gesture filter with enhanced validation
+      if (this.gestureFilter && this.gestureFilter.frequency && filterParams.frequency) {
+        const freq = Math.min(8000, Math.max(100, filterParams.frequency))
+
+        // Validate filter frequency object exists and has the method
+        if (typeof this.gestureFilter.frequency.linearRampToValueAtTime === 'function') {
+          this.gestureFilter.frequency.linearRampToValueAtTime(freq, Tone.context.currentTime + 0.05)
+          console.log(`🎛️ Gesture filter frequency set to ${freq.toFixed(1)}Hz`)
+        }
+
+        if (filterParams.resonance && this.gestureFilter.Q && typeof this.gestureFilter.Q.linearRampToValueAtTime === 'function') {
+          const q = Math.min(10, Math.max(0.1, filterParams.resonance))
+          this.gestureFilter.Q.linearRampToValueAtTime(q, Tone.context.currentTime + 0.05)
+          console.log(`🎛️ Gesture filter resonance set to ${q.toFixed(2)}`)
+        }
+      } else {
+        console.warn('🔇 Gesture filter or frequency parameter not available')
+      }
+
+      // FIX: Apply to background filters as well with validation
+      if (filterParams && filterParams.frequency && this.ambientFilters && Tone.context) {
+        const freq = filterParams.frequency
+
+        // Validate Tone context is ready
+        if (Tone.context && Tone.context.currentTime) {
+          // Apply to all ambient layers with different intensities
+          if (this.ambientFilters.texture) {
+            this.ambientFilters.texture.frequency.linearRampToValueAtTime(
+              Math.min(4000, Math.max(200, freq * 1.5)),
+              Tone.context.currentTime + 0.1
+            )
+          }
+
+          if (this.ambientFilters.harmony) {
+            this.ambientFilters.harmony.frequency.linearRampToValueAtTime(
+              Math.min(2000, Math.max(150, freq * 0.8)),
+              Tone.context.currentTime + 0.15
+            )
+          }
+
+          if (this.ambientFilters.bass) {
+            this.ambientFilters.bass.frequency.linearRampToValueAtTime(
+              Math.min(500, Math.max(50, freq * 0.3)),
+              Tone.context.currentTime + 0.2
+            )
+          }
+
+          console.log(`🎛️ Applied filter modulation: ${freq.toFixed(1)}Hz to all layers`)
+        } else {
+          console.warn('🔇 Tone context not ready for filter modulation')
+        }
+      }
+
+    } catch (error) {
+      console.warn('🔇 Error updating filter params:', error)
+    }
+  }
+
+  /**
+   * Update background filters with gesture-based modulation
+   * FIX: Restored this missing functionality
+   * @param {Object} sonicParams - Sonic parameters from gesture
+   */
+  updateBackgroundFilters(sonicParams) {
+    if (!this.ambientFilters) return
+
+    // Calculate filter modulation based on gesture coordinates
+    const filterFreq = this.calculateFilterFrequency(sonicParams)
+    const filterQ = this.calculateFilterResonance(sonicParams)
+
+    // Apply modulation to ambient filters with much stronger intensities
+    if (this.ambientFilters.texture) {
+      // Strongest modulation on texture layer
+      const textureFreq = filterFreq * 2.5 // Increased multiplier
+      this.ambientFilters.texture.frequency.linearRampToValueAtTime(
+        Math.min(8000, Math.max(100, textureFreq)), // Much wider range
+        Tone.context.currentTime + 0.05 // Faster transition
+      )
+      this.ambientFilters.texture.Q.setValueAtTime(filterQ * 2, Tone.context.currentTime) // Stronger Q
+      console.log(`🎛️ Texture filter: ${Math.min(8000, Math.max(100, textureFreq)).toFixed(1)}Hz, Q=${(filterQ * 2).toFixed(2)}`)
+    }
+
+    if (this.ambientFilters.harmony) {
+      // Moderate modulation on harmony layer
+      const harmonyFreq = filterFreq * 1.8 // Increased multiplier
+      this.ambientFilters.harmony.frequency.linearRampToValueAtTime(
+        Math.min(4000, Math.max(100, harmonyFreq)), // Wider range
+        Tone.context.currentTime + 0.08 // Faster transition
+      )
+      this.ambientFilters.harmony.Q.setValueAtTime(filterQ * 1.5, Tone.context.currentTime) // Stronger Q
+      console.log(`🎛️ Harmony filter: ${Math.min(4000, Math.max(100, harmonyFreq)).toFixed(1)}Hz, Q=${(filterQ * 1.5).toFixed(2)}`)
+    }
+
+    if (this.ambientFilters.bass) {
+      // Less subtle modulation on bass layer
+      const bassFreq = filterFreq * 0.6 // Increased multiplier
+      this.ambientFilters.bass.frequency.linearRampToValueAtTime(
+        Math.min(1000, Math.max(30, bassFreq)), // Wider range for bass
+        Tone.context.currentTime + 0.1 // Faster transition
+      )
+      this.ambientFilters.bass.Q.setValueAtTime(filterQ * 1.2, Tone.context.currentTime) // Stronger Q
+      console.log(`🎛️ Bass filter: ${Math.min(1000, Math.max(30, bassFreq)).toFixed(1)}Hz, Q=${(filterQ * 1.2).toFixed(2)}`)
+    }
+  }
+
+  /**
+   * Calculate filter frequency from gesture parameters
+   * @param {Object} sonicParams - Sonic parameters
+   * @returns {number} Filter frequency
+   */
+  calculateFilterFrequency(sonicParams) {
+    const y = sonicParams.y || 0.5
+    return 200 + ((1 - y) * 3800) // 200Hz to 4000Hz, inverted Y axis
+  }
+
+  /**
+   * Calculate filter resonance from gesture parameters
+   * @param {Object} sonicParams - Sonic parameters
+   * @returns {number} Filter resonance (Q)
+   */
+  calculateFilterResonance(sonicParams) {
+    const x = sonicParams.x || 0.5
+    return 0.5 + (x * 4.5) // 0.5 to 5.0 Q range
+  }
+
+  /**
+   * Check and manage polyphony to prevent audio overload
+   */
+  managePolyphony() {
+    if (!this.generativeState) return
+
+    const totalActiveVoices = this.generativeState.activeVoices.size
+
+    // If we're exceeding polyphony limits, clean up old voices
+    if (totalActiveVoices > this.maxTotalVoices) {
+      const voicesToCleanup = totalActiveVoices - this.maxTotalVoices
+      const now = Date.now()
+
+      // Find oldest voices and release them
+      const voicesByAge = Array.from(this.generativeState.activeVoices.entries())
+        .sort((a, b) => a[1].startTime - b[1].startTime)
+
+      for (let i = 0; i < voicesToCleanup && i < voicesByAge.length; i++) {
+        const [voiceId, voiceData] = voicesByAge[i]
+
+        // Release the voice if it's been playing for more than 1 second
+        if (now - voiceData.startTime > 1000) {
+          if (voiceData.synth && voiceData.synth.releaseAll) {
+            voiceData.synth.releaseAll()
+          }
+          this.generativeState.activeVoices.delete(voiceId)
+          console.log(`🔇 Cleaned up voice ${voiceId} for polyphony management`)
+        }
+      }
+    }
+  }
+
+  /**
+   * Track a new voice for polyphony management
+   * @param {string} voiceId - Unique voice identifier
+   * @param {Object} synth - Synth instance
+   * @param {number} duration - Note duration
+   */
+  trackVoice(voiceId, synth, duration) {
+    if (!this.generativeState) return
+
+    this.generativeState.activeVoices.set(voiceId, {
+      synth,
+      startTime: Date.now(),
+      duration
+    })
+
+    // Schedule voice cleanup
+    setTimeout(() => {
+      if (this.generativeState.activeVoices.has(voiceId)) {
+        this.generativeState.activeVoices.delete(voiceId)
+      }
+    }, duration * 1000 + 500) // Add 500ms buffer
+
+    // Check polyphony limits
+    this.managePolyphony()
   }
 
   /**
@@ -369,16 +856,25 @@ class AudioService {
 
   /**
    * Map gesture movement to filter parameters per FR-002
+   * FIX: Added validation to prevent null returns
    */
   mapGestureToFilter(sonicParams) {
     // Movement speed or Z coordinate maps to filter cutoff
-    const movement = sonicParams.z || sonicParams.movement || 0.5
-    return 200 + (movement * 2000) // 200Hz to 2200Hz filter range
+    const movement = sonicParams?.z ?? sonicParams?.movement ?? sonicParams?.y ?? 0.5
+    const validMovement = typeof movement === 'number' && !isNaN(movement) ? movement : 0.5
+    const clampedMovement = Math.max(0, Math.min(1, validMovement))
+
+    const filterFreq = 200 + (clampedMovement * 2000) // 200Hz to 2200Hz filter range
+    console.log(`🎛️ Map gesture to filter: movement=${validMovement} → freq=${filterFreq.toFixed(1)}Hz`)
+
+    return filterFreq
   }
 
   /**
    * Update sound patterns from collaborative data
    * Plays audio feedback for remote users' gestures (FR-003)
+   * EVOLUTIVE: Also influences generative composition and adds filter modulation
+   * FIX: Added remote filter modulation and note hanging prevention
    * @param {Array} patterns - Sound patterns from other users
    */
   updatePatterns(patterns) {
@@ -399,6 +895,30 @@ class AudioService {
     this.collaborativePatterns = patterns || []
     console.log('🎵 Updated collaborative patterns:', patterns?.length || 0)
 
+    // EVOLUTIVE: Update generative state based on user activity
+    if (this.generativeState && patterns && patterns.length > 0) {
+      // Update user activity timestamp
+      this.generativeState.lastUserActivity = now
+
+      // Increase user influence based on pattern intensity
+      const avgIntensity = patterns.reduce((sum, p) => sum + (p.intensity || p.y || 0.5), 0) / patterns.length
+      this.generativeState.userInfluence = Math.min(1.0, this.generativeState.userInfluence + avgIntensity * 0.2)
+
+      // Influence harmonic progression based on pattern positions
+      const avgX = patterns.reduce((sum, p) => sum + (p.x || 0.5), 0) / patterns.length
+      if (avgX > 0.7) {
+        // Right side activity: advance harmony
+        this.generativeState.harmonicProgression = (this.generativeState.harmonicProgression + 1) % this.generativeState.currentScale.length
+      } else if (avgX < 0.3) {
+        // Left side activity: add chromatic tension
+        if (this.generativeState.complexity < 0.7) {
+          this.generativeState.complexity += 0.1
+        }
+      }
+
+      console.log(`🎵 User influence updated: ${this.generativeState.userInfluence.toFixed(2)}, complexity: ${this.generativeState.complexity.toFixed(2)}`)
+    }
+
     // Check if patterns are the same as last time to avoid repetition
     if (this.lastCollaborativePatterns && this.arePatternsEqual(this.lastCollaborativePatterns, patterns)) {
       console.log('🔇 Skipping duplicate collaborative patterns')
@@ -406,11 +926,32 @@ class AudioService {
     }
     this.lastCollaborativePatterns = [...(patterns || [])]
 
+    // FIX: Apply filter modulation from remote patterns
+    if (patterns && patterns.length > 0) {
+      // Calculate average position for filter modulation
+      const avgPosition = {
+        x: patterns.reduce((sum, p) => sum + (p.x || 0.5), 0) / patterns.length,
+        y: patterns.reduce((sum, p) => sum + (p.y || 0.5), 0) / patterns.length,
+        z: patterns.reduce((sum, p) => sum + (p.z || 0.5), 0) / patterns.length
+      }
+
+      // Apply remote filter modulation to background
+      this.updateBackgroundFilters(avgPosition)
+      console.log(`🎛️ Applied remote filter modulation: x=${avgPosition.x.toFixed(2)}, y=${avgPosition.y.toFixed(2)}`)
+    }
+
     // Play audio feedback for each pattern from remote users (FR-003, FR-006)
+    // FIX: Added note hanging prevention and safe note management
     if (patterns && patterns.length > 0 && this.gestureSynth) {
+      // Initialize notes tracking if not exists
+      if (!this.activeNotes) {
+        this.activeNotes = new Map()
+      }
+
       patterns.forEach((pattern, index) => {
         // Stagger sounds slightly to avoid clipping (20ms per pattern)
         const delay = index * 0.02
+        const noteId = `remote_${Date.now()}_${index}`
 
         try {
           // Use pattern frequency if available, otherwise derive from position with added variation
@@ -432,20 +973,72 @@ class AudioService {
           }
           const velocity = 0.1 + (intensity * 0.3) // 0.1-0.4 range for subtle collaborative audio
 
-          console.log(`🎵 Playing collaborative pattern ${index}: ${frequency.toFixed(1)}Hz, intensity: ${intensity.toFixed(2)}`)
+          // FIX: Use very short duration to prevent hanging
+          const duration = 0.1 // 100ms maximum for remote notes
 
-          // Play short note (FR-006: <200ms latency, volume controlled by masterVolume)
+          console.log(`🎵 Playing collaborative pattern ${index}: ${frequency.toFixed(1)}Hz, duration: ${duration}s, intensity: ${intensity.toFixed(2)}`)
+
+          // Play short note with guaranteed release (FR-006: <200ms latency)
           this.gestureSynth.triggerAttackRelease(
             frequency,
-            '32n', // Very short note (~62ms at 120bpm)
+            duration,
             `+${delay}`,
             velocity
           )
+
+          // Track the note for cleanup
+          this.activeNotes.set(noteId, {
+            frequency,
+            startTime: Tone.context.currentTime + delay,
+            synth: this.gestureSynth
+          })
+
+          // Schedule automatic cleanup to prevent hanging
+          setTimeout(() => {
+            if (this.activeNotes.has(noteId)) {
+              try {
+                this.gestureSynth.triggerRelease(frequency)
+                this.activeNotes.delete(noteId)
+                console.log(`🔇 Auto-released remote note: ${frequency.toFixed(1)}Hz`)
+              } catch (e) {
+                // Ignore release errors
+                this.activeNotes.delete(noteId)
+              }
+            }
+          }, (delay + duration) * 1000 + 500) // Add 500ms buffer
+
         } catch (error) {
           console.warn('🔇 Error playing collaborative pattern:', error)
         }
       })
+
+      // Cleanup old notes periodically
+      this.cleanupHangingNotes()
     }
+  }
+
+  /**
+   * Cleanup hanging notes to prevent audio issues
+   * FIX: Added note hanging prevention
+   */
+  cleanupHangingNotes() {
+    if (!this.activeNotes || !this.gestureSynth) return
+
+    const now = Tone.context.currentTime
+    const maxDuration = 2.0 // Maximum 2 seconds for any note
+
+    // Release any notes that have been playing too long
+    this.activeNotes.forEach((noteData, noteId) => {
+      if (now - noteData.startTime > maxDuration) {
+        try {
+          noteData.synth.triggerRelease(noteData.frequency)
+          this.activeNotes.delete(noteId)
+          console.log(`🔇 Force-released hanging note: ${noteData.frequency.toFixed(1)}Hz`)
+        } catch (e) {
+          this.activeNotes.delete(noteId)
+        }
+      }
+    })
   }
 
   /**
@@ -477,6 +1070,383 @@ class AudioService {
     } catch (error) {
       console.warn('AudioService: Error playing draw sound', error)
     }
+  }
+
+  /**
+   * Play musical event from gesture with proper articulation and duration
+   * FIX: Enhanced duration normalization and articulation support
+   * EVOLUTIVE: Integrates user phrases into background composition
+   * @param {Object} musicalEvent - Musical event data
+   */
+  playMusicalEvent(musicalEvent) {
+    if (!this.isInitialized || !musicalEvent || this.muted) {
+      console.log('🔇 playMusicalEvent blocked - initialized:', this.isInitialized, 'muted:', this.muted)
+      return
+    }
+
+    const startTime = performance.now()
+
+    try {
+      const { pitch, velocity, duration, articulation, eventType } = musicalEvent
+
+      if (pitch === undefined || velocity === undefined || duration === undefined) {
+        console.warn('🔇 Invalid musical event data:', { pitch, velocity, duration, articulation })
+        return
+      }
+
+      // Convert MIDI pitch to frequency
+      const frequency = this.midiNoteToFrequency(pitch)
+
+      // FIX: Normalize duration to audible range (prevents too short/long notes)
+      let normalizedDuration = duration
+      if (typeof duration === 'number') {
+        // Convert beats to seconds if duration is in beats
+        if (duration < 10) {
+          normalizedDuration = duration * 0.25 // Assume quarter note = 0.25s at 60 BPM
+        }
+
+        // Clamp to reasonable range
+        normalizedDuration = Math.max(0.05, Math.min(4.0, normalizedDuration))
+      }
+
+      // Apply articulation FIX: Enhanced duration and velocity adjustments
+      let adjustedDuration = normalizedDuration
+      let adjustedVelocity = Math.max(0.1, Math.min(1.0, velocity / 127))
+
+      switch (articulation) {
+        case 'staccato':
+          adjustedDuration *= 0.2 // Much shorter for very noticeable staccato
+          adjustedVelocity *= 1.15 // Louder for emphasis
+          console.log(`🎵 STACCATO: ${normalizedDuration.toFixed(3)}s → ${adjustedDuration.toFixed(3)}s`)
+          break
+        case 'legato':
+          adjustedDuration *= 1.8 // Much longer for sustained legato
+          adjustedVelocity *= 0.85 // Softer
+          console.log(`🎵 LEGATO: ${normalizedDuration.toFixed(3)}s → ${adjustedDuration.toFixed(3)}s`)
+          break
+        case 'accent':
+          adjustedVelocity *= 1.4 // Much louder for emphasis
+          adjustedDuration *= 1.2 // Slightly longer to emphasize
+          console.log(`🎵 ACCENT: ${normalizedDuration.toFixed(3)}s → ${adjustedDuration.toFixed(3)}s, vel=${adjustedVelocity.toFixed(2)}`)
+          break
+        default:
+          console.log(`🎵 DEFAULT: ${normalizedDuration.toFixed(3)}s`)
+          break
+      }
+
+      // Final duration clamping
+      adjustedDuration = Math.max(0.02, Math.min(3.0, adjustedDuration))
+
+      // Enhanced logging for debugging
+      console.log(`🎵 Playing musical event: pitch=${pitch} (${frequency.toFixed(1)}Hz), duration=${adjustedDuration.toFixed(3)}s (orig: ${duration}), articulation=${articulation}, velocity=${adjustedVelocity.toFixed(2)}`)
+
+      // Play through gesture synth with proper articulation
+      this.gestureSynth.triggerAttackRelease(frequency, adjustedDuration, undefined, adjustedVelocity)
+
+      // EVOLUTIVE: Integrate user phrase into background composition
+      this.integrateUserPhraseIntoBackground(musicalEvent, frequency, adjustedDuration)
+
+      // Track performance
+      const latency = performance.now() - startTime
+      if (latency > 50) {
+        console.warn(`🐌 High musical event latency: ${latency.toFixed(1)}ms`)
+      }
+
+    } catch (error) {
+      console.error('🔇 Error playing musical event:', error)
+    }
+  }
+
+  /**
+   * Integrate user phrase into background composition
+   * EVOLUTIVE: Makes background respond to user musical input
+   * @param {Object} musicalEvent - Musical event data
+   * @param {number} frequency - Note frequency
+   * @param {number} duration - Note duration
+   */
+  integrateUserPhraseIntoBackground(musicalEvent, frequency, duration) {
+    if (!this.generativeState || !this.ambientLayers) return
+
+    const state = this.generativeState
+
+    // Update user influence based on musical event characteristics
+    state.userInfluence = Math.min(1.0, state.userInfluence + 0.1)
+    state.lastUserActivity = Date.now()
+
+    // Extract musical characteristics from the event
+    const midiPitch = musicalEvent.pitch
+    const velocity = musicalEvent.velocity || 64
+    const articulation = musicalEvent.articulation || 'default'
+
+    // Update generative complexity based on user input
+    if (articulation === 'staccato') {
+      state.complexity = Math.min(1.0, state.complexity + 0.05) // Staccato = increase complexity
+    } else if (articulation === 'legato') {
+      state.complexity = Math.max(0.1, state.complexity - 0.03) // Legato = slightly decrease
+    }
+
+    // Influence harmonic progression based on pitch
+    if (midiPitch) {
+      const pitchClass = midiPitch % 12
+      const currentTonicClass = Math.round(state.currentTonic) % 12
+
+      // If user plays a note far from current tonic, consider modulating
+      const pitchDistance = Math.min((pitchClass - currentTonicClass + 12) % 12,
+                                   (currentTonicClass - pitchClass + 12) % 12)
+
+      if (pitchDistance > 4) { // More than a major third away
+        if (Math.random() > 0.7) {
+          // Consider harmonic modulation
+          this.considerHarmonicModulation(state, pitchClass)
+        }
+      }
+    }
+
+    // Add rhythmic influence based on duration
+    if (duration < 0.2) {
+      // Short notes = increase rhythmic complexity
+      state.rhythmicComplexity = Math.min(1.0, state.rhythmicComplexity + 0.1)
+    } else if (duration > 1.0) {
+      // Long notes = decrease rhythmic complexity, increase harmonic tension
+      state.rhythmicComplexity = Math.max(0.2, state.rhythmicComplexity - 0.05)
+      state.harmonicTension = Math.min(1.0, (state.harmonicTension || 0.3) + 0.1)
+    }
+
+    // Log integration for debugging
+    console.log(`🎵 Integrated user phrase: influence=${state.userInfluence.toFixed(2)}, complexity=${state.complexity.toFixed(2)}`)
+
+    // Trigger immediate background evolution if enough user influence
+    if (state.userInfluence > 0.6) {
+      this.triggerImmediateBackgroundEvolution()
+    }
+  }
+
+  /**
+   * Consider harmonic modulation based on user input
+   * @param {Object} state - Generative state
+   * @param {number} targetPitchClass - Target pitch class for modulation
+   */
+  considerHarmonicModulation(state, targetPitchClass) {
+    const currentTonicClass = Math.round(state.currentTonic) % 12
+
+    // Calculate modulation interval
+    let modulationInterval = (targetPitchClass - currentTonicClass + 12) % 12
+
+    // Favor musically meaningful intervals
+    const meaningfulIntervals = [5, 7, 2, 9, 4] // Fifth, seventh, second, sixth, third
+    const closestInterval = meaningfulIntervals.reduce((prev, curr) => {
+      const prevDist = Math.abs((prev - modulationInterval + 12) % 12)
+      const currDist = Math.abs((curr - modulationInterval + 12) % 12)
+      return currDist < prevDist ? curr : prev
+    })
+
+    // Apply modulation if it's meaningful
+    if (closestInterval <= 7) {
+      state.pendingModulation = closestInterval
+      console.log(`🎵 User input suggests modulation: ${closestInterval} semitones`)
+    }
+  }
+
+  /**
+   * Trigger immediate background evolution based on user input
+   */
+  triggerImmediateBackgroundEvolution() {
+    if (!this.generativeState || !this.ambientLayers) return
+
+    const state = this.generativeState
+
+    // Apply pending modulation if exists
+    if (state.pendingModulation) {
+      const frequencyRatio = Math.pow(2, state.pendingModulation / 12)
+      state.currentTonic *= frequencyRatio
+      state.currentTonic = Math.max(110, Math.min(440, state.currentTonic))
+      state.pendingModulation = null
+      console.log(`🎵 Applied user-driven modulation: new tonic=${state.currentTonic.toFixed(1)}Hz`)
+    }
+
+    // Update scale based on user complexity preferences
+    if (state.complexity > 0.7) {
+      // High complexity: add chromatic notes
+      if (state.currentScale.length === 5) {
+        state.currentScale = [0, 2, 4, 7, 9, 11] // Add 7th
+      }
+    } else if (state.complexity < 0.3) {
+      // Low complexity: simplify to pentatonic
+      state.currentScale = [0, 2, 4, 7, 9]
+    }
+
+    // Trigger immediate regeneration of background layers
+    Object.keys(this.ambientLayers).forEach(layer => {
+      this.generateEvolvingLayer(layer)
+    })
+
+    console.log(`🎵 Triggered immediate background evolution by user influence`)
+  }
+
+  /**
+   * Test filter modulation to ensure it's working
+   * FIX: Added filter testing system
+   */
+  testFilterModulation() {
+    if (!this.ambientFilters || !this.isInitialized) {
+      console.log('🔇 Cannot test filters: not initialized')
+      return
+    }
+
+    console.log('🧪 Testing filter modulation...')
+
+    // Test with dramatic frequency changes
+    const testFrequencies = [200, 500, 1000, 2000, 5000, 8000]
+    let testIndex = 0
+
+    const runFilterTest = () => {
+      if (testIndex >= testFrequencies.length) {
+        console.log('🧪 Filter test completed')
+        return
+      }
+
+      const freq = testFrequencies[testIndex]
+      console.log(`🧪 Testing filter: ${freq}Hz`)
+
+      // Apply to all layers
+      Object.keys(this.ambientFilters).forEach(layer => {
+        if (this.ambientFilters[layer]) {
+          this.ambientFilters[layer].frequency.linearRampToValueAtTime(
+            freq * (layer === 'bass' ? 0.5 : layer === 'harmony' ? 1 : 2),
+            Tone.context.currentTime + 0.5
+          )
+          this.ambientFilters[layer].Q.setValueAtTime(3, Tone.context.currentTime)
+        }
+      })
+
+      testIndex++
+      setTimeout(runFilterTest, 1500) // Test each frequency for 1.5 seconds
+    }
+
+    runFilterTest()
+  }
+
+  /**
+   * Test filter modulation with a dramatic sweep
+   * Call this method to verify filter modulation is working
+   */
+  testFilterModulation() {
+    if (!this.isInitialized || !this.ambientFilters) {
+      console.warn('Cannot test filter modulation - not initialized')
+      return
+    }
+
+    console.log('🧪 Starting filter modulation test...')
+
+    // Create a dramatic filter sweep over 2 seconds
+    const startTime = Tone.now()
+    const endTime = startTime + 2
+
+    // Sweep all filters from low to high frequency
+    Object.keys(this.ambientFilters).forEach(layerName => {
+      const filter = this.ambientFilters[layerName]
+
+      // Start at low frequency
+      filter.frequency.setValueAtTime(100, startTime)
+
+      // Sweep to high frequency
+      filter.frequency.exponentialRampToValueAtTime(5000, endTime)
+
+      console.log(`🧪 ${layerName} filter sweep: 100Hz → 5000Hz over 2 seconds`)
+    })
+
+    // Also sweep the gesture filter
+    if (this.gestureFilter) {
+      this.gestureFilter.frequency.setValueAtTime(100, startTime)
+      this.gestureFilter.frequency.exponentialRampToValueAtTime(8000, endTime)
+      console.log('🧪 Gesture filter sweep: 100Hz → 8000Hz over 2 seconds')
+    }
+
+    console.log('🧪 Filter test initiated - you should hear dramatic filter sweeps opening up')
+  }
+
+  /**
+   * Force start background music if it's not playing
+   * FIX: Ensures background always starts
+   */
+  forceStartBackground() {
+    if (!this.isInitialized || !this.ambientLayers) {
+      console.log('🔇 forceStartBackground: not initialized')
+      return
+    }
+
+    if (this.muted) {
+      console.log('🔇 forceStartBackground: muted')
+      return
+    }
+
+    try {
+      console.log('🎵 Force starting background music...')
+
+      // Force play notes on each layer to ensure audio is working
+      Object.keys(this.ambientLayers).forEach(layer => {
+        const synth = this.ambientLayers[layer]
+        if (!synth) return
+
+        // Generate a simple chord for this layer
+        const state = this.generativeState
+        if (!state) return
+
+        // Select notes based on layer type
+        let notes = []
+        switch (layer) {
+          case 'bass':
+            notes = [state.currentTonic, state.currentTonic * 0.75] // Root and fifth below
+            break
+          case 'harmony':
+            notes = [state.currentTonic * 1.25, state.currentTonic * 1.5] // Third and fifth above
+            break
+          case 'texture':
+            notes = [state.currentTonic * 2, state.currentTonic * 2.5] // Octave above
+            break
+        }
+
+        // Play the notes with simple parameters
+        notes.forEach((freq, index) => {
+          setTimeout(() => {
+            try {
+              synth.triggerAttack(freq, undefined, 0.2)
+              console.log(`🎵 Forced background note: ${layer} ${freq.toFixed(1)}Hz`)
+
+              // Auto-release after a reasonable time
+              setTimeout(() => {
+                try {
+                  synth.triggerRelease(freq)
+                } catch (e) {
+                  // Ignore release errors
+                }
+              }, 3000)
+            } catch (e) {
+              console.warn(`🔇 Error playing forced background note:`, e)
+            }
+          }, index * 200) // Stagger notes slightly
+        })
+      })
+
+      // If evolution is not active, restart it
+      if (!this.evolvingGenerationActive) {
+        console.log('🎵 Restarting evolution system...')
+        this.evolvingGenerationActive = true
+        this.startEvolvingGeneration()
+      }
+
+    } catch (error) {
+      console.error('🔇 Error in forceStartBackground:', error)
+    }
+  }
+
+  /**
+   * Convert MIDI note number to frequency
+   * @param {number} midiNote - MIDI note number (0-127)
+   * @returns {number} Frequency in Hz
+   */
+  midiNoteToFrequency(midiNote) {
+    return 440 * Math.pow(2, (midiNote - 69) / 12)
   }
 
   /**
@@ -1078,35 +2048,102 @@ class AudioService {
       return
     }
 
+    // THROTTLING: Prevent stuttering by limiting filter update frequency
+    const now = Date.now()
+    if (now - this.lastFilterUpdateTime < this.filterUpdateInterval) {
+      // Skip this update to prevent audio stuttering
+      return
+    }
+    this.lastFilterUpdateTime = now
+
+    // Ensure Tone.js context is started and validated
+    if (Tone.context.state !== 'running') {
+      console.log('🎛️ Starting Tone.js context for filter modulation (second method)')
+      Tone.start()
+      setTimeout(() => this.applyLegacyFilterModulation(filterParams), 100)
+      return
+    }
+
+    this.applyLegacyFilterModulation(filterParams)
+  }
+
+  /**
+   * Apply filter modulation with proper validation for legacy filter system
+   * @param {Object} filterParams - Filter modulation parameters
+   */
+  applyLegacyFilterModulation(filterParams) {
     try {
-      console.log('🎛️ Applying filter modulation:', filterParams)
+      // Reduce console log frequency to prevent spam
+      const now = Date.now()
+      if (now - (this.lastFilterLogTime || 0) > 1000) {
+        console.log('🎛️ Applying filter modulation (legacy):', filterParams)
+        this.lastFilterLogTime = now
+      }
 
-      // Apply to ambient synth filter (for hover modulation)
-      if (this.ambientFilter) {
-        // Use values directly from backend (they're already in the correct range)
-        const cutoffFrequency = Math.max(100, Math.min(8000, filterParams.cutoffFrequency)) // Clamp to audible range
-        this.ambientFilter.frequency.setValueAtTime(cutoffFrequency, Tone.context.currentTime)
+      // Validate Tone context is ready
+      if (!Tone.context || !Tone.context.currentTime) {
+        console.warn('🔇 Tone context not ready for legacy filter modulation')
+        return
+      }
 
-        let resonanceValue = 2 // Default resonance
-        if (this.ambientFilter.Q && filterParams.resonance) {
-          // Backend sends resonance 0.1-5.0, convert to Q range 1-10
-          resonanceValue = Math.max(1, Math.min(10, 1 + filterParams.resonance * 2))
-          this.ambientFilter.Q.setValueAtTime(resonanceValue, Tone.context.currentTime)
-        }
-        console.log('✨ Applied filter to ambient synth:', { cutoff: cutoffFrequency, resonance: resonanceValue })
+      // Handle both parameter naming conventions: frequency or cutoffFrequency
+      const cutoffFrequency = filterParams.frequency || filterParams.cutoffFrequency
+      const resonance = filterParams.resonance
+
+      // Validate we have valid parameters
+      if (cutoffFrequency === null || cutoffFrequency === undefined) {
+        console.warn('🔇 Invalid cutoff frequency for filter modulation')
+        return
+      }
+
+      // Apply to ambient filters (for hover modulation) - FIX: use plural variable name
+      if (this.ambientFilters) {
+        Object.keys(this.ambientFilters).forEach(layerName => {
+          const filter = this.ambientFilters[layerName]
+          if (filter && filter.frequency && typeof filter.frequency.exponentialRampToValueAtTime === 'function') {
+            // Apply different frequency ranges for each layer
+            let targetFrequency = cutoffFrequency
+            if (layerName === 'bass') {
+              targetFrequency = Math.max(50, Math.min(500, cutoffFrequency * 0.3)) // Bass range
+            } else if (layerName === 'harmony') {
+              targetFrequency = Math.max(150, Math.min(2000, cutoffFrequency * 0.8)) // Harmony range
+            } else if (layerName === 'texture') {
+              targetFrequency = Math.max(200, Math.min(4000, cutoffFrequency * 1.5)) // Texture range
+            }
+
+            // Use smooth transitions instead of immediate changes to prevent audio artifacts
+            const rampTime = 0.1 // 100ms smooth transition
+            filter.frequency.exponentialRampToValueAtTime(targetFrequency, Tone.context.currentTime + rampTime)
+
+            // Apply resonance if available with smooth transition
+            if (filter.Q && resonance && typeof filter.Q.linearRampToValueAtTime === 'function') {
+              let resonanceValue = resonance
+              if (layerName === 'bass') {
+                resonanceValue = resonance * 1.5 // Subtle bass resonance
+              } else if (layerName === 'harmony') {
+                resonanceValue = resonance * 2 // Moderate harmony resonance
+              } else if (layerName === 'texture') {
+                resonanceValue = resonance * 2.5 // Strong texture resonance
+              }
+
+              const clampedResonance = Math.max(0.1, Math.min(10, resonanceValue))
+              filter.Q.linearRampToValueAtTime(clampedResonance, Tone.context.currentTime + rampTime)
+            }
+          }
+        })
       }
 
       // Apply to ambient pads (if they exist)
       if (this.audioEngine && this.audioEngine.voices && this.audioEngine.voices.ambient) {
         Object.values(this.audioEngine.voices.ambient).forEach(voice => {
-          if (voice.filter && voice.filter.frequency) {
+          if (voice.filter && voice.filter.frequency && typeof voice.filter.frequency.setValueAtTime === 'function') {
             // Map cutoff frequency to appropriate range (200-8000 Hz)
-            const cutoffRange = filterParams.cutoffFrequency * 80 + 200 // 0-1 to 200-8000Hz
+            const cutoffRange = cutoffFrequency * 80 + 200 // 0-1 to 200-8000Hz
             voice.filter.frequency.setValueAtTime(cutoffRange, Tone.context.currentTime)
 
             // Apply resonance if available
-            if (voice.filter.Q && filterParams.resonance) {
-              const resonanceRange = filterParams.resonance * 15 // 0-1 to 0-15
+            if (voice.filter.Q && resonance && typeof voice.filter.Q.setValueAtTime === 'function') {
+              const resonanceRange = resonance * 15 // 0-1 to 0-15
               voice.filter.Q.setValueAtTime(resonanceRange, Tone.context.currentTime)
             }
           }
@@ -1117,12 +2154,12 @@ class AudioService {
       // Apply to gesture voices
       if (this.audioEngine && this.audioEngine.voices && this.audioEngine.voices.gesture) {
         Object.values(this.audioEngine.voices.gesture).forEach(voice => {
-          if (voice.filter && voice.filter.frequency) {
-            const cutoffRange = filterParams.cutoffFrequency * 80 + 200
+          if (voice.filter && voice.filter.frequency && typeof voice.filter.frequency.setValueAtTime === 'function') {
+            const cutoffRange = cutoffFrequency * 80 + 200
             voice.filter.frequency.setValueAtTime(cutoffRange, Tone.context.currentTime)
 
-            if (voice.filter.Q && filterParams.resonance) {
-              const resonanceRange = filterParams.resonance * 15
+            if (voice.filter.Q && resonance && typeof voice.filter.Q.setValueAtTime === 'function') {
+              const resonanceRange = resonance * 15
               voice.filter.Q.setValueAtTime(resonanceRange, Tone.context.currentTime)
             }
           }
@@ -1131,14 +2168,16 @@ class AudioService {
       }
 
       // Apply to main gesture synth filter
-      if (this.gestureFilter) {
-        const cutoffRange = filterParams.cutoffFrequency * 80 + 200 // 0-1 to 200-8000Hz
+      if (this.gestureFilter && this.gestureFilter.frequency && typeof this.gestureFilter.frequency.setValueAtTime === 'function') {
+        const cutoffRange = cutoffFrequency * 80 + 200 // 0-1 to 200-8000Hz
         this.gestureFilter.frequency.setValueAtTime(cutoffRange, Tone.context.currentTime)
+        console.log(`✨ Applied gesture filter cutoff: ${cutoffRange.toFixed(1)}Hz`)
 
         let resonanceRange = 0
-        if (this.gestureFilter.Q && filterParams.resonance) {
-          resonanceRange = filterParams.resonance * 15 // 0-1 to 0-15
+        if (this.gestureFilter.Q && resonance && typeof this.gestureFilter.Q.setValueAtTime === 'function') {
+          resonanceRange = resonance * 15 // 0-1 to 0-15
           this.gestureFilter.Q.setValueAtTime(resonanceRange, Tone.context.currentTime)
+          console.log(`✨ Applied gesture filter resonance: ${resonanceRange.toFixed(2)}`)
         }
         console.log('✨ Applied filter to gesture synth:', { cutoff: cutoffRange, resonance: resonanceRange })
       }
@@ -1146,12 +2185,12 @@ class AudioService {
       // Also apply to collaborative pattern voices if they exist
       if (this.audioEngine && this.audioEngine.collaborativePatterns) {
         this.audioEngine.collaborativePatterns.forEach(pattern => {
-          if (pattern.oscillator && pattern.filter) {
-            const cutoffRange = filterParams.cutoffFrequency * 80 + 200
+          if (pattern.oscillator && pattern.filter && pattern.filter.frequency && typeof pattern.filter.frequency.setValueAtTime === 'function') {
+            const cutoffRange = cutoffFrequency * 80 + 200
             pattern.filter.frequency.setValueAtTime(cutoffRange, Tone.context.currentTime)
 
-            if (pattern.filter.Q && filterParams.resonance) {
-              const resonanceRange = filterParams.resonance * 15
+            if (pattern.filter.Q && resonance && typeof pattern.filter.Q.setValueAtTime === 'function') {
+              const resonanceRange = resonance * 15
               pattern.filter.Q.setValueAtTime(resonanceRange, Tone.context.currentTime)
             }
           }
