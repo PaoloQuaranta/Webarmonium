@@ -139,7 +139,7 @@ class AudioService {
         this.isActive = true
         this.lastLfoUpdate = Date.now()
 
-        // Start continuous LFO updates at 60Hz for smooth modulation
+        // Start continuous LFO updates at 30Hz for stable audio
         this.updateInterval = setInterval(() => {
           if (!this.isActive) return
 
@@ -158,9 +158,9 @@ class AudioService {
           // Calculate new LFO value
           this.currentLFOValue = Math.sin(this.lfoPhase)
 
-        }, 1000 / 60) // 60 FPS updates
+        }, 1000 / 30) // 30 FPS updates - stable for audio
 
-        console.log('🌊 Continuous LFO started at 60Hz')
+        console.log('🌊 Continuous LFO started at 30Hz - stable for audio')
       },
 
       // Stop continuous LFO updates
@@ -219,7 +219,7 @@ class AudioService {
       isActive: false,
       updateInterval: null,
       lastUpdate: 0,
-      updateRate: 1000 / 120 // 120Hz for ultra-smooth LFO
+      updateRate: 1000 / 30 // 30Hz - much more stable for audio filters
     }
 
     // Performance tracking
@@ -2939,29 +2939,29 @@ class AudioService {
     const currentQ = this.lfoSystem.localResonance
     const now = Tone.now()
 
-    // Apply LFO-modulated parameters to all filters
+    // Apply LFO-modulated parameters to all filters with gentle ramps
     if (this.gestureSynth?.filter) {
-      this.gestureSynth.filter.frequency.setValueAtTime(modulatedCutoff, now)
-      this.gestureSynth.filter.Q.setValueAtTime(currentQ, now)
+      this.gestureSynth.filter.frequency.linearRampToValueAtTime(modulatedCutoff, now + 0.01)
+      this.gestureSynth.filter.Q.linearRampToValueAtTime(currentQ, now + 0.01)
     }
 
     // Apply LFO to ambient filters with frequency scaling
     if (this.ambientFilters?.bass) {
       const bassFreq = Math.max(50, Math.min(500, modulatedCutoff * 0.25))
-      this.ambientFilters.bass.frequency.setValueAtTime(bassFreq, now)
-      this.ambientFilters.bass.Q.setValueAtTime(currentQ * 0.8, now)
+      this.ambientFilters.bass.frequency.linearRampToValueAtTime(bassFreq, now + 0.02)
+      this.ambientFilters.bass.Q.linearRampToValueAtTime(currentQ * 0.8, now + 0.02)
     }
 
     if (this.ambientFilters?.harmony) {
       const harmonyFreq = Math.max(150, Math.min(2000, modulatedCutoff * 0.6))
-      this.ambientFilters.harmony.frequency.setValueAtTime(harmonyFreq, now)
-      this.ambientFilters.harmony.Q.setValueAtTime(currentQ * 1.2, now)
+      this.ambientFilters.harmony.frequency.linearRampToValueAtTime(harmonyFreq, now + 0.015)
+      this.ambientFilters.harmony.Q.linearRampToValueAtTime(currentQ * 1.2, now + 0.015)
     }
 
     if (this.ambientFilters?.texture) {
       const textureFreq = Math.max(300, Math.min(6000, modulatedCutoff * 1.2))
-      this.ambientFilters.texture.frequency.setValueAtTime(textureFreq, now)
-      this.ambientFilters.texture.Q.setValueAtTime(currentQ * 1.5, now)
+      this.ambientFilters.texture.frequency.linearRampToValueAtTime(textureFreq, now + 0.01)
+      this.ambientFilters.texture.Q.linearRampToValueAtTime(currentQ * 1.5, now + 0.01)
     }
   }
 
