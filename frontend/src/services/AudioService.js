@@ -528,15 +528,26 @@ class AudioService {
       return state.currentTonic * Math.pow(2, (note + octave * 12) / 12)
     })
 
-    // Apply dynamic filter modulation based on complexity
+    // Apply filter frequency based on current LFO system state
     const baseFrequency = {
       bass: 200,
       harmony: 800,
       texture: 1500
     }[layer]
 
-    const filterModulation = 1 + state.complexity * Math.sin(Date.now() * 0.001) * 0.3
-    filter.frequency.setValueAtTime(baseFrequency * filterModulation, Tone.context.currentTime)
+    // Use LFO system for dynamic modulation instead of fixed sine wave
+    let filterFrequency = baseFrequency
+    if (this.lfoSystem && layer === 'texture') {
+      // Only texture layer gets LFO modulation from ambient evolution
+      const lfoValue = this.lfoSystem.update()
+      const lfoModulation = 1 + state.complexity * lfoValue * 0.2 // Gentler modulation
+      filterFrequency = baseFrequency * lfoModulation
+    } else {
+      // Other layers use static base frequency
+      filterFrequency = baseFrequency
+    }
+
+    filter.frequency.setValueAtTime(filterFrequency, Tone.context.currentTime)
 
     // Trigger notes with staggered timing for organic feel
     frequencies.forEach((freq, index) => {
@@ -2737,33 +2748,33 @@ class AudioService {
 
         console.log(`🌐 LFO-modulated cutoff: ${modulatedCutoff.toFixed(1)}Hz, Q=${currentQ.toFixed(2)}`)
 
-        // Apply LFO-modulated parameters to all filters
+        // Apply LFO-modulated parameters to all filters (bypass throttle for smooth LFO)
         if (this.gestureSynth?.filter) {
-          this.gestureSynth.filter.frequency.linearRampToValueAtTime(modulatedCutoff, Tone.now() + 0.05)
-          this.gestureSynth.filter.Q.linearRampToValueAtTime(currentQ, Tone.now() + 0.05)
-          console.log('🌐 Applied LFO to gestureSynth filter')
+          this.gestureSynth.filter.frequency.setValueAtTime(modulatedCutoff, Tone.now()) // Immediate, no ramp
+          this.gestureSynth.filter.Q.setValueAtTime(currentQ, Tone.now())
+          console.log('🌐 Applied LFO to gestureSynth filter (immediate)')
         }
 
-        // Apply LFO to ambient filters with frequency scaling
+        // Apply LFO to ambient filters with frequency scaling (immediate updates for smooth LFO)
         if (this.ambientFilters?.bass) {
           const bassFreq = Math.max(50, Math.min(500, modulatedCutoff * 0.25))
-          this.ambientFilters.bass.frequency.linearRampToValueAtTime(bassFreq, Tone.now() + 0.1)
-          this.ambientFilters.bass.Q.linearRampToValueAtTime(currentQ * 0.8, Tone.now() + 0.1)
-          console.log(`🌐 Bass filter LFO: ${bassFreq.toFixed(1)}Hz`)
+          this.ambientFilters.bass.frequency.setValueAtTime(bassFreq, Tone.now())
+          this.ambientFilters.bass.Q.setValueAtTime(currentQ * 0.8, Tone.now())
+          console.log(`🌐 Bass filter LFO: ${bassFreq.toFixed(1)}Hz (immediate)`)
         }
 
         if (this.ambientFilters?.harmony) {
           const harmonyFreq = Math.max(150, Math.min(2000, modulatedCutoff * 0.6))
-          this.ambientFilters.harmony.frequency.linearRampToValueAtTime(harmonyFreq, Tone.now() + 0.08)
-          this.ambientFilters.harmony.Q.linearRampToValueAtTime(currentQ * 1.2, Tone.now() + 0.08)
-          console.log(`🌐 Harmony filter LFO: ${harmonyFreq.toFixed(1)}Hz`)
+          this.ambientFilters.harmony.frequency.setValueAtTime(harmonyFreq, Tone.now())
+          this.ambientFilters.harmony.Q.setValueAtTime(currentQ * 1.2, Tone.now())
+          console.log(`🌐 Harmony filter LFO: ${harmonyFreq.toFixed(1)}Hz (immediate)`)
         }
 
         if (this.ambientFilters?.texture) {
           const textureFreq = Math.max(300, Math.min(6000, modulatedCutoff * 1.2))
-          this.ambientFilters.texture.frequency.linearRampToValueAtTime(textureFreq, Tone.now() + 0.03)
-          this.ambientFilters.texture.Q.linearRampToValueAtTime(currentQ * 1.5, Tone.now() + 0.03)
-          console.log(`🌐 Texture filter LFO: ${textureFreq.toFixed(1)}Hz`)
+          this.ambientFilters.texture.frequency.setValueAtTime(textureFreq, Tone.now())
+          this.ambientFilters.texture.Q.setValueAtTime(currentQ * 1.5, Tone.now())
+          console.log(`🌐 Texture filter LFO: ${textureFreq.toFixed(1)}Hz (immediate)`)
         }
 
       } else {
