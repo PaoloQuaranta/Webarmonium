@@ -113,39 +113,84 @@ class AudioService {
       localCutoff: 1000,        // y-axis controls base cutoff (200-4000Hz)
 
       // Remote hover LFO parameters
-      remoteAmplitude: 0.5,     // x-axis controls LFO amplitude (0-1)
-      remoteSpeed: 1.0,         // y-axis controls LFO speed (0.1-5Hz)
+      remoteAmplitude: 0.5,     // x-axis controls LFO amplitude (0-2.0)
+      remoteSpeed: 1.0,         // y-axis controls LFO speed (0.1-8Hz)
 
       // LFO state
       lfoPhase: 0,
       lastLfoUpdate: Date.now(),
+      currentLFOValue: 0,
+      isActive: false,
+      updateInterval: null,      // setInterval reference
 
       // Initialize LFO
       init() {
         this.lfoPhase = 0
         this.lastLfoUpdate = Date.now()
+        this.currentLFOValue = 0
+        this.isActive = false
         console.log('🎛️ LFO system initialized for hover modulation')
       },
 
-      // Update LFO phase and get current value
-      update() {
-        const now = Date.now()
-        const deltaTime = (now - this.lastLfoUpdate) / 1000 // Convert to seconds
-        this.lastLfoUpdate = now
+      // Start continuous LFO updates
+      start() {
+        if (this.isActive) return
 
-        // Update LFO phase based on current speed
-        this.lfoPhase += deltaTime * this.remoteSpeed * 2 * Math.PI
+        this.isActive = true
+        this.lastLfoUpdate = Date.now()
 
-        // Keep phase in range [0, 2π]
-        if (this.lfoPhase > 2 * Math.PI) {
-          this.lfoPhase -= 2 * Math.PI
-        }
+        // Start continuous LFO updates at 60Hz for smooth modulation
+        this.updateInterval = setInterval(() => {
+          if (!this.isActive) return
 
-        // Return current LFO value (-1 to 1)
-        return Math.sin(this.lfoPhase)
+          const now = Date.now()
+          const deltaTime = (now - this.lastLfoUpdate) / 1000 // Convert to seconds
+          this.lastLfoUpdate = now
+
+          // Update LFO phase based on current speed
+          this.lfoPhase += deltaTime * this.remoteSpeed * 2 * Math.PI
+
+          // Keep phase in range [0, 2π]
+          if (this.lfoPhase > 2 * Math.PI) {
+            this.lfoPhase -= 2 * Math.PI
+          }
+
+          // Calculate new LFO value
+          this.currentLFOValue = Math.sin(this.lfoPhase)
+
+        }, 1000 / 60) // 60 FPS updates
+
+        console.log('🌊 Continuous LFO started at 60Hz')
       },
 
-      // Get modulated cutoff frequency with LFO
+      // Stop continuous LFO updates
+      stop() {
+        this.isActive = false
+        if (this.updateInterval) {
+          clearInterval(this.updateInterval)
+          this.updateInterval = null
+        }
+        console.log('⏹️ Continuous LFO stopped')
+      },
+
+      // Update LFO phase and get current value (legacy method for compatibility)
+      update() {
+        if (!this.isActive) {
+          // Fallback to manual update if not active
+          const now = Date.now()
+          const deltaTime = (now - this.lastLfoUpdate) / 1000
+          this.lastLfoUpdate = now
+
+          this.lfoPhase += deltaTime * this.remoteSpeed * 2 * Math.PI
+          if (this.lfoPhase > 2 * Math.PI) {
+            this.lfoPhase -= 2 * Math.PI
+          }
+          return Math.sin(this.lfoPhase)
+        }
+        return this.currentLFOValue
+      },
+
+      // Get current modulated cutoff frequency with LFO
       getModulatedCutoff() {
         const lfoValue = this.update()
         const modulationRange = this.localCutoff * this.remoteAmplitude * 0.8 // Max 80% modulation
@@ -153,11 +198,86 @@ class AudioService {
 
         // Clamp to valid frequency range
         return Math.max(50, Math.min(8000, modulatedCutoff))
+      },
+
+      // Get current LFO value for display/debug
+      getCurrentLFOValue() {
+        return this.currentLFOValue
+      },
+
+      // Check if LFO is currently active
+      isLFOActive() {
+        return this.isActive
       }
     }
 
     // Initialize LFO system
     this.lfoSystem.init()
+
+    // Continuous filter update system
+    this.continuousFilterUpdate = {
+      isActive: false,
+      updateInterval: null,
+      lastUpdate: 0,
+      updateRate: 1000 / 120, // 120Hz for ultra-smooth LFO
+
+      start() {
+        if (this.isActive) return
+
+        this.isActive = true
+        this.lastUpdate = Date.now()
+
+        this.updateInterval = setInterval(() => {
+          if (!this.isActive || !this.lfoSystem.isLFOActive()) return
+
+          // Apply continuous LFO modulation to all filters
+          this.applyContinuousLFOModulation()
+
+        }, this.updateRate)
+
+        console.log(`🔄 Continuous filter updates started at ${(1000/this.updateRate).toFixed(0)}Hz`)
+      },
+
+      stop() {
+        this.isActive = false
+        if (this.updateInterval) {
+          clearInterval(this.updateInterval)
+          this.updateInterval = null
+        }
+        console.log('⏹️ Continuous filter updates stopped')
+      },
+
+      applyContinuousLFOModulation() {
+        const modulatedCutoff = this.lfoSystem.getModulatedCutoff()
+        const currentQ = this.lfoSystem.localResonance
+        const now = Tone.now()
+
+        // Apply LFO-modulated parameters to all filters
+        if (this.gestureSynth?.filter) {
+          this.gestureSynth.filter.frequency.setValueAtTime(modulatedCutoff, now)
+          this.gestureSynth.filter.Q.setValueAtTime(currentQ, now)
+        }
+
+        // Apply LFO to ambient filters with frequency scaling
+        if (this.ambientFilters?.bass) {
+          const bassFreq = Math.max(50, Math.min(500, modulatedCutoff * 0.25))
+          this.ambientFilters.bass.frequency.setValueAtTime(bassFreq, now)
+          this.ambientFilters.bass.Q.setValueAtTime(currentQ * 0.8, now)
+        }
+
+        if (this.ambientFilters?.harmony) {
+          const harmonyFreq = Math.max(150, Math.min(2000, modulatedCutoff * 0.6))
+          this.ambientFilters.harmony.frequency.setValueAtTime(harmonyFreq, now)
+          this.ambientFilters.harmony.Q.setValueAtTime(currentQ * 1.2, now)
+        }
+
+        if (this.ambientFilters?.texture) {
+          const textureFreq = Math.max(300, Math.min(6000, modulatedCutoff * 1.2))
+          this.ambientFilters.texture.frequency.setValueAtTime(textureFreq, now)
+          this.ambientFilters.texture.Q.setValueAtTime(currentQ * 1.5, now)
+        }
+      }
+    }.bind(this)
 
     // Performance tracking
     this.performanceMetrics = {
@@ -2742,42 +2862,21 @@ class AudioService {
 
         console.log(`🌐 REMOTE LFO parameters: amplitude=${this.lfoSystem.remoteAmplitude.toFixed(2)}, speed=${this.lfoSystem.remoteSpeed.toFixed(2)}Hz`)
 
-        // Apply LFO-modulated cutoff frequency
-        const modulatedCutoff = this.lfoSystem.getModulatedCutoff()
-        const currentQ = this.lfoSystem.localResonance
-
-        console.log(`🌐 LFO-modulated cutoff: ${modulatedCutoff.toFixed(1)}Hz, Q=${currentQ.toFixed(2)}`)
-
-        // Apply LFO-modulated parameters to all filters (bypass throttle for smooth LFO)
-        if (this.gestureSynth?.filter) {
-          this.gestureSynth.filter.frequency.setValueAtTime(modulatedCutoff, Tone.now()) // Immediate, no ramp
-          this.gestureSynth.filter.Q.setValueAtTime(currentQ, Tone.now())
-          console.log('🌐 Applied LFO to gestureSynth filter (immediate)')
-        }
-
-        // Apply LFO to ambient filters with frequency scaling (immediate updates for smooth LFO)
-        if (this.ambientFilters?.bass) {
-          const bassFreq = Math.max(50, Math.min(500, modulatedCutoff * 0.25))
-          this.ambientFilters.bass.frequency.setValueAtTime(bassFreq, Tone.now())
-          this.ambientFilters.bass.Q.setValueAtTime(currentQ * 0.8, Tone.now())
-          console.log(`🌐 Bass filter LFO: ${bassFreq.toFixed(1)}Hz (immediate)`)
-        }
-
-        if (this.ambientFilters?.harmony) {
-          const harmonyFreq = Math.max(150, Math.min(2000, modulatedCutoff * 0.6))
-          this.ambientFilters.harmony.frequency.setValueAtTime(harmonyFreq, Tone.now())
-          this.ambientFilters.harmony.Q.setValueAtTime(currentQ * 1.2, Tone.now())
-          console.log(`🌐 Harmony filter LFO: ${harmonyFreq.toFixed(1)}Hz (immediate)`)
-        }
-
-        if (this.ambientFilters?.texture) {
-          const textureFreq = Math.max(300, Math.min(6000, modulatedCutoff * 1.2))
-          this.ambientFilters.texture.frequency.setValueAtTime(textureFreq, Tone.now())
-          this.ambientFilters.texture.Q.setValueAtTime(currentQ * 1.5, Tone.now())
-          console.log(`🌐 Texture filter LFO: ${textureFreq.toFixed(1)}Hz (immediate)`)
+        // Start continuous LFO if not already active
+        if (!this.lfoSystem.isLFOActive()) {
+          this.lfoSystem.start()
+          this.startContinuousFilterUpdates()
+          console.log('🌊 Started continuous LFO and filter updates')
         }
 
       } else {
+        // LOCAL HOVER: stop continuous LFO and apply static parameters
+        if (this.lfoSystem.isLFOActive()) {
+          this.lfoSystem.stop()
+          this.stopContinuousFilterUpdates()
+          console.log('⏹️ Stopped continuous LFO for local hover')
+        }
+
         // LOCAL HOVER: x=resonance, y=base cutoff
         this.lfoSystem.localResonance = Math.max(1, Math.min(10, safeX * 10)) // 1-10 range
         this.lfoSystem.localCutoff = Math.max(200, Math.min(4000, 200 + (1 - safeY) * 3800)) // 200-4000Hz
@@ -2857,8 +2956,24 @@ class AudioService {
   /**
    * Cleanup resources
    */
+  /**
+   * Start continuous filter updates for smooth LFO modulation
+   */
+  startContinuousFilterUpdates() {
+    this.continuousFilterUpdate.start()
+  }
+
+  /**
+   * Stop continuous filter updates
+   */
+  stopContinuousFilterUpdates() {
+    this.continuousFilterUpdate.stop()
+  }
+
   cleanup() {
     this.stopUpdateLoop()
+    this.stopContinuousFilterUpdates()
+    this.lfoSystem.stop()
     this.gestureBuffer = []
     this.audioEngine = null
     this.gestureCapture = null
