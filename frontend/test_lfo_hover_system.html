@@ -177,8 +177,8 @@
                 log(`🏠 LOCALE: Resonance=${lfoSystem.localResonance.toFixed(2)}, Cutoff=${lfoSystem.localCutoff.toFixed(0)}Hz`);
             } else {
                 // REMOTE: x=amplitude, y=speed
-                lfoSystem.remoteAmplitude = Math.max(0.1, Math.min(1.0, x * 2));
-                lfoSystem.remoteSpeed = Math.max(0.1, Math.min(5.0, y * 8));
+                lfoSystem.remoteAmplitude = Math.max(0.1, Math.min(2.0, x * 2));
+                lfoSystem.remoteSpeed = Math.max(0.1, Math.min(8.0, y * 8));
 
                 document.getElementById('lfoParams').textContent =
                     `Amplitude: ${lfoSystem.remoteAmplitude.toFixed(2)}, Speed: ${lfoSystem.remoteSpeed.toFixed(1)}Hz`;

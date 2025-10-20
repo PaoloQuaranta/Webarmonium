@@ -2737,8 +2737,8 @@ class AudioService {
 
       if (isRemote) {
         // REMOTE HOVER: x=LFO amplitude, y=LFO speed
-        this.lfoSystem.remoteAmplitude = Math.max(0.1, Math.min(1.0, safeX * 2)) // 0.1-2.0 range, clamped
-        this.lfoSystem.remoteSpeed = Math.max(0.1, Math.min(5.0, safeY * 8)) // 0.1-8Hz range
+        this.lfoSystem.remoteAmplitude = Math.max(0.1, Math.min(2.0, safeX * 2)) // 0.1-2.0 amplitude range
+        this.lfoSystem.remoteSpeed = Math.max(0.1, Math.min(8.0, safeY * 8)) // 0.1-8Hz speed range
 
         console.log(`🌐 REMOTE LFO parameters: amplitude=${this.lfoSystem.remoteAmplitude.toFixed(2)}, speed=${this.lfoSystem.remoteSpeed.toFixed(2)}Hz`)
 
