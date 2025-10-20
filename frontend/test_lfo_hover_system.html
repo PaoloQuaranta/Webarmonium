@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test LFO Hover System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-area {
+            border: 2px solid #666;
+            width: 600px;
+            height: 400px;
+            margin: 20px 0;
+            position: relative;
+            background: linear-gradient(45deg, #2a2a2a, #1a1a1a);
+            cursor: crosshair;
+        }
+        .coordinate-display {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 10px;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+        }
+        .local-mode, .remote-mode {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 10px;
+            background: #444;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .local-mode.active, .remote-mode.active {
+            background: #4CAF50;
+        }
+        .log {
+            height: 200px;
+            overflow-y: auto;
+            background: #000;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .instructions {
+            background: #2a4a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎛️ Test Sistema LFO Hover Avanzato</h1>
+
+    <div class="instructions">
+        <h3>📖 Istruzioni Test</h3>
+        <p><strong>Modalità LOCALE:</strong></p>
+        <ul>
+            <li>Asse X (sinistra→destra): Resonanza (1-10)</li>
+            <li>Asse Y (alto→basso): Cutoff base (4000→200Hz)</li>
+        </ul>
+        <p><strong>Modalità REMOTA:</strong></p>
+        <ul>
+            <li>Asse X (sinistra→destra): Ampiezza LFO (0.1-2.0)</li>
+            <li>Asse Y (alto→basso): Speed LFO (0.1-8Hz)</li>
+        </ul>
+    </div>
+
+    <div class="controls">
+        <div class="local-mode active" onclick="setMode('local')">🏠 Modalità Locale</div>
+        <div class="remote-mode" onclick="setMode('remote')">🌐 Modalità Remota</div>
+    </div>
+
+    <div class="test-area" id="testArea">
+        <div class="coordinate-display">
+            <div>X: <span id="xCoord">0.50</span></div>
+            <div>Y: <span id="yCoord">0.50</span></div>
+            <div>Modalità: <span id="currentMode">LOCALE</span></div>
+            <div id="lfoParams">Resonance: 1.0, Cutoff: 1000Hz</div>
+        </div>
+    </div>
+
+    <div class="status">
+        <h3>Stato LFO</h3>
+        <div>Local Resonance: <span id="localResonance">1.0</span></div>
+        <div>Local Cutoff: <span id="localCutoff">1000</span>Hz</div>
+        <div>Remote Amplitude: <span id="remoteAmplitude">0.5</span></div>
+        <div>Remote Speed: <span id="remoteSpeed">1.0</span>Hz</div>
+        <div>LFO Phase: <span id="lfoPhase">0.00</span></div>
+        <div>LFO Value: <span id="lfoValue">0.00</span></div>
+        <div>Modulated Cutoff: <span id="modulatedCutoff">1000</span>Hz</div>
+    </div>
+
+    <div class="log" id="logArea"></div>
+
+    <script>
+        let currentMode = 'local';
+        let testArea = document.getElementById('testArea');
+        let logArea = document.getElementById('logArea');
+
+        // Simulate LFO system
+        let lfoSystem = {
+            localResonance: 1.0,
+            localCutoff: 1000,
+            remoteAmplitude: 0.5,
+            remoteSpeed: 1.0,
+            lfoPhase: 0,
+            lastLfoUpdate: Date.now(),
+
+            update() {
+                const now = Date.now();
+                const deltaTime = (now - this.lastLfoUpdate) / 1000;
+                this.lastLfoUpdate = now;
+
+                this.lfoPhase += deltaTime * this.remoteSpeed * 2 * Math.PI;
+                if (this.lfoPhase > 2 * Math.PI) {
+                    this.lfoPhase -= 2 * Math.PI;
+                }
+
+                return Math.sin(this.lfoPhase);
+            },
+
+            getModulatedCutoff() {
+                const lfoValue = this.update();
+                const modulationRange = this.localCutoff * this.remoteAmplitude * 0.8;
+                const modulatedCutoff = this.localCutoff + (lfoValue * modulationRange);
+                return Math.max(50, Math.min(8000, modulatedCutoff));
+            }
+        };
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logArea.innerHTML += `[${timestamp}] ${message}\n`;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.local-mode, .remote-mode').forEach(el => el.classList.remove('active'));
+            document.querySelector(`.${mode}-mode`).classList.add('active');
+            document.getElementById('currentMode').textContent = mode.toUpperCase();
+            log(`Modalità cambiata a: ${mode.toUpperCase()}`);
+        }
+
+        function updateHoverDisplay(x, y) {
+            document.getElementById('xCoord').textContent = x.toFixed(2);
+            document.getElementById('yCoord').textContent = y.toFixed(2);
+
+            if (currentMode === 'local') {
+                // LOCAL: x=resonance, y=cutoff
+                lfoSystem.localResonance = Math.max(1, Math.min(10, x * 10));
+                lfoSystem.localCutoff = Math.max(200, Math.min(4000, 200 + (1 - y) * 3800));
+
+                document.getElementById('lfoParams').textContent =
+                    `Resonance: ${lfoSystem.localResonance.toFixed(2)}, Cutoff: ${lfoSystem.localCutoff.toFixed(0)}Hz`;
+
+                log(`🏠 LOCALE: Resonance=${lfoSystem.localResonance.toFixed(2)}, Cutoff=${lfoSystem.localCutoff.toFixed(0)}Hz`);
+            } else {
+                // REMOTE: x=amplitude, y=speed
+                lfoSystem.remoteAmplitude = Math.max(0.1, Math.min(1.0, x * 2));
+                lfoSystem.remoteSpeed = Math.max(0.1, Math.min(5.0, y * 8));
+
+                document.getElementById('lfoParams').textContent =
+                    `Amplitude: ${lfoSystem.remoteAmplitude.toFixed(2)}, Speed: ${lfoSystem.remoteSpeed.toFixed(1)}Hz`;
+
+                log(`🌐 REMOTO: Amplitude=${lfoSystem.remoteAmplitude.toFixed(2)}, Speed=${lfoSystem.remoteSpeed.toFixed(1)}Hz`);
+            }
+
+            updateLFOStatus();
+        }
+
+        function updateLFOStatus() {
+            const lfoValue = lfoSystem.update();
+            const modulatedCutoff = lfoSystem.getModulatedCutoff();
+
+            document.getElementById('localResonance').textContent = lfoSystem.localResonance.toFixed(2);
+            document.getElementById('localCutoff').textContent = lfoSystem.localCutoff.toFixed(0);
+            document.getElementById('remoteAmplitude').textContent = lfoSystem.remoteAmplitude.toFixed(2);
+            document.getElementById('remoteSpeed').textContent = lfoSystem.remoteSpeed.toFixed(1);
+            document.getElementById('lfoPhase').textContent = (lfoSystem.lfoPhase % (2 * Math.PI)).toFixed(2);
+            document.getElementById('lfoValue').textContent = lfoValue.toFixed(3);
+            document.getElementById('modulatedCutoff').textContent = modulatedCutoff.toFixed(0);
+        }
+
+        testArea.addEventListener('mousemove', (e) => {
+            const rect = testArea.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            updateHoverDisplay(x, y);
+        });
+
+        testArea.addEventListener('mouseleave', () => {
+            log('🖱️ Mouse lasciato l\'area di test');
+        });
+
+        // Start LFO animation
+        setInterval(() => {
+            if (currentMode === 'remote') {
+                updateLFOStatus();
+            }
+        }, 50);
+
+        // Initialize
+        log('🎛️ Test LFO Hover System avviato');
+        log('Sposta il mouse nell\'area di test per vedere i parametri LFO cambiare');
+        updateHoverDisplay(0.5, 0.5);
+    </script>
+</body>
+</html>

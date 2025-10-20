@@ -44,7 +44,29 @@ class AudioService {
       }
     }
 
-    // Real-time parameter state
+    // Three-tier audio architecture parameters
+    this.threeTierConfig = {
+      background: {
+        waveform: 'triangle',
+        volumeMultiplier: 1.0,  // Baseline volume (0dB)
+        baseFrequency: 110,      // A2 - warm foundation
+        color: '#4a9eff'
+      },
+      remote: {
+        waveform: 'square',
+        volumeMultiplier: 1.3,  // +2-3dB above background
+        baseFrequency: 440,      // A4 - mid range
+        color: '#ff6b6b'
+      },
+      local: {
+        waveform: 'sawtooth',
+        volumeMultiplier: 1.6,  // +4-6dB above background
+        baseFrequency: 880,      // A5 - bright upper register
+        color: '#6bcf7f'
+      }
+    }
+
+    // Real-time parameter state (maintained for backward compatibility)
     this.currentParameters = {
       frequency: 440,
       amplitude: 0.5,
@@ -65,7 +87,11 @@ class AudioService {
         distance: 0.5,
         reverbAmount: 0.2,
         elevation: 0
-      }
+      },
+      // Three-tier specific parameters
+      tier: 'local',  // default tier for gestures
+      velocity: 200,
+      hysteresisThreshold: 0.15
     }
 
     // Collaborative pattern rate limiting
@@ -79,6 +105,59 @@ class AudioService {
     this.lastFilterUpdateTime = 0
     this.filterUpdateInterval = 50 // 50ms = 20 updates per second maximum
     this.lastFilterLogTime = 0
+
+    // LFO system for advanced hover modulation
+    this.lfoSystem = {
+      // Local hover LFO parameters
+      localResonance: 1.0,      // x-axis controls resonance (1-10)
+      localCutoff: 1000,        // y-axis controls base cutoff (200-4000Hz)
+
+      // Remote hover LFO parameters
+      remoteAmplitude: 0.5,     // x-axis controls LFO amplitude (0-1)
+      remoteSpeed: 1.0,         // y-axis controls LFO speed (0.1-5Hz)
+
+      // LFO state
+      lfoPhase: 0,
+      lastLfoUpdate: Date.now(),
+
+      // Initialize LFO
+      init() {
+        this.lfoPhase = 0
+        this.lastLfoUpdate = Date.now()
+        console.log('🎛️ LFO system initialized for hover modulation')
+      },
+
+      // Update LFO phase and get current value
+      update() {
+        const now = Date.now()
+        const deltaTime = (now - this.lastLfoUpdate) / 1000 // Convert to seconds
+        this.lastLfoUpdate = now
+
+        // Update LFO phase based on current speed
+        this.lfoPhase += deltaTime * this.remoteSpeed * 2 * Math.PI
+
+        // Keep phase in range [0, 2π]
+        if (this.lfoPhase > 2 * Math.PI) {
+          this.lfoPhase -= 2 * Math.PI
+        }
+
+        // Return current LFO value (-1 to 1)
+        return Math.sin(this.lfoPhase)
+      },
+
+      // Get modulated cutoff frequency with LFO
+      getModulatedCutoff() {
+        const lfoValue = this.update()
+        const modulationRange = this.localCutoff * this.remoteAmplitude * 0.8 // Max 80% modulation
+        const modulatedCutoff = this.localCutoff + (lfoValue * modulationRange)
+
+        // Clamp to valid frequency range
+        return Math.max(50, Math.min(8000, modulatedCutoff))
+      }
+    }
+
+    // Initialize LFO system
+    this.lfoSystem.init()
 
     // Performance tracking
     this.performanceMetrics = {
@@ -136,24 +215,34 @@ class AudioService {
   async start() {
     try {
       // Initialize Tone.js audio context
-      if (window.Tone && !this.isInitialized) {
-        await Tone.start()
+      if (window.Tone) {
+        // Always ensure Tone is started
+        if (Tone.context.state !== 'running') {
+          await Tone.start()
+          console.log('🔊 Tone.js context started/resumed')
+        }
 
-        // Create continuous generative music system per FR-001
-        this.createContinuousGenerativeSystem()
+        // CRITICAL: Ensure audioContext is properly set
+        this.audioContext = Tone.context
+        console.log('🔊 AudioContext set:', !!this.audioContext, 'state:', Tone.context?.state)
 
-        // Start the parameter update loop
-        this.startUpdateLoop()
+        // Create continuous generative music system if not already created
+        if (!this.isInitialized) {
+          this.createContinuousGenerativeSystem()
+          this.startUpdateLoop()
+          this.isInitialized = true
+          console.log('🔊 AudioService initialized successfully - Continuous generative music active')
 
-        this.isInitialized = true
-        console.log('🔊 AudioService started successfully - Continuous generative music active')
+          // Test audio immediately to verify setup
+          this.testAudio()
+        } else {
+          console.log('🔊 AudioService already initialized, ensuring context is running')
+          // Verify master volume is properly connected
+          if (this.masterVolume && this.gestureSynth) {
+            console.log('🔊 Audio components verified')
+          }
+        }
 
-        // Test audio immediately to verify setup
-        this.testAudio()
-
-        return true
-      } else if (this.isInitialized) {
-        console.log('🔊 AudioService already initialized')
         return true
       } else {
         throw new Error('Tone.js not available')
@@ -228,11 +317,21 @@ class AudioService {
       this.ambientVolumes[layer].connect(this.masterVolume)
     })
 
-    // Create gesture-responsive synth with LIMITED polyphony
+    // Create gesture-responsive synth with INCREASED polyphony and cleaner sound
     this.gestureSynth = new Tone.PolySynth({
-      oscillator: { type: 'sawtooth' },
-      envelope: { attack: 0.05, decay: 0.1, sustain: 0.6, release: 0.5 },
-      maxPolyphony: 4 // LIMITED polyphony
+      oscillator: {
+        type: 'sawtooth',
+        harmonicity: 0,  // Remove harmonicity to prevent triangle waves
+        modulationType: 'none'  // Disable modulation
+      },
+      volume: -10,  // Quieter default volume
+      envelope: {
+        attack: 0.02,  // Faster attack
+        decay: 0.2,   // Faster decay
+        sustain: 0.3,  // Lower sustain to prevent overlapping
+        release: 0.8    // Faster release
+      },
+      maxPolyphony: 8 // INCREASED polyphony to prevent note dropping
     })
 
     // Add filter to gesture synth for hover modulation - FIX: restore filter modulation
@@ -240,8 +339,9 @@ class AudioService {
       type: 'lowpass',
       frequency: 2000,
       Q: 1
-    }).toDestination()
+    })
 
+    // FIX: Correct routing - synth -> filter -> master -> destination
     this.gestureSynth.connect(this.gestureFilter)
     this.gestureFilter.connect(this.masterVolume)
 
@@ -565,28 +665,60 @@ class AudioService {
       const filterFreq = this.mapGestureToFilter(sonicParams)
 
       // FIX: Apply real-time parameters to gesture filter for hover modulation
-      if (this.gestureFilter) {
+      if (this.gestureFilter && this.gestureFilter.frequency && this.gestureFilter.Q) {
         // FIX: Validate filter frequency to prevent null errors
         const validFreq = filterFreq && !isNaN(filterFreq) ? filterFreq : 1000
         const clampedFreq = Math.max(100, Math.min(8000, validFreq))
 
-        this.gestureFilter.frequency.linearRampToValueAtTime(clampedFreq, Tone.context.currentTime + 0.05)
+        // Additional validation to prevent null errors
+        const currentTime = Tone.context && Tone.context.currentTime ? Tone.context.currentTime : Tone.now()
+
+        if (this.gestureFilter.frequency.linearRampToValueAtTime) {
+          this.gestureFilter.frequency.linearRampToValueAtTime(clampedFreq, currentTime + 0.05)
+        }
 
         const filterQ = 1 + (sonicParams.z || 0.5) * 3
         const clampedQ = Math.max(0.1, Math.min(10, filterQ))
-        this.gestureFilter.Q.linearRampToValueAtTime(clampedQ, Tone.context.currentTime + 0.05)
+
+        if (this.gestureFilter.Q.linearRampToValueAtTime) {
+          this.gestureFilter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
+        }
 
         console.log(`🎛️ Applied gesture filter: ${clampedFreq.toFixed(1)}Hz, Q=${clampedQ.toFixed(2)}`)
+      } else {
+        console.warn('🔇 Gesture filter not available for modulation')
       }
 
-      // Apply filter frequency to gesture synth
-      this.gestureSynth.set({
-        filter: { frequency: filterFreq }
-      })
+      // Apply filter frequency to gesture synth with immediate effect
+      if (this.gestureSynth && this.gestureSynth.filter) {
+        this.gestureSynth.filter.frequency.linearRampToValueAtTime(filterFreq, Tone.now() + 0.05)
+        console.log(`🎛️ Applied gesture filter: ${filterFreq.toFixed(1)}Hz (ramp 50ms)`)
 
-      // Trigger gesture-responsive note (volume controlled by masterVolume)
+        // Also apply to master volume for cleaner routing
+        if (this.masterVolume && this.masterVolume.volume) {
+          const targetVolume = Math.max(-40, Math.min(0, -5)) // Reduce background to make local gesture clearer
+          this.masterVolume.volume.linearRampToValueAtTime(targetVolume, Tone.now() + 0.1)
+          console.log(`🎛️ Applied master volume: ${targetVolume}dB for gesture clarity`)
+        }
+      }
+
+      // Calculate three-tier duration based on gesture velocity
+      const gestureVelocity = sonicParams.velocity || 200
+      const tierDuration = this.calculateThreeTierDuration(gestureVelocity, '8n')
+
+      // Trigger gesture-responsive note with three-tier duration
       // Use volume from gesture as velocity parameter (0.3-0.7 range)
-      this.gestureSynth.triggerAttackRelease(frequency, '8n', undefined, 0.3 + (volume * 0.4))
+      if (this.gestureSynth && this.gestureSynth.triggerAttackRelease) {
+        // FIX: Simplified approach without delay to prevent hanging
+        const velocity = Math.max(0.1, Math.min(0.8, 0.3 + (volume * 0.4)))
+
+        // Trigger note directly with immediate effect and lower volume
+        this.gestureSynth.triggerAttackRelease(frequency, tierDuration, undefined, velocity * 0.6)
+
+        console.log(`🎵 Triggering gesture note: ${frequency.toFixed(1)}Hz, duration: ${tierDuration}s, velocity: ${velocity.toFixed(2)}`)
+      } else {
+        console.warn('🔇 Gesture synth not available for note triggering')
+      }
 
       // FIX: Update background filters with gesture modulation
       this.updateBackgroundFilters(sonicParams)
@@ -1215,10 +1347,14 @@ class AudioService {
     // Log integration for debugging
     console.log(`🎵 Integrated user phrase: influence=${state.userInfluence.toFixed(2)}, complexity=${state.complexity.toFixed(2)}`)
 
-    // Trigger immediate background evolution if enough user influence
-    if (state.userInfluence > 0.6) {
+    // Trigger immediate background evolution for ANY user influence to show response
+    if (state.userInfluence > 0.2) {
       this.triggerImmediateBackgroundEvolution()
+      console.log(`🎵 Triggered background evolution due to user input (influence: ${state.userInfluence.toFixed(2)})`)
     }
+
+    // Also trigger immediate filter response to show background is reacting
+    this.triggerBackgroundFilterResponse(frequency, duration)
   }
 
   /**
@@ -1281,6 +1417,61 @@ class AudioService {
     })
 
     console.log(`🎵 Triggered immediate background evolution by user influence`)
+  }
+
+  /**
+   * Trigger immediate background filter response to user input
+   * @param {number} frequency - User input frequency
+   * @param {number} duration - User input duration
+   */
+  triggerBackgroundFilterResponse(frequency, duration) {
+    if (!this.ambientFilters || !Tone.context) return
+
+    console.log(`🎛️ Triggering background filter response: ${frequency.toFixed(1)}Hz, ${duration.toFixed(3)}s`)
+
+    // Calculate filter modulation based on user input
+    const normalizedFreq = Math.max(100, Math.min(8000, frequency))
+    const modulationIntensity = Math.min(1.0, duration * 2) // Longer notes = stronger modulation
+
+    // Apply immediate filter changes to show background response
+    if (this.ambientFilters.bass) {
+      const bassFreq = normalizedFreq * 0.3
+      this.ambientFilters.bass.frequency.exponentialRampToValueAtTime(
+        Math.max(50, Math.min(500, bassFreq)),
+        Tone.context.currentTime + 0.2
+      )
+      this.ambientFilters.bass.Q.linearRampToValueAtTime(
+        1 + modulationIntensity * 3,
+        Tone.context.currentTime + 0.2
+      )
+      console.log(`🎛️ Bass filter response: ${Math.max(50, Math.min(500, bassFreq)).toFixed(1)}Hz`)
+    }
+
+    if (this.ambientFilters.harmony) {
+      const harmonyFreq = normalizedFreq * 0.8
+      this.ambientFilters.harmony.frequency.exponentialRampToValueAtTime(
+        Math.max(150, Math.min(2000, harmonyFreq)),
+        Tone.context.currentTime + 0.15
+      )
+      this.ambientFilters.harmony.Q.linearRampToValueAtTime(
+        2 + modulationIntensity * 4,
+        Tone.context.currentTime + 0.15
+      )
+      console.log(`🎛️ Harmony filter response: ${Math.max(150, Math.min(2000, harmonyFreq)).toFixed(1)}Hz`)
+    }
+
+    if (this.ambientFilters.texture) {
+      const textureFreq = normalizedFreq * 1.5
+      this.ambientFilters.texture.frequency.exponentialRampToValueAtTime(
+        Math.max(200, Math.min(4000, textureFreq)),
+        Tone.context.currentTime + 0.1
+      )
+      this.ambientFilters.texture.Q.linearRampToValueAtTime(
+        3 + modulationIntensity * 5,
+        Tone.context.currentTime + 0.1
+      )
+      console.log(`🎛️ Texture filter response: ${Math.max(200, Math.min(4000, textureFreq)).toFixed(1)}Hz`)
+    }
   }
 
   /**
@@ -2224,6 +2415,431 @@ class AudioService {
              pattern1.y === pattern2.y &&
              pattern1.intensity === pattern2.intensity &&
              pattern1.frequency === pattern2.frequency
+    })
+  }
+
+  /**
+   * Play note with three-tier architecture support
+   * @param {number} frequency - Note frequency in Hz
+   * @param {string} tier - Which tier to play on ('background', 'remote', 'local')
+   * @param {number} velocity - Gesture velocity for expressive control
+   * @param {Object} options - Additional note options
+   */
+  playThreeTierNote(frequency, tier = 'local', velocity = 200, options = {}) {
+    if (!this.isInitialized || !this.gestureSynth) return
+
+    const tierConfig = this.threeTierConfig[tier]
+    if (!tierConfig) {
+      console.warn(`Unknown tier: ${tier}, falling back to local`)
+      return this.playNote(frequency, options)
+    }
+
+    // Calculate frequency based on tier and velocity
+    const adjustedFrequency = this.calculateThreeTierFrequency(frequency, tier, velocity)
+    const adjustedVolume = this.calculateThreeTierVolume(tier, options.volume || 0.5)
+    const adjustedDuration = this.calculateThreeTierDuration(velocity, options.duration || '8n')
+
+    console.log(`🎵 Playing ${tierConfig.waveform} note on ${tier} tier: ${adjustedFrequency}Hz, velocity: ${velocity}`)
+
+    // Configure synth with tier-specific waveform
+    this.gestureSynth.set({
+      oscillator: { type: tierConfig.waveform },
+      envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 0.3 }
+    })
+
+    // Play the note with tier-specific parameters
+    this.gestureSynth.triggerAttackRelease(
+      adjustedFrequency,
+      adjustedDuration,
+      undefined,
+      adjustedVolume
+    )
+  }
+
+  /**
+   * Calculate frequency for three-tier architecture
+   */
+  calculateThreeTierFrequency(baseFrequency, tier, velocity) {
+    const tierConfig = this.threeTierConfig[tier]
+
+    // Base frequency adjustment for tier
+    const tierFrequency = tierConfig.baseFrequency
+
+    // Velocity-based exponential mapping
+    let velocityMultiplier = 1
+    if (velocity < 150) {
+      // Slow drags: lower frequency range
+      velocityMultiplier = 0.5 + (velocity / 150) * 0.3
+    } else if (velocity < 400) {
+      // Medium drags: mid frequency range
+      velocityMultiplier = 0.8 + ((velocity - 150) / 250) * 0.4
+    } else {
+      // Fast drags: higher frequency range
+      velocityMultiplier = 1.2 + Math.min((velocity - 400) / 400, 0.8)
+    }
+
+    return tierFrequency * velocityMultiplier
+  }
+
+  /**
+   * Calculate volume for three-tier architecture
+   */
+  calculateThreeTierVolume(tier, baseVolume) {
+    const tierConfig = this.threeTierConfig[tier]
+    return baseVolume * tierConfig.volumeMultiplier * this.volume
+  }
+
+  /**
+   * Calculate duration for three-tier architecture based on velocity
+   */
+  calculateThreeTierDuration(velocity, baseDuration) {
+    let durationMultiplier = 1
+
+    if (velocity < 150) {
+      // Slow drags: longer notes (0.5-2.0s)
+      durationMultiplier = 2 + Math.random() * 2
+    } else if (velocity < 400) {
+      // Medium drags: medium notes (0.2-0.5s)
+      durationMultiplier = 0.2 + Math.random() * 0.3
+    } else {
+      // Fast drags: shorter notes (0.05-0.2s)
+      durationMultiplier = 0.05 + Math.random() * 0.15
+    }
+
+    // Apply to base duration
+    const baseMs = this.parseDuration(baseDuration) || 500
+    return (baseMs * durationMultiplier) / 1000 // Convert to seconds
+  }
+
+  /**
+   * Parse duration string to milliseconds
+   */
+  parseDuration(duration) {
+    if (typeof duration === 'number') return duration
+    if (typeof duration !== 'string') return 500
+
+    const durationMap = {
+      '1n': 4000, '2n': 2000, '4n': 1000, '8n': 500, '16n': 250,
+      '1m': 60000, '2m': 30000, '4m': 15000
+    }
+
+    return durationMap[duration] || 500
+  }
+
+  /**
+   * Handle gesture with three-tier velocity mapping
+   */
+  handleThreeTierGesture(gestureData) {
+    if (!gestureData) return
+
+    // Determine tier based on gesture context
+    let tier = 'local' // default
+    if (gestureData.isRemote) {
+      tier = 'remote'
+    } else if (gestureData.isBackground) {
+      tier = 'background'
+    }
+
+    // Apply hysteresis for tier switching
+    if (this.currentParameters.velocity !== undefined) {
+      const velocityDiff = Math.abs(gestureData.velocity - this.currentParameters.velocity)
+      const hysteresisRatio = velocityDiff / this.currentParameters.velocity
+
+      if (hysteresisRatio < this.currentParameters.hysteresisThreshold) {
+        // Stay in current tier
+        tier = this.currentParameters.tier
+      }
+    }
+
+    // Update current parameters
+    this.currentParameters.tier = tier
+    this.currentParameters.velocity = gestureData.velocity
+
+    // Calculate frequency based on gesture position
+    const baseFreq = this.parameterMappings.frequency.range[0] +
+                      (gestureData.position?.y || 0.5) *
+                      (this.parameterMappings.frequency.range[1] - this.parameterMappings.frequency.range[0])
+
+    // Play three-tier note
+    this.playThreeTierNote(baseFreq, tier, gestureData.velocity, {
+      volume: gestureData.intensity || 0.5
+    })
+
+    console.log(`🎹 Three-tier gesture: tier=${tier}, velocity=${gestureData.velocity}, freq=${baseFreq}`)
+  }
+
+  /**
+   * Cross-layer hover modulation for three-tier architecture
+   * @param {Object} hoverData - Hover position and context
+   */
+  applyCrossLayerHoverModulation(hoverData) {
+    if (!hoverData) return
+
+    const { position, userId, intensity = 0.5 } = hoverData || {}
+
+    // Validate position and userId to prevent undefined errors
+    if (!position || (position.x === null || position.y === null)) {
+      console.warn('🔇 Hover data missing or invalid position, skipping modulation')
+      return
+    }
+
+    // Log full hover data for debugging
+    console.log('🎛️ HOVER DATA DEBUG:', {
+      position,
+      userId,
+      intensity,
+      hasValidPosition: !!(position.x == null || position.y == null),
+      hasValidUserId: !!userId,
+      source: 'handleHoverModulation call',
+      isInitialized: this.isInitialized
+    })
+
+    // Log full hover data for debugging
+    console.log('🎛️ HOVER DATA DEBUG:', {
+      position,
+      userId,
+      intensity,
+      hasValidPosition: !!(position.x == null || position.y == null),
+      hasValidUserId: !!userId,
+      source: 'handleHoverModulation call',
+      isInitialized: this.isInitialized
+    })
+    console.log(`🎛️ Cross-layer hover modulation: userId=${userId}, intensity=${intensity}`)
+
+    // Local user hover modulates:
+    // 1. Background filters (low-mid frequency range)
+    // 2. Remote gesture filters (mid-high frequency range)
+    if (!userId || userId === this.currentUserId) {
+      console.log('🎛️ LOCAL HOVER: Calling modulateBackgroundFilters and modulateRemoteGestureFilters')
+      this.modulateBackgroundFilters(position, intensity * 0.7)
+      this.modulateRemoteGestureFilters(position, intensity * 0.5)
+    } else {
+      console.log('🎛️ REMOTE HOVER: Calling modulateLocalGestureFilters')
+    }
+
+    // Remote user hover modulates:
+    // Only local gesture filters (high frequency range)
+    if (userId && userId !== this.currentUserId) {
+      this.modulateLocalGestureFilters(position, intensity * 0.8)
+    }
+  }
+
+  /**
+   * Modulate background filters (low-mid frequency range)
+   */
+  modulateBackgroundFilters(position, intensity) {
+    if (!this.ambientFilters || !Tone.context) return
+
+    // Bass layer: 100-400Hz range
+    const bassFilter = this.ambientFilters.bass
+    const baseFreq = 250
+    const modFreq = baseFreq + (position.y || 0.5) * 150 * intensity
+
+    bassFilter.frequency.exponentialRampToValueAtTime(
+      modFreq,
+      Tone.context.currentTime + 0.1
+    )
+
+    bassFilter.Q.linearRampToValueAtTime(
+      2 + intensity * 3,
+      Tone.context.currentTime + 0.1
+    )
+  }
+
+  /**
+   * Modulate remote gesture filters (mid-high frequency range)
+   */
+  modulateRemoteGestureFilters(position, intensity) {
+    if (!this.ambientFilters || !Tone.context) return
+
+    // Harmony layer: 400-1200Hz range
+    const harmonyFilter = this.ambientFilters.harmony
+    const baseFreq = 800
+    const modFreq = baseFreq + (position.x || 0.5) * 400 * intensity
+
+    harmonyFilter.frequency.exponentialRampToValueAtTime(
+      modFreq,
+      Tone.context.currentTime + 0.08
+    )
+
+    harmonyFilter.Q.linearRampToValueAtTime(
+      3 + intensity * 4,
+      Tone.context.currentTime + 0.08
+    )
+  }
+
+  /**
+   * Modulate local gesture filters (high frequency range)
+   */
+  modulateLocalGestureFilters(position, intensity) {
+    if (!this.ambientFilters || !Tone.context) return
+
+    // Texture layer: 800-2000Hz range
+    const textureFilter = this.ambientFilters.texture
+    const baseFreq = 1400
+    const modFreq = baseFreq + (position.x || 0.5) * 600 * intensity
+
+    textureFilter.frequency.exponentialRampToValueAtTime(
+      modFreq,
+      Tone.context.currentTime + 0.05
+    )
+
+    textureFilter.Q.linearRampToValueAtTime(
+      5 + intensity * 8,
+      Tone.context.currentTime + 0.05
+    )
+  }
+
+  /**
+   * Handle hover modulation for cross-layer effects
+   * @param {Object} hoverData - Hover data with position, velocity, intensity, and isRemote
+   */
+  handleHoverModulation(hoverData) {
+    console.log('🔇 handleHoverModulation called - isInitialized:', this.isInitialized, 'hasAudioContext:', !!this.audioContext, 'hasMasterVolume:', !!this.masterVolume)
+
+    // Force initialization if needed
+    if (!this.isInitialized && this.gestureSynth) {
+      console.log('🔇 Forcing initialization - setting isInitialized = true')
+      this.isInitialized = true
+    }
+
+    // SIMPLIFIED HOVER MODULATION - Direct synth filter control
+    if (!this.gestureSynth) {
+      console.warn('🔇 handleHoverModulation blocked - no gestureSynth')
+      return
+    }
+
+    // Extract position and data with safety checks
+    const position = hoverData?.position || hoverData || { x: 0.5, y: 0.5 }
+    const userId = hoverData?.userId || 'unknown'
+    const isRemote = hoverData?.isRemote || false
+
+    try {
+      const safeX = position?.x ?? 0.5
+      const safeY = position?.y ?? 0.5
+
+      // Apply direct filter frequency control with safety checks
+      const targetFreq = Math.max(100, Math.min(5000, 200 + (1 - safeY) * 4800))
+      const targetQ = Math.max(0.5, Math.min(8, 1 + safeX * 7))
+
+      console.log(`🎛️ ${isRemote ? 'REMOTE' : 'LOCAL'} hover modulation: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)}), userId=${userId}`)
+
+      if (isRemote) {
+        // REMOTE HOVER: x=LFO amplitude, y=LFO speed
+        this.lfoSystem.remoteAmplitude = Math.max(0.1, Math.min(1.0, safeX * 2)) // 0.1-2.0 range, clamped
+        this.lfoSystem.remoteSpeed = Math.max(0.1, Math.min(5.0, safeY * 8)) // 0.1-8Hz range
+
+        console.log(`🌐 REMOTE LFO parameters: amplitude=${this.lfoSystem.remoteAmplitude.toFixed(2)}, speed=${this.lfoSystem.remoteSpeed.toFixed(2)}Hz`)
+
+        // Apply LFO-modulated cutoff frequency
+        const modulatedCutoff = this.lfoSystem.getModulatedCutoff()
+        const currentQ = this.lfoSystem.localResonance
+
+        console.log(`🌐 LFO-modulated cutoff: ${modulatedCutoff.toFixed(1)}Hz, Q=${currentQ.toFixed(2)}`)
+
+        // Apply LFO-modulated parameters to all filters
+        if (this.gestureSynth?.filter) {
+          this.gestureSynth.filter.frequency.linearRampToValueAtTime(modulatedCutoff, Tone.now() + 0.05)
+          this.gestureSynth.filter.Q.linearRampToValueAtTime(currentQ, Tone.now() + 0.05)
+          console.log('🌐 Applied LFO to gestureSynth filter')
+        }
+
+        // Apply LFO to ambient filters with frequency scaling
+        if (this.ambientFilters?.bass) {
+          const bassFreq = Math.max(50, Math.min(500, modulatedCutoff * 0.25))
+          this.ambientFilters.bass.frequency.linearRampToValueAtTime(bassFreq, Tone.now() + 0.1)
+          this.ambientFilters.bass.Q.linearRampToValueAtTime(currentQ * 0.8, Tone.now() + 0.1)
+          console.log(`🌐 Bass filter LFO: ${bassFreq.toFixed(1)}Hz`)
+        }
+
+        if (this.ambientFilters?.harmony) {
+          const harmonyFreq = Math.max(150, Math.min(2000, modulatedCutoff * 0.6))
+          this.ambientFilters.harmony.frequency.linearRampToValueAtTime(harmonyFreq, Tone.now() + 0.08)
+          this.ambientFilters.harmony.Q.linearRampToValueAtTime(currentQ * 1.2, Tone.now() + 0.08)
+          console.log(`🌐 Harmony filter LFO: ${harmonyFreq.toFixed(1)}Hz`)
+        }
+
+        if (this.ambientFilters?.texture) {
+          const textureFreq = Math.max(300, Math.min(6000, modulatedCutoff * 1.2))
+          this.ambientFilters.texture.frequency.linearRampToValueAtTime(textureFreq, Tone.now() + 0.03)
+          this.ambientFilters.texture.Q.linearRampToValueAtTime(currentQ * 1.5, Tone.now() + 0.03)
+          console.log(`🌐 Texture filter LFO: ${textureFreq.toFixed(1)}Hz`)
+        }
+
+      } else {
+        // LOCAL HOVER: x=resonance, y=base cutoff
+        this.lfoSystem.localResonance = Math.max(1, Math.min(10, safeX * 10)) // 1-10 range
+        this.lfoSystem.localCutoff = Math.max(200, Math.min(4000, 200 + (1 - safeY) * 3800)) // 200-4000Hz
+
+        console.log(`🏠 LOCAL LFO parameters: resonance=${this.lfoSystem.localResonance.toFixed(2)}, baseCutoff=${this.lfoSystem.localCutoff.toFixed(1)}Hz`)
+
+        const targetFreq = this.lfoSystem.localCutoff
+        const targetQ = this.lfoSystem.localResonance
+
+        console.log(`🏠 Local hover modulation: freq=${targetFreq.toFixed(1)}Hz, Q=${targetQ.toFixed(2)}`)
+      }
+
+      // Apply local hover parameters (only for non-remote hover)
+      if (!isRemote) {
+        const targetFreq = this.lfoSystem.localCutoff
+        const targetQ = this.lfoSystem.localResonance
+
+        // Apply to ALL synths for audible effect
+        if (this.gestureSynth.filter) {
+          this.gestureSynth.filter.frequency.linearRampToValueAtTime(targetFreq, Tone.now() + 0.1)
+          this.gestureSynth.filter.Q.linearRampToValueAtTime(targetQ, Tone.now() + 0.1)
+          console.log('🏠 Applied local hover to gestureSynth filter')
+        }
+
+        // Also apply to ambient synths for background evolution
+        if (this.ambientFilters?.bass) {
+          this.ambientFilters.bass.frequency.linearRampToValueAtTime(targetFreq * 0.3, Tone.now() + 0.2)
+          this.ambientFilters.bass.Q.linearRampToValueAtTime(targetQ * 0.7, Tone.now() + 0.2)
+          console.log('🏠 Applied local hover to bass filter')
+        }
+
+        if (this.ambientFilters?.harmony) {
+          this.ambientFilters.harmony.frequency.linearRampToValueAtTime(targetFreq * 0.6, Tone.now() + 0.15)
+          this.ambientFilters.harmony.Q.linearRampToValueAtTime(targetQ * 1.2, Tone.now() + 0.15)
+          console.log('🏠 Applied local hover to harmony filter')
+        }
+
+        if (this.ambientFilters?.texture) {
+          this.ambientFilters.texture.frequency.linearRampToValueAtTime(targetFreq * 1.2, Tone.now() + 0.08)
+          this.ambientFilters.texture.Q.linearRampToValueAtTime(targetQ * 1.5, Tone.now() + 0.08)
+          console.log('🏠 Applied local hover to texture filter')
+        }
+      }
+
+    } catch (error) {
+      console.error('❌ Hover modulation failed:', error)
+      console.error('🐛 Error details:', {
+        message: error.message,
+        stack: error.stack,
+        position: position,
+        safeX: typeof safeX !== 'undefined' ? safeX : 'undefined',
+        safeY: typeof safeY !== 'undefined' ? safeY : 'undefined',
+        targetFreq: typeof targetFreq !== 'undefined' ? targetFreq : 'undefined',
+        targetQ: typeof targetQ !== 'undefined' ? targetQ : 'undefined',
+        gestureSynth: !!this.gestureSynth,
+        gestureSynthFilter: !!(this.gestureSynth && this.gestureSynth.filter),
+        ambientFilters: !!this.ambientFilters,
+        ambientFiltersBass: !!(this.ambientFilters && this.ambientFilters.bass),
+        ambientFiltersBassQ: !!(this.ambientFilters && this.ambientFilters.bass && this.ambientFilters.bass.Q)
+      })
+    }
+
+    // Extract other hover data properties
+    const { velocity, intensity } = hoverData || {}
+
+    // Apply cross-layer modulation based on hover data
+    this.applyCrossLayerHoverModulation({
+      position,
+      velocity,
+      intensity,
+      isRemote,
+      id: `hover-${Date.now()}`,
+      isHover: true
     })
   }
 
