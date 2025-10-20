@@ -214,70 +214,13 @@ class AudioService {
     // Initialize LFO system
     this.lfoSystem.init()
 
-    // Continuous filter update system
+    // Continuous filter update system properties
     this.continuousFilterUpdate = {
       isActive: false,
       updateInterval: null,
       lastUpdate: 0,
-      updateRate: 1000 / 120, // 120Hz for ultra-smooth LFO
-
-      start() {
-        if (this.isActive) return
-
-        this.isActive = true
-        this.lastUpdate = Date.now()
-
-        this.updateInterval = setInterval(() => {
-          if (!this.isActive || !this.lfoSystem.isLFOActive()) return
-
-          // Apply continuous LFO modulation to all filters
-          this.applyContinuousLFOModulation()
-
-        }, this.updateRate)
-
-        console.log(`🔄 Continuous filter updates started at ${(1000/this.updateRate).toFixed(0)}Hz`)
-      },
-
-      stop() {
-        this.isActive = false
-        if (this.updateInterval) {
-          clearInterval(this.updateInterval)
-          this.updateInterval = null
-        }
-        console.log('⏹️ Continuous filter updates stopped')
-      },
-
-      applyContinuousLFOModulation() {
-        const modulatedCutoff = this.lfoSystem.getModulatedCutoff()
-        const currentQ = this.lfoSystem.localResonance
-        const now = Tone.now()
-
-        // Apply LFO-modulated parameters to all filters
-        if (this.gestureSynth?.filter) {
-          this.gestureSynth.filter.frequency.setValueAtTime(modulatedCutoff, now)
-          this.gestureSynth.filter.Q.setValueAtTime(currentQ, now)
-        }
-
-        // Apply LFO to ambient filters with frequency scaling
-        if (this.ambientFilters?.bass) {
-          const bassFreq = Math.max(50, Math.min(500, modulatedCutoff * 0.25))
-          this.ambientFilters.bass.frequency.setValueAtTime(bassFreq, now)
-          this.ambientFilters.bass.Q.setValueAtTime(currentQ * 0.8, now)
-        }
-
-        if (this.ambientFilters?.harmony) {
-          const harmonyFreq = Math.max(150, Math.min(2000, modulatedCutoff * 0.6))
-          this.ambientFilters.harmony.frequency.setValueAtTime(harmonyFreq, now)
-          this.ambientFilters.harmony.Q.setValueAtTime(currentQ * 1.2, now)
-        }
-
-        if (this.ambientFilters?.texture) {
-          const textureFreq = Math.max(300, Math.min(6000, modulatedCutoff * 1.2))
-          this.ambientFilters.texture.frequency.setValueAtTime(textureFreq, now)
-          this.ambientFilters.texture.Q.setValueAtTime(currentQ * 1.5, now)
-        }
-      }
-    }.bind(this)
+      updateRate: 1000 / 120 // 120Hz for ultra-smooth LFO
+    }
 
     // Performance tracking
     this.performanceMetrics = {
@@ -2960,14 +2903,66 @@ class AudioService {
    * Start continuous filter updates for smooth LFO modulation
    */
   startContinuousFilterUpdates() {
-    this.continuousFilterUpdate.start()
+    if (this.continuousFilterUpdate.isActive) return
+
+    this.continuousFilterUpdate.isActive = true
+    this.continuousFilterUpdate.lastUpdate = Date.now()
+
+    this.continuousFilterUpdate.updateInterval = setInterval(() => {
+      if (!this.continuousFilterUpdate.isActive || !this.lfoSystem.isLFOActive()) return
+
+      // Apply continuous LFO modulation to all filters
+      this.applyContinuousLFOModulation()
+
+    }, this.continuousFilterUpdate.updateRate)
+
+    console.log(`🔄 Continuous filter updates started at ${(1000/this.continuousFilterUpdate.updateRate).toFixed(0)}Hz`)
   }
 
   /**
    * Stop continuous filter updates
    */
   stopContinuousFilterUpdates() {
-    this.continuousFilterUpdate.stop()
+    this.continuousFilterUpdate.isActive = false
+    if (this.continuousFilterUpdate.updateInterval) {
+      clearInterval(this.continuousFilterUpdate.updateInterval)
+      this.continuousFilterUpdate.updateInterval = null
+    }
+    console.log('⏹️ Continuous filter updates stopped')
+  }
+
+  /**
+   * Apply continuous LFO modulation to all filters
+   */
+  applyContinuousLFOModulation() {
+    const modulatedCutoff = this.lfoSystem.getModulatedCutoff()
+    const currentQ = this.lfoSystem.localResonance
+    const now = Tone.now()
+
+    // Apply LFO-modulated parameters to all filters
+    if (this.gestureSynth?.filter) {
+      this.gestureSynth.filter.frequency.setValueAtTime(modulatedCutoff, now)
+      this.gestureSynth.filter.Q.setValueAtTime(currentQ, now)
+    }
+
+    // Apply LFO to ambient filters with frequency scaling
+    if (this.ambientFilters?.bass) {
+      const bassFreq = Math.max(50, Math.min(500, modulatedCutoff * 0.25))
+      this.ambientFilters.bass.frequency.setValueAtTime(bassFreq, now)
+      this.ambientFilters.bass.Q.setValueAtTime(currentQ * 0.8, now)
+    }
+
+    if (this.ambientFilters?.harmony) {
+      const harmonyFreq = Math.max(150, Math.min(2000, modulatedCutoff * 0.6))
+      this.ambientFilters.harmony.frequency.setValueAtTime(harmonyFreq, now)
+      this.ambientFilters.harmony.Q.setValueAtTime(currentQ * 1.2, now)
+    }
+
+    if (this.ambientFilters?.texture) {
+      const textureFreq = Math.max(300, Math.min(6000, modulatedCutoff * 1.2))
+      this.ambientFilters.texture.frequency.setValueAtTime(textureFreq, now)
+      this.ambientFilters.texture.Q.setValueAtTime(currentQ * 1.5, now)
+    }
   }
 
   cleanup() {
