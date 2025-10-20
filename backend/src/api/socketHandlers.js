@@ -31,6 +31,10 @@ const socketHandlers = {
     this.registerDrawPointHandler(socket)
     this.registerDrawEndHandler(socket)
     this.registerCursorMoveHandler(socket)
+    this.registerHoverUpdateHandler(socket)
+    this.registerCursorPositionHandler(socket)
+
+    console.log('🔌 Registered ALL handlers for socket:', socket.id, 'including hover-update and cursor-position')
 
     // Performance monitoring
     socket.on('*', () => {
@@ -676,6 +680,19 @@ const socketHandlers = {
         const payload = cursorPosition.toEventPayload(user.assignedColor)
         console.log(`✅ Broadcasting cursor-position to room ${socket.roomId}:`, payload)
         socket.to(socket.roomId).emit('cursor-position', payload)
+
+        // Generate hover-update event for remote audio modulation (three-tier architecture)
+        const hoverData = {
+          position: { x: data.x, y: data.y },
+          velocity: data.velocity || 50,
+          intensity: data.intensity || 0.5,
+          userId: socket.userId,
+          isRemote: true
+        }
+        console.log(`✅ Broadcasting hover-update to room ${socket.roomId}:`, hoverData)
+        // Broadcast to ALL users in room (including sender for testing)
+        socket.broadcast.to(socket.roomId).emit('hover-update', hoverData)
+        // Alternative: socket.to(socket.roomId).emit('hover-update', hoverData)
       } catch (error) {
         console.error('cursor-move error:', error)
       }
@@ -1400,6 +1417,134 @@ const socketHandlers = {
       } catch (error) {
         console.error('gesture-record error:', error)
         this.sendError(callback, 'processing_error', error.message)
+      }
+    })
+  },
+
+  /**
+   * Register hover-update event handler
+   * @param {Socket} socket - Socket instance
+   */
+  registerHoverUpdateHandler (socket) {
+    socket.on('hover-update', async (data) => {
+      const startTime = Date.now()
+      try {
+        // Validate input data
+        if (!data || !socket.roomId || !socket.userId) {
+          console.warn('⚠️ hover-update validation failed - missing required fields', {
+            hasData: !!data,
+            hasRoomId: !!socket.roomId,
+            hasUserId: !!socket.userId
+          })
+          return
+        }
+
+        // Get room
+        const room = socket.services.roomManager.getRoom(socket.roomId)
+        if (!room) {
+          console.warn('⚠️ hover-update failed - room not found:', socket.roomId)
+          return
+        }
+
+        // Validate hover data with proper structure
+        const hoverData = {
+          position: data.position || { x: 0.5, y: 0.5 },
+          velocity: data.velocity || 50,
+          intensity: data.intensity || 0.5,
+          userId: data.userId || socket.userId,
+          isRemote: true,
+          timestamp: data.timestamp || Date.now()
+        }
+
+        console.log(`🎛️ Received hover-update from ${hoverData.userId}:`, hoverData)
+
+        // Get room info to check connected users
+        const connectedUsers = room ? Object.keys(room.users || {}).length : 0
+        console.log(`📊 Room ${socket.roomId} has ${connectedUsers} connected users`)
+
+        // CRITICAL FIX: Broadcast to ALL users in room (including sender for local feedback)
+        // but mark as remote for other users
+        console.log(`📡 Broadcasting hover-update from socket ${socket.id} to room ${socket.roomId}`)
+
+        // Send to all users including sender for immediate feedback
+        const io = socket.server || socket.nsp.server
+        if (io) {
+          io.to(socket.roomId).emit('hover-update', hoverData)
+          console.log(`✅ Broadcasted hover-update to ALL users in room using global io`)
+        } else {
+          // Fallback: broadcast to others and also send to sender
+          socket.to(socket.roomId).emit('hover-update', hoverData)
+          socket.emit('hover-update', hoverData) // Send back to sender for feedback
+          console.log(`✅ Broadcasted hover-update using fallback method`)
+        }
+
+        console.log(`✅ Broadcasted hover-update to room ${socket.roomId}:`, {
+          senderId: socket.id,
+          senderUserId: hoverData.userId,
+          position: hoverData.position,
+          velocity: hoverData.velocity,
+          intensity: hoverData.intensity,
+          isRemote: hoverData.isRemote,
+          connectedUsers: connectedUsers
+        })
+
+        // Update room activity
+        room.lastActivity = Date.now()
+
+      } catch (error) {
+        console.error('❌ hover-update error:', error)
+      }
+    })
+  },
+
+  /**
+   * Register cursor-position event handler
+   * @param {Socket} socket - Socket instance
+   */
+  registerCursorPositionHandler (socket) {
+    socket.on('cursor-position', async (data) => {
+      const startTime = Date.now()
+      try {
+        // Validate input data
+        if (!data || !socket.roomId || !socket.userId) {
+          console.warn('⚠️ cursor-position validation failed - missing required fields')
+          return
+        }
+
+        // Get room
+        const room = socket.services.roomManager.getRoom(socket.roomId)
+        if (!room) {
+          console.warn('⚠️ cursor-position failed - room not found:', socket.roomId)
+          return
+        }
+
+        // Validate cursor data
+        const cursorData = {
+          userId: data.userId || socket.userId,
+          color: data.color || '#66c2a5',
+          x: data.x || 0.5,
+          y: data.y || 0.5,
+          isDrawing: data.isDrawing || false,
+          timestamp: data.timestamp || Date.now()
+        }
+
+        console.log(`👆 Received cursor-position from ${cursorData.userId}:`, cursorData)
+
+        // Broadcast to ALL other users in room (excluding sender)
+        socket.broadcast.to(socket.roomId).emit('cursor-position', cursorData)
+
+        console.log(`✅ Broadcasted cursor-position to room ${socket.roomId}:`, {
+          userId: cursorData.userId,
+          x: cursorData.x,
+          y: cursorData.y,
+          isDrawing: cursorData.isDrawing
+        })
+
+        // Update room activity
+        room.lastActivity = Date.now()
+
+      } catch (error) {
+        console.error('❌ cursor-position error:', error)
       }
     })
   }

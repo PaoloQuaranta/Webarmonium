@@ -44,7 +44,7 @@ class SocketService {
    * @param {string} serverUrl - WebSocket server URL
    * @param {Object} options - Connection options
    */
-  async connect(serverUrl = 'ws://localhost:3001', options = {}) {
+  async connect(serverUrl = 'http://localhost:3001', options = {}) {
     if (this.socket && this.socket.connected) {
       console.warn('Already connected to WebSocket')
       return
@@ -178,6 +178,18 @@ class SocketService {
     // System events
     this.socket.on('users-inactive', (data) => {
       this.handleUsersInactive(data)
+    })
+
+    // Multi-user hover events
+    this.socket.on('hover-update', (data) => {
+      console.log('🎛️ SocketService received hover-update:', data)
+      this.emit('hover-update', data)
+    })
+
+    // Musical events for gesture processing
+    this.socket.on('musical:event', (data) => {
+      console.log('🎵 SocketService received musical:event:', data)
+      this.emit('musical:event', data)
     })
 
     // Error handling
