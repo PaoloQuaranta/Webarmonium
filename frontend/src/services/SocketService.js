@@ -192,6 +192,20 @@ class SocketService {
       this.emit('musical:event', data)
     })
 
+    // Unified modulation from HoverOrchestrator
+    this.socket.on('unified-modulation', (data) => {
+      console.log('🎛️ SocketService received unified-modulation:', data)
+      this.emit('unified-modulation', data)
+    })
+
+    // Debug: raw hover events (development only)
+    this.socket.on('hover-update-raw', (data) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🐛 Debug: SocketService received hover-update-raw:', data)
+        this.emit('hover-update-raw', data)
+      }
+    })
+
     // Error handling
     this.socket.on('error', (error) => {
       console.error('Socket error:', error)

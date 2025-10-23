@@ -1422,7 +1422,7 @@ const socketHandlers = {
   },
 
   /**
-   * Register hover-update event handler
+   * Register hover-update event handler with HoverOrchestrator integration
    * @param {Socket} socket - Socket instance
    */
   registerHoverUpdateHandler (socket) {
@@ -1452,49 +1452,80 @@ const socketHandlers = {
           velocity: data.velocity || 50,
           intensity: data.intensity || 0.5,
           userId: data.userId || socket.userId,
-          isRemote: true,
+          isRemote: data.isRemote || false, // preserve original isRemote flag
           timestamp: data.timestamp || Date.now()
         }
 
         console.log(`🎛️ Received hover-update from ${hoverData.userId}:`, hoverData)
 
-        // Get room info to check connected users
-        const connectedUsers = room ? Object.keys(room.users || {}).length : 0
-        console.log(`📊 Room ${socket.roomId} has ${connectedUsers} connected users`)
+        // NEW: Send to HoverOrchestrator for centralized analysis
+        this.sendToHoverOrchestrator(socket, hoverData)
 
-        // CRITICAL FIX: Broadcast to ALL users in room (including sender for local feedback)
-        // but mark as remote for other users
-        console.log(`📡 Broadcasting hover-update from socket ${socket.id} to room ${socket.roomId}`)
-
-        // Send to all users including sender for immediate feedback
-        const io = socket.server || socket.nsp.server
-        if (io) {
-          io.to(socket.roomId).emit('hover-update', hoverData)
-          console.log(`✅ Broadcasted hover-update to ALL users in room using global io`)
-        } else {
-          // Fallback: broadcast to others and also send to sender
-          socket.to(socket.roomId).emit('hover-update', hoverData)
-          socket.emit('hover-update', hoverData) // Send back to sender for feedback
-          console.log(`✅ Broadcasted hover-update using fallback method`)
+        // LEGACY: Still broadcast raw hover data for backward compatibility
+        // but only for debugging/testing purposes
+        if (process.env.NODE_ENV === 'development') {
+          const io = socket.server || socket.nsp.server
+          if (io) {
+            io.to(socket.roomId).emit('hover-update-raw', hoverData)
+            console.log(`📡 Debug: Broadcasted raw hover-update for development`)
+          }
         }
-
-        console.log(`✅ Broadcasted hover-update to room ${socket.roomId}:`, {
-          senderId: socket.id,
-          senderUserId: hoverData.userId,
-          position: hoverData.position,
-          velocity: hoverData.velocity,
-          intensity: hoverData.intensity,
-          isRemote: hoverData.isRemote,
-          connectedUsers: connectedUsers
-        })
 
         // Update room activity
         room.lastActivity = Date.now()
+
+        // Log processing time
+        const processingTime = Date.now() - startTime
+        if (processingTime > 50) { // warning threshold for hover processing
+          console.warn(`⚠️ Hover processing time ${processingTime}ms exceeds 50ms target`)
+        }
 
       } catch (error) {
         console.error('❌ hover-update error:', error)
       }
     })
+  },
+
+  /**
+   * Send hover data to HoverOrchestrator for centralized processing
+   * @param {Socket} socket - Socket instance
+   * @param {Object} hoverData - Hover event data
+   */
+  sendToHoverOrchestrator(socket, hoverData) {
+    try {
+      // Get or create HoverOrchestrator for this room
+      let hoverOrchestrator = socket.services.roomManager.getHoverOrchestrator(socket.roomId)
+
+      if (!hoverOrchestrator) {
+        // Create new HoverOrchestrator instance
+        const HoverOrchestrator = require('../services/HoverOrchestrator')
+        const io = socket.server || socket.nsp.server
+        hoverOrchestrator = new HoverOrchestrator(socket.roomId, io)
+
+        // Store orchestrator in room manager
+        socket.services.roomManager.setHoverOrchestrator(socket.roomId, hoverOrchestrator)
+
+        // Start the orchestrator
+        hoverOrchestrator.start()
+
+        console.log(`🎛️ Created and started HoverOrchestrator for room ${socket.roomId}`)
+      }
+
+      // Add hover event to orchestrator
+      hoverOrchestrator.addHoverEvent(hoverData)
+
+      console.log(`📥 Hover event sent to orchestrator: userId=${hoverData.userId}, room=${socket.roomId}`)
+
+    } catch (error) {
+      console.error('❌ Failed to send hover to orchestrator:', error)
+
+      // Fallback: broadcast raw hover data if orchestrator fails
+      const io = socket.server || socket.nsp.server
+      if (io) {
+        io.to(socket.roomId).emit('hover-update', hoverData)
+        console.log(`🔄 Fallback: Broadcasted raw hover due to orchestrator error`)
+      }
+    }
   },
 
   /**

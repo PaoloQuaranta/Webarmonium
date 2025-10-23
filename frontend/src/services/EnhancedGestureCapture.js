@@ -22,6 +22,16 @@ class EnhancedGestureCapture {
     this.currentRoom = null
     this.participantGestures = new Map() // userId -> gesture data
 
+    // Hover state for cross-layer modulation
+    this.hoverState = {
+      isHovering: false,
+      position: { x: 0.5, y: 0.5 },
+      lastHoverTime: 0,
+      hoverThreshold: 100, // ms between hover updates
+      hoverIntensity: 0.5,
+      hoverVelocity: 0
+    }
+
     // Enhanced gesture tracking
     this.gestureTracker = {
       startPosition: null,
@@ -62,6 +72,7 @@ class EnhancedGestureCapture {
     this.onGestureStart = null
     this.onGestureEnd = null
     this.onMultiUserGesture = null
+    this.onHoverModulation = null
 
     // Initialize
     this.setupEventListeners()
@@ -93,6 +104,11 @@ class EnhancedGestureCapture {
     this.canvas.addEventListener('touchend', (e) => this.handleGestureEnd(e))
     this.canvas.addEventListener('touchcancel', (e) => this.handleGestureEnd(e))
 
+    // Hover events for cross-layer modulation
+    this.canvas.addEventListener('mousemove', (e) => this.handleHover(e))
+    this.canvas.addEventListener('mouseenter', (e) => this.handleHoverStart(e))
+    this.canvas.addEventListener('mouseleave', (e) => this.handleHoverEnd(e))
+
     // Prevent default touch behaviors
     this.canvas.addEventListener('touchstart', (e) => e.preventDefault())
     this.canvas.addEventListener('touchmove', (e) => e.preventDefault())
@@ -123,6 +139,7 @@ class EnhancedGestureCapture {
    * @param {Event} event - Mouse or touch event
    */
   handleGestureStart(event) {
+    console.log('🎯 GESTURE START TRIGGERED - button pressed')
     if (!this.isActive) return
 
     event.preventDefault()
@@ -219,7 +236,11 @@ class EnhancedGestureCapture {
    * @param {Event} event - Mouse or touch event
    */
   handleGestureEnd(event) {
-    if (!this.isActive || !this.isCapturing || !this.currentGesture) return
+    console.log('🎯 GESTURE END TRIGGERED - button released')
+    if (!this.isActive || !this.isCapturing || !this.currentGesture) {
+      console.log('🎯 GESTURE END - not capturing or no current gesture')
+      return
+    }
 
     event.preventDefault()
 
@@ -669,6 +690,208 @@ class EnhancedGestureCapture {
   }
 
   /**
+   * Handle hover start
+   * @param {Event} event - Mouse event
+   */
+  handleHoverStart(event) {
+    if (!this.isActive) return
+
+    this.hoverState.isHovering = true
+    const coordinates = this.getEventCoordinates(event)
+    if (coordinates) {
+      this.hoverState.position = coordinates
+    }
+
+    console.log('🎯 Hover started at:', this.hoverState.position)
+  }
+
+  /**
+   * Handle hover movement with cross-layer modulation
+   * @param {Event} event - Mouse event
+   */
+  handleHover(event) {
+    if (!this.isActive) return
+
+    // CRITICAL FIX: Don't process hover when we're capturing a gesture (drag)
+    if (this.isCapturing) {
+      console.log('🎯 Hover disabled during gesture capture')
+      return
+    }
+
+    // Auto-activate hover state when mouse moves over canvas
+    if (!this.hoverState.isHovering) {
+      this.hoverState.isHovering = true
+      console.log('🎯 Hover auto-activated')
+    }
+
+    const coordinates = this.getEventCoordinates(event)
+    if (!coordinates) return
+
+    const now = Date.now()
+    const deltaTime = now - this.hoverState.lastHoverTime
+
+    // Throttle hover updates - reduced threshold for better responsiveness
+    if (deltaTime < this.hoverState.hoverThreshold) {
+      console.log(`🎛️ Hover update throttled: ${deltaTime}ms < ${this.hoverState.hoverThreshold}ms`)
+      return
+    }
+
+    // Calculate hover velocity and intensity
+    const deltaX = coordinates.x - this.hoverState.position.x
+    const deltaY = coordinates.y - this.hoverState.position.y
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
+
+    this.hoverState.hoverVelocity = distance / (deltaTime / 1000) // pixels per second
+    this.hoverState.hoverIntensity = Math.min(distance * 2, 1) // Normalize to 0-1
+
+    this.hoverState.position = coordinates
+    this.hoverState.lastHoverTime = now
+
+    console.log(`🎛️ Hover: pos=(${coordinates.x.toFixed(2)}, ${coordinates.y.toFixed(2)}), intensity=${this.hoverState.hoverIntensity.toFixed(2)}`)
+
+    // Trigger cross-layer modulation
+    if (this.onHoverModulation) {
+      this.onHoverModulation({
+        position: this.hoverState.position,
+        velocity: this.hoverState.hoverVelocity,
+        intensity: this.hoverState.hoverIntensity,
+        isRemote: false // Local hover
+      })
+    }
+
+    // Emit hover state to server for multi-user synchronization
+    this.emitHoverUpdate()
+
+    // Emit cursor position for multi-user cursors
+    this.emitCursorPosition()
+  }
+
+  /**
+   * Handle hover end
+   * @param {Event} event - Mouse event
+   */
+  handleHoverEnd(event) {
+    if (!this.isActive) return
+
+    this.hoverState.isHovering = false
+    this.hoverState.hoverVelocity = 0
+    this.hoverState.hoverIntensity = 0
+
+    // Reset modulation with safety check
+    if (this.onHoverModulation && this.hoverState.position) {
+      this.onHoverModulation({
+        position: this.hoverState.position,
+        velocity: 0,
+        intensity: 0,
+        isRemote: false
+      })
+    }
+
+    console.log('🎯 Hover ended')
+  }
+
+  /**
+   * Handle remote hover from multi-user
+   * @param {Object} data - Remote hover data
+   */
+  handleRemoteHover(data) {
+    if (!this.isActive) return
+
+    const { userId, position, velocity, intensity } = data
+
+    // Trigger cross-layer modulation for remote user
+    if (this.onHoverModulation) {
+      this.onHoverModulation({
+        position,
+        velocity,
+        intensity,
+        isRemote: true
+      })
+    }
+
+    console.log('🌐 Remote hover from user:', userId)
+  }
+
+  /**
+   * Emit hover update to server
+   */
+  emitHoverUpdate() {
+    console.log('🛸 emitHoverUpdate called:', {
+      hasSocketService: !!this.socketService,
+      hasSocket: !!(this.socketService && this.socketService.socket),
+      isHovering: this.hoverState.isHovering,
+      currentRoom: this.currentRoom,
+      localUserId: this.localUserId,
+      hoverState: this.hoverState
+    })
+
+    if (this.socketService && this.socketService.socket && this.hoverState.isHovering) {
+      const hoverData = {
+        userId: this.localUserId,
+        roomId: this.currentRoom,
+        position: this.hoverState.position,
+        velocity: this.hoverState.hoverVelocity,
+        intensity: this.hoverState.hoverIntensity,
+        timestamp: Date.now()
+      }
+
+      console.log('🛸 Emitting hover-update:', hoverData)
+      this.socketService.socket.emit('hover-update', hoverData)
+    } else {
+      console.log('❌ emitHoverUpdate blocked - conditions not met')
+    }
+  }
+
+  /**
+   * Emit cursor position for multi-user cursors
+   */
+  emitCursorPosition() {
+    if (!this.socketService || !this.socketService.socket) {
+      console.log('❌ emitCursorPosition blocked - no socket service')
+      return
+    }
+
+    const position = this.hoverState.position || { x: 0.5, y: 0.5 }
+    console.log('🎯 Emitting cursor position:', {
+      x: position.x,
+      y: position.y,
+      isDrawing: this.isCapturing,
+      hasHoverState: !!this.hoverState.position,
+      userId: this.localUserId
+    })
+
+    this.socketService.socket.emit('cursor-move', {
+      x: position.x,
+      y: position.y,
+      isDrawing: this.isCapturing,
+      timestamp: Date.now(),
+      userId: this.localUserId  // Use same user ID as hover-update events
+    })
+
+    console.log('👆 Cursor position emitted successfully')
+  }
+
+  /**
+   * Set hover modulation callback
+   * @param {Function} callback - Hover modulation callback
+   */
+  setHoverModulationCallback(callback) {
+    this.onHoverModulation = callback
+    console.log('🎛️ Hover modulation callback set')
+  }
+
+  /**
+   * Get hover state
+   * @returns {Object} Current hover state
+   */
+  getHoverState() {
+    return {
+      ...this.hoverState,
+      isActive: this.hoverState.isHovering
+    }
+  }
+
+  /**
    * Cleanup resources
    */
   destroy() {
@@ -684,6 +907,11 @@ class EnhancedGestureCapture {
     this.canvas.removeEventListener('touchmove', this.handleGestureMove)
     this.canvas.removeEventListener('touchend', this.handleGestureEnd)
     this.canvas.removeEventListener('touchcancel', this.handleGestureEnd)
+
+    // Remove hover event listeners
+    this.canvas.removeEventListener('mousemove', this.handleHover)
+    this.canvas.removeEventListener('mouseenter', this.handleHoverStart)
+    this.canvas.removeEventListener('mouseleave', this.handleHoverEnd)
 
     console.log('🧹 EnhancedGestureCapture destroyed')
   }

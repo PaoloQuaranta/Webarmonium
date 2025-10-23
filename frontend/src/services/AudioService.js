@@ -101,6 +101,19 @@ class AudioService {
     // Ambient synth state tracking
     this.ambientSynthActive = false
 
+    // Remote LFO for filter cutoff modulation
+    this.remoteFilterLFO = null
+    this.remoteLFOTargetFilters = new Set()
+
+    // Track connected users for dynamic modulation scaling
+    this.activeRemoteUsers = new Set()
+    this.lastUserCountUpdate = Date.now()
+
+    // Track last hover activity for timeout system
+    this.lastHoverTime = 0
+    this.hoverTimeoutDuration = 500 // 500ms timeout for hover inactivity
+    this.hoverTimeoutTimer = null
+
     // Filter modulation throttling to prevent stuttering
     this.lastFilterUpdateTime = 0
     this.filterUpdateInterval = 50 // 50ms = 20 updates per second maximum
@@ -211,9 +224,55 @@ class AudioService {
       }
     }
 
-    // Initialize LFO system
-    this.lfoSystem.init()
+    // Initialize LFO system - DISABILITATO per eliminare tremolo
+    // this.lfoSystem.init() // Vecchio LFO system rimosso
+    console.log('🛑 LFO system initialization DISABLED - using only unified modulation')
 
+    // NUCLEAR OPTION: Completely disable all LFO functionality to eliminate tremolo
+    this.disableAllLFOSystems()
+  }
+
+  /**
+   * NUCLEAR OPTION: Completely disable all LFO systems to eliminate tremolo
+   * This is the definitive fix for omnipresent tremolo issues
+   */
+  disableAllLFOSystems() {
+    console.log('🚨 NUCLEAR OPTION: Disabling ALL LFO systems to eliminate tremolo')
+
+    // Disable lfoSystem completely
+    if (this.lfoSystem) {
+      this.lfoSystem.isActive = false
+      this.lfoSystem.currentLFOValue = 0
+      this.lfoSystem.lfoPhase = 0
+      if (this.lfoSystem.updateInterval) {
+        clearInterval(this.lfoSystem.updateInterval)
+        this.lfoSystem.updateInterval = null
+      }
+      console.log('🛑 lfoSystem completely disabled')
+    }
+
+    // Disable any existing LFO instances
+    if (this.remoteFilterLFO) {
+      this.remoteFilterLFO.stop()
+      this.remoteFilterLFO.dispose()
+      this.remoteFilterLFO = null
+      console.log('🛑 remoteFilterLFO destroyed')
+    }
+
+    if (this.tremoloLFO) {
+      this.tremoloLFO.stop()
+      this.tremoloLFO.dispose()
+      this.tremoloLFO = null
+      console.log('🛑 tremoloLFO destroyed')
+    }
+
+    console.log('✅ ALL LFO SYSTEMS DISABLED - tremolo should be eliminated')
+  }
+
+  /**
+   * Initialize the three-tier audio architecture
+   */
+  initializeThreeTierAudio() {
     // Continuous filter update system properties
     this.continuousFilterUpdate = {
       isActive: false,
@@ -325,6 +384,19 @@ class AudioService {
     // Create master volume node for centralized control (FR-011)
     this.masterVolume = new Tone.Volume(-10).toDestination()
 
+    // Create global effects for unified modulation
+    this.reverb = new Tone.Reverb({
+      decay: 3.0,        // 3 second decay
+      preDelay: 0.01,    // 10ms predelay
+      wet: 0.2           // Start with subtle reverb
+    }).connect(this.masterVolume)
+
+    this.delay = new Tone.Delay({
+      delayTime: 0.2,    // 200ms delay
+      maxDelay: 1,       // 1 second max
+      wet: 0.1           // Start with subtle delay
+    }).connect(this.masterVolume)
+
     // Initialize generative composition state
     this.generativeState = {
       currentScale: [0, 2, 4, 7, 9], // Pentatonic major
@@ -373,11 +445,13 @@ class AudioService {
       texture: new Tone.Volume(-15) // Subtle texture
     }
 
-    // Connect each layer: synth -> filter -> volume -> master
+    // Connect each layer: synth -> filter -> volume -> effects -> master
     Object.keys(this.ambientLayers).forEach(layer => {
       this.ambientLayers[layer].connect(this.ambientFilters[layer])
       this.ambientFilters[layer].connect(this.ambientVolumes[layer])
-      this.ambientVolumes[layer].connect(this.masterVolume)
+      // Route through effects for richer sound
+      this.ambientVolumes[layer].connect(this.reverb)
+      this.ambientVolumes[layer].connect(this.delay)
     })
 
     // Create gesture-responsive synth with INCREASED polyphony and cleaner sound
@@ -404,9 +478,15 @@ class AudioService {
       Q: 1
     })
 
-    // FIX: Correct routing - synth -> filter -> master -> destination
+    // Add pan node for gesture synth spatial control
+    this.gesturePan = new Tone.Panner(0).toDestination()
+
+    // FIX: Correct routing - synth -> filter -> pan -> effects -> master -> destination
     this.gestureSynth.connect(this.gestureFilter)
-    this.gestureFilter.connect(this.masterVolume)
+    this.gestureFilter.connect(this.gesturePan)
+    this.gesturePan.connect(this.reverb)
+    this.gesturePan.connect(this.delay)
+    this.gesturePan.connect(this.masterVolume)
 
     // Polyphony management
     this.maxTotalVoices = 8 // Maximum total voices across all synths
@@ -598,15 +678,19 @@ class AudioService {
       texture: 1500
     }[layer]
 
-    // Use LFO system for dynamic modulation instead of fixed sine wave
+    // CRITICAL FIX: DISABLE ALL LFO modulation to eliminate tremolo
+    // Previous code was causing omnipresent tremolo through texture layer
     let filterFrequency = baseFrequency
-    if (this.lfoSystem && layer === 'texture') {
-      // Only texture layer gets LFO modulation from ambient evolution
+
+    // NO LFO MODULATION - Use static frequencies only
+    if (false && this.lfoSystem && layer === 'texture') {
+      // DISABLED: Only texture layer gets LFO modulation from ambient evolution
       const lfoValue = this.lfoSystem.update()
       const lfoModulation = 1 + state.complexity * lfoValue * 0.2 // Gentler modulation
       filterFrequency = baseFrequency * lfoModulation
+      console.log(`🚫 DISABLED LFO modulation for ${layer}: ${lfoValue.toFixed(3)} → ${filterFrequency.toFixed(1)}Hz`)
     } else {
-      // Other layers use static base frequency
+      // All layers use static base frequency - NO LFO
       filterFrequency = baseFrequency
     }
 
@@ -736,12 +820,25 @@ class AudioService {
       // Real-time gesture-to-sonic parameter mapping per FR-002
       const frequency = this.mapGestureToFrequency(sonicParams)
       const volume = this.mapGestureToVolume(sonicParams)
-      const filterFreq = this.mapGestureToFilter(sonicParams)
+      const filterParams = this.mapGestureToFilter(sonicParams)
+
+      // Handle both old format (number) and new format (object) for backward compatibility
+      let cutoffFrequency, resonance, tremoloAmount
+      if (typeof filterParams === 'object' && filterParams !== null) {
+        cutoffFrequency = filterParams.cutoffFrequency
+        resonance = filterParams.resonance
+        tremoloAmount = filterParams.tremoloAmount || 0
+      } else {
+        // Legacy format - treat as cutoff frequency
+        cutoffFrequency = filterFreq || 1000
+        resonance = 1.0
+        tremoloAmount = 0
+      }
 
       // FIX: Apply real-time parameters to gesture filter for hover modulation
       if (this.gestureFilter && this.gestureFilter.frequency && this.gestureFilter.Q) {
         // FIX: Validate filter frequency to prevent null errors
-        const validFreq = filterFreq && !isNaN(filterFreq) ? filterFreq : 1000
+        const validFreq = cutoffFrequency && !isNaN(cutoffFrequency) ? cutoffFrequency : 1000
         const clampedFreq = Math.max(100, Math.min(8000, validFreq))
 
         // Additional validation to prevent null errors
@@ -751,14 +848,20 @@ class AudioService {
           this.gestureFilter.frequency.linearRampToValueAtTime(clampedFreq, currentTime + 0.05)
         }
 
-        const filterQ = 1 + (sonicParams.z || 0.5) * 3
+        // Use resonance from our new filter mapping system
+        const filterQ = resonance || (1 + (sonicParams.z || 0.5) * 3)
         const clampedQ = Math.max(0.1, Math.min(10, filterQ))
 
         if (this.gestureFilter.Q.linearRampToValueAtTime) {
           this.gestureFilter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
         }
 
-        console.log(`🎛️ Applied gesture filter: ${clampedFreq.toFixed(1)}Hz, Q=${clampedQ.toFixed(2)}`)
+        // Apply tremolo if present (remote modulation high range)
+        if (tremoloAmount > 0 && this.gestureSynth) {
+          this.applyTremolo(tremoloAmount, currentTime)
+        }
+
+        console.log(`🎛️ Applied gesture filter: ${clampedFreq.toFixed(1)}Hz, Q=${clampedQ.toFixed(2)}, tremolo=${tremoloAmount.toFixed(2)}`)
       } else {
         console.warn('🔇 Gesture filter not available for modulation')
       }
@@ -1062,18 +1165,59 @@ class AudioService {
 
   /**
    * Map gesture movement to filter parameters per FR-002
-   * FIX: Added validation to prevent null returns
+   * FIX: Added validation to prevent null returns and implemented three-tier modulation
    */
   mapGestureToFilter(sonicParams) {
-    // Movement speed or Z coordinate maps to filter cutoff
-    const movement = sonicParams?.z ?? sonicParams?.movement ?? sonicParams?.y ?? 0.5
-    const validMovement = typeof movement === 'number' && !isNaN(movement) ? movement : 0.5
-    const clampedMovement = Math.max(0, Math.min(1, validMovement))
+    const tier = sonicParams.tier || 'local'
 
-    const filterFreq = 200 + (clampedMovement * 2000) // 200Hz to 2200Hz filter range
-    console.log(`🎛️ Map gesture to filter: movement=${validMovement} → freq=${filterFreq.toFixed(1)}Hz`)
+    if (tier === 'local') {
+      // LOCAL MODULATION: Y controls cutoff, X controls resonance
+      const y = sonicParams.y || 0.5
+      const x = sonicParams.x || 0.5
 
-    return filterFreq
+      const cutoff = 200 + ((1 - y) * 3800) // 200Hz to 4000Hz, inverted Y axis
+      const resonance = 0.5 + (x * 4.5) // 0.5 to 5.0 Q range
+
+      console.log(`🎛️ Local filter modulation: Y=${y.toFixed(2)}→cutoff=${cutoff.toFixed(1)}Hz, X=${x.toFixed(2)}→resonance=${resonance.toFixed(2)}`)
+
+      return {
+        cutoffFrequency: cutoff,
+        resonance: resonance,
+        tremoloAmount: 0 // No tremolo for local modulation
+      }
+    } else if (tier === 'remote') {
+      // REMOTE MODULATION: X = LFO speed, Y = LFO amplitude that modulates cutoff frequency
+      const y = sonicParams.y || 0.5
+      const x = sonicParams.x || 0.5
+
+      // X controls LFO speed (0.05Hz to 10Hz)
+      const lfoSpeed = 0.05 + (x * 9.95) // 0.05Hz to 10Hz
+
+      // Y controls LFO amplitude (0% to 100% modulation depth)
+      const lfoAmplitude = y // 0.0 to 1.0 (0% to 100%)
+
+      console.log(`🎛️ Remote LFO modulation: X=${x.toFixed(2)}→speed=${lfoSpeed.toFixed(2)}Hz, Y=${y.toFixed(2)}→amplitude=${(lfoAmplitude * 100).toFixed(0)}%`)
+
+      return {
+        lfoSpeed: lfoSpeed,
+        lfoAmplitude: lfoAmplitude,
+        isRemoteLFO: true
+      }
+    } else {
+      // Background/default modulation (no tremolo)
+      const movement = sonicParams?.z ?? sonicParams?.movement ?? sonicParams?.y ?? 0.5
+      const validMovement = typeof movement === 'number' && !isNaN(movement) ? movement : 0.5
+      const clampedMovement = Math.max(0, Math.min(1, validMovement))
+
+      const filterFreq = 200 + (clampedMovement * 2000) // 200Hz to 2200Hz filter range
+      console.log(`🎛️ Background filter modulation: movement=${validMovement} → freq=${filterFreq.toFixed(1)}Hz`)
+
+      return {
+        cutoffFrequency: filterFreq,
+        resonance: 1.0, // Default resonance for background
+        tremoloAmount: 0 // No tremolo for background
+      }
+    }
   }
 
   /**
@@ -1510,7 +1654,7 @@ class AudioService {
     // Apply immediate filter changes to show background response
     if (this.ambientFilters.bass) {
       const bassFreq = normalizedFreq * 0.3
-      this.ambientFilters.bass.frequency.exponentialRampToValueAtTime(
+      this.ambientFilters.bass.frequency.linearRampToValueAtTime(
         Math.max(50, Math.min(500, bassFreq)),
         Tone.context.currentTime + 0.2
       )
@@ -1523,7 +1667,7 @@ class AudioService {
 
     if (this.ambientFilters.harmony) {
       const harmonyFreq = normalizedFreq * 0.8
-      this.ambientFilters.harmony.frequency.exponentialRampToValueAtTime(
+      this.ambientFilters.harmony.frequency.linearRampToValueAtTime(
         Math.max(150, Math.min(2000, harmonyFreq)),
         Tone.context.currentTime + 0.15
       )
@@ -1536,7 +1680,7 @@ class AudioService {
 
     if (this.ambientFilters.texture) {
       const textureFreq = normalizedFreq * 1.5
-      this.ambientFilters.texture.frequency.exponentialRampToValueAtTime(
+      this.ambientFilters.texture.frequency.linearRampToValueAtTime(
         Math.max(200, Math.min(4000, textureFreq)),
         Tone.context.currentTime + 0.1
       )
@@ -1546,6 +1690,214 @@ class AudioService {
       )
       console.log(`🎛️ Texture filter response: ${Math.max(200, Math.min(4000, textureFreq)).toFixed(1)}Hz`)
     }
+  }
+
+  
+  /**
+   * Setup remote LFO for filter cutoff modulation
+   * @param {number} speed - LFO frequency in Hz (0.1 to 10Hz)
+   * @param {number} amplitude - LFO amplitude (0.0 to 1.0)
+   */
+  setupRemoteFilterLFO(speed, amplitude) {
+    // Stop existing LFO
+    if (this.remoteFilterLFO) {
+      this.remoteFilterLFO.stop()
+      this.remoteFilterLFO.dispose()
+    }
+
+    if (amplitude === 0) {
+      // No amplitude, no LFO
+      this.remoteFilterLFO = null
+      console.log('🛑 Remote filter LFO disabled (amplitude = 0)')
+      return
+    }
+
+    // Apply dynamic scaling based on number of active users
+    const userCount = this.activeRemoteUsers.size || 1 // At least 1
+    const scalingMultiplier = this.calculateModulationScaling(userCount)
+
+    // Scale up amplitude for fewer users
+    const scaledAmplitude = Math.min(1.0, amplitude * scalingMultiplier)
+
+    // Scale speed slightly for more dramatic effect with fewer users
+    const scaledSpeed = speed * (1 + (scalingMultiplier - 1) * 0.5)
+
+    console.log(`👥 User scaling: ${userCount} users, multiplier=${scalingMultiplier.toFixed(2)}, amp=${(amplitude * 100).toFixed(0)}%→${(scaledAmplitude * 100).toFixed(0)}%`)
+
+    // Create new LFO for filter modulation with scaled parameters
+    // Use higher base frequency offset for more dramatic effect
+    const baseFreq = 1000 // 1kHz base frequency
+    const modulationDepth = baseFreq * scaledAmplitude // Modulate ± this amount
+
+    // Ensure minimum frequency doesn't go below 50Hz to prevent audio artifacts
+    const minFreq = Math.max(50, baseFreq - modulationDepth)
+    const maxFreq = baseFreq + modulationDepth
+
+    this.remoteFilterLFO = new Tone.LFO(scaledSpeed, minFreq, maxFreq).start()
+
+    // Connect LFO to all target filters with direct frequency control
+    this.connectLFOToFiltersDirect()
+
+    console.log(`🌊 Remote filter LFO: speed=${scaledSpeed.toFixed(2)}Hz, range=${(baseFreq - modulationDepth).toFixed(0)}-${(baseFreq + modulationDepth).toFixed(0)}Hz, users=${userCount}`)
+
+    // Debug: test LFO output briefly
+    setTimeout(() => {
+      if (this.remoteFilterLFO) {
+        console.log('✅ Remote LFO is running and should be modulating filters')
+      } else {
+        console.warn('⚠️ Remote LFO disappeared unexpectedly')
+      }
+    }, 1000)
+  }
+
+  /**
+   * Calculate modulation scaling based on user count
+   * @param {number} userCount - Number of active users
+   * @returns {number} Scaling multiplier
+   */
+  calculateModulationScaling(userCount) {
+    if (userCount === 1) {
+      return 3.0 // 3x amplitude for single user
+    } else if (userCount === 2) {
+      return 2.0 // 2x amplitude for 2 users
+    } else if (userCount <= 4) {
+      return 1.5 // 1.5x amplitude for 3-4 users
+    } else if (userCount <= 8) {
+      return 1.2 // 1.2x amplitude for 5-8 users
+    } else {
+      return 1.0 // No scaling for 9+ users
+    }
+  }
+
+  /**
+   * Update active remote users tracking
+   * @param {string} userId - User ID to track
+   * @param {boolean} isActive - Whether user is active
+   */
+  updateActiveRemoteUser(userId, isActive = true) {
+    if (isActive) {
+      this.activeRemoteUsers.add(userId)
+      this.lastUserCountUpdate = Date.now()
+    } else {
+      this.activeRemoteUsers.delete(userId)
+    }
+
+    // Clean up old users (remove inactive users after 10 seconds)
+    const now = Date.now()
+    if (now - this.lastUserCountUpdate > 10000) {
+      // Could implement cleanup logic here if needed
+      this.lastUserCountUpdate = now
+    }
+
+    console.log(`👥 Active remote users: ${this.activeRemoteUsers.size}`)
+  }
+
+  /**
+   * Connect LFO directly to all relevant filters (bypassing gain nodes)
+   */
+  connectLFOToFiltersDirect() {
+    if (!this.remoteFilterLFO) return
+
+    // Clear existing connections
+    this.remoteLFOTargetFilters.clear()
+
+    // Connect directly to gesture filter frequency
+    if (this.gestureFilter && this.gestureFilter.frequency) {
+      this.remoteFilterLFO.connect(this.gestureFilter.frequency)
+      this.remoteLFOTargetFilters.add('gestureFilter')
+      console.log('🔗 Remote LFO connected directly to gesture filter')
+    }
+
+    // Connect directly to ambient filter frequencies
+    if (this.ambientFilters) {
+      Object.keys(this.ambientFilters).forEach(layerName => {
+        const filter = this.ambientFilters[layerName]
+        if (filter && filter.frequency) {
+          this.remoteFilterLFO.connect(filter.frequency)
+          this.remoteLFOTargetFilters.add(layerName)
+        }
+      })
+      console.log(`🔗 Remote LFO connected directly to ${Object.keys(this.ambientFilters).length} ambient filters`)
+    }
+
+    console.log(`🔗 Remote LFO directly connected to ${this.remoteLFOTargetFilters.size} total filters`)
+  }
+
+  /**
+   * Connect LFO to all relevant filters (legacy method)
+   */
+  connectLFOToFilters() {
+    if (!this.remoteFilterLFO) return
+
+    // Connect to gesture filter
+    if (this.gestureFilter) {
+      // Create a signal for the LFO modulation
+      const lfoGain = new Tone.Gain(1).connect(this.gestureFilter.frequency)
+      this.remoteFilterLFO.connect(lfoGain)
+      this.remoteLFOTargetFilters.add(lfoGain)
+    }
+
+    // Connect to ambient filters
+    if (this.ambientFilters) {
+      Object.keys(this.ambientFilters).forEach(layerName => {
+        const filter = this.ambientFilters[layerName]
+        if (filter && filter.frequency) {
+          const lfoGain = new Tone.Gain(1).connect(filter.frequency)
+          this.remoteFilterLFO.connect(lfoGain)
+          this.remoteLFOTargetFilters.add(lfoGain)
+        }
+      })
+    }
+
+    console.log(`🔗 Remote LFO connected to ${this.remoteLFOTargetFilters.size} filters`)
+  }
+
+  /**
+   * Stop remote filter LFO
+   */
+  stopRemoteFilterLFO() {
+    if (this.remoteFilterLFO) {
+      this.remoteFilterLFO.stop()
+      this.remoteFilterLFO.dispose()
+      this.remoteFilterLFO = null
+    }
+
+    // For direct connections, we just clear the tracking
+    // Tone.js handles disconnection automatically when the LFO is disposed
+    this.remoteLFOTargetFilters.clear()
+
+    console.log('🛑 Remote filter LFO stopped and disconnected')
+  }
+
+  /**
+   * Apply tremolo effect to gesture synth for remote modulation high range
+   * @param {number} amount - Tremolo amount (0-1)
+   * @param {number} currentTime - Current audio context time
+   */
+  applyTremolo(amount, currentTime = Tone.now()) {
+    // COMPLETELY DISABLED - Tremolo was causing onnipresent modulation
+    console.log('🛑 applyTremolo method disabled to prevent onnipresent tremolo')
+    return
+
+    if (!this.gestureSynth || amount <= 0) return
+
+    // Create tremolo using volume modulation
+    const tremoloRate = 4 + amount * 8 // 4Hz to 12Hz based on amount
+    const tremoloDepth = amount * 0.6 // Max 60% depth for musical effect
+
+    // We'll use a simple LFO on the volume parameter
+    if (!this.tremoloLFO) {
+      this.tremoloLFO = new Tone.LFO(tremoloRate, 1 - tremoloDepth, 1).start()
+      this.tremoloLFO.connect(this.gestureSynth.volume)
+    } else {
+      // Stop existing LFO and create new one with updated parameters
+      this.tremoloLFO.stop()
+      this.tremoloLFO.dispose()
+      this.tremoloLFO = new Tone.LFO(tremoloRate, 1 - tremoloDepth, 1).start()
+      this.tremoloLFO.connect(this.gestureSynth.volume)
+    }
+
+    console.log(`🎛️ Applied tremolo: rate=${tremoloRate.toFixed(1)}Hz, depth=${(tremoloDepth * 100).toFixed(1)}%`)
   }
 
   /**
@@ -1615,7 +1967,7 @@ class AudioService {
       filter.frequency.setValueAtTime(100, startTime)
 
       // Sweep to high frequency
-      filter.frequency.exponentialRampToValueAtTime(5000, endTime)
+      filter.frequency.linearRampToValueAtTime(5000, endTime)
 
       console.log(`🧪 ${layerName} filter sweep: 100Hz → 5000Hz over 2 seconds`)
     })
@@ -1623,7 +1975,7 @@ class AudioService {
     // Also sweep the gesture filter
     if (this.gestureFilter) {
       this.gestureFilter.frequency.setValueAtTime(100, startTime)
-      this.gestureFilter.frequency.exponentialRampToValueAtTime(8000, endTime)
+      this.gestureFilter.frequency.linearRampToValueAtTime(8000, endTime)
       console.log('🧪 Gesture filter sweep: 100Hz → 8000Hz over 2 seconds')
     }
 
@@ -2192,8 +2544,11 @@ class AudioService {
    * Perform parameter update for current frame
    */
   performParameterUpdate() {
-    if (!this.audioEngine || this.gestureBuffer.length === 0) return
+    // DISABILITATO: Update loop potrebbe causare tremoli non necessari
+    // if (!this.audioEngine || this.gestureBuffer.length === 0) return
+    return // Completamente disabilitato per prevenire tremoli
 
+    /*
     try {
       // Interpolate parameters from gesture buffer
       const interpolatedParams = this.interpolateParametersFromBuffer()
@@ -2209,6 +2564,7 @@ class AudioService {
       console.error('Parameter update failed:', error)
       this.performanceMetrics.droppedUpdates++
     }
+    */
   }
 
   /**
@@ -2378,7 +2734,7 @@ class AudioService {
 
             // Use smooth transitions instead of immediate changes to prevent audio artifacts
             const rampTime = 0.1 // 100ms smooth transition
-            filter.frequency.exponentialRampToValueAtTime(targetFrequency, Tone.context.currentTime + rampTime)
+            filter.frequency.linearRampToValueAtTime(targetFrequency, Tone.context.currentTime + rampTime)
 
             // Apply resonance if available with smooth transition
             if (filter.Q && resonance && typeof filter.Q.linearRampToValueAtTime === 'function') {
@@ -2515,19 +2871,24 @@ class AudioService {
 
     console.log(`🎵 Playing ${tierConfig.waveform} note on ${tier} tier: ${adjustedFrequency}Hz, velocity: ${velocity}`)
 
+    // CRITICAL DEBUG: Stack trace to identify where this call comes from
+    console.trace('🔍 Stack trace for playThreeTierNote call:')
+
     // Configure synth with tier-specific waveform
     this.gestureSynth.set({
       oscillator: { type: tierConfig.waveform },
       envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 0.3 }
     })
 
-    // Play the note with tier-specific parameters
+    // Play note with tier-specific parameters
+    console.log('🔍 About to trigger single note:', adjustedFrequency.toFixed(1) + 'Hz, tier:', tier)
     this.gestureSynth.triggerAttackRelease(
       adjustedFrequency,
       adjustedDuration,
       undefined,
       adjustedVolume
     )
+    console.log('🔍 Note triggered successfully')
   }
 
   /**
@@ -2709,7 +3070,7 @@ class AudioService {
     const baseFreq = 250
     const modFreq = baseFreq + (position.y || 0.5) * 150 * intensity
 
-    bassFilter.frequency.exponentialRampToValueAtTime(
+    bassFilter.frequency.linearRampToValueAtTime(
       modFreq,
       Tone.context.currentTime + 0.1
     )
@@ -2731,7 +3092,7 @@ class AudioService {
     const baseFreq = 800
     const modFreq = baseFreq + (position.x || 0.5) * 400 * intensity
 
-    harmonyFilter.frequency.exponentialRampToValueAtTime(
+    harmonyFilter.frequency.linearRampToValueAtTime(
       modFreq,
       Tone.context.currentTime + 0.08
     )
@@ -2753,7 +3114,7 @@ class AudioService {
     const baseFreq = 1400
     const modFreq = baseFreq + (position.x || 0.5) * 600 * intensity
 
-    textureFilter.frequency.exponentialRampToValueAtTime(
+    textureFilter.frequency.linearRampToValueAtTime(
       modFreq,
       Tone.context.currentTime + 0.05
     )
@@ -2769,7 +3130,9 @@ class AudioService {
    * @param {Object} hoverData - Hover data with position, velocity, intensity, and isRemote
    */
   handleHoverModulation(hoverData) {
-    console.log('🔇 handleHoverModulation called - isInitialized:', this.isInitialized, 'hasAudioContext:', !!this.audioContext, 'hasMasterVolume:', !!this.masterVolume)
+    // NUCLEAR OPTION: Completely disable hover modulation to test if this is causing audio issues
+    console.log('🚫 handleHoverModulation COMPLETELY DISABLED for debugging')
+    return
 
     // Force initialization if needed
     if (!this.isInitialized && this.gestureSynth) {
@@ -2787,81 +3150,158 @@ class AudioService {
     const position = hoverData?.position || hoverData || { x: 0.5, y: 0.5 }
     const userId = hoverData?.userId || 'unknown'
     const isRemote = hoverData?.isRemote || false
+    const intensity = hoverData?.intensity || 0.5
+
+    // CRITICAL FIX: If intensity is 0, don't apply any modulation (but don't stop background audio)
+    // EXCEPTION: If coordinates are outside canvas, we still need to reset filters
+    if (intensity === 0) {
+      const isOutsideCanvas = typeof originalX !== 'number' || typeof originalY !== 'number' ||
+                             isNaN(originalX) || isNaN(originalY) || !isFinite(originalX) || !isFinite(originalY) ||
+                             originalX < 0 || originalX > 1 || originalY < 0 || originalY > 1
+
+      if (isOutsideCanvas) {
+        console.log('🚫 Mouse left canvas with intensity=0 - resetting filters to prevent audio issues')
+        this.stopRemoteFilterLFO()
+        this.resetFiltersToSafeValues()
+        return
+      } else {
+        console.log('🚫 Hover intensity is 0 on canvas - skipping modulation but keeping background audio')
+        return
+      }
+    }
+
+    // Track active remote users for dynamic scaling
+    if (isRemote && userId !== 'unknown') {
+      this.updateActiveRemoteUser(userId, true)
+    }
 
     try {
-      const safeX = position?.x ?? 0.5
-      const safeY = position?.y ?? 0.5
+      // CRITICAL: Check if mouse is outside canvas (invalid coordinates)
+      const originalX = position?.x
+      const originalY = position?.y
+      let isOutsideCanvas = false
 
-      // Apply direct filter frequency control with safety checks
-      const targetFreq = Math.max(100, Math.min(5000, 200 + (1 - safeY) * 4800))
-      const targetQ = Math.max(0.5, Math.min(8, 1 + safeX * 7))
+      // Check for invalid or undefined coordinates (mouse outside canvas)
+      if (typeof originalX !== 'number' || typeof originalY !== 'number' ||
+          isNaN(originalX) || isNaN(originalY) || !isFinite(originalX) || !isFinite(originalY)) {
+        isOutsideCanvas = true
+      }
 
-      console.log(`🎛️ ${isRemote ? 'REMOTE' : 'LOCAL'} hover modulation: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)}), userId=${userId}`)
+      // Check if coordinates are outside reasonable canvas bounds
+      if (originalX < 0 || originalX > 1 || originalY < 0 || originalY > 1) {
+        isOutsideCanvas = true
+      }
 
-      if (isRemote) {
-        // REMOTE HOVER: x=LFO amplitude, y=LFO speed
-        this.lfoSystem.remoteAmplitude = Math.max(0.1, Math.min(2.0, safeX * 2)) // 0.1-2.0 amplitude range
-        this.lfoSystem.remoteSpeed = Math.max(0.1, Math.min(8.0, safeY * 8)) // 0.1-8Hz speed range
+      // If mouse is outside canvas, DO NOT apply any HOVER modulation
+      if (isOutsideCanvas) {
+        console.log(`🚫 Mouse outside canvas detected (${originalX?.toFixed(2) || 'undefined'}, ${originalY?.toFixed(2) || 'undefined'}) - NO HOVER MODULATION APPLIED`)
 
-        console.log(`🌐 REMOTE LFO parameters: amplitude=${this.lfoSystem.remoteAmplitude.toFixed(2)}, speed=${this.lfoSystem.remoteSpeed.toFixed(2)}Hz`)
+        // Stop only HOVER modulation, NOT background music
+        this.stopRemoteFilterLFO()
 
-        // Start continuous LFO if not already active
-        if (!this.lfoSystem.isLFOActive()) {
-          this.lfoSystem.start()
-          this.startContinuousFilterUpdates()
-          console.log('🌊 Started continuous LFO and filter updates')
+        // CRITICAL FIX: Reset filters to safe values that allow audio passage
+        this.resetFiltersToSafeValues()
+
+        return
+      }
+
+      // Mouse is inside canvas, proceed with modulation
+      const safeX = originalX
+      const safeY = originalY
+
+      // Update last hover time and setup timeout
+      this.lastHoverTime = Date.now()
+      this.setupHoverTimeout()
+
+      console.log(`🎛️ ${isRemote ? 'REMOTE' : 'LOCAL'} hover modulation: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)}), userId=${userId}, users=${this.activeRemoteUsers.size}`)
+
+      // Create sonic parameters with tier information
+      const sonicParams = {
+        x: safeX,
+        y: safeY,
+        intensity: hoverData?.intensity || 0.5,
+        velocity: hoverData?.velocity || 100,
+        tier: isRemote ? 'remote' : 'local' // Set tier based on remote/local
+      }
+
+      // Use our new three-tier modulation system
+      const filterParams = this.mapGestureToFilter(sonicParams)
+      console.log(`🎛️ Three-tier hover modulation: tier=${sonicParams.tier}, cutoff=${filterParams.cutoffFrequency?.toFixed(1)}Hz, resonance=${filterParams.resonance?.toFixed(2)}, tremolo=${filterParams.tremoloAmount?.toFixed(2)}`)
+
+      // Apply filter parameters based on tier
+      const currentTime = Tone.context && Tone.context.currentTime ? Tone.context.currentTime : Tone.now()
+
+      if (filterParams.isRemoteLFO) {
+        // REMOTE HOVER: Setup LFO for filter cutoff modulation
+        this.setupRemoteFilterLFO(filterParams.lfoSpeed, filterParams.lfoAmplitude)
+
+        // Also apply resonance from X position for remote hover
+        if (this.gestureFilter && this.gestureFilter.Q && this.gestureFilter.Q.linearRampToValueAtTime) {
+          const resonance = 0.5 + ((sonicParams.x || 0.5) * 4.5) // 0.5 to 5.0 Q range
+          const clampedQ = Math.max(0.1, Math.min(10, resonance))
+          this.gestureFilter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
+        }
+
+        // Apply resonance to ambient filters too
+        if (this.ambientFilters) {
+          Object.keys(this.ambientFilters).forEach(layerName => {
+            const filter = this.ambientFilters[layerName]
+            if (filter && filter.Q && filter.Q.linearRampToValueAtTime) {
+              const resonance = 0.5 + ((sonicParams.x || 0.5) * 4.5)
+              const clampedQ = Math.max(0.1, Math.min(10, resonance))
+              filter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
+            }
+          })
         }
 
       } else {
-        // LOCAL HOVER: stop continuous LFO and apply static parameters
-        if (this.lfoSystem.isLFOActive()) {
-          this.lfoSystem.stop()
-          this.stopContinuousFilterUpdates()
-          console.log('⏹️ Stopped continuous LFO for local hover')
+        // LOCAL HOVER: Direct filter modulation (no LFO)
+        // Stop any remote LFO if we're in local mode
+        this.stopRemoteFilterLFO()
+
+        // Apply to gesture filter
+        if (this.gestureFilter && this.gestureFilter.frequency && this.gestureFilter.Q) {
+          // Apply cutoff frequency
+          if (filterParams.cutoffFrequency && this.gestureFilter.frequency.linearRampToValueAtTime) {
+            const clampedFreq = Math.max(100, Math.min(8000, filterParams.cutoffFrequency))
+            this.gestureFilter.frequency.linearRampToValueAtTime(clampedFreq, currentTime + 0.05)
+          }
+
+          // Apply resonance
+          if (filterParams.resonance && this.gestureFilter.Q.linearRampToValueAtTime) {
+            const clampedQ = Math.max(0.1, Math.min(10, filterParams.resonance))
+            this.gestureFilter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
+          }
         }
 
-        // LOCAL HOVER: x=resonance, y=base cutoff
-        this.lfoSystem.localResonance = Math.max(1, Math.min(10, safeX * 10)) // 1-10 range
-        this.lfoSystem.localCutoff = Math.max(200, Math.min(4000, 200 + (1 - safeY) * 3800)) // 200-4000Hz
+        // Apply to ambient filters for audible effect
+        if (this.ambientFilters) {
+          Object.keys(this.ambientFilters).forEach(layerName => {
+            const filter = this.ambientFilters[layerName]
+            if (filter && filter.frequency && filter.Q) {
+              // Apply cutoff with layer-specific multipliers
+              const layerMultiplier = {
+                bass: 0.5,
+                harmony: 0.8,
+                texture: 1.2
+              }[layerName] || 1.0
 
-        console.log(`🏠 LOCAL LFO parameters: resonance=${this.lfoSystem.localResonance.toFixed(2)}, baseCutoff=${this.lfoSystem.localCutoff.toFixed(1)}Hz`)
+              const clampedFreq = Math.max(100, Math.min(8000, filterParams.cutoffFrequency * layerMultiplier))
+              filter.frequency.linearRampToValueAtTime(clampedFreq, currentTime + 0.05)
 
-        const targetFreq = this.lfoSystem.localCutoff
-        const targetQ = this.lfoSystem.localResonance
-
-        console.log(`🏠 Local hover modulation: freq=${targetFreq.toFixed(1)}Hz, Q=${targetQ.toFixed(2)}`)
+              // Apply resonance
+              const clampedQ = Math.max(0.1, Math.min(10, filterParams.resonance))
+              filter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
+            }
+          })
+          console.log('🎛️ Applied local filter modulation to ambient layers')
+        }
       }
 
-      // Apply local hover parameters (only for non-remote hover)
-      if (!isRemote) {
-        const targetFreq = this.lfoSystem.localCutoff
-        const targetQ = this.lfoSystem.localResonance
-
-        // Apply to ALL synths for audible effect
-        if (this.gestureSynth.filter) {
-          this.gestureSynth.filter.frequency.linearRampToValueAtTime(targetFreq, Tone.now() + 0.1)
-          this.gestureSynth.filter.Q.linearRampToValueAtTime(targetQ, Tone.now() + 0.1)
-          console.log('🏠 Applied local hover to gestureSynth filter')
-        }
-
-        // Also apply to ambient synths for background evolution
-        if (this.ambientFilters?.bass) {
-          this.ambientFilters.bass.frequency.linearRampToValueAtTime(targetFreq * 0.3, Tone.now() + 0.2)
-          this.ambientFilters.bass.Q.linearRampToValueAtTime(targetQ * 0.7, Tone.now() + 0.2)
-          console.log('🏠 Applied local hover to bass filter')
-        }
-
-        if (this.ambientFilters?.harmony) {
-          this.ambientFilters.harmony.frequency.linearRampToValueAtTime(targetFreq * 0.6, Tone.now() + 0.15)
-          this.ambientFilters.harmony.Q.linearRampToValueAtTime(targetQ * 1.2, Tone.now() + 0.15)
-          console.log('🏠 Applied local hover to harmony filter')
-        }
-
-        if (this.ambientFilters?.texture) {
-          this.ambientFilters.texture.frequency.linearRampToValueAtTime(targetFreq * 1.2, Tone.now() + 0.08)
-          this.ambientFilters.texture.Q.linearRampToValueAtTime(targetQ * 1.5, Tone.now() + 0.08)
-          console.log('🏠 Applied local hover to texture filter')
-        }
+      if (isRemote) {
+        console.log(`🌐 Remote hover modulation applied: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)})`)
+      } else {
+        console.log(`🏠 Local hover modulation applied: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)})`)
       }
 
     } catch (error) {
@@ -2872,51 +3312,157 @@ class AudioService {
         position: position,
         safeX: typeof safeX !== 'undefined' ? safeX : 'undefined',
         safeY: typeof safeY !== 'undefined' ? safeY : 'undefined',
-        targetFreq: typeof targetFreq !== 'undefined' ? targetFreq : 'undefined',
-        targetQ: typeof targetQ !== 'undefined' ? targetQ : 'undefined',
+        isRemote: isRemote,
         gestureSynth: !!this.gestureSynth,
-        gestureSynthFilter: !!(this.gestureSynth && this.gestureSynth.filter),
-        ambientFilters: !!this.ambientFilters,
-        ambientFiltersBass: !!(this.ambientFilters && this.ambientFilters.bass),
-        ambientFiltersBassQ: !!(this.ambientFilters && this.ambientFilters.bass && this.ambientFilters.bass.Q)
+        gestureFilter: !!this.gestureFilter,
+        tremoloLFO: !!this.tremoloLFO
       })
     }
+  }
 
-    // Extract other hover data properties
-    const { velocity, intensity } = hoverData || {}
+  /**
+   * Setup hover timeout to stop modulation after inactivity
+   */
+  setupHoverTimeout() {
+    // Clear existing timeout
+    if (this.hoverTimeoutTimer) {
+      clearTimeout(this.hoverTimeoutTimer)
+    }
 
-    // Apply cross-layer modulation based on hover data
-    this.applyCrossLayerHoverModulation({
-      position,
-      velocity,
-      intensity,
-      isRemote,
-      id: `hover-${Date.now()}`,
-      isHover: true
-    })
+    // Set new timeout
+    this.hoverTimeoutTimer = setTimeout(() => {
+      const timeSinceLastHover = Date.now() - this.lastHoverTime
+      if (timeSinceLastHover >= this.hoverTimeoutDuration) {
+        console.log('⏰ Hover timeout - stopping modulation due to inactivity')
+        this.stopRemoteFilterLFO()
+        this.hoverTimeoutTimer = null
+      }
+    }, this.hoverTimeoutDuration)
+  }
+
+  /**
+   * Stop hover modulation when gesture ends
+   * @param {string} userId - User ID to stop tracking
+   */
+  stopHoverModulation(userId) {
+    // Stop tracking this user
+    this.updateActiveRemoteUser(userId, false)
+
+    // If no more active remote users, stop remote LFO
+    if (this.activeRemoteUsers.size === 0) {
+      this.stopRemoteFilterLFO()
+      console.log('🛑 Stopped remote LFO - no active users')
+    }
+  }
+
+  /**
+   * Reset filters to safe values that allow audio passage
+   * Critical fix for when mouse exits canvas and audio disappears
+   */
+  resetFiltersToSafeValues() {
+    if (!this.ambientFilters || !Tone.context) return
+
+    const currentTime = Tone.context.currentTime
+
+    console.log('🔧 Resetting filters to safe values for audio continuation')
+
+    // CRITICAL FIX: Stop any active tremolo LFO that could cause excessive modulation
+    if (this.tremoloLFO) {
+      console.log('🛑 STOPPING tremoloLFO - preventing excessive modulation')
+      this.tremoloLFO.stop()
+      this.tremoloLFO.dispose()
+      this.tremoloLFO = null
+    }
+
+    // CRITICAL FIX: Stop the main lfoSystem that runs at 30Hz - this is likely the main tremolo source
+    if (this.lfoSystem) {
+      console.log('🛑 STOPPING lfoSystem - preventing excessive 30Hz tremolo')
+      this.lfoSystem.stop()
+    }
+
+    // Reset ambient filters to open frequencies that allow full audio spectrum
+    if (this.ambientFilters.bass) {
+      this.ambientFilters.bass.frequency.linearRampToValueAtTime(200, currentTime + 0.1)
+      this.ambientFilters.bass.Q.linearRampToValueAtTime(2, currentTime + 0.1)
+      console.log('🔧 Bass filter reset: 200Hz, Q=2')
+    }
+
+    if (this.ambientFilters.harmony) {
+      this.ambientFilters.harmony.frequency.linearRampToValueAtTime(800, currentTime + 0.1)
+      this.ambientFilters.harmony.Q.linearRampToValueAtTime(3, currentTime + 0.1)
+      console.log('🔧 Harmony filter reset: 800Hz, Q=3')
+    }
+
+    if (this.ambientFilters.texture) {
+      this.ambientFilters.texture.frequency.linearRampToValueAtTime(1500, currentTime + 0.1)
+      this.ambientFilters.texture.Q.linearRampToValueAtTime(5, currentTime + 0.1)
+      console.log('🔧 Texture filter reset: 1500Hz, Q=5')
+    }
+
+    // Reset gesture filter to open position
+    if (this.gestureFilter) {
+      this.gestureFilter.frequency.linearRampToValueAtTime(2000, currentTime + 0.1)
+      this.gestureFilter.Q.linearRampToValueAtTime(3, currentTime + 0.1)
+      console.log('🔧 Gesture filter reset: 2000Hz, Q=3')
+    }
+
+    // CRITICAL FIX: Reset gesture synth volume to prevent tremolo from persisting
+    if (this.gestureSynth && this.gestureSynth.volume) {
+      this.gestureSynth.volume.value = -6 // Reset to normal volume
+      console.log('🔧 Gesture synth volume reset to normal')
+    }
+
+    // Ensure background evolution continues
+    if (!this.evolvingGenerationActive && this.isInitialized && !this.muted) {
+      console.log('🎵 Restarting background evolution after filter reset')
+      this.evolvingGenerationActive = true
+      this.startEvolvingGeneration()
+    }
+  }
+
+  /**
+   * Force stop ALL LFO systems (emergency cleanup)
+   */
+  forceStopAllLFO() {
+    console.log('🚨 FORCE STOPPING ALL LFO SYSTEMS')
+
+    // Stop remote filter LFO
+    this.stopRemoteFilterLFO()
+
+    // Stop old tremolo LFO
+    if (this.tremoloLFO) {
+      this.tremoloLFO.stop()
+      this.tremoloLFO.dispose()
+      this.tremoloLFO = null
+      console.log('🛑 Stopped tremoloLFO')
+    }
+
+    // Stop old lfoSystem
+    if (this.lfoSystem && this.lfoSystem.stop) {
+      this.lfoSystem.stop()
+      console.log('🛑 Stopped lfoSystem')
+    }
+
+    // Clear hover timeout
+    if (this.hoverTimeoutTimer) {
+      clearTimeout(this.hoverTimeoutTimer)
+      this.hoverTimeoutTimer = null
+    }
+
+    console.log('✅ All LFO systems force stopped')
   }
 
   /**
    * Cleanup resources
    */
   /**
-   * Start continuous filter updates for smooth LFO modulation
+   * Start continuous filter updates for smooth LFO modulation - DISABILITATO
+   * Il vecchio LFO system è stato rimosso per eliminare tremolo
    */
   startContinuousFilterUpdates() {
-    if (this.continuousFilterUpdate.isActive) return
-
-    this.continuousFilterUpdate.isActive = true
-    this.continuousFilterUpdate.lastUpdate = Date.now()
-
-    this.continuousFilterUpdate.updateInterval = setInterval(() => {
-      if (!this.continuousFilterUpdate.isActive || !this.lfoSystem.isLFOActive()) return
-
-      // Apply continuous LFO modulation to all filters
-      this.applyContinuousLFOModulation()
-
-    }, this.continuousFilterUpdate.updateRate)
-
-    console.log(`🔄 Continuous filter updates started at ${(1000/this.continuousFilterUpdate.updateRate).toFixed(0)}Hz`)
+    console.log('🛑 Continuous filter updates DISABLED - old LFO system removed to prevent tremolo')
+    // Non fare nulla - questo metodo è completamente disabilitato
+    return
   }
 
   /**
@@ -2932,36 +3478,183 @@ class AudioService {
   }
 
   /**
-   * Apply continuous LFO modulation to all filters
+   * Apply continuous LFO modulation to all filters - DISABILITATO
+   * Il vecchio LFO system è stato rimosso per eliminare tremolo
    */
   applyContinuousLFOModulation() {
-    const modulatedCutoff = this.lfoSystem.getModulatedCutoff()
-    const currentQ = this.lfoSystem.localResonance
+    console.log('🛑 Continuous LFO modulation DISABLED - old LFO system removed to prevent tremolo')
+    // Non fare nulla - questo metodo è completamente disabilitato
+    return
+  }
+
+  /**
+   * Apply unified modulation from HoverOrchestrator
+   * @param {Object} modulationData - Unified modulation data from server
+   */
+  applyUnifiedModulation(modulationData) {
+    if (!modulationData || !modulationData.modulation) {
+      console.warn('🎛️ Invalid unified modulation data received')
+      return
+    }
+
+    // Enhanced initialization check
+    if (!this.isInitialized || !this.audioContext) {
+      console.warn('🎛️ AudioService not initialized, skipping unified modulation')
+      return
+    }
+
+    const { modulation, analysis, roomId } = modulationData
     const now = Tone.now()
 
-    // Apply LFO-modulated parameters to all filters with gentle ramps
-    if (this.gestureSynth?.filter) {
-      this.gestureSynth.filter.frequency.linearRampToValueAtTime(modulatedCutoff, now + 0.01)
-      this.gestureSynth.filter.Q.linearRampToValueAtTime(currentQ, now + 0.01)
-    }
+    console.log(`🚫 DISABLED unified modulation (gen ${modulation.generation}):`, {
+      roomId,
+      lfoFreq: modulation.lfoFrequency?.toFixed(2),
+      lfoAmp: modulation.lfoAmplitude?.toFixed(2),
+      filterCutoff: modulation.filterCutoff?.toFixed(0),
+      complexity: modulation.complexity?.toFixed(2),
+      users: analysis?.uniqueUsers || 0,
+      density: analysis?.density?.toFixed(1) || 0,
+      audioState: {
+        hasContext: !!this.audioContext,
+        hasGestureSynth: !!this.gestureSynth,
+        hasAmbientFilters: !!this.ambientFilters,
+        hasReverb: !!this.reverb,
+        hasDelay: !!this.delay
+      }
+    })
 
-    // Apply LFO to ambient filters with frequency scaling
-    if (this.ambientFilters?.bass) {
-      const bassFreq = Math.max(50, Math.min(500, modulatedCutoff * 0.25))
-      this.ambientFilters.bass.frequency.linearRampToValueAtTime(bassFreq, now + 0.02)
-      this.ambientFilters.bass.Q.linearRampToValueAtTime(currentQ * 0.8, now + 0.02)
-    }
+    // CRITICAL FIX: DISABLE ALL UNIFIED MODULATION to eliminate tremolo
+    console.log('🛑 UNIFIED MODULATION DISABLED - preventing omnipresent tremolo')
+    return
 
-    if (this.ambientFilters?.harmony) {
-      const harmonyFreq = Math.max(150, Math.min(2000, modulatedCutoff * 0.6))
-      this.ambientFilters.harmony.frequency.linearRampToValueAtTime(harmonyFreq, now + 0.015)
-      this.ambientFilters.harmony.Q.linearRampToValueAtTime(currentQ * 1.2, now + 0.015)
-    }
+    try {
+      // DISABLED: Update LFO system with unified parameters
+      if (false && modulation.lfoFrequency !== undefined) {
+        this.lfoSystem.remoteSpeed = Math.max(0.1, Math.min(8.0, modulation.lfoFrequency))
+      }
 
-    if (this.ambientFilters?.texture) {
-      const textureFreq = Math.max(300, Math.min(6000, modulatedCutoff * 1.2))
-      this.ambientFilters.texture.frequency.linearRampToValueAtTime(textureFreq, now + 0.01)
-      this.ambientFilters.texture.Q.linearRampToValueAtTime(currentQ * 1.5, now + 0.01)
+      if (false && modulation.lfoAmplitude !== undefined) {
+        // RIDOTTO: Molto più sottile per eliminare tremolo
+        this.lfoSystem.remoteAmplitude = Math.max(0.02, Math.min(0.5, modulation.lfoAmplitude * 0.5))
+      }
+
+      // DISABLED: Update LFO shape if provided
+      if (false && modulation.lfoShape && this.lfoSystem.setWaveform) {
+        this.lfoSystem.setWaveform(modulation.lfoShape)
+      }
+
+      // Update filter parameters
+      if (modulation.filterCutoff !== undefined && modulation.filterResonance !== undefined) {
+        const targetFreq = Math.max(100, Math.min(5000, modulation.filterCutoff))
+        const targetQ = Math.max(0.5, Math.min(10, modulation.filterResonance))
+
+        // Apply to gesture synth filter with enhanced safety checks
+        if (this.gestureFilter?.frequency && this.gestureFilter?.Q) {
+          try {
+            this.gestureFilter.frequency.linearRampToValueAtTime(targetFreq, now + 0.1)
+            this.gestureFilter.Q.linearRampToValueAtTime(targetQ, now + 0.1)
+            console.log(`🎛️ Applied filter to gesture synth: freq=${targetFreq.toFixed(0)}Hz, Q=${targetQ.toFixed(2)}`)
+          } catch (error) {
+            console.warn('⚠️ Failed to apply filter to gesture synth:', error.message)
+          }
+        } else {
+          console.warn('⚠️ Gesture synth filter not available for unified modulation')
+        }
+
+        // Apply to ambient filters with scaled parameters and safety checks
+        if (this.ambientFilters?.bass?.frequency && this.ambientFilters.bass?.Q) {
+          try {
+            this.ambientFilters.bass.frequency.linearRampToValueAtTime(targetFreq * 0.4, now + 0.15)
+            this.ambientFilters.bass.Q.linearRampToValueAtTime(targetQ * 0.8, now + 0.15)
+            console.log(`🎛️ Applied filter to bass: freq=${(targetFreq * 0.4).toFixed(0)}Hz, Q=${(targetQ * 0.8).toFixed(2)}`)
+          } catch (error) {
+            console.warn('⚠️ Failed to apply filter to bass:', error.message)
+          }
+        }
+
+        if (this.ambientFilters?.harmony?.frequency && this.ambientFilters.harmony?.Q) {
+          try {
+            this.ambientFilters.harmony.frequency.linearRampToValueAtTime(targetFreq * 0.7, now + 0.12)
+            this.ambientFilters.harmony.Q.linearRampToValueAtTime(targetQ * 1.1, now + 0.12)
+            console.log(`🎛️ Applied filter to harmony: freq=${(targetFreq * 0.7).toFixed(0)}Hz, Q=${(targetQ * 1.1).toFixed(2)}`)
+          } catch (error) {
+            console.warn('⚠️ Failed to apply filter to harmony:', error.message)
+          }
+        }
+
+        if (this.ambientFilters?.texture?.frequency && this.ambientFilters.texture?.Q) {
+          try {
+            this.ambientFilters.texture.frequency.linearRampToValueAtTime(targetFreq * 1.3, now + 0.08)
+            this.ambientFilters.texture.Q.linearRampToValueAtTime(targetQ * 1.4, now + 0.08)
+            console.log(`🎛️ Applied filter to texture: freq=${(targetFreq * 1.3).toFixed(0)}Hz, Q=${(targetQ * 1.4).toFixed(2)}`)
+          } catch (error) {
+            console.warn('⚠️ Failed to apply filter to texture:', error.message)
+          }
+        }
+      }
+
+      // Apply spatial parameters with safety checks
+      if (modulation.spatialPan !== undefined) {
+        const panValue = Math.max(-1, Math.min(1, modulation.spatialPan))
+        if (this.gesturePan) {
+          try {
+            this.gesturePan.pan.linearRampToValueAtTime(panValue, now + 0.2)
+            console.log(`🎛️ Applied spatial pan: ${panValue.toFixed(2)}`)
+          } catch (error) {
+            console.warn('⚠️ Failed to apply spatial pan:', error.message)
+          }
+        } else {
+          console.warn('⚠️ Gesture synth pan not available')
+        }
+      }
+
+      if (modulation.spatialWidth !== undefined) {
+        const widthValue = Math.max(0, Math.min(1, modulation.spatialWidth))
+        // Could apply to stereo widener if available
+        console.log(`🎛️ Spatial width parameter received: ${widthValue.toFixed(2)} (no stereo widener available)`)
+      }
+
+      // Apply effect parameters with safety checks
+      if (modulation.reverbMix !== undefined && this.reverb?.wet) {
+        const reverbValue = Math.max(0, Math.min(1, modulation.reverbMix))
+        try {
+          this.reverb.wet.linearRampToValueAtTime(reverbValue, now + 0.3)
+          console.log(`🎛️ Applied reverb mix: ${reverbValue.toFixed(2)}`)
+        } catch (error) {
+          console.warn('⚠️ Failed to apply reverb mix:', error.message)
+        }
+      } else if (modulation.reverbMix !== undefined) {
+        console.warn('⚠️ Reverb not available for unified modulation')
+      }
+
+      if (modulation.delayTime !== undefined && this.delay?.delayTime) {
+        const delayValue = Math.max(0, Math.min(1000, modulation.delayTime) / 1000) // convert ms to seconds
+        try {
+          this.delay.delayTime.linearRampToValueAtTime(delayValue, now + 0.1)
+          console.log(`🎛️ Applied delay time: ${(delayValue * 1000).toFixed(0)}ms`)
+        } catch (error) {
+          console.warn('⚠️ Failed to apply delay time:', error.message)
+        }
+      } else if (modulation.delayTime !== undefined) {
+        console.warn('⚠️ Delay not available for unified modulation')
+      }
+
+      // DISABILITATO COMPLETAMENTE: Vecchio LFO system rimosso per eliminare tremolo
+      // Solo unified modulation dal server è attiva
+      if (this.lfoSystem && this.lfoSystem.isLFOActive && this.lfoSystem.isLFOActive()) {
+        try {
+          this.lfoSystem.stop()
+          this.stopContinuousFilterUpdates()
+          console.log('🛑 FORCED STOP: Old LFO system disabled - using only unified modulation')
+        } catch (error) {
+          console.warn('⚠️ Failed to stop old LFO system:', error.message)
+        }
+      }
+
+      console.log(`✅ Unified modulation applied successfully (gen ${modulation.generation})`)
+
+    } catch (error) {
+      console.error('❌ Error applying unified modulation:', error)
     }
   }
 
@@ -2969,12 +3662,28 @@ class AudioService {
     this.stopUpdateLoop()
     this.stopContinuousFilterUpdates()
     this.lfoSystem.stop()
+    this.stopRemoteFilterLFO() // Stop remote filter LFO
+
+    // Clear hover timeout timer
+    if (this.hoverTimeoutTimer) {
+      clearTimeout(this.hoverTimeoutTimer)
+      this.hoverTimeoutTimer = null
+    }
+
+    // FORCE STOP any tremolo LFO that might be causing issues
+    if (this.tremoloLFO) {
+      console.log('🛑 FORCE STOPPING tremoloLFO during cleanup')
+      this.tremoloLFO.stop()
+      this.tremoloLFO.dispose()
+      this.tremoloLFO = null
+    }
+
     this.gestureBuffer = []
     this.audioEngine = null
     this.gestureCapture = null
     this.isInitialized = false
 
-    console.log('AudioService cleanup completed')
+    console.log('AudioService cleanup completed - all LFO systems stopped')
   }
 }
 

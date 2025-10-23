@@ -20,6 +20,9 @@ class RoomManager {
     this.colorServices = new Map() // roomId -> ColorAssignmentService
     this.drawingServices = new Map() // roomId -> DrawingSyncService
 
+    // Hover orchestration services (per-room)
+    this.hoverOrchestrators = new Map() // roomId -> HoverOrchestrator
+
     this.startPeriodicCleanup()
   }
 
@@ -471,6 +474,9 @@ class RoomManager {
       this.colorServices.delete(roomId)
       this.drawingServices.delete(roomId)
 
+      // Cleanup HoverOrchestrator
+      this.removeHoverOrchestrator(roomId)
+
       stats.roomsCleaned++
     })
 
@@ -575,6 +581,37 @@ class RoomManager {
   }
 
   /**
+   * Get HoverOrchestrator for a room
+   * @param {string} roomId - Room ID
+   * @returns {HoverOrchestrator|null} HoverOrchestrator instance or null
+   */
+  getHoverOrchestrator (roomId) {
+    return this.hoverOrchestrators.get(roomId) || null
+  }
+
+  /**
+   * Set HoverOrchestrator for a room
+   * @param {string} roomId - Room ID
+   * @param {HoverOrchestrator} hoverOrchestrator - HoverOrchestrator instance
+   */
+  setHoverOrchestrator (roomId, hoverOrchestrator) {
+    this.hoverOrchestrators.set(roomId, hoverOrchestrator)
+  }
+
+  /**
+   * Remove HoverOrchestrator for a room
+   * @param {string} roomId - Room ID
+   */
+  removeHoverOrchestrator (roomId) {
+    const orchestrator = this.hoverOrchestrators.get(roomId)
+    if (orchestrator) {
+      orchestrator.stop()
+      this.hoverOrchestrators.delete(roomId)
+      console.log(`🗑️ Removed HoverOrchestrator for room ${roomId}`)
+    }
+  }
+
+  /**
    * Shutdown room manager gracefully
    */
   shutdown () {
@@ -591,11 +628,22 @@ class RoomManager {
       }
     })
 
+    // Stop all HoverOrchestrators
+    this.hoverOrchestrators.forEach((orchestrator, roomId) => {
+      try {
+        orchestrator.stop()
+        console.log(`🛑 Stopped HoverOrchestrator for room ${roomId}`)
+      } catch (error) {
+        console.warn(`Error stopping HoverOrchestrator for room ${roomId}:`, error.message)
+      }
+    })
+
     // Clear all data structures
     this.rooms.clear()
     this.userRoomMap.clear()
     this.colorServices.clear()
     this.drawingServices.clear()
+    this.hoverOrchestrators.clear()
   }
 }
 

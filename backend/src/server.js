@@ -17,17 +17,17 @@ const SoundPatternGenerator = require('./services/SoundPatternGenerator')
 const EnvironmentalMemoryCoordinator = require('./services/EnvironmentalMemoryCoordinator')
 const socketHandlers = require('./api/socketHandlers')
 
-// Phase 3.3 REST API services
-const PatternRecognitionService = require('./services/PatternRecognitionService')
-const CompositionEngine = require('./services/CompositionEngine')
-const VoiceAllocationManager = require('./services/VoiceAllocationManager')
-const MusicalClockService = require('./services/MusicalClockService')
+// Phase 3.3 REST API services (temporarily commented for three-tier implementation)
+// const PatternRecognitionService = require('./services/PatternRecognitionService')
+// const CompositionEngine = require('./services/CompositionEngine')
+// const VoiceAllocationManager = require('./services/VoiceAllocationManager')
+// const MusicalClockService = require('./services/MusicalClockService')
 
-// Phase 3.3 models
-const MusicalEvent = require('./models/MusicalEvent')
-const BackgroundComposition = require('./models/BackgroundComposition')
-const VoiceResource = require('./models/VoiceResource')
-const PatternMemory = require('./models/PatternMemory')
+// Phase 3.3 models (temporarily commented for three-tier implementation)
+// const MusicalEvent = require('./models/MusicalEvent')
+// const BackgroundComposition = require('./models/BackgroundComposition')
+// const VoiceResource = require('./models/VoiceResource')
+// const PatternMemory = require('./models/PatternMemory')
 
 // Configuration
 const PORT = process.env.PORT || 3001
@@ -77,10 +77,11 @@ const soundPatternGenerator = new SoundPatternGenerator()
 const environmentalMemoryCoordinator = new EnvironmentalMemoryCoordinator(roomManager)
 
 // Initialize Phase 3.3 services
-const patternRecognitionService = new PatternRecognitionService()
-const compositionEngine = new CompositionEngine()
-const voiceAllocationManager = new VoiceAllocationManager()
-const musicalClockService = new MusicalClockService()
+// Phase 3.3 service instances (temporarily commented for three-tier implementation)
+// const patternRecognitionService = new PatternRecognitionService()
+// const compositionEngine = new CompositionEngine()
+// const voiceAllocationManager = new VoiceAllocationManager()
+// const musicalClockService = new MusicalClockService()
 
 // Note: EnvironmentalMemoryCoordinator doesn't need explicit service initialization
 // Services are directly passed to socket handlers as needed
@@ -90,11 +91,12 @@ const services = {
   roomManager,
   gestureProcessor,
   soundPatternGenerator,
-  environmentalMemoryCoordinator,
-  patternRecognitionService,
-  compositionEngine,
-  voiceAllocationManager,
-  musicalClockService
+  environmentalMemoryCoordinator
+  // Phase 3.3 services temporarily commented for three-tier implementation
+  // patternRecognitionService,
+  // compositionEngine,
+  // voiceAllocationManager,
+  // musicalClockService
 }
 
 // Health check endpoint

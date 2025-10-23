@@ -278,22 +278,43 @@
     <script src="src/utils/ErrorReporter.js?v=5"></script>
 
     <!-- Application services -->
-    <script src="src/services/GestureCapture.js?v=5"></script>
-    <script src="src/services/SocketService.js?v=5"></script>
-    <script src="src/services/AudioService.js?v=5"></script>
+    <!-- <script src="src/services/GestureCapture.js?v=5"></script> --> <!-- DISABLED - using EnhancedGestureCapture instead -->
+    <script src="src/services/SocketService.js?v=6"></script>
+    <script src="src/services/AudioService.js?v=15"></script>
+    <script>
+      // Initialize AudioService BEFORE main.js to ensure availability
+      window.AudioServicePromise = new Promise((resolve, reject) => {
+        const checkService = () => {
+          if (window.AudioService) {
+            console.log('✅ AudioService available from previous load')
+            resolve(window.AudioService)
+          } else {
+            setTimeout(checkService, 50) // Retry every 50ms
+          }
+        }
+        checkService()
+      })
+    </script>
     <script src="src/services/DrawingRenderer.js?v=5"></script>
     <script src="src/services/CursorManager.js?v=5"></script>
 
     <!-- Enhanced generative music services -->
-    <script src="src/services/GestureToMusicMapper.js?v=5"></script>
-    <script src="src/services/EnhancedAudioService.js?v=5"></script>
-    <script src="src/services/EnhancedGestureCapture.js?v=5"></script>
+    <script src="src/services/EnhancedGestureCapture.js?v=9"></script>
 
     <!-- UI components -->
     <script src="src/components/AudioControls.js?v=5"></script>
-    <script src="src/components/CompositionVisualizer.js?v=5"></script>
+    <!-- CompositionVisualizer disabled for three-tier implementation -->
 
     <!-- Main application -->
-    <script src="src/main-enhanced.js?v=5"></script>
+    <script>
+      // Fallback initialization
+      setTimeout(() => {
+        if (!window.webarmoniumApp) {
+          console.log('🚀 Fallback: Initializing WebarmoniumApp...')
+          window.webarmoniumApp = new WebarmoniumApp()
+        }
+      }, 1000)
+    </script>
+    <script src="src/main.js?v=37"></script>
 </body>
 </html>
