@@ -45,9 +45,37 @@ class GestureToMusicService {
     // Map gesture actions to musical properties
     switch (gestureAction) {
       case 'drag':
-        musicalEvent.properties.frequency = 440 + (position?.y || 0.5) * 440
-        musicalEvent.properties.duration = 0.5
-        break
+        // DRAG: Generate musical phrase with multiple notes (like frontend does)
+        console.log('🎵 DRAG: Generating musical phrase in backend')
+        const noteCount = Math.max(2, Math.min(5, Math.floor((velocity || 50) / 25))) // 2-5 notes based on velocity
+        const baseFreq = 440 + (position?.y || 0.5) * 440
+
+        console.log(`🎵 Backend DRAG: velocity=${velocity}, noteCount=${noteCount}, creating phrase`)
+
+        // Generate multiple notes for the phrase
+        const phraseEvents = []
+        for (let i = 0; i < noteCount; i++) {
+          const phraseEvent = {
+            id: `musical_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${i}`,
+            eventType: 'note',
+            userId: userId,
+            timestamp: Date.now() + (i * 180), // Stagger notes by 180ms
+            position: position,
+            properties: {
+              velocity: velocity,
+              intensity: intensity,
+              gestureAction: gestureAction,
+              gestureType: gestureType,
+              frequency: baseFreq + (Math.random() - 0.5) * 200, // Frequency variation
+              duration: 0.15 + Math.random() * 0.25, // 150-400ms duration
+              noteIndex: i,
+              totalNotes: noteCount
+            }
+          }
+          phraseEvents.push(phraseEvent)
+          console.log(`🎵 Backend note ${i+1}/${noteCount}: ${phraseEvent.properties.frequency.toFixed(1)}Hz, duration: ${(phraseEvent.properties.duration*1000).toFixed(0)}ms`)
+        }
+        return phraseEvents
       case 'hover':
         musicalEvent.eventType = 'filter_modulation'
         musicalEvent.properties.controlType = 'filter'

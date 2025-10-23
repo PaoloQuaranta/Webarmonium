@@ -1437,15 +1437,38 @@ class AudioService {
     const startTime = performance.now()
 
     try {
-      const { pitch, velocity, duration, articulation, eventType } = musicalEvent
+      // Handle both frontend format (pitch, velocity, duration) and backend format (properties.frequency, properties.duration)
+      let pitch, velocity, duration, articulation, frequency
 
-      if (pitch === undefined || velocity === undefined || duration === undefined) {
-        console.warn('🔇 Invalid musical event data:', { pitch, velocity, duration, articulation })
-        return
+      if (musicalEvent.properties) {
+        // Backend format - use properties directly
+        frequency = musicalEvent.properties.frequency
+        duration = musicalEvent.properties.duration
+        velocity = musicalEvent.properties.velocity || 50
+        articulation = musicalEvent.properties.articulation || 'default'
+
+        console.log('🎵 Playing backend musical event:', {
+          frequency: frequency?.toFixed(1),
+          duration,
+          velocity,
+          noteIndex: musicalEvent.properties.noteIndex,
+          totalNotes: musicalEvent.properties.totalNotes
+        })
+      } else {
+        // Frontend format
+        pitch = musicalEvent.pitch
+        velocity = musicalEvent.velocity
+        duration = musicalEvent.duration
+        articulation = musicalEvent.articulation
+
+        if (pitch === undefined || velocity === undefined || duration === undefined) {
+          console.warn('🔇 Invalid musical event data:', { pitch, velocity, duration, articulation })
+          return
+        }
+
+        // Convert MIDI pitch to frequency
+        frequency = this.midiNoteToFrequency(pitch)
       }
-
-      // Convert MIDI pitch to frequency
-      const frequency = this.midiNoteToFrequency(pitch)
 
       // FIX: Normalize duration to audible range (prevents too short/long notes)
       let normalizedDuration = duration
@@ -1461,7 +1484,16 @@ class AudioService {
 
       // Apply articulation FIX: Enhanced duration and velocity adjustments
       let adjustedDuration = normalizedDuration
-      let adjustedVelocity = Math.max(0.1, Math.min(1.0, velocity / 127))
+      let adjustedVelocity
+
+      // Handle different velocity ranges for backend vs frontend format
+      if (musicalEvent.properties) {
+        // Backend format: velocity is typically 0-100, normalize to 0-1
+        adjustedVelocity = Math.max(0.1, Math.min(1.0, (velocity || 50) / 100))
+      } else {
+        // Frontend format: velocity is MIDI 0-127
+        adjustedVelocity = Math.max(0.1, Math.min(1.0, velocity / 127))
+      }
 
       switch (articulation) {
         case 'staccato':
@@ -1488,7 +1520,11 @@ class AudioService {
       adjustedDuration = Math.max(0.02, Math.min(3.0, adjustedDuration))
 
       // Enhanced logging for debugging
-      console.log(`🎵 Playing musical event: pitch=${pitch} (${frequency.toFixed(1)}Hz), duration=${adjustedDuration.toFixed(3)}s (orig: ${duration}), articulation=${articulation}, velocity=${adjustedVelocity.toFixed(2)}`)
+      if (musicalEvent.properties) {
+        console.log(`🎵 Playing backend musical event: frequency=${frequency.toFixed(1)}Hz, duration=${adjustedDuration.toFixed(3)}s (orig: ${duration}), articulation=${articulation}, velocity=${adjustedVelocity.toFixed(2)}`)
+      } else {
+        console.log(`🎵 Playing musical event: pitch=${pitch} (${frequency.toFixed(1)}Hz), duration=${adjustedDuration.toFixed(3)}s (orig: ${duration}), articulation=${articulation}, velocity=${adjustedVelocity.toFixed(2)}`)
+      }
 
       // Play through gesture synth with proper articulation
       this.gestureSynth.triggerAttackRelease(frequency, adjustedDuration, undefined, adjustedVelocity)

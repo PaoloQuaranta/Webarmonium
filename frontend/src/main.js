@@ -253,8 +253,8 @@ class WebarmoniumApp {
         willCalculate: this.determineGestureAction(gesture)
       })
 
-      // CRITICAL FIX: Don't play automatic musical events for TAP gestures
-      // We want only our custom click logic for taps
+      // CRITICAL FIX: Don't play automatic musical events for TAP and HOVER gestures
+      // We want only our custom click logic for taps, and no auto-notes for hover
       const gestureAction = gesture.action || this.determineGestureAction(gesture)
       console.log('🔍 Final gesture action for end callback:', gestureAction)
 
@@ -263,10 +263,33 @@ class WebarmoniumApp {
         return
       }
 
-      // Process completed gesture for musical phrase generation
-      if (musicalEvent && this.audioService && this.audioService.playMusicalEvent) {
-        this.audioService.playMusicalEvent(musicalEvent)
+      // Process drag gestures - check if timer is still pending
+      if (gestureAction === 'drag') {
+        console.log('🎵 DRAG gesture in onGestureEnd - checking timer status')
+
+        // If timer is still pending, let it handle the phrase
+        if (this.pendingGesture && this.pendingGesture.id === gesture.id) {
+          console.log('🎵 DRAG timer will handle phrase - skipping musicalEvent')
+          return
+        }
+
+        // If timer already fired or gesture is very quick, process immediately
+        console.log('🎵 DRAG timer already fired - processing immediately')
+        const sonicParams = {
+          x: gesture.coordinates?.x || 0.5,
+          y: gesture.coordinates?.y || 0.5,
+          intensity: gesture.intensity || 0.5,
+          timestamp: gesture.timestamp || Date.now(),
+          action: 'drag',
+          device: gesture.device || 'mouse'
+        }
+        this.processDragGesture(gesture, sonicParams)
+        return
       }
+
+      // Skip all other automatic musical events
+      console.log('🚫 Skipping automatic musical event for non-drag gesture')
+      return
     }
 
     console.log('🎯 All gesture callbacks set up including hover modulation')
@@ -792,17 +815,22 @@ class WebarmoniumApp {
         positionY: sonicParams.y
       })
       const noteVolume = 0.5 // FIXED volume - remove intensity modulation from clicks
-      const noteDuration = '8n' // Short duration for clicks
+      const noteDuration = '32n' // Very short duration for clicks
 
       // Direct synth access to bypass three-tier frequency mapping
       if (this.audioService.gestureSynth) {
-        // Configure synth directly
+        // Configure synth directly for short, percussive notes
         this.audioService.gestureSynth.set({
           oscillator: {
             type: tier === 'background' ? 'triangle' :
                    tier === 'remote' ? 'square' : 'sawtooth'
           },
-          envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 0.3 }
+          envelope: {
+            attack: 0.01,    // Very fast attack (10ms)
+            decay: 0.05,     // Quick decay (50ms)
+            sustain: 0.1,    // Low sustain level (10%)
+            release: 0.1     // Short release (100ms)
+          }
         })
 
         // Trigger note directly with our calculated frequency
@@ -1007,38 +1035,31 @@ class WebarmoniumApp {
   }
 
   /**
-   * Determine gesture action type from characteristics
+   * Simplified gesture action determination
    * @param {Object} gesture - Gesture data
    * @returns {string} Action type ('hover', 'drag', 'tap')
    */
   determineGestureAction(gesture) {
-    // Use gesture characteristics to determine action type
+    // SIMPLIFIED LOGIC: Let the EnhancedGestureCapture handle most classification
+    // We use duration as primary indicator for tap vs drag
+
     const duration = gesture.duration || 0
-    const speed = gesture.speed || 0
-    const intensity = gesture.intensity || 0.5
     const size = gesture.size || 0
 
-    console.log('🔍 determineGestureAction inputs:', {
+    console.log('🔍 Simplified gesture classification:', {
       duration: duration,
-      speed: speed,
-      intensity: intensity,
-      size: size
+      size: size,
+      direction: gesture.direction
     })
 
-    // Click/tap = short, low speed gesture (more permissive thresholds)
-    if (duration < 500 && speed <= 0.1) {
-      console.log('🔍 Returning TAP - duration < 500 && speed <= 0.1')
+    // Simple tap: very short duration, minimal movement
+    if (duration < 200 && size < 0.05) {
+      console.log('🔍 TAP - very short and small')
       return 'tap'
     }
 
-    // Quick, small gestures = hover (but only if intensity is very low)
-    if (duration < 150 && size < 0.02 && intensity < 0.2) {
-      console.log('🔍 Returning HOVER - duration < 150 && size < 0.02 && intensity < 0.2')
-      return 'hover'
-    }
-
-    // Everything else = drag
-    console.log('🔍 Returning DRAG - default case')
+    // Everything else is treated as drag for musical purposes
+    console.log('🔍 DRAG - default musical gesture')
     return 'drag'
   }
 
