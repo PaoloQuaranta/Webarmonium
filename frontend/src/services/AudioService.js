@@ -1735,11 +1735,9 @@ class AudioService {
    * @param {number} amplitude - LFO amplitude (0.0 to 1.0)
    */
   setupRemoteFilterLFO(speed, amplitude) {
-    // Stop existing LFO
-    if (this.remoteFilterLFO) {
-      this.remoteFilterLFO.stop()
-      this.remoteFilterLFO.dispose()
-    }
+    // DISABLED: All remote filter LFO functionality removed
+    console.log('🛑 setupRemoteFilterLFO DISABLED')
+    return
 
     if (amplitude === 0) {
       // No amplitude, no LFO
@@ -1892,11 +1890,9 @@ class AudioService {
    * Stop remote filter LFO
    */
   stopRemoteFilterLFO() {
-    if (this.remoteFilterLFO) {
-      this.remoteFilterLFO.stop()
-      this.remoteFilterLFO.dispose()
-      this.remoteFilterLFO = null
-    }
+    // DISABLED: All remote filter LFO functionality removed
+    console.log('🛑 stopRemoteFilterLFO DISABLED')
+    return
 
     // For direct connections, we just clear the tracking
     // Tone.js handles disconnection automatically when the LFO is disposed
@@ -1911,8 +1907,8 @@ class AudioService {
    * @param {number} currentTime - Current audio context time
    */
   applyTremolo(amount, currentTime = Tone.now()) {
-    // COMPLETELY DISABLED - Tremolo was causing onnipresent modulation
-    console.log('🛑 applyTremolo method disabled to prevent onnipresent tremolo')
+    // DISABLED: All tremolo functionality removed
+    console.log('🛑 applyTremolo DISABLED')
     return
 
     if (!this.gestureSynth || amount <= 0) return
@@ -3528,10 +3524,9 @@ class AudioService {
    * @param {Object} modulationData - Unified modulation data from server
    */
   applyUnifiedModulation(modulationData) {
-    if (!modulationData || !modulationData.modulation) {
-      console.warn('🎛️ Invalid unified modulation data received')
-      return
-    }
+    // DISABLED: All unified modulation functionality removed
+    console.log('🛑 applyUnifiedModulation DISABLED')
+    return
 
     // Enhanced initialization check
     if (!this.isInitialized || !this.audioContext) {

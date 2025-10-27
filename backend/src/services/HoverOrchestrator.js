@@ -88,8 +88,8 @@ class HoverOrchestrator {
       generation: 0           // versione modulazione
     }
 
-    // Intervallo aggiornamento
-    this.updateInterval = 100 // ms (10Hz update rate)
+    // Intervallo aggiornamento - RIDOTTO per prevenire tremolo
+    this.updateInterval = 500 // ms (2Hz update rate - molto più lento)
     this.lastAnalysisTime = 0
     this.isActive = false
 
@@ -440,34 +440,35 @@ class HoverOrchestrator {
     const state = this.aggregateState
     const patterns = state.patterns
 
-    // LFO Frequency - BILANCIATO: lento ma percepibile, senza tremolo
-    // Calcolo base moderato
-    const baseFrequency = 0.1 + (state.density / 20) // 0.1-0.15Hz base (6.6-10 secondi!)
+    // LFO Frequency - FIXED: Strictly sub-audible range to prevent tremolo
+    // CRITICAL: Keep ALL LFO frequencies below 20Hz to prevent audible tremolo
+    // OPTIMAL: Use 0.1-5Hz range for musical modulation without tremolo
+    const baseFrequency = 0.2 + (state.density / 50) // 0.2-0.4Hz base (2.5-5 secondi!)
 
-    // Range selection bilanciato
+    // Range selection strictly sub-audible
     let frequencyRange, frequencyMultiplier
 
     if (state.uniqueUsers.size >= 4) {
-      // Molto utenti: modulazioni moderate e ricche
-      frequencyRange = 'medium-slow'
-      frequencyMultiplier = 0.8 // range 0.08-0.12Hz (8-12.5 secondi)
+      // Molto utenti: modulazioni lente e profonde
+      frequencyRange = 'very-slow'
+      frequencyMultiplier = 0.5 // range 0.1-0.2Hz (5-10 secondi)
     } else if (state.uniqueUsers.size >= 2) {
-      // Pochi utenti: modulazioni piacevolmente percepibili
-      frequencyRange = 'pleasant'
-      frequencyMultiplier = 1.2 // range 0.12-0.18Hz (5.5-8.3 secondi)
+      // Pochi utenti: modulazioni percepibili ma senza tremolo
+      frequencyRange = 'slow-musical'
+      frequencyMultiplier = 0.75 // range 0.15-0.3Hz (3.3-6.6 secondi)
     } else {
-      // Un solo utente: modulazioni veloci ma senza tremolo
-      frequencyRange = 'gentle'
-      frequencyMultiplier = 1.5 // range 0.15-0.225Hz (4.4-6.6 secondi)
+      // Un solo utente: modulazioni più veloci ma sempre sotto 5Hz
+      frequencyRange = 'medium-slow'
+      frequencyMultiplier = 1.0 // range 0.2-0.4Hz (2.5-5 secondi)
     }
 
-    // Applica pattern rhythmical con range sicuro (sotto 1Hz!)
+    // Applica pattern rhythmical con range STRETTAMENTE sub-audibile
     const rhythmModifier = patterns.rhythmAnalysis.period > 0 ?
-      Math.min(0.4, 100 / patterns.rhythmAnalysis.period) : 0.1 // max 0.4Hz (2.5 secondi)
+      Math.min(0.3, 50 / patterns.rhythmAnalysis.period) : 0.05 // max 0.3Hz (3.3 secondi)
 
-    // Calcolo finale con range BILANCIATO (sopra 0.1Hz per essere percepibile, sotto 0.5Hz per evitare tremolo)
-    this.unifiedModulation.lfoFrequency = Math.max(0.08, Math.min(0.5, // range 0.08-0.5Hz (2-12.5 secondi!)
-      baseFrequency * frequencyMultiplier + rhythmModifier * 0.15
+    // Calcolo finale con range ASSOLUTAMENTE sicuro (0.1-5Hz per evitare tremolo)
+    this.unifiedModulation.lfoFrequency = Math.max(0.1, Math.min(5.0, // range 0.1-5Hz (0.2-10 secondi!)
+      baseFrequency * frequencyMultiplier + rhythmModifier * 0.1
     ))
 
     // Log range selection
@@ -490,27 +491,27 @@ class HoverOrchestrator {
       this.unifiedModulation.lfo2Shape = 'sine' // LFO2 rimane smooth per contrasto
     }
 
-    // SECONDARY LFO parameters - texture profonda ultra-lenta
-    this.unifiedModulation.lfo2Frequency = Math.max(0.002, Math.min(0.05,
-      this.unifiedModulation.lfoFrequency * 0.3 // LFO2 è ~30% della frequenza primaria
+    // SECONDARY LFO parameters - texture profonda ma SEMPRE sub-audibile
+    this.unifiedModulation.lfo2Frequency = Math.max(0.05, Math.min(1.0, // 0.05-1.0Hz (1-20 secondi)
+      this.unifiedModulation.lfoFrequency * 0.25 // LFO2 è ~25% della frequenza primaria
     ))
     this.unifiedModulation.lfo2Amplitude = Math.max(0.03, Math.min(0.2,
       this.unifiedModulation.lfoAmplitude * 0.5 // LFO2 ha ampiezza ulteriormente ridotta
     ))
 
-    // TERTIARY LFO parameters - evoluzione strutturale estremamente lenta
+    // TERTIARY LFO parameters - evoluzione strutturale molto lenta ma safe
     const evolutionFactor = state.uniqueUsers.size / 10 + state.density / 100
-    this.unifiedModulation.lfo3Frequency = Math.max(0.0005, Math.min(0.02,
-      0.001 + evolutionFactor * 0.01 // range ultra-lento per cambiamenti strutturali
+    this.unifiedModulation.lfo3Frequency = Math.max(0.01, Math.min(0.5, // 0.01-0.5Hz (2-100 secondi)
+      0.02 + evolutionFactor * 0.005 // range molto lento ma sempre sopra 0.01Hz
     ))
     this.unifiedModulation.lfo3Amplitude = Math.max(0.02, Math.min(0.15,
       evolutionFactor * 0.1 // ampiezza minima per evoluzione percepibile solo a lungo termine
     ))
 
-    // QUATERNARY LFO parameters - micro-modulazioni quasi impercettibili
+    // QUATERNARY LFO parameters - micro-modulazioni impercettibili e sicure
     const spatialActivity = patterns.flowDirection.x ** 2 + patterns.flowDirection.y ** 2
-    this.unifiedModulation.lfo4Frequency = Math.max(0.001, Math.min(0.01,
-      0.002 + spatialActivity * 0.008 // micro-variazioni basate su attività spaziale
+    this.unifiedModulation.lfo4Frequency = Math.max(0.02, Math.min(0.2, // 0.02-0.2Hz (5-50 secondi)
+      0.05 + spatialActivity * 0.01 // micro-variazioni basate su attività spaziale
     ))
     this.unifiedModulation.lfo4Amplitude = Math.max(0.01, Math.min(0.08,
       0.02 + patterns.hotspotZones.length * 0.02 // variazioni minime basate su hotspot
