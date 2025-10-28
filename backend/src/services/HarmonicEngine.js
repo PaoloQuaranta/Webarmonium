@@ -1,0 +1,480 @@
+class HarmonicEngine {
+  constructor() {
+    this.currentKey = 'C'
+    this.currentMode = 'ionian'
+    this.currentChord = null
+    this.progressionHistory = []
+
+    // Musical scales and intervals
+    this.scales = {
+      ionian: [0, 2, 4, 5, 7, 9, 11],        // Major
+      dorian: [0, 2, 3, 5, 7, 9, 10],        // Dorian
+      phrygian: [0, 1, 3, 5, 7, 8, 10],       // Phrygian
+      lydian: [0, 2, 4, 6, 7, 9, 11],        // Lydian
+      mixolydian: [0, 2, 4, 5, 7, 9, 10],    // Mixolydian
+      aeolian: [0, 2, 3, 5, 7, 8, 10],       // Natural minor
+      locrian: [0, 1, 3, 5, 6, 8, 10],       // Locrian
+      harmonicMinor: [0, 2, 3, 5, 7, 8, 11],  // Harmonic minor
+      melodicMinor: [0, 2, 3, 5, 7, 9, 11],   // Melodic minor
+      majorPentatonic: [0, 2, 4, 7, 9],        // Major pentatonic
+      minorPentatonic: [0, 3, 5, 7, 10],       // Minor pentatonic
+      blues: [0, 3, 5, 6, 7, 10],             // Blues scale
+      wholeTone: [0, 2, 4, 6, 8, 10],         // Whole tone
+      diminished: [0, 2, 3, 5, 6, 8, 9, 11]   // Diminished
+    }
+
+    // Chord quality definitions
+    this.chordQualities = {
+      major: [0, 4, 7],
+      minor: [0, 3, 7],
+      diminished: [0, 3, 6],
+      augmented: [0, 4, 8],
+      major7: [0, 4, 7, 11],
+      minor7: [0, 3, 7, 10],
+      dominant7: [0, 4, 7, 10],
+      halfDiminished7: [0, 3, 6, 10],
+      diminished7: [0, 3, 6, 9],
+      suspended2: [0, 2, 7],
+      suspended4: [0, 5, 7]
+    }
+  }
+
+  generateProgression(styleAnalysis, phraseLength) {
+    const { genreWeights, harmonicComplexity } = styleAnalysis
+
+    // Select progression type based on dominant genre
+    if (genreWeights.jazz > 0.7) {
+      return this.generateJazzProgression(phraseLength)
+    } else if (genreWeights.classical > 0.7) {
+      return this.generateClassicalProgression(phraseLength)
+    } else if (genreWeights.electronic > 0.7) {
+      return this.generateElectronicProgression(phraseLength)
+    } else if (genreWeights.rock > 0.7) {
+      return this.generateRockProgression(phraseLength)
+    } else {
+      return this.generatePopProgression(phraseLength)
+    }
+  }
+
+  generateJazzProgression(bars) {
+    // Jazz progressions often use ii-V-I, turnarounds, and extended chords
+    const progressions = [
+      // Classic ii-V-I progression
+      [
+        { chord: 'Dm7', function: 'subdominant', bars: 1, extension: 'ii7' },
+        { chord: 'G7', function: 'dominant', bars: 1, extension: 'V7' },
+        { chord: 'Cmaj7', function: 'tonic', bars: 2, extension: 'Imaj7' }
+      ],
+      // Jazz turnaround with vi
+      [
+        { chord: 'Imaj7', function: 'tonic', bars: 1, extension: 'Imaj7' },
+        { chord: 'VI7', function: 'subdominant', bars: 1, extension: 'VI7' },
+        { chord: 'ii7', function: 'subdominant', bars: 1, extension: 'ii7' },
+        { chord: 'V7', function: 'dominant', bars: 1, extension: 'V7' }
+      ],
+      // Minor blues progression
+      [
+        { chord: 'Cm7', function: 'tonic', bars: 1, extension: 'Im7' },
+        { chord: 'Fm7', function: 'subdominant', bars: 1, extension: 'IVm7' },
+        { chord: 'Cm7', function: 'tonic', bars: 1, extension: 'Im7' },
+        { chord: 'Cm7', function: 'tonic', bars: 1, extension: 'Im7' }
+      ]
+    ]
+
+    const selected = progressions[Math.floor(Math.random() * progressions.length)]
+    return selected.map(chord => ({
+      ...chord,
+      root: this.getChordRoot(chord.chord),
+      quality: this.getChordQuality(chord.chord),
+      notes: this.buildChord(chord.chord)
+    }))
+  }
+
+  generateClassicalProgression(bars) {
+    // Classical progressions follow functional harmony
+    const progressions = [
+      // Perfect authentic cadence preparation
+      [
+        { chord: 'IV', function: 'subdominant', bars: 1 },
+        { chord: 'V', function: 'dominant', bars: 1 },
+        { chord: 'I', function: 'tonic', bars: 2 }
+      ],
+      // Plagal cadence
+      [
+        { chord: 'IV', function: 'subdominant', bars: 2 },
+        { chord: 'I', function: 'tonic', bars: 2 }
+      ],
+      // Deceptive cadence followed by authentic
+      [
+        { chord: 'V', function: 'dominant', bars: 1 },
+        { chord: 'vi', function: 'tonic', bars: 1 },
+        { chord: 'IV', function: 'subdominant', bars: 1 },
+        { chord: 'V', function: 'dominant', bars: 1 }
+      ]
+    ]
+
+    const selected = progressions[Math.floor(Math.random() * progressions.length)]
+    return selected.map(chord => ({
+      ...chord,
+      root: this.getChordRoot(chord.chord),
+      quality: this.getChordQuality(chord.chord),
+      notes: this.buildChord(chord.chord)
+    }))
+  }
+
+  generateElectronicProgression(bars) {
+    // Electronic music often uses repetitive, hypnotic progressions
+    const progressions = [
+      // Basic house progression
+      [
+        { chord: 'Cm', function: 'tonic', bars: 2 },
+        { chord: 'Ab', function: 'subdominant', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 }
+      ],
+      // Techno minor progression
+      [
+        { chord: 'Am', function: 'tonic', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 },
+        { chord: 'E', function: 'dominant', bars: 1 }
+      ],
+      // Ambient pads
+      [
+        { chord: 'Cmaj7', function: 'tonic', bars: 4 }
+      ]
+    ]
+
+    const selected = progressions[Math.floor(Math.random() * progressions.length)]
+    return selected.map(chord => ({
+      ...chord,
+      root: this.getChordRoot(chord.chord),
+      quality: this.getChordQuality(chord.chord),
+      notes: this.buildChord(chord.chord)
+    }))
+  }
+
+  generateRockProgression(bars) {
+    // Rock progressions are often driving and use power chords
+    const progressions = [
+      // Classic rock progression
+      [
+        { chord: 'G', function: 'tonic', bars: 1 },
+        { chord: 'C', function: 'subdominant', bars: 1 },
+        { chord: 'D', function: 'dominant', bars: 1 },
+        { chord: 'G', function: 'tonic', bars: 1 }
+      ],
+      // 12-bar blues variation
+      [
+        { chord: 'I7', function: 'tonic', bars: 1 },
+        { chord: 'IV7', function: 'subdominant', bars: 1 },
+        { chord: 'I7', function: 'tonic', bars: 2 }
+      ],
+      // Power chord progression
+      [
+        { chord: 'E5', function: 'tonic', bars: 2 },
+        { chord: 'A5', function: 'subdominant', bars: 1 },
+        { chord: 'B5', function: 'dominant', bars: 1 }
+      ]
+    ]
+
+    const selected = progressions[Math.floor(Math.random() * progressions.length)]
+    return selected.map(chord => ({
+      ...chord,
+      root: this.getChordRoot(chord.chord),
+      quality: this.getChordQuality(chord.chord),
+      notes: this.buildChord(chord.chord)
+    }))
+  }
+
+  generatePopProgression(bars) {
+    // Pop progressions are predictable and catchy
+    const progressions = [
+      // Classic I-V-vi-IV
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 },
+        { chord: 'Am', function: 'tonic', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 }
+      ],
+      // Vieni-qua progression
+      [
+        { chord: 'C', function: 'tonic', bars: 2 },
+        { chord: 'G', function: 'dominant', bars: 1 },
+        { chord: 'Am', function: 'tonic', bars: 1 }
+      ],
+      // 50s progression
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'Am', function: 'tonic', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 }
+      ]
+    ]
+
+    const selected = progressions[Math.floor(Math.random() * progressions.length)]
+    return selected.map(chord => ({
+      ...chord,
+      root: this.getChordRoot(chord.chord),
+      quality: this.getChordQuality(chord.chord),
+      notes: this.buildChord(chord.chord)
+    }))
+  }
+
+  harmonizeMelody(melody, progression) {
+    // Harmonize a melody with the given progression
+    const harmonized = []
+    let previousVoicing = null
+
+    melody.forEach((note, i) => {
+      const chord = this.getChordAtBeat(progression, i)
+      const voicing = this.voiceLeadToChord(note.pitch, chord, previousVoicing)
+      previousVoicing = voicing
+
+      harmonized.push({
+        melodyNote: note,
+        harmony: voicing,
+        chordFunction: chord.function
+      })
+    })
+
+    return harmonized
+  }
+
+  voiceLeadToChord(melodyNote, targetChord, previousVoicing) {
+    // Voice leading: move voices by minimal intervals
+    const chordNotes = this.buildChord(targetChord.chord)
+    let voicedChord = []
+
+    if (previousVoicing) {
+      // Find closest voicing to previous
+      voicedChord = chordNotes.map((note, index) => {
+        const prevNote = previousVoicing[index] || note
+        const difference = note - prevNote
+
+        // Keep within one octave if possible
+        if (Math.abs(difference) > 6) {
+          const octaves = Math.round(difference / 12)
+          return note - (octaves * 12)
+        }
+
+        return note
+      })
+    } else {
+      // Default voicing in closest position to melody
+      voicedChord = chordNotes.map(note => {
+        while (note < melodyNote - 12) note += 12
+        while (note > melodyNote + 12) note -= 12
+        return note
+      })
+    }
+
+    return voicedChord.sort((a, b) => a - b)
+  }
+
+  modulateTo(newKey, technique = 'pivot') {
+    const oldKey = this.currentKey
+
+    switch (technique) {
+      case 'pivot':
+        return this.modulateByPivotChord(oldKey, newKey)
+      case 'direct':
+        return this.modulateDirectly(oldKey, newKey)
+      case 'common_tone':
+        return this.modulateByCommonTone(oldKey, newKey)
+      case 'sequential':
+        return this.modulateSequentially(oldKey, newKey)
+      default:
+        return this.modulateByPivotChord(oldKey, newKey)
+    }
+  }
+
+  modulateByPivotChord(oldKey, newKey) {
+    // Find a chord that works in both keys
+    const oldScale = this.scales[this.currentMode]
+    const newScale = this.scales[this.currentMode]
+
+    // For simplicity, use the dominant of the old key that becomes
+    // the subdominant of the new key (circle of fifths)
+    const oldDominant = this.getScaleDegree(oldScale, 5) // V degree
+    const newSubdominant = this.getScaleDegree(newScale, 4) // IV degree
+
+    // Update current key AFTER building the return object
+    const result = {
+      type: 'pivot_chord',
+      chord: this.buildChordFromRoot(oldDominant, 'dominant7'),
+      function: 'pivot',
+      oldKey,
+      newKey
+    }
+
+    this.currentKey = newKey
+    return result
+  }
+
+  modulateDirectly(oldKey, newKey) {
+    // Direct modulation for dramatic effect
+    this.currentKey = newKey
+
+    return {
+      type: 'direct',
+      chord: this.buildChordFromRoot(this.getTonicNote(newKey), 'major'),
+      function: 'tonic',
+      oldKey,
+      newKey
+    }
+  }
+
+  modulateByCommonTone(oldKey, newKey) {
+    // Modulation using a common tone between keys
+    const oldTonic = this.getTonicNote(oldKey)
+    const commonTone = oldTonic // Simplified: use old tonic as common tone
+
+    const result = {
+      type: 'common_tone',
+      commonTone,
+      chord: this.buildChordFromRoot(this.getTonicNote(newKey), 'major'),
+      function: 'tonic',
+      oldKey,
+      newKey
+    }
+
+    this.currentKey = newKey
+    return result
+  }
+
+  modulateSequentially(oldKey, newKey) {
+    // Sequential modulation - repeat a pattern in the new key
+    const pattern = ['I', 'IV', 'V', 'I'] // Simple pattern
+
+    const result = {
+      type: 'sequential',
+      pattern: pattern.map(roman => this.romanToChord(roman, newKey)),
+      oldKey,
+      newKey
+    }
+
+    this.currentKey = newKey
+    return result
+  }
+
+  addCadence(type = 'authentic') {
+    // Add cadential patterns for musical punctuation
+    const cadences = {
+      authentic: [
+        { chord: 'G7', function: 'dominant', type: 'V7' },
+        { chord: 'C', function: 'tonic', type: 'I' }
+      ],
+      plagal: [
+        { chord: 'F', function: 'subdominant', type: 'IV' },
+        { chord: 'C', function: 'tonic', type: 'I' }
+      ],
+      deceptive: [
+        { chord: 'G7', function: 'dominant', type: 'V7' },
+        { chord: 'Am', function: 'tonic', type: 'vi' }
+      ],
+      half: [
+        { chord: 'Dm', function: 'subdominant', type: 'ii' },
+        { chord: 'G7', function: 'dominant', type: 'V7' }
+      ]
+    }
+
+    const cadence = cadences[type] || cadences.authentic
+    return cadence.map(chord => ({
+      ...chord,
+      notes: this.buildChord(chord.chord),
+      root: this.getChordRoot(chord.chord),
+      quality: this.getChordQuality(chord.chord)
+    }))
+  }
+
+  // Helper methods
+  getChordAtBeat(progression, beat) {
+    const totalBars = progression.reduce((sum, chord) => sum + chord.bars, 0)
+    const beatsPerBar = 4
+    const totalBeats = totalBars * beatsPerBar
+    const normalizedBeat = beat % totalBeats
+
+    let currentBeat = 0
+    for (const chord of progression) {
+      const chordBeats = chord.bars * beatsPerBar
+      if (normalizedBeat >= currentBeat && normalizedBeat < currentBeat + chordBeats) {
+        return chord
+      }
+      currentBeat += chordBeats
+    }
+
+    return progression[progression.length - 1] // Default to last chord
+  }
+
+  buildChord(chordSymbol) {
+    const root = this.getChordRoot(chordSymbol)
+    const quality = this.getChordQuality(chordSymbol)
+    const intervals = this.chordQualities[quality] || this.chordQualities.major
+
+    return intervals.map(interval => root + interval)
+  }
+
+  buildChordFromRoot(root, quality) {
+    const intervals = this.chordQualities[quality] || this.chordQualities.major
+    return intervals.map(interval => root + interval)
+  }
+
+  getChordRoot(chordSymbol) {
+    // Extract root note from chord symbol
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+    const noteNumbers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+
+    for (let i = 0; i < noteNames.length; i++) {
+      if (chordSymbol.startsWith(noteNames[i])) {
+        return noteNumbers[i]
+      }
+    }
+
+    return 0 // Default to C
+  }
+
+  getChordQuality(chordSymbol) {
+    // Extract chord quality from chord symbol
+    if (chordSymbol.includes('maj7')) return 'major7'
+    if (chordSymbol.includes('m7')) return 'minor7'
+    if (chordSymbol.includes('7')) return 'dominant7'
+    if (chordSymbol.includes('m')) return 'minor'
+    if (chordSymbol.includes('aug')) return 'augmented'
+    if (chordSymbol.includes('dim')) return 'diminished'
+    if (chordSymbol.includes('sus2')) return 'suspended2'
+    if (chordSymbol.includes('sus4') || chordSymbol.includes('sus')) return 'suspended4'
+
+    return 'major' // Default
+  }
+
+  getTonicNote(key) {
+    // Convert key name to MIDI note number
+    const noteMap = {
+      'C': 60, 'C#': 61, 'D': 62, 'D#': 63, 'E': 64, 'F': 65,
+      'F#': 66, 'G': 67, 'G#': 68, 'A': 69, 'A#': 70, 'B': 71
+    }
+
+    return noteMap[key] || 60 // Default to Middle C
+  }
+
+  getScaleDegree(scale, degree) {
+    // Get the scale degree (1-based)
+    return scale[(degree - 1) % scale.length]
+  }
+
+  romanToChord(roman, key) {
+    const romanNumerals = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7 }
+    const degree = romanNumerals[roman.toUpperCase()]
+    const scale = this.scales[this.currentMode]
+    const rootNote = this.getScaleDegree(scale, degree)
+    const tonic = this.getTonicNote(key)
+
+    return {
+      chord: this.buildChordFromRoot(tonic + rootNote, 'major'),
+      root: tonic + rootNote,
+      quality: 'major'
+    }
+  }
+}
+
+module.exports = HarmonicEngine

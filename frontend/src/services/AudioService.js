@@ -2,12 +2,20 @@
  * AudioService
  * Real-time audio parameter mapping and sonic feedback coordination
  * Constitutional requirement: <200ms gesture-to-sound latency, 60fps parameter updates
+ *
+ * Enhanced with MusicalScheduler for clock-consistent timing and LFOManager for advanced modulation
  */
+
+// Note: MusicalScheduler and LFOManager will be loaded via global scripts
 class AudioService {
   constructor() {
     this.isInitialized = false
     this.audioEngine = null
     this.gestureCapture = null
+
+    // New musical architecture services
+    this.musicalScheduler = null; // Will be initialized after scripts are loaded
+    this.lfoManager = null; // Will be initialized after audio context
 
     // Mute and volume controls
     this.muted = false
@@ -352,6 +360,10 @@ class AudioService {
         if (!this.isInitialized) {
           this.createContinuousGenerativeSystem()
           this.startUpdateLoop()
+
+          // Initialize new musical architecture services
+          this.initializeNewMusicalArchitecture()
+
           this.isInitialized = true
           console.log('🔊 AudioService initialized successfully - Continuous generative music active')
 
@@ -2573,6 +2585,272 @@ class AudioService {
   }
 
   /**
+   * Initialize new musical architecture components
+   */
+  initializeNewMusicalArchitecture() {
+    try {
+      // Check if global classes are available
+      if (typeof window.MusicalScheduler === 'undefined') {
+        console.warn('⚠️ MusicalScheduler not available - musical timing features disabled');
+        return;
+      }
+
+      if (typeof window.LFOManager === 'undefined') {
+        console.warn('⚠️ LFOManager not available - modulation features disabled');
+        return;
+      }
+
+      // Initialize Musical Scheduler
+      this.musicalScheduler = new window.MusicalScheduler();
+
+      // Initialize LFO Manager with audio context
+      this.lfoManager = new window.LFOManager(this);
+
+      // Start Musical Scheduler
+      this.musicalScheduler.start();
+
+      // Setup event listeners for cross-service communication
+      this.setupMusicalArchitectureEvents();
+
+      console.log('🎵 New musical architecture initialized - MusicalScheduler and LFOManager active');
+    } catch (error) {
+      console.error('🔴 Failed to initialize new musical architecture:', error);
+    }
+  }
+
+  /**
+   * Setup cross-service event communication
+   */
+  setupMusicalArchitectureEvents() {
+    // Musical Scheduler events
+    this.musicalScheduler.on('tick', (data) => {
+      // Use musical timing for precise parameter updates
+      this.onMusicalTick(data);
+    });
+
+    this.musicalScheduler.on('beat', (data) => {
+      // Trigger beat-synchronized effects
+      this.onMusicalBeat(data);
+    });
+
+    // LFO Manager events
+    this.lfoManager.on('lfo:remote-sync', (data) => {
+      // Handle remote LFO synchronization
+      this.onRemoteLFOSync(data);
+    });
+  }
+
+  /**
+   * Handle musical timing ticks
+   */
+  onMusicalTick(data) {
+    // Update timing-sensitive parameters on musical boundaries
+    if (data.sixteenth === 0) {
+      // Reset or evolve parameters on beat boundaries
+      this.evolveParametersOnBeat(data);
+    }
+  }
+
+  /**
+   * Handle musical beats
+   */
+  onMusicalBeat(data) {
+    // Trigger beat-synchronized audio events
+    if (this.isInitialized && !this.muted) {
+      // Add subtle emphasis on downbeats
+      if (data.beat === 0) {
+        this.addDownbeatEmphasis();
+      }
+    }
+  }
+
+  /**
+   * Handle remote LFO synchronization
+   */
+  onRemoteLFOSync(data) {
+    // Apply remote modulation effects
+    this.applyRemoteModulation(data);
+  }
+
+  /**
+   * Evolve parameters on musical beat boundaries
+   */
+  evolveParametersOnBeat(data) {
+    // Slowly evolve background parameters
+    if (this.generativeState) {
+      // Evolve ambient parameters slightly on each beat
+      this.evolveAmbientParameters(data.beat, data.bar);
+    }
+  }
+
+  /**
+   * Add subtle emphasis on downbeats
+   */
+  addDownbeatEmphasis() {
+    // Add very subtle filter sweep or volume emphasis on downbeats
+    if (this.masterVolume && this.masterVolume.gain) {
+      const currentGain = this.masterVolume.gain.value;
+      this.masterVolume.gain.rampTo(currentGain * 1.05, 0.05);
+      setTimeout(() => {
+        this.masterVolume.gain.rampTo(currentGain, 0.05);
+      }, 50);
+    }
+  }
+
+  /**
+   * Apply remote modulation from LFOManager
+   */
+  applyRemoteModulation(data) {
+    // Apply modulation to appropriate audio parameters
+    if (data.data.modulation && this.isInitialized) {
+      const { target, amount } = data.data.modulation;
+
+      switch (target) {
+        case 'filter':
+          this.applyRemoteFilterModulation(amount);
+          break;
+        case 'volume':
+          this.applyRemoteVolumeModulation(amount);
+          break;
+        case 'pan':
+          this.applyRemotePanModulation(amount);
+          break;
+      }
+    }
+  }
+
+  /**
+   * Schedule a musical event with clock-consistent timing
+   */
+  scheduleMusicalEvent(callback, data, isRemote = false, timestamp = null) {
+    if (!this.musicalScheduler) {
+      // Fallback to direct execution if scheduler not available
+      callback(data);
+      return;
+    }
+
+    if (isRemote) {
+      return this.musicalScheduler.scheduleRemoteEvent(callback, data, timestamp);
+    } else {
+      return this.musicalScheduler.scheduleLocalEvent(callback, data);
+    }
+  }
+
+  /**
+   * Handle hover start with LFO integration
+   */
+  handleHoverStart(gestureData, targetInstrument = 'filter') {
+    if (!this.lfoManager) return null;
+
+    // Create LFO based on hover gesture
+    const lfoId = this.lfoManager.handleLocalHoverStart(gestureData, targetInstrument);
+
+    console.log(`🎛️ Hover start - LFO created: ${lfoId}`);
+    return lfoId;
+  }
+
+  /**
+   * Handle hover update with LFO integration
+   */
+  handleHoverUpdate(gestureData, lfoId) {
+    if (!this.lfoManager || !lfoId) return;
+
+    this.lfoManager.handleLocalHoverUpdate(gestureData, lfoId);
+  }
+
+  /**
+   * Handle hover end with LFO cleanup
+   */
+  handleHoverEnd(gestureData) {
+    if (!this.lfoManager) return;
+
+    const sourceId = `local_${gestureData.gestureId}`;
+    this.lfoManager.handleLocalHoverEnd(sourceId);
+  }
+
+  /**
+   * Process remote hover data for synchronized LFOs
+   */
+  processRemoteHoverData(remoteData) {
+    if (!this.lfoManager) return;
+
+    this.lfoManager.handleRemoteHoverData(remoteData);
+  }
+
+  /**
+   * Create ambient global LFO
+   */
+  createAmbientLFO(config = {}) {
+    if (!this.lfoManager) return null;
+
+    return this.lfoManager.createGlobalLFO({
+      ...config,
+      target: config.target || 'filter',
+      name: config.name || 'ambient'
+    });
+  }
+
+  /**
+   * Get musical timing status
+   */
+  getMusicalTimingStatus() {
+    return {
+      scheduler: this.musicalScheduler ? this.musicalScheduler.getStatus() : null,
+      lfoManager: this.lfoManager ? this.lfoManager.getStatus() : null,
+      isInitialized: !!(this.musicalScheduler && this.lfoManager)
+    };
+  }
+
+  /**
+   * Apply remote filter modulation
+   */
+  applyRemoteFilterModulation(amount) {
+    if (this.gestureFilter && this.gestureFilter.frequency) {
+      const currentFreq = this.gestureFilter.frequency.value;
+      const modulationRange = currentFreq * 0.3; // 30% modulation range
+      const newFreq = currentFreq + (amount * modulationRange);
+      this.gestureFilter.frequency.rampTo(newFreq, 0.1);
+    }
+  }
+
+  /**
+   * Apply remote volume modulation
+   */
+  applyRemoteVolumeModulation(amount) {
+    if (this.masterVolume && this.masterVolume.gain) {
+      const currentVolume = this.masterVolume.gain.value;
+      const modulationRange = currentVolume * 0.2; // 20% modulation range
+      const newVolume = Math.max(0.1, currentVolume + (amount * modulationRange));
+      this.masterVolume.gain.rampTo(newVolume, 0.05);
+    }
+  }
+
+  /**
+   * Apply remote pan modulation
+   */
+  applyRemotePanModulation(amount) {
+    if (this.gestureSynth && this.gestureSynth.pan) {
+      this.gestureSynth.pan.rampTo(amount, 0.1);
+    }
+  }
+
+  /**
+   * Evolve ambient parameters on beat boundaries
+   */
+  evolveAmbientParameters(beat, bar) {
+    if (this.ambientFilters && this.ambientFilters.length > 0) {
+      // Slowly evolve filter frequencies
+      this.ambientFilters.forEach((filter, index) => {
+        if (filter && filter.frequency) {
+          const currentFreq = filter.frequency.value;
+          const evolution = Math.sin((bar + beat + index) * 0.1) * 50;
+          filter.frequency.rampTo(currentFreq + evolution, 0.5);
+        }
+      });
+    }
+  }
+
+  /**
    * Perform parameter update for current frame
    */
   performParameterUpdate() {
@@ -3709,12 +3987,26 @@ class AudioService {
       this.tremoloLFO = null
     }
 
+    // Cleanup new musical architecture services
+    if (this.musicalScheduler && typeof this.musicalScheduler.dispose === 'function') {
+      console.log('🛑 Stopping MusicalScheduler')
+      this.musicalScheduler.stop()
+      this.musicalScheduler.dispose()
+      this.musicalScheduler = null
+    }
+
+    if (this.lfoManager && typeof this.lfoManager.dispose === 'function') {
+      console.log('🛑 Disposing LFOManager')
+      this.lfoManager.dispose()
+      this.lfoManager = null
+    }
+
     this.gestureBuffer = []
     this.audioEngine = null
     this.gestureCapture = null
     this.isInitialized = false
 
-    console.log('AudioService cleanup completed - all LFO systems stopped')
+    console.log('AudioService cleanup completed - all LFO and musical timing systems stopped')
   }
 }
 
