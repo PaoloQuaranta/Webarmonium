@@ -1,0 +1,921 @@
+/**
+ * EnhancedGestureCapture
+ * Advanced gesture capture system for generative multi-user musical composition
+ * Constitutional requirement: Multi-user gesture support with musical event generation
+ */
+
+class EnhancedGestureCapture {
+  constructor(canvas, gestureToMusicMapper, socketService) {
+    this.canvas = canvas
+    this.gestureToMusicMapper = gestureToMusicMapper
+    this.socketService = socketService
+
+    // Gesture capture state
+    this.isActive = false
+    this.isCapturing = false
+    this.currentGesture = null
+    this.gestureHistory = []
+    this.maxHistorySize = 50
+
+    // Multi-user state
+    this.localUserId = this.generateUserId()
+    this.currentRoom = null
+    this.participantGestures = new Map() // userId -> gesture data
+
+    // Hover state for cross-layer modulation
+    this.hoverState = {
+      isHovering: false,
+      position: { x: 0.5, y: 0.5 },
+      lastHoverTime: 0,
+      hoverThreshold: 100, // ms between hover updates
+      hoverIntensity: 0.5,
+      hoverVelocity: 0
+    }
+
+    // Enhanced gesture tracking
+    this.gestureTracker = {
+      startPosition: null,
+      currentPosition: null,
+      velocity: { x: 0, y: 0 },
+      acceleration: { x: 0, y: 0 },
+      path: [],
+      startTime: null,
+      lastUpdateTime: null
+    }
+
+    // Gesture classification
+    this.gestureClassifier = {
+      minGestureLength: 20, // pixels
+      minGestureDuration: 100, // milliseconds
+      directionThreshold: 0.3, // Minimum confidence for direction
+      speedThresholds: { slow: 0.2, medium: 0.5, fast: 0.8 }
+    }
+
+    // Musical context
+    this.musicalContext = {
+      lastGestureTime: 0,
+      gestureFrequency: 0,
+      currentTempo: 120,
+      currentScale: 'pentatonic'
+    }
+
+    // Performance tracking
+    this.performanceMetrics = {
+      gesturesCaptured: 0,
+      gesturesClassified: 0,
+      averageProcessingTime: 0,
+      classificationAccuracy: 0
+    }
+
+    // Event handlers
+    this.onGesture = null
+    this.onGestureStart = null
+    this.onGestureEnd = null
+    this.onMultiUserGesture = null
+    this.onHoverModulation = null
+
+    // Initialize
+    this.setupEventListeners()
+
+    console.log('EnhancedGestureCapture initialized')
+  }
+
+  /**
+   * Generate unique user ID
+   * @returns {string} User ID
+   */
+  generateUserId() {
+    return `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  }
+
+  /**
+   * Setup event listeners for gesture capture
+   */
+  setupEventListeners() {
+    // Mouse events
+    this.canvas.addEventListener('mousedown', (e) => this.handleGestureStart(e))
+    this.canvas.addEventListener('mousemove', (e) => this.handleGestureMove(e))
+    this.canvas.addEventListener('mouseup', (e) => this.handleGestureEnd(e))
+    this.canvas.addEventListener('mouseleave', (e) => this.handleGestureEnd(e))
+
+    // Touch events
+    this.canvas.addEventListener('touchstart', (e) => this.handleGestureStart(e))
+    this.canvas.addEventListener('touchmove', (e) => this.handleGestureMove(e))
+    this.canvas.addEventListener('touchend', (e) => this.handleGestureEnd(e))
+    this.canvas.addEventListener('touchcancel', (e) => this.handleGestureEnd(e))
+
+    // Hover events for cross-layer modulation
+    this.canvas.addEventListener('mousemove', (e) => this.handleHover(e))
+    this.canvas.addEventListener('mouseenter', (e) => this.handleHoverStart(e))
+    this.canvas.addEventListener('mouseleave', (e) => this.handleHoverEnd(e))
+
+    // Prevent default touch behaviors
+    this.canvas.addEventListener('touchstart', (e) => e.preventDefault())
+    this.canvas.addEventListener('touchmove', (e) => e.preventDefault())
+
+    console.log('👆 Enhanced gesture event listeners setup complete')
+  }
+
+  /**
+   * Start gesture capture
+   */
+  start() {
+    this.isActive = true
+    console.log('▶️ EnhancedGestureCapture started')
+  }
+
+  /**
+   * Stop gesture capture
+   */
+  stop() {
+    this.isActive = false
+    this.isCapturing = false
+    this.currentGesture = null
+    console.log('⏸️ EnhancedGestureCapture stopped')
+  }
+
+  /**
+   * Handle gesture start
+   * @param {Event} event - Mouse or touch event
+   */
+  handleGestureStart(event) {
+    console.log('🎯 GESTURE START TRIGGERED - button pressed')
+    if (!this.isActive) return
+
+    event.preventDefault()
+
+    const coordinates = this.getEventCoordinates(event)
+    if (!coordinates) return
+
+    // Start new gesture
+    this.isCapturing = true
+    this.currentGesture = {
+      id: `gesture-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      userId: this.localUserId,
+      roomId: this.currentRoom,
+      startTime: Date.now(),
+      startPosition: coordinates,
+      currentPosition: coordinates,
+      path: [coordinates],
+      type: this.getEventType(event)
+    }
+
+    // Reset tracker
+    this.gestureTracker = {
+      startPosition: coordinates,
+      currentPosition: coordinates,
+      velocity: { x: 0, y: 0 },
+      acceleration: { x: 0, y: 0 },
+      path: [coordinates],
+      startTime: Date.now(),
+      lastUpdateTime: Date.now()
+    }
+
+    // Emit gesture start to server
+    this.emitGestureStart(this.currentGesture)
+
+    // Trigger local callback
+    if (this.onGestureStart) {
+      this.onGestureStart(this.currentGesture)
+    }
+
+    console.log('👆 Gesture started:', this.currentGesture.id)
+  }
+
+  /**
+   * Handle gesture move
+   * @param {Event} event - Mouse or touch event
+   */
+  handleGestureMove(event) {
+    if (!this.isActive || !this.isCapturing || !this.currentGesture) return
+
+    event.preventDefault()
+
+    const coordinates = this.getEventCoordinates(event)
+    if (!coordinates) return
+
+    const now = Date.now()
+    const deltaTime = now - this.gestureTracker.lastUpdateTime
+
+    if (deltaTime > 0) {
+      // Calculate velocity
+      const deltaX = coordinates.x - this.gestureTracker.currentPosition.x
+      const deltaY = coordinates.y - this.gestureTracker.currentPosition.y
+
+      const newVelocity = {
+        x: deltaX / deltaTime * 1000, // pixels per second
+        y: deltaY / deltaTime * 1000
+      }
+
+      // Calculate acceleration
+      const acceleration = {
+        x: (newVelocity.x - this.gestureTracker.velocity.x) / deltaTime * 1000,
+        y: (newVelocity.y - this.gestureTracker.velocity.y) / deltaTime * 1000
+      }
+
+      // Update tracker
+      this.gestureTracker.currentPosition = coordinates
+      this.gestureTracker.velocity = newVelocity
+      this.gestureTracker.acceleration = acceleration
+      this.gestureTracker.path.push(coordinates)
+      this.gestureTracker.lastUpdateTime = now
+
+      // Update current gesture
+      this.currentGesture.currentPosition = coordinates
+      this.currentGesture.path = this.gestureTracker.path.slice()
+      this.currentGesture.velocity = newVelocity
+      this.currentGesture.acceleration = acceleration
+
+      // Send real-time position updates
+      this.emitGestureUpdate(this.currentGesture)
+    }
+  }
+
+  /**
+   * Handle gesture end
+   * @param {Event} event - Mouse or touch event
+   */
+  handleGestureEnd(event) {
+    console.log('🎯 GESTURE END TRIGGERED - button released')
+    if (!this.isActive || !this.isCapturing || !this.currentGesture) {
+      console.log('🎯 GESTURE END - not capturing or no current gesture')
+      return
+    }
+
+    event.preventDefault()
+
+    const endTime = Date.now()
+    const duration = endTime - this.currentGesture.startTime
+
+    // Complete gesture data
+    this.currentGesture.endTime = endTime
+    this.currentGesture.duration = duration
+
+    // Classify gesture
+    const classifiedGesture = this.classifyGesture(this.currentGesture)
+
+    // Convert to musical event
+    const musicalEvent = this.gestureToMusicMapper.gestureToMusicalEvent(classifiedGesture)
+
+    // Add to history
+    this.addToGestureHistory(classifiedGesture)
+
+    // Update performance metrics
+    this.updatePerformanceMetrics(classifiedGesture)
+
+    // Emit completed gesture
+    this.emitGestureComplete(classifiedGesture, musicalEvent)
+
+    // Trigger local callbacks
+    if (this.onGesture) {
+      this.onGesture(classifiedGesture)
+    }
+
+    if (this.onGestureEnd) {
+      this.onGestureEnd(classifiedGesture, musicalEvent)
+    }
+
+    // Update musical context
+    this.updateMusicalContext(classifiedGesture)
+
+    // Reset capture state
+    this.isCapturing = false
+    this.currentGesture = null
+
+    console.log('👋 Gesture completed:', classifiedGesture.id, 'duration:', duration + 'ms')
+  }
+
+  /**
+   * Get coordinates from event
+   * @param {Event} event - Mouse or touch event
+   * @returns {Object|null} Normalized coordinates or null
+   */
+  getEventCoordinates(event) {
+    const rect = this.canvas.getBoundingClientRect()
+
+    let clientX, clientY
+
+    if (event.touches && event.touches.length > 0) {
+      clientX = event.touches[0].clientX
+      clientY = event.touches[0].clientY
+    } else if (event.changedTouches && event.changedTouches.length > 0) {
+      clientX = event.changedTouches[0].clientX
+      clientY = event.changedTouches[0].clientY
+    } else {
+      clientX = event.clientX
+      clientY = event.clientY
+    }
+
+    // Convert to normalized coordinates (0-1)
+    return {
+      x: (clientX - rect.left) / rect.width,
+      y: (clientY - rect.top) / rect.height
+    }
+  }
+
+  /**
+   * Get event type (mouse, touch, etc.)
+   * @param {Event} event - Input event
+   * @returns {string} Event type
+   */
+  getEventType(event) {
+    if (event.touches) return 'touch'
+    if (event.type.includes('mouse')) return 'mouse'
+    return 'unknown'
+  }
+
+  /**
+   * Classify gesture with musical properties
+   * @param {Object} gesture - Raw gesture data
+   * @returns {Object} Classified gesture
+   */
+  classifyGesture(gesture) {
+    const startTime = performance.now()
+    const classified = { ...gesture }
+
+    // Add coordinates for compatibility with GestureToMusicMapper
+    if (gesture.currentPosition) {
+      classified.coordinates = {
+        x: gesture.currentPosition.x,
+        y: gesture.currentPosition.y
+      }
+    } else if (gesture.path && gesture.path.length > 0) {
+      // Use last position from path
+      const lastPos = gesture.path[gesture.path.length - 1]
+      classified.coordinates = {
+        x: lastPos.x,
+        y: lastPos.y
+      }
+    } else {
+      // Default coordinates
+      classified.coordinates = { x: 0.5, y: 0.5 }
+    }
+
+    // Calculate gesture properties
+    const path = gesture.path || []
+    const duration = gesture.duration || 0
+
+    if (path.length < 2 || duration < this.gestureClassifier.minGestureDuration) {
+      // Insufficient data for classification
+      classified.direction = 'unknown'
+      classified.intensity = 0.1
+      classified.speed = 0.1
+      classified.size = 0
+      return classified
+    }
+
+    // Calculate size (total path length)
+    let totalDistance = 0
+    for (let i = 1; i < path.length; i++) {
+      const dx = path[i].x - path[i - 1].x
+      const dy = path[i].y - path[i - 1].y
+      totalDistance += Math.sqrt(dx * dx + dy * dy)
+    }
+
+    // Calculate direction
+    const start = path[0]
+    const end = path[path.length - 1]
+    const deltaX = end.x - start.x
+    const deltaY = end.y - start.y
+
+    classified.direction = this.classifyDirection(deltaX, deltaY)
+
+    // Calculate intensity (based on acceleration and size)
+    const maxAcceleration = Math.max(
+      Math.abs(gesture.acceleration?.x || 0),
+      Math.abs(gesture.acceleration?.y || 0)
+    )
+    const normalizedSize = Math.min(totalDistance / 0.5, 1) // Normalize to 0-1
+    const normalizedAcceleration = Math.min(maxAcceleration / 10000, 1) // Normalize acceleration
+
+    classified.intensity = Math.min(1, (normalizedSize * 0.6) + (normalizedAcceleration * 0.4))
+
+    // Calculate speed
+    const averageSpeed = totalDistance / (duration / 1000) // pixels per second
+    const maxReasonableSpeed = 1000 // pixels per second
+    classified.speed = Math.min(averageSpeed / maxReasonableSpeed, 1)
+
+    // Calculate size
+    classified.size = totalDistance
+
+    // Add musical characteristics
+    classified.musicalCharacteristics = {
+      direction: classified.direction,
+      intensity: classified.intensity,
+      speed: classified.speed,
+      duration: duration,
+      size: classified.size,
+      curvature: this.calculatePathCurvature(path),
+      acceleration: maxAcceleration
+    }
+
+    // Update performance metrics
+    const processingTime = performance.now() - startTime
+    this.performanceMetrics.averageProcessingTime =
+      (this.performanceMetrics.averageProcessingTime + processingTime) / 2
+
+    this.performanceMetrics.gesturesClassified++
+
+    return classified
+  }
+
+  /**
+   * Classify gesture direction
+   * @param {number} deltaX - X distance
+   * @param {number} deltaY - Y distance
+   * @returns {string} Direction classification
+   */
+  classifyDirection(deltaX, deltaY) {
+    const threshold = this.gestureClassifier.directionThreshold
+    const angle = Math.atan2(deltaY, deltaX)
+
+    // Convert angle to degrees
+    const degrees = angle * (180 / Math.PI)
+
+    // Classify based on angle
+    if (Math.abs(deltaX) < threshold && Math.abs(deltaY) < threshold) {
+      return 'tap'
+    } else if (degrees >= -22.5 && degrees < 22.5) {
+      return 'right'
+    } else if (degrees >= 22.5 && degrees < 67.5) {
+      return 'diagonal-down-right'
+    } else if (degrees >= 67.5 && degrees < 112.5) {
+      return 'down'
+    } else if (degrees >= 112.5 && degrees < 157.5) {
+      return 'diagonal-down-left'
+    } else if (degrees >= 157.5 || degrees < -157.5) {
+      return 'left'
+    } else if (degrees >= -157.5 && degrees < -112.5) {
+      return 'diagonal-up-left'
+    } else if (degrees >= -112.5 && degrees < -67.5) {
+      return 'up'
+    } else if (degrees >= -67.5 && degrees < -22.5) {
+      return 'diagonal-up-right'
+    }
+
+    return 'unknown'
+  }
+
+  /**
+   * Calculate path curvature
+   * @param {Array} path - Array of coordinates
+   * @returns {number} Curvature value (0-1)
+   */
+  calculatePathCurvature(path) {
+    if (path.length < 3) return 0
+
+    let totalAngleChange = 0
+
+    for (let i = 2; i < path.length; i++) {
+      const p1 = path[i - 2]
+      const p2 = path[i - 1]
+      const p3 = path[i]
+
+      // Calculate angles
+      const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x)
+      const angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x)
+
+      // Calculate angle difference
+      let angleDiff = angle2 - angle1
+      while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI
+      while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI
+
+      totalAngleChange += Math.abs(angleDiff)
+    }
+
+    // Normalize curvature
+    const maxPossibleCurvature = Math.PI * (path.length - 2)
+    return Math.min(totalAngleChange / maxPossibleCurvature, 1)
+  }
+
+  /**
+   * Add gesture to history
+   * @param {Object} gesture - Gesture data
+   */
+  addToGestureHistory(gesture) {
+    this.gestureHistory.push({
+      ...gesture,
+      timestamp: Date.now()
+    })
+
+    // Limit history size
+    if (this.gestureHistory.length > this.maxHistorySize) {
+      this.gestureHistory.shift()
+    }
+
+    this.performanceMetrics.gesturesCaptured++
+  }
+
+  /**
+   * Update performance metrics
+   * @param {Object} gesture - Classified gesture
+   */
+  updatePerformanceMetrics(gesture) {
+    // Calculate gesture frequency
+    const now = Date.now()
+    const recentGestures = this.gestureHistory.filter(
+      g => now - g.timestamp < 5000 // Last 5 seconds
+    )
+
+    this.musicalContext.gestureFrequency = recentGestures.length / 5
+
+    // Update tempo based on gesture rhythm
+    if (this.gestureHistory.length > 2) {
+      const recent = this.gestureHistory.slice(-5)
+      const intervals = []
+
+      for (let i = 1; i < recent.length; i++) {
+        intervals.push(recent[i].timestamp - recent[i - 1].timestamp)
+      }
+
+      if (intervals.length > 0) {
+        const averageInterval = intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length
+        const gesturesPerMinute = (60000 / averageInterval) * 4 // Assume 4 gestures per beat
+        this.musicalContext.currentTempo = Math.max(60, Math.min(200, gesturesPerMinute))
+      }
+    }
+
+    this.musicalContext.lastGestureTime = now
+  }
+
+  /**
+   * Update musical context
+   * @param {Object} gesture - Gesture data
+   */
+  updateMusicalContext(gesture) {
+    // Update scale based on gesture characteristics
+    if (gesture.musicalCharacteristics) {
+      const { direction, intensity, speed } = gesture.musicalCharacteristics
+
+      // Change scale based on gesture patterns
+      if (direction === 'up' && intensity > 0.7) {
+        this.musicalContext.currentScale = 'major'
+      } else if (direction === 'down' && intensity > 0.7) {
+        this.musicalContext.currentScale = 'minor'
+      } else if (speed > 0.8) {
+        this.musicalContext.currentScale = 'chromatic'
+      } else if (intensity < 0.3) {
+        this.musicalContext.currentScale = 'pentatonic'
+      }
+
+      // Update mapper context
+      if (this.gestureToMusicMapper) {
+        this.gestureToMusicMapper.setTempo(this.musicalContext.currentTempo)
+        this.gestureToMusicMapper.setScale(this.musicalContext.currentScale)
+      }
+    }
+  }
+
+  /**
+   * Emit gesture start to server
+   * @param {Object} gesture - Gesture data
+   */
+  emitGestureStart(gesture) {
+    if (this.socketService && this.socketService.socket) {
+      this.socketService.socket.emit('gesture-start', {
+        gestureId: gesture.id,
+        userId: gesture.userId,
+        roomId: gesture.roomId,
+        startPosition: gesture.startPosition,
+        timestamp: gesture.startTime
+      })
+    }
+  }
+
+  /**
+   * Emit gesture update to server
+   * @param {Object} gesture - Gesture data
+   */
+  emitGestureUpdate(gesture) {
+    if (this.socketService && this.socketService.socket) {
+      this.socketService.socket.emit('gesture-update', {
+        gestureId: gesture.id,
+        userId: gesture.userId,
+        roomId: gesture.roomId,
+        currentPosition: gesture.currentPosition,
+        velocity: gesture.velocity,
+        timestamp: Date.now()
+      })
+    }
+  }
+
+  /**
+   * Emit completed gesture to server
+   * @param {Object} gesture - Gesture data
+   * @param {Object} musicalEvent - Musical event data
+   */
+  emitGestureComplete(gesture, musicalEvent) {
+    if (this.socketService && this.socketService.socket) {
+      this.socketService.socket.emit('gesture-complete', {
+        gesture: {
+          id: gesture.id,
+          userId: gesture.userId,
+          roomId: gesture.roomId,
+          path: gesture.path,
+          duration: gesture.duration,
+          direction: gesture.direction,
+          intensity: gesture.intensity,
+          speed: gesture.speed,
+          musicalCharacteristics: gesture.musicalCharacteristics
+        },
+        musicalEvent,
+        timestamp: Date.now()
+      })
+    }
+  }
+
+  /**
+   * Handle multi-user gesture from server
+   * @param {Object} data - Multi-user gesture data
+   */
+  handleMultiUserGesture(data) {
+    const { userId, gesture, musicalEvent } = data
+
+    // Store participant gesture
+    this.participantGestures.set(userId, {
+      gesture,
+      musicalEvent,
+      timestamp: Date.now()
+    })
+
+    // Trigger callback
+    if (this.onMultiUserGesture) {
+      this.onMultiUserGesture(data)
+    }
+
+    console.log('👥 Received multi-user gesture from:', userId)
+  }
+
+  /**
+   * Set room context
+   * @param {string} roomId - Room ID
+   */
+  setRoomContext(roomId) {
+    this.currentRoom = roomId
+    console.log('🏠 EnhancedGestureCapture room context set to:', roomId)
+  }
+
+  /**
+   * Get local user ID
+   * @returns {string} Local user ID
+   */
+  getLocalUserId() {
+    return this.localUserId
+  }
+
+  /**
+   * Get gesture statistics
+   * @returns {Object} Gesture statistics
+   */
+  getGestureStatistics() {
+    return {
+      totalGestures: this.performanceMetrics.gesturesCaptured,
+      classifiedGestures: this.performanceMetrics.gesturesClassified,
+      averageProcessingTime: Math.round(this.performanceMetrics.averageProcessingTime * 100) / 100,
+      gestureFrequency: Math.round(this.musicalContext.gestureFrequency * 100) / 100,
+      currentTempo: Math.round(this.musicalContext.currentTempo),
+      currentScale: this.musicalContext.currentScale,
+      activeParticipants: this.participantGestures.size,
+      recentGestures: this.gestureHistory.slice(-10)
+    }
+  }
+
+  /**
+   * Clear gesture history
+   */
+  clearHistory() {
+    this.gestureHistory = []
+    this.participantGestures.clear()
+    console.log('🧹 EnhancedGestureCapture history cleared')
+  }
+
+  /**
+   * Handle hover start
+   * @param {Event} event - Mouse event
+   */
+  handleHoverStart(event) {
+    if (!this.isActive) return
+
+    this.hoverState.isHovering = true
+    const coordinates = this.getEventCoordinates(event)
+    if (coordinates) {
+      this.hoverState.position = coordinates
+    }
+
+    console.log('🎯 Hover started at:', this.hoverState.position)
+  }
+
+  /**
+   * Handle hover movement with cross-layer modulation
+   * @param {Event} event - Mouse event
+   */
+  handleHover(event) {
+    if (!this.isActive) return
+
+    // CRITICAL FIX: Don't process hover when we're capturing a gesture (drag)
+    if (this.isCapturing) {
+      console.log('🎯 Hover disabled during gesture capture')
+      return
+    }
+
+    // Auto-activate hover state when mouse moves over canvas
+    if (!this.hoverState.isHovering) {
+      this.hoverState.isHovering = true
+      console.log('🎯 Hover auto-activated')
+    }
+
+    const coordinates = this.getEventCoordinates(event)
+    if (!coordinates) return
+
+    const now = Date.now()
+    const deltaTime = now - this.hoverState.lastHoverTime
+
+    // Throttle hover updates - reduced threshold for better responsiveness
+    if (deltaTime < this.hoverState.hoverThreshold) {
+      console.log(`🎛️ Hover update throttled: ${deltaTime}ms < ${this.hoverState.hoverThreshold}ms`)
+      return
+    }
+
+    // Calculate hover velocity and intensity
+    const deltaX = coordinates.x - this.hoverState.position.x
+    const deltaY = coordinates.y - this.hoverState.position.y
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
+
+    this.hoverState.hoverVelocity = distance / (deltaTime / 1000) // pixels per second
+    this.hoverState.hoverIntensity = Math.min(distance * 2, 1) // Normalize to 0-1
+
+    this.hoverState.position = coordinates
+    this.hoverState.lastHoverTime = now
+
+    console.log(`🎛️ Hover: pos=(${coordinates.x.toFixed(2)}, ${coordinates.y.toFixed(2)}), intensity=${this.hoverState.hoverIntensity.toFixed(2)}`)
+
+    // Trigger cross-layer modulation
+    if (this.onHoverModulation) {
+      this.onHoverModulation({
+        position: this.hoverState.position,
+        velocity: this.hoverState.hoverVelocity,
+        intensity: this.hoverState.hoverIntensity,
+        isRemote: false // Local hover
+      })
+    }
+
+    // Emit hover state to server for multi-user synchronization
+    this.emitHoverUpdate()
+
+    // Emit cursor position for multi-user cursors
+    this.emitCursorPosition()
+  }
+
+  /**
+   * Handle hover end
+   * @param {Event} event - Mouse event
+   */
+  handleHoverEnd(event) {
+    if (!this.isActive) return
+
+    this.hoverState.isHovering = false
+    this.hoverState.hoverVelocity = 0
+    this.hoverState.hoverIntensity = 0
+
+    // Reset modulation with safety check
+    if (this.onHoverModulation && this.hoverState.position) {
+      this.onHoverModulation({
+        position: this.hoverState.position,
+        velocity: 0,
+        intensity: 0,
+        isRemote: false
+      })
+    }
+
+    console.log('🎯 Hover ended')
+  }
+
+  /**
+   * Handle remote hover from multi-user
+   * @param {Object} data - Remote hover data
+   */
+  handleRemoteHover(data) {
+    if (!this.isActive) return
+
+    const { userId, position, velocity, intensity } = data
+
+    // Trigger cross-layer modulation for remote user
+    if (this.onHoverModulation) {
+      this.onHoverModulation({
+        position,
+        velocity,
+        intensity,
+        isRemote: true
+      })
+    }
+
+    console.log('🌐 Remote hover from user:', userId)
+  }
+
+  /**
+   * Emit hover update to server
+   */
+  emitHoverUpdate() {
+    console.log('🛸 emitHoverUpdate called:', {
+      hasSocketService: !!this.socketService,
+      hasSocket: !!(this.socketService && this.socketService.socket),
+      isHovering: this.hoverState.isHovering,
+      currentRoom: this.currentRoom,
+      localUserId: this.localUserId,
+      hoverState: this.hoverState
+    })
+
+    if (this.socketService && this.socketService.socket && this.hoverState.isHovering) {
+      const hoverData = {
+        userId: this.localUserId,
+        roomId: this.currentRoom,
+        position: this.hoverState.position,
+        velocity: this.hoverState.hoverVelocity,
+        intensity: this.hoverState.hoverIntensity,
+        timestamp: Date.now()
+      }
+
+      console.log('🛸 Emitting hover-update:', hoverData)
+      this.socketService.socket.emit('hover-update', hoverData)
+    } else {
+      console.log('❌ emitHoverUpdate blocked - conditions not met')
+    }
+  }
+
+  /**
+   * Emit cursor position for multi-user cursors
+   */
+  emitCursorPosition() {
+    if (!this.socketService || !this.socketService.socket) {
+      console.log('❌ emitCursorPosition blocked - no socket service')
+      return
+    }
+
+    const position = this.hoverState.position || { x: 0.5, y: 0.5 }
+    console.log('🎯 Emitting cursor position:', {
+      x: position.x,
+      y: position.y,
+      isDrawing: this.isCapturing,
+      hasHoverState: !!this.hoverState.position,
+      userId: this.localUserId
+    })
+
+    this.socketService.socket.emit('cursor-move', {
+      x: position.x,
+      y: position.y,
+      isDrawing: this.isCapturing,
+      timestamp: Date.now(),
+      userId: this.localUserId  // Use same user ID as hover-update events
+    })
+
+    console.log('👆 Cursor position emitted successfully')
+  }
+
+  /**
+   * Set hover modulation callback
+   * @param {Function} callback - Hover modulation callback
+   */
+  setHoverModulationCallback(callback) {
+    this.onHoverModulation = callback
+    console.log('🎛️ Hover modulation callback set')
+  }
+
+  /**
+   * Get hover state
+   * @returns {Object} Current hover state
+   */
+  getHoverState() {
+    return {
+      ...this.hoverState,
+      isActive: this.hoverState.isHovering
+    }
+  }
+
+  /**
+   * Cleanup resources
+   */
+  destroy() {
+    this.stop()
+    this.clearHistory()
+
+    // Remove event listeners
+    this.canvas.removeEventListener('mousedown', this.handleGestureStart)
+    this.canvas.removeEventListener('mousemove', this.handleGestureMove)
+    this.canvas.removeEventListener('mouseup', this.handleGestureEnd)
+    this.canvas.removeEventListener('mouseleave', this.handleGestureEnd)
+    this.canvas.removeEventListener('touchstart', this.handleGestureStart)
+    this.canvas.removeEventListener('touchmove', this.handleGestureMove)
+    this.canvas.removeEventListener('touchend', this.handleGestureEnd)
+    this.canvas.removeEventListener('touchcancel', this.handleGestureEnd)
+
+    // Remove hover event listeners
+    this.canvas.removeEventListener('mousemove', this.handleHover)
+    this.canvas.removeEventListener('mouseenter', this.handleHoverStart)
+    this.canvas.removeEventListener('mouseleave', this.handleHoverEnd)
+
+    console.log('🧹 EnhancedGestureCapture destroyed')
+  }
+}
+
+// Export class
+window.EnhancedGestureCapture = EnhancedGestureCapture

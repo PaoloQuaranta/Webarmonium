@@ -1,0 +1,6 @@
+  // Initialize socket service using SocketService (which uses socket.io)
+    console.log('🔌 Initializing SocketService...')
+    this.socketService = new SocketService()
+    this.socketServicePromise = Promise.resolve(this.socketService.socket);
+
+    // Create basic gesture to music mapper for EnhancedGestureCapture
