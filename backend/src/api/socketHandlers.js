@@ -43,7 +43,6 @@ const socketHandlers = {
 
     // Phase 3.3 Generative Music System handlers
     this.registerGestureRecordHandler(socket)
-    this.registerLegacyGestureRecordHandler(socket) // For test compatibility
     this.registerMusicalEventHandler(socket)
     this.registerCompositionUpdateHandler(socket)
     this.registerClockSyncHandler(socket)
@@ -1298,128 +1297,6 @@ const socketHandlers = {
     room.totalGestures = (room.totalGestures || 0) + 1
   },
 
-  /**
-   * Register legacy gesture-record event handler for test compatibility
-   * @param {Socket} socket - Socket instance
-   */
-  registerLegacyGestureRecordHandler (socket) {
-    socket.on('gesture-record', async (data, callback) => {
-      const startTime = Date.now()
-      try {
-        // Validate input data
-        if (!data || !socket.roomId || !socket.userId) {
-          this.sendError(callback, 'validation_error', 'Missing required fields: roomId, userId')
-          return
-        }
-
-        // Create gesture object from legacy format
-        const [x, y] = data.coordinates || [0.5, 0.5]
-        const gestureData = {
-          userId: socket.userId,
-          roomId: socket.roomId,
-          gesture: {
-            id: data.id || `gesture_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            startPosition: { x, y },
-            endPosition: { x: x + 0.1, y: y + 0.1 }, // Small movement
-            speed: data.intensity || 0.5,
-            direction: data.direction || 'horizontal',
-            timestamp: data.timestamp || Date.now(),
-            coordinates: data.coordinates || [x, y],
-            intensity: data.intensity || 0.5
-          }
-        }
-
-        // Process gesture through GestureToMusicService
-        const GestureToMusicService = require('../services/GestureToMusicService')
-        const gestureToMusicService = new GestureToMusicService()
-        const musicalResult = gestureToMusicService.processGesture(gestureData)
-
-        // Handle both single events and arrays of events
-        const musicalEvents = Array.isArray(musicalResult) ? musicalResult : [musicalResult]
-
-        // Store gesture in room memory
-        const enhancedGesture = {
-          ...gestureData.gesture,
-          userId: socket.userId,
-          roomId: socket.roomId,
-          timestamp: new Date(),
-          sonicParams: {
-            frequency: 440, // A4
-            amplitude: gestureData.gesture.intensity || 0.5,
-            waveform: 'sine',
-            filter: { type: 'lowpass', frequency: 2000 },
-            envelope: { attack: 0.1, decay: 0.2, sustain: 0.7, release: 0.3 },
-            spatialParams: { x: gestureData.gesture.coordinates[0] || 0.5, y: gestureData.gesture.coordinates[1] || 0.5, z: 0.5 },
-            processedAt: new Date().toISOString(),
-            processingVersion: '1.0.0',
-            inputDevice: 'test'
-          },
-          // Add required methods
-          toEchoBroadcast: function() {
-            return {
-              userId: this.userId,
-              gestureId: this.id,
-              sonicParams: this.sonicParams,
-              visualFeedback: this.getVisualFeedback ? this.getVisualFeedback() : { type: 'circle', color: '#4CAF50', size: 20 }
-            }
-          },
-          getVisualFeedback: function() {
-            return {
-              type: 'circle',
-              color: '#4CAF50',
-              size: Math.round((this.intensity || 0.5) * 40),
-              position: { x: this.coordinates[0] || 0.5, y: this.coordinates[1] || 0.5 }
-            }
-          }
-        }
-
-        socket.services.roomManager.processGesture(socket.userId, enhancedGesture)
-
-        // Emit musical events to all users in room
-        musicalEvents.forEach(musicalEvent => {
-          const musicalEventBroadcast = {
-            id: musicalEvent.id,
-            type: musicalEvent.type || 'musical',
-            userId: socket.userId,
-            roomId: socket.roomId,
-            musicalData: musicalEvent.musicalData || musicalEvent,
-            timestamp: Date.now()
-          }
-
-          // Broadcast musical event to all users in room
-          socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
-        })
-
-        // Broadcast gesture to other users for test compatibility
-        socket.to(socket.roomId).emit('gesture-broadcast', {
-          type: 'gesture',
-          userId: socket.userId,
-          coordinates: gestureData.gesture.coordinates,
-          intensity: gestureData.gesture.intensity,
-          direction: gestureData.gesture.direction,
-          timestamp: Date.now()
-        })
-
-        // Update statistics (method not implemented yet)
-        // socket.services.roomManager.updateRoomStats(socket.roomId, {
-        //   gestureCount: 1,
-        //   lastActivity: Date.now()
-        // })
-
-        this.sendResponse(callback, {
-          success: true,
-          gestureId: gestureData.gesture.id,
-          musicalEvent: musicalEvent.toJSON(),
-          processingTime: Date.now() - startTime,
-          timestamp: Date.now()
-        })
-
-      } catch (error) {
-        console.error('gesture-record error:', error)
-        this.sendError(callback, 'processing_error', error.message)
-      }
-    })
-  },
 
   /**
    * Register hover-update event handler with HoverOrchestrator integration
@@ -1461,15 +1338,6 @@ const socketHandlers = {
         // NEW: Send to HoverOrchestrator for centralized analysis
         this.sendToHoverOrchestrator(socket, hoverData)
 
-        // LEGACY: Still broadcast raw hover data for backward compatibility
-        // but only for debugging/testing purposes
-        if (process.env.NODE_ENV === 'development') {
-          const io = socket.server || socket.nsp.server
-          if (io) {
-            io.to(socket.roomId).emit('hover-update-raw', hoverData)
-            console.log(`📡 Debug: Broadcasted raw hover-update for development`)
-          }
-        }
 
         // Update room activity
         room.lastActivity = Date.now()

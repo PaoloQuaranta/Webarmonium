@@ -194,7 +194,7 @@ class AudioService {
         console.log('⏹️ Continuous LFO stopped')
       },
 
-      // Update LFO phase and get current value (legacy method for compatibility)
+      // Update LFO phase and get current value 
       update() {
         if (!this.isActive) {
           // Fallback to manual update if not active
@@ -841,7 +841,7 @@ class AudioService {
         resonance = filterParams.resonance
         tremoloAmount = filterParams.tremoloAmount || 0
       } else {
-        // Legacy format - treat as cutoff frequency
+        //  treat as cutoff frequency
         cutoffFrequency = filterFreq || 1000
         resonance = 1.0
         tremoloAmount = 0
@@ -1870,7 +1870,7 @@ class AudioService {
   }
 
   /**
-   * Connect LFO to all relevant filters (legacy method)
+   * Connect LFO to all relevant filters 
    */
   connectLFOToFilters() {
     if (!this.remoteFilterLFO) return
@@ -2991,29 +2991,29 @@ class AudioService {
     if (Tone.context.state !== 'running') {
       console.log('🎛️ Starting Tone.js context for filter modulation (second method)')
       Tone.start()
-      setTimeout(() => this.applyLegacyFilterModulation(filterParams), 100)
+      setTimeout(() => this.applyFilterModulation(filterParams), 100)
       return
     }
 
-    this.applyLegacyFilterModulation(filterParams)
+    this.applyFilterModulation(filterParams)
   }
 
   /**
-   * Apply filter modulation with proper validation for legacy filter system
+   * Apply filter modulation with proper validation
    * @param {Object} filterParams - Filter modulation parameters
    */
-  applyLegacyFilterModulation(filterParams) {
+  applyFilterModulation(filterParams) {
     try {
       // Reduce console log frequency to prevent spam
       const now = Date.now()
       if (now - (this.lastFilterLogTime || 0) > 1000) {
-        console.log('🎛️ Applying filter modulation (legacy):', filterParams)
+        console.log('🎛️ Applying filter modulation:', filterParams)
         this.lastFilterLogTime = now
       }
 
       // Validate Tone context is ready
       if (!Tone.context || !Tone.context.currentTime) {
-        console.warn('🔇 Tone context not ready for legacy filter modulation')
+        console.warn('🔇 Tone context not ready for filter modulation')
         return
       }
 

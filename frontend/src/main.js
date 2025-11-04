@@ -472,17 +472,6 @@ class WebarmoniumApp {
       }
     })
 
-    // Handle filter modulation events (hover) - LEGACY for backward compatibility
-    this.socketService.on('filter-modulation', (filterParams) => {
-      console.log('🎛️ Received filter-modulation event (legacy):', filterParams)
-      if (this.isAudioStarted && filterParams) {
-        console.log('🎛️ Applying filter modulation:', filterParams)
-        this.audioService.updateFilterParams(filterParams)
-      } else {
-        console.log('🎛️ Audio not started or no filter params, skipping')
-      }
-    })
-
     // Handle unified modulation from HoverOrchestrator
     this.socketService.on('unified-modulation', (modulationData) => {
       console.log('🎛️ Received unified-modulation event:', modulationData)
