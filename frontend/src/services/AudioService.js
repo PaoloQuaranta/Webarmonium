@@ -3622,17 +3622,6 @@ class AudioService {
    * Cleanup resources
    */
 
-  /**
-   * Stop continuous filter updates
-   */
-  stopContinuousFilterUpdates() {
-    this.continuousFilterUpdate.isActive = false
-    if (this.continuousFilterUpdate.updateInterval) {
-      clearInterval(this.continuousFilterUpdate.updateInterval)
-      this.continuousFilterUpdate.updateInterval = null
-    }
-    console.log('⏹️ Continuous filter updates stopped')
-  }
 
 
   /**
@@ -3647,7 +3636,6 @@ class AudioService {
 
   cleanup() {
     this.stopUpdateLoop()
-    this.stopContinuousFilterUpdates()
     this.lfoSystem.stop()
     this.stopRemoteFilterLFO() // Stop remote filter LFO
 
