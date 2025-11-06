@@ -14,8 +14,9 @@ class WebarmoniumApp {
     this.currentRoom = null
     this.userCount = 1
 
-    // Sprint 2: Canvas management extracted to CanvasManager
+    // Sprint 2: Extracted components
     this.canvasManager = new CanvasManager()
+    this.uiManager = new UIManager()
 
     // Multi-user canvas services
     this.cursorOverlayCanvas = null
@@ -1134,50 +1135,17 @@ class WebarmoniumApp {
     requestAnimationFrame(render)
   }
 
+  // Sprint 2: UI methods delegated to UIManager
   updateRoomDisplay() {
-    const userCountEl = document.getElementById('userCount')
-    const roomIdEl = document.getElementById('roomId')
-
-    if (userCountEl) {
-      const userText = this.userCount === 1 ? 'user' : 'users'
-      userCountEl.textContent = `👥 ${this.userCount} ${userText}`
-    }
-
-    if (roomIdEl && this.currentRoom) {
-      const roomId = this.currentRoom.id || this.currentRoom.roomId
-      roomIdEl.textContent = `Room: ${roomId}`
-    }
+    this.uiManager.updateRoomDisplay(this.currentRoom, this.userCount)
   }
 
   showApp() {
-    const loadingScreen = document.getElementById('loadingScreen')
-    const appContent = document.getElementById('appContent')
-
-    if (loadingScreen) {
-      loadingScreen.style.display = 'none'
-    }
-
-    if (appContent) {
-      appContent.classList.add('loaded')
-    }
+    this.uiManager.showApp()
   }
 
   showError(message) {
-    const errorDisplay = document.getElementById('errorDisplay')
-    const errorMessage = document.getElementById('errorMessage')
-    const loadingScreen = document.getElementById('loadingScreen')
-
-    if (loadingScreen) {
-      loadingScreen.style.display = 'none'
-    }
-
-    if (errorMessage) {
-      errorMessage.textContent = message
-    }
-
-    if (errorDisplay) {
-      errorDisplay.style.display = 'block'
-    }
+    this.uiManager.showError(message)
   }
 
   handleMuteChange(muted) {
@@ -1259,9 +1227,13 @@ class WebarmoniumApp {
   destroy() {
     console.log('🧹 Cleaning up Webarmonium app...')
 
-    // Sprint 2: Delegate canvas cleanup to CanvasManager
+    // Sprint 2: Delegate cleanup to extracted components
     if (this.canvasManager) {
       this.canvasManager.destroy()
+    }
+
+    if (this.uiManager) {
+      this.uiManager.destroy()
     }
 
     // Stop rendering loops
