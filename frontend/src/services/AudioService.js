@@ -3621,15 +3621,6 @@ class AudioService {
   /**
    * Cleanup resources
    */
-  /**
-   * Start continuous filter updates for smooth LFO modulation - DISABILITATO
-   * Il vecchio LFO system è stato rimosso per eliminare tremolo
-   */
-  startContinuousFilterUpdates() {
-    console.log('🛑 Continuous filter updates DISABLED - old LFO system removed to prevent tremolo')
-    // Non fare nulla - questo metodo è completamente disabilitato
-    return
-  }
 
   /**
    * Stop continuous filter updates
