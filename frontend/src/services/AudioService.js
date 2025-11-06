@@ -3634,15 +3634,6 @@ class AudioService {
     console.log('⏹️ Continuous filter updates stopped')
   }
 
-  /**
-   * Apply continuous LFO modulation to all filters - DISABILITATO
-   * Il vecchio LFO system è stato rimosso per eliminare tremolo
-   */
-  applyContinuousLFOModulation() {
-    console.log('🛑 Continuous LFO modulation DISABLED - old LFO system removed to prevent tremolo')
-    // Non fare nulla - questo metodo è completamente disabilitato
-    return
-  }
 
   /**
    * Apply unified modulation from HoverOrchestrator
