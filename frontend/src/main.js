@@ -18,6 +18,10 @@ class WebarmoniumApp {
     this.canvasManager = new CanvasManager()
     this.uiManager = new UIManager()
 
+    // Sprint 4: GestureProcessor will be initialized in initializeServices()
+    // (after audioService is available)
+    this.gestureProcessor = null
+
     // Multi-user canvas services
     this.cursorOverlayCanvas = null
     this.drawingRenderer = null
@@ -31,13 +35,7 @@ class WebarmoniumApp {
     this.frameCount = 0
     this.fps = 60
 
-    // Drag phrase throttling
-    this.lastDragPhraseTime = 0
-
-    // Click/drag discrimination timer
-    this.gestureStartTime = 0
-    this.gestureTimer = null
-    this.pendingGesture = null
+    // Sprint 4: Gesture state moved to GestureProcessor
 
     // Initialize the application
     this.init()
@@ -157,6 +155,14 @@ class WebarmoniumApp {
       )
     }
 
+    // Sprint 4: Initialize GestureProcessor with audioService and socketService
+    this.gestureProcessor = new GestureProcessor(
+      this.audioService,
+      this.socketService,
+      (gesture) => this.drawGestureTrail(gesture)
+    )
+    console.log('🎯 GestureProcessor initialized')
+
     // Start cursor rendering loop (60fps)
     this.cursorManager.startRendering()
 
@@ -186,8 +192,8 @@ class WebarmoniumApp {
       console.log('🎯 Gesture callback triggered:', gesture)
       console.log('🔊 Audio state when gesture received - started:', this.isAudioStarted, 'service exists:', !!this.audioService)
 
-      // EnhancedGestureCapture doesn't provide action field, determine from gesture characteristics
-      const gestureAction = this.determineGestureAction(gesture)
+      // Sprint 4: Delegate gesture action determination to GestureProcessor
+      const gestureAction = this.gestureProcessor.determineGestureAction(gesture)
       const enhancedGesture = { ...gesture, action: gestureAction }
 
       console.log('🎯 Enhanced gesture action:', gestureAction, 'will call handleGesture')
@@ -212,12 +218,13 @@ class WebarmoniumApp {
       console.log('👋 Gesture end callback:', gesture.id, musicalEvent)
       console.log('🔍 Gesture end details:', {
         gestureAction: gesture.action,
-        willCalculate: this.determineGestureAction(gesture)
+        willCalculate: this.gestureProcessor.determineGestureAction(gesture)
       })
 
       // CRITICAL FIX: Don't play automatic musical events for TAP and HOVER gestures
       // We want only our custom click logic for taps, and no auto-notes for hover
-      const gestureAction = gesture.action || this.determineGestureAction(gesture)
+      // Sprint 4: Delegate to GestureProcessor
+      const gestureAction = gesture.action || this.gestureProcessor.determineGestureAction(gesture)
       console.log('🔍 Final gesture action for end callback:', gestureAction)
 
       if (gestureAction === 'tap') {
@@ -229,13 +236,14 @@ class WebarmoniumApp {
       if (gestureAction === 'drag') {
         console.log('🎵 DRAG gesture in onGestureEnd - checking timer status')
 
+        // Sprint 4: Check GestureProcessor's pending gesture state
         // If timer is still pending, let it handle the phrase
-        if (this.pendingGesture && this.pendingGesture.id === gesture.id) {
+        if (this.gestureProcessor.pendingGesture && this.gestureProcessor.pendingGesture.id === gesture.id) {
           console.log('🎵 DRAG timer will handle phrase - skipping musicalEvent')
           return
         }
 
-        // If timer already fired or gesture is very quick, process immediately
+        // If timer already fired or gesture is very quick, process immediately via GestureProcessor
         console.log('🎵 DRAG timer already fired - processing immediately')
         const sonicParams = {
           x: gesture.coordinates?.x || 0.5,
@@ -245,7 +253,8 @@ class WebarmoniumApp {
           action: 'drag',
           device: gesture.device || 'mouse'
         }
-        this.processDragGesture(gesture, sonicParams)
+        // Sprint 4: Delegate to GestureProcessor
+        this.gestureProcessor.processDragGesture(gesture, sonicParams)
         return
       }
 
@@ -673,416 +682,23 @@ class WebarmoniumApp {
     }
   }
 
+  // Sprint 4: Delegate to GestureProcessor
   handleGesture(gesture) {
-    console.log('🚨 HANDLE GESTURE CALLED - action:', gesture.action, 'id:', gesture.id)
-
-    // Send gesture to server with action field
-    this.socketService.sendGesture(gesture)
-
-    // Handle different gesture types for local audio
-    if (!this.isAudioStarted) {
-      console.log('🎵 Gesture captured but audio not started')
-      this.drawGestureTrail(gesture)
-      return
-    }
-
-    // CRITICAL FIX: Use timer to distinguish click from drag
-    const gestureAction = gesture.action || this.determineGestureAction(gesture)
-    console.log('🔍 Determined gesture action:', gestureAction, 'from gesture.action:', gesture.action)
-
-    // Clear any existing timer
-    if (this.gestureTimer) {
-      clearTimeout(this.gestureTimer)
-      this.gestureTimer = null
-    }
-
-    const sonicParams = {
-      x: gesture.coordinates.x,
-      y: gesture.coordinates.y,
-      intensity: gesture.intensity,
-      timestamp: gesture.timestamp,
-      action: gestureAction,
-      device: gesture.device
-    }
-
-    // Special handling for gesture discrimination
-    if (gestureAction === 'tap') {
-      // Immediate handling for tap/click
-      console.log('🎯 TAP branch - calling processClickGesture')
-      this.processClickGesture(gesture, sonicParams)
-    } else if (gestureAction === 'drag') {
-      // Delayed handling for drag to avoid false clicks
-      console.log('🎯 DRAG branch - setting up 500ms timer')
-      this.gestureStartTime = Date.now()
-      this.pendingGesture = gesture
-
-      this.gestureTimer = setTimeout(() => {
-        if (this.pendingGesture && (Date.now() - this.gestureStartTime) > 500) {
-          console.log('🎵 Confirmed DRAG after 500ms delay')
-          this.processDragGesture(this.pendingGesture, sonicParams)
-          this.pendingGesture = null
-        }
-      }, 500)
-    } else {
-      // Fallback to original logic
-      console.log('🚯 ELSE branch - calling processGestureByAction for action:', gestureAction)
-      this.processGestureByAction(gesture, sonicParams)
-    }
-
-    // Clear any pending gesture if we have a new definitive action
-    if (this.pendingGesture) {
-      this.pendingGesture = null
-      if (this.gestureTimer) {
-        clearTimeout(this.gestureTimer)
-        this.gestureTimer = null
-      }
-    }
+    this.gestureProcessor.processGesture(gesture, this.isAudioStarted)
   }
 
-  /**
-   * Process click/tap gestures - single note
-   */
-  processClickGesture(gesture, sonicParams) {
-    console.log('🎵 Processing TAP gesture - single note')
-    console.log('🎵 TAP gesture ID:', gesture.id, 'call count:', (this.tapCallCount = (this.tapCallCount || 0) + 1))
-
-    if (this.audioService && this.audioService.playThreeTierNote) {
-      // Calculate frequency using BOTH X and Y for maximum variation
-      // Y controls octave range, X controls frequency within octave
-      const octaveBase = 110 + (1 - sonicParams.y) * 440 // 110-550Hz (A2 to C#5)
-      const withinOctave = sonicParams.x * 660 // 0-660Hz variation within octave
-      const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
-
-      const tier = sonicParams.x < 0.33 ? 'background' : sonicParams.x < 0.67 ? 'remote' : 'local'
-
-      console.log(`🎵 Playing CLICK note: ${frequency.toFixed(1)}Hz (y=${sonicParams.y.toFixed(2)}, x=${sonicParams.x.toFixed(2)}), tier: ${tier}`)
-
-      // Play single note directly - BYPASS three-tier system for TAP
-      // This ensures our X/Y frequency calculation is respected
-      console.log('🔍 TAP intensity check:', {
-        gestureIntensity: gesture.intensity,
-        sonicIntensity: sonicParams.intensity,
-        positionX: sonicParams.x,
-        positionY: sonicParams.y
-      })
-      const noteVolume = 0.5 // FIXED volume - remove intensity modulation from clicks
-      const noteDuration = '32n' // Very short duration for clicks
-
-      // Direct synth access to bypass three-tier frequency mapping
-      if (this.audioService.gestureSynth) {
-        // Configure synth directly for short, percussive notes
-        this.audioService.gestureSynth.set({
-          oscillator: {
-            type: tier === 'background' ? 'triangle' :
-                   tier === 'remote' ? 'square' : 'sawtooth'
-          },
-          envelope: {
-            attack: 0.01,    // Very fast attack (10ms)
-            decay: 0.05,     // Quick decay (50ms)
-            sustain: 0.1,    // Low sustain level (10%)
-            release: 0.1     // Short release (100ms)
-          }
-        })
-
-        // Trigger note directly with our calculated frequency
-        this.audioService.gestureSynth.triggerAttackRelease(
-          frequency,
-          noteDuration,
-          Tone.now(),
-          noteVolume
-        )
-
-        console.log(`🎵 DIRECT TAP note: ${frequency.toFixed(1)}Hz (y=${sonicParams.y.toFixed(2)}, x=${sonicParams.x.toFixed(2)}), tier: ${tier}`)
-      }
-    }
-  }
-
-  /**
-   * Process drag gestures - musical phrase
-   */
-  processDragGesture(gesture, sonicParams) {
-    console.log('🎵 Processing DRAG gesture - musical phrase')
-    console.log('🎵 Drag details:', {
-      velocity: gesture.velocity,
-      dx: gesture.dx,
-      dy: gesture.dy,
-      position: gesture.coordinates
-    })
-
-    // CRITICAL FIX: Limit drag phrase generation to prevent polyphony overload
-    const now = Date.now()
-    if (this.lastDragPhraseTime && (now - this.lastDragPhraseTime) < 500) {
-      console.log('🚫 Drag phrase throttled - too recent')
-      return
-    }
-    this.lastDragPhraseTime = now
-
-    // Drag should generate articulated phrases, NOT continuous sound
-    if (this.audioService && this.audioService.gestureSynth) {
-      // Create a short articulated phrase based on drag velocity
-      const velocityCalc = Math.sqrt((gesture.dx || 0) ** 2 + (gesture.dy || 0) ** 2) * 10
-      const velocity = gesture.velocity || velocityCalc || 100
-
-      // Ensure velocity is a valid number
-      const safeVelocity = typeof velocity === 'number' && !isNaN(velocity) ? velocity : 100
-      const noteCount = Math.max(2, Math.min(5, Math.floor(safeVelocity / 25))) // 2-5 notes based on velocity
-
-      console.log(`🎵 DRAG: velocity=${safeVelocity.toFixed(1)}, noteCount=${noteCount}, creating phrase`)
-
-      // Calculate base frequency from position
-      const baseFreq = 110 + (1 - sonicParams.y) * 440 // Y inverted for musical convention
-
-      // Play phrase with rhythmic spacing
-      for (let i = 0; i < noteCount; i++) {
-        const delay = i * 180 + Math.random() * 60 // 180ms base + random variation
-
-        setTimeout(() => {
-          const noteFreq = baseFreq + (Math.random() - 0.5) * 200 // Larger frequency variation
-          const tier = i % 2 === 0 ? 'local' : 'remote' // Simpler tier alternation
-          const noteDuration = 0.15 + Math.random() * 0.25 // 150-400ms duration
-
-          // Direct synth access for better control
-          if (this.audioService.gestureSynth) {
-            this.audioService.gestureSynth.triggerAttackRelease(
-              noteFreq,
-              noteDuration,
-              Tone.now() + 0.01, // Slight future time for better timing
-              0.3 + Math.random() * 0.4 // Velocity 0.3-0.7
-            )
-
-            console.log(`🎵 Note ${i+1}/${noteCount}: ${noteFreq.toFixed(1)}Hz, duration: ${(noteDuration*1000).toFixed(0)}ms`)
-          }
-        }, delay)
-      }
-    }
-  }
-
-  /**
-   * Fallback gesture processing by action
-   */
-  processGestureByAction(gesture, sonicParams) {
-    console.log('🚨 FALLBACK gesture processing for action:', sonicParams.action)
-    console.log('🚨 This should not happen for tap/drag - check logic!')
-
-    // Simple fallback - generate single note
-    if (this.audioService && this.audioService.playThreeTierNote) {
-      const frequency = 440 // Simple fallback frequency
-      this.audioService.playThreeTierNote(frequency, 'local', 100, { volume: 0.5 })
-    }
-  }
-
-  /**
-   * Generate local musical phrase for drag gestures
-   * FIX: Added local phrase generation for immediate feedback
-   * @param {Object} gesture - Gesture data
-   * @param {Object} sonicParams - Sonic parameters
-   */
-  generateLocalMusicalPhrase(gesture, sonicParams) {
-    if (!this.audioService || !this.audioService.isInitialized) {
-      console.log('🔇 AudioService not initialized for phrase generation')
-      return
-    }
-
-    try {
-      // Create musical phrase locally based on gesture characteristics
-      const phrase = this.createLocalPhrase(gesture, sonicParams)
-
-      console.log(`🎵 Generated local phrase with ${phrase.length} notes`)
-
-      // Play each note in the phrase
-      phrase.forEach((note, index) => {
-        setTimeout(() => {
-          try {
-            const musicalEvent = {
-              pitch: note.pitch,
-              velocity: note.velocity,
-              duration: note.duration,
-              articulation: note.articulation,
-              eventType: 'melodic'
-            }
-
-            this.audioService.playMusicalEvent(musicalEvent)
-          } catch (e) {
-            console.warn(`🔇 Error playing phrase note ${index}:`, e)
-          }
-        }, note.startTime * 1000) // Convert seconds to milliseconds
-      })
-
-    } catch (error) {
-      console.error('🔇 Error generating local phrase:', error)
-    }
-  }
-
-  /**
-   * Create local musical phrase from gesture
-   * @param {Object} gesture - Gesture data
-   * @param {Object} sonicParams - Sonic parameters
-   * @returns {Array} Musical phrase data
-   */
-  createLocalPhrase(gesture, sonicParams) {
-    const phrase = []
-
-    // Calculate gesture characteristics
-    const gestureSpeed = this.calculateGestureSpeed(gesture)
-    const gestureLength = this.calculateGestureLength(gesture)
-    const pitchRange = this.calculatePitchRange(sonicParams)
-
-    // Regular rhythm generation for better musical phrases
-    let noteCount = 5 // FIX: Always 5 notes for consistent phrases
-    let baseDuration
-
-    if (gestureSpeed < 0.3) {
-      // Slow gesture: longer notes
-      baseDuration = 1.0 // 1 second base
-    } else if (gestureSpeed < 0.7) {
-      // Medium gesture: moderate notes
-      baseDuration = 0.5 // 0.5 second base
-    } else {
-      // Fast gesture: shorter notes
-      baseDuration = 0.25 // 0.25 second base
-    }
-
-    // Generate notes with regular rhythm patterns
-    let currentTime = 0
-    for (let i = 0; i < noteCount; i++) {
-      // Create rhythmic variations based on note position
-      let duration
-      let articulation
-
-      if (i === 0) {
-        // First note: slightly longer for emphasis
-        duration = baseDuration * 1.2
-        articulation = 'accent'
-      } else if (i === noteCount - 1) {
-        // Last note: slightly longer for resolution
-        duration = baseDuration * 1.1
-        articulation = 'legato'
-      } else if (i % 2 === 1) {
-        // Odd positions: shorter for rhythmic interest
-        duration = baseDuration * 0.8
-        articulation = 'staccato'
-      } else {
-        // Even positions: base duration
-        duration = baseDuration
-        articulation = 'legato'
-      }
-
-      const pitch = this.calculateNoteFromGesture(sonicParams, i, noteCount, pitchRange)
-      const velocity = 60 + Math.random() * 20 // 60-80 range (quieter than before)
-
-      phrase.push({
-        pitch,
-        velocity,
-        duration,
-        articulation,
-        startTime: currentTime
-      })
-
-      // FIX: Regular rhythmic spacing
-      currentTime += duration * 0.9 // Notes overlap slightly for musical effect
-    }
-
-    return phrase
-  }
-
-  /**
-   * Simplified gesture action determination
-   * @param {Object} gesture - Gesture data
-   * @returns {string} Action type ('hover', 'drag', 'tap')
-   */
-  determineGestureAction(gesture) {
-    // SIMPLIFIED LOGIC: Let the EnhancedGestureCapture handle most classification
-    // We use duration as primary indicator for tap vs drag
-
-    const duration = gesture.duration || 0
-    const size = gesture.size || 0
-
-    console.log('🔍 Simplified gesture classification:', {
-      duration: duration,
-      size: size,
-      direction: gesture.direction
-    })
-
-    // Simple tap: very short duration, minimal movement
-    if (duration < 200 && size < 0.05) {
-      console.log('🔍 TAP - very short and small')
-      return 'tap'
-    }
-
-    // Everything else is treated as drag for musical purposes
-    console.log('🔍 DRAG - default musical gesture')
-    return 'drag'
-  }
-
-  /**
-   * Calculate gesture speed from movement data
-   * @param {Object} gesture - Gesture data
-   * @returns {number} Speed (0-1)
-   */
-  calculateGestureSpeed(gesture) {
-    // Use actual speed from gesture if available
-    return gesture.speed || Math.random() * 0.8 + 0.1
-  }
-
-  /**
-   * Calculate gesture length/intensity
-   * @param {Object} gesture - Gesture data
-   * @returns {number} Length/intensity (0-1)
-   */
-  calculateGestureLength(gesture) {
-    return gesture.intensity || 0.5
-  }
-
-  /**
-   * Calculate pitch range from gesture position
-   * @param {Object} sonicParams - Sonic parameters
-   * @returns {Object} Pitch range
-   */
-  calculatePitchRange(sonicParams) {
-    // Map Y position to pitch range (inverted: top = high notes)
-    const normalizedY = 1 - (sonicParams.y || 0.5)
-    return {
-      min: 40 + normalizedY * 30,
-      max: 60 + normalizedY * 40
-    }
-  }
-
-  /**
-   * Calculate note pitch from gesture position
-   * @param {Object} sonicParams - Sonic parameters
-   * @param {number} noteIndex - Note index in phrase
-   * @param {number} totalNotes - Total notes in phrase
-   * @param {Object} pitchRange - Pitch range
-   * @returns {number} MIDI pitch
-   */
-  calculateNoteFromGesture(sonicParams, noteIndex, totalNotes, pitchRange) {
-    const position = noteIndex / (totalNotes - 1 || 1)
-    const pitch = pitchRange.min + (pitchRange.max - pitchRange.min) * position
-    return Math.round(pitch)
-  }
-
-  /**
-   * Select articulation based on gesture characteristics
-   * @param {Object} gesture - Gesture data
-   * @param {number} noteIndex - Note index
-   * @param {number} totalNotes - Total notes
-   * @returns {string} Articulation type
-   */
-  selectArticulationFromGesture(gesture, noteIndex, totalNotes) {
-    // Use gesture intensity to determine articulation
-    const intensity = gesture.intensity || 0.5
-
-    if (noteIndex === 0) return 'accent' // First note accented
-    if (noteIndex === totalNotes - 1) return 'legato' // Last note legato
-
-    if (intensity > 0.7) {
-      return Math.random() > 0.5 ? 'staccato' : 'accent'
-    } else if (intensity < 0.3) {
-      return 'legato'
-    } else {
-      return Math.random() > 0.6 ? 'staccato' : 'default'
-    }
-  }
+  // Sprint 4: All gesture processing methods moved to GestureProcessor:
+  // - processClickGesture()
+  // - processDragGesture()
+  // - processGestureByAction()
+  // - generateLocalMusicalPhrase()
+  // - createLocalPhrase()
+  // - determineGestureAction()
+  // - calculateGestureSpeed()
+  // - calculateGestureLength()
+  // - calculatePitchRange()
+  // - calculateNoteFromGesture()
+  // - selectArticulationFromGesture()
 
   drawGestureTrail(gesture) {
     const { coordinates, intensity } = gesture
