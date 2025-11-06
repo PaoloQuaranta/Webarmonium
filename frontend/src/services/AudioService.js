@@ -17,7 +17,10 @@ class AudioService {
     this.musicalScheduler = null; // Will be initialized after scripts are loaded
     this.lfoManager = null; // Will be initialized after audio context
 
-    // Mute and volume controls
+    // Volume control (extracted component - Sprint 2 refactoring)
+    this.volumeController = new VolumeController()
+
+    // Mute and volume controls (DEPRECATED: use volumeController instead)
     this.muted = false
     this.volume = 1.0 // 0-1 range
 
@@ -395,6 +398,9 @@ class AudioService {
   createContinuousGenerativeSystem() {
     // Create master volume node for centralized control (FR-011)
     this.masterVolume = new Tone.Volume(-10).toDestination()
+
+    // Pass masterVolume to VolumeController (Sprint 2 refactoring)
+    this.volumeController.setMasterVolumeNode(this.masterVolume)
 
     // Create global effects for unified modulation
     this.reverb = new Tone.Reverb({
@@ -962,75 +968,6 @@ class AudioService {
     }
   }
 
-  /**
-   * Helper method to safely apply filter modulation
-   * @param {Object} filterParams - Filter parameters
-   */
-  applyFilterModulation(filterParams) {
-    try {
-      // Validate Tone context is ready
-      if (!Tone.context || !Tone.context.currentTime) {
-        console.warn('🔇 Tone context not ready for filter modulation')
-        return
-      }
-
-      // Apply to gesture filter with enhanced validation
-      if (this.gestureFilter && this.gestureFilter.frequency && filterParams.frequency) {
-        const freq = Math.min(8000, Math.max(100, filterParams.frequency))
-
-        // Validate filter frequency object exists and has the method
-        if (typeof this.gestureFilter.frequency.linearRampToValueAtTime === 'function') {
-          this.gestureFilter.frequency.linearRampToValueAtTime(freq, Tone.context.currentTime + 0.05)
-          console.log(`🎛️ Gesture filter frequency set to ${freq.toFixed(1)}Hz`)
-        }
-
-        if (filterParams.resonance && this.gestureFilter.Q && typeof this.gestureFilter.Q.linearRampToValueAtTime === 'function') {
-          const q = Math.min(10, Math.max(0.1, filterParams.resonance))
-          this.gestureFilter.Q.linearRampToValueAtTime(q, Tone.context.currentTime + 0.05)
-          console.log(`🎛️ Gesture filter resonance set to ${q.toFixed(2)}`)
-        }
-      } else {
-        console.warn('🔇 Gesture filter or frequency parameter not available')
-      }
-
-      // FIX: Apply to background filters as well with validation
-      if (filterParams && filterParams.frequency && this.ambientFilters && Tone.context) {
-        const freq = filterParams.frequency
-
-        // Validate Tone context is ready
-        if (Tone.context && Tone.context.currentTime) {
-          // Apply to all ambient layers with different intensities
-          if (this.ambientFilters.texture) {
-            this.ambientFilters.texture.frequency.linearRampToValueAtTime(
-              Math.min(4000, Math.max(200, freq * 1.5)),
-              Tone.context.currentTime + 0.1
-            )
-          }
-
-          if (this.ambientFilters.harmony) {
-            this.ambientFilters.harmony.frequency.linearRampToValueAtTime(
-              Math.min(2000, Math.max(150, freq * 0.8)),
-              Tone.context.currentTime + 0.15
-            )
-          }
-
-          if (this.ambientFilters.bass) {
-            this.ambientFilters.bass.frequency.linearRampToValueAtTime(
-              Math.min(500, Math.max(50, freq * 0.3)),
-              Tone.context.currentTime + 0.2
-            )
-          }
-
-          console.log(`🎛️ Applied filter modulation: ${freq.toFixed(1)}Hz to all layers`)
-        } else {
-          console.warn('🔇 Tone context not ready for filter modulation')
-        }
-      }
-
-    } catch (error) {
-      console.warn('🔇 Error updating filter params:', error)
-    }
-  }
 
   /**
    * Update background filters with gesture-based modulation
@@ -1944,48 +1881,6 @@ class AudioService {
     console.log(`🎛️ Applied tremolo: rate=${tremoloRate.toFixed(1)}Hz, depth=${(tremoloDepth * 100).toFixed(1)}%`)
   }
 
-  /**
-   * Test filter modulation to ensure it's working
-   * FIX: Added filter testing system
-   */
-  testFilterModulation() {
-    if (!this.ambientFilters || !this.isInitialized) {
-      console.log('🔇 Cannot test filters: not initialized')
-      return
-    }
-
-    console.log('🧪 Testing filter modulation...')
-
-    // Test with dramatic frequency changes
-    const testFrequencies = [200, 500, 1000, 2000, 5000, 8000]
-    let testIndex = 0
-
-    const runFilterTest = () => {
-      if (testIndex >= testFrequencies.length) {
-        console.log('🧪 Filter test completed')
-        return
-      }
-
-      const freq = testFrequencies[testIndex]
-      console.log(`🧪 Testing filter: ${freq}Hz`)
-
-      // Apply to all layers
-      Object.keys(this.ambientFilters).forEach(layer => {
-        if (this.ambientFilters[layer]) {
-          this.ambientFilters[layer].frequency.linearRampToValueAtTime(
-            freq * (layer === 'bass' ? 0.5 : layer === 'harmony' ? 1 : 2),
-            Tone.context.currentTime + 0.5
-          )
-          this.ambientFilters[layer].Q.setValueAtTime(3, Tone.context.currentTime)
-        }
-      })
-
-      testIndex++
-      setTimeout(runFilterTest, 1500) // Test each frequency for 1.5 seconds
-    }
-
-    runFilterTest()
-  }
 
   /**
    * Test filter modulation with a dramatic sweep
@@ -2144,13 +2039,11 @@ class AudioService {
    * @param {boolean} muted - True to mute, false to unmute
    */
   setMuted(muted) {
-    this.muted = Boolean(muted)
+    // Delegate to VolumeController (Sprint 2 refactoring)
+    this.volumeController.setMuted(muted)
 
-    // Apply to master volume node if initialized
-    if (this.masterVolume) {
-      this.masterVolume.mute = this.muted
-      console.log(`🔇 Master volume ${this.muted ? 'MUTED' : 'UNMUTED'}`)
-    }
+    // Update deprecated state for backward compatibility
+    this.muted = this.volumeController.isMuted()
   }
 
   /**
@@ -2159,19 +2052,11 @@ class AudioService {
    * @param {number} volume - Volume level (0-1)
    */
   setVolume(volume) {
-    // Validate and clamp volume
-    this.volume = Math.max(0, Math.min(1, Number(volume) || 0))
+    // Delegate to VolumeController (Sprint 2 refactoring)
+    this.volumeController.setVolume(volume)
 
-    // Apply to master volume node if initialized
-    if (this.masterVolume) {
-      // Convert 0-1 to dB range (-60dB to 0dB)
-      // At volume=0 → -Infinity (silent)
-      // At volume=0.5 → -30dB
-      // At volume=1 → 0dB
-      const db = this.volume === 0 ? -Infinity : (this.volume - 1) * 60
-      this.masterVolume.volume.rampTo(db, 0.1) // Smooth 100ms ramp
-      console.log(`🔊 Master volume set to ${(this.volume * 100).toFixed(0)}% (${db === -Infinity ? '-∞' : db.toFixed(1)}dB)`)
-    }
+    // Update deprecated state for backward compatibility
+    this.volume = this.volumeController.getVolume()
   }
 
   /**
@@ -2179,7 +2064,8 @@ class AudioService {
    * @returns {boolean} True if muted
    */
   isMuted() {
-    return this.muted
+    // Delegate to VolumeController (Sprint 2 refactoring)
+    return this.volumeController.isMuted()
   }
 
   /**
@@ -2187,7 +2073,8 @@ class AudioService {
    * @returns {number} Volume (0-1)
    */
   getVolume() {
-    return this.volume
+    // Delegate to VolumeController (Sprint 2 refactoring)
+    return this.volumeController.getVolume()
   }
 
   /**
@@ -2966,37 +2853,6 @@ class AudioService {
     console.log('AudioService performance metrics reset')
   }
 
-  /**
-   * Update filter parameters for all active voices
-   * @param {Object} filterParams - Filter modulation parameters
-   * @param {number} filterParams.cutoffFrequency - Filter cutoff (20-20000 Hz)
-   * @param {number} filterParams.resonance - Filter resonance (0-30)
-   * @param {number} filterParams.intensity - Modulation intensity (0-1)
-   */
-  updateFilterParams(filterParams) {
-    if (!filterParams) {
-      console.log('updateFilterParams: no filter params')
-      return
-    }
-
-    // THROTTLING: Prevent stuttering by limiting filter update frequency
-    const now = Date.now()
-    if (now - this.lastFilterUpdateTime < this.filterUpdateInterval) {
-      // Skip this update to prevent audio stuttering
-      return
-    }
-    this.lastFilterUpdateTime = now
-
-    // Ensure Tone.js context is started and validated
-    if (Tone.context.state !== 'running') {
-      console.log('🎛️ Starting Tone.js context for filter modulation (second method)')
-      Tone.start()
-      setTimeout(() => this.applyFilterModulation(filterParams), 100)
-      return
-    }
-
-    this.applyFilterModulation(filterParams)
-  }
 
   /**
    * Apply filter modulation with proper validation
