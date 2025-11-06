@@ -1,21 +1,33 @@
-# Sprint 2 Results: AudioService Refactoring
+# Sprint 2 Results: AudioService + main.js Refactoring
 
 **Date:** 2025-11-06
 **Duration:** Completed in single session
 **Branch:** `claude/project-assessment-dev-011CUoLie3Btw4Vh41TCPmyU`
-**Commits:** 1 major commit (31dc459)
+**Commits:** 5 major commits (31dc459, 43bdb4a, 6985007, da1507f, 1870619)
 
 ---
 
 ## EXECUTIVE SUMMARY
 
-Sprint 2 successfully refactored AudioService by:
-1. ✅ **Removing 3 duplicate method pairs** (-142 lines)
-2. ✅ **Extracting VolumeController component** (new 126-line module)
+Sprint 2 successfully refactored **two monolithic files** by:
+1. ✅ **AudioService refactoring:**
+   - Removed 3 duplicate method pairs (-142 lines)
+   - Extracted VolumeController component (126 lines)
+   - AudioService: 4,014 → 3,870 lines (-144 lines, -3.6%)
+
+2. ✅ **main.js modularization:**
+   - Extracted CanvasManager component (194 lines)
+   - Extracted UIManager component (176 lines)
+   - main.js: 1,361 → 1,293 lines (-68 lines, -5.0%)
+
 3. ✅ **Maintaining 100% backward compatibility** (zero breaking changes)
 4. ✅ **Improving architecture** (Single Responsibility Principle)
 
-**Result:** AudioService reduced from 4,014 to 3,870 lines (-144 lines, -3.6%) while improving maintainability and testability.
+**Total Impact:**
+- **Lines removed:** 212 lines across both files
+- **New components:** 3 focused, testable modules (496 total lines)
+- **Improved maintainability:** Clear separation of concerns
+- **Zero breaking changes:** Full backward compatibility maintained
 
 ---
 
@@ -84,6 +96,35 @@ Sprint 2 successfully refactored AudioService by:
 - Multiple `if (false && ...)` blocks
 
 **Total estimated:** ~500 lines for Sprint 3 removal
+
+### ✅ OBJECTIVE 4: Modularize main.js
+
+**Goal:** Extract components from monolithic main.js (1,361 lines) following Single Responsibility Principle
+
+**Achieved:**
+- Created `CanvasManager.js` (194 lines) - canvas lifecycle management
+- Created `UIManager.js` (176 lines) - UI state management
+- main.js: 1,361 → 1,293 lines (-68 lines, -5.0%)
+
+**CanvasManager Features:**
+- Canvas initialization and DOM setup
+- Device pixel ratio handling
+- Overlay canvas management (multi-user cursors)
+- Window resize event handling with listener pattern
+- Cleanup lifecycle method
+
+**UIManager Features:**
+- Loading screen management
+- Error display with message handling
+- Room information display
+- User count display
+- State getters/setters
+
+**Integration Strategy:**
+- WebarmoniumApp delegates to extracted components
+- Backward compatibility maintained (all references preserved)
+- Services register as canvas resize listeners
+- Zero breaking changes
 
 ---
 
@@ -174,29 +215,157 @@ AudioService acts as a facade, delegating volume control to VolumeController whi
 
 ---
 
+### File: `frontend/src/main.js` (WebarmoniumApp)
+
+**Line Count Change:** 1,361 → 1,293 lines (-68, -5.0%)
+
+**Changes:**
+
+1. **Constructor (lines 17-19):**
+   - Added: `this.canvasManager = new CanvasManager()`
+   - Added: `this.uiManager = new UIManager()`
+
+2. **setupCanvas() method (lines 77-87):**
+   - **Before:** 24 lines of canvas setup logic
+   - **After:** 11 lines delegating to CanvasManager
+   - Stores canvas references for backward compatibility
+
+3. **resizeCanvas() method (REMOVED):**
+   - **Before:** 32 lines of resize logic
+   - **After:** 2-line comment (handled by CanvasManager)
+
+4. **initializeServices() method (lines 145-147):**
+   - Added: Resize listener registration for drawingRenderer and cursorManager
+
+5. **updateRoomDisplay() method (lines 1139-1141):**
+   - **Before:** 14 lines of DOM manipulation
+   - **After:** 3 lines delegating to UIManager
+
+6. **showApp() method (lines 1143-1145):**
+   - **Before:** 12 lines of DOM manipulation
+   - **After:** 3 lines delegating to UIManager
+
+7. **showError() method (lines 1147-1149):**
+   - **Before:** 17 lines of DOM manipulation
+   - **After:** 3 lines delegating to UIManager
+
+8. **destroy() method (lines 1230-1237):**
+   - Added: `canvasManager.destroy()` call
+   - Added: `uiManager.destroy()` call
+
+### File: `frontend/src/services/CanvasManager.js` (NEW)
+
+**Lines:** 194
+
+**Purpose:** Isolated canvas lifecycle management
+
+**Key Methods:**
+- `setup()` - Initialize canvases and resize handler
+- `resize()` - Handle window resize with device pixel ratio
+- `createOverlayCanvas()` - Create cursor overlay canvas
+- `addResizeListener(service)` - Register resize listeners
+- `notifyResizeListeners()` - Notify services of size changes
+- `getDimensions()` - Get current canvas dimensions
+- `destroy()` - Cleanup event listeners
+
+**Architecture:**
+```
+CanvasManager (ISOLATED COMPONENT)
+├── 194 lines
+├── 8 public methods
+├── 1 responsibility (canvas lifecycle)
+├── Resize listener pattern
+├── Device pixel ratio handling
+└── Fully testable in isolation
+```
+
+### File: `frontend/src/services/UIManager.js` (NEW)
+
+**Lines:** 176
+
+**Purpose:** Isolated UI state management
+
+**Key Methods:**
+- `updateRoomDisplay(roomData, userCount)` - Update room info
+- `showApp()` - Show main application
+- `showError(message)` - Display error message
+- `hideError()` - Hide error display
+- `showLoading()` - Show loading screen
+- `setCurrentRoom(roomData)` - Update room state
+- `setUserCount(count)` - Update user count
+- `destroy()` - Cleanup state
+
+**Architecture:**
+```
+UIManager (ISOLATED COMPONENT)
+├── 176 lines
+├── 8 public methods
+├── 1 responsibility (UI state)
+├── Configurable element IDs
+├── State management (room, userCount)
+└── Fully testable in isolation
+```
+
+### File: `frontend/index.html`
+
+**Changes:**
+- Added: `<script src="src/services/CanvasManager.js?v=1"></script>`
+- Added: `<script src="src/services/UIManager.js?v=1"></script>`
+- Updated: `src/main.js?v=39` (version bump)
+
+---
+
 ## BENEFITS ACHIEVED
 
 ### Code Quality
 | Metric | Before | After | Improvement |
 |--------|--------|-------|-------------|
 | AudioService LOC | 4,014 | 3,870 | -144 (-3.6%) |
-| Total project LOC | ~22,000 | ~21,982 | -18 (net) |
+| main.js LOC | 1,361 | 1,293 | -68 (-5.0%) |
+| **Total monolith reduction** | **5,375** | **5,163** | **-212 (-3.9%)** |
+| **New components created** | **0** | **3** | **+496 lines** |
+| Net project LOC change | ~22,000 | ~22,284 | +284 (refactoring overhead) |
 | Duplicate methods | 3 pairs | 0 | -100% |
 | Volume control testability | Poor | Excellent | Isolated |
+| Canvas management testability | Poor | Excellent | Isolated |
+| UI state testability | Poor | Excellent | Isolated |
 | Component cohesion | Low | Medium→High | Improved |
 
 ### Maintainability
-- ✅ **Single Responsibility:** VolumeController has ONE clear purpose
-- ✅ **Testability:** Can test volume logic without AudioService complexity
-- ✅ **Reusability:** VolumeController usable in other audio contexts
-- ✅ **Clarity:** Volume logic no longer scattered across AudioService
-- ✅ **Documentation:** Clear component boundaries established
+- ✅ **Single Responsibility:** Each extracted component has ONE clear purpose
+  - VolumeController: audio volume control
+  - CanvasManager: canvas lifecycle management
+  - UIManager: UI state management
+- ✅ **Testability:** Can test components without monolithic complexity
+  - Volume logic testable independently (126 lines)
+  - Canvas logic testable independently (194 lines)
+  - UI logic testable independently (176 lines)
+- ✅ **Reusability:** Components usable in other contexts
+  - VolumeController: any Tone.js audio application
+  - CanvasManager: any multi-canvas application
+  - UIManager: any single-page application
+- ✅ **Clarity:** Logic no longer scattered across monolithic files
+  - AudioService focuses on audio synthesis (not volume control)
+  - WebarmoniumApp focuses on orchestration (not canvas/UI details)
+- ✅ **Documentation:** Clear component boundaries established with JSDoc
 
 ### Development Velocity
-- ✅ **Faster debugging:** Volume issues isolated to 126-line component
-- ✅ **Easier testing:** Can mock VolumeController independently
-- ✅ **Safer changes:** Changes to volume logic won't affect audio synthesis
+- ✅ **Faster debugging:** Issues isolated to small components
+  - Volume issues: 126-line VolumeController
+  - Canvas issues: 194-line CanvasManager
+  - UI issues: 176-line UIManager
+- ✅ **Easier testing:** Can mock components independently
+  - Mock VolumeController for audio tests
+  - Mock CanvasManager for rendering tests
+  - Mock UIManager for integration tests
+- ✅ **Safer changes:** Changes to one component don't affect others
+  - Volume changes won't affect audio synthesis
+  - Canvas changes won't affect UI state
+  - UI changes won't affect canvas rendering
 - ✅ **Pattern established:** Template for future component extractions
+  - Delegation pattern proven effective
+  - Backward compatibility maintained
+  - Zero breaking changes achieved
 
 ### Risk Management
 - ✅ **Zero breaking changes:** All existing code continues to work
