@@ -14,6 +14,9 @@ class WebarmoniumApp {
     this.currentRoom = null
     this.userCount = 1
 
+    // Sprint 2: Canvas management extracted to CanvasManager
+    this.canvasManager = new CanvasManager()
+
     // Multi-user canvas services
     this.cursorOverlayCanvas = null
     this.drawingRenderer = null
@@ -34,9 +37,6 @@ class WebarmoniumApp {
     this.gestureStartTime = 0
     this.gestureTimer = null
     this.pendingGesture = null
-
-    // Bound event handlers for cleanup
-    this.boundResizeHandler = null
 
     // Initialize the application
     this.init()
@@ -75,62 +75,19 @@ class WebarmoniumApp {
   }
 
   setupCanvas() {
-    this.canvas = document.getElementById('gestureCanvas')
-    this.ctx = this.canvas.getContext('2d')
+    // Sprint 2: Delegate to CanvasManager
+    const canvasRefs = this.canvasManager.setup()
 
-    // Create cursor overlay canvas
-    this.cursorOverlayCanvas = document.getElementById('cursorOverlay')
-    if (!this.cursorOverlayCanvas) {
-      this.cursorOverlayCanvas = document.createElement('canvas')
-      this.cursorOverlayCanvas.id = 'cursorOverlay'
-      this.cursorOverlayCanvas.style.position = 'absolute'
-      this.cursorOverlayCanvas.style.top = '0'
-      this.cursorOverlayCanvas.style.left = '0'
-      this.cursorOverlayCanvas.style.pointerEvents = 'none'
-      this.cursorOverlayCanvas.style.zIndex = '10'
-      this.canvas.parentElement.appendChild(this.cursorOverlayCanvas)
-    }
+    // Store references for backward compatibility
+    this.canvas = canvasRefs.canvas
+    this.ctx = canvasRefs.ctx
+    this.cursorOverlayCanvas = canvasRefs.cursorOverlayCanvas
 
-    // Set canvas size to match viewport
-    this.resizeCanvas()
-
-    // Handle window resize - store bound handler for cleanup
-    this.boundResizeHandler = () => this.resizeCanvas()
-    window.addEventListener('resize', this.boundResizeHandler)
+    console.log('✅ Canvas setup delegated to CanvasManager')
   }
 
-  resizeCanvas() {
-    const devicePixelRatio = window.devicePixelRatio || 1
-
-    // Resize main canvas
-    this.canvas.width = window.innerWidth * devicePixelRatio
-    this.canvas.height = window.innerHeight * devicePixelRatio
-    this.canvas.style.width = window.innerWidth + 'px'
-    this.canvas.style.height = window.innerHeight + 'px'
-    this.ctx.scale(devicePixelRatio, devicePixelRatio)
-
-    // Resize cursor overlay canvas
-    if (this.cursorOverlayCanvas) {
-      this.cursorOverlayCanvas.width = window.innerWidth * devicePixelRatio
-      this.cursorOverlayCanvas.height = window.innerHeight * devicePixelRatio
-      this.cursorOverlayCanvas.style.width = window.innerWidth + 'px'
-      this.cursorOverlayCanvas.style.height = window.innerHeight + 'px'
-    }
-
-    // Update services with new canvas size
-    if (this.drawingRenderer) {
-      this.drawingRenderer.setCanvasSize(
-        window.innerWidth * devicePixelRatio,
-        window.innerHeight * devicePixelRatio
-      )
-    }
-    if (this.cursorManager) {
-      this.cursorManager.setCanvasSize(
-        window.innerWidth * devicePixelRatio,
-        window.innerHeight * devicePixelRatio
-      )
-    }
-  }
+  // Sprint 2: resizeCanvas() removed - now handled by CanvasManager
+  // Services register as resize listeners via canvasManager.addResizeListener()
 
   async initializeServices() {
     // Initialize audio service with proper ordering
@@ -184,6 +141,10 @@ class WebarmoniumApp {
     // Initialize multi-user canvas services
     this.drawingRenderer = new DrawingRenderer(this.canvas)
     this.cursorManager = new CursorManager(this.cursorOverlayCanvas)
+
+    // Sprint 2: Register services as canvas resize listeners
+    this.canvasManager.addResizeListener(this.drawingRenderer)
+    this.canvasManager.addResizeListener(this.cursorManager)
 
     // Initialize audio controls
     const audioControlsContainer = document.getElementById('audio-controls')
@@ -1298,10 +1259,9 @@ class WebarmoniumApp {
   destroy() {
     console.log('🧹 Cleaning up Webarmonium app...')
 
-    // Remove event listeners
-    if (this.boundResizeHandler) {
-      window.removeEventListener('resize', this.boundResizeHandler)
-      this.boundResizeHandler = null
+    // Sprint 2: Delegate canvas cleanup to CanvasManager
+    if (this.canvasManager) {
+      this.canvasManager.destroy()
     }
 
     // Stop rendering loops
