@@ -189,44 +189,13 @@ class GestureProcessor {
     }
     this.lastDragPhraseTime = now
 
-    // Drag should generate articulated phrases, NOT continuous sound
-    if (this.audioService && this.audioService.gestureSynth) {
-      // Create a short articulated phrase based on drag velocity
-      const velocityCalc = Math.sqrt((gesture.dx || 0) ** 2 + (gesture.dy || 0) ** 2) * 10
-      const velocity = gesture.velocity || velocityCalc || 100
-
-      // Ensure velocity is a valid number
-      const safeVelocity = typeof velocity === 'number' && !isNaN(velocity) ? velocity : 100
-      const noteCount = Math.max(2, Math.min(5, Math.floor(safeVelocity / 25))) // 2-5 notes based on velocity
-
-      console.log(`🎵 DRAG: velocity=${safeVelocity.toFixed(1)}, noteCount=${noteCount}, creating phrase`)
-
-      // Calculate base frequency from position
-      const baseFreq = 110 + (1 - sonicParams.y) * 440 // Y inverted for musical convention
-
-      // Play phrase with rhythmic spacing
-      for (let i = 0; i < noteCount; i++) {
-        const delay = i * 180 + Math.random() * 60 // 180ms base + random variation
-
-        setTimeout(() => {
-          const noteFreq = baseFreq + (Math.random() - 0.5) * 200 // Larger frequency variation
-          const tier = i % 2 === 0 ? 'local' : 'remote' // Simpler tier alternation
-          const noteDuration = 0.15 + Math.random() * 0.25 // 150-400ms duration
-
-          // Direct synth access for better control
-          if (this.audioService.gestureSynth) {
-            this.audioService.gestureSynth.triggerAttackRelease(
-              noteFreq,
-              noteDuration,
-              Tone.now() + 0.01, // Slight future time for better timing
-              0.3 + Math.random() * 0.4 // Velocity 0.3-0.7
-            )
-
-            console.log(`🎵 Note ${i+1}/${noteCount}: ${noteFreq.toFixed(1)}Hz, duration: ${(noteDuration*1000).toFixed(0)}ms`)
-          }
-        }, delay)
-      }
-    }
+    // PHASE 6 FIX: Use generateLocalMusicalPhrase for gesture-responsive phrases
+    // This creates phrases with variable rhythm, articulation, and pitch based on:
+    // - Velocity → noteCount (2-5 notes)
+    // - Speed → baseDuration (0.25s-1.0s)
+    // - Position → pitch range
+    // - Note index → articulation (accent, legato, staccato)
+    this.generateLocalMusicalPhrase(gesture, sonicParams)
   }
 
   /**
@@ -301,8 +270,12 @@ class GestureProcessor {
     const gestureLength = this.calculateGestureLength(gesture)
     const pitchRange = this.calculatePitchRange(sonicParams)
 
-    // Regular rhythm generation for better musical phrases
-    let noteCount = 5 // FIX: Always 5 notes for consistent phrases
+    // PHASE 6 FIX: Calculate noteCount from gesture velocity (2-5 notes)
+    const velocityCalc = Math.sqrt((gesture.dx || 0) ** 2 + (gesture.dy || 0) ** 2) * 10
+    const velocity = gesture.velocity || velocityCalc || 100
+    const safeVelocity = typeof velocity === 'number' && !isNaN(velocity) ? velocity : 100
+    const noteCount = Math.max(2, Math.min(5, Math.floor(safeVelocity / 25)))
+
     let baseDuration
 
     if (gestureSpeed < 0.3) {

@@ -340,88 +340,9 @@ class WebarmoniumApp {
       }
     })
 
-    this.socketService.on('gesture-processed', (response) => {
-      // Use same logic as local gestures but for remote users
-      if (this.isAudioStarted && response.sonicParams && response.gesture?.action !== 'hover') {
-        const action = response.gesture?.action || 'generic'
-        const sonicParams = response.sonicParams
-
-        if (action === 'drag') {
-          console.log('🎵 REMOTE DRAG - articulated phrase')
-          const velocity = response.gesture?.velocity || 100
-          const noteCount = Math.max(2, Math.min(5, Math.floor(velocity / 25))) // Same as local
-          const baseFreq = 110 + (1 - sonicParams.y) * 440
-
-          console.log(`🎵 REMOTE DRAG: Creating ${noteCount} note phrase with velocity ${velocity.toFixed(1)}`)
-
-          for (let i = 0; i < noteCount; i++) {
-            const delay = i * 180 + Math.random() * 60 // Same timing as local
-
-            setTimeout(() => {
-              const noteFreq = baseFreq + (Math.random() - 0.5) * 200 // Same variation as local
-              const noteDuration = 0.15 + Math.random() * 0.25 // Same duration as local
-
-              // Direct synth access like local gestures
-              if (this.audioService.gestureSynth) {
-                this.audioService.gestureSynth.triggerAttackRelease(
-                  noteFreq,
-                  noteDuration,
-                  Tone.now() + 0.01,
-                  0.3 + Math.random() * 0.4 // Same velocity as local
-                )
-
-                console.log(`🎵 REMOTE Note ${i+1}/${noteCount}: ${noteFreq.toFixed(1)}Hz, duration: ${(noteDuration*1000).toFixed(0)}ms`)
-              }
-            }, delay)
-          }
-        } else if (action === 'start') {
-          console.log('🎵 REMOTE TAP/CLICK - single note')
-          console.log('🔍 REMOTE TAP details:', {
-            action: action,
-            intensity: sonicParams.intensity,
-            position: { x: sonicParams.x, y: sonicParams.y }
-          })
-          const frequency = 110 + (1 - sonicParams.y) * 660
-
-          // PHASE 3 FIX: Direct gestureSynth access for remote taps
-          if (this.audioService.gestureSynth) {
-            this.audioService.gestureSynth.releaseAll()
-
-            // Configure synth for percussive remote notes
-            this.audioService.gestureSynth.set({
-              oscillator: { type: 'square' },
-              envelope: {
-                attack: 0.01,
-                decay: 0.05,
-                sustain: 0.1,
-                release: 0.1
-              }
-            })
-
-            // Play note directly
-            this.audioService.gestureSynth.triggerAttackRelease(
-              frequency,
-              '32n',
-              Tone.now(),
-              0.5 // Fixed volume for remote taps
-            )
-
-            console.log(`🎵 REMOTE TAP played: ${frequency.toFixed(1)}Hz`)
-          }
-        } else {
-          console.log('🎵 REMOTE GENERIC action:', action, '- single note')
-          console.log('🔍 REMOTE GENERIC details:', {
-            action: action,
-            intensity: sonicParams.intensity,
-            position: { x: sonicParams.x, y: sonicParams.y }
-          })
-          const frequency = 110 + (1 - sonicParams.y) * 440
-          this.audioService.playThreeTierNote(frequency, 'remote', response.gesture?.velocity || 100, {
-            volume: 0.5, // FIXED volume - remove intensity modulation
-          })
-        }
-      }
-    })
+    // PHASE 5: Removed unused 'gesture-processed' listener (82 lines)
+    // Backend never emits this event - it uses 'musical:event' instead
+    // Logic for remote gestures now handled by 'musical:event' listener above
 
     // Handle hover events from backend for cross-layer modulation
     this.socketService.on('hover-update', (data) => {
@@ -452,7 +373,8 @@ class WebarmoniumApp {
     })
 
     // Handle musical events from backend (drag phrases, etc.)
-    this.socketService.on('musical-event', (musicalEvent) => {
+    // PHASE 4 FIX: Changed from 'musical-event' (dash) to 'musical:event' (colon) to match backend
+    this.socketService.on('musical:event', (musicalEvent) => {
       if (this.isAudioStarted && musicalEvent) {
         console.log('🎵 Playing musical event:', musicalEvent)
         this.audioService.playMusicalEvent(musicalEvent)
