@@ -284,7 +284,12 @@
     <script src="src/services/CanvasManager.js?v=1"></script>
     <script src="src/services/UIManager.js?v=1"></script>
     <script src="src/services/VolumeController.js?v=1"></script>
-    <script src="src/services/AudioService.js?v=16"></script> <!-- Bumped version for refactoring -->
+
+    <!-- Musical Architecture (from commit a3c12b9) - PHASE 2 FIX -->
+    <script src="src/services/MusicalScheduler.js?v=1"></script>
+    <script src="src/services/LFOManager.js?v=1"></script>
+
+    <script src="src/services/AudioService.js?v=17"></script> <!-- PHASE 1+2: Re-enabled hover, musical architecture loaded -->
     <script>
       // Initialize AudioService BEFORE main.js to ensure availability
       window.AudioServicePromise = new Promise((resolve, reject) => {

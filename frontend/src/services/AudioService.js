@@ -3296,9 +3296,8 @@ class AudioService {
    * @param {Object} hoverData - Hover data with position, velocity, intensity, and isRemote
    */
   handleHoverModulation(hoverData) {
-    // NUCLEAR OPTION: Completely disable hover modulation to test if this is causing audio issues
-    console.log('🚫 handleHoverModulation COMPLETELY DISABLED for debugging')
-    return
+    // PHASE 1 FIX: Re-enabled hover modulation (was disabled for debugging)
+    console.log('🎛️ handleHoverModulation ACTIVE', { hasData: !!hoverData, isRemote: hoverData?.isRemote })
 
     // Force initialization if needed
     if (!this.isInitialized && this.gestureSynth) {

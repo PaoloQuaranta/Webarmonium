@@ -382,15 +382,31 @@ class WebarmoniumApp {
             position: { x: sonicParams.x, y: sonicParams.y }
           })
           const frequency = 110 + (1 - sonicParams.y) * 660
-          // Force cleanup for remote clicks
+
+          // PHASE 3 FIX: Direct gestureSynth access for remote taps
           if (this.audioService.gestureSynth) {
             this.audioService.gestureSynth.releaseAll()
-            setTimeout(() => {
-              this.audioService.playThreeTierNote(frequency, 'remote', 150, {
-                volume: 0.5, // FIXED volume - remove intensity modulation
-                duration: '8n' // Short duration for remote clicks
-              })
-            }, 10)
+
+            // Configure synth for percussive remote notes
+            this.audioService.gestureSynth.set({
+              oscillator: { type: 'square' },
+              envelope: {
+                attack: 0.01,
+                decay: 0.05,
+                sustain: 0.1,
+                release: 0.1
+              }
+            })
+
+            // Play note directly
+            this.audioService.gestureSynth.triggerAttackRelease(
+              frequency,
+              '32n',
+              Tone.now(),
+              0.5 // Fixed volume for remote taps
+            )
+
+            console.log(`🎵 REMOTE TAP played: ${frequency.toFixed(1)}Hz`)
           }
         } else {
           console.log('🎵 REMOTE GENERIC action:', action, '- single note')
