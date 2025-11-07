@@ -584,7 +584,15 @@ class WebarmoniumApp {
 
   async connectToServer() {
     try {
-      await this.socketService.connect('http://localhost:3001')
+      // Determine backend URL based on environment
+      // In production (tripitak.it), use the same origin (nginx proxy)
+      // In development (localhost), use localhost:3001 directly
+      const backendUrl = window.location.hostname === 'localhost'
+        ? 'http://localhost:3001'
+        : `${window.location.protocol}//${window.location.host}`
+
+      console.log(`🔌 Connecting to backend at: ${backendUrl}`)
+      await this.socketService.connect(backendUrl)
 
       // Join a room
       const userData = {
