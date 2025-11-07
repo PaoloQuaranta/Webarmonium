@@ -53,7 +53,7 @@ class HoverOrchestrator {
       // QUATERNARY LFO - Micro-modulazioni quasi impercettibili
       lfo4Frequency: 0.002,   // range 0.001-0.01Hz (100-1000 secondi!)
       lfo4Amplitude: 0.05,    // micro-variazioni
-      lfo4Shape: 'sawtooth'   // cambiamenti direzionali molto lenti
+      lfo4Shape: 'sawtooth',  // cambiamenti direzionali molto lenti
 
       // Filter parameters
       filterCutoff: 1000,     // cutoff frequenza filtro (Hz)
