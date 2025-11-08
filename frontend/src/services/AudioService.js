@@ -776,6 +776,13 @@ class AudioService {
    */
   stop() {
     if (this.isInitialized) {
+      console.log('🛑 Stopping AudioService - cleaning up all audio...')
+
+      // CRITICAL FIX: Stop and clear ALL scheduled events
+      // This is what was causing hanging notes!
+      Tone.Transport.stop()
+      Tone.Transport.cancel() // Cancel all scheduled events
+
       this.stopUpdateLoop()
 
       // Stop evolving generation
@@ -812,6 +819,7 @@ class AudioService {
 
       if (this.gestureSynth) {
         // FIX: Release all notes before disposing to prevent hanging notes
+        console.log('🛑 Releasing all gesture synth notes...')
         this.gestureSynth.releaseAll()
         this.gestureSynth.dispose()
         this.gestureSynth = null
@@ -823,7 +831,7 @@ class AudioService {
       }
 
       this.isInitialized = false
-      console.log('🔇 Evolutive AudioService stopped')
+      console.log('🔇 AudioService stopped - all audio cleared')
     }
   }
 
@@ -1477,8 +1485,24 @@ class AudioService {
         console.log(`🎵 Playing musical event: pitch=${pitch} (${frequency.toFixed(1)}Hz), duration=${adjustedDuration.toFixed(3)}s (orig: ${duration}), articulation=${articulation}, velocity=${adjustedVelocity.toFixed(2)}`)
       }
 
-      // Play through gesture synth with proper articulation
-      this.gestureSynth.triggerAttackRelease(frequency, adjustedDuration, undefined, adjustedVelocity)
+      // CRITICAL FIX: Respect event timestamp for phrase timing
+      // Problem: Was playing all notes immediately (undefined = now)
+      // Solution: Calculate delay from event timestamp
+      let playTime = Tone.now()
+
+      if (musicalEvent.timestamp) {
+        const eventTimestamp = musicalEvent.timestamp
+        const now = Date.now()
+        const delay = Math.max(0, (eventTimestamp - now) / 1000) // Convert ms to seconds
+        playTime = Tone.now() + delay
+
+        if (delay > 0.01) { // Log only if significant delay
+          console.log(`🕐 Scheduled note: delay=${delay.toFixed(3)}s, eventTime=${eventTimestamp}, now=${now}`)
+        }
+      }
+
+      // Play through gesture synth with proper timing and articulation
+      this.gestureSynth.triggerAttackRelease(frequency, adjustedDuration, playTime, adjustedVelocity)
 
       // EVOLUTIVE: Integrate user phrase into background composition
       this.integrateUserPhraseIntoBackground(musicalEvent, frequency, adjustedDuration)
