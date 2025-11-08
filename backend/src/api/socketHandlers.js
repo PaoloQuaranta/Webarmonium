@@ -88,6 +88,14 @@ const socketHandlers = {
         socket.roomId = roomId
         socket.join(roomId) // Join Socket.io room
 
+        console.log(`✅ User joined room:`, {
+          userId: socket.userId,
+          socketId: socket.id,
+          roomId: socket.roomId,
+          roomsInSocket: Array.from(socket.rooms),
+          totalUsersInRoom: result.users?.length || 0
+        })
+
         // Initialize memory state if needed
         let memoryState = socket.services.environmentalMemoryCoordinator.getMemoryState(roomId)
         if (!memoryState) {
@@ -406,8 +414,15 @@ const socketHandlers = {
             }
           } else {
             // Send to other users only for regular musical events
+            console.log(`  🔍 Broadcasting musical:event:`, {
+              fromUser: socket.userId,
+              toRoom: socket.roomId,
+              eventId: musicalEventBroadcast.id,
+              eventType: musicalEvent.eventType,
+              hasProperties: !!musicalEvent.properties
+            })
             socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
-            console.log(`  ✅ Broadcasted musical event to other users in room`)
+            console.log(`  ✅ Broadcasted musical event to other users in room ${socket.roomId}`)
           }
         })
 

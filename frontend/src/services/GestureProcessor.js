@@ -274,7 +274,36 @@ class GestureProcessor {
     const velocityCalc = Math.sqrt((gesture.dx || 0) ** 2 + (gesture.dy || 0) ** 2) * 10
     const velocity = gesture.velocity || velocityCalc || 100
     const safeVelocity = typeof velocity === 'number' && !isNaN(velocity) ? velocity : 100
-    const noteCount = Math.max(2, Math.min(5, Math.floor(safeVelocity / 25)))
+
+    // DEBUG: Enhanced velocity-based note count with better scaling
+    // Problem: velocity was always ~100, giving always 4 notes
+    // Solution: Use duration and intensity as additional factors
+    const duration = gesture.duration || 500
+    const intensity = gesture.intensity || 0.5
+
+    // Scale factors:
+    // - Fast drag (short duration) → fewer notes
+    // - Slow drag (long duration) → more notes
+    // - High intensity → more notes
+    const durationFactor = Math.min(duration / 500, 2.0) // 0.5-2.0x based on duration
+    const intensityFactor = 0.5 + intensity // 0.5-1.5x based on intensity
+    const adjustedVelocity = safeVelocity * durationFactor * intensityFactor
+
+    const noteCount = Math.max(2, Math.min(5, Math.floor(adjustedVelocity / 25)))
+
+    console.log('🔍 Note count calculation:', {
+      'gesture.dx': gesture.dx?.toFixed(3),
+      'gesture.dy': gesture.dy?.toFixed(3),
+      'gesture.duration': duration,
+      'gesture.intensity': intensity?.toFixed(2),
+      velocityCalc: velocityCalc.toFixed(2),
+      'gesture.velocity': gesture.velocity,
+      rawVelocity: safeVelocity.toFixed(2),
+      durationFactor: durationFactor.toFixed(2),
+      intensityFactor: intensityFactor.toFixed(2),
+      adjustedVelocity: adjustedVelocity.toFixed(2),
+      noteCount
+    })
 
     // COMPOSITIONAL ENHANCEMENT: Select musical scale and melodic contour
     const { scaleType, contourType } = this.selectMelodicContour(gesture, sonicParams)

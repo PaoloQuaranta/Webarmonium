@@ -376,23 +376,36 @@ class WebarmoniumApp {
     // PHASE 4 FIX: Changed from 'musical-event' (dash) to 'musical:event' (colon) to match backend
     // PHASE 7 FIX: Extract actual event from wrapper (backend sends { event: {...} })
     this.socketService.on('musical:event', (musicalEventWrapper) => {
-      if (this.isAudioStarted && musicalEventWrapper) {
-        console.log('🎵 Received musical:event wrapper:', {
-          id: musicalEventWrapper.id,
-          userId: musicalEventWrapper.userId,
-          hasEvent: !!musicalEventWrapper.event,
-          eventKeys: musicalEventWrapper.event ? Object.keys(musicalEventWrapper.event) : []
-        })
+      console.log('🎵 [ALWAYS] Received musical:event wrapper:', {
+        id: musicalEventWrapper?.id,
+        userId: musicalEventWrapper?.userId,
+        myUserId: this.socketService.currentUser?.id,
+        isAudioStarted: this.isAudioStarted,
+        hasEvent: !!musicalEventWrapper?.event,
+        eventType: musicalEventWrapper?.event?.eventType
+      })
 
+      if (this.isAudioStarted && musicalEventWrapper) {
         // Extract the actual musical event from the wrapper
         const musicalEvent = musicalEventWrapper.event
 
         if (musicalEvent) {
-          console.log('🎵 Playing musical event:', musicalEvent)
+          console.log('🎵 Playing remote musical event:', {
+            eventType: musicalEvent.eventType,
+            frequency: musicalEvent.properties?.frequency,
+            noteIndex: musicalEvent.properties?.noteIndex,
+            fromUser: musicalEventWrapper.userId
+          })
           this.audioService.playMusicalEvent(musicalEvent)
         } else {
           console.warn('⚠️ No event in wrapper:', musicalEventWrapper)
         }
+      } else {
+        console.warn('⚠️ Musical event blocked:', {
+          reason: !this.isAudioStarted ? 'audio not started' : 'no wrapper',
+          isAudioStarted: this.isAudioStarted,
+          hasWrapper: !!musicalEventWrapper
+        })
       }
     })
 
