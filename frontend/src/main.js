@@ -374,10 +374,25 @@ class WebarmoniumApp {
 
     // Handle musical events from backend (drag phrases, etc.)
     // PHASE 4 FIX: Changed from 'musical-event' (dash) to 'musical:event' (colon) to match backend
-    this.socketService.on('musical:event', (musicalEvent) => {
-      if (this.isAudioStarted && musicalEvent) {
-        console.log('🎵 Playing musical event:', musicalEvent)
-        this.audioService.playMusicalEvent(musicalEvent)
+    // PHASE 7 FIX: Extract actual event from wrapper (backend sends { event: {...} })
+    this.socketService.on('musical:event', (musicalEventWrapper) => {
+      if (this.isAudioStarted && musicalEventWrapper) {
+        console.log('🎵 Received musical:event wrapper:', {
+          id: musicalEventWrapper.id,
+          userId: musicalEventWrapper.userId,
+          hasEvent: !!musicalEventWrapper.event,
+          eventKeys: musicalEventWrapper.event ? Object.keys(musicalEventWrapper.event) : []
+        })
+
+        // Extract the actual musical event from the wrapper
+        const musicalEvent = musicalEventWrapper.event
+
+        if (musicalEvent) {
+          console.log('🎵 Playing musical event:', musicalEvent)
+          this.audioService.playMusicalEvent(musicalEvent)
+        } else {
+          console.warn('⚠️ No event in wrapper:', musicalEventWrapper)
+        }
       }
     })
 

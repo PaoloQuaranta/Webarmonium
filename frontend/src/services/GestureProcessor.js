@@ -276,6 +276,13 @@ class GestureProcessor {
     const safeVelocity = typeof velocity === 'number' && !isNaN(velocity) ? velocity : 100
     const noteCount = Math.max(2, Math.min(5, Math.floor(safeVelocity / 25)))
 
+    // COMPOSITIONAL ENHANCEMENT: Select musical scale and melodic contour
+    const { scaleType, contourType } = this.selectMelodicContour(gesture, sonicParams)
+    const contourPattern = this.generateContourPattern(contourType, noteCount)
+    const contourData = { scaleType, contourType, contourPattern }
+
+    console.log(`🎼 Musical phrase: ${noteCount} notes, ${scaleType} scale, ${contourType} contour`)
+
     let baseDuration
 
     if (gestureSpeed < 0.3) {
@@ -314,12 +321,16 @@ class GestureProcessor {
         articulation = 'legato'
       }
 
-      const pitch = this.calculateNoteFromGesture(sonicParams, i, noteCount, pitchRange)
-      const velocity = 60 + Math.random() * 20 // 60-80 range (quieter than before)
+      // COMPOSITIONAL ENHANCEMENT: Use musical scale and contour for pitch
+      const pitch = this.calculateNoteFromGesture(sonicParams, i, noteCount, pitchRange, contourData)
+
+      // Vary velocity based on position in phrase (crescendo/diminuendo)
+      const velocityVariation = Math.sin((i / (noteCount - 1)) * Math.PI) // 0 → 1 → 0
+      const noteVelocity = 50 + velocityVariation * 30 // 50-80 range with musical shape
 
       phrase.push({
         pitch,
-        velocity,
+        velocity: noteVelocity,
         duration,
         articulation,
         startTime: currentTime
@@ -395,17 +406,117 @@ class GestureProcessor {
   }
 
   /**
-   * Calculate note pitch from gesture position
+   * COMPOSITIONAL ENHANCEMENT: Get musical scale intervals
+   * @param {string} scaleType - Scale type (major, minor, pentatonic, blues, dorian)
+   * @returns {Array} Intervals in semitones from root
+   */
+  getScaleIntervals(scaleType) {
+    const scales = {
+      major: [0, 2, 4, 5, 7, 9, 11], // Ionian mode
+      minor: [0, 2, 3, 5, 7, 8, 10], // Natural minor
+      pentatonic: [0, 2, 4, 7, 9], // Major pentatonic
+      blues: [0, 3, 5, 6, 7, 10], // Blues scale
+      dorian: [0, 2, 3, 5, 7, 9, 10], // Dorian mode
+      phrygian: [0, 1, 3, 5, 7, 8, 10], // Phrygian mode
+      lydian: [0, 2, 4, 6, 7, 9, 11], // Lydian mode
+      mixolydian: [0, 2, 4, 5, 7, 9, 10] // Mixolydian mode
+    }
+    return scales[scaleType] || scales.pentatonic
+  }
+
+  /**
+   * COMPOSITIONAL ENHANCEMENT: Select melodic contour based on gesture
+   * @param {Object} gesture - Gesture data
+   * @param {Object} sonicParams - Sonic parameters
+   * @returns {Object} Contour data { type, intervals }
+   */
+  selectMelodicContour(gesture, sonicParams) {
+    // Use gesture direction to influence contour choice
+    const dx = gesture.dx || 0
+    const dy = gesture.dy || 0
+    const velocity = gesture.velocity || 100
+
+    // Determine scale type from X position (harmonic context)
+    let scaleType
+    const x = sonicParams.x
+    if (x < 0.25) scaleType = 'pentatonic' // Left: Simple, consonant
+    else if (x < 0.5) scaleType = 'major' // Center-left: Major
+    else if (x < 0.75) scaleType = 'dorian' // Center-right: Modal
+    else scaleType = 'blues' // Right: Blues/tension
+
+    // Determine contour type from gesture direction
+    let contourType
+    if (Math.abs(dx) > Math.abs(dy) * 2) {
+      // Horizontal gesture
+      contourType = dx > 0 ? 'ascending' : 'descending'
+    } else if (Math.abs(dy) > Math.abs(dx) * 2) {
+      // Vertical gesture
+      contourType = dy > 0 ? 'arch' : 'valley'
+    } else if (velocity > 150) {
+      // Fast gesture
+      contourType = 'zigzag'
+    } else {
+      // Slow/moderate gesture
+      contourType = 'wave'
+    }
+
+    return { scaleType, contourType }
+  }
+
+  /**
+   * COMPOSITIONAL ENHANCEMENT: Generate melodic contour pattern
+   * @param {string} contourType - Type of melodic contour
+   * @param {number} noteCount - Number of notes
+   * @returns {Array} Scale degree indices (0-based)
+   */
+  generateContourPattern(contourType, noteCount) {
+    const patterns = {
+      ascending: (n) => Array.from({ length: n }, (_, i) => i), // 0,1,2,3,4
+      descending: (n) => Array.from({ length: n }, (_, i) => n - 1 - i), // 4,3,2,1,0
+      arch: (n) => Array.from({ length: n }, (_, i) => i < n/2 ? i*2 : (n-1-i)*2), // 0,2,4,2,0
+      valley: (n) => Array.from({ length: n }, (_, i) => i < n/2 ? (n-1-i*2) : i*2-n+1), // 4,2,0,2,4
+      wave: (n) => Array.from({ length: n }, (_, i) => Math.floor(Math.sin(i * Math.PI / (n-1)) * (n-1))), // Sine wave
+      zigzag: (n) => Array.from({ length: n }, (_, i) => i % 2 === 0 ? i : n - 1 - i) // 0,4,2,2,4
+    }
+
+    const pattern = patterns[contourType] || patterns.ascending
+    return pattern(noteCount)
+  }
+
+  /**
+   * COMPOSITIONAL ENHANCEMENT: Calculate note pitch with musical structure
    * @param {Object} sonicParams - Sonic parameters
    * @param {number} noteIndex - Note index in phrase
    * @param {number} totalNotes - Total notes in phrase
    * @param {Object} pitchRange - Pitch range
+   * @param {Object} contourData - Melodic contour data
    * @returns {number} MIDI pitch
    */
-  calculateNoteFromGesture(sonicParams, noteIndex, totalNotes, pitchRange) {
-    const position = noteIndex / (totalNotes - 1 || 1)
-    const pitch = pitchRange.min + (pitchRange.max - pitchRange.min) * position
-    return Math.round(pitch)
+  calculateNoteFromGesture(sonicParams, noteIndex, totalNotes, pitchRange, contourData = null) {
+    // OLD BEHAVIOR (random walk) - kept as fallback
+    if (!contourData) {
+      const position = noteIndex / (totalNotes - 1 || 1)
+      const pitch = pitchRange.min + (pitchRange.max - pitchRange.min) * position
+      return Math.round(pitch)
+    }
+
+    // NEW BEHAVIOR: Use musical scales and contours
+    const { scaleType, contourType, contourPattern } = contourData
+
+    // Get scale intervals
+    const scaleIntervals = this.getScaleIntervals(scaleType)
+
+    // Get contour index for this note
+    const scaleIndex = contourPattern[noteIndex] % scaleIntervals.length
+
+    // Calculate root note from pitch range
+    const rootMIDI = Math.round(pitchRange.min)
+
+    // Apply scale interval to get final pitch
+    const scaleDegree = scaleIntervals[scaleIndex]
+    const octaveShift = Math.floor(contourPattern[noteIndex] / scaleIntervals.length) * 12
+
+    return rootMIDI + scaleDegree + octaveShift
   }
 
   /**
