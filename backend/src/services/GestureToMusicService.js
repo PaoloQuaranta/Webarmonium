@@ -157,9 +157,12 @@ class GestureToMusicService {
 
   generateTapPhrase(gestureData, musicalContext) {
     // Short, percussive phrase for tap gestures
+    // FIX: Use position.Y for pitch (not X) to match frontend behavior
+    const pitchFromY = 60 + ((1 - gestureData.position.y) * 24) // Y inverted, wider range
+
     return {
       notes: [{
-        pitch: 60 + (gestureData.position.x * 12), // Position-based pitch
+        pitch: pitchFromY, // Y position controls pitch (high Y = low pitch)
         duration: 0.1 + (gestureData.velocity / 1000), // Velocity affects duration
         velocity: 80 + (gestureData.velocity * 0.4), // Dynamic based on velocity
         articulation: gestureData.velocity > 70 ? 'staccato' : 'normal',
@@ -233,26 +236,37 @@ class GestureToMusicService {
 
   formatMusicalEvents(musicalPhrase, gestureData) {
     // Convert musical phrase to the expected event format
-    return musicalPhrase.notes.map((note, index) => ({
-      id: `musical_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`,
-      eventType: 'note',
-      userId: gestureData.userId,
-      timestamp: Date.now() + (index * 100), // Stagger notes slightly
-      position: gestureData.position,
-      properties: {
-        pitch: note.pitch,
-        frequency: this.midiToFrequency(note.pitch),
-        duration: note.duration,
-        velocity: note.velocity || 80, // Default velocity if not provided
-        articulation: note.articulation || 'normal',
-        gestureAction: gestureData.gestureAction,
-        gestureType: gestureData.gestureType,
-        noteIndex: index,
-        totalNotes: musicalPhrase.notes.length,
-        mood: musicalPhrase.metadata.gestureMood,
-        scale: musicalPhrase.metadata.scale
+    // FIX: Use realistic timing based on note durations, not fixed 100ms
+    let cumulativeTime = 0 // Track cumulative time in seconds
+
+    return musicalPhrase.notes.map((note, index) => {
+      const event = {
+        id: `musical_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`,
+        eventType: 'note',
+        userId: gestureData.userId,
+        timestamp: Date.now() + (cumulativeTime * 1000), // Convert seconds to ms
+        position: gestureData.position,
+        properties: {
+          pitch: note.pitch,
+          frequency: this.midiToFrequency(note.pitch),
+          duration: note.duration,
+          velocity: note.velocity || 80, // Default velocity if not provided
+          articulation: note.articulation || 'normal',
+          gestureAction: gestureData.gestureAction,
+          gestureType: gestureData.gestureType,
+          noteIndex: index,
+          totalNotes: musicalPhrase.notes.length,
+          mood: musicalPhrase.metadata.gestureMood,
+          scale: musicalPhrase.metadata.scale,
+          startTime: cumulativeTime // Include start time for debugging
+        }
       }
-    }))
+
+      // Advance cumulative time by note duration * 0.9 (slight overlap for musical effect)
+      cumulativeTime += (note.duration || 0.25) * 0.9
+
+      return event
+    })
   }
 
   midiToFrequency(midiNote) {

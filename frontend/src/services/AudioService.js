@@ -811,6 +811,8 @@ class AudioService {
       }
 
       if (this.gestureSynth) {
+        // FIX: Release all notes before disposing to prevent hanging notes
+        this.gestureSynth.releaseAll()
         this.gestureSynth.dispose()
         this.gestureSynth = null
       }

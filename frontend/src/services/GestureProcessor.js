@@ -306,11 +306,13 @@ class GestureProcessor {
     })
 
     // COMPOSITIONAL ENHANCEMENT: Select musical scale and melodic contour
-    const { scaleType, contourType } = this.selectMelodicContour(gesture, sonicParams)
+    // FIX: Add timestamp-based variation to avoid pattern repetition
+    const timeSeed = Date.now() % 1000 // Use timestamp for variation
+    const { scaleType, contourType } = this.selectMelodicContour(gesture, sonicParams, timeSeed)
     const contourPattern = this.generateContourPattern(contourType, noteCount)
     const contourData = { scaleType, contourType, contourPattern }
 
-    console.log(`🎼 Musical phrase: ${noteCount} notes, ${scaleType} scale, ${contourType} contour`)
+    console.log(`🎼 Musical phrase: ${noteCount} notes, ${scaleType} scale, ${contourType} contour, seed: ${timeSeed}`)
 
     let baseDuration
 
@@ -457,21 +459,27 @@ class GestureProcessor {
    * COMPOSITIONAL ENHANCEMENT: Select melodic contour based on gesture
    * @param {Object} gesture - Gesture data
    * @param {Object} sonicParams - Sonic parameters
+   * @param {number} timeSeed - Timestamp-based seed for variation (0-999)
    * @returns {Object} Contour data { type, intervals }
    */
-  selectMelodicContour(gesture, sonicParams) {
+  selectMelodicContour(gesture, sonicParams, timeSeed = 0) {
     // Use gesture direction to influence contour choice
     const dx = gesture.dx || 0
     const dy = gesture.dy || 0
     const velocity = gesture.velocity || 100
 
-    // Determine scale type from X position (harmonic context)
+    // FIX: Add time-based variation to scale selection (prevents pattern repetition)
+    // Use timeSeed to slightly shift boundaries
+    const scaleShift = (timeSeed / 1000) * 0.1 // 0-0.1 shift
+
+    // Determine scale type from X position (harmonic context) with variation
     let scaleType
     const x = sonicParams.x
-    if (x < 0.25) scaleType = 'pentatonic' // Left: Simple, consonant
-    else if (x < 0.5) scaleType = 'major' // Center-left: Major
-    else if (x < 0.75) scaleType = 'dorian' // Center-right: Modal
-    else scaleType = 'blues' // Right: Blues/tension
+    if (x < 0.2 + scaleShift) scaleType = 'pentatonic' // Left: Simple, consonant
+    else if (x < 0.4 + scaleShift) scaleType = 'major' // Center-left: Major
+    else if (x < 0.6 + scaleShift) scaleType = 'dorian' // Center-right: Modal
+    else if (x < 0.8) scaleType = 'blues' // Right: Blues/tension
+    else scaleType = timeSeed % 2 === 0 ? 'phrygian' : 'lydian' // Far right: Exotic modes
 
     // Determine contour type from gesture direction
     let contourType
@@ -485,8 +493,8 @@ class GestureProcessor {
       // Fast gesture
       contourType = 'zigzag'
     } else {
-      // Slow/moderate gesture
-      contourType = 'wave'
+      // Slow/moderate gesture - add time-based variation
+      contourType = timeSeed % 3 === 0 ? 'wave' : (timeSeed % 3 === 1 ? 'arch' : 'valley')
     }
 
     return { scaleType, contourType }
