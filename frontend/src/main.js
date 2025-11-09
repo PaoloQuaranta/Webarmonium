@@ -312,9 +312,7 @@ class WebarmoniumApp {
     })
 
     this.socketService.on('cursor-position', (data) => {
-      console.log('👆 Cursor position received:', data.userId.substring(0, 8), `(${data.x.toFixed(2)}, ${data.y.toFixed(2)})`, data.color)
       if (this.cursorManager) {
-        console.log('✅ Updating cursor in CursorManager')
         this.cursorManager.updateCursor(
           data.userId,
           data.x,
