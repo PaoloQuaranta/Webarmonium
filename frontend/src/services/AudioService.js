@@ -355,6 +355,12 @@ class AudioService {
           console.log('🔊 Tone.js context started/resumed')
         }
 
+        // CRITICAL: Start Transport for scheduled events
+        if (Tone.Transport.state !== 'started') {
+          Tone.Transport.start()
+          console.log('🚀 Tone.Transport started for event scheduling')
+        }
+
         // CRITICAL: Ensure audioContext is properly set
         this.audioContext = Tone.context
         console.log('🔊 AudioContext set:', !!this.audioContext, 'state:', Tone.context?.state)

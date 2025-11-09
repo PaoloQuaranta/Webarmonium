@@ -391,6 +391,15 @@ const socketHandlers = {
           const eventType = musicalEvent.eventType || 'musical'
           console.log(`  Event ${index + 1}: type=${eventType}, id=${musicalEvent.id}`)
 
+          // TAP PITCH DEBUG: Log tap events to trace pitch variation
+          if (musicalEvent.properties && musicalEvent.properties.totalNotes === 1) {
+            console.log(`  🎯 TAP BROADCAST:`, {
+              pitch: musicalEvent.properties.pitch,
+              frequency: musicalEvent.properties.frequency?.toFixed(1),
+              position: musicalEvent.position
+            })
+          }
+
           const musicalEventBroadcast = {
             id: musicalEvent.id,
             userId: socket.userId,
