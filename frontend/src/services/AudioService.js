@@ -1536,14 +1536,31 @@ class AudioService {
 
       // Calculate timing for Tone.js
       let playTime = Tone.now()
+      let delay = 0
 
       if (musicalEvent.timestamp) {
-        const delay = Math.max(0, (musicalEvent.timestamp - Date.now()) / 1000)
+        delay = Math.max(0, (musicalEvent.timestamp - Date.now()) / 1000)
         playTime = Tone.now() + delay
       }
 
-      // Play through gesture synth with proper timing and articulation
-      this.gestureSynth.triggerAttackRelease(frequency, adjustedDuration, playTime, adjustedVelocity)
+      // CRITICAL FIX: Use Transport.schedule for future events
+      // This allows Transport.cancel() to prevent "Synth was already disposed" errors
+      if (delay > 0.01) {
+        // Schedule through Transport for cancellable future events
+        Tone.Transport.schedule((time) => {
+          // Check synth availability at execution time (not now!)
+          if (this.gestureSynth && this.gestureSynth.disposed !== true) {
+            this.gestureSynth.triggerAttackRelease(frequency, adjustedDuration, time, adjustedVelocity)
+          }
+        }, playTime)
+      } else {
+        // Play immediately without scheduling
+        if (!this.gestureSynth || this.gestureSynth.disposed === true) {
+          console.warn('🔇 Cannot play: gestureSynth not available or disposed')
+          return
+        }
+        this.gestureSynth.triggerAttackRelease(frequency, adjustedDuration, playTime, adjustedVelocity)
+      }
 
       // EVOLUTIVE: Integrate user phrase into background composition
       this.integrateUserPhraseIntoBackground(musicalEvent, frequency, adjustedDuration)
