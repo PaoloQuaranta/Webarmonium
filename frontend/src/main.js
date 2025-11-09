@@ -376,26 +376,27 @@ class WebarmoniumApp {
     // PHASE 4 FIX: Changed from 'musical-event' (dash) to 'musical:event' (colon) to match backend
     // PHASE 7 FIX: Extract actual event from wrapper (backend sends { event: {...} })
     this.socketService.on('musical:event', (musicalEventWrapper) => {
-      console.log('🎵 [ALWAYS] Received musical:event wrapper:', {
-        id: musicalEventWrapper?.id,
-        userId: musicalEventWrapper?.userId,
-        myUserId: this.socketService.currentUser?.id,
-        isAudioStarted: this.isAudioStarted,
-        hasEvent: !!musicalEventWrapper?.event,
-        eventType: musicalEventWrapper?.event?.eventType
-      })
+      // COMPREHENSIVE LOGGING: Log EVERYTHING to diagnose issues
+      console.log('🎵 ========== MUSICAL EVENT RECEIVED ==========')
+      console.log('Wrapper:', JSON.stringify(musicalEventWrapper, null, 2))
+
+      if (musicalEventWrapper?.event) {
+        console.log('Event details:', {
+          id: musicalEventWrapper.event.id,
+          eventType: musicalEventWrapper.event.eventType,
+          timestamp: musicalEventWrapper.event.timestamp,
+          'timestamp-now': musicalEventWrapper.event.timestamp ? (musicalEventWrapper.event.timestamp - Date.now()) : 'N/A',
+          position: musicalEventWrapper.event.position,
+          properties: musicalEventWrapper.event.properties
+        })
+      }
+      console.log('==============================================')
 
       if (this.isAudioStarted && musicalEventWrapper) {
         // Extract the actual musical event from the wrapper
         const musicalEvent = musicalEventWrapper.event
 
         if (musicalEvent) {
-          console.log('🎵 Playing remote musical event:', {
-            eventType: musicalEvent.eventType,
-            frequency: musicalEvent.properties?.frequency,
-            noteIndex: musicalEvent.properties?.noteIndex,
-            fromUser: musicalEventWrapper.userId
-          })
           this.audioService.playMusicalEvent(musicalEvent)
         } else {
           console.warn('⚠️ No event in wrapper:', musicalEventWrapper)

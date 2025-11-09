@@ -779,9 +779,16 @@ class AudioService {
       console.log('🛑 Stopping AudioService - cleaning up all audio...')
 
       // CRITICAL FIX: Stop and clear ALL scheduled events
-      // This is what was causing hanging notes!
-      Tone.Transport.stop()
-      Tone.Transport.cancel() // Cancel all scheduled events
+      // Protected with try-catch to avoid errors
+      try {
+        if (Tone.Transport) {
+          Tone.Transport.stop()
+          Tone.Transport.cancel(0) // Cancel all events from time 0
+          console.log('✅ Tone.Transport stopped and cleared')
+        }
+      } catch (error) {
+        console.warn('⚠️ Transport cleanup error (non-critical):', error.message)
+      }
 
       this.stopUpdateLoop()
 
@@ -792,8 +799,12 @@ class AudioService {
       if (this.ambientLayers) {
         Object.keys(this.ambientLayers).forEach(layer => {
           if (this.ambientLayers[layer]) {
-            this.ambientLayers[layer].releaseAll()
-            this.ambientLayers[layer].dispose()
+            try {
+              this.ambientLayers[layer].releaseAll()
+              this.ambientLayers[layer].dispose()
+            } catch (e) {
+              console.warn(`⚠️ Error disposing ambient layer ${layer}:`, e.message)
+            }
           }
         })
         this.ambientLayers = null
@@ -802,7 +813,11 @@ class AudioService {
       if (this.ambientFilters) {
         Object.keys(this.ambientFilters).forEach(layer => {
           if (this.ambientFilters[layer]) {
-            this.ambientFilters[layer].dispose()
+            try {
+              this.ambientFilters[layer].dispose()
+            } catch (e) {
+              console.warn(`⚠️ Error disposing filter ${layer}:`, e.message)
+            }
           }
         })
         this.ambientFilters = null
@@ -811,22 +826,34 @@ class AudioService {
       if (this.ambientVolumes) {
         Object.keys(this.ambientVolumes).forEach(layer => {
           if (this.ambientVolumes[layer]) {
-            this.ambientVolumes[layer].dispose()
+            try {
+              this.ambientVolumes[layer].dispose()
+            } catch (e) {
+              console.warn(`⚠️ Error disposing volume ${layer}:`, e.message)
+            }
           }
         })
         this.ambientVolumes = null
       }
 
       if (this.gestureSynth) {
-        // FIX: Release all notes before disposing to prevent hanging notes
-        console.log('🛑 Releasing all gesture synth notes...')
-        this.gestureSynth.releaseAll()
-        this.gestureSynth.dispose()
+        try {
+          console.log('🛑 Releasing all gesture synth notes...')
+          this.gestureSynth.releaseAll()
+          this.gestureSynth.dispose()
+          console.log('✅ Gesture synth cleaned up')
+        } catch (e) {
+          console.warn('⚠️ Error disposing gestureSynth:', e.message)
+        }
         this.gestureSynth = null
       }
 
       if (this.gestureFilter) {
-        this.gestureFilter.dispose()
+        try {
+          this.gestureFilter.dispose()
+        } catch (e) {
+          console.warn('⚠️ Error disposing gestureFilter:', e.message)
+        }
         this.gestureFilter = null
       }
 
