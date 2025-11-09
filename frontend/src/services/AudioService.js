@@ -1483,49 +1483,28 @@ class AudioService {
 
       switch (articulation) {
         case 'staccato':
-          adjustedDuration *= 0.2 // Much shorter for very noticeable staccato
-          adjustedVelocity *= 1.15 // Louder for emphasis
-          console.log(`🎵 STACCATO: ${normalizedDuration.toFixed(3)}s → ${adjustedDuration.toFixed(3)}s`)
+          adjustedDuration *= 0.2
+          adjustedVelocity *= 1.15
           break
         case 'legato':
-          adjustedDuration *= 1.8 // Much longer for sustained legato
-          adjustedVelocity *= 0.85 // Softer
-          console.log(`🎵 LEGATO: ${normalizedDuration.toFixed(3)}s → ${adjustedDuration.toFixed(3)}s`)
+          adjustedDuration *= 1.8
+          adjustedVelocity *= 0.85
           break
         case 'accent':
-          adjustedVelocity *= 1.4 // Much louder for emphasis
-          adjustedDuration *= 1.2 // Slightly longer to emphasize
-          console.log(`🎵 ACCENT: ${normalizedDuration.toFixed(3)}s → ${adjustedDuration.toFixed(3)}s, vel=${adjustedVelocity.toFixed(2)}`)
-          break
-        default:
-          console.log(`🎵 DEFAULT: ${normalizedDuration.toFixed(3)}s`)
+          adjustedVelocity *= 1.4
+          adjustedDuration *= 1.2
           break
       }
 
       // Final duration clamping
       adjustedDuration = Math.max(0.02, Math.min(3.0, adjustedDuration))
 
-      // Enhanced logging for debugging
-      if (musicalEvent.properties) {
-        console.log(`🎵 Playing backend musical event: frequency=${frequency.toFixed(1)}Hz, duration=${adjustedDuration.toFixed(3)}s (orig: ${duration}), articulation=${articulation}, velocity=${adjustedVelocity.toFixed(2)}`)
-      } else {
-        console.log(`🎵 Playing musical event: pitch=${pitch} (${frequency.toFixed(1)}Hz), duration=${adjustedDuration.toFixed(3)}s (orig: ${duration}), articulation=${articulation}, velocity=${adjustedVelocity.toFixed(2)}`)
-      }
-
-      // CRITICAL FIX: Respect event timestamp for phrase timing
-      // Problem: Was playing all notes immediately (undefined = now)
-      // Solution: Calculate delay from event timestamp
+      // Calculate timing for Tone.js
       let playTime = Tone.now()
 
       if (musicalEvent.timestamp) {
-        const eventTimestamp = musicalEvent.timestamp
-        const now = Date.now()
-        const delay = Math.max(0, (eventTimestamp - now) / 1000) // Convert ms to seconds
+        const delay = Math.max(0, (musicalEvent.timestamp - Date.now()) / 1000)
         playTime = Tone.now() + delay
-
-        if (delay > 0.01) { // Log only if significant delay
-          console.log(`🕐 Scheduled note: delay=${delay.toFixed(3)}s, eventTime=${eventTimestamp}, now=${now}`)
-        }
       }
 
       // Play through gesture synth with proper timing and articulation

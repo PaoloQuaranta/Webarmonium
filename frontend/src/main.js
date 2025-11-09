@@ -376,37 +376,15 @@ class WebarmoniumApp {
     // PHASE 4 FIX: Changed from 'musical-event' (dash) to 'musical:event' (colon) to match backend
     // PHASE 7 FIX: Extract actual event from wrapper (backend sends { event: {...} })
     this.socketService.on('musical:event', (musicalEventWrapper) => {
-      // COMPREHENSIVE LOGGING: Log EVERYTHING to diagnose issues
-      console.log('🎵 ========== MUSICAL EVENT RECEIVED ==========')
-      console.log('Wrapper:', JSON.stringify(musicalEventWrapper, null, 2))
+      if (this.isAudioStarted && musicalEventWrapper?.event) {
+        const event = musicalEventWrapper.event
 
-      if (musicalEventWrapper?.event) {
-        console.log('Event details:', {
-          id: musicalEventWrapper.event.id,
-          eventType: musicalEventWrapper.event.eventType,
-          timestamp: musicalEventWrapper.event.timestamp,
-          'timestamp-now': musicalEventWrapper.event.timestamp ? (musicalEventWrapper.event.timestamp - Date.now()) : 'N/A',
-          position: musicalEventWrapper.event.position,
-          properties: musicalEventWrapper.event.properties
-        })
-      }
-      console.log('==============================================')
-
-      if (this.isAudioStarted && musicalEventWrapper) {
-        // Extract the actual musical event from the wrapper
-        const musicalEvent = musicalEventWrapper.event
-
-        if (musicalEvent) {
-          this.audioService.playMusicalEvent(musicalEvent)
-        } else {
-          console.warn('⚠️ No event in wrapper:', musicalEventWrapper)
+        // Minimal logging: only first note of phrase + critical info
+        if (event.properties?.noteIndex === 0 || !event.properties?.noteIndex) {
+          console.log(`🎵 Remote: ${event.properties?.gestureAction || 'unknown'} - freq=${event.properties?.frequency?.toFixed(0)}Hz, notes=${event.properties?.totalNotes || 1}`)
         }
-      } else {
-        console.warn('⚠️ Musical event blocked:', {
-          reason: !this.isAudioStarted ? 'audio not started' : 'no wrapper',
-          isAudioStarted: this.isAudioStarted,
-          hasWrapper: !!musicalEventWrapper
-        })
+
+        this.audioService.playMusicalEvent(event)
       }
     })
 

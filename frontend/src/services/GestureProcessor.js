@@ -291,28 +291,13 @@ class GestureProcessor {
 
     const noteCount = Math.max(2, Math.min(5, Math.floor(adjustedVelocity / 25)))
 
-    console.log('🔍 Note count calculation:', {
-      'gesture.dx': gesture.dx?.toFixed(3),
-      'gesture.dy': gesture.dy?.toFixed(3),
-      'gesture.duration': duration,
-      'gesture.intensity': intensity?.toFixed(2),
-      velocityCalc: velocityCalc.toFixed(2),
-      'gesture.velocity': gesture.velocity,
-      rawVelocity: safeVelocity.toFixed(2),
-      durationFactor: durationFactor.toFixed(2),
-      intensityFactor: intensityFactor.toFixed(2),
-      adjustedVelocity: adjustedVelocity.toFixed(2),
-      noteCount
-    })
-
     // COMPOSITIONAL ENHANCEMENT: Select musical scale and melodic contour
-    // FIX: Add timestamp-based variation to avoid pattern repetition
     const timeSeed = Date.now() % 1000 // Use timestamp for variation
     const { scaleType, contourType } = this.selectMelodicContour(gesture, sonicParams, timeSeed)
     const contourPattern = this.generateContourPattern(contourType, noteCount)
     const contourData = { scaleType, contourType, contourPattern }
 
-    console.log(`🎼 Musical phrase: ${noteCount} notes, ${scaleType} scale, ${contourType} contour, seed: ${timeSeed}`)
+    console.log(`🎼 Local: ${scaleType} ${contourType}, ${noteCount} notes`)
 
     let baseDuration
 

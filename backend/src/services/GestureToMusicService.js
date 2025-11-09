@@ -160,15 +160,6 @@ class GestureToMusicService {
     // FIX: Use position.Y for pitch (not X) to match frontend behavior
     const pitchFromY = 60 + ((1 - gestureData.position.y) * 24) // Y inverted, wider range
 
-    console.log('🎵 TAP PHRASE GENERATION:', {
-      'position.x': gestureData.position.x,
-      'position.y': gestureData.position.y,
-      '1 - position.y': (1 - gestureData.position.y),
-      '(1-y) * 24': ((1 - gestureData.position.y) * 24),
-      pitchFromY: pitchFromY,
-      velocity: gestureData.velocity
-    })
-
     return {
       notes: [{
         pitch: pitchFromY, // Y position controls pitch (high Y = low pitch)
