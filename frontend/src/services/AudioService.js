@@ -800,10 +800,21 @@ class AudioService {
         Object.keys(this.ambientLayers).forEach(layer => {
           if (this.ambientLayers[layer]) {
             try {
+              console.log(`🛑 Cleaning up ambient layer: ${layer}`)
               this.ambientLayers[layer].releaseAll()
+
+              // Cancel scheduled events on ambient layers too
+              if (this.ambientLayers[layer].envelope) {
+                this.ambientLayers[layer].envelope.cancel(0)
+              }
+              if (this.ambientLayers[layer].frequency) {
+                this.ambientLayers[layer].frequency.cancel(0)
+              }
+
               this.ambientLayers[layer].dispose()
+              console.log(`✅ Ambient layer ${layer} cleaned up`)
             } catch (e) {
-              console.warn(`⚠️ Error disposing ambient layer ${layer}:`, e.message)
+              console.error(`❌ Error disposing ambient layer ${layer}:`, e)
             }
           }
         })
@@ -839,11 +850,25 @@ class AudioService {
       if (this.gestureSynth) {
         try {
           console.log('🛑 Releasing all gesture synth notes...')
+
+          // CRITICAL: Immediately silence all notes (attack release)
           this.gestureSynth.releaseAll()
+
+          // CRITICAL: Cancel all future scheduled events on the synth
+          // This prevents notes scheduled with future timestamps from playing
+          if (this.gestureSynth.envelope) {
+            this.gestureSynth.envelope.cancel(0)
+          }
+          if (this.gestureSynth.frequency) {
+            this.gestureSynth.frequency.cancel(0)
+          }
+
+          console.log('🛑 Disposing gesture synth...')
           this.gestureSynth.dispose()
           console.log('✅ Gesture synth cleaned up')
         } catch (e) {
-          console.warn('⚠️ Error disposing gestureSynth:', e.message)
+          console.error('❌ Error disposing gestureSynth:', e)
+          console.error('Full error:', e.stack)
         }
         this.gestureSynth = null
       }
@@ -1432,6 +1457,16 @@ class AudioService {
         duration = musicalEvent.properties.duration
         velocity = musicalEvent.properties.velocity || 50
         articulation = musicalEvent.properties.articulation || 'default'
+
+        // TAP PITCH DEBUG: Log for tap events
+        if (musicalEvent.properties.noteIndex === 0 && musicalEvent.properties.totalNotes === 1) {
+          console.log('🎯 TAP RECEIVED IN FRONTEND:', {
+            userId: musicalEvent.userId?.substring(0, 8),
+            pitch: musicalEvent.properties.pitch,
+            frequency: frequency?.toFixed(1),
+            position: musicalEvent.position
+          })
+        }
 
         console.log('🎵 Playing backend musical event:', {
           frequency: frequency?.toFixed(1),

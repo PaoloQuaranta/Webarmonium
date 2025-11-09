@@ -160,6 +160,13 @@ class GestureToMusicService {
     // FIX: Use position.Y for pitch (not X) to match frontend behavior
     const pitchFromY = 60 + ((1 - gestureData.position.y) * 24) // Y inverted, wider range
 
+    console.log('🎯 TAP PITCH DEBUG:', {
+      userId: gestureData.userId.substring(0, 8),
+      positionY: gestureData.position.y,
+      calculation: `60 + ((1 - ${gestureData.position.y}) * 24)`,
+      resultPitch: pitchFromY
+    })
+
     return {
       notes: [{
         pitch: pitchFromY, // Y position controls pitch (high Y = low pitch)
