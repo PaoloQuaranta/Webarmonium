@@ -529,8 +529,9 @@ class WebarmoniumApp {
     try {
       // Determine backend URL based on environment
       // In production (tripitak.it), use the same origin (nginx proxy)
-      // In development (localhost), use localhost:3001 directly
-      const backendUrl = window.location.hostname === 'localhost'
+      // In development (localhost/127.0.0.1), use port 3001 directly
+      const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+      const backendUrl = isDevelopment
         ? 'http://localhost:3001'
         : `${window.location.protocol}//${window.location.host}`
 
