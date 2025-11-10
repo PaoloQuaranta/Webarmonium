@@ -367,6 +367,7 @@ class AudioService {
 
         // Create continuous generative music system if not already created
         if (!this.isInitialized) {
+          console.log('🔨 Creating fresh audio system (first time or after stop)...')
           this.createContinuousGenerativeSystem()
           this.startUpdateLoop()
 
@@ -379,10 +380,25 @@ class AudioService {
           // Test audio immediately to verify setup
           this.testAudio()
         } else {
-          console.log('🔊 AudioService already initialized, ensuring context is running')
-          // Verify master volume is properly connected
+          console.log('🔊 AudioService already initialized')
+
+          // CRITICAL FIX: If synths were disposed, recreate them
+          if (!this.gestureSynth || this.gestureSynth.disposed) {
+            console.warn('⚠️ gestureSynth was disposed, recreating...')
+            this.createContinuousGenerativeSystem()
+          }
+
+          // Verify components
           if (this.masterVolume && this.gestureSynth) {
-            console.log('🔊 Audio components verified')
+            console.log('✅ Audio components verified:', {
+              gestureSynthDisposed: this.gestureSynth.disposed,
+              masterVolumeExists: !!this.masterVolume
+            })
+          } else {
+            console.error('❌ Missing audio components:', {
+              masterVolume: !!this.masterVolume,
+              gestureSynth: !!this.gestureSynth
+            })
           }
         }
 
@@ -782,45 +798,93 @@ class AudioService {
    */
   stop() {
     if (this.isInitialized) {
-      console.log('🛑 Stopping AudioService - cleaning up all audio...')
+      console.log('🛑 Stopping AudioService - full cleanup procedure...')
 
-      // CRITICAL FIX: Stop and clear ALL scheduled events
-      // Protected with try-catch to avoid errors
-      try {
-        if (Tone.Transport) {
-          Tone.Transport.stop()
-          Tone.Transport.cancel(0) // Cancel all events from time 0
-          console.log('✅ Tone.Transport stopped and cleared')
-        }
-      } catch (error) {
-        console.warn('⚠️ Transport cleanup error (non-critical):', error.message)
-      }
-
+      // STEP 1: Stop evolving generation FIRST
+      this.evolvingGenerationActive = false
       this.stopUpdateLoop()
 
-      // Stop evolving generation
-      this.evolvingGenerationActive = false
+      // STEP 2: Stop Transport and cancel ALL scheduled events
+      try {
+        if (Tone.Transport) {
+          console.log('🛑 Stopping and clearing Transport...')
+          Tone.Transport.stop()
+          Tone.Transport.cancel(0) // Cancel all events from time 0
+          console.log('✅ Transport stopped and cleared')
+        }
+      } catch (error) {
+        console.warn('⚠️ Transport cleanup error:', error.message)
+      }
 
-      // Stop all sustained notes before disposing
+      // STEP 3: Release ALL active notes on ALL synths BEFORE disposing
+      console.log('🛑 Releasing all active notes...')
+
+      // Release gesture synth notes
+      if (this.gestureSynth && !this.gestureSynth.disposed) {
+        try {
+          this.gestureSynth.releaseAll()
+          console.log('✅ Gesture synth notes released')
+        } catch (e) {
+          console.warn('⚠️ Error releasing gesture synth notes:', e.message)
+        }
+      }
+
+      // Release ambient layer notes
       if (this.ambientLayers) {
         Object.keys(this.ambientLayers).forEach(layer => {
-          if (this.ambientLayers[layer]) {
+          if (this.ambientLayers[layer] && !this.ambientLayers[layer].disposed) {
             try {
-              console.log(`🛑 Cleaning up ambient layer: ${layer}`)
               this.ambientLayers[layer].releaseAll()
+              console.log(`✅ ${layer} layer notes released`)
+            } catch (e) {
+              console.warn(`⚠️ Error releasing ${layer} notes:`, e.message)
+            }
+          }
+        })
+      }
 
-              // Cancel scheduled events on ambient layers too
+      // STEP 4: Cancel scheduled parameter changes
+      console.log('🛑 Canceling scheduled parameter changes...')
+
+      if (this.gestureSynth && !this.gestureSynth.disposed) {
+        try {
+          if (this.gestureSynth.envelope) this.gestureSynth.envelope.cancel(0)
+          if (this.gestureSynth.frequency) this.gestureSynth.frequency.cancel(0)
+          console.log('✅ Gesture synth parameters canceled')
+        } catch (e) {
+          console.warn('⚠️ Error canceling gesture synth params:', e.message)
+        }
+      }
+
+      if (this.ambientLayers) {
+        Object.keys(this.ambientLayers).forEach(layer => {
+          if (this.ambientLayers[layer] && !this.ambientLayers[layer].disposed) {
+            try {
               if (this.ambientLayers[layer].envelope) {
                 this.ambientLayers[layer].envelope.cancel(0)
               }
               if (this.ambientLayers[layer].frequency) {
                 this.ambientLayers[layer].frequency.cancel(0)
               }
-
-              this.ambientLayers[layer].dispose()
-              console.log(`✅ Ambient layer ${layer} cleaned up`)
+              console.log(`✅ ${layer} parameters canceled`)
             } catch (e) {
-              console.error(`❌ Error disposing ambient layer ${layer}:`, e)
+              console.warn(`⚠️ Error canceling ${layer} params:`, e.message)
+            }
+          }
+        })
+      }
+
+      // STEP 5: Now dispose everything (synths are silent and have no scheduled events)
+      console.log('🛑 Disposing synths...')
+
+      if (this.ambientLayers) {
+        Object.keys(this.ambientLayers).forEach(layer => {
+          if (this.ambientLayers[layer]) {
+            try {
+              this.ambientLayers[layer].dispose()
+              console.log(`✅ ${layer} disposed`)
+            } catch (e) {
+              console.error(`❌ Error disposing ${layer}:`, e.message)
             }
           }
         })
@@ -855,26 +919,10 @@ class AudioService {
 
       if (this.gestureSynth) {
         try {
-          console.log('🛑 Releasing all gesture synth notes...')
-
-          // CRITICAL: Immediately silence all notes (attack release)
-          this.gestureSynth.releaseAll()
-
-          // CRITICAL: Cancel all future scheduled events on the synth
-          // This prevents notes scheduled with future timestamps from playing
-          if (this.gestureSynth.envelope) {
-            this.gestureSynth.envelope.cancel(0)
-          }
-          if (this.gestureSynth.frequency) {
-            this.gestureSynth.frequency.cancel(0)
-          }
-
-          console.log('🛑 Disposing gesture synth...')
           this.gestureSynth.dispose()
-          console.log('✅ Gesture synth cleaned up')
+          console.log('✅ Gesture synth disposed')
         } catch (e) {
-          console.error('❌ Error disposing gestureSynth:', e)
-          console.error('Full error:', e.stack)
+          console.error('❌ Error disposing gestureSynth:', e.message)
         }
         this.gestureSynth = null
       }
