@@ -798,87 +798,88 @@ class AudioService {
    */
   stop() {
     if (this.isInitialized) {
-      console.log('🛑 Stopping AudioService - full cleanup procedure...')
+      console.log('🛑 Stopping AudioService - DISPOSING all synths to kill hanging notes...')
 
-      // STEP 1: Stop evolving generation FIRST
+      // STEP 1: Stop Transport FIRST (prevents new events from scheduling)
+      try {
+        if (Tone.Transport) {
+          Tone.Transport.stop()
+          Tone.Transport.cancel(0)
+          console.log('✅ Transport stopped')
+        }
+      } catch (error) {
+        console.warn('⚠️ Transport error:', error.message)
+      }
+
+      // STEP 2: Stop generation
       this.evolvingGenerationActive = false
       this.stopUpdateLoop()
 
-      // STEP 2: Stop Transport and cancel ALL scheduled events
-      try {
-        if (Tone.Transport) {
-          console.log('🛑 Stopping and clearing Transport...')
-          Tone.Transport.stop()
-          Tone.Transport.cancel(0) // Cancel all events from time 0
-          console.log('✅ Transport stopped and cleared')
-        }
-      } catch (error) {
-        console.warn('⚠️ Transport cleanup error:', error.message)
-      }
+      // STEP 3: DISPOSE all synths (this kills all notes immediately)
+      console.log('🛑 Disposing synths...')
 
-      // STEP 3: Release ALL active notes on ALL synths BEFORE disposing
-      console.log('🛑 Releasing all active notes...')
-
-      // Release gesture synth notes
-      if (this.gestureSynth && !this.gestureSynth.disposed) {
+      if (this.gestureSynth) {
         try {
-          this.gestureSynth.releaseAll()
-          console.log('✅ Gesture synth notes released')
+          this.gestureSynth.dispose()
+          console.log('✅ gestureSynth disposed')
         } catch (e) {
-          console.warn('⚠️ Error releasing gesture synth notes:', e.message)
+          console.error('❌ gestureSynth dispose error:', e.message)
         }
+        this.gestureSynth = null
       }
 
-      // Release ambient layer notes
-      if (this.ambientLayers) {
-        Object.keys(this.ambientLayers).forEach(layer => {
-          if (this.ambientLayers[layer] && !this.ambientLayers[layer].disposed) {
-            try {
-              this.ambientLayers[layer].releaseAll()
-              console.log(`✅ ${layer} layer notes released`)
-            } catch (e) {
-              console.warn(`⚠️ Error releasing ${layer} notes:`, e.message)
-            }
-          }
-        })
-      }
-
-      // STEP 4: Cancel scheduled parameter changes
-      console.log('🛑 Canceling scheduled parameter changes...')
-
-      if (this.gestureSynth && !this.gestureSynth.disposed) {
+      if (this.gestureFilter) {
         try {
-          if (this.gestureSynth.envelope) this.gestureSynth.envelope.cancel(0)
-          if (this.gestureSynth.frequency) this.gestureSynth.frequency.cancel(0)
-          console.log('✅ Gesture synth parameters canceled')
+          this.gestureFilter.dispose()
         } catch (e) {
-          console.warn('⚠️ Error canceling gesture synth params:', e.message)
+          console.warn('⚠️ gestureFilter dispose error:', e.message)
         }
+        this.gestureFilter = null
       }
 
       if (this.ambientLayers) {
         Object.keys(this.ambientLayers).forEach(layer => {
-          if (this.ambientLayers[layer] && !this.ambientLayers[layer].disposed) {
+          if (this.ambientLayers[layer]) {
             try {
-              if (this.ambientLayers[layer].envelope) {
-                this.ambientLayers[layer].envelope.cancel(0)
-              }
-              if (this.ambientLayers[layer].frequency) {
-                this.ambientLayers[layer].frequency.cancel(0)
-              }
-              console.log(`✅ ${layer} parameters canceled`)
+              this.ambientLayers[layer].dispose()
+              console.log(`✅ ${layer} disposed`)
             } catch (e) {
-              console.warn(`⚠️ Error canceling ${layer} params:`, e.message)
+              console.error(`❌ ${layer} dispose error:`, e.message)
             }
           }
         })
+        this.ambientLayers = null
       }
 
-      // STEP 5: DON'T dispose - just leave synths released
-      // Dispose causes "Synth was already disposed" errors for notes still playing
-      // Instead, synths stay alive but silent (all notes released, all events canceled)
-      console.log('✅ All notes released and events canceled - synths left alive but silent')
-      console.log('🔇 AudioService stopped - audio silenced (synths not disposed)')
+      if (this.ambientFilters) {
+        Object.keys(this.ambientFilters).forEach(layer => {
+          if (this.ambientFilters[layer]) {
+            try {
+              this.ambientFilters[layer].dispose()
+            } catch (e) {
+              console.warn(`⚠️ ${layer} filter dispose error:`, e.message)
+            }
+          }
+        })
+        this.ambientFilters = null
+      }
+
+      if (this.ambientVolumes) {
+        Object.keys(this.ambientVolumes).forEach(layer => {
+          if (this.ambientVolumes[layer]) {
+            try {
+              this.ambientVolumes[layer].dispose()
+            } catch (e) {
+              console.warn(`⚠️ ${layer} volume dispose error:`, e.message)
+            }
+          }
+        })
+        this.ambientVolumes = null
+      }
+
+      // Mark as uninitialized so start() will recreate everything
+      this.isInitialized = false
+      console.log('🔇 AudioService stopped - all synths killed, will recreate on start')
     }
   }
 
