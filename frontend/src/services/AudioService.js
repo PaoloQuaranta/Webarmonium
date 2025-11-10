@@ -874,70 +874,11 @@ class AudioService {
         })
       }
 
-      // STEP 5: Now dispose everything (synths are silent and have no scheduled events)
-      console.log('🛑 Disposing synths...')
-
-      if (this.ambientLayers) {
-        Object.keys(this.ambientLayers).forEach(layer => {
-          if (this.ambientLayers[layer]) {
-            try {
-              this.ambientLayers[layer].dispose()
-              console.log(`✅ ${layer} disposed`)
-            } catch (e) {
-              console.error(`❌ Error disposing ${layer}:`, e.message)
-            }
-          }
-        })
-        this.ambientLayers = null
-      }
-
-      if (this.ambientFilters) {
-        Object.keys(this.ambientFilters).forEach(layer => {
-          if (this.ambientFilters[layer]) {
-            try {
-              this.ambientFilters[layer].dispose()
-            } catch (e) {
-              console.warn(`⚠️ Error disposing filter ${layer}:`, e.message)
-            }
-          }
-        })
-        this.ambientFilters = null
-      }
-
-      if (this.ambientVolumes) {
-        Object.keys(this.ambientVolumes).forEach(layer => {
-          if (this.ambientVolumes[layer]) {
-            try {
-              this.ambientVolumes[layer].dispose()
-            } catch (e) {
-              console.warn(`⚠️ Error disposing volume ${layer}:`, e.message)
-            }
-          }
-        })
-        this.ambientVolumes = null
-      }
-
-      if (this.gestureSynth) {
-        try {
-          this.gestureSynth.dispose()
-          console.log('✅ Gesture synth disposed')
-        } catch (e) {
-          console.error('❌ Error disposing gestureSynth:', e.message)
-        }
-        this.gestureSynth = null
-      }
-
-      if (this.gestureFilter) {
-        try {
-          this.gestureFilter.dispose()
-        } catch (e) {
-          console.warn('⚠️ Error disposing gestureFilter:', e.message)
-        }
-        this.gestureFilter = null
-      }
-
-      this.isInitialized = false
-      console.log('🔇 AudioService stopped - all audio cleared')
+      // STEP 5: DON'T dispose - just leave synths released
+      // Dispose causes "Synth was already disposed" errors for notes still playing
+      // Instead, synths stay alive but silent (all notes released, all events canceled)
+      console.log('✅ All notes released and events canceled - synths left alive but silent')
+      console.log('🔇 AudioService stopped - audio silenced (synths not disposed)')
     }
   }
 
@@ -1597,14 +1538,16 @@ class AudioService {
         playTime = Tone.now() + delay
       }
 
-      // CRITICAL FIX: Use Transport.schedule for future events
-      // This allows Transport.cancel() to prevent "Synth was already disposed" errors
+      // CRITICAL FIX: Use triggerAttack/Release separately (not triggerAttackRelease)
+      // This allows releaseAll() to actually stop playing notes
       if (delay > 0.01) {
         // Schedule through Transport for cancellable future events
         Tone.Transport.schedule((time) => {
           // Check synth availability at execution time (not now!)
           if (this.gestureSynth && this.gestureSynth.disposed !== true) {
-            this.gestureSynth.triggerAttackRelease(frequency, adjustedDuration, time, adjustedVelocity)
+            // Use separate attack and release for interruptible notes
+            this.gestureSynth.triggerAttack(frequency, time, adjustedVelocity)
+            this.gestureSynth.triggerRelease(frequency, time + adjustedDuration)
           }
         }, playTime)
       } else {
@@ -1613,7 +1556,9 @@ class AudioService {
           console.warn('🔇 Cannot play: gestureSynth not available or disposed')
           return
         }
-        this.gestureSynth.triggerAttackRelease(frequency, adjustedDuration, playTime, adjustedVelocity)
+        // Use separate attack and release for interruptible notes
+        this.gestureSynth.triggerAttack(frequency, playTime, adjustedVelocity)
+        this.gestureSynth.triggerRelease(frequency, playTime + adjustedDuration)
       }
 
       // EVOLUTIVE: Integrate user phrase into background composition
