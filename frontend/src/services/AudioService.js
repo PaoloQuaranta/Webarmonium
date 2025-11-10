@@ -815,8 +815,34 @@ class AudioService {
       this.evolvingGenerationActive = false
       this.stopUpdateLoop()
 
-      // STEP 3: DISPOSE all synths (this kills all notes immediately)
-      console.log('🛑 Disposing synths...')
+      // STEP 3: DISCONNECT all synths from output (silences immediately)
+      console.log('🛑 Disconnecting synths from output...')
+
+      if (this.gestureSynth) {
+        try {
+          // Disconnect FIRST to silence immediately
+          this.gestureSynth.disconnect()
+          console.log('✅ gestureSynth disconnected')
+        } catch (e) {
+          console.warn('⚠️ gestureSynth disconnect error:', e.message)
+        }
+      }
+
+      if (this.ambientLayers) {
+        Object.keys(this.ambientLayers).forEach(layer => {
+          if (this.ambientLayers[layer]) {
+            try {
+              this.ambientLayers[layer].disconnect()
+              console.log(`✅ ${layer} disconnected`)
+            } catch (e) {
+              console.warn(`⚠️ ${layer} disconnect error:`, e.message)
+            }
+          }
+        })
+      }
+
+      // STEP 4: NOW dispose everything (after disconnect)
+      console.log('🛑 Now disposing synths...')
 
       if (this.gestureSynth) {
         try {
