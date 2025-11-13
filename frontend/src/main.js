@@ -107,10 +107,21 @@ class WebarmoniumApp {
     // Create basic gesture to music mapper for EnhancedGestureCapture
     const basicGestureToMusicMapper = {
       gestureToMusicalEvent: (gesture) => {
+        // DEBUG: Log what mapper receives
+        console.log('🎵 MAPPER RECEIVED:', {
+          hasCoordinates: !!gesture.coordinates,
+          coordinates: gesture.coordinates,
+          intensity: gesture.intensity,
+          speed: gesture.speed
+        })
+
         // Basic mapping: position to pitch, intensity to velocity
-        const pitch = 60 + Math.floor((gesture.coordinates?.y || 0.5) * 24) // C4 to C6 range
+        const yValue = gesture.coordinates?.y || 0.5
+        const pitch = 60 + Math.floor(yValue * 24) // C4 to C6 range
         const velocity = Math.floor((gesture.intensity || 0.5) * 127)
         const duration = 0.2 + (1 - (gesture.speed || 0.5)) * 0.8 // Speed affects duration
+
+        console.log('🎵 MAPPER OUTPUT:', { yValue, pitch, velocity, duration })
 
         return {
           pitch,

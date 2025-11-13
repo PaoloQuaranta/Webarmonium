@@ -333,12 +333,22 @@ class EnhancedGestureCapture {
     const startTime = performance.now()
     const classified = { ...gesture }
 
+    // DEBUG: Log gesture data before coordinate assignment
+    console.log('🔍 CLASSIFY GESTURE - Input data:', {
+      hasCurrentPosition: !!gesture.currentPosition,
+      currentPosition: gesture.currentPosition,
+      pathLength: gesture.path?.length || 0,
+      firstPathPoint: gesture.path?.[0],
+      lastPathPoint: gesture.path?.[gesture.path?.length - 1]
+    })
+
     // Add coordinates for compatibility with GestureToMusicMapper
     if (gesture.currentPosition) {
       classified.coordinates = {
         x: gesture.currentPosition.x,
         y: gesture.currentPosition.y
       }
+      console.log('🔍 Using currentPosition for coordinates:', classified.coordinates)
     } else if (gesture.path && gesture.path.length > 0) {
       // Use last position from path
       const lastPos = gesture.path[gesture.path.length - 1]
@@ -346,9 +356,11 @@ class EnhancedGestureCapture {
         x: lastPos.x,
         y: lastPos.y
       }
+      console.log('🔍 Using last path point for coordinates:', classified.coordinates)
     } else {
       // Default coordinates
       classified.coordinates = { x: 0.5, y: 0.5 }
+      console.log('🔍 Using DEFAULT coordinates (0.5, 0.5) - NO POSITION DATA!')
     }
 
     // Calculate gesture properties
