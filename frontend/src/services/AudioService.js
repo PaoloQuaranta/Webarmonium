@@ -383,12 +383,48 @@ class AudioService {
           // Test audio immediately to verify setup
           this.testAudio()
         } else {
-          console.log('🔊 AudioService already initialized')
+          console.log('🔊 AudioService already initialized - checking synth state...')
 
-          // CRITICAL FIX: If synths were disposed, recreate them
+          // CRITICAL FIX: If synths were disconnected by stop(), dispose and recreate
+          let needsRecreation = false
+
           if (!this.gestureSynth || this.gestureSynth.disposed) {
-            console.warn('⚠️ gestureSynth was disposed, recreating...')
+            console.warn('⚠️ gestureSynth disposed or missing')
+            needsRecreation = true
+          }
+
+          // Check if synth is disconnected (happens after stop())
+          // Disconnected synths can't play, so we need to dispose and recreate
+          if (this.gestureSynth && this.gestureSynth.numberOfOutputs === 0) {
+            console.warn('⚠️ gestureSynth is disconnected - needs recreation')
+            needsRecreation = true
+          }
+
+          if (needsRecreation) {
+            console.log('🔨 Disposing old synths and recreating fresh ones...')
+
+            // Dispose old synths
+            if (this.gestureSynth) {
+              try {
+                this.gestureSynth.dispose()
+              } catch (e) {
+                console.warn('Dispose error:', e.message)
+              }
+            }
+
+            if (this.ambientLayers) {
+              Object.keys(this.ambientLayers).forEach(layer => {
+                if (this.ambientLayers[layer]) {
+                  try {
+                    this.ambientLayers[layer].dispose()
+                  } catch (e) {}
+                }
+              })
+            }
+
+            // Recreate everything
             this.createContinuousGenerativeSystem()
+            console.log('✅ Fresh synths created and reconnected')
           }
 
           // Verify components
@@ -803,7 +839,22 @@ class AudioService {
     if (this.isInitialized) {
       console.log('🛑 Stopping AudioService - releasing all active notes...')
 
-      // STEP 1: MANUALLY RELEASE ALL ACTIVE NOTES
+      // STEP 1: Stop Transport FIRST (before releasing notes)
+      try {
+        if (Tone.Transport) {
+          Tone.Transport.stop()
+          Tone.Transport.cancel(0)
+          console.log('✅ Transport stopped and canceled')
+        }
+      } catch (error) {
+        console.warn('⚠️ Transport error:', error.message)
+      }
+
+      // STEP 2: Stop generation
+      this.evolvingGenerationActive = false
+      this.stopUpdateLoop()
+
+      // STEP 3: MANUALLY RELEASE ALL ACTIVE NOTES
       console.log(`🎹 Releasing ${this.activeNotes.size} active notes...`)
       this.activeNotes.forEach(noteDesc => {
         try {
@@ -814,7 +865,6 @@ class AudioService {
           // Release the note immediately
           if (noteDesc.synth && !noteDesc.synth.disposed) {
             noteDesc.synth.triggerRelease(noteDesc.frequency, Tone.now())
-            console.log(`  ✅ Released note ${noteDesc.frequency.toFixed(1)}Hz`)
           }
         } catch (e) {
           console.warn(`  ⚠️ Error releasing note:`, e.message)
@@ -823,29 +873,13 @@ class AudioService {
       this.activeNotes.clear()
       console.log('✅ All active notes released')
 
-      // STEP 2: Stop Transport (prevents new events from scheduling)
-      try {
-        if (Tone.Transport) {
-          Tone.Transport.stop()
-          Tone.Transport.cancel(0)
-          console.log('✅ Transport stopped')
-        }
-      } catch (error) {
-        console.warn('⚠️ Transport error:', error.message)
-      }
-
-      // STEP 3: Stop generation
-      this.evolvingGenerationActive = false
-      this.stopUpdateLoop()
-
       // STEP 4: DISCONNECT all synths from output (silences immediately)
       console.log('🛑 Disconnecting synths from output...')
 
       if (this.gestureSynth) {
         try {
-          // Disconnect FIRST to silence immediately
           this.gestureSynth.disconnect()
-          console.log('✅ gestureSynth disconnected')
+          console.log('✅ gestureSynth disconnected (NOT disposed - will reuse)')
         } catch (e) {
           console.warn('⚠️ gestureSynth disconnect error:', e.message)
         }
@@ -856,7 +890,7 @@ class AudioService {
           if (this.ambientLayers[layer]) {
             try {
               this.ambientLayers[layer].disconnect()
-              console.log(`✅ ${layer} disconnected`)
+              console.log(`✅ ${layer} disconnected (NOT disposed)`)
             } catch (e) {
               console.warn(`⚠️ ${layer} disconnect error:`, e.message)
             }
@@ -864,71 +898,11 @@ class AudioService {
         })
       }
 
-      // STEP 4: NOW dispose everything (after disconnect)
-      console.log('🛑 Now disposing synths...')
+      // DON'T dispose synths here - they stay alive but disconnected
+      // This prevents "Synth was already disposed" errors from scheduled events
+      // Synths will be disposed and recreated in start()
 
-      if (this.gestureSynth) {
-        try {
-          this.gestureSynth.dispose()
-          console.log('✅ gestureSynth disposed')
-        } catch (e) {
-          console.error('❌ gestureSynth dispose error:', e.message)
-        }
-        this.gestureSynth = null
-      }
-
-      if (this.gestureFilter) {
-        try {
-          this.gestureFilter.dispose()
-        } catch (e) {
-          console.warn('⚠️ gestureFilter dispose error:', e.message)
-        }
-        this.gestureFilter = null
-      }
-
-      if (this.ambientLayers) {
-        Object.keys(this.ambientLayers).forEach(layer => {
-          if (this.ambientLayers[layer]) {
-            try {
-              this.ambientLayers[layer].dispose()
-              console.log(`✅ ${layer} disposed`)
-            } catch (e) {
-              console.error(`❌ ${layer} dispose error:`, e.message)
-            }
-          }
-        })
-        this.ambientLayers = null
-      }
-
-      if (this.ambientFilters) {
-        Object.keys(this.ambientFilters).forEach(layer => {
-          if (this.ambientFilters[layer]) {
-            try {
-              this.ambientFilters[layer].dispose()
-            } catch (e) {
-              console.warn(`⚠️ ${layer} filter dispose error:`, e.message)
-            }
-          }
-        })
-        this.ambientFilters = null
-      }
-
-      if (this.ambientVolumes) {
-        Object.keys(this.ambientVolumes).forEach(layer => {
-          if (this.ambientVolumes[layer]) {
-            try {
-              this.ambientVolumes[layer].dispose()
-            } catch (e) {
-              console.warn(`⚠️ ${layer} volume dispose error:`, e.message)
-            }
-          }
-        })
-        this.ambientVolumes = null
-      }
-
-      // Mark as uninitialized so start() will recreate everything
-      this.isInitialized = false
-      console.log('🔇 AudioService stopped - all synths killed, will recreate on start')
+      console.log('🔇 AudioService stopped - synths disconnected but alive (no dispose)')
     }
   }
 
