@@ -42,8 +42,15 @@ class GestureProcessor {
   processGesture(gesture, isAudioStarted) {
     console.log('🚨 HANDLE GESTURE CALLED - action:', gesture.action, 'id:', gesture.id)
 
-    // Send gesture to server with action field
-    this.socketService.sendGesture(gesture)
+    // CRITICAL FIX: Backend expects gesture.position { x, y } for pitch calculation
+    // Frontend has gesture.coordinates but backend looks for gesture.position
+    const gestureToSend = {
+      ...gesture,
+      position: gesture.coordinates || gesture.position || { x: 0.5, y: 0.5 }
+    }
+
+    // Send gesture to server with position field
+    this.socketService.sendGesture(gestureToSend)
 
     // Handle different gesture types for local audio
     if (!isAudioStarted) {
