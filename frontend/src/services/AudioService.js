@@ -369,41 +369,43 @@ class AudioService {
         console.log('🔊 AudioContext set:', !!this.audioContext, 'state:', Tone.context?.state)
 
         // Create continuous generative music system if not already created
+        // This will create new synths on first call, or reuse existing synths on subsequent calls
         if (!this.isInitialized) {
-          console.log('🔨 Creating fresh audio system (first time or after stop)...')
+          console.log('🔨 Starting audio system (will create or reuse synths)...')
+
+          // This either creates new synths or reuses existing ones
           this.createContinuousGenerativeSystem()
+
+          // Always restart generation loops
           this.startUpdateLoop()
 
-          // Initialize new musical architecture services
-          this.initializeNewMusicalArchitecture()
+          // Initialize new musical architecture services (only on first start)
+          if (!this.musicalScheduler) {
+            this.initializeNewMusicalArchitecture()
+          }
 
           this.isInitialized = true
           console.log('🔊 AudioService initialized successfully - Continuous generative music active')
+        }
 
-          // Test audio immediately to verify setup
-          this.testAudio()
+        // CRITICAL: Always restore master volume after stop() (was set to -Infinity)
+        if (this.masterVolume && this.masterVolume.volume.value === -Infinity) {
+          this.masterVolume.volume.value = -10
+          console.log('🔊 Master volume restored to -10dB')
+        }
+
+        // Verify components
+        if (this.masterVolume && this.gestureSynth) {
+          console.log('✅ Audio components verified:', {
+            gestureSynthDisposed: this.gestureSynth.disposed,
+            masterVolumeExists: !!this.masterVolume,
+            masterVolumeValue: this.masterVolume.volume.value
+          })
         } else {
-          console.log('🔊 AudioService already initialized - restoring audio...')
-
-          // CRITICAL: Restore master volume (was set to -Infinity in stop())
-          if (this.masterVolume && this.masterVolume.volume.value === -Infinity) {
-            this.masterVolume.volume.value = -10
-            console.log('🔊 Master volume restored to -10dB')
-          }
-
-          // Verify components
-          if (this.masterVolume && this.gestureSynth) {
-            console.log('✅ Audio components verified:', {
-              gestureSynthDisposed: this.gestureSynth.disposed,
-              masterVolumeExists: !!this.masterVolume,
-              masterVolumeValue: this.masterVolume.volume.value
-            })
-          } else {
-            console.error('❌ Missing audio components:', {
-              masterVolume: !!this.masterVolume,
-              gestureSynth: !!this.gestureSynth
-            })
-          }
+          console.error('❌ Missing audio components:', {
+            masterVolume: !!this.masterVolume,
+            gestureSynth: !!this.gestureSynth
+          })
         }
 
         return true
@@ -420,35 +422,35 @@ class AudioService {
    * Create continuous generative music system per FR-001
    * System MUST continuously generate ambient music even when no users are present
    * EVOLUTIVE: Now creates dynamic, evolving background composition with polyphony management
+   * FIX: Never dispose synths - reuse existing synths to avoid "Synth was already disposed" error
    */
   createContinuousGenerativeSystem() {
-    // CRITICAL: Dispose old synths FIRST if they exist
-    // Old synths may have active scheduled events that will cause errors
     console.log('🔨 Creating continuous generative system...')
 
-    if (this.gestureSynth) {
-      console.log('🗑️ Disposing old gestureSynth before creating new one...')
-      try {
+    // CRITICAL FIX: Never dispose synths immediately!
+    // Tone.js internal timeouts from triggerAttackRelease() may still be scheduled
+    // Disposing while these timeouts are pending causes "Synth was already disposed" error
+    // Instead, we reuse existing synths if they exist
+
+    // If synths already exist, skip creation and just reuse them
+    if (this.gestureSynth && this.ambientLayers && this.masterVolume) {
+      console.log('♻️ Reusing existing synths (never dispose to avoid Tone.js timeout errors)')
+      // Ensure synths are ready to use
+      if (this.gestureSynth && !this.gestureSynth.disposed) {
         this.gestureSynth.releaseAll()
-        this.gestureSynth.dispose()
-      } catch (e) {
-        console.warn('Old gestureSynth dispose error:', e.message)
+        console.log('✅ Existing synths released and ready to reuse')
       }
-      this.gestureSynth = null
+
+      // Restart evolving generation (was stopped by stop())
+      if (!this.evolvingGenerationActive) {
+        this.startEvolvingGeneration()
+        console.log('♻️ Restarted evolving generation with existing synths')
+      }
+
+      return // Exit early - synths already exist and are ready
     }
 
-    if (this.ambientLayers) {
-      console.log('🗑️ Disposing old ambient layers before creating new ones...')
-      Object.keys(this.ambientLayers).forEach(layer => {
-        try {
-          if (this.ambientLayers[layer]) {
-            this.ambientLayers[layer].releaseAll()
-            this.ambientLayers[layer].dispose()
-          }
-        } catch (e) {}
-      })
-      this.ambientLayers = null
-    }
+    console.log('🆕 Creating new synths (first time initialization)...')
 
     // Create master volume node for centralized control (FR-011)
     this.masterVolume = new Tone.Volume(-10).toDestination()
