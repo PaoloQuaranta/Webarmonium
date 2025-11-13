@@ -858,63 +858,15 @@ class AudioService {
 
       console.log('✅ All notes released')
 
-      // STEP 5: Wait for Tone.js internal release envelopes to complete
-      // Tone.js has internal Context._timeoutLoop that we can't cancel
-      // Must wait for all internal events to finish before dispose
-      console.log('⏳ Waiting 1 second for release envelopes to complete...')
+      // DON'T DISPOSE SYNTHS!
+      // Per Tone.js GitHub issue #1174: Disposing synth before scheduled note
+      // releases complete causes "Synth was already disposed" error because
+      // callbacks for those releases still trigger on the disposed instance.
+      //
+      // Official recommendation: Use releaseAll() instead of dispose().
+      // Keep synths alive but muted and silent.
 
-      setTimeout(() => {
-        console.log('🗑️ Now disposing synths (after envelope wait)...')
-
-        if (this.gestureSynth) {
-          try {
-            this.gestureSynth.dispose()
-            this.gestureSynth = null
-          } catch (e) {
-            console.warn('⚠️ gestureSynth dispose error:', e.message)
-          }
-        }
-
-        if (this.ambientLayers) {
-          Object.keys(this.ambientLayers).forEach(layer => {
-            try {
-              if (this.ambientLayers[layer]) {
-                this.ambientLayers[layer].dispose()
-              }
-            } catch (e) {}
-          })
-          this.ambientLayers = null
-        }
-
-        if (this.ambientFilters) {
-          Object.keys(this.ambientFilters).forEach(layer => {
-            try {
-              if (this.ambientFilters[layer]) {
-                this.ambientFilters[layer].dispose()
-              }
-            } catch (e) {}
-          })
-          this.ambientFilters = null
-        }
-
-        if (this.ambientVolumes) {
-          Object.keys(this.ambientVolumes).forEach(layer => {
-            try {
-              if (this.ambientVolumes[layer]) {
-                this.ambientVolumes[layer].dispose()
-              }
-            } catch (e) {}
-          })
-          this.ambientVolumes = null
-        }
-
-        console.log('✅ All synths disposed safely')
-      }, 1000) // Wait 1 second for longest envelope to finish
-
-      // Mark as uninitialized so start() will recreate everything
-      this.isInitialized = false
-
-      console.log('🔇 AudioService stopped - synths will dispose after envelope wait')
+      console.log('🔇 AudioService stopped - synths kept alive (no dispose to avoid errors)')
     }
   }
 
