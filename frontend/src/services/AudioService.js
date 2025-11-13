@@ -886,15 +886,11 @@ class AudioService {
 
       console.log('✅ All notes released')
 
-      // DON'T DISPOSE SYNTHS!
-      // Per Tone.js GitHub issue #1174: Disposing synth before scheduled note
-      // releases complete causes "Synth was already disposed" error because
-      // callbacks for those releases still trigger on the disposed instance.
-      //
-      // Official recommendation: Use releaseAll() instead of dispose().
-      // Keep synths alive but muted and silent.
+      // Mark as uninitialized to force recreation of synths on next start()
+      // This ensures old synths with scheduled events are properly disposed
+      this.isInitialized = false
 
-      console.log('🔇 AudioService stopped - synths kept alive (no dispose to avoid errors)')
+      console.log('🔇 AudioService stopped - will recreate synths on next start')
     }
   }
 
