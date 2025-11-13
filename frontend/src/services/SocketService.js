@@ -314,6 +314,16 @@ class SocketService {
         clientTimestamp: Date.now()
       }
 
+      // DEBUG: Log what we're sending to backend
+      console.log('📡📡📡 SOCKET SENDING gesture event:', {
+        hasCoordinates: !!gestureWithTimestamp.coordinates,
+        coordinates: gestureWithTimestamp.coordinates,
+        hasPosition: !!gestureWithTimestamp.position,
+        position: gestureWithTimestamp.position,
+        action: gestureWithTimestamp.action,
+        type: gestureWithTimestamp.type
+      })
+
       const response = await this.sendWithResponse('gesture', gestureWithTimestamp)
 
       if (response.success) {
