@@ -13,8 +13,8 @@ class AudioService {
     this.audioEngine = null
     this.gestureCapture = null
 
-    // CRITICAL: Track all active notes for manual release on stop
-    this.activeNotes = new Set() // Store {frequency, synth, timeoutId}
+    // CRITICAL: Track all scheduled timeouts for cleanup on stop
+    this.scheduledTimeouts = []
 
     // New musical architecture services
     this.musicalScheduler = null; // Will be initialized after scripts are loaded
@@ -810,7 +810,15 @@ class AudioService {
         console.log('🔇 Master volume set to -Infinity (immediate silence)')
       }
 
-      // STEP 1: Stop Transport (prevents new events from scheduling)
+      // STEP 1: Clear ALL scheduled timeouts (prevents future notes)
+      console.log(`⏱️ Clearing ${this.scheduledTimeouts.length} scheduled timeouts...`)
+      this.scheduledTimeouts.forEach(timeoutId => {
+        clearTimeout(timeoutId)
+      })
+      this.scheduledTimeouts = []
+      console.log('✅ All timeouts cleared')
+
+      // STEP 2: Stop Transport (prevents new events from scheduling)
       try {
         if (Tone.Transport) {
           Tone.Transport.stop()
@@ -821,11 +829,11 @@ class AudioService {
         console.warn('⚠️ Transport error:', error.message)
       }
 
-      // STEP 2: Stop generation
+      // STEP 3: Stop generation
       this.evolvingGenerationActive = false
       this.stopUpdateLoop()
 
-      // STEP 3: Release all notes on all synths
+      // STEP 4: Release all notes on all synths
       console.log('🎹 Releasing all notes on all synths...')
 
       try {
@@ -848,10 +856,7 @@ class AudioService {
         })
       }
 
-      // Clear active notes tracking
-      this.activeNotes.clear()
       console.log('✅ All notes released')
-
       console.log('🔇 AudioService stopped - audio muted, synths alive but silent')
     }
   }
@@ -1512,48 +1517,40 @@ class AudioService {
         playTime = Tone.now() + delay
       }
 
-      // CRITICAL FIX: Track active notes manually for stop() to release them
-      // Use triggerAttack/Release separately and track in activeNotes Set
-      const noteDescriptor = { frequency, synth: this.gestureSynth }
+      // CRITICAL FIX: Use ONLY setTimeout (no Transport.schedule)
+      // Transport.schedule has race conditions with cancel()
 
-      if (delay > 0.01) {
-        // Schedule through Transport for future events
-        const transportId = Tone.Transport.schedule((time) => {
-          if (this.gestureSynth && this.gestureSynth.disposed !== true) {
-            // Attack - add to active notes
-            this.gestureSynth.triggerAttack(frequency, time, adjustedVelocity)
-            this.activeNotes.add(noteDescriptor)
+      // Calculate delay in milliseconds
+      const delayMs = delay * 1000
 
-            // Schedule release
-            Tone.Transport.schedule((releaseTime) => {
-              if (this.gestureSynth && this.gestureSynth.disposed !== true) {
-                this.gestureSynth.triggerRelease(frequency, releaseTime)
-                this.activeNotes.delete(noteDescriptor)
-              }
-            }, time + adjustedDuration)
-          }
-        }, playTime)
-        noteDescriptor.transportId = transportId
-      } else {
-        // Play immediately
-        if (!this.gestureSynth || this.gestureSynth.disposed === true) {
-          console.warn('🔇 Cannot play: gestureSynth not available or disposed')
+      // Schedule attack with setTimeout
+      const attackTimeoutId = setTimeout(() => {
+        if (!this.gestureSynth || this.gestureSynth.disposed) {
+          console.warn('🔇 Synth disposed, skipping note')
           return
         }
 
-        // Attack - add to active notes
-        this.gestureSynth.triggerAttack(frequency, playTime, adjustedVelocity)
-        this.activeNotes.add(noteDescriptor)
+        try {
+          this.gestureSynth.triggerAttack(frequency, Tone.now(), adjustedVelocity)
 
-        // Schedule release with setTimeout
-        const timeoutId = setTimeout(() => {
-          if (this.gestureSynth && this.gestureSynth.disposed !== true) {
-            this.gestureSynth.triggerRelease(frequency)
-            this.activeNotes.delete(noteDescriptor)
-          }
-        }, adjustedDuration * 1000)
-        noteDescriptor.timeoutId = timeoutId
-      }
+          // Schedule release
+          const releaseTimeoutId = setTimeout(() => {
+            if (this.gestureSynth && !this.gestureSynth.disposed) {
+              this.gestureSynth.triggerRelease(frequency, Tone.now())
+            }
+          }, adjustedDuration * 1000)
+
+          // Store for cleanup
+          if (!this.scheduledTimeouts) this.scheduledTimeouts = []
+          this.scheduledTimeouts.push(releaseTimeoutId)
+        } catch (e) {
+          console.warn('Note play error:', e.message)
+        }
+      }, delayMs)
+
+      // Store for cleanup
+      if (!this.scheduledTimeouts) this.scheduledTimeouts = []
+      this.scheduledTimeouts.push(attackTimeoutId)
 
       // EVOLUTIVE: Integrate user phrase into background composition
       this.integrateUserPhraseIntoBackground(musicalEvent, frequency, adjustedDuration)
