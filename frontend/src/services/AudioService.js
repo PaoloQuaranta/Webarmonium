@@ -422,6 +422,34 @@ class AudioService {
    * EVOLUTIVE: Now creates dynamic, evolving background composition with polyphony management
    */
   createContinuousGenerativeSystem() {
+    // CRITICAL: Dispose old synths FIRST if they exist
+    // Old synths may have active scheduled events that will cause errors
+    console.log('🔨 Creating continuous generative system...')
+
+    if (this.gestureSynth) {
+      console.log('🗑️ Disposing old gestureSynth before creating new one...')
+      try {
+        this.gestureSynth.releaseAll()
+        this.gestureSynth.dispose()
+      } catch (e) {
+        console.warn('Old gestureSynth dispose error:', e.message)
+      }
+      this.gestureSynth = null
+    }
+
+    if (this.ambientLayers) {
+      console.log('🗑️ Disposing old ambient layers before creating new ones...')
+      Object.keys(this.ambientLayers).forEach(layer => {
+        try {
+          if (this.ambientLayers[layer]) {
+            this.ambientLayers[layer].releaseAll()
+            this.ambientLayers[layer].dispose()
+          }
+        } catch (e) {}
+      })
+      this.ambientLayers = null
+    }
+
     // Create master volume node for centralized control (FR-011)
     this.masterVolume = new Tone.Volume(-10).toDestination()
 
@@ -822,8 +850,8 @@ class AudioService {
       try {
         if (Tone.Transport) {
           Tone.Transport.stop()
-          Tone.Transport.cancel(0)
-          console.log('✅ Transport stopped and canceled')
+          Tone.Transport.clear()  // CHANGED: clear() removes ALL events (not just cancel)
+          console.log('✅ Transport stopped and cleared')
         }
       } catch (error) {
         console.warn('⚠️ Transport error:', error.message)
