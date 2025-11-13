@@ -618,12 +618,17 @@ class EnhancedGestureCapture {
    */
   emitGestureComplete(gesture, musicalEvent) {
     if (this.socketService && this.socketService.socket) {
+      // CRITICAL FIX: Include position/coordinates for backend pitch calculation
+      // Backend expects gesture.position { x, y } or gesture.coordinates [x, y]
+      // Without this, backend uses default position { x: 0.5, y: 0.5 } causing all taps to have same pitch
       this.socketService.socket.emit('gesture-complete', {
         gesture: {
           id: gesture.id,
           userId: gesture.userId,
           roomId: gesture.roomId,
           path: gesture.path,
+          position: gesture.coordinates || gesture.currentPosition || { x: 0.5, y: 0.5 }, // Object format
+          coordinates: gesture.coordinates || gesture.currentPosition, // Also include for compatibility
           duration: gesture.duration,
           direction: gesture.direction,
           intensity: gesture.intensity,
