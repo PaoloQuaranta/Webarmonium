@@ -291,6 +291,13 @@ class WebarmoniumApp {
       this.currentRoom = data.room
       this.updateRoomDisplay()
       console.log('🏠 Joined room:', data.room.id)
+
+      // CRITICAL FIX: Set room context in gesture capture so gestures include roomId
+      // Without this, gestures have roomId: null and are never sent to backend
+      if (this.gestureCapture && this.gestureCapture.setRoomContext) {
+        this.gestureCapture.setRoomContext(data.room.id)
+        console.log('🎯 Set gesture capture room context to:', data.room.id)
+      }
     })
 
     this.socketService.on('user-joined', (data) => {
