@@ -49,6 +49,15 @@ class GestureProcessor {
       position: gesture.coordinates || gesture.position || { x: 0.5, y: 0.5 }
     }
 
+    // DEBUG: Verify position is set before sending
+    console.log('🔧 GESTURE PROCESSOR - Before sendGesture:', {
+      hasCoordinates: !!gesture.coordinates,
+      coordinates: gesture.coordinates,
+      hasPosition: !!gestureToSend.position,
+      position: gestureToSend.position,
+      gestureAction: gesture.action
+    })
+
     // Send gesture to server with position field
     this.socketService.sendGesture(gestureToSend)
 
