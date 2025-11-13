@@ -383,55 +383,20 @@ class AudioService {
           // Test audio immediately to verify setup
           this.testAudio()
         } else {
-          console.log('🔊 AudioService already initialized - checking synth state...')
+          console.log('🔊 AudioService already initialized - restoring audio...')
 
-          // CRITICAL FIX: If synths were disconnected by stop(), dispose and recreate
-          let needsRecreation = false
-
-          if (!this.gestureSynth || this.gestureSynth.disposed) {
-            console.warn('⚠️ gestureSynth disposed or missing')
-            needsRecreation = true
-          }
-
-          // Check if synth is disconnected (happens after stop())
-          // Disconnected synths can't play, so we need to dispose and recreate
-          if (this.gestureSynth && this.gestureSynth.numberOfOutputs === 0) {
-            console.warn('⚠️ gestureSynth is disconnected - needs recreation')
-            needsRecreation = true
-          }
-
-          if (needsRecreation) {
-            console.log('🔨 Disposing old synths and recreating fresh ones...')
-
-            // Dispose old synths
-            if (this.gestureSynth) {
-              try {
-                this.gestureSynth.dispose()
-              } catch (e) {
-                console.warn('Dispose error:', e.message)
-              }
-            }
-
-            if (this.ambientLayers) {
-              Object.keys(this.ambientLayers).forEach(layer => {
-                if (this.ambientLayers[layer]) {
-                  try {
-                    this.ambientLayers[layer].dispose()
-                  } catch (e) {}
-                }
-              })
-            }
-
-            // Recreate everything
-            this.createContinuousGenerativeSystem()
-            console.log('✅ Fresh synths created and reconnected')
+          // CRITICAL: Restore master volume (was set to -Infinity in stop())
+          if (this.masterVolume && this.masterVolume.volume.value === -Infinity) {
+            this.masterVolume.volume.value = -10
+            console.log('🔊 Master volume restored to -10dB')
           }
 
           // Verify components
           if (this.masterVolume && this.gestureSynth) {
             console.log('✅ Audio components verified:', {
               gestureSynthDisposed: this.gestureSynth.disposed,
-              masterVolumeExists: !!this.masterVolume
+              masterVolumeExists: !!this.masterVolume,
+              masterVolumeValue: this.masterVolume.volume.value
             })
           } else {
             console.error('❌ Missing audio components:', {
@@ -837,9 +802,15 @@ class AudioService {
    */
   stop() {
     if (this.isInitialized) {
-      console.log('🛑 Stopping AudioService - releasing all active notes...')
+      console.log('🛑 Stopping AudioService - immediate silence...')
 
-      // STEP 1: Stop Transport FIRST (before releasing notes)
+      // STEP 0: MUTE EVERYTHING IMMEDIATELY (before anything else)
+      if (this.masterVolume) {
+        this.masterVolume.volume.value = -Infinity
+        console.log('🔇 Master volume set to -Infinity (immediate silence)')
+      }
+
+      // STEP 1: Stop Transport (prevents new events from scheduling)
       try {
         if (Tone.Transport) {
           Tone.Transport.stop()
@@ -854,55 +825,34 @@ class AudioService {
       this.evolvingGenerationActive = false
       this.stopUpdateLoop()
 
-      // STEP 3: MANUALLY RELEASE ALL ACTIVE NOTES
-      console.log(`🎹 Releasing ${this.activeNotes.size} active notes...`)
-      this.activeNotes.forEach(noteDesc => {
-        try {
-          // Cancel setTimeout if exists
-          if (noteDesc.timeoutId) {
-            clearTimeout(noteDesc.timeoutId)
-          }
-          // Release the note immediately
-          if (noteDesc.synth && !noteDesc.synth.disposed) {
-            noteDesc.synth.triggerRelease(noteDesc.frequency, Tone.now())
-          }
-        } catch (e) {
-          console.warn(`  ⚠️ Error releasing note:`, e.message)
-        }
-      })
-      this.activeNotes.clear()
-      console.log('✅ All active notes released')
+      // STEP 3: Release all notes on all synths
+      console.log('🎹 Releasing all notes on all synths...')
 
-      // STEP 4: DISCONNECT all synths from output (silences immediately)
-      console.log('🛑 Disconnecting synths from output...')
-
-      if (this.gestureSynth) {
-        try {
-          this.gestureSynth.disconnect()
-          console.log('✅ gestureSynth disconnected (NOT disposed - will reuse)')
-        } catch (e) {
-          console.warn('⚠️ gestureSynth disconnect error:', e.message)
+      try {
+        if (this.gestureSynth && !this.gestureSynth.disposed) {
+          this.gestureSynth.releaseAll()
         }
+      } catch (e) {
+        console.warn('⚠️ gestureSynth releaseAll error:', e.message)
       }
 
       if (this.ambientLayers) {
         Object.keys(this.ambientLayers).forEach(layer => {
-          if (this.ambientLayers[layer]) {
-            try {
-              this.ambientLayers[layer].disconnect()
-              console.log(`✅ ${layer} disconnected (NOT disposed)`)
-            } catch (e) {
-              console.warn(`⚠️ ${layer} disconnect error:`, e.message)
+          try {
+            if (this.ambientLayers[layer] && !this.ambientLayers[layer].disposed) {
+              this.ambientLayers[layer].releaseAll()
             }
+          } catch (e) {
+            console.warn(`⚠️ ${layer} releaseAll error:`, e.message)
           }
         })
       }
 
-      // DON'T dispose synths here - they stay alive but disconnected
-      // This prevents "Synth was already disposed" errors from scheduled events
-      // Synths will be disposed and recreated in start()
+      // Clear active notes tracking
+      this.activeNotes.clear()
+      console.log('✅ All notes released')
 
-      console.log('🔇 AudioService stopped - synths disconnected but alive (no dispose)')
+      console.log('🔇 AudioService stopped - audio muted, synths alive but silent')
     }
   }
 
