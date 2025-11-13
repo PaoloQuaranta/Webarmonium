@@ -857,7 +857,58 @@ class AudioService {
       }
 
       console.log('✅ All notes released')
-      console.log('🔇 AudioService stopped - audio muted, synths alive but silent')
+
+      // STEP 5: Now safe to dispose synths (all notes released, all timeouts cleared)
+      console.log('🗑️ Disposing synths...')
+
+      if (this.gestureSynth) {
+        try {
+          this.gestureSynth.dispose()
+          this.gestureSynth = null
+        } catch (e) {
+          console.warn('⚠️ gestureSynth dispose error:', e.message)
+        }
+      }
+
+      if (this.ambientLayers) {
+        Object.keys(this.ambientLayers).forEach(layer => {
+          try {
+            if (this.ambientLayers[layer]) {
+              this.ambientLayers[layer].dispose()
+            }
+          } catch (e) {}
+        })
+        this.ambientLayers = null
+      }
+
+      if (this.ambientFilters) {
+        Object.keys(this.ambientFilters).forEach(layer => {
+          try {
+            if (this.ambientFilters[layer]) {
+              this.ambientFilters[layer].dispose()
+            }
+          } catch (e) {}
+        })
+        this.ambientFilters = null
+      }
+
+      if (this.ambientVolumes) {
+        Object.keys(this.ambientVolumes).forEach(layer => {
+          try {
+            if (this.ambientVolumes[layer]) {
+              this.ambientVolumes[layer].dispose()
+            }
+          } catch (e) {}
+        })
+        this.ambientVolumes = null
+      }
+
+      console.log('✅ All synths disposed')
+
+      // Mark as uninitialized so start() will recreate everything
+      this.isInitialized = false
+
+      console.log('🔇 AudioService stopped - will recreate fresh synths on next start')
     }
   }
 
