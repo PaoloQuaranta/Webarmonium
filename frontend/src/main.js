@@ -218,13 +218,23 @@ class WebarmoniumApp {
       const baseDuration = 0.1 // 100ms base
       const duration = baseDuration / (0.5 + noteData.velocity * 1.5) // 0.05-0.15 seconds
 
-      // Play note directly with gestureSynth for consistent sound
+      // CRITICAL FIX: Configure envelope for VERY SHORT percussive notes
+      // Default envelope has release=0.8s (800ms) which is WAY too long!
       if (this.audioService.gestureSynth) {
+        this.audioService.gestureSynth.set({
+          envelope: {
+            attack: 0.005,   // 5ms - instant attack
+            decay: 0.02,     // 20ms - fast decay
+            sustain: 0.1,    // 10% - low sustain
+            release: 0.05    // 50ms - CRITICAL: very short release!
+          }
+        })
+
         this.audioService.gestureSynth.triggerAttackRelease(
           frequency,
           duration,
           Tone.now(),
-          0.4 + noteData.velocity * 0.2 // 0.4-0.6 volume
+          0.5 + noteData.velocity * 0.3 // 0.5-0.8 volume
         )
       }
 
