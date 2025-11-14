@@ -42,6 +42,26 @@ class GestureProcessor {
   processGesture(gesture, isAudioStarted) {
     console.log('🚨 HANDLE GESTURE CALLED - action:', gesture.action, 'id:', gesture.id)
 
+    // CRITICAL CHECK: If drag streaming was active, notes already played in real-time
+    // Skip local note generation to avoid doubling
+    if (gesture.streamingWasActive) {
+      console.log('🎸 SKIPPING local note generation - streaming already played', gesture.streamingNoteCount, 'notes')
+
+      // Still send to backend for multi-user sync
+      const gestureToSend = {
+        ...gesture,
+        position: gesture.coordinates || gesture.position || { x: 0.5, y: 0.5 }
+      }
+      this.socketService.sendGesture(gestureToSend)
+
+      // Draw trail if needed
+      if (this.drawGestureTrailCallback) {
+        this.drawGestureTrailCallback(gesture)
+      }
+
+      return // Exit early - no local audio processing needed
+    }
+
     // CRITICAL FIX: Backend expects gesture.position { x, y } for pitch calculation
     // Frontend has gesture.coordinates but backend looks for gesture.position
     const gestureToSend = {

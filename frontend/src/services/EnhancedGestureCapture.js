@@ -295,7 +295,13 @@ class EnhancedGestureCapture {
         notesPlayed: this.dragStreaming.noteCount,
         totalDistance: this.dragStreaming.totalDistance.toFixed(1)
       })
+
+      // Mark that streaming was active so GestureProcessor knows to skip note generation
+      this.currentGesture.streamingWasActive = true
+      this.currentGesture.streamingNoteCount = this.dragStreaming.noteCount
       this.dragStreaming.isActive = false
+    } else {
+      this.currentGesture.streamingWasActive = false
     }
 
     // Reset drag streaming state for next gesture
