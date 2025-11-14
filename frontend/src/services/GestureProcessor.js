@@ -4,11 +4,15 @@
  * Extracted from WebarmoniumApp (main.js) as part of Sprint 4
  *
  * Responsibilities:
- * - Gesture action determination (tap vs drag vs hover)
+ * - Gesture action determination (tap vs drag - movement-based discrimination)
  * - Click/tap gesture processing (single note generation)
  * - Drag gesture processing (musical phrase generation)
  * - Local phrase generation with musical characteristics
  * - Gesture calculation helpers (speed, pitch, articulation)
+ *
+ * NOTE: Tap/drag discrimination now happens in real-time based on MOVEMENT (not time)
+ * - EnhancedGestureCapture sets gesture.action='drag' when movement > 15px threshold
+ * - No setTimeout delays - immediate processing for responsive instrumental feel
  */
 
 class GestureProcessor {
@@ -24,11 +28,6 @@ class GestureProcessor {
 
     // Drag phrase throttling
     this.lastDragPhraseTime = 0
-
-    // Click/drag discrimination timer
-    this.gestureStartTime = 0
-    this.gestureTimer = null
-    this.pendingGesture = null
 
     // Tap call counter for debugging
     this.tapCallCount = 0
@@ -109,37 +108,22 @@ class GestureProcessor {
       device: gesture.device
     }
 
-    // Special handling for gesture discrimination
+    // CRITICAL FIX: Immediate handling based on movement-based action discrimination
+    // No setTimeout delays - tap/drag discrimination happens in real-time based on movement
     if (gestureAction === 'tap') {
       // Immediate handling for tap/click
       console.log('🎯 TAP branch - calling processClickGesture')
       this.processClickGesture(gesture, sonicParams)
     } else if (gestureAction === 'drag') {
-      // Delayed handling for drag to avoid false clicks
-      console.log('🎯 DRAG branch - setting up 500ms timer')
-      this.gestureStartTime = Date.now()
-      this.pendingGesture = gesture
-
-      this.gestureTimer = setTimeout(() => {
-        if (this.pendingGesture && (Date.now() - this.gestureStartTime) > 500) {
-          console.log('🎵 Confirmed DRAG after 500ms delay')
-          this.processDragGesture(this.pendingGesture, sonicParams)
-          this.pendingGesture = null
-        }
-      }, 500)
+      // IMMEDIATE handling for drag - no delay!
+      // Note: If streaming was active, we already returned early at line 47
+      // This only processes drag gestures where streaming didn't activate (rare edge case)
+      console.log('🎯 DRAG branch - IMMEDIATE processing (no setTimeout)')
+      this.processDragGesture(gesture, sonicParams)
     } else {
       // Fallback to original logic
       console.log('🚯 ELSE branch - calling processGestureByAction for action:', gestureAction)
       this.processGestureByAction(gesture, sonicParams)
-    }
-
-    // Clear any pending gesture if we have a new definitive action
-    if (this.pendingGesture) {
-      this.pendingGesture = null
-      if (this.gestureTimer) {
-        clearTimeout(this.gestureTimer)
-        this.gestureTimer = null
-      }
     }
   }
 
@@ -604,13 +588,6 @@ class GestureProcessor {
    * Cleanup resources
    */
   destroy() {
-    // Clear any pending timers
-    if (this.gestureTimer) {
-      clearTimeout(this.gestureTimer)
-      this.gestureTimer = null
-    }
-
-    this.pendingGesture = null
     this.audioService = null
     this.socketService = null
     this.drawGestureTrailCallback = null

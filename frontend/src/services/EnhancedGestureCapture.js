@@ -168,7 +168,8 @@ class EnhancedGestureCapture {
       startPosition: coordinates,
       currentPosition: coordinates,
       path: [coordinates],
-      type: this.getEventType(event)
+      type: this.getEventType(event),
+      action: 'potential-tap' // CRITICAL: Start as potential tap, becomes 'drag' if movement detected
     }
 
     // Reset tracker
@@ -181,6 +182,12 @@ class EnhancedGestureCapture {
       startTime: Date.now(),
       lastUpdateTime: Date.now()
     }
+
+    // CRITICAL: Reset drag streaming state for new gesture
+    this.dragStreaming.isActive = false
+    this.dragStreaming.totalDistance = 0
+    this.dragStreaming.noteCount = 0
+    this.dragStreaming.lastNoteTime = 0
 
     // Emit gesture start to server
     this.emitGestureStart(this.currentGesture)
@@ -243,6 +250,10 @@ class EnhancedGestureCapture {
         this.dragStreaming.lastNoteTime = now
         this.dragStreaming.noteCount = 0
 
+        // CRITICAL: Mark gesture as 'drag' immediately when movement detected
+        this.currentGesture.action = 'drag'
+        console.log('🎸 GESTURE ACTION SET TO DRAG - movement-based discrimination')
+
         // Play FIRST note immediately!
         this.playDragStreamingNote(coordinates, newVelocity, 0)
       }
@@ -288,6 +299,15 @@ class EnhancedGestureCapture {
 
     const endTime = Date.now()
     const duration = endTime - this.currentGesture.startTime
+
+    // CRITICAL: Finalize gesture action based on movement
+    // If still 'potential-tap', no significant movement occurred → it's a tap
+    if (this.currentGesture.action === 'potential-tap') {
+      this.currentGesture.action = 'tap'
+      console.log('🎯 GESTURE ACTION FINALIZED: TAP - no movement detected')
+    } else {
+      console.log('🎯 GESTURE ACTION FINALIZED:', this.currentGesture.action)
+    }
 
     // STOP DRAG NOTE STREAMING
     if (this.dragStreaming.isActive) {
