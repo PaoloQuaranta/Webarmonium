@@ -32,6 +32,16 @@ class EnhancedGestureCapture {
       hoverVelocity: 0
     }
 
+    // Real-time drag note streaming state
+    this.dragStreaming = {
+      isActive: false,
+      lastNoteTime: 0,
+      noteInterval: 200, // ms between notes (adjustable based on velocity)
+      noteCount: 0,
+      totalDistance: 0,
+      minDistanceForDrag: 15 // pixels - min movement to activate drag streaming
+    }
+
     // Enhanced gesture tracking
     this.gestureTracker = {
       startPosition: null,
@@ -73,6 +83,7 @@ class EnhancedGestureCapture {
     this.onGestureEnd = null
     this.onMultiUserGesture = null
     this.onHoverModulation = null
+    this.onDragStreamingNote = null // Real-time drag note streaming callback
 
     // Initialize
     this.setupEventListeners()
@@ -201,6 +212,7 @@ class EnhancedGestureCapture {
       // Calculate velocity
       const deltaX = coordinates.x - this.gestureTracker.currentPosition.x
       const deltaY = coordinates.y - this.gestureTracker.currentPosition.y
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
 
       const newVelocity = {
         x: deltaX / deltaTime * 1000, // pixels per second
@@ -219,6 +231,36 @@ class EnhancedGestureCapture {
       this.gestureTracker.acceleration = acceleration
       this.gestureTracker.path.push(coordinates)
       this.gestureTracker.lastUpdateTime = now
+
+      // REAL-TIME DRAG NOTE STREAMING
+      // Calculate total distance moved
+      this.dragStreaming.totalDistance += distance
+
+      // Activate drag streaming if movement exceeds threshold
+      if (!this.dragStreaming.isActive && this.dragStreaming.totalDistance > this.dragStreaming.minDistanceForDrag) {
+        console.log('🎸 DRAG STREAMING ACTIVATED - movement threshold exceeded')
+        this.dragStreaming.isActive = true
+        this.dragStreaming.lastNoteTime = now
+        this.dragStreaming.noteCount = 0
+
+        // Play FIRST note immediately!
+        this.playDragStreamingNote(coordinates, newVelocity, 0)
+      }
+
+      // Continue streaming notes if active
+      if (this.dragStreaming.isActive) {
+        // Adjust note interval based on velocity (faster movement = faster notes)
+        const speed = Math.sqrt(newVelocity.x ** 2 + newVelocity.y ** 2)
+        const velocityFactor = Math.min(speed / 500, 2) // 0-2x speed multiplier
+        const adjustedInterval = this.dragStreaming.noteInterval / (0.5 + velocityFactor * 0.5) // 66-200ms
+
+        // Play next note if enough time has passed
+        if (now - this.dragStreaming.lastNoteTime >= adjustedInterval) {
+          this.dragStreaming.noteCount++
+          this.dragStreaming.lastNoteTime = now
+          this.playDragStreamingNote(coordinates, newVelocity, this.dragStreaming.noteCount)
+        }
+      }
 
       // Update current gesture
       this.currentGesture.currentPosition = coordinates
@@ -246,6 +288,19 @@ class EnhancedGestureCapture {
 
     const endTime = Date.now()
     const duration = endTime - this.currentGesture.startTime
+
+    // STOP DRAG NOTE STREAMING
+    if (this.dragStreaming.isActive) {
+      console.log('🎸 DRAG STREAMING STOPPED - mouseup', {
+        notesPlayed: this.dragStreaming.noteCount,
+        totalDistance: this.dragStreaming.totalDistance.toFixed(1)
+      })
+      this.dragStreaming.isActive = false
+    }
+
+    // Reset drag streaming state for next gesture
+    this.dragStreaming.totalDistance = 0
+    this.dragStreaming.noteCount = 0
 
     // Complete gesture data
     this.currentGesture.endTime = endTime
@@ -895,6 +950,47 @@ class EnhancedGestureCapture {
   setHoverModulationCallback(callback) {
     this.onHoverModulation = callback
     console.log('🎛️ Hover modulation callback set')
+  }
+
+  /**
+   * Set drag streaming note callback for real-time feedback
+   * @param {Function} callback - Drag streaming note callback
+   */
+  setDragStreamingNoteCallback(callback) {
+    this.onDragStreamingNote = callback
+    console.log('🎸 Drag streaming note callback set')
+  }
+
+  /**
+   * Play drag streaming note during real-time drag
+   * @param {Object} coordinates - Current position
+   * @param {Object} velocity - Current velocity
+   * @param {number} noteIndex - Index of note in stream
+   */
+  playDragStreamingNote(coordinates, velocity, noteIndex) {
+    if (!this.onDragStreamingNote) {
+      console.warn('🎸 No drag streaming callback set')
+      return
+    }
+
+    // Calculate note properties from position and movement
+    const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2)
+    const normalizedSpeed = Math.min(speed / 1000, 1) // 0-1
+
+    const noteData = {
+      position: coordinates,
+      velocity: normalizedSpeed,
+      noteIndex: noteIndex,
+      timestamp: Date.now()
+    }
+
+    console.log('🎸 Streaming note #' + noteIndex, {
+      y: coordinates.y.toFixed(2),
+      speed: normalizedSpeed.toFixed(2)
+    })
+
+    // Trigger callback to play note
+    this.onDragStreamingNote(noteData)
   }
 
   /**
