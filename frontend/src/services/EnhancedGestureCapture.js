@@ -183,11 +183,16 @@ class EnhancedGestureCapture {
       lastUpdateTime: Date.now()
     }
 
-    // CRITICAL: Reset drag streaming state for new gesture
-    this.dragStreaming.isActive = false
+    // CRITICAL: START drag streaming IMMEDIATELY on mousedown!
+    // Don't wait for movement - instrumental feedback must be instant!
+    this.dragStreaming.isActive = true
     this.dragStreaming.totalDistance = 0
     this.dragStreaming.noteCount = 0
-    this.dragStreaming.lastNoteTime = 0
+    this.dragStreaming.lastNoteTime = Date.now()
+
+    // CRITICAL: Play FIRST note IMMEDIATELY on mousedown!
+    console.log('🎸 MOUSEDOWN - Playing FIRST note IMMEDIATELY at position:', coordinates)
+    this.playDragStreamingNote(coordinates, { x: 0, y: 0 }, 0)
 
     // Emit gesture start to server
     this.emitGestureStart(this.currentGesture)
@@ -240,37 +245,27 @@ class EnhancedGestureCapture {
       this.gestureTracker.lastUpdateTime = now
 
       // REAL-TIME DRAG NOTE STREAMING
-      // Calculate total distance moved
+      // Calculate total distance moved from start position
       this.dragStreaming.totalDistance += distance
 
-      // Activate drag streaming if movement exceeds threshold
-      if (!this.dragStreaming.isActive && this.dragStreaming.totalDistance > this.dragStreaming.minDistanceForDrag) {
-        console.log('🎸 DRAG STREAMING ACTIVATED - movement threshold exceeded')
-        this.dragStreaming.isActive = true
-        this.dragStreaming.lastNoteTime = now
-        this.dragStreaming.noteCount = 0
-
-        // CRITICAL: Mark gesture as 'drag' immediately when movement detected
+      // CRITICAL: Discriminate tap vs drag based on MOVEMENT (not time!)
+      // If movement exceeds threshold, mark as 'drag'
+      if (this.currentGesture.action === 'potential-tap' && this.dragStreaming.totalDistance > this.dragStreaming.minDistanceForDrag) {
         this.currentGesture.action = 'drag'
-        console.log('🎸 GESTURE ACTION SET TO DRAG - movement-based discrimination')
-
-        // Play FIRST note immediately!
-        this.playDragStreamingNote(coordinates, newVelocity, 0)
+        console.log('🎸 GESTURE ACTION SET TO DRAG - movement threshold exceeded:', this.dragStreaming.totalDistance.toFixed(1), 'px')
       }
 
-      // Continue streaming notes if active
-      if (this.dragStreaming.isActive) {
-        // Adjust note interval based on velocity (faster movement = faster notes)
-        const speed = Math.sqrt(newVelocity.x ** 2 + newVelocity.y ** 2)
-        const velocityFactor = Math.min(speed / 500, 2) // 0-2x speed multiplier
-        const adjustedInterval = this.dragStreaming.noteInterval / (0.5 + velocityFactor * 0.5) // 66-200ms
+      // CONTINUE streaming notes (already started in handleGestureStart)
+      // Adjust note interval based on velocity (faster movement = faster notes)
+      const speed = Math.sqrt(newVelocity.x ** 2 + newVelocity.y ** 2)
+      const velocityFactor = Math.min(speed / 500, 2) // 0-2x speed multiplier
+      const adjustedInterval = this.dragStreaming.noteInterval / (0.5 + velocityFactor * 0.5) // 66-200ms
 
-        // Play next note if enough time has passed
-        if (now - this.dragStreaming.lastNoteTime >= adjustedInterval) {
-          this.dragStreaming.noteCount++
-          this.dragStreaming.lastNoteTime = now
-          this.playDragStreamingNote(coordinates, newVelocity, this.dragStreaming.noteCount)
-        }
+      // Play next note if enough time has passed
+      if (now - this.dragStreaming.lastNoteTime >= adjustedInterval) {
+        this.dragStreaming.noteCount++
+        this.dragStreaming.lastNoteTime = now
+        this.playDragStreamingNote(coordinates, newVelocity, this.dragStreaming.noteCount)
       }
 
       // Update current gesture
@@ -304,25 +299,23 @@ class EnhancedGestureCapture {
     // If still 'potential-tap', no significant movement occurred → it's a tap
     if (this.currentGesture.action === 'potential-tap') {
       this.currentGesture.action = 'tap'
-      console.log('🎯 GESTURE ACTION FINALIZED: TAP - no movement detected')
+      console.log('🎯 GESTURE ACTION FINALIZED: TAP - no movement detected (1 note played at mousedown)')
     } else {
-      console.log('🎯 GESTURE ACTION FINALIZED:', this.currentGesture.action)
+      console.log('🎯 GESTURE ACTION FINALIZED:', this.currentGesture.action, '- notes played:', this.dragStreaming.noteCount)
     }
 
-    // STOP DRAG NOTE STREAMING
-    if (this.dragStreaming.isActive) {
-      console.log('🎸 DRAG STREAMING STOPPED - mouseup', {
-        notesPlayed: this.dragStreaming.noteCount,
-        totalDistance: this.dragStreaming.totalDistance.toFixed(1)
-      })
+    // STOP DRAG NOTE STREAMING (always active since mousedown)
+    console.log('🎸 DRAG STREAMING STOPPED - mouseup', {
+      action: this.currentGesture.action,
+      notesPlayed: this.dragStreaming.noteCount,
+      totalDistance: this.dragStreaming.totalDistance.toFixed(1)
+    })
 
-      // Mark that streaming was active so GestureProcessor knows to skip note generation
-      this.currentGesture.streamingWasActive = true
-      this.currentGesture.streamingNoteCount = this.dragStreaming.noteCount
-      this.dragStreaming.isActive = false
-    } else {
-      this.currentGesture.streamingWasActive = false
-    }
+    // CRITICAL: Mark that streaming was active so GestureProcessor knows to skip note generation
+    // This is ALWAYS true now since we play first note on mousedown
+    this.currentGesture.streamingWasActive = true
+    this.currentGesture.streamingNoteCount = this.dragStreaming.noteCount
+    this.dragStreaming.isActive = false
 
     // Reset drag streaming state for next gesture
     this.dragStreaming.totalDistance = 0
