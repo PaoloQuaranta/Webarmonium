@@ -25,11 +25,22 @@ class PhraseMorphology {
   }
 
   generatePhrase(gestureData, musicalContext) {
-    const { velocity, trajectory, curvature, acceleration } = gestureData
+    const { velocity, trajectory, curvature, acceleration, intensity } = gestureData
     const { key = 'C', mode = 'major', tempo = 120, currentHarmony } = musicalContext
 
-    // 1. Determine phrase length based on gesture velocity
-    const phraseLength = this.calculatePhraseLength(velocity)
+    // CRITICAL NEW FEATURE: Use gesture duration for phrase duration
+    // This creates real-time feedback - phrase duration matches drag duration!
+    const gestureDurationMs = gestureData.duration || 1000 // Default 1 second if missing
+    const phraseDurationBeats = this.quantizeGestureDuration(gestureDurationMs, tempo)
+
+    console.log('🎵 DRAG PHRASE - Gesture duration:', {
+      durationMs: gestureDurationMs,
+      tempo: tempo,
+      quantizedBeats: phraseDurationBeats
+    })
+
+    // 1. Determine phrase length (note count) based on quantized duration and velocity
+    const phraseLength = this.calculatePhraseLengthFromDuration(phraseDurationBeats, velocity, tempo)
 
     // 2. Select appropriate scale based on mood and mode
     const scale = this.selectScale(mode, gestureData)
@@ -40,8 +51,8 @@ class PhraseMorphology {
     // 4. Convert contour to actual pitches
     const pitches = this.contourToPitches(contour, scale, key)
 
-    // 5. Generate rhythm based on gesture dynamics
-    const rhythm = this.generateRhythm(velocity, acceleration, phraseLength, tempo)
+    // 5. Generate rhythm that fits EXACTLY in phraseDurationBeats
+    const rhythm = this.generateRhythmForDuration(velocity, acceleration, phraseLength, phraseDurationBeats, tempo)
 
     // 6. Add ornamentation based on gesture character
     const ornamented = this.applyOrnamentation(pitches, rhythm, gestureData)
@@ -51,6 +62,12 @@ class PhraseMorphology {
 
     // 8. Create articulation pattern
     const articulations = this.generateArticulations(velocity, curvature)
+
+    console.log('🎵 Generated phrase:', {
+      noteCount: phraseLength,
+      totalDurationBeats: phraseDurationBeats,
+      actualDurationBeats: rhythm.reduce((sum, dur) => sum + dur, 0).toFixed(2)
+    })
 
     return {
       notes: ornamented.map((pitch, i) => ({
@@ -66,10 +83,117 @@ class PhraseMorphology {
         key: key,
         length: phraseLength,
         tempo: tempo,
+        phraseDurationBeats: phraseDurationBeats,  // NEW: Total phrase duration
+        gestureDurationMs: gestureDurationMs,      // NEW: Original gesture duration
         contour: contour,
         gestureMood: this.analyzeMood(gestureData)
       }
     }
+  }
+
+  /**
+   * Quantize gesture duration to musical beat values
+   * Maps milliseconds to nearest musical duration (1, 2, 4, 8, 16 beats)
+   */
+  quantizeGestureDuration(durationMs, tempo = 120) {
+    // Convert ms to beats
+    const beatsPerMinute = tempo
+    const msPerBeat = 60000 / beatsPerMinute
+    const exactBeats = durationMs / msPerBeat
+
+    // Quantize to musical divisions: 1, 2, 4, 8, 16 beats
+    const quantizationLevels = [0.5, 1, 2, 4, 8, 16, 32]
+
+    // Find nearest quantization level
+    let nearestBeats = quantizationLevels[0]
+    let minDiff = Math.abs(exactBeats - nearestBeats)
+
+    for (const level of quantizationLevels) {
+      const diff = Math.abs(exactBeats - level)
+      if (diff < minDiff) {
+        minDiff = diff
+        nearestBeats = level
+      }
+    }
+
+    // Clamp to reasonable range (min 1 beat, max 16 beats)
+    return Math.max(1, Math.min(16, nearestBeats))
+  }
+
+  /**
+   * Calculate phrase length (note count) from quantized duration
+   * Faster velocity = more notes in same duration
+   */
+  calculatePhraseLengthFromDuration(phraseDurationBeats, velocity, tempo) {
+    // Determine base note duration based on velocity
+    let baseDuration
+    if (velocity > 80) baseDuration = 0.25   // Fast = 16th notes
+    else if (velocity > 60) baseDuration = 0.5  // Medium-fast = 8th notes
+    else if (velocity > 40) baseDuration = 1.0  // Medium = quarter notes
+    else if (velocity > 20) baseDuration = 1.5  // Medium-slow = dotted quarters
+    else baseDuration = 2.0                     // Slow = half notes
+
+    // Calculate how many notes fit in the phrase duration
+    const idealNoteCount = Math.floor(phraseDurationBeats / baseDuration)
+
+    // Clamp to reasonable range (min 2, max 32 notes)
+    const noteCount = Math.max(2, Math.min(32, idealNoteCount))
+
+    console.log('📏 Phrase length calculation:', {
+      phraseDurationBeats,
+      velocity,
+      baseDuration,
+      idealNoteCount,
+      clampedNoteCount: noteCount
+    })
+
+    return noteCount
+  }
+
+  /**
+   * Generate rhythm that fits exactly in the target duration
+   */
+  generateRhythmForDuration(velocity, acceleration, noteCount, targetDurationBeats, tempo) {
+    // Start with base durations
+    let baseDuration
+    if (velocity > 80) baseDuration = 0.25
+    else if (velocity > 60) baseDuration = 0.5
+    else if (velocity > 40) baseDuration = 1.0
+    else if (velocity > 20) baseDuration = 1.5
+    else baseDuration = 2.0
+
+    const rhythm = []
+    let totalDuration = 0
+
+    // Generate rhythm with variation
+    for (let i = 0; i < noteCount; i++) {
+      // Add rhythmic variation
+      const variation = (Math.random() - 0.5) * Math.abs(acceleration) * 0.02
+      let duration = baseDuration * (1 + variation)
+
+      // Occasionally add syncopation
+      if (Math.random() < 0.15) {
+        const rhythmicDevices = [0.5, 0.75, 1.5, 0.33, 0.67]
+        duration = baseDuration * rhythmicDevices[Math.floor(Math.random() * rhythmicDevices.length)]
+      }
+
+      duration = Math.max(0.125, Math.min(4.0, duration))
+      rhythm.push(duration)
+      totalDuration += duration
+    }
+
+    // CRITICAL: Scale rhythm to fit EXACTLY in targetDurationBeats
+    const scaleFactor = targetDurationBeats / totalDuration
+    const scaledRhythm = rhythm.map(dur => dur * scaleFactor)
+
+    console.log('🎵 Rhythm scaled:', {
+      originalTotal: totalDuration.toFixed(2),
+      targetDuration: targetDurationBeats,
+      scaleFactor: scaleFactor.toFixed(3),
+      finalTotal: scaledRhythm.reduce((sum, d) => sum + d, 0).toFixed(2)
+    })
+
+    return scaledRhythm
   }
 
   calculatePhraseLength(velocity) {
