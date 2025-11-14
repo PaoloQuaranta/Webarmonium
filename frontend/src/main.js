@@ -203,9 +203,14 @@ class WebarmoniumApp {
         return
       }
 
-      // Calculate pitch from Y position (inverted - top = high, bottom = low)
-      const pitchFromY = 60 + ((1 - noteData.position.y) * 24) // MIDI 60-84 (C4-C6)
-      const frequency = 440 * Math.pow(2, (pitchFromY - 69) / 12) // Convert MIDI to Hz
+      // CRITICAL: Use SAME pitch calculation as tap gestures for consistency
+      // Calculate frequency using BOTH X and Y for maximum variation
+      // Y controls octave range, X controls frequency within octave
+      const x = noteData.position.x
+      const y = noteData.position.y
+      const octaveBase = 110 + (1 - y) * 440 // 110-550Hz (A2 to C#5)
+      const withinOctave = x * 660 // 0-660Hz variation within octave
+      const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
 
       // CRITICAL FIX: Much shorter duration to avoid sustained overlap
       // Old: 0.2-0.6 seconds (too long, creates drone)
@@ -213,16 +218,19 @@ class WebarmoniumApp {
       const baseDuration = 0.1 // 100ms base
       const duration = baseDuration / (0.5 + noteData.velocity * 1.5) // 0.05-0.15 seconds
 
-      // Play note with local tier for immediate feedback
-      if (this.audioService.playThreeTierNote) {
-        this.audioService.playThreeTierNote(frequency, 'local', duration, {
-          volume: 0.4 + noteData.velocity * 0.2 // 0.4-0.6 volume
-        })
+      // Play note directly with gestureSynth for consistent sound
+      if (this.audioService.gestureSynth) {
+        this.audioService.gestureSynth.triggerAttackRelease(
+          frequency,
+          duration,
+          Tone.now(),
+          0.4 + noteData.velocity * 0.2 // 0.4-0.6 volume
+        )
       }
 
       console.log('🎸 Note #' + noteData.noteIndex + ':', {
-        y: noteData.position.y.toFixed(2),
-        pitch: pitchFromY.toFixed(0),
+        x: x.toFixed(2),
+        y: y.toFixed(2),
         freq: frequency.toFixed(0) + 'Hz',
         dur: (duration * 1000).toFixed(0) + 'ms'
       })
