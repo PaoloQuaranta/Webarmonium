@@ -60,10 +60,31 @@ class GestureToMusicService {
     const gestureAction = gesture.action || gestureData.gestureAction || 'unknown'
     const gestureType = gesture.type || gestureData.gestureType || 'unknown'
 
+    // DEBUG: Log what we receive to identify format issue
+    console.log('🔍 BACKEND RECEIVED gesture data:', {
+      hasGestureCoordinates: !!gesture.coordinates,
+      gestureCoordinates: gesture.coordinates,
+      coordinatesType: typeof gesture.coordinates,
+      isArray: Array.isArray(gesture.coordinates),
+      hasGesturePosition: !!gesture.position,
+      gesturePosition: gesture.position,
+      hasGestureDataPosition: !!gestureData.position,
+      gestureDataPosition: gestureData.position
+    })
+
     // Handle different position formats
+    // CRITICAL FIX: Frontend sends coordinates as object { x, y }, not array [x, y]
     let position
     if (gesture.coordinates) {
-      position = { x: gesture.coordinates[0] || 0.5, y: gesture.coordinates[1] || 0.5 }
+      // Check if coordinates is object or array
+      if (Array.isArray(gesture.coordinates)) {
+        position = { x: gesture.coordinates[0] || 0.5, y: gesture.coordinates[1] || 0.5 }
+      } else if (typeof gesture.coordinates === 'object') {
+        // Frontend sends object format
+        position = { x: gesture.coordinates.x || 0.5, y: gesture.coordinates.y || 0.5 }
+      } else {
+        position = { x: 0.5, y: 0.5 }
+      }
     } else {
       position = gesture.position || gestureData.position || { x: 0.5, y: 0.5 }
     }
