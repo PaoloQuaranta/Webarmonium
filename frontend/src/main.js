@@ -199,10 +199,7 @@ class WebarmoniumApp {
 
     // Setup drag streaming note callback for real-time feedback
     this.gestureCapture.setDragStreamingNoteCallback((noteData) => {
-      console.log('🎸 Drag streaming note:', noteData.noteIndex, 'y:', noteData.position.y.toFixed(2))
-
       if (!this.isAudioStarted || !this.audioService) {
-        console.log('🔇 Audio not started, skipping drag streaming note')
         return
       }
 
@@ -210,17 +207,25 @@ class WebarmoniumApp {
       const pitchFromY = 60 + ((1 - noteData.position.y) * 24) // MIDI 60-84 (C4-C6)
       const frequency = 440 * Math.pow(2, (pitchFromY - 69) / 12) // Convert MIDI to Hz
 
-      // Calculate note duration based on velocity (faster = shorter notes)
-      const baseDuration = 0.3 // seconds
-      const duration = baseDuration / (0.5 + noteData.velocity * 1.5) // 0.2-0.6 seconds
+      // CRITICAL FIX: Much shorter duration to avoid sustained overlap
+      // Old: 0.2-0.6 seconds (too long, creates drone)
+      // New: 0.05-0.15 seconds (percussive, clear articulation)
+      const baseDuration = 0.1 // 100ms base
+      const duration = baseDuration / (0.5 + noteData.velocity * 1.5) // 0.05-0.15 seconds
 
       // Play note with local tier for immediate feedback
       if (this.audioService.playThreeTierNote) {
         this.audioService.playThreeTierNote(frequency, 'local', duration, {
-          volume: 0.3 + noteData.velocity * 0.3 // 0.3-0.6 volume
+          volume: 0.4 + noteData.velocity * 0.2 // 0.4-0.6 volume
         })
-        console.log('🎸 Played streaming note:', frequency.toFixed(1) + 'Hz', 'duration:', duration.toFixed(2) + 's')
       }
+
+      console.log('🎸 Note #' + noteData.noteIndex + ':', {
+        y: noteData.position.y.toFixed(2),
+        pitch: pitchFromY.toFixed(0),
+        freq: frequency.toFixed(0) + 'Hz',
+        dur: (duration * 1000).toFixed(0) + 'ms'
+      })
     })
 
     // Setup gesture handling
