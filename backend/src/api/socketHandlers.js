@@ -426,6 +426,7 @@ const socketHandlers = {
         const musicalEvents = Array.isArray(musicalResult) ? musicalResult : [musicalResult]
 
         musicalEvents.forEach((musicalEvent, index) => {
+          const eventType = musicalEvent.eventType || 'musical'
 
           const musicalEventBroadcast = {
             id: musicalEvent.id,
