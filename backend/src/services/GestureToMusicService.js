@@ -178,22 +178,31 @@ class GestureToMusicService {
 
   generateTapPhrase(gestureData, musicalContext) {
     // Short, percussive phrase for tap gestures
-    // FIX: Use position.Y for pitch (not X) to match frontend behavior
-    const pitchFromY = 60 + ((1 - gestureData.position.y) * 24) // Y inverted, wider range
+    // CRITICAL: Use SAME X+Y pitch calculation as frontend for consistency
+    // Y controls octave range, X controls frequency within octave
+    const x = gestureData.position.x
+    const y = gestureData.position.y
+    const octaveBase = 110 + (1 - y) * 440 // 110-550Hz (A2 to C#5)
+    const withinOctave = x * 660 // 0-660Hz variation within octave
+    const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
 
-    console.log('🎯 TAP PITCH DEBUG:', {
+    // Convert frequency to MIDI pitch for backend processing
+    const pitch = Math.round(12 * Math.log2(frequency / 440) + 69)
+
+    console.log('🎯 REMOTE TAP:', {
       userId: gestureData.userId.substring(0, 8),
-      positionY: gestureData.position.y,
-      calculation: `60 + ((1 - ${gestureData.position.y}) * 24)`,
-      resultPitch: pitchFromY
+      x: x.toFixed(2),
+      y: y.toFixed(2),
+      freq: frequency.toFixed(0) + 'Hz',
+      pitch: pitch
     })
 
     return {
       notes: [{
-        pitch: pitchFromY, // Y position controls pitch (high Y = low pitch)
-        duration: 0.1 + (gestureData.velocity / 1000), // Velocity affects duration
-        velocity: 80 + (gestureData.velocity * 0.4), // Dynamic based on velocity
-        articulation: gestureData.velocity > 70 ? 'staccato' : 'normal',
+        pitch: pitch,
+        duration: 0.1, // Fixed short duration for percussive taps
+        velocity: 90, // Strong velocity for clear articulation
+        articulation: 'staccato',
         position: 0,
         startBeat: 0
       }],
