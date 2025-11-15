@@ -201,6 +201,7 @@ class WebarmoniumApp {
     // CRITICAL: Return note data for backend broadcast
     this.gestureCapture.setDragStreamingNoteCallback((noteData) => {
       if (!this.isAudioStarted || !this.audioService) {
+        console.warn('⚠️ Callback called but audio not started - returning null')
         return null // No note played
       }
 
@@ -247,13 +248,15 @@ class WebarmoniumApp {
       })
 
       // CRITICAL: Return note data for collection in streamedNotes array
-      return {
+      const returnedNote = {
         frequency: frequency,
         duration: duration,
         position: { x, y },
         velocity: noteData.velocity,
         timestamp: Date.now() // When this note was played
       }
+      console.log('🔵 RETURNING note to GestureCapture:', returnedNote)
+      return returnedNote
     })
 
     // Setup gesture handling

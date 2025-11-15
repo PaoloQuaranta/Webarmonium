@@ -320,6 +320,8 @@ class EnhancedGestureCapture {
 
     // CRITICAL: Include streamedNotes array for backend broadcast (exact replication)
     this.currentGesture.streamedNotes = [...this.dragStreaming.streamedNotes] // Clone array
+    console.log('📡📡📡 MOUSEUP - Collected notes:', this.dragStreaming.streamedNotes.length)
+    console.log('📡 streamedNotes array:', this.currentGesture.streamedNotes)
     console.log('📡 Sending', this.dragStreaming.streamedNotes.length, 'notes to backend for broadcast')
 
     this.dragStreaming.isActive = false
@@ -1022,6 +1024,9 @@ class EnhancedGestureCapture {
     // CRITICAL: Add played note to streamedNotes array for backend broadcast
     if (playedNote) {
       this.dragStreaming.streamedNotes.push(playedNote)
+      console.log('✅ NOTE ADDED TO ARRAY - Total notes now:', this.dragStreaming.streamedNotes.length)
+    } else {
+      console.warn('❌ NO NOTE RETURNED FROM CALLBACK - not added to array')
     }
   }
 
