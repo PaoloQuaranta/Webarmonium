@@ -440,15 +440,35 @@ class WebarmoniumApp {
     // Handle musical events from backend (drag phrases, etc.)
     // PHASE 4 FIX: Changed from 'musical-event' (dash) to 'musical:event' (colon) to match backend
     // PHASE 7 FIX: Extract actual event from wrapper (backend sends { event: {...} })
+    // CRITICAL FIX: Schedule notes based on timestamp to avoid cluster playback
     this.socketService.on('musical:event', (musicalEventWrapper) => {
-      if (this.isAudioStarted && musicalEventWrapper?.event) {
-        const event = musicalEventWrapper.event
+      if (!this.isAudioStarted || !musicalEventWrapper?.event) {
+        return
+      }
 
-        // Minimal logging: only first note of phrase + critical info
-        if (event.properties?.noteIndex === 0 || !event.properties?.noteIndex) {
-          console.log(`🎵 Remote: ${event.properties?.gestureAction || 'unknown'} - freq=${event.properties?.frequency?.toFixed(0)}Hz, notes=${event.properties?.totalNotes || 1}`)
-        }
+      const event = musicalEventWrapper.event
 
+      // Minimal logging: only first note of phrase + critical info
+      if (event.properties?.noteIndex === 0 || !event.properties?.noteIndex) {
+        console.log(`🎵 Remote: ${event.properties?.gestureAction || 'unknown'} - freq=${event.properties?.frequency?.toFixed(0)}Hz, notes=${event.properties?.totalNotes || 1}`)
+      }
+
+      // CRITICAL FIX: Schedule note playback based on timestamp
+      // Backend sends timestamp = Date.now() + startTime
+      // Calculate delay from current time
+      const now = Date.now()
+      const eventTime = event.timestamp || now
+      const delay = Math.max(0, eventTime - now) // Ensure non-negative
+
+      if (delay > 0) {
+        // Schedule note for future playback
+        setTimeout(() => {
+          if (this.isAudioStarted && this.audioService) {
+            this.audioService.playMusicalEvent(event)
+          }
+        }, delay)
+      } else {
+        // Play immediately if timestamp is in the past
         this.audioService.playMusicalEvent(event)
       }
     })
