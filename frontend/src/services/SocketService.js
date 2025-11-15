@@ -372,6 +372,17 @@ class SocketService {
         return
       }
 
+      // CRITICAL DEBUG: Log EXACTLY what socket.emit receives
+      if (event === 'gesture' && data.streamedNotes) {
+        console.log('🔴 SOCKET.EMIT called with streamedNotes:', {
+          event: event,
+          hasStreamedNotes: !!data.streamedNotes,
+          streamedNotesLength: data.streamedNotes?.length || 0,
+          streamedNotesIsArray: Array.isArray(data.streamedNotes),
+          firstNoteKeys: data.streamedNotes?.[0] ? Object.keys(data.streamedNotes[0]) : 'N/A'
+        })
+      }
+
       const timer = setTimeout(() => {
         reject(new Error(`Response timeout for ${event}`))
       }, timeout)
