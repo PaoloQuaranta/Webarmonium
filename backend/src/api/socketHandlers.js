@@ -259,6 +259,18 @@ const socketHandlers = {
     socket.on('gesture', async (data, callback) => {
       const startTime = Date.now()
 
+      // CRITICAL DEBUG: Log RAW data received from socket
+      console.log('🔴🔴🔴 BACKEND socket.on("gesture") RAW data:', {
+        hasData: !!data,
+        dataKeys: data ? Object.keys(data).slice(0, 30) : 'NO DATA',
+        hasStreamedNotes: !!data?.streamedNotes,
+        streamedNotesType: typeof data?.streamedNotes,
+        streamedNotesIsArray: Array.isArray(data?.streamedNotes),
+        streamedNotesLength: data?.streamedNotes?.length || 0,
+        action: data?.action,
+        type: data?.type
+      })
+
       // Ensure callback exists and provide timeout safety
       const timeoutId = setTimeout(() => {
         console.warn('⚠️ Gesture processing timeout - sending fallback response')
