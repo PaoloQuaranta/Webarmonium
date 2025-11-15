@@ -372,14 +372,16 @@ class SocketService {
         return
       }
 
-      // CRITICAL DEBUG: Log EXACTLY what socket.emit receives
-      if (event === 'gesture' && data.streamedNotes) {
-        console.log('🔴 SOCKET.EMIT called with streamedNotes:', {
-          event: event,
+      // CRITICAL DEBUG: Log ALL gesture events to socket.emit
+      if (event === 'gesture') {
+        console.log('🔴 SOCKET.EMIT called for gesture:', {
           hasStreamedNotes: !!data.streamedNotes,
           streamedNotesLength: data.streamedNotes?.length || 0,
           streamedNotesIsArray: Array.isArray(data.streamedNotes),
-          firstNoteKeys: data.streamedNotes?.[0] ? Object.keys(data.streamedNotes[0]) : 'N/A'
+          action: data.action,
+          streamingWasActive: data.streamingWasActive,
+          // Show actual value to debug
+          streamedNotesValue: data.streamedNotes ? 'EXISTS' : 'MISSING'
         })
       }
 
