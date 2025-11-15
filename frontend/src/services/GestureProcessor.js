@@ -39,27 +39,14 @@ class GestureProcessor {
    * @param {boolean} isAudioStarted - Whether audio system is active
    */
   processGesture(gesture, isAudioStarted) {
-    console.log('🚨 HANDLE GESTURE CALLED - action:', gesture.action, 'id:', gesture.id)
-
     // CRITICAL CHECK: If drag streaming was active, notes already played in real-time
     // Skip local note generation to avoid doubling
     if (gesture.streamingWasActive) {
-      console.log('🎸 SKIPPING local note generation - streaming already played', gesture.streamingNoteCount, 'notes')
-
       // Still send to backend for multi-user sync
       const gestureToSend = {
         ...gesture,
         position: gesture.coordinates || gesture.position || { x: 0.5, y: 0.5 }
       }
-
-      // CRITICAL DEBUG: Verify streamedNotes is included
-      console.log('📡 SENDING TO BACKEND:', {
-        action: gestureToSend.action,
-        streamingWasActive: gestureToSend.streamingWasActive,
-        hasStreamedNotes: !!gestureToSend.streamedNotes,
-        streamedNotesLength: gestureToSend.streamedNotes?.length || 0,
-        firstNote: gestureToSend.streamedNotes?.[0]
-      })
 
       this.socketService.sendGesture(gestureToSend)
 

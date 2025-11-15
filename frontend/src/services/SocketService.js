@@ -314,22 +314,6 @@ class SocketService {
         clientTimestamp: Date.now()
       }
 
-      // DEBUG: Log what we're sending to backend
-      console.log('📡📡📡 SOCKET SENDING gesture event:', {
-        hasCoordinates: !!gestureWithTimestamp.coordinates,
-        coordinates: gestureWithTimestamp.coordinates,
-        hasPosition: !!gestureWithTimestamp.position,
-        position: gestureWithTimestamp.position,
-        action: gestureWithTimestamp.action,
-        type: gestureWithTimestamp.type,
-        // CRITICAL: Log streamedNotes to verify transmission
-        hasStreamedNotes: !!gestureWithTimestamp.streamedNotes,
-        streamedNotesLength: gestureWithTimestamp.streamedNotes?.length || 0,
-        streamingWasActive: gestureWithTimestamp.streamingWasActive
-      })
-
-      console.log('📡 FULL GESTURE OBJECT KEYS:', Object.keys(gestureWithTimestamp))
-
       const response = await this.sendWithResponse('gesture', gestureWithTimestamp)
 
       if (response.success) {
@@ -372,34 +356,6 @@ class SocketService {
         return
       }
 
-      // CRITICAL DEBUG: Log ALL gesture events to socket.emit
-      if (event === 'gesture') {
-        console.log('🔴 SOCKET.EMIT called for gesture:', {
-          hasStreamedNotes: !!data.streamedNotes,
-          streamedNotesLength: data.streamedNotes?.length || 0,
-          streamedNotesIsArray: Array.isArray(data.streamedNotes),
-          action: data.action,
-          streamingWasActive: data.streamingWasActive,
-          // Show actual value to debug
-          streamedNotesValue: data.streamedNotes ? 'EXISTS' : 'MISSING'
-        })
-
-        // CRITICAL: Log the ACTUAL streamedNotes array to see if it's serializable
-        if (data.streamedNotes && data.streamedNotes.length > 0) {
-          console.log('🔴🔴🔴 ACTUAL streamedNotes array:', data.streamedNotes)
-          console.log('🔴 First note structure:', JSON.stringify(data.streamedNotes[0], null, 2))
-          console.log('🔴 Trying JSON.stringify on full array:', JSON.stringify(data.streamedNotes))
-
-          // CRITICAL: Test if cloning works
-          try {
-            const clonedData = JSON.parse(JSON.stringify(data))
-            console.log('🔴 CLONED object has streamedNotes:', !!clonedData.streamedNotes, 'length:', clonedData.streamedNotes?.length)
-          } catch (e) {
-            console.error('🔴❌ JSON clone FAILED:', e.message)
-          }
-        }
-      }
-
       const timer = setTimeout(() => {
         reject(new Error(`Response timeout for ${event}`))
       }, timeout)
@@ -407,25 +363,10 @@ class SocketService {
       this.socket.emit(event, data, (response) => {
         clearTimeout(timer)
         this.performanceMetrics.messagesReceived++
-
-        // CRITICAL DEBUG: Log response from backend
-        if (event === 'gesture' && data.streamedNotes) {
-          console.log('🟢 BACKEND RESPONSE received:', {
-            success: response.success,
-            hasGesture: !!response.gesture,
-            memoryUpdated: response.memoryUpdated
-          })
-        }
-
         resolve(response)
       })
 
       this.performanceMetrics.messagesSent++
-
-      // CRITICAL DEBUG: Log AFTER emit to verify data wasn't modified
-      if (event === 'gesture' && data.streamedNotes) {
-        console.log('🟢 AFTER EMIT - data.streamedNotes still exists:', !!data.streamedNotes, 'length:', data.streamedNotes?.length)
-      }
     })
   }
 

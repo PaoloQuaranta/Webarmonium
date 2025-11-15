@@ -201,7 +201,6 @@ class WebarmoniumApp {
     // CRITICAL: Return note data for backend broadcast
     this.gestureCapture.setDragStreamingNoteCallback((noteData) => {
       if (!this.isAudioStarted || !this.audioService) {
-        console.warn('⚠️ Callback called but audio not started - returning null')
         return null // No note played
       }
 
@@ -240,23 +239,14 @@ class WebarmoniumApp {
         )
       }
 
-      console.log('🎸 Note #' + noteData.noteIndex + ':', {
-        x: x.toFixed(2),
-        y: y.toFixed(2),
-        freq: frequency.toFixed(0) + 'Hz',
-        dur: (duration * 1000).toFixed(0) + 'ms'
-      })
-
       // CRITICAL: Return note data for collection in streamedNotes array
-      const returnedNote = {
+      return {
         frequency: frequency,
         duration: duration,
         position: { x, y },
         velocity: noteData.velocity,
         timestamp: Date.now() // When this note was played
       }
-      console.log('🔵 RETURNING note to GestureCapture:', returnedNote)
-      return returnedNote
     })
 
     // Setup gesture handling
@@ -488,12 +478,8 @@ class WebarmoniumApp {
 
     // Handle unified modulation from HoverOrchestrator
     this.socketService.on('unified-modulation', (modulationData) => {
-      console.log('🎛️ Received unified-modulation event:', modulationData)
       if (this.isAudioStarted && modulationData) {
-        console.log('🎛️ Applying unified modulation:', modulationData)
         this.audioService.applyUnifiedModulation(modulationData)
-      } else {
-        console.log('🎛️ Audio not started or no modulation data, skipping')
       }
     })
 

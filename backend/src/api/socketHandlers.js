@@ -259,18 +259,6 @@ const socketHandlers = {
     socket.on('gesture', async (data, callback) => {
       const startTime = Date.now()
 
-      // CRITICAL DEBUG: Log RAW data received from socket
-      console.log('🔴🔴🔴 BACKEND socket.on("gesture") RAW data:', {
-        hasData: !!data,
-        dataKeys: data ? Object.keys(data).slice(0, 30) : 'NO DATA',
-        hasStreamedNotes: !!data?.streamedNotes,
-        streamedNotesType: typeof data?.streamedNotes,
-        streamedNotesIsArray: Array.isArray(data?.streamedNotes),
-        streamedNotesLength: data?.streamedNotes?.length || 0,
-        action: data?.action,
-        type: data?.type
-      })
-
       // Ensure callback exists and provide timeout safety
       const timeoutId = setTimeout(() => {
         console.warn('⚠️ Gesture processing timeout - sending fallback response')
@@ -302,19 +290,7 @@ const socketHandlers = {
         // If yes, use exact notes instead of generating new ones
         let musicalResult = null
 
-        // CRITICAL DEBUG: Log what we received
-        console.log('📡 BACKEND RECEIVED gesture:', {
-          action: data.action,
-          streamingWasActive: data.streamingWasActive,
-          hasStreamedNotes: !!data.streamedNotes,
-          isArray: Array.isArray(data.streamedNotes),
-          length: data.streamedNotes?.length || 0
-        })
-
         if (data.streamedNotes && Array.isArray(data.streamedNotes) && data.streamedNotes.length > 0) {
-          console.log('🎸 STREAMING NOTES RECEIVED from frontend:', data.streamedNotes.length, 'notes')
-          console.log('🎸 First note:', data.streamedNotes[0])
-
           // Convert streamedNotes to musical events format for broadcast
           const startTime = Date.now()
           musicalResult = data.streamedNotes.map((note, index) => {
@@ -341,11 +317,7 @@ const socketHandlers = {
               }
             }
           })
-
-          console.log('🎸 Converted', musicalResult.length, 'streaming notes to musical events')
         } else {
-          console.log('⚠️ NO streamedNotes found - falling back to GestureToMusicService generation')
-
           // Process gesture through our updated GestureToMusicService
           const gestureData = {
             userId: socket.userId,
@@ -353,20 +325,12 @@ const socketHandlers = {
             gesture: data
           }
 
-          console.log('🎵 Processing gesture with GestureToMusicService:', {
-            userId: socket.userId,
-            roomId: socket.roomId,
-            gestureAction: data.action,
-            gestureType: data.type
-          })
-
           try {
             const GestureToMusicService = require('../services/GestureToMusicService')
             const gestureToMusicService = new GestureToMusicService()
             musicalResult = gestureToMusicService.processGesture(gestureData)
-            console.log('🎵 GestureToMusicService result:', Array.isArray(musicalResult) ? `Array[${musicalResult.length}]` : 'Single event')
           } catch (error) {
-            console.error('🎵 GestureToMusicService failed:', error)
+            console.error('GestureToMusicService failed:', error)
             // Continue with fallback gesture processing instead of throwing
             musicalResult = null
           }
@@ -389,7 +353,6 @@ const socketHandlers = {
 
         if (data.action !== 'hover' && !hasStreamedNotes) {
           // Only use old system if NO streamedNotes (tap gestures, old clients)
-          console.log('🔧 Using OLD gesture processing system (no streamedNotes)')
           gesture = socket.services.gestureProcessor.processGesture(
             socket.userId,
             socket.roomId,
@@ -404,7 +367,6 @@ const socketHandlers = {
             { activeUsers: room.getUserCount() }
           )
         } else if (hasStreamedNotes) {
-          console.log('🎸 SKIPPING old gesture processing - using streamedNotes instead')
           // Create minimal gesture for response
           gesture = {
             toProcessedResponse: () => ({
@@ -417,7 +379,6 @@ const socketHandlers = {
           // Skip memory updates for streamed notes
           memoryUpdate = { success: false, patternsEvolved: 0, newPatterns: 0 }
         } else {
-          console.log('🎛️ Hover gesture - skipping musical note generation and memory updates')
           // Create empty memory update for hover gestures
           memoryUpdate = { success: false, patternsEvolved: 0, newPatterns: 0 }
         }
@@ -463,20 +424,8 @@ const socketHandlers = {
 
         // Broadcast musical events to all users in room
         const musicalEvents = Array.isArray(musicalResult) ? musicalResult : [musicalResult]
-        console.log(`🎵 Broadcasting ${musicalEvents.length} musical events to room ${socket.roomId}:`)
 
         musicalEvents.forEach((musicalEvent, index) => {
-          const eventType = musicalEvent.eventType || 'musical'
-          console.log(`  Event ${index + 1}: type=${eventType}, id=${musicalEvent.id}`)
-
-          // TAP PITCH DEBUG: Log tap events to trace pitch variation
-          if (musicalEvent.properties && musicalEvent.properties.totalNotes === 1) {
-            console.log(`  🎯 TAP BROADCAST:`, {
-              pitch: musicalEvent.properties.pitch,
-              frequency: musicalEvent.properties.frequency?.toFixed(1),
-              position: musicalEvent.position
-            })
-          }
 
           const musicalEventBroadcast = {
             id: musicalEvent.id,
@@ -1435,8 +1384,6 @@ const socketHandlers = {
           timestamp: data.timestamp || Date.now()
         }
 
-        console.log(`🎛️ Received hover-update from ${hoverData.userId}:`, hoverData)
-
         // NEW: Send to HoverOrchestrator for centralized analysis
         this.sendToHoverOrchestrator(socket, hoverData)
 
@@ -1477,14 +1424,10 @@ const socketHandlers = {
 
         // Start the orchestrator
         hoverOrchestrator.start()
-
-        console.log(`🎛️ Created and started HoverOrchestrator for room ${socket.roomId}`)
       }
 
       // Add hover event to orchestrator
       hoverOrchestrator.addHoverEvent(hoverData)
-
-      console.log(`📥 Hover event sent to orchestrator: userId=${hoverData.userId}, room=${socket.roomId}`)
 
     } catch (error) {
       console.error('❌ Failed to send hover to orchestrator:', error)

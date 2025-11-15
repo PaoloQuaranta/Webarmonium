@@ -193,7 +193,6 @@ class EnhancedGestureCapture {
     this.dragStreaming.streamedNotes = [] // Reset notes array for new gesture
 
     // CRITICAL: Play FIRST note IMMEDIATELY on mousedown!
-    console.log('🎸 MOUSEDOWN - Playing FIRST note IMMEDIATELY at position:', coordinates)
     this.playDragStreamingNote(coordinates, { x: 0, y: 0 }, 0)
 
     // Emit gesture start to server
@@ -254,7 +253,6 @@ class EnhancedGestureCapture {
       // If movement exceeds threshold, mark as 'drag'
       if (this.currentGesture.action === 'potential-tap' && this.dragStreaming.totalDistance > this.dragStreaming.minDistanceForDrag) {
         this.currentGesture.action = 'drag'
-        console.log('🎸 GESTURE ACTION SET TO DRAG - movement threshold exceeded:', this.dragStreaming.totalDistance.toFixed(1), 'px')
       }
 
       // CONTINUE streaming notes (already started in handleGestureStart)
@@ -301,18 +299,9 @@ class EnhancedGestureCapture {
     // If still 'potential-tap', no significant movement occurred → it's a tap
     if (this.currentGesture.action === 'potential-tap') {
       this.currentGesture.action = 'tap'
-      console.log('🎯 GESTURE ACTION FINALIZED: TAP - no movement detected (1 note played at mousedown)')
-    } else {
-      console.log('🎯 GESTURE ACTION FINALIZED:', this.currentGesture.action, '- notes played:', this.dragStreaming.noteCount)
     }
 
     // STOP DRAG NOTE STREAMING (always active since mousedown)
-    console.log('🎸 DRAG STREAMING STOPPED - mouseup', {
-      action: this.currentGesture.action,
-      notesPlayed: this.dragStreaming.noteCount,
-      totalDistance: this.dragStreaming.totalDistance.toFixed(1)
-    })
-
     // CRITICAL: Mark that streaming was active so GestureProcessor knows to skip note generation
     // This is ALWAYS true now since we play first note on mousedown
     this.currentGesture.streamingWasActive = true
@@ -320,9 +309,6 @@ class EnhancedGestureCapture {
 
     // CRITICAL: Include streamedNotes array for backend broadcast (exact replication)
     this.currentGesture.streamedNotes = [...this.dragStreaming.streamedNotes] // Clone array
-    console.log('📡📡📡 MOUSEUP - Collected notes:', this.dragStreaming.streamedNotes.length)
-    console.log('📡 streamedNotes array:', this.currentGesture.streamedNotes)
-    console.log('📡 Sending', this.dragStreaming.streamedNotes.length, 'notes to backend for broadcast')
 
     this.dragStreaming.isActive = false
 
@@ -815,14 +801,12 @@ class EnhancedGestureCapture {
 
     // CRITICAL FIX: Don't process hover when we're capturing a gesture (drag)
     if (this.isCapturing) {
-      console.log('🎯 Hover disabled during gesture capture')
       return
     }
 
     // Auto-activate hover state when mouse moves over canvas
     if (!this.hoverState.isHovering) {
       this.hoverState.isHovering = true
-      console.log('🎯 Hover auto-activated')
     }
 
     const coordinates = this.getEventCoordinates(event)
@@ -833,7 +817,6 @@ class EnhancedGestureCapture {
 
     // Throttle hover updates - reduced threshold for better responsiveness
     if (deltaTime < this.hoverState.hoverThreshold) {
-      console.log(`🎛️ Hover update throttled: ${deltaTime}ms < ${this.hoverState.hoverThreshold}ms`)
       return
     }
 
@@ -1013,20 +996,12 @@ class EnhancedGestureCapture {
       timestamp: Date.now()
     }
 
-    console.log('🎸 Streaming note #' + noteIndex, {
-      y: coordinates.y.toFixed(2),
-      speed: normalizedSpeed.toFixed(2)
-    })
-
     // Trigger callback to play note and collect note data
     const playedNote = this.onDragStreamingNote(noteData)
 
     // CRITICAL: Add played note to streamedNotes array for backend broadcast
     if (playedNote) {
       this.dragStreaming.streamedNotes.push(playedNote)
-      console.log('✅ NOTE ADDED TO ARRAY - Total notes now:', this.dragStreaming.streamedNotes.length)
-    } else {
-      console.warn('❌ NO NOTE RETURNED FROM CALLBACK - not added to array')
     }
   }
 
