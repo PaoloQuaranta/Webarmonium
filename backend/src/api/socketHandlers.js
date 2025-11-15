@@ -286,30 +286,66 @@ const socketHandlers = {
           return this.sendError(callback, 'INVALID_GESTURE_DATA', 'Invalid gesture data')
         }
 
-        // Process gesture through our updated GestureToMusicService
-        const gestureData = {
-          userId: socket.userId,
-          roomId: socket.roomId,
-          gesture: data
-        }
-
-        console.log('🎵 Processing gesture with GestureToMusicService:', {
-          userId: socket.userId,
-          roomId: socket.roomId,
-          gestureAction: data.action,
-          gestureType: data.type
-        })
-
+        // CRITICAL: Check if gesture includes streamedNotes from frontend
+        // If yes, use exact notes instead of generating new ones
         let musicalResult = null
-        try {
-          const GestureToMusicService = require('../services/GestureToMusicService')
-          const gestureToMusicService = new GestureToMusicService()
-          musicalResult = gestureToMusicService.processGesture(gestureData)
-          console.log('🎵 GestureToMusicService result:', Array.isArray(musicalResult) ? `Array[${musicalResult.length}]` : 'Single event')
-        } catch (error) {
-          console.error('🎵 GestureToMusicService failed:', error)
-          // Continue with fallback gesture processing instead of throwing
-          musicalResult = null
+
+        if (data.streamedNotes && Array.isArray(data.streamedNotes) && data.streamedNotes.length > 0) {
+          console.log('🎸 STREAMING NOTES RECEIVED from frontend:', data.streamedNotes.length, 'notes')
+
+          // Convert streamedNotes to musical events format for broadcast
+          const startTime = Date.now()
+          musicalResult = data.streamedNotes.map((note, index) => {
+            // Calculate delay from start of phrase
+            const relativeDelay = note.timestamp - data.streamedNotes[0].timestamp
+
+            return {
+              id: `streamed_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`,
+              eventType: 'note',
+              userId: socket.userId,
+              timestamp: startTime + relativeDelay, // Preserve relative timing
+              position: note.position,
+              properties: {
+                frequency: note.frequency, // Use exact frequency from frontend
+                duration: note.duration,
+                velocity: note.velocity * 100 || 80,
+                articulation: 'staccato',
+                gestureAction: data.action,
+                gestureType: data.type,
+                noteIndex: index,
+                totalNotes: data.streamedNotes.length,
+                // CRITICAL: Mark as streamed for remote playback with square wave
+                isStreamed: true
+              }
+            }
+          })
+
+          console.log('🎸 Converted', musicalResult.length, 'streaming notes to musical events')
+        } else {
+          // Process gesture through our updated GestureToMusicService
+          const gestureData = {
+            userId: socket.userId,
+            roomId: socket.roomId,
+            gesture: data
+          }
+
+          console.log('🎵 Processing gesture with GestureToMusicService:', {
+            userId: socket.userId,
+            roomId: socket.roomId,
+            gestureAction: data.action,
+            gestureType: data.type
+          })
+
+          try {
+            const GestureToMusicService = require('../services/GestureToMusicService')
+            const gestureToMusicService = new GestureToMusicService()
+            musicalResult = gestureToMusicService.processGesture(gestureData)
+            console.log('🎵 GestureToMusicService result:', Array.isArray(musicalResult) ? `Array[${musicalResult.length}]` : 'Single event')
+          } catch (error) {
+            console.error('🎵 GestureToMusicService failed:', error)
+            // Continue with fallback gesture processing instead of throwing
+            musicalResult = null
+          }
         }
 
         // Constitutional requirement: <200ms processing

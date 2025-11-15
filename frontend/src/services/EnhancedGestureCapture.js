@@ -39,7 +39,8 @@ class EnhancedGestureCapture {
       noteInterval: 200, // ms between notes (adjustable based on velocity)
       noteCount: 0,
       totalDistance: 0,
-      minDistanceForDrag: 15 // pixels - min movement to activate drag streaming
+      minDistanceForDrag: 15, // pixels - min movement to activate drag streaming
+      streamedNotes: [] // CRITICAL: Array of all notes played during streaming
     }
 
     // Enhanced gesture tracking
@@ -189,6 +190,7 @@ class EnhancedGestureCapture {
     this.dragStreaming.totalDistance = 0
     this.dragStreaming.noteCount = 0
     this.dragStreaming.lastNoteTime = Date.now()
+    this.dragStreaming.streamedNotes = [] // Reset notes array for new gesture
 
     // CRITICAL: Play FIRST note IMMEDIATELY on mousedown!
     console.log('🎸 MOUSEDOWN - Playing FIRST note IMMEDIATELY at position:', coordinates)
@@ -315,11 +317,17 @@ class EnhancedGestureCapture {
     // This is ALWAYS true now since we play first note on mousedown
     this.currentGesture.streamingWasActive = true
     this.currentGesture.streamingNoteCount = this.dragStreaming.noteCount
+
+    // CRITICAL: Include streamedNotes array for backend broadcast (exact replication)
+    this.currentGesture.streamedNotes = [...this.dragStreaming.streamedNotes] // Clone array
+    console.log('📡 Sending', this.dragStreaming.streamedNotes.length, 'notes to backend for broadcast')
+
     this.dragStreaming.isActive = false
 
     // Reset drag streaming state for next gesture
     this.dragStreaming.totalDistance = 0
     this.dragStreaming.noteCount = 0
+    this.dragStreaming.streamedNotes = [] // Clear notes array
 
     // Complete gesture data
     this.currentGesture.endTime = endTime
@@ -1008,8 +1016,13 @@ class EnhancedGestureCapture {
       speed: normalizedSpeed.toFixed(2)
     })
 
-    // Trigger callback to play note
-    this.onDragStreamingNote(noteData)
+    // Trigger callback to play note and collect note data
+    const playedNote = this.onDragStreamingNote(noteData)
+
+    // CRITICAL: Add played note to streamedNotes array for backend broadcast
+    if (playedNote) {
+      this.dragStreaming.streamedNotes.push(playedNote)
+    }
   }
 
   /**

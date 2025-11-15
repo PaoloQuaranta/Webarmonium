@@ -198,9 +198,10 @@ class WebarmoniumApp {
     })
 
     // Setup drag streaming note callback for real-time feedback
+    // CRITICAL: Return note data for backend broadcast
     this.gestureCapture.setDragStreamingNoteCallback((noteData) => {
       if (!this.isAudioStarted || !this.audioService) {
-        return
+        return null // No note played
       }
 
       // CRITICAL: Use SAME pitch calculation as tap gestures for consistency
@@ -244,6 +245,15 @@ class WebarmoniumApp {
         freq: frequency.toFixed(0) + 'Hz',
         dur: (duration * 1000).toFixed(0) + 'ms'
       })
+
+      // CRITICAL: Return note data for collection in streamedNotes array
+      return {
+        frequency: frequency,
+        duration: duration,
+        position: { x, y },
+        velocity: noteData.velocity,
+        timestamp: Date.now() // When this note was played
+      }
     })
 
     // Setup gesture handling

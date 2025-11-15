@@ -1566,6 +1566,36 @@ class AudioService {
         }
 
         try {
+          // CRITICAL: Configure oscillator based on note type
+          // Remote streaming notes use square wave for differentiation
+          const isStreamed = musicalEvent.properties?.isStreamed
+          if (isStreamed) {
+            this.gestureSynth.set({
+              oscillator: {
+                type: 'square' // Square wave for remote notes
+              },
+              envelope: {
+                attack: 0.005,
+                decay: 0.02,
+                sustain: 0.1,
+                release: 0.05
+              }
+            })
+          } else {
+            // Local notes use sawtooth (default)
+            this.gestureSynth.set({
+              oscillator: {
+                type: 'sawtooth' // Sawtooth for local notes
+              },
+              envelope: {
+                attack: 0.005,
+                decay: 0.02,
+                sustain: 0.1,
+                release: 0.05
+              }
+            })
+          }
+
           this.gestureSynth.triggerAttack(frequency, Tone.now(), adjustedVelocity)
 
           // Schedule release
