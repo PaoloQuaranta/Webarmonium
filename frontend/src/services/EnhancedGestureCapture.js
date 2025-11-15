@@ -989,11 +989,32 @@ class EnhancedGestureCapture {
     const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2)
     const normalizedSpeed = Math.min(speed / 1000, 1) // 0-1
 
+    // MUSICAL VARIATION based on speed
+    // Fast movement = short staccato notes
+    // Slow movement = long legato notes
+    let duration, articulation
+    if (normalizedSpeed > 0.6) {
+      // Fast: staccato (short, detached)
+      duration = '32n'  // Very short
+      articulation = 'staccato'
+    } else if (normalizedSpeed > 0.3) {
+      // Medium: marcato (accented)
+      duration = '16n'  // Short
+      articulation = 'marcato'
+    } else {
+      // Slow: legato (smooth, connected)
+      duration = '8n'   // Longer
+      articulation = 'legato'
+    }
+
     const noteData = {
       position: coordinates,
       velocity: normalizedSpeed,
       noteIndex: noteIndex,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      // Musical parameters
+      duration: duration,
+      articulation: articulation
     }
 
     // Trigger callback to play note and collect note data

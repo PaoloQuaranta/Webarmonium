@@ -213,23 +213,51 @@ class WebarmoniumApp {
       const withinOctave = x * 660 // 0-660Hz variation within octave
       const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
 
-      // CRITICAL FIX: Much shorter duration to avoid sustained overlap
-      // Old: 0.2-0.6 seconds (too long, creates drone)
-      // New: 0.05-0.15 seconds (percussive, clear articulation)
-      const baseDuration = 0.1 // 100ms base
-      const duration = baseDuration / (0.5 + noteData.velocity * 1.5) // 0.05-0.15 seconds
+      // Use musical duration from noteData (based on velocity)
+      const duration = noteData.duration || '8n'
 
-      // CRITICAL FIX: Configure envelope for VERY SHORT percussive notes
-      // Default envelope has release=0.8s (800ms) which is WAY too long!
-      if (this.audioService.gestureSynth) {
-        this.audioService.gestureSynth.set({
-          envelope: {
-            attack: 0.005,   // 5ms - instant attack
-            decay: 0.02,     // 20ms - fast decay
-            sustain: 0.1,    // 10% - low sustain
-            release: 0.05    // 50ms - CRITICAL: very short release!
+      // Configure envelope based on articulation
+      let envelope
+      switch (noteData.articulation) {
+        case 'staccato':
+          // Fast: short, detached notes
+          envelope = {
+            attack: 0.005,
+            decay: 0.01,
+            sustain: 0.05,
+            release: 0.03
           }
-        })
+          break
+        case 'marcato':
+          // Medium: accented notes
+          envelope = {
+            attack: 0.01,
+            decay: 0.03,
+            sustain: 0.2,
+            release: 0.08
+          }
+          break
+        case 'legato':
+          // Slow: smooth, connected notes
+          envelope = {
+            attack: 0.02,
+            decay: 0.05,
+            sustain: 0.4,
+            release: 0.15
+          }
+          break
+        default:
+          // Fallback
+          envelope = {
+            attack: 0.005,
+            decay: 0.02,
+            sustain: 0.1,
+            release: 0.05
+          }
+      }
+
+      if (this.audioService.gestureSynth) {
+        this.audioService.gestureSynth.set({ envelope })
 
         this.audioService.gestureSynth.triggerAttackRelease(
           frequency,
@@ -243,6 +271,7 @@ class WebarmoniumApp {
       return {
         frequency: frequency,
         duration: duration,
+        articulation: noteData.articulation,
         position: { x, y },
         velocity: noteData.velocity,
         timestamp: Date.now() // When this note was played
