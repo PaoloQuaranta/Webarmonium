@@ -1500,9 +1500,17 @@ class AudioService {
         frequency = this.midiNoteToFrequency(pitch)
       }
 
-      // FIX: Normalize duration to audible range (prevents too short/long notes)
+      // FIX: Convert Tone.js duration notation to seconds
       let normalizedDuration = duration
-      if (typeof duration === 'number') {
+      if (typeof duration === 'string') {
+        // Convert Tone.js notation ('32n', '16n', '8n', etc.) to seconds
+        try {
+          normalizedDuration = Tone.Time(duration).toSeconds()
+        } catch (e) {
+          console.warn('Invalid Tone.js duration notation:', duration, 'using default 0.1s')
+          normalizedDuration = 0.1
+        }
+      } else if (typeof duration === 'number') {
         // Convert beats to seconds if duration is in beats
         if (duration < 10) {
           normalizedDuration = duration * 0.25 // Assume quarter note = 0.25s at 60 BPM
@@ -1512,7 +1520,7 @@ class AudioService {
         normalizedDuration = Math.max(0.05, Math.min(4.0, normalizedDuration))
       }
 
-      // Apply articulation FIX: Enhanced duration and velocity adjustments
+      // Apply velocity normalization (articulation affects only envelope, not duration)
       let adjustedDuration = normalizedDuration
       let adjustedVelocity
 
@@ -1525,19 +1533,10 @@ class AudioService {
         adjustedVelocity = Math.max(0.1, Math.min(1.0, velocity / 127))
       }
 
-      switch (articulation) {
-        case 'staccato':
-          adjustedDuration *= 0.2
-          adjustedVelocity *= 1.15
-          break
-        case 'legato':
-          adjustedDuration *= 1.8
-          adjustedVelocity *= 0.85
-          break
-        case 'accent':
-          adjustedVelocity *= 1.4
-          adjustedDuration *= 1.2
-          break
+      // Duration already determined by velocity in frontend (32n/16n/8n)
+      // Only apply velocity boost for accents
+      if (articulation === 'marcato') {
+        adjustedVelocity *= 1.2 // Slightly louder for accented notes
       }
 
       // Final duration clamping
