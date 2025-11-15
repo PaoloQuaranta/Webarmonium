@@ -380,11 +380,16 @@ const socketHandlers = {
 
         // Store gesture in room memory using old system for compatibility
         // BUT NOT for hover gestures - they should only generate filter modulation, not notes
+        // CRITICAL: SKIP old system if we already processed streamedNotes!
         let gesture = null
         let memoryResult = null
         let memoryUpdate = null
 
-        if (data.action !== 'hover') {
+        const hasStreamedNotes = data.streamedNotes && Array.isArray(data.streamedNotes) && data.streamedNotes.length > 0
+
+        if (data.action !== 'hover' && !hasStreamedNotes) {
+          // Only use old system if NO streamedNotes (tap gestures, old clients)
+          console.log('🔧 Using OLD gesture processing system (no streamedNotes)')
           gesture = socket.services.gestureProcessor.processGesture(
             socket.userId,
             socket.roomId,
@@ -398,6 +403,19 @@ const socketHandlers = {
             gesture,
             { activeUsers: room.getUserCount() }
           )
+        } else if (hasStreamedNotes) {
+          console.log('🎸 SKIPPING old gesture processing - using streamedNotes instead')
+          // Create minimal gesture for response
+          gesture = {
+            toProcessedResponse: () => ({
+              id: data.id,
+              action: data.action,
+              coordinates: data.coordinates,
+              timestamp: Date.now()
+            })
+          }
+          // Skip memory updates for streamed notes
+          memoryUpdate = { success: false, patternsEvolved: 0, newPatterns: 0 }
         } else {
           console.log('🎛️ Hover gesture - skipping musical note generation and memory updates')
           // Create empty memory update for hover gestures
