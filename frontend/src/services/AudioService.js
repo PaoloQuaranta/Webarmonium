@@ -1566,20 +1566,56 @@ class AudioService {
         }
 
         try {
-          // CRITICAL: Configure oscillator based on note type
+          // CRITICAL: Configure oscillator and envelope based on note type and articulation
           // Remote streaming notes use square wave for differentiation
           const isStreamed = musicalEvent.properties?.isStreamed
-          if (isStreamed) {
-            this.gestureSynth.set({
-              oscillator: {
-                type: 'square' // Square wave for remote notes
-              },
-              envelope: {
+
+          // Configure envelope based on articulation
+          let envelope
+          switch (articulation) {
+            case 'staccato':
+              // Fast: short, detached notes
+              envelope = {
+                attack: 0.005,
+                decay: 0.01,
+                sustain: 0.05,
+                release: 0.03
+              }
+              break
+            case 'marcato':
+              // Medium: accented notes
+              envelope = {
+                attack: 0.01,
+                decay: 0.03,
+                sustain: 0.2,
+                release: 0.08
+              }
+              break
+            case 'legato':
+              // Slow: smooth, connected notes
+              envelope = {
+                attack: 0.02,
+                decay: 0.05,
+                sustain: 0.4,
+                release: 0.15
+              }
+              break
+            default:
+              // Fallback
+              envelope = {
                 attack: 0.005,
                 decay: 0.02,
                 sustain: 0.1,
                 release: 0.05
               }
+          }
+
+          if (isStreamed) {
+            this.gestureSynth.set({
+              oscillator: {
+                type: 'square' // Square wave for remote notes
+              },
+              envelope
             })
           } else {
             // Local notes use sawtooth (default)
@@ -1587,12 +1623,7 @@ class AudioService {
               oscillator: {
                 type: 'sawtooth' // Sawtooth for local notes
               },
-              envelope: {
-                attack: 0.005,
-                decay: 0.02,
-                sustain: 0.1,
-                release: 0.05
-              }
+              envelope
             })
           }
 

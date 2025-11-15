@@ -307,7 +307,7 @@ const socketHandlers = {
                 frequency: note.frequency, // Use exact frequency from frontend
                 duration: note.duration,
                 velocity: note.velocity * 100 || 80,
-                articulation: 'staccato',
+                articulation: note.articulation || 'staccato', // Use velocity-based articulation from frontend
                 gestureAction: data.action,
                 gestureType: data.type,
                 noteIndex: index,
