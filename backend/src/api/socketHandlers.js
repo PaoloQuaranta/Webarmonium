@@ -290,8 +290,18 @@ const socketHandlers = {
         // If yes, use exact notes instead of generating new ones
         let musicalResult = null
 
+        // CRITICAL DEBUG: Log what we received
+        console.log('📡 BACKEND RECEIVED gesture:', {
+          action: data.action,
+          streamingWasActive: data.streamingWasActive,
+          hasStreamedNotes: !!data.streamedNotes,
+          isArray: Array.isArray(data.streamedNotes),
+          length: data.streamedNotes?.length || 0
+        })
+
         if (data.streamedNotes && Array.isArray(data.streamedNotes) && data.streamedNotes.length > 0) {
           console.log('🎸 STREAMING NOTES RECEIVED from frontend:', data.streamedNotes.length, 'notes')
+          console.log('🎸 First note:', data.streamedNotes[0])
 
           // Convert streamedNotes to musical events format for broadcast
           const startTime = Date.now()
@@ -322,6 +332,8 @@ const socketHandlers = {
 
           console.log('🎸 Converted', musicalResult.length, 'streaming notes to musical events')
         } else {
+          console.log('⚠️ NO streamedNotes found - falling back to GestureToMusicService generation')
+
           // Process gesture through our updated GestureToMusicService
           const gestureData = {
             userId: socket.userId,

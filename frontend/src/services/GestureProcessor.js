@@ -51,6 +51,16 @@ class GestureProcessor {
         ...gesture,
         position: gesture.coordinates || gesture.position || { x: 0.5, y: 0.5 }
       }
+
+      // CRITICAL DEBUG: Verify streamedNotes is included
+      console.log('📡 SENDING TO BACKEND:', {
+        action: gestureToSend.action,
+        streamingWasActive: gestureToSend.streamingWasActive,
+        hasStreamedNotes: !!gestureToSend.streamedNotes,
+        streamedNotesLength: gestureToSend.streamedNotes?.length || 0,
+        firstNote: gestureToSend.streamedNotes?.[0]
+      })
+
       this.socketService.sendGesture(gestureToSend)
 
       // Draw trail if needed
