@@ -1503,13 +1503,24 @@ class AudioService {
       // FIX: Convert Tone.js duration notation to seconds
       let normalizedDuration = duration
       if (typeof duration === 'string') {
-        // Convert Tone.js notation ('32n', '16n', '8n', etc.) to seconds
-        try {
-          normalizedDuration = Tone.Time(duration).toSeconds()
-        } catch (e) {
-          console.warn('Invalid Tone.js duration notation:', duration, 'using default 0.1s')
-          normalizedDuration = 0.1
+        // Manual conversion of Tone.js notation to seconds (120 BPM)
+        // More reliable than Tone.Time() which requires Transport context
+        const durationMap = {
+          '32n': 0.0625,  // 1/32 note at 120 BPM
+          '16n': 0.125,   // 1/16 note at 120 BPM
+          '8n': 0.25,     // 1/8 note at 120 BPM
+          '4n': 0.5,      // 1/4 note at 120 BPM
+          '2n': 1.0,      // 1/2 note at 120 BPM
+          '1n': 2.0       // whole note at 120 BPM
         }
+
+        normalizedDuration = durationMap[duration] || 0.125
+
+        console.log('🎵 Duration conversion:', {
+          input: duration,
+          output: normalizedDuration,
+          articulation: articulation
+        })
       } else if (typeof duration === 'number') {
         // Convert beats to seconds if duration is in beats
         if (duration < 10) {
@@ -1626,18 +1637,20 @@ class AudioService {
             })
           }
 
-          this.gestureSynth.triggerAttack(frequency, Tone.now(), adjustedVelocity)
+          // Use triggerAttackRelease for accurate duration control
+          this.gestureSynth.triggerAttackRelease(
+            frequency,
+            adjustedDuration,  // Tone.js handles duration in seconds
+            Tone.now(),
+            adjustedVelocity
+          )
 
-          // Schedule release
-          const releaseTimeoutId = setTimeout(() => {
-            if (this.gestureSynth && !this.gestureSynth.disposed) {
-              this.gestureSynth.triggerRelease(frequency, Tone.now())
-            }
-          }, adjustedDuration * 1000)
-
-          // Store for cleanup
-          if (!this.scheduledTimeouts) this.scheduledTimeouts = []
-          this.scheduledTimeouts.push(releaseTimeoutId)
+          console.log('🎶 Note played:', {
+            frequency: frequency.toFixed(1),
+            duration: adjustedDuration.toFixed(3),
+            velocity: adjustedVelocity.toFixed(2),
+            articulation: articulation
+          })
         } catch (e) {
           console.warn('Note play error:', e.message)
         }
