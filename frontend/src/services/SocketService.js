@@ -321,8 +321,14 @@ class SocketService {
         hasPosition: !!gestureWithTimestamp.position,
         position: gestureWithTimestamp.position,
         action: gestureWithTimestamp.action,
-        type: gestureWithTimestamp.type
+        type: gestureWithTimestamp.type,
+        // CRITICAL: Log streamedNotes to verify transmission
+        hasStreamedNotes: !!gestureWithTimestamp.streamedNotes,
+        streamedNotesLength: gestureWithTimestamp.streamedNotes?.length || 0,
+        streamingWasActive: gestureWithTimestamp.streamingWasActive
       })
+
+      console.log('📡 FULL GESTURE OBJECT KEYS:', Object.keys(gestureWithTimestamp))
 
       const response = await this.sendWithResponse('gesture', gestureWithTimestamp)
 
