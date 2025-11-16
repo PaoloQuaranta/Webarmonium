@@ -479,10 +479,50 @@ class AudioService {
       evolutionCycle: 0,
       userInfluence: 0,
       lastUserActivity: Date.now(),
-      ambientVoices: [],
       evolutionSpeed: 8000, // Base evolution cycle
       complexity: 0.3, // Starting complexity
-      activeVoices: new Map() // Track active voices for polyphony management
+      activeVoices: new Map(), // Track active voices for polyphony management
+
+      // VOICE STATE: Independent melodic voices with memory
+      voices: {
+        bass: {
+          currentNote: 0,  // Current scale degree
+          direction: 1,    // Melodic direction (1 = up, -1 = down)
+          nextNoteTime: 0, // When to play next note
+          rhythm: 2000,    // Rhythmic cycle duration (ms)
+          octave: 2,       // Current octave
+          velocity: 0.4
+        },
+        tenor: {
+          currentNote: 2,
+          direction: 1,
+          nextNoteTime: 500,
+          rhythm: 1500,
+          octave: 3,
+          velocity: 0.3
+        },
+        alto: {
+          currentNote: 4,
+          direction: -1,
+          nextNoteTime: 1000,
+          rhythm: 1200,
+          octave: 3,
+          velocity: 0.35
+        },
+        soprano: {
+          currentNote: 7,
+          direction: -1,
+          nextNoteTime: 1500,
+          rhythm: 1000,
+          octave: 4,
+          velocity: 0.25
+        }
+      },
+
+      // HARMONIC CONTEXT
+      chordProgression: [0, 4, 2, 4], // Scale degree roots for chords
+      currentChord: 0,
+      chordDuration: 8000 // Time on each chord
     }
 
     // Create multi-layer ambient synth system with LIMITED polyphony
@@ -572,58 +612,62 @@ class AudioService {
   }
 
   /**
-   * Start evolving generative music system per FR-001
-   * EVOLUTIVE: Creates dynamic, context-aware background composition
+   * Start evolving generative music system with independent voices
+   * MUSICAL COMPOSITION: Multi-voice counterpoint with voice leading
    */
   startEvolvingGeneration() {
     if (this.evolvingGenerationActive) return
 
     this.evolvingGenerationActive = true
+    this.lastVoiceUpdateTime = Date.now()
 
-    const evolveComposition = () => {
+    // Main composition loop - runs frequently to check voice schedules
+    const compositionLoop = () => {
       if (!this.evolvingGenerationActive || !this.isInitialized) {
         console.log('🎵 Evolving generation stopped or not initialized')
         return
       }
 
       try {
-        // Update generative state based on user activity and time
-        this.updateGenerativeState()
+        const now = Date.now()
+        const deltaTime = now - this.lastVoiceUpdateTime
+        this.lastVoiceUpdateTime = now
 
-        // Generate new musical material for each layer
-        this.generateEvolvingLayer('bass')
-        this.generateEvolvingLayer('harmony')
-        this.generateEvolvingLayer('texture')
+        // Update each voice independently
+        Object.keys(this.generativeState.voices).forEach(voiceName => {
+          const voice = this.generativeState.voices[voiceName]
 
-        // Log evolution details
-        console.log(`🎵 Evolution cycle ${this.generativeState.evolutionCycle}: complexity=${this.generativeState.complexity.toFixed(2)}, userInfluence=${this.generativeState.userInfluence.toFixed(2)}`)
+          // Check if it's time for this voice to play
+          voice.nextNoteTime -= deltaTime
+          if (voice.nextNoteTime <= 0) {
+            this.playVoiceNote(voiceName)
+            // Schedule next note with rhythmic variation
+            voice.nextNoteTime = voice.rhythm * (0.8 + Math.random() * 0.4)
+          }
+        })
+
+        // Periodic harmonic progression change
+        if (this.generativeState.evolutionCycle % 4 === 0) {
+          this.advanceHarmony()
+        }
+
+        this.generativeState.evolutionCycle++
 
       } catch (error) {
-        console.error('🎵 Error in evolution cycle:', error)
+        console.error('🎵 Error in composition loop:', error)
       }
 
-      // Schedule next evolution based on current speed
-      const evolutionDelay = this.generativeState.evolutionSpeed * (0.7 + Math.random() * 0.6)
-      setTimeout(evolveComposition, evolutionDelay)
+      // Run loop every 100ms for responsive voice scheduling
+      setTimeout(compositionLoop, 100)
     }
 
-    // Start evolution after initial delay
+    // Start composition loop
     setTimeout(() => {
-      console.log('🎵 Starting evolving composition system')
-      evolveComposition()
-    }, 3000)
+      console.log('🎵 Starting independent voice composition system')
+      compositionLoop()
+    }, 2000)
 
-    // FIX: Force start background with immediate notes
-    setTimeout(() => {
-      this.forceStartBackground()
-    }, 5000)
-
-    // FIX: Test filter modulation to ensure it works
-    setTimeout(() => {
-      this.testFilterModulation()
-    }, 7000)
-
-    console.log('🎵 Evolving composition system initialized with forced start and filter test')
+    console.log('🎵 Multi-voice generative system initialized')
   }
 
   /**
@@ -811,6 +855,100 @@ class AudioService {
     }
 
     return chordDegrees
+  }
+
+  /**
+   * Play a note for an independent voice with voice leading
+   * MUSICAL COMPOSITION: Stepwise motion, contrary motion, harmonic awareness
+   * @param {string} voiceName - Name of voice ('bass', 'tenor', 'alto', 'soprano')
+   */
+  playVoiceNote(voiceName) {
+    const state = this.generativeState
+    const voice = state.voices[voiceName]
+    const scale = state.currentScale
+
+    if (!this.ambientLayers || this.muted || voice.active === false) return
+
+    // Map voices to synth layers
+    const layerMap = {
+      bass: 'bass',
+      tenor: 'bass',
+      alto: 'harmony',
+      soprano: 'texture'
+    }
+    const synth = this.ambientLayers[layerMap[voiceName]]
+    if (!synth) return
+
+    // VOICE LEADING: Stepwise motion with occasional leaps
+    const currentChordRoot = state.chordProgression[state.currentChord]
+    const isChordTone = (note) => {
+      // Chord tones: root, third, fifth
+      const chordTones = [
+        currentChordRoot,
+        scale[(scale.indexOf(currentChordRoot) + 2) % scale.length],
+        scale[(scale.indexOf(currentChordRoot) + 4) % scale.length]
+      ]
+      return chordTones.includes(scale[note % scale.length])
+    }
+
+    // Decide movement: stepwise (75%), leap (25%)
+    let nextNote = voice.currentNote
+    if (Math.random() < 0.75) {
+      // STEPWISE MOTION
+      nextNote += voice.direction
+      // Change direction at boundaries or randomly
+      if (nextNote < 0 || nextNote >= scale.length || Math.random() < 0.2) {
+        voice.direction *= -1
+        nextNote = voice.currentNote + voice.direction
+      }
+    } else {
+      // LEAP to chord tone
+      const leap = (Math.random() < 0.5 ? 3 : 5) * voice.direction
+      nextNote += leap
+    }
+
+    // Clamp to scale range
+    nextNote = ((nextNote % scale.length) + scale.length) % scale.length
+    voice.currentNote = nextNote
+
+    // Calculate frequency
+    const scaleNote = scale[nextNote]
+    const frequency = state.currentTonic * Math.pow(2, (scaleNote + voice.octave * 12) / 12)
+
+    // Duration based on rhythmic density and voice
+    const baseDuration = voice.rhythm / 1000 // Convert to seconds
+    const duration = baseDuration * (0.6 + Math.random() * 0.6) // Variation
+
+    // Velocity with variation
+    const velocity = voice.velocity * (0.8 + Math.random() * 0.4)
+
+    // Trigger note
+    try {
+      synth.triggerAttackRelease(frequency, duration, Tone.now(), velocity)
+
+      // Log occasionally
+      if (Math.random() < 0.1) {
+        console.log(`🎵 ${voiceName}: note ${nextNote} (${frequency.toFixed(1)}Hz), dur ${duration.toFixed(2)}s`)
+      }
+    } catch (error) {
+      console.warn(`🎵 Voice ${voiceName} play error:`, error.message)
+    }
+  }
+
+  /**
+   * Advance harmonic progression
+   * Changes current chord in progression
+   */
+  advanceHarmony() {
+    const state = this.generativeState
+    state.currentChord = (state.currentChord + 1) % state.chordProgression.length
+
+    console.log(`🎵 Harmony advanced to chord ${state.currentChord} (root: ${state.chordProgression[state.currentChord]})`)
+
+    // Occasionally modulate or change progression
+    if (state.evolutionCycle % 16 === 0 && Math.random() < 0.3) {
+      this.mutateHarmonicContext()
+    }
   }
 
   /**
@@ -3891,15 +4029,49 @@ class AudioService {
       this.generativeState.complexity = Math.min(parameters.harmonicDensity / 4, 1)
     }
 
-    // Update evolution speed based on rhythmic density
-    if (parameters.rhythmicDensity !== undefined) {
-      // Higher density = faster evolution
-      this.generativeState.evolutionSpeed = 8000 / (1 + parameters.rhythmicDensity)
+    // VOICE INFLUENCE: Rhythmic density affects voice rhythms
+    if (parameters.rhythmicDensity !== undefined && this.generativeState.voices) {
+      // Higher density = faster note generation
+      const speedFactor = 1 + parameters.rhythmicDensity
+      Object.keys(this.generativeState.voices).forEach(voiceName => {
+        const voice = this.generativeState.voices[voiceName]
+        const baseRhythm = {
+          bass: 2000,
+          tenor: 1500,
+          alto: 1200,
+          soprano: 1000
+        }[voiceName]
+        voice.rhythm = baseRhythm / speedFactor
+      })
+    }
+
+    // VOICE DENSITY: Activity level controls number of active voices
+    if (parameters.harmonicDensity) {
+      const voiceNames = ['bass', 'tenor', 'alto', 'soprano']
+      const activeCount = Math.ceil(parameters.harmonicDensity)
+      voiceNames.forEach((name, index) => {
+        if (this.generativeState.voices[name]) {
+          // Enable/disable voices based on density
+          this.generativeState.voices[name].active = index < activeCount
+        }
+      })
+    }
+
+    // ARTICULATION BIAS: Affects velocity
+    if (parameters.articulationBias && this.generativeState.voices) {
+      const velocityMap = {
+        'staccato': 0.3,  // Lighter
+        'marcato': 0.4,   // Medium
+        'legato': 0.5     // Fuller
+      }
+      const baseVelocity = velocityMap[parameters.articulationBias] || 0.4
+      Object.keys(this.generativeState.voices).forEach(voiceName => {
+        this.generativeState.voices[voiceName].velocity = baseVelocity * (0.8 + Math.random() * 0.4)
+      })
     }
 
     // Apply mode (influences harmonic progression choice)
     if (parameters.mode) {
-      // Could be used to modify progression patterns
       this.generativeState.mode = parameters.mode
     }
 
@@ -3907,7 +4079,8 @@ class AudioService {
       scale: this.generativeState.currentScale,
       tonic: this.generativeState.currentTonic.toFixed(1),
       complexity: this.generativeState.complexity.toFixed(2),
-      evolutionSpeed: this.generativeState.evolutionSpeed.toFixed(0)
+      bassRhythm: this.generativeState.voices.bass.rhythm.toFixed(0),
+      activeVoices: Object.values(this.generativeState.voices).filter(v => v.active !== false).length
     })
   }
 }
