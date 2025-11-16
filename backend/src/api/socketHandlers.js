@@ -286,12 +286,17 @@ const socketHandlers = {
           return this.sendError(callback, 'INVALID_GESTURE_DATA', 'Invalid gesture data')
         }
 
-        // Record gesture for collective metrics analysis
-        this.roomManager.recordGesture(socket.roomId, {
-          ...data,
-          userId: socket.userId,
-          timestamp: Date.now()
-        })
+        // Record gesture for collective metrics analysis (non-blocking)
+        try {
+          this.roomManager.recordGesture(socket.roomId, {
+            ...data,
+            userId: socket.userId,
+            timestamp: Date.now()
+          })
+        } catch (error) {
+          console.warn('⚠️ Failed to record gesture for metrics:', error.message)
+          // Don't block gesture processing if metrics recording fails
+        }
 
         // CRITICAL: Check if gesture includes streamedNotes from frontend
         // If yes, use exact notes instead of generating new ones
@@ -430,7 +435,10 @@ const socketHandlers = {
         this.sendResponse(callback, response)
 
         // Broadcast musical events to all users in room
-        const musicalEvents = Array.isArray(musicalResult) ? musicalResult : [musicalResult]
+        // Filter out null/undefined results
+        const musicalEvents = Array.isArray(musicalResult)
+          ? musicalResult.filter(e => e != null)
+          : (musicalResult ? [musicalResult] : [])
 
         musicalEvents.forEach((musicalEvent, index) => {
           const eventType = musicalEvent.eventType || 'musical'
@@ -471,7 +479,7 @@ const socketHandlers = {
         })
 
         // Broadcast gesture-echo to other users in room
-        if (memoryResult.broadcastTo.length > 0) {
+        if (memoryResult && memoryResult.broadcastTo && memoryResult.broadcastTo.length > 0) {
           socket.to(socket.roomId).emit('gesture-echo', {
             ...gesture.toEchoBroadcast(),
             timestamp: Date.now()
