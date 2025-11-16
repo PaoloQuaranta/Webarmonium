@@ -993,7 +993,9 @@ class EnhancedGestureCapture {
 
     // Calculate note properties from position and movement
     const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2)
-    const normalizedSpeed = Math.min(speed / 1000, 1) // 0-1
+    // Velocity is already in normalized canvas coordinates (0-1 range)
+    // No need to divide by 1000 - use speed directly
+    const normalizedSpeed = Math.min(speed, 1) // Clamp to max 1.0
 
     console.log('🎸 Calculated speed:', {
       rawSpeed: speed,
