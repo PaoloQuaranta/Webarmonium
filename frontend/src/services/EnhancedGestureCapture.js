@@ -980,6 +980,12 @@ class EnhancedGestureCapture {
    * @param {number} noteIndex - Index of note in stream
    */
   playDragStreamingNote(coordinates, velocity, noteIndex) {
+    console.log('🎸 playDragStreamingNote called:', {
+      hasCallback: !!this.onDragStreamingNote,
+      noteIndex,
+      velocity
+    })
+
     if (!this.onDragStreamingNote) {
       console.warn('🎸 No drag streaming callback set')
       return
@@ -988,6 +994,12 @@ class EnhancedGestureCapture {
     // Calculate note properties from position and movement
     const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2)
     const normalizedSpeed = Math.min(speed / 1000, 1) // 0-1
+
+    console.log('🎸 Calculated speed:', {
+      rawSpeed: speed,
+      normalizedSpeed,
+      velocity
+    })
 
     // MUSICAL VARIATION based on speed
     // Fast movement = short staccato notes

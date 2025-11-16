@@ -200,7 +200,14 @@ class WebarmoniumApp {
     // Setup drag streaming note callback for real-time feedback
     // CRITICAL: Return note data for backend broadcast
     this.gestureCapture.setDragStreamingNoteCallback((noteData) => {
+      console.log('🎸🎸 DRAG STREAMING CALLBACK CALLED:', {
+        hasAudio: this.isAudioStarted,
+        hasService: !!this.audioService,
+        noteData
+      })
+
       if (!this.isAudioStarted || !this.audioService) {
+        console.warn('🎸🎸 BLOCKED - audio not ready')
         return null // No note played
       }
 
