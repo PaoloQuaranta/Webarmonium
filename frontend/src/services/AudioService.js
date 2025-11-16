@@ -484,29 +484,30 @@ class AudioService {
       activeVoices: new Map(), // Track active voices for polyphony management
 
       // VOICE STATE: Independent melodic voices with memory
+      // EXTENDED RANGE across 4 octaves (1-4)
       voices: {
         bass: {
           currentNote: 0,  // Current scale degree
           direction: 1,    // Melodic direction (1 = up, -1 = down)
           nextNoteTime: 0, // When to play next note
           rhythm: 2000,    // Rhythmic cycle duration (ms)
-          octave: 2,       // Current octave
-          velocity: 0.4
+          octave: 1,       // Low bass register
+          velocity: 0.5    // Stronger for audibility
         },
         tenor: {
           currentNote: 2,
           direction: 1,
           nextNoteTime: 500,
           rhythm: 1500,
-          octave: 3,
-          velocity: 0.3
+          octave: 2,       // Mid-low register
+          velocity: 0.4
         },
         alto: {
           currentNote: 4,
           direction: -1,
           nextNoteTime: 1000,
           rhythm: 1200,
-          octave: 3,
+          octave: 3,       // Mid-high register
           velocity: 0.35
         },
         soprano: {
@@ -514,8 +515,8 @@ class AudioService {
           direction: -1,
           nextNoteTime: 1500,
           rhythm: 1000,
-          octave: 4,
-          velocity: 0.25
+          octave: 4,       // High register
+          velocity: 0.3
         }
       },
 
@@ -525,38 +526,55 @@ class AudioService {
       chordDuration: 8000 // Time on each chord
     }
 
-    // Create multi-layer ambient synth system with LIMITED polyphony
+    // Create multi-layer ambient synth system with DISTINCTIVE TIMBRES
+    // BASS: Deep, warm foundation
     this.ambientLayers = {
       bass: new Tone.PolySynth({
-        oscillator: { type: 'sine' }, // Deep bass foundation
-        envelope: { attack: 2, decay: 1, sustain: 0.8, release: 3 },
-        maxPolyphony: 2 // REDUCED: was 3
+        oscillator: {
+          type: 'fatsawtooth',  // Rich bass tone
+          count: 3,
+          spread: 30
+        },
+        envelope: { attack: 0.5, decay: 0.3, sustain: 0.7, release: 1.5 },
+        maxPolyphony: 2
       }),
 
+      // HARMONY: Warm pad-like sound
       harmony: new Tone.PolySynth({
-        oscillator: { type: 'triangle' }, // Warm harmonic layer
-        envelope: { attack: 1.5, decay: 0.8, sustain: 0.6, release: 2.5 },
-        maxPolyphony: 3 // REDUCED: was 4
+        oscillator: {
+          type: 'fatsquare',  // Warm, hollow
+          count: 3,
+          spread: 40
+        },
+        envelope: { attack: 1, decay: 0.5, sustain: 0.6, release: 2 },
+        maxPolyphony: 3
       }),
 
+      // MELODY: Bright, bell-like but not shrill
       texture: new Tone.PolySynth({
-        oscillator: { type: 'sawtooth' }, // Rich textural layer
-        envelope: { attack: 0.5, decay: 0.3, sustain: 0.4, release: 2 },
-        maxPolyphony: 3 // REDUCED: was 5
+        oscillator: {
+          type: 'fmtriangle',  // FM synthesis for shimmer
+          harmonicity: 2,
+          modulationType: 'triangle'
+        },
+        envelope: { attack: 0.1, decay: 0.3, sustain: 0.3, release: 1 },
+        maxPolyphony: 3
       })
     }
 
     // Create individual filters and volumes for each layer
+    // WIDER filters to let more frequencies through
     this.ambientFilters = {
-      bass: new Tone.Filter({ type: 'lowpass', frequency: 200, Q: 2 }),
-      harmony: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 3 }),
-      texture: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 5 })
+      bass: new Tone.Filter({ type: 'lowpass', frequency: 500, Q: 1 }),  // Wider bass
+      harmony: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 2 }),  // Mid-range
+      texture: new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 3 })  // Bright but not harsh
     }
 
+    // LOUDER volumes for audibility
     this.ambientVolumes = {
-      bass: new Tone.Volume(-8), // Subtle bass
-      harmony: new Tone.Volume(-12), // Gentle harmony
-      texture: new Tone.Volume(-15) // Subtle texture
+      bass: new Tone.Volume(-3),    // Much louder bass
+      harmony: new Tone.Volume(-6),  // Medium harmony
+      texture: new Tone.Volume(-9)   // Subtle melody
     }
 
     // Connect each layer: synth -> filter -> volume -> effects -> master
