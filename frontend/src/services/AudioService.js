@@ -481,53 +481,44 @@ class AudioService {
       lastUserActivity: Date.now(),
       evolutionSpeed: 8000, // Base evolution cycle
       complexity: 0.3, // Starting complexity
-      activeVoices: new Map(), // Track active voices for polyphony management
 
-      // VOICE STATE: Independent melodic voices with memory
-      // EXTENDED RANGE across 4 octaves (1-4)
-      voices: {
+      // SIMPLIFIED STRUCTURE: Bass + Pad + Chords
+      // Reduces polyphony and creates clearer musical texture
+      layers: {
         bass: {
-          currentNote: 0,  // Current scale degree
-          direction: 1,    // Melodic direction (1 = up, -1 = down)
-          nextNoteTime: 0, // When to play next note
-          rhythm: 2000,    // Rhythmic cycle duration (ms)
-          octave: 1,       // Low bass register
-          velocity: 0.5    // Stronger for audibility
+          nextNoteTime: 0,
+          rhythm: 4000,      // Slow bass notes
+          currentNote: 0,    // Current scale degree
+          octave: 1,         // Low register
+          velocity: 0.6,
+          lastFrequency: null  // Track for release
         },
-        tenor: {
-          currentNote: 2,
-          direction: 1,
-          nextNoteTime: 500,
-          rhythm: 1500,
-          octave: 2,       // Mid-low register
-          velocity: 0.4
-        },
-        alto: {
-          currentNote: 4,
-          direction: -1,
+        pad: {
           nextNoteTime: 1000,
-          rhythm: 1200,
-          octave: 3,       // Mid-high register
-          velocity: 0.35
+          rhythm: 6000,      // Very slow pad changes
+          currentNotes: [2, 4],  // Two notes for pad (third and fifth)
+          octave: 2,         // Mid register
+          velocity: 0.3,
+          lastFrequencies: []  // Track for release
         },
-        soprano: {
-          currentNote: 7,
-          direction: -1,
-          nextNoteTime: 1500,
-          rhythm: 1000,
-          octave: 4,       // High register
-          velocity: 0.3
+        chords: {
+          nextNoteTime: 2000,
+          rhythm: 8000,      // Slow chord changes
+          currentChord: 0,   // Index in progression
+          octave: 3,         // Higher register
+          velocity: 0.4,
+          lastFrequencies: []  // Track for release
         }
       },
 
       // HARMONIC CONTEXT
-      chordProgression: [0, 4, 2, 4], // Scale degree roots for chords
+      chordProgression: [0, 4, 2, 4], // Scale degree roots for chords (I-V-iii-V)
       currentChord: 0,
       chordDuration: 8000 // Time on each chord
     }
 
-    // Create multi-layer ambient synth system with DISTINCTIVE TIMBRES
-    // BASS: Deep, warm foundation
+    // Create multi-layer ambient synth system with REDUCED POLYPHONY
+    // BASS: Deep, warm foundation (single note)
     this.ambientLayers = {
       bass: new Tone.PolySynth({
         oscillator: {
@@ -535,46 +526,45 @@ class AudioService {
           count: 3,
           spread: 30
         },
-        envelope: { attack: 0.5, decay: 0.3, sustain: 0.7, release: 1.5 },
-        maxPolyphony: 2
+        envelope: { attack: 0.5, decay: 0.3, sustain: 0.7, release: 2 },
+        maxPolyphony: 1  // Single bass note
       }),
 
-      // HARMONY: Warm pad-like sound
-      harmony: new Tone.PolySynth({
+      // PAD: Warm pad-like sound (1-2 notes)
+      pad: new Tone.PolySynth({
         oscillator: {
           type: 'fatsquare',  // Warm, hollow
           count: 3,
           spread: 40
         },
-        envelope: { attack: 1, decay: 0.5, sustain: 0.6, release: 2 },
-        maxPolyphony: 3
+        envelope: { attack: 2, decay: 1, sustain: 0.8, release: 3 },  // Very slow envelope
+        maxPolyphony: 2  // Pad can have 2 notes
       }),
 
-      // MELODY: Bright, bell-like but not shrill
-      texture: new Tone.PolySynth({
+      // CHORDS: Triad chords (3 notes)
+      chords: new Tone.PolySynth({
         oscillator: {
-          type: 'fmtriangle',  // FM synthesis for shimmer
-          harmonicity: 2,
-          modulationType: 'triangle'
+          type: 'fatsquare',  // Warm for chords
+          count: 2,
+          spread: 20
         },
-        envelope: { attack: 0.1, decay: 0.3, sustain: 0.3, release: 1 },
-        maxPolyphony: 3
+        envelope: { attack: 1, decay: 0.5, sustain: 0.6, release: 2 },
+        maxPolyphony: 3  // Triads have 3 notes
       })
     }
 
     // Create individual filters and volumes for each layer
-    // WIDER filters to let more frequencies through
     this.ambientFilters = {
-      bass: new Tone.Filter({ type: 'lowpass', frequency: 500, Q: 1 }),  // Wider bass
-      harmony: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 2 }),  // Mid-range
-      texture: new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 3 })  // Bright but not harsh
+      bass: new Tone.Filter({ type: 'lowpass', frequency: 300, Q: 1 }),    // Bass frequencies
+      pad: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 2 }),    // Mid-range pad
+      chords: new Tone.Filter({ type: 'lowpass', frequency: 3000, Q: 2 })  // Fuller chords
     }
 
-    // LOUDER volumes for audibility
+    // Balanced volumes
     this.ambientVolumes = {
-      bass: new Tone.Volume(-3),    // Much louder bass
-      harmony: new Tone.Volume(-6),  // Medium harmony
-      texture: new Tone.Volume(-9)   // Subtle melody
+      bass: new Tone.Volume(-6),    // Foundation
+      pad: new Tone.Volume(-9),     // Subtle pad
+      chords: new Tone.Volume(-8)   // Clear chords
     }
 
     // Connect each layer: synth -> filter -> volume -> effects -> master
@@ -639,7 +629,7 @@ class AudioService {
     this.evolvingGenerationActive = true
     this.lastVoiceUpdateTime = Date.now()
 
-    // Main composition loop - runs frequently to check voice schedules
+    // Main composition loop - runs frequently to check layer schedules
     const compositionLoop = () => {
       if (!this.evolvingGenerationActive || !this.isInitialized) {
         console.log('🎵 Evolving generation stopped or not initialized')
@@ -651,16 +641,16 @@ class AudioService {
         const deltaTime = now - this.lastVoiceUpdateTime
         this.lastVoiceUpdateTime = now
 
-        // Update each voice independently
-        Object.keys(this.generativeState.voices).forEach(voiceName => {
-          const voice = this.generativeState.voices[voiceName]
+        // Update each layer independently
+        Object.keys(this.generativeState.layers).forEach(layerName => {
+          const layer = this.generativeState.layers[layerName]
 
-          // Check if it's time for this voice to play
-          voice.nextNoteTime -= deltaTime
-          if (voice.nextNoteTime <= 0) {
-            this.playVoiceNote(voiceName)
+          // Check if it's time for this layer to play
+          layer.nextNoteTime -= deltaTime
+          if (layer.nextNoteTime <= 0) {
+            this.playLayer(layerName)
             // Schedule next note with rhythmic variation
-            voice.nextNoteTime = voice.rhythm * (0.8 + Math.random() * 0.4)
+            layer.nextNoteTime = layer.rhythm * (0.9 + Math.random() * 0.2)
           }
         })
 
@@ -675,17 +665,17 @@ class AudioService {
         console.error('🎵 Error in composition loop:', error)
       }
 
-      // Run loop every 100ms for responsive voice scheduling
+      // Run loop every 100ms for responsive scheduling
       setTimeout(compositionLoop, 100)
     }
 
     // Start composition loop
     setTimeout(() => {
-      console.log('🎵 Starting independent voice composition system')
+      console.log('🎵 Starting bass + pad + chords composition system')
       compositionLoop()
     }, 2000)
 
-    console.log('🎵 Multi-voice generative system initialized')
+    console.log('🎵 Simplified generative system initialized (bass/pad/chords)')
   }
 
   /**
@@ -876,80 +866,81 @@ class AudioService {
   }
 
   /**
-   * Play a note for an independent voice with voice leading
-   * MUSICAL COMPOSITION: Stepwise motion, contrary motion, harmonic awareness
-   * @param {string} voiceName - Name of voice ('bass', 'tenor', 'alto', 'soprano')
+   * Play a musical layer (bass, pad, or chords)
+   * SIMPLIFIED COMPOSITION: Clear bass + sustained pad + triad chords
+   * @param {string} layerName - Name of layer ('bass', 'pad', 'chords')
    */
-  playVoiceNote(voiceName) {
+  playLayer(layerName) {
     const state = this.generativeState
-    const voice = state.voices[voiceName]
+    const layer = state.layers[layerName]
     const scale = state.currentScale
 
-    if (!this.ambientLayers || this.muted || voice.active === false) return
+    if (!this.ambientLayers || this.muted) return
 
-    // Map voices to synth layers
-    const layerMap = {
-      bass: 'bass',
-      tenor: 'bass',
-      alto: 'harmony',
-      soprano: 'texture'
-    }
-    const synth = this.ambientLayers[layerMap[voiceName]]
+    const synth = this.ambientLayers[layerName]
     if (!synth) return
 
-    // VOICE LEADING: Stepwise motion with occasional leaps
-    const currentChordRoot = state.chordProgression[state.currentChord]
-    const isChordTone = (note) => {
-      // Chord tones: root, third, fifth
-      const chordTones = [
-        currentChordRoot,
-        scale[(scale.indexOf(currentChordRoot) + 2) % scale.length],
-        scale[(scale.indexOf(currentChordRoot) + 4) % scale.length]
-      ]
-      return chordTones.includes(scale[note % scale.length])
-    }
+    // Get current chord root from progression
+    const chordRoot = state.chordProgression[state.currentChord]
+    const chordRootIndex = scale.indexOf(chordRoot)
 
-    // Decide movement: stepwise (75%), leap (25%)
-    let nextNote = voice.currentNote
-    if (Math.random() < 0.75) {
-      // STEPWISE MOTION
-      nextNote += voice.direction
-      // Change direction at boundaries or randomly
-      if (nextNote < 0 || nextNote >= scale.length || Math.random() < 0.2) {
-        voice.direction *= -1
-        nextNote = voice.currentNote + voice.direction
-      }
-    } else {
-      // LEAP to chord tone
-      const leap = (Math.random() < 0.5 ? 3 : 5) * voice.direction
-      nextNote += leap
-    }
-
-    // Clamp to scale range
-    nextNote = ((nextNote % scale.length) + scale.length) % scale.length
-    voice.currentNote = nextNote
-
-    // Calculate frequency
-    const scaleNote = scale[nextNote]
-    const frequency = state.currentTonic * Math.pow(2, (scaleNote + voice.octave * 12) / 12)
-
-    // Duration based on rhythmic density and voice
-    const baseDuration = voice.rhythm / 1000 // Convert to seconds
-    const duration = baseDuration * (0.6 + Math.random() * 0.6) // Variation
-
-    // Velocity with variation
-    const velocity = voice.velocity * (0.8 + Math.random() * 0.4)
-
-    // Trigger note
+    // Release previous notes to prevent polyphony exceeded
     try {
-      synth.triggerAttackRelease(frequency, duration, Tone.now(), velocity)
-
-      // Log occasionally
-      if (Math.random() < 0.1) {
-        console.log(`🎵 ${voiceName}: note ${nextNote} (${frequency.toFixed(1)}Hz), dur ${duration.toFixed(2)}s`)
+      if (layerName === 'bass' && layer.lastFrequency) {
+        synth.triggerRelease(layer.lastFrequency)
+      } else if (layer.lastFrequencies && layer.lastFrequencies.length > 0) {
+        layer.lastFrequencies.forEach(freq => synth.triggerRelease(freq))
       }
     } catch (error) {
-      console.warn(`🎵 Voice ${voiceName} play error:`, error.message)
+      // Ignore release errors
+    }
+
+    // Calculate frequencies based on layer type
+    let frequencies = []
+    let duration = layer.rhythm / 1000 * 0.8 // 80% of rhythm duration
+
+    if (layerName === 'bass') {
+      // BASS: Single root note
+      const scaleNote = chordRoot
+      const frequency = state.currentTonic * Math.pow(2, (scaleNote + layer.octave * 12) / 12)
+      frequencies = [frequency]
+      layer.lastFrequency = frequency
+
+    } else if (layerName === 'pad') {
+      // PAD: Third and fifth (2 notes)
+      const third = scale[(chordRootIndex + 2) % scale.length]
+      const fifth = scale[(chordRootIndex + 4) % scale.length]
+
+      const freq3 = state.currentTonic * Math.pow(2, (third + layer.octave * 12) / 12)
+      const freq5 = state.currentTonic * Math.pow(2, (fifth + layer.octave * 12) / 12)
+      frequencies = [freq3, freq5]
+      layer.lastFrequencies = frequencies
+
+    } else if (layerName === 'chords') {
+      // CHORDS: Triad (root, third, fifth)
+      const root = chordRoot
+      const third = scale[(chordRootIndex + 2) % scale.length]
+      const fifth = scale[(chordRootIndex + 4) % scale.length]
+
+      const freqR = state.currentTonic * Math.pow(2, (root + layer.octave * 12) / 12)
+      const freq3 = state.currentTonic * Math.pow(2, (third + layer.octave * 12) / 12)
+      const freq5 = state.currentTonic * Math.pow(2, (fifth + layer.octave * 12) / 12)
+      frequencies = [freqR, freq3, freq5]
+      layer.lastFrequencies = frequencies
+    }
+
+    // Trigger notes
+    try {
+      frequencies.forEach(freq => {
+        synth.triggerAttackRelease(freq, duration, Tone.now(), layer.velocity)
+      })
+
+      // Log occasionally
+      if (Math.random() < 0.15) {
+        console.log(`🎵 ${layerName}: ${frequencies.length} notes, chord ${state.currentChord}`)
+      }
+    } catch (error) {
+      console.warn(`🎵 Layer ${layerName} play error:`, error.message)
     }
   }
 
@@ -4047,44 +4038,37 @@ class AudioService {
       this.generativeState.complexity = Math.min(parameters.harmonicDensity / 4, 1)
     }
 
-    // VOICE INFLUENCE: Rhythmic density affects voice rhythms
-    if (parameters.rhythmicDensity !== undefined && this.generativeState.voices) {
+    // LAYER INFLUENCE: Rhythmic density affects layer rhythms
+    if (parameters.rhythmicDensity !== undefined && this.generativeState.layers) {
       // Higher density = faster note generation
       const speedFactor = 1 + parameters.rhythmicDensity
-      Object.keys(this.generativeState.voices).forEach(voiceName => {
-        const voice = this.generativeState.voices[voiceName]
+      Object.keys(this.generativeState.layers).forEach(layerName => {
+        const layer = this.generativeState.layers[layerName]
         const baseRhythm = {
-          bass: 2000,
-          tenor: 1500,
-          alto: 1200,
-          soprano: 1000
-        }[voiceName]
-        voice.rhythm = baseRhythm / speedFactor
+          bass: 4000,
+          pad: 6000,
+          chords: 8000
+        }[layerName]
+        layer.rhythm = baseRhythm / speedFactor
       })
     }
 
-    // VOICE DENSITY: Activity level controls number of active voices
-    if (parameters.harmonicDensity) {
-      const voiceNames = ['bass', 'tenor', 'alto', 'soprano']
-      const activeCount = Math.ceil(parameters.harmonicDensity)
-      voiceNames.forEach((name, index) => {
-        if (this.generativeState.voices[name]) {
-          // Enable/disable voices based on density
-          this.generativeState.voices[name].active = index < activeCount
-        }
-      })
+    // HARMONIC DENSITY: Affects chord complexity
+    if (parameters.harmonicDensity !== undefined && this.generativeState) {
+      // Higher density = more complex harmonies (could extend triads to 7ths)
+      this.generativeState.complexity = 0.3 + parameters.harmonicDensity * 0.4
     }
 
     // ARTICULATION BIAS: Affects velocity
-    if (parameters.articulationBias && this.generativeState.voices) {
+    if (parameters.articulationBias && this.generativeState.layers) {
       const velocityMap = {
         'staccato': 0.3,  // Lighter
-        'marcato': 0.4,   // Medium
-        'legato': 0.5     // Fuller
+        'marcato': 0.5,   // Medium
+        'legato': 0.6     // Fuller
       }
       const baseVelocity = velocityMap[parameters.articulationBias] || 0.4
-      Object.keys(this.generativeState.voices).forEach(voiceName => {
-        this.generativeState.voices[voiceName].velocity = baseVelocity * (0.8 + Math.random() * 0.4)
+      Object.keys(this.generativeState.layers).forEach(layerName => {
+        this.generativeState.layers[layerName].velocity = baseVelocity * (0.9 + Math.random() * 0.2)
       })
     }
 
@@ -4097,8 +4081,8 @@ class AudioService {
       scale: this.generativeState.currentScale,
       tonic: this.generativeState.currentTonic.toFixed(1),
       complexity: this.generativeState.complexity.toFixed(2),
-      bassRhythm: this.generativeState.voices.bass.rhythm.toFixed(0),
-      activeVoices: Object.values(this.generativeState.voices).filter(v => v.active !== false).length
+      bassRhythm: this.generativeState.layers.bass.rhythm.toFixed(0),
+      activeLayers: Object.keys(this.generativeState.layers).length
     })
   }
 }

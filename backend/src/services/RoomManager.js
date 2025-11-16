@@ -75,7 +75,7 @@ class RoomManager {
       this.metricsAnalyzers.set(roomId, metricsAnalyzer)
     }
 
-    // Check room capacity (max 10 users - constitutional requirement)
+    // Check room capacity (max 3 users for better musical control)
     if (room.isFull()) {
       throw new Error('ROOM_FULL')
     }
