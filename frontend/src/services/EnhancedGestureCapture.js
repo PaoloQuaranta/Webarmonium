@@ -1023,27 +1023,22 @@ class EnhancedGestureCapture {
 
     // Calculate note properties from position and movement
     const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2)
-    // Velocity is already in normalized canvas coordinates (0-1 range)
-    // No need to divide by 1000 - use speed directly
     const normalizedSpeed = Math.min(speed, 1) // Clamp to max 1.0
 
-    // MUSICAL VARIATION based on speed
-    // Fast movement = short staccato notes
-    // Slow movement = long legato notes
-    let duration, articulation
+    // DURATION based on speed (rhythm variation)
+    let duration
     if (normalizedSpeed > 0.6) {
-      // Fast: staccato (short, detached)
-      duration = '32n'  // Very short
-      articulation = 'staccato'
+      duration = '32n'  // Very short for fast movement
     } else if (normalizedSpeed > 0.3) {
-      // Medium: marcato (accented)
-      duration = '16n'  // Short
-      articulation = 'marcato'
+      duration = '16n'  // Short for medium movement
     } else {
-      // Slow: legato (smooth, connected)
-      duration = '8n'   // Longer
-      articulation = 'legato'
+      duration = '8n'   // Longer for slow movement
     }
+
+    // ARTICULATION: Independent compositional parameter
+    // Use pattern for variation (will be influenced by collective metrics later)
+    const articulationPattern = ['legato', 'marcato', 'staccato', 'legato', 'marcato', 'legato', 'staccato', 'marcato']
+    const articulation = articulationPattern[noteIndex % articulationPattern.length]
 
     const noteData = {
       position: coordinates,
