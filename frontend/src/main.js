@@ -221,7 +221,14 @@ class WebarmoniumApp {
       const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
 
       // Use musical duration from noteData (based on velocity)
-      const duration = noteData.duration || '8n'
+      // Convert Tone.js notation to seconds (120 BPM)
+      const durationMap = {
+        '32n': 0.0625,  // 1/32 note at 120 BPM
+        '16n': 0.125,   // 1/16 note at 120 BPM
+        '8n': 0.25,     // 1/8 note at 120 BPM
+        '4n': 0.5,      // 1/4 note at 120 BPM
+      }
+      const duration = durationMap[noteData.duration] || 0.25
 
       // Configure envelope based on articulation
       let envelope
@@ -266,6 +273,13 @@ class WebarmoniumApp {
       if (this.audioService.gestureSynth) {
         this.audioService.gestureSynth.set({ envelope })
 
+        console.log('🎵🎵 PLAYING LOCAL NOTE:', {
+          frequency: frequency.toFixed(1),
+          duration: duration,
+          articulation: noteData.articulation,
+          velocity: noteData.velocity.toFixed(3)
+        })
+
         this.audioService.gestureSynth.triggerAttackRelease(
           frequency,
           duration,
@@ -277,7 +291,7 @@ class WebarmoniumApp {
       // CRITICAL: Return note data for collection in streamedNotes array
       return {
         frequency: frequency,
-        duration: duration,
+        duration: noteData.duration, // Keep Tone.js notation for backend
         articulation: noteData.articulation,
         position: { x, y },
         velocity: noteData.velocity,
