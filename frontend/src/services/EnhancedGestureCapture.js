@@ -256,10 +256,46 @@ class EnhancedGestureCapture {
       }
 
       // CONTINUE streaming notes (already started in handleGestureStart)
-      // Adjust note interval based on velocity (faster movement = faster notes)
+      // RHYTHM VARIATION: Adjust note interval based on velocity
+      // Fast drag = rapid notes (64n), slow drag = sparse notes (1n)
       const speed = Math.sqrt(newVelocity.x ** 2 + newVelocity.y ** 2)
-      const velocityFactor = Math.min(speed / 500, 2) // 0-2x speed multiplier
-      const adjustedInterval = this.dragStreaming.noteInterval / (0.5 + velocityFactor * 0.5) // 66-200ms
+      const normalizedSpeed = Math.min(speed, 3) // Allow up to 3x for very fast movements
+
+      // Map velocity to musical note intervals (120 BPM)
+      let adjustedInterval
+      if (normalizedSpeed > 2.0) {
+        // Very fast: 64th notes (31.25ms at 120 BPM)
+        adjustedInterval = 31.25
+      } else if (normalizedSpeed > 1.2) {
+        // Fast: 32nd notes (62.5ms)
+        adjustedInterval = 62.5
+      } else if (normalizedSpeed > 0.7) {
+        // Medium-fast: 16th notes (125ms)
+        adjustedInterval = 125
+      } else if (normalizedSpeed > 0.4) {
+        // Medium: 8th notes (250ms)
+        adjustedInterval = 250
+      } else if (normalizedSpeed > 0.2) {
+        // Slow: quarter notes (500ms)
+        adjustedInterval = 500
+      } else if (normalizedSpeed > 0.1) {
+        // Very slow: half notes (1000ms)
+        adjustedInterval = 1000
+      } else {
+        // Extremely slow: whole notes (2000ms)
+        adjustedInterval = 2000
+      }
+
+      console.log('🎸 Interval calculation:', {
+        rawSpeed: speed.toFixed(3),
+        normalizedSpeed: normalizedSpeed.toFixed(3),
+        intervalMs: adjustedInterval,
+        noteValue: adjustedInterval <= 62.5 ? '32n-64n' :
+                   adjustedInterval <= 125 ? '16n' :
+                   adjustedInterval <= 250 ? '8n' :
+                   adjustedInterval <= 500 ? '4n' :
+                   adjustedInterval <= 1000 ? '2n' : '1n'
+      })
 
       // Play next note if enough time has passed
       if (now - this.dragStreaming.lastNoteTime >= adjustedInterval) {
@@ -980,12 +1016,6 @@ class EnhancedGestureCapture {
    * @param {number} noteIndex - Index of note in stream
    */
   playDragStreamingNote(coordinates, velocity, noteIndex) {
-    console.log('🎸 playDragStreamingNote called:', {
-      hasCallback: !!this.onDragStreamingNote,
-      noteIndex,
-      velocity
-    })
-
     if (!this.onDragStreamingNote) {
       console.warn('🎸 No drag streaming callback set')
       return
@@ -996,12 +1026,6 @@ class EnhancedGestureCapture {
     // Velocity is already in normalized canvas coordinates (0-1 range)
     // No need to divide by 1000 - use speed directly
     const normalizedSpeed = Math.min(speed, 1) // Clamp to max 1.0
-
-    console.log('🎸 Calculated speed:', {
-      rawSpeed: speed,
-      normalizedSpeed,
-      velocity
-    })
 
     // MUSICAL VARIATION based on speed
     // Fast movement = short staccato notes
