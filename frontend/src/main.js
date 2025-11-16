@@ -217,10 +217,18 @@ class WebarmoniumApp {
       const x = noteData.position.x
       const y = noteData.position.y
 
-      // MELODIC GENERATION: Quantize to musical scale instead of continuous frequency
-      // Use pentatonic scale for more musical phrases
-      const pentatonicScale = [0, 2, 4, 7, 9] // Major pentatonic intervals from root
-      const baseOctave = 3 + Math.floor(y * 2) // Octaves 3-5 based on Y position
+      // MELODIC GENERATION: Use scale and octave from collective metrics
+      // Scales influenced by collective activity
+      const scales = {
+        'pentatonic': [0, 2, 4, 7, 9],      // Major pentatonic
+        'major': [0, 2, 4, 5, 7, 9, 11],    // Major scale
+        'minor': [0, 2, 3, 5, 7, 8, 10]     // Natural minor
+      }
+
+      const params = this.compositionalParameters || {}
+      const scaleType = params.scaleType || 'pentatonic'
+      const scale = scales[scaleType] || scales['pentatonic']
+      const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
 
       // Create melodic variation based on velocity and position
       const velocity = noteData.velocity
@@ -236,12 +244,12 @@ class WebarmoniumApp {
         scaleIndex = melodicPattern[noteData.noteIndex % melodicPattern.length]
       } else {
         // Slow: Smooth stepwise motion
-        scaleIndex = Math.floor(x * pentatonicScale.length)
+        scaleIndex = Math.floor(x * scale.length)
       }
 
-      // Calculate MIDI note from scale
-      const scaleNote = pentatonicScale[scaleIndex % pentatonicScale.length]
-      const octaveOffset = Math.floor(scaleIndex / pentatonicScale.length)
+      // Calculate MIDI note from scale (using collective metrics scale)
+      const scaleNote = scale[scaleIndex % scale.length]
+      const octaveOffset = Math.floor(scaleIndex / scale.length)
       const midiNote = 60 + (baseOctave - 4) * 12 + scaleNote + octaveOffset * 12
 
       // Convert MIDI to frequency
@@ -444,6 +452,18 @@ class WebarmoniumApp {
       // Remove user's cursor
       if (data.userId && this.cursorManager) {
         this.cursorManager.removeCursor(data.userId)
+      }
+    })
+
+    // Compositional parameters from collective metrics
+    this.compositionalParameters = null
+    this.socketService.on('compositional-parameters', (data) => {
+      this.compositionalParameters = data.parameters
+      console.log('🎼 Updated compositional parameters:', this.compositionalParameters)
+
+      // Update AudioService with new parameters for background generation
+      if (this.audioService && this.audioService.updateCompositionalParameters) {
+        this.audioService.updateCompositionalParameters(this.compositionalParameters)
       }
     })
 

@@ -198,6 +198,12 @@ class SocketService {
       this.emit('unified-modulation', data)
     })
 
+    // Collective compositional parameters
+    this.socket.on('compositional-parameters', (data) => {
+      console.log('🎼 SocketService received compositional-parameters:', data.parameters)
+      this.emit('compositional-parameters', data)
+    })
+
     // Debug: raw hover events (development only)
     this.socket.on('hover-update-raw', (data) => {
       if (process.env.NODE_ENV === 'development') {
