@@ -751,119 +751,9 @@ class AudioService {
     console.log(`🎵 Harmonic mutation: ${mutation}, new tonic: ${state.currentTonic}Hz`)
   }
 
-  /**
-   * Generate evolving musical material for a specific layer
-   * @param {string} layer - Layer name ('bass', 'harmony', 'texture')
-   */
-  generateEvolvingLayer(layer) {
-    const state = this.generativeState
-    const synth = this.ambientLayers[layer]
-    const filter = this.ambientFilters[layer]
-
-    if (!synth || this.muted) return
-
-    // Release existing notes in this layer to avoid overlap
-    synth.releaseAll()
-
-    // Determine layer-specific parameters
-    let notes, octaveRange, durationRange, velocity
-
-    switch (layer) {
-      case 'bass':
-        notes = this.selectNotesForLayer(state, 0, 2) // Root and third
-        octaveRange = [0, 1] // Low octaves
-        durationRange = [4, 8] // Long durations
-        velocity = 0.3 + state.complexity * 0.2
-        break
-
-      case 'harmony':
-        notes = this.selectNotesForLayer(state, 2, 4) // Middle scale degrees
-        octaveRange = [1, 2] // Middle octaves
-        durationRange = [2, 4] // Medium durations
-        velocity = 0.2 + state.complexity * 0.3
-        break
-
-      case 'texture':
-        notes = this.selectNotesForLayer(state, 1, 6) // Wider range
-        octaveRange = [2, 3] // Higher octaves
-        durationRange = [0.5, 2] // Shorter durations
-        velocity = 0.1 + state.complexity * 0.2
-        break
-    }
-
-    // Generate frequencies from selected notes
-    const frequencies = notes.map(note => {
-      const octave = octaveRange[0] + Math.floor(Math.random() * (octaveRange[1] - octaveRange[0] + 1))
-      return state.currentTonic * Math.pow(2, (note + octave * 12) / 12)
-    })
-
-    // Apply filter frequency based on current LFO system state
-    const baseFrequency = {
-      bass: 200,
-      harmony: 800,
-      texture: 1500
-    }[layer]
-
-    // CRITICAL FIX: DISABLE ALL LFO modulation to eliminate tremolo
-    // Previous code was causing omnipresent tremolo through texture layer
-    let filterFrequency = baseFrequency
-
-    // NO LFO MODULATION - Use static frequencies only
-    if (false && this.lfoSystem && layer === 'texture') {
-      // DISABLED: Only texture layer gets LFO modulation from ambient evolution
-      const lfoValue = this.lfoSystem.update()
-      const lfoModulation = 1 + state.complexity * lfoValue * 0.2 // Gentler modulation
-      filterFrequency = baseFrequency * lfoModulation
-      console.log(`🚫 DISABLED LFO modulation for ${layer}: ${lfoValue.toFixed(3)} → ${filterFrequency.toFixed(1)}Hz`)
-    } else {
-      // All layers use static base frequency - NO LFO
-      filterFrequency = baseFrequency
-    }
-
-    filter.frequency.setValueAtTime(filterFrequency, Tone.context.currentTime)
-
-    // Trigger notes with staggered timing for organic feel
-    frequencies.forEach((freq, index) => {
-      const delay = index * 0.1 + Math.random() * 0.2
-      const duration = durationRange[0] + Math.random() * (durationRange[1] - durationRange[0])
-
-      synth.triggerAttack(freq, `+${delay}`, velocity)
-
-      // Schedule release for sustained notes
-      if (layer !== 'texture' || Math.random() > 0.5) {
-        synth.triggerRelease(freq, `+${delay + duration}`)
-      }
-    })
-
-    console.log(`🎵 Generated ${layer} layer: ${frequencies.length} notes, complexity=${state.complexity.toFixed(2)}`)
-  }
-
-  /**
-   * Select appropriate notes for a layer based on current harmonic context
-   * @param {Object} state - Current generative state
-   * @param {number} startIndex - Start index in scale
-   * @param {number} range - Number of scale degrees to choose from
-   * @returns {Array<number>} Selected scale degrees
-   */
-  selectNotesForLayer(state, startIndex, range) {
-    const scale = state.currentScale
-    const progression = state.harmonicProgression
-
-    // Create chord-like structures based on harmonic progression
-    const chordDegrees = []
-    for (let i = 0; i < 3; i++) {
-      const degree = (progression * 2 + i * 2 + startIndex) % scale.length
-      chordDegrees.push(scale[degree])
-    }
-
-    // Add passing tones based on complexity
-    if (state.complexity > 0.5 && Math.random() < state.complexity) {
-      const passingTone = scale[(progression + Math.floor(Math.random() * scale.length)) % scale.length]
-      chordDegrees.push(passingTone)
-    }
-
-    return chordDegrees
-  }
+  // OLD FUNCTIONS REMOVED - Now using simplified playLayer() system
+  // generateEvolvingLayer() and selectNotesForLayer() have been replaced
+  // with bass + pad + chords architecture to reduce polyphony
 
   /**
    * Play a musical layer (bass, pad, or chords)
@@ -1200,26 +1090,26 @@ class AudioService {
     const filterQ = this.calculateFilterResonance(sonicParams)
 
     // Apply modulation to ambient filters with much stronger intensities
-    if (this.ambientFilters.texture) {
-      // Strongest modulation on texture layer
-      const textureFreq = filterFreq * 2.5 // Increased multiplier
-      this.ambientFilters.texture.frequency.linearRampToValueAtTime(
-        Math.min(8000, Math.max(100, textureFreq)), // Much wider range
+    if (this.ambientFilters.chords) {
+      // Strongest modulation on chords layer
+      const chordsFreq = filterFreq * 2.5 // Increased multiplier
+      this.ambientFilters.chords.frequency.linearRampToValueAtTime(
+        Math.min(8000, Math.max(100, chordsFreq)), // Much wider range
         Tone.context.currentTime + 0.05 // Faster transition
       )
-      this.ambientFilters.texture.Q.setValueAtTime(filterQ * 2, Tone.context.currentTime) // Stronger Q
-      console.log(`🎛️ Texture filter: ${Math.min(8000, Math.max(100, textureFreq)).toFixed(1)}Hz, Q=${(filterQ * 2).toFixed(2)}`)
+      this.ambientFilters.chords.Q.setValueAtTime(filterQ * 2, Tone.context.currentTime) // Stronger Q
+      console.log(`🎛️ Chords filter: ${Math.min(8000, Math.max(100, chordsFreq)).toFixed(1)}Hz, Q=${(filterQ * 2).toFixed(2)}`)
     }
 
-    if (this.ambientFilters.harmony) {
-      // Moderate modulation on harmony layer
-      const harmonyFreq = filterFreq * 1.8 // Increased multiplier
-      this.ambientFilters.harmony.frequency.linearRampToValueAtTime(
-        Math.min(4000, Math.max(100, harmonyFreq)), // Wider range
+    if (this.ambientFilters.pad) {
+      // Moderate modulation on pad layer
+      const padFreq = filterFreq * 1.8 // Increased multiplier
+      this.ambientFilters.pad.frequency.linearRampToValueAtTime(
+        Math.min(4000, Math.max(100, padFreq)), // Wider range
         Tone.context.currentTime + 0.08 // Faster transition
       )
-      this.ambientFilters.harmony.Q.setValueAtTime(filterQ * 1.5, Tone.context.currentTime) // Stronger Q
-      console.log(`🎛️ Harmony filter: ${Math.min(4000, Math.max(100, harmonyFreq)).toFixed(1)}Hz, Q=${(filterQ * 1.5).toFixed(2)}`)
+      this.ambientFilters.pad.Q.setValueAtTime(filterQ * 1.5, Tone.context.currentTime) // Stronger Q
+      console.log(`🎛️ Pad filter: ${Math.min(4000, Math.max(100, padFreq)).toFixed(1)}Hz, Q=${(filterQ * 1.5).toFixed(2)}`)
     }
 
     if (this.ambientFilters.bass) {
@@ -1944,12 +1834,9 @@ class AudioService {
       state.currentScale = [0, 2, 4, 7, 9]
     }
 
-    // Trigger immediate regeneration of background layers
-    Object.keys(this.ambientLayers).forEach(layer => {
-      this.generateEvolvingLayer(layer)
-    })
-
-    console.log(`🎵 Triggered immediate background evolution by user influence`)
+    // Background layers now evolve automatically through playLayer() composition loop
+    // No need to trigger immediate regeneration
+    console.log(`🎵 User influence applied to generative state`)
   }
 
   /**
@@ -1980,30 +1867,30 @@ class AudioService {
       console.log(`🎛️ Bass filter response: ${Math.max(50, Math.min(500, bassFreq)).toFixed(1)}Hz`)
     }
 
-    if (this.ambientFilters.harmony) {
-      const harmonyFreq = normalizedFreq * 0.8
-      this.ambientFilters.harmony.frequency.linearRampToValueAtTime(
-        Math.max(150, Math.min(2000, harmonyFreq)),
+    if (this.ambientFilters.pad) {
+      const padFreq = normalizedFreq * 0.8
+      this.ambientFilters.pad.frequency.linearRampToValueAtTime(
+        Math.max(150, Math.min(2000, padFreq)),
         Tone.context.currentTime + 0.15
       )
-      this.ambientFilters.harmony.Q.linearRampToValueAtTime(
+      this.ambientFilters.pad.Q.linearRampToValueAtTime(
         2 + modulationIntensity * 4,
         Tone.context.currentTime + 0.15
       )
-      console.log(`🎛️ Harmony filter response: ${Math.max(150, Math.min(2000, harmonyFreq)).toFixed(1)}Hz`)
+      console.log(`🎛️ Pad filter response: ${Math.max(150, Math.min(2000, padFreq)).toFixed(1)}Hz`)
     }
 
-    if (this.ambientFilters.texture) {
-      const textureFreq = normalizedFreq * 1.5
-      this.ambientFilters.texture.frequency.linearRampToValueAtTime(
-        Math.max(200, Math.min(4000, textureFreq)),
+    if (this.ambientFilters.chords) {
+      const chordsFreq = normalizedFreq * 1.5
+      this.ambientFilters.chords.frequency.linearRampToValueAtTime(
+        Math.max(200, Math.min(4000, chordsFreq)),
         Tone.context.currentTime + 0.1
       )
-      this.ambientFilters.texture.Q.linearRampToValueAtTime(
+      this.ambientFilters.chords.Q.linearRampToValueAtTime(
         3 + modulationIntensity * 5,
         Tone.context.currentTime + 0.1
       )
-      console.log(`🎛️ Texture filter response: ${Math.max(200, Math.min(4000, textureFreq)).toFixed(1)}Hz`)
+      console.log(`🎛️ Chords filter response: ${Math.max(200, Math.min(4000, chordsFreq)).toFixed(1)}Hz`)
     }
   }
 
@@ -2284,10 +2171,10 @@ class AudioService {
           case 'bass':
             notes = [state.currentTonic, state.currentTonic * 0.75] // Root and fifth below
             break
-          case 'harmony':
+          case 'pad':
             notes = [state.currentTonic * 1.25, state.currentTonic * 1.5] // Third and fifth above
             break
-          case 'texture':
+          case 'chords':
             notes = [state.currentTonic * 2, state.currentTonic * 2.5] // Octave above
             break
         }
@@ -3222,10 +3109,10 @@ class AudioService {
             let targetFrequency = cutoffFrequency
             if (layerName === 'bass') {
               targetFrequency = Math.max(50, Math.min(500, cutoffFrequency * 0.3)) // Bass range
-            } else if (layerName === 'harmony') {
-              targetFrequency = Math.max(150, Math.min(2000, cutoffFrequency * 0.8)) // Harmony range
-            } else if (layerName === 'texture') {
-              targetFrequency = Math.max(200, Math.min(4000, cutoffFrequency * 1.5)) // Texture range
+            } else if (layerName === 'pad') {
+              targetFrequency = Math.max(150, Math.min(2000, cutoffFrequency * 0.8)) // Pad range
+            } else if (layerName === 'chords') {
+              targetFrequency = Math.max(200, Math.min(4000, cutoffFrequency * 1.5)) // Chords range
             }
 
             // Use smooth transitions instead of immediate changes to prevent audio artifacts
@@ -3237,10 +3124,10 @@ class AudioService {
               let resonanceValue = resonance
               if (layerName === 'bass') {
                 resonanceValue = resonance * 1.5 // Subtle bass resonance
-              } else if (layerName === 'harmony') {
-                resonanceValue = resonance * 2 // Moderate harmony resonance
-              } else if (layerName === 'texture') {
-                resonanceValue = resonance * 2.5 // Strong texture resonance
+              } else if (layerName === 'pad') {
+                resonanceValue = resonance * 2 // Moderate pad resonance
+              } else if (layerName === 'chords') {
+                resonanceValue = resonance * 2.5 // Strong chords resonance
               }
 
               const clampedResonance = Math.max(0.1, Math.min(10, resonanceValue))
@@ -3583,17 +3470,19 @@ class AudioService {
   modulateRemoteGestureFilters(position, intensity) {
     if (!this.ambientFilters || !Tone.context) return
 
-    // Harmony layer: 400-1200Hz range
-    const harmonyFilter = this.ambientFilters.harmony
+    // Pad layer: 400-1200Hz range
+    const padFilter = this.ambientFilters.pad
+    if (!padFilter) return
+
     const baseFreq = 800
     const modFreq = baseFreq + (position.x || 0.5) * 400 * intensity
 
-    harmonyFilter.frequency.linearRampToValueAtTime(
+    padFilter.frequency.linearRampToValueAtTime(
       modFreq,
       Tone.context.currentTime + 0.08
     )
 
-    harmonyFilter.Q.linearRampToValueAtTime(
+    padFilter.Q.linearRampToValueAtTime(
       3 + intensity * 4,
       Tone.context.currentTime + 0.08
     )
@@ -3605,17 +3494,19 @@ class AudioService {
   modulateLocalGestureFilters(position, intensity) {
     if (!this.ambientFilters || !Tone.context) return
 
-    // Texture layer: 800-2000Hz range
-    const textureFilter = this.ambientFilters.texture
+    // Chords layer: 800-2000Hz range
+    const chordsFilter = this.ambientFilters.chords
+    if (!chordsFilter) return
+
     const baseFreq = 1400
     const modFreq = baseFreq + (position.x || 0.5) * 600 * intensity
 
-    textureFilter.frequency.linearRampToValueAtTime(
+    chordsFilter.frequency.linearRampToValueAtTime(
       modFreq,
       Tone.context.currentTime + 0.05
     )
 
-    textureFilter.Q.linearRampToValueAtTime(
+    chordsFilter.Q.linearRampToValueAtTime(
       5 + intensity * 8,
       Tone.context.currentTime + 0.05
     )
@@ -3777,8 +3668,8 @@ class AudioService {
               // Apply cutoff with layer-specific multipliers
               const layerMultiplier = {
                 bass: 0.5,
-                harmony: 0.8,
-                texture: 1.2
+                pad: 0.8,
+                chords: 1.2
               }[layerName] || 1.0
 
               const clampedFreq = Math.max(100, Math.min(8000, filterParams.cutoffFrequency * layerMultiplier))
@@ -3882,16 +3773,16 @@ class AudioService {
       console.log('🔧 Bass filter reset: 200Hz, Q=2')
     }
 
-    if (this.ambientFilters.harmony) {
-      this.ambientFilters.harmony.frequency.linearRampToValueAtTime(800, currentTime + 0.1)
-      this.ambientFilters.harmony.Q.linearRampToValueAtTime(3, currentTime + 0.1)
-      console.log('🔧 Harmony filter reset: 800Hz, Q=3')
+    if (this.ambientFilters.pad) {
+      this.ambientFilters.pad.frequency.linearRampToValueAtTime(1500, currentTime + 0.1)
+      this.ambientFilters.pad.Q.linearRampToValueAtTime(2, currentTime + 0.1)
+      console.log('🔧 Pad filter reset: 1500Hz, Q=2')
     }
 
-    if (this.ambientFilters.texture) {
-      this.ambientFilters.texture.frequency.linearRampToValueAtTime(1500, currentTime + 0.1)
-      this.ambientFilters.texture.Q.linearRampToValueAtTime(5, currentTime + 0.1)
-      console.log('🔧 Texture filter reset: 1500Hz, Q=5')
+    if (this.ambientFilters.chords) {
+      this.ambientFilters.chords.frequency.linearRampToValueAtTime(3000, currentTime + 0.1)
+      this.ambientFilters.chords.Q.linearRampToValueAtTime(2, currentTime + 0.1)
+      console.log('🔧 Chords filter reset: 3000Hz, Q=2')
     }
 
     // Reset gesture filter to open position
