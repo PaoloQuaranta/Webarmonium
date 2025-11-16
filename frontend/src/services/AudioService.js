@@ -489,15 +489,15 @@ class AudioService {
           nextNoteTime: 0,
           rhythm: 4000,      // Slow bass notes
           currentNote: 0,    // Current scale degree
-          octave: 1,         // Low register
-          velocity: 0.6,
+          octave: -2,        // Two octaves below tonic (55-110Hz range)
+          velocity: 0.7,     // Louder for audibility
           lastFrequency: null  // Track for release
         },
         pad: {
           nextNoteTime: 1000,
           rhythm: 6000,      // Very slow pad changes
           currentNotes: [2, 4],  // Two notes for pad (third and fifth)
-          octave: 2,         // Mid register
+          octave: 0,         // Same as tonic (220Hz range)
           velocity: 0.3,
           lastFrequencies: []  // Track for release
         },
@@ -505,7 +505,7 @@ class AudioService {
           nextNoteTime: 2000,
           rhythm: 8000,      // Slow chord changes
           currentChord: 0,   // Index in progression
-          octave: 3,         // Higher register
+          octave: 1,         // One octave above tonic (440Hz range)
           velocity: 0.4,
           lastFrequencies: []  // Track for release
         }
@@ -555,16 +555,16 @@ class AudioService {
 
     // Create individual filters and volumes for each layer
     this.ambientFilters = {
-      bass: new Tone.Filter({ type: 'lowpass', frequency: 300, Q: 1 }),    // Bass frequencies
-      pad: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 2 }),    // Mid-range pad
-      chords: new Tone.Filter({ type: 'lowpass', frequency: 3000, Q: 2 })  // Fuller chords
+      bass: new Tone.Filter({ type: 'lowpass', frequency: 150, Q: 1 }),    // Deep bass (50-150Hz)
+      pad: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 1.5 }),   // Mid-range pad
+      chords: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 2 })  // Brighter chords
     }
 
-    // Balanced volumes
+    // Balanced volumes - bass louder for audibility
     this.ambientVolumes = {
-      bass: new Tone.Volume(-6),    // Foundation
-      pad: new Tone.Volume(-9),     // Subtle pad
-      chords: new Tone.Volume(-8)   // Clear chords
+      bass: new Tone.Volume(-3),    // Loud foundation
+      pad: new Tone.Volume(-8),     // Subtle pad
+      chords: new Tone.Volume(-6)   // Clear chords
     }
 
     // Connect each layer: synth -> filter -> volume -> effects -> master
@@ -792,7 +792,9 @@ class AudioService {
     if (layerName === 'bass') {
       // BASS: Single root note
       const scaleNote = chordRoot
-      const frequency = state.currentTonic * Math.pow(2, (scaleNote + layer.octave * 12) / 12)
+      // Formula: tonic * 2^(scaleNote/12 + octaveOffset)
+      // octave=-2 → two octaves below tonic
+      const frequency = state.currentTonic * Math.pow(2, (scaleNote / 12) + layer.octave)
       frequencies = [frequency]
       layer.lastFrequency = frequency
 
@@ -801,8 +803,9 @@ class AudioService {
       const third = scale[(chordRootIndex + 2) % scale.length]
       const fifth = scale[(chordRootIndex + 4) % scale.length]
 
-      const freq3 = state.currentTonic * Math.pow(2, (third + layer.octave * 12) / 12)
-      const freq5 = state.currentTonic * Math.pow(2, (fifth + layer.octave * 12) / 12)
+      // octave=0 → same as tonic
+      const freq3 = state.currentTonic * Math.pow(2, (third / 12) + layer.octave)
+      const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
       frequencies = [freq3, freq5]
       layer.lastFrequencies = frequencies
 
@@ -812,9 +815,10 @@ class AudioService {
       const third = scale[(chordRootIndex + 2) % scale.length]
       const fifth = scale[(chordRootIndex + 4) % scale.length]
 
-      const freqR = state.currentTonic * Math.pow(2, (root + layer.octave * 12) / 12)
-      const freq3 = state.currentTonic * Math.pow(2, (third + layer.octave * 12) / 12)
-      const freq5 = state.currentTonic * Math.pow(2, (fifth + layer.octave * 12) / 12)
+      // octave=1 → one octave above tonic
+      const freqR = state.currentTonic * Math.pow(2, (root / 12) + layer.octave)
+      const freq3 = state.currentTonic * Math.pow(2, (third / 12) + layer.octave)
+      const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
       frequencies = [freqR, freq3, freq5]
       layer.lastFrequencies = frequencies
     }
@@ -825,9 +829,10 @@ class AudioService {
         synth.triggerAttackRelease(freq, duration, Tone.now(), layer.velocity)
       })
 
-      // Log occasionally
-      if (Math.random() < 0.15) {
-        console.log(`🎵 ${layerName}: ${frequencies.length} notes, chord ${state.currentChord}`)
+      // Log with frequency details for verification
+      if (Math.random() < 0.2) {
+        const freqStr = frequencies.map(f => f.toFixed(1) + 'Hz').join(', ')
+        console.log(`🎵 ${layerName}: ${freqStr} (chord ${state.currentChord}, duration ${duration.toFixed(1)}s)`)
       }
     } catch (error) {
       console.warn(`🎵 Layer ${layerName} play error:`, error.message)
@@ -3766,23 +3771,23 @@ class AudioService {
       this.lfoSystem.stop()
     }
 
-    // Reset ambient filters to open frequencies that allow full audio spectrum
+    // Reset ambient filters to original values
     if (this.ambientFilters.bass) {
-      this.ambientFilters.bass.frequency.linearRampToValueAtTime(200, currentTime + 0.1)
-      this.ambientFilters.bass.Q.linearRampToValueAtTime(2, currentTime + 0.1)
-      console.log('🔧 Bass filter reset: 200Hz, Q=2')
+      this.ambientFilters.bass.frequency.linearRampToValueAtTime(150, currentTime + 0.1)
+      this.ambientFilters.bass.Q.linearRampToValueAtTime(1, currentTime + 0.1)
+      console.log('🔧 Bass filter reset: 150Hz, Q=1')
     }
 
     if (this.ambientFilters.pad) {
-      this.ambientFilters.pad.frequency.linearRampToValueAtTime(1500, currentTime + 0.1)
-      this.ambientFilters.pad.Q.linearRampToValueAtTime(2, currentTime + 0.1)
-      console.log('🔧 Pad filter reset: 1500Hz, Q=2')
+      this.ambientFilters.pad.frequency.linearRampToValueAtTime(800, currentTime + 0.1)
+      this.ambientFilters.pad.Q.linearRampToValueAtTime(1.5, currentTime + 0.1)
+      console.log('🔧 Pad filter reset: 800Hz, Q=1.5')
     }
 
     if (this.ambientFilters.chords) {
-      this.ambientFilters.chords.frequency.linearRampToValueAtTime(3000, currentTime + 0.1)
+      this.ambientFilters.chords.frequency.linearRampToValueAtTime(2000, currentTime + 0.1)
       this.ambientFilters.chords.Q.linearRampToValueAtTime(2, currentTime + 0.1)
-      console.log('🔧 Chords filter reset: 3000Hz, Q=2')
+      console.log('🔧 Chords filter reset: 2000Hz, Q=2')
     }
 
     // Reset gesture filter to open position
