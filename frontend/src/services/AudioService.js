@@ -3856,6 +3856,60 @@ class AudioService {
 
     console.log('AudioService cleanup completed - all LFO and musical timing systems stopped')
   }
+
+  /**
+   * Update compositional parameters from collective metrics
+   * Influences background generative system based on room activity
+   * @param {Object} parameters - Compositional parameters from backend
+   */
+  updateCompositionalParameters(parameters) {
+    if (!this.generativeState || !parameters) return
+
+    console.log('🎼 Updating generative system with collective parameters:', parameters)
+
+    // Map scale type to actual scale
+    const scales = {
+      'pentatonic': [0, 2, 4, 7, 9],
+      'major': [0, 2, 4, 5, 7, 9, 11],
+      'minor': [0, 2, 3, 5, 7, 8, 10]
+    }
+
+    // Update scale if changed
+    if (parameters.scaleType) {
+      this.generativeState.currentScale = scales[parameters.scaleType] || scales['pentatonic']
+    }
+
+    // Update base octave (affects tonic frequency)
+    if (parameters.baseOctave) {
+      // Convert octave to frequency (C note)
+      const baseFreq = 32.7 * Math.pow(2, parameters.baseOctave) // C0 = 32.7Hz
+      this.generativeState.currentTonic = baseFreq
+    }
+
+    // Update complexity based on harmonic density (1-4 voices)
+    if (parameters.harmonicDensity) {
+      this.generativeState.complexity = Math.min(parameters.harmonicDensity / 4, 1)
+    }
+
+    // Update evolution speed based on rhythmic density
+    if (parameters.rhythmicDensity !== undefined) {
+      // Higher density = faster evolution
+      this.generativeState.evolutionSpeed = 8000 / (1 + parameters.rhythmicDensity)
+    }
+
+    // Apply mode (influences harmonic progression choice)
+    if (parameters.mode) {
+      // Could be used to modify progression patterns
+      this.generativeState.mode = parameters.mode
+    }
+
+    console.log('🎵 Updated generative state:', {
+      scale: this.generativeState.currentScale,
+      tonic: this.generativeState.currentTonic.toFixed(1),
+      complexity: this.generativeState.complexity.toFixed(2),
+      evolutionSpeed: this.generativeState.evolutionSpeed.toFixed(0)
+    })
+  }
 }
 
 // Export singleton instance
