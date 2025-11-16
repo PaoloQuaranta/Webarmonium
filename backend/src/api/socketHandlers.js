@@ -286,6 +286,13 @@ const socketHandlers = {
           return this.sendError(callback, 'INVALID_GESTURE_DATA', 'Invalid gesture data')
         }
 
+        // Record gesture for collective metrics analysis
+        this.roomManager.recordGesture(socket.roomId, {
+          ...data,
+          userId: socket.userId,
+          timestamp: Date.now()
+        })
+
         // CRITICAL: Check if gesture includes streamedNotes from frontend
         // If yes, use exact notes instead of generating new ones
         let musicalResult = null

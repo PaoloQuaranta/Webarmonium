@@ -904,6 +904,21 @@ io.on('connection', (socket) => {
   socketHandlers.initializeSocket(socket, services)
 })
 
+// Periodic broadcast of compositional parameters to all rooms
+setInterval(() => {
+  roomManager.rooms.forEach((room, roomId) => {
+    if (room.users.size > 0) {
+      const parameters = roomManager.getCompositionalParameters(roomId)
+      if (parameters) {
+        io.to(roomId).emit('compositional-parameters', {
+          parameters,
+          timestamp: Date.now()
+        })
+      }
+    }
+  })
+}, 5000) // Broadcast every 5 seconds
+
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Server error:', error)
