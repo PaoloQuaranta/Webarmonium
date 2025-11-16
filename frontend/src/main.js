@@ -216,9 +216,36 @@ class WebarmoniumApp {
       // Y controls octave range, X controls frequency within octave
       const x = noteData.position.x
       const y = noteData.position.y
-      const octaveBase = 110 + (1 - y) * 440 // 110-550Hz (A2 to C#5)
-      const withinOctave = x * 660 // 0-660Hz variation within octave
-      const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
+
+      // MELODIC GENERATION: Quantize to musical scale instead of continuous frequency
+      // Use pentatonic scale for more musical phrases
+      const pentatonicScale = [0, 2, 4, 7, 9] // Major pentatonic intervals from root
+      const baseOctave = 3 + Math.floor(y * 2) // Octaves 3-5 based on Y position
+
+      // Create melodic variation based on velocity and position
+      const velocity = noteData.velocity
+      let scaleIndex
+
+      if (velocity > 0.7) {
+        // Fast movement: Arpeggios (1-3-5 pattern)
+        const arpPattern = [0, 2, 4, 2, 0] // Root-5th-octave-5th-root
+        scaleIndex = arpPattern[noteData.noteIndex % arpPattern.length]
+      } else if (velocity > 0.4) {
+        // Medium: Stepwise with occasional jumps
+        const melodicPattern = [0, 1, 0, 2, 1, 3, 2, 4] // More interesting contour
+        scaleIndex = melodicPattern[noteData.noteIndex % melodicPattern.length]
+      } else {
+        // Slow: Smooth stepwise motion
+        scaleIndex = Math.floor(x * pentatonicScale.length)
+      }
+
+      // Calculate MIDI note from scale
+      const scaleNote = pentatonicScale[scaleIndex % pentatonicScale.length]
+      const octaveOffset = Math.floor(scaleIndex / pentatonicScale.length)
+      const midiNote = 60 + (baseOctave - 4) * 12 + scaleNote + octaveOffset * 12
+
+      // Convert MIDI to frequency
+      const frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
 
       // Use musical duration from noteData (based on velocity)
       // Convert Tone.js notation to seconds (120 BPM)
@@ -231,33 +258,34 @@ class WebarmoniumApp {
       const duration = durationMap[noteData.duration] || 0.25
 
       // Configure envelope based on articulation
+      // Envelopes are proportional to note duration for better musicality
       let envelope
       switch (noteData.articulation) {
         case 'staccato':
-          // Fast: short, detached notes
+          // Fast: short, articulated notes (50% of duration)
           envelope = {
             attack: 0.005,
-            decay: 0.01,
-            sustain: 0.05,
-            release: 0.03
+            decay: duration * 0.2,
+            sustain: 0.3,
+            release: duration * 0.3
           }
           break
         case 'marcato':
-          // Medium: accented notes
+          // Medium: accented notes (70% of duration)
           envelope = {
             attack: 0.01,
-            decay: 0.03,
-            sustain: 0.2,
-            release: 0.08
+            decay: duration * 0.3,
+            sustain: 0.5,
+            release: duration * 0.4
           }
           break
         case 'legato':
-          // Slow: smooth, connected notes
+          // Slow: smooth, connected notes (95% of duration)
           envelope = {
-            attack: 0.02,
-            decay: 0.05,
-            sustain: 0.4,
-            release: 0.15
+            attack: duration * 0.1,
+            decay: duration * 0.2,
+            sustain: 0.7,
+            release: duration * 0.7
           }
           break
         default:

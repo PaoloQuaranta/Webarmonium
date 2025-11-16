@@ -1581,33 +1581,34 @@ class AudioService {
           const isStreamed = musicalEvent.properties?.isStreamed
 
           // Configure envelope based on articulation
+          // Envelopes are proportional to note duration for better musicality
           let envelope
           switch (articulation) {
             case 'staccato':
-              // Fast: short, detached notes
+              // Fast: short, articulated notes (50% of duration)
               envelope = {
                 attack: 0.005,
-                decay: 0.01,
-                sustain: 0.05,
-                release: 0.03
+                decay: adjustedDuration * 0.2,
+                sustain: 0.3,
+                release: adjustedDuration * 0.3
               }
               break
             case 'marcato':
-              // Medium: accented notes
+              // Medium: accented notes (70% of duration)
               envelope = {
                 attack: 0.01,
-                decay: 0.03,
-                sustain: 0.2,
-                release: 0.08
+                decay: adjustedDuration * 0.3,
+                sustain: 0.5,
+                release: adjustedDuration * 0.4
               }
               break
             case 'legato':
-              // Slow: smooth, connected notes
+              // Slow: smooth, connected notes (95% of duration)
               envelope = {
-                attack: 0.02,
-                decay: 0.05,
-                sustain: 0.4,
-                release: 0.15
+                attack: adjustedDuration * 0.1,
+                decay: adjustedDuration * 0.2,
+                sustain: 0.7,
+                release: adjustedDuration * 0.7
               }
               break
             default:
