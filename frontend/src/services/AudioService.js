@@ -689,12 +689,20 @@ class AudioService {
             // Complexity influences density: low complexity = sparser rhythm
             const complexityFactor = 0.75 + (this.generativeState.complexity * 0.5)
 
-            // Multiple drift sources to prevent convergence
-            const driftFactor1 = 0.92 + Math.sin(this.generativeState.evolutionCycle * 0.013) * 0.12
-            const driftFactor2 = 0.96 + Math.cos(this.generativeState.evolutionCycle * 0.007) * 0.08
+            // Layer-specific phase offsets (different for each layer)
+            // This ensures each layer has INDEPENDENT rhythmic drift
+            const phaseOffset = layerName === 'bass' ? 0 : layerName === 'pad' ? 2.1 : 4.7
 
-            // Subtle jitter based on timestamp (adds non-determinism)
-            const jitter = 0.92 + (Math.sin(Date.now() * 0.001) * 0.16)
+            // INDEPENDENT drift per layer using different phase offsets
+            // Each layer evolves at different "starting points" in the sine/cosine cycles
+            const cycle = this.generativeState.evolutionCycle
+            const driftFactor1 = 0.92 + Math.sin((cycle + phaseOffset * 100) * 0.013) * 0.12
+            const driftFactor2 = 0.96 + Math.cos((cycle + phaseOffset * 200) * 0.007) * 0.08
+
+            // INDEPENDENT jitter per layer using layer name as seed
+            // Each layer gets unique timestamp-based variation
+            const layerSeed = layerName.charCodeAt(0) * 137  // Different seed per layer
+            const jitter = 0.92 + (Math.sin((Date.now() + layerSeed) * 0.001) * 0.16)
 
             layer.nextNoteTime = layer.rhythm * rhythmVariation * complexityFactor * driftFactor1 * driftFactor2 * jitter
           }
