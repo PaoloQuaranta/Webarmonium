@@ -880,27 +880,27 @@ class AudioService {
     // Calculate frequencies based on layer type
     let frequencies = []
 
-    // ORGANIC DURATION VARIATION: Avoid mechanical regularity
-    // Durations vary based on complexity and random variation
-    let baseDuration, durationVariation
+    // PATTERN-BASED DURATION: Match note duration to rhythmic pattern
+    // Duration should reflect the pattern multiplier for coherent rhythm
+    const currentPattern = state.rhythmPatterns[layer.currentPatternIndex]
+    const currentPosition = (layer.patternPosition - 1 + currentPattern.length) % currentPattern.length
+    const patternMultiplier = currentPattern[currentPosition]
 
+    // Base durations per layer
+    let baseDuration
     if (layerName === 'bass') {
-      // Bass: 0.8-2.0 seconds (short to medium)
-      baseDuration = 1.2
-      durationVariation = 0.7 + Math.random() * 0.6  // 70-130%
+      baseDuration = 1.0  // 1 second base
     } else if (layerName === 'pad') {
-      // Pad: 2.0-5.0 seconds (medium to long sustains)
-      baseDuration = 3.0
-      durationVariation = 0.67 + Math.random() * 0.67  // 67-133%
+      baseDuration = 2.5  // 2.5 seconds base (longer sustains)
     } else if (layerName === 'chords') {
-      // Chords: 1.2-3.2 seconds (short to medium)
-      baseDuration = 2.0
-      durationVariation = 0.6 + Math.random() * 0.6  // 60-120%
+      baseDuration = 1.8  // 1.8 seconds base
     }
 
-    // Complexity affects articulation: higher complexity = shorter notes
-    const articulationFactor = 1.2 - (state.complexity * 0.4)
-    const duration = baseDuration * durationVariation * articulationFactor
+    // Duration matches pattern: if pattern says 2.0x rhythm, note lasts 2.0x duration
+    // This creates coherent relationship between note spacing and note length
+    // Articulation: notes slightly shorter than inter-onset for clarity (80%)
+    const articulationFactor = 0.8 - (state.complexity * 0.1)  // Higher complexity = more staccato
+    const duration = baseDuration * patternMultiplier * articulationFactor
 
     if (layerName === 'bass') {
       // BASS: Single root note
