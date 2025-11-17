@@ -484,30 +484,30 @@ class AudioService {
 
       // SIMPLIFIED STRUCTURE: Bass + Pad + Chords
       // Reduces polyphony and creates clearer musical texture
-      // CRITICAL: Use NON-MULTIPLE rhythms to avoid periodic synchronization
+      // BALANCED RHYTHMS: All layers similar speed to avoid dominant pulse
       layers: {
         bass: {
           nextNoteTime: 0,
-          rhythm: 2300,      // Prime number rhythm (non-multiple)
+          rhythm: 4700,      // SLOWER: was 2300, now similar to others
           currentNote: 0,    // Current scale degree
           octave: -2,        // Two octaves below tonic (55-110Hz range)
-          velocity: 0.8,     // LOUDER for prominence
+          velocity: 0.45,    // QUIETER: was 0.8, too dominant
           lastFrequency: null  // Track for release
         },
         pad: {
-          nextNoteTime: 800,  // Offset start to avoid initial cluster
-          rhythm: 3700,      // Prime rhythm (NOT multiple of 2300)
+          nextNoteTime: 1200,  // Offset start to avoid initial cluster
+          rhythm: 5100,      // Medium rhythm
           currentNotes: [2, 4],  // Two notes for pad (third and fifth)
           octave: 0,         // Same as tonic (220Hz range)
-          velocity: 0.25,    // QUIETER to support bass
+          velocity: 0.30,    // LOUDER: was 0.25, too quiet
           lastFrequencies: []  // Track for release
         },
         chords: {
-          nextNoteTime: 1500, // Different offset
-          rhythm: 5300,      // Prime rhythm (NOT multiple of 2300 or 3700)
+          nextNoteTime: 2400, // Different offset
+          rhythm: 5900,      // Slower rhythm
           currentChord: 0,   // Index in progression
           octave: 1,         // One octave above tonic (440Hz range)
-          velocity: 0.3,     // QUIETER to not dominate
+          velocity: 0.40,    // LOUDER: was 0.3, chords should be prominent
           lastFrequencies: []  // Track for release
         }
       },
@@ -669,32 +669,32 @@ class AudioService {
           if (layer.nextNoteTime <= 0) {
             this.playLayer(layerName)
 
-            // EXTREME ORGANIC VARIATION: Break all periodic patterns
-            // Use MUCH wider ranges + multiple randomization sources
+            // BALANCED ORGANIC VARIATION: Wide enough to break patterns, not too chaotic
+            // Each layer has moderate variation for smooth yet unpredictable flow
             let rhythmVariation
             if (layerName === 'bass') {
-              // Bass: 30-250% variation (690ms - 5750ms)
-              // Wide range prevents pattern lock
-              rhythmVariation = 0.3 + Math.random() * 2.2
+              // Bass: 50-180% variation (2350ms - 8460ms)
+              // Prevents fast pulse while maintaining presence
+              rhythmVariation = 0.5 + Math.random() * 1.3
             } else if (layerName === 'pad') {
-              // Pad: 40-300% variation (1480ms - 11100ms)
-              // Very long to very short for dramatic contrast
-              rhythmVariation = 0.4 + Math.random() * 2.6
+              // Pad: 60-200% variation (3060ms - 10200ms)
+              // Long sustains with moderate variation
+              rhythmVariation = 0.6 + Math.random() * 1.4
             } else if (layerName === 'chords') {
-              // Chords: 25-280% variation (1325ms - 14840ms)
-              // Maximum unpredictability
-              rhythmVariation = 0.25 + Math.random() * 2.55
+              // Chords: 55-190% variation (3245ms - 11210ms)
+              // Balanced unpredictability
+              rhythmVariation = 0.55 + Math.random() * 1.35
             }
 
             // Complexity influences density: low complexity = sparser rhythm
-            const complexityFactor = 0.7 + (this.generativeState.complexity * 0.6)
+            const complexityFactor = 0.75 + (this.generativeState.complexity * 0.5)
 
             // Multiple drift sources to prevent convergence
-            const driftFactor1 = 0.9 + Math.sin(this.generativeState.evolutionCycle * 0.013) * 0.15
-            const driftFactor2 = 0.95 + Math.cos(this.generativeState.evolutionCycle * 0.007) * 0.1
+            const driftFactor1 = 0.92 + Math.sin(this.generativeState.evolutionCycle * 0.013) * 0.12
+            const driftFactor2 = 0.96 + Math.cos(this.generativeState.evolutionCycle * 0.007) * 0.08
 
-            // Exponential jitter based on timestamp hash (never repeats)
-            const jitter = 0.85 + (Math.sin(Date.now() * 0.001) * 0.3)
+            // Subtle jitter based on timestamp (adds non-determinism)
+            const jitter = 0.92 + (Math.sin(Date.now() * 0.001) * 0.16)
 
             layer.nextNoteTime = layer.rhythm * rhythmVariation * complexityFactor * driftFactor1 * driftFactor2 * jitter
           }
