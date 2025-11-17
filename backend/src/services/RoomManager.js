@@ -3,6 +3,7 @@ const User = require('../models/User')
 const MemoryState = require('../models/MemoryState')
 const ColorAssignmentService = require('./ColorAssignmentService')
 const DrawingSyncService = require('./DrawingSyncService')
+const CollectiveMetricsAnalyzer = require('./CollectiveMetricsAnalyzer')
 
 /**
  * RoomManager Service
@@ -20,7 +21,14 @@ class RoomManager {
     this.colorServices = new Map() // roomId -> ColorAssignmentService
     this.drawingServices = new Map() // roomId -> DrawingSyncService
 
+    // Hover orchestration services (per-room)
+    this.hoverOrchestrators = new Map() // roomId -> HoverOrchestrator
+
+    // Collective metrics analyzers (per-room)
+    this.metricsAnalyzers = new Map() // roomId -> CollectiveMetricsAnalyzer
+
     this.startPeriodicCleanup()
+    this.startMetricsBroadcast()
   }
 
   /**
@@ -60,9 +68,14 @@ class RoomManager {
       // Initialize color and drawing services for new room
       this.colorServices.set(roomId, new ColorAssignmentService())
       this.drawingServices.set(roomId, new DrawingSyncService())
+
+      // Initialize collective metrics analyzer for new room
+      const metricsAnalyzer = new CollectiveMetricsAnalyzer()
+      metricsAnalyzer.start()
+      this.metricsAnalyzers.set(roomId, metricsAnalyzer)
     }
 
-    // Check room capacity (max 10 users - constitutional requirement)
+    // Check room capacity (max 3 users for better musical control)
     if (room.isFull()) {
       throw new Error('ROOM_FULL')
     }
@@ -471,6 +484,16 @@ class RoomManager {
       this.colorServices.delete(roomId)
       this.drawingServices.delete(roomId)
 
+      // Cleanup HoverOrchestrator
+      this.removeHoverOrchestrator(roomId)
+
+      // Cleanup CollectiveMetricsAnalyzer
+      const metricsAnalyzer = this.metricsAnalyzers.get(roomId)
+      if (metricsAnalyzer) {
+        metricsAnalyzer.stop()
+        this.metricsAnalyzers.delete(roomId)
+      }
+
       stats.roomsCleaned++
     })
 
@@ -575,6 +598,37 @@ class RoomManager {
   }
 
   /**
+   * Get HoverOrchestrator for a room
+   * @param {string} roomId - Room ID
+   * @returns {HoverOrchestrator|null} HoverOrchestrator instance or null
+   */
+  getHoverOrchestrator (roomId) {
+    return this.hoverOrchestrators.get(roomId) || null
+  }
+
+  /**
+   * Set HoverOrchestrator for a room
+   * @param {string} roomId - Room ID
+   * @param {HoverOrchestrator} hoverOrchestrator - HoverOrchestrator instance
+   */
+  setHoverOrchestrator (roomId, hoverOrchestrator) {
+    this.hoverOrchestrators.set(roomId, hoverOrchestrator)
+  }
+
+  /**
+   * Remove HoverOrchestrator for a room
+   * @param {string} roomId - Room ID
+   */
+  removeHoverOrchestrator (roomId) {
+    const orchestrator = this.hoverOrchestrators.get(roomId)
+    if (orchestrator) {
+      orchestrator.stop()
+      this.hoverOrchestrators.delete(roomId)
+      console.log(`🗑️ Removed HoverOrchestrator for room ${roomId}`)
+    }
+  }
+
+  /**
    * Shutdown room manager gracefully
    */
   shutdown () {
@@ -591,11 +645,79 @@ class RoomManager {
       }
     })
 
+    // Stop all HoverOrchestrators
+    this.hoverOrchestrators.forEach((orchestrator, roomId) => {
+      try {
+        orchestrator.stop()
+        console.log(`🛑 Stopped HoverOrchestrator for room ${roomId}`)
+      } catch (error) {
+        console.warn(`Error stopping HoverOrchestrator for room ${roomId}:`, error.message)
+      }
+    })
+
+    // Stop all CollectiveMetricsAnalyzers
+    this.metricsAnalyzers.forEach((analyzer, roomId) => {
+      try {
+        analyzer.stop()
+        console.log(`🛑 Stopped CollectiveMetricsAnalyzer for room ${roomId}`)
+      } catch (error) {
+        console.warn(`Error stopping CollectiveMetricsAnalyzer for room ${roomId}:`, error.message)
+      }
+    })
+
     // Clear all data structures
     this.rooms.clear()
     this.userRoomMap.clear()
     this.colorServices.clear()
     this.drawingServices.clear()
+    this.hoverOrchestrators.clear()
+    this.metricsAnalyzers.clear()
+  }
+
+  /**
+   * Record gesture in metrics analyzer
+   * @param {string} roomId - Room ID
+   * @param {Object} gesture - Gesture data
+   */
+  recordGesture(roomId, gesture) {
+    const analyzer = this.metricsAnalyzers.get(roomId)
+    if (analyzer) {
+      analyzer.recordGesture(gesture)
+    }
+  }
+
+  /**
+   * Get compositional parameters for a room
+   * @param {string} roomId - Room ID
+   * @returns {Object} Compositional parameters
+   */
+  getCompositionalParameters(roomId) {
+    const analyzer = this.metricsAnalyzers.get(roomId)
+    if (analyzer) {
+      return analyzer.getCompositionalParameters()
+    }
+    return null
+  }
+
+  /**
+   * Start periodic broadcast of compositional parameters
+   * Broadcasts every 5 seconds to all connected clients
+   */
+  startMetricsBroadcast() {
+    if (this.metricsBroadcastInterval) {
+      clearInterval(this.metricsBroadcastInterval)
+    }
+
+    // Broadcast metrics every 5 seconds
+    this.metricsBroadcastInterval = setInterval(() => {
+      this.rooms.forEach((room, roomId) => {
+        const parameters = this.getCompositionalParameters(roomId)
+        if (parameters && room.users.size > 0) {
+          // This will be picked up by socket handlers to broadcast
+          room.compositionalParameters = parameters
+        }
+      })
+    }, 5000)
   }
 }
 

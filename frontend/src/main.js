@@ -14,6 +14,14 @@ class WebarmoniumApp {
     this.currentRoom = null
     this.userCount = 1
 
+    // Sprint 2: Extracted components
+    this.canvasManager = new CanvasManager()
+    this.uiManager = new UIManager()
+
+    // Sprint 4: GestureProcessor will be initialized in initializeServices()
+    // (after audioService is available)
+    this.gestureProcessor = null
+
     // Multi-user canvas services
     this.cursorOverlayCanvas = null
     this.drawingRenderer = null
@@ -27,8 +35,7 @@ class WebarmoniumApp {
     this.frameCount = 0
     this.fps = 60
 
-    // Bound event handlers for cleanup
-    this.boundResizeHandler = null
+    // Sprint 4: Gesture state moved to GestureProcessor
 
     // Initialize the application
     this.init()
@@ -53,6 +60,9 @@ class WebarmoniumApp {
       // Start render loop
       this.startRenderLoop()
 
+      // Try to auto-start audio (may require user interaction)
+      this.attemptAutoStartAudio()
+
       // Hide loading screen
       this.showApp()
 
@@ -64,78 +74,87 @@ class WebarmoniumApp {
   }
 
   setupCanvas() {
-    this.canvas = document.getElementById('gestureCanvas')
-    this.ctx = this.canvas.getContext('2d')
+    // Sprint 2: Delegate to CanvasManager
+    const canvasRefs = this.canvasManager.setup()
 
-    // Create cursor overlay canvas
-    this.cursorOverlayCanvas = document.getElementById('cursorOverlay')
-    if (!this.cursorOverlayCanvas) {
-      this.cursorOverlayCanvas = document.createElement('canvas')
-      this.cursorOverlayCanvas.id = 'cursorOverlay'
-      this.cursorOverlayCanvas.style.position = 'absolute'
-      this.cursorOverlayCanvas.style.top = '0'
-      this.cursorOverlayCanvas.style.left = '0'
-      this.cursorOverlayCanvas.style.pointerEvents = 'none'
-      this.cursorOverlayCanvas.style.zIndex = '10'
-      this.canvas.parentElement.appendChild(this.cursorOverlayCanvas)
-    }
+    // Store references for backward compatibility
+    this.canvas = canvasRefs.canvas
+    this.ctx = canvasRefs.ctx
+    this.cursorOverlayCanvas = canvasRefs.cursorOverlayCanvas
 
-    // Set canvas size to match viewport
-    this.resizeCanvas()
-
-    // Handle window resize - store bound handler for cleanup
-    this.boundResizeHandler = () => this.resizeCanvas()
-    window.addEventListener('resize', this.boundResizeHandler)
+    console.log('✅ Canvas setup delegated to CanvasManager')
   }
 
-  resizeCanvas() {
-    const devicePixelRatio = window.devicePixelRatio || 1
-
-    // Resize main canvas
-    this.canvas.width = window.innerWidth * devicePixelRatio
-    this.canvas.height = window.innerHeight * devicePixelRatio
-    this.canvas.style.width = window.innerWidth + 'px'
-    this.canvas.style.height = window.innerHeight + 'px'
-    this.ctx.scale(devicePixelRatio, devicePixelRatio)
-
-    // Resize cursor overlay canvas
-    if (this.cursorOverlayCanvas) {
-      this.cursorOverlayCanvas.width = window.innerWidth * devicePixelRatio
-      this.cursorOverlayCanvas.height = window.innerHeight * devicePixelRatio
-      this.cursorOverlayCanvas.style.width = window.innerWidth + 'px'
-      this.cursorOverlayCanvas.style.height = window.innerHeight + 'px'
-    }
-
-    // Update services with new canvas size
-    if (this.drawingRenderer) {
-      this.drawingRenderer.setCanvasSize(
-        window.innerWidth * devicePixelRatio,
-        window.innerHeight * devicePixelRatio
-      )
-    }
-    if (this.cursorManager) {
-      this.cursorManager.setCanvasSize(
-        window.innerWidth * devicePixelRatio,
-        window.innerHeight * devicePixelRatio
-      )
-    }
-  }
+  // Sprint 2: resizeCanvas() removed - now handled by CanvasManager
+  // Services register as resize listeners via canvasManager.addResizeListener()
 
   async initializeServices() {
-    // Initialize audio service
-    this.audioService = new AudioService()
+    // Initialize audio service with proper ordering
+    if (window.AudioService) {
+      console.log('✅ AudioService class found, creating instance')
+      this.audioService = new window.AudioService()
+      window.AudioServicePromise = null // Clean up
+    } else {
+      console.log('⚠️ AudioService not found, creating new instance')
+      this.audioService = new AudioService()
+    }
 
-    // Initialize socket service
-    this.socketService = new SocketService('ws://localhost:3001')
+    // Initialize socket service using SocketService (which uses socket.io)
+    console.log('🔌 Initializing SocketService...')
+    this.socketService = new SocketService()
+    this.socketServicePromise = Promise.resolve(this.socketService.socket);
 
-    // Initialize gesture capture
-    console.log('🎯 Initializing GestureCapture with canvas:', this.canvas)
-    this.gestureCapture = new GestureCapture(this.canvas)
-    console.log('🎯 GestureCapture created:', this.gestureCapture)
+    // Create basic gesture to music mapper for EnhancedGestureCapture
+    const basicGestureToMusicMapper = {
+      gestureToMusicalEvent: (gesture) => {
+        // DEBUG: Log what mapper receives
+        console.log('🎵 MAPPER RECEIVED:', {
+          hasCoordinates: !!gesture.coordinates,
+          coordinates: gesture.coordinates,
+          intensity: gesture.intensity,
+          speed: gesture.speed
+        })
+
+        // Basic mapping: position to pitch, intensity to velocity
+        const yValue = gesture.coordinates?.y || 0.5
+        const pitch = 60 + Math.floor(yValue * 24) // C4 to C6 range
+        const velocity = Math.floor((gesture.intensity || 0.5) * 127)
+        const duration = 0.2 + (1 - (gesture.speed || 0.5)) * 0.8 // Speed affects duration
+
+        console.log('🎵 MAPPER OUTPUT:', { yValue, pitch, velocity, duration })
+
+        return {
+          pitch,
+          velocity,
+          duration,
+          articulation: gesture.speed > 0.7 ? 'staccato' : gesture.speed < 0.3 ? 'legato' : 'default',
+          eventType: 'note'
+        }
+      },
+      setTempo: (tempo) => {
+        console.log('🎛️ Gesture mapper tempo set to:', tempo)
+      },
+      setScale: (scale) => {
+        console.log('🎛️ Gesture mapper scale set to:', scale)
+      }
+    }
+
+    // Initialize gesture capture with EnhancedGestureCapture for three-tier architecture
+    console.log('🎯 Initializing EnhancedGestureCapture with canvas:', this.canvas)
+    this.gestureCapture = new EnhancedGestureCapture(this.canvas, basicGestureToMusicMapper, this.socketService)
+    console.log('🎯 EnhancedGestureCapture created:', this.gestureCapture)
+
+    // Start EnhancedGestureCapture
+    this.gestureCapture.start()
+    console.log('🎯 EnhancedGestureCapture started')
 
     // Initialize multi-user canvas services
     this.drawingRenderer = new DrawingRenderer(this.canvas)
     this.cursorManager = new CursorManager(this.cursorOverlayCanvas)
+
+    // Sprint 2: Register services as canvas resize listeners
+    this.canvasManager.addResizeListener(this.drawingRenderer)
+    this.canvasManager.addResizeListener(this.cursorManager)
 
     // Initialize audio controls
     const audioControlsContainer = document.getElementById('audio-controls')
@@ -147,19 +166,326 @@ class WebarmoniumApp {
       )
     }
 
+    // Sprint 4: Initialize GestureProcessor with audioService and socketService
+    this.gestureProcessor = new GestureProcessor(
+      this.audioService,
+      this.socketService,
+      (gesture) => this.drawGestureTrail(gesture)
+    )
+    console.log('🎯 GestureProcessor initialized')
+
     // Start cursor rendering loop (60fps)
     this.cursorManager.startRendering()
 
     // Track gesture time for optimized canvas clearing
     this.lastGestureRenderTime = 0
 
+    // Setup hover modulation for three-tier architecture
+    this.gestureCapture.setHoverModulationCallback((hoverData) => {
+      console.log('🎛️ Hover modulation callback triggered:', hoverData)
+
+      // Rimuoviamo l'indicatore visivo del tremolo
+      // this.updateTremoloIndicator(hoverData)
+
+      console.log('🔊 Audio state - started:', this.isAudioStarted, 'service exists:', !!this.audioService, 'method exists:', !!(this.audioService && this.audioService.handleHoverModulation))
+
+      if (this.isAudioStarted && this.audioService && this.audioService.handleHoverModulation) {
+        console.log('🎛️ Calling handleHoverModulation...')
+        this.audioService.handleHoverModulation(hoverData)
+      } else {
+        console.warn('⚠️ Hover modulation blocked - Audio not ready')
+      }
+    })
+
+    // Setup drag streaming note callback for real-time feedback
+    // CRITICAL: Return note data for backend broadcast
+    this.gestureCapture.setDragStreamingNoteCallback((noteData) => {
+      console.log('🎸🎸 DRAG STREAMING CALLBACK CALLED:', {
+        hasAudio: this.isAudioStarted,
+        hasService: !!this.audioService,
+        noteData
+      })
+
+      if (!this.isAudioStarted || !this.audioService) {
+        console.warn('🎸🎸 BLOCKED - audio not ready')
+        return null // No note played
+      }
+
+      // CRITICAL: Use SAME pitch calculation as tap gestures for consistency
+      // Calculate frequency using BOTH X and Y for maximum variation
+      // Y controls octave range, X controls frequency within octave
+      const x = noteData.position.x
+      const y = noteData.position.y
+
+      // MELODIC GENERATION: Dynamic melody creation based on gesture properties
+      // Scales influenced by collective activity
+      const scales = {
+        'pentatonic': [0, 2, 4, 7, 9],      // Major pentatonic
+        'major': [0, 2, 4, 5, 7, 9, 11],    // Major scale
+        'minor': [0, 2, 3, 5, 7, 8, 10],    // Natural minor
+        'dorian': [0, 2, 3, 5, 7, 9, 10],   // Dorian mode
+        'mixolydian': [0, 2, 4, 5, 7, 9, 10] // Mixolydian mode
+      }
+
+      const params = this.compositionalParameters || {}
+      const scaleType = params.scaleType || 'pentatonic'
+      const scale = scales[scaleType] || scales['pentatonic']
+      const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
+
+      // GESTURE DIRECTION: Calculate vertical direction from position change
+      const prevY = this.lastDragY || y
+      const deltaY = y - prevY
+      this.lastDragY = y
+      const isAscending = deltaY < -0.02  // Moving up
+      const isDescending = deltaY > 0.02  // Moving down
+
+      // MELODIC MEMORY: Keep track of last notes for coherent phrases
+      if (!this.melodicMemory) {
+        this.melodicMemory = {
+          lastNotes: [],
+          currentDirection: 0,  // -1 down, 0 neutral, 1 up
+          phrasePosition: 0
+        }
+      }
+
+      // Create melodic variation based on velocity, direction, and memory
+      const velocity = noteData.velocity
+      let scaleIndex
+
+      if (velocity > 0.7) {
+        // FAST: Dynamic arpeggios that change direction
+        if (isAscending) {
+          // Ascending arpeggio: 0-2-4-5-7 (root-3rd-5th-6th-octave)
+          const arpPattern = [0, 2, 4, 5, 7]
+          scaleIndex = arpPattern[noteData.noteIndex % arpPattern.length]
+        } else if (isDescending) {
+          // Descending arpeggio: 7-5-4-2-0
+          const arpPattern = [7, 5, 4, 2, 0]
+          scaleIndex = arpPattern[noteData.noteIndex % arpPattern.length]
+        } else {
+          // Broken chord pattern with variation
+          const arpPattern = [0, 4, 2, 5, 0, 3, 4, 2]
+          scaleIndex = arpPattern[noteData.noteIndex % arpPattern.length]
+        }
+      } else if (velocity > 0.4) {
+        // MEDIUM: Contour melodies with leaps and steps
+        // Use X position to add horizontal variation
+        const xInfluence = Math.floor(x * 3) // 0, 1, or 2
+
+        if (isAscending) {
+          // Ascending contour with occasional leaps
+          const patterns = [
+            [0, 1, 2, 3, 4, 5, 6],           // Stepwise up
+            [0, 2, 1, 3, 2, 4, 5],           // Steps with neighbor tones
+            [0, 2, 4, 3, 5, 4, 6]            // Leaps mixed with steps
+          ]
+          const pattern = patterns[xInfluence]
+          scaleIndex = pattern[noteData.noteIndex % pattern.length]
+        } else if (isDescending) {
+          // Descending contour
+          const patterns = [
+            [6, 5, 4, 3, 2, 1, 0],           // Stepwise down
+            [6, 4, 5, 3, 4, 2, 0],           // Steps with neighbor tones
+            [6, 4, 2, 3, 1, 2, 0]            // Leaps mixed with steps
+          ]
+          const pattern = patterns[xInfluence]
+          scaleIndex = pattern[noteData.noteIndex % pattern.length]
+        } else {
+          // Wave-like contour (up and down)
+          const wavePattern = [0, 2, 1, 3, 2, 4, 3, 5, 4, 3, 2, 1]
+          scaleIndex = wavePattern[noteData.noteIndex % wavePattern.length]
+        }
+      } else {
+        // SLOW: Intervallic exploration based on position
+        // Use both X and Y for melodic choices
+        const xIndex = Math.floor(x * scale.length)
+        const yIndex = Math.floor((1 - y) * 3) // 0-2 range for intervals
+
+        // Choose intervals based on Y position: thirds, fourths, fifths
+        const intervals = [2, 3, 4] // 3rds, 4ths, 5ths
+        const interval = intervals[yIndex]
+
+        // Create melodic line using intervals
+        if (noteData.noteIndex % 4 === 0) {
+          scaleIndex = xIndex
+        } else {
+          const lastIndex = this.melodicMemory.lastNotes[this.melodicMemory.lastNotes.length - 1] || 0
+          scaleIndex = (lastIndex + interval) % scale.length
+        }
+      }
+
+      // REMEMBER THIS NOTE for next iteration
+      this.melodicMemory.lastNotes.push(scaleIndex)
+      if (this.melodicMemory.lastNotes.length > 5) {
+        this.melodicMemory.lastNotes.shift() // Keep only last 5 notes
+      }
+
+      // Calculate MIDI note from scale (using collective metrics scale)
+      const scaleNote = scale[scaleIndex % scale.length]
+      const octaveOffset = Math.floor(scaleIndex / scale.length)
+      const midiNote = 60 + (baseOctave - 4) * 12 + scaleNote + octaveOffset * 12
+
+      // Convert MIDI to frequency
+      const frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
+
+      // Use musical duration from noteData (based on velocity)
+      // Convert Tone.js notation to seconds (120 BPM)
+      const durationMap = {
+        '32n': 0.0625,  // 1/32 note at 120 BPM
+        '16n': 0.125,   // 1/16 note at 120 BPM
+        '8n': 0.25,     // 1/8 note at 120 BPM
+        '4n': 0.5,      // 1/4 note at 120 BPM
+      }
+      const duration = durationMap[noteData.duration] || 0.25
+
+      // Configure envelope based on articulation
+      // Envelopes are proportional to note duration for better musicality
+      let envelope
+      switch (noteData.articulation) {
+        case 'staccato':
+          // Fast: short, articulated notes (50% of duration)
+          envelope = {
+            attack: 0.005,
+            decay: duration * 0.2,
+            sustain: 0.3,
+            release: duration * 0.3
+          }
+          break
+        case 'marcato':
+          // Medium: accented notes (70% of duration)
+          envelope = {
+            attack: 0.01,
+            decay: duration * 0.3,
+            sustain: 0.5,
+            release: duration * 0.4
+          }
+          break
+        case 'legato':
+          // Slow: smooth, connected notes (95% of duration)
+          envelope = {
+            attack: duration * 0.1,
+            decay: duration * 0.2,
+            sustain: 0.7,
+            release: duration * 0.7
+          }
+          break
+        default:
+          // Fallback
+          envelope = {
+            attack: 0.005,
+            decay: 0.02,
+            sustain: 0.1,
+            release: 0.05
+          }
+      }
+
+      if (this.audioService.gestureSynth) {
+        this.audioService.gestureSynth.set({ envelope })
+
+        console.log('🎵🎵 PLAYING LOCAL NOTE:', {
+          frequency: frequency.toFixed(1),
+          duration: duration,
+          articulation: noteData.articulation,
+          velocity: noteData.velocity.toFixed(3)
+        })
+
+        this.audioService.gestureSynth.triggerAttackRelease(
+          frequency,
+          duration,
+          Tone.now(),
+          0.5 + noteData.velocity * 0.3 // 0.5-0.8 volume
+        )
+      }
+
+      // CRITICAL: Return note data for collection in streamedNotes array
+      return {
+        frequency: frequency,
+        duration: noteData.duration, // Keep Tone.js notation for backend
+        articulation: noteData.articulation,
+        position: { x, y },
+        velocity: noteData.velocity,
+        timestamp: Date.now() // When this note was played
+      }
+    })
+
     // Setup gesture handling
     this.gestureCapture.onGesture = (gesture) => {
       this.lastGestureRenderTime = performance.now()
       console.log('🎯 Gesture callback triggered:', gesture)
-      this.handleGesture(gesture)
+      console.log('🔊 Audio state when gesture received - started:', this.isAudioStarted, 'service exists:', !!this.audioService)
+
+      // Sprint 4: Delegate gesture action determination to GestureProcessor
+      const gestureAction = this.gestureProcessor.determineGestureAction(gesture)
+      const enhancedGesture = { ...gesture, action: gestureAction }
+
+      console.log('🎯 Enhanced gesture action:', gestureAction, 'will call handleGesture')
+      this.handleGesture(enhancedGesture)
     }
-    console.log('🎯 Gesture callback set up')
+
+    // Setup gesture start/end for proper three-tier handling
+    this.gestureCapture.onGestureStart = (gesture) => {
+      console.log('👆 Gesture start callback:', gesture.id)
+      // Handle initial gesture filtering
+      if (this.audioService && this.audioService.updateFilterParams) {
+        // Apply initial filter based on gesture start position
+        const position = gesture.coordinates || gesture.startPosition || { x: 0.5, y: 0.5 }
+        this.audioService.updateFilterParams({
+          frequency: 200 + (position.y * 2000),
+          resonance: 0.5 + (position.x * 3)
+        })
+      }
+    }
+
+    this.gestureCapture.onGestureEnd = (gesture, musicalEvent) => {
+      console.log('👋 Gesture end callback:', gesture.id, musicalEvent)
+      console.log('🔍 Gesture end details:', {
+        gestureAction: gesture.action,
+        willCalculate: this.gestureProcessor.determineGestureAction(gesture)
+      })
+
+      // CRITICAL FIX: Don't play automatic musical events for TAP and HOVER gestures
+      // We want only our custom click logic for taps, and no auto-notes for hover
+      // Sprint 4: Delegate to GestureProcessor
+      const gestureAction = gesture.action || this.gestureProcessor.determineGestureAction(gesture)
+      console.log('🔍 Final gesture action for end callback:', gestureAction)
+
+      if (gestureAction === 'tap') {
+        console.log('🚫 Skipping automatic musical event for TAP gesture')
+        return
+      }
+
+      // Process drag gestures - check if timer is still pending
+      if (gestureAction === 'drag') {
+        console.log('🎵 DRAG gesture in onGestureEnd - checking timer status')
+
+        // Sprint 4: Check GestureProcessor's pending gesture state
+        // If timer is still pending, let it handle the phrase
+        if (this.gestureProcessor.pendingGesture && this.gestureProcessor.pendingGesture.id === gesture.id) {
+          console.log('🎵 DRAG timer will handle phrase - skipping musicalEvent')
+          return
+        }
+
+        // If timer already fired or gesture is very quick, process immediately via GestureProcessor
+        console.log('🎵 DRAG timer already fired - processing immediately')
+        const sonicParams = {
+          x: gesture.coordinates?.x || 0.5,
+          y: gesture.coordinates?.y || 0.5,
+          intensity: gesture.intensity || 0.5,
+          timestamp: gesture.timestamp || Date.now(),
+          action: 'drag',
+          device: gesture.device || 'mouse'
+        }
+        // Sprint 4: Delegate to GestureProcessor
+        this.gestureProcessor.processDragGesture(gesture, sonicParams)
+        return
+      }
+
+      // Skip all other automatic musical events
+      console.log('🚫 Skipping automatic musical event for non-drag gesture')
+      return
+    }
+
+    console.log('🎯 All gesture callbacks set up including hover modulation')
   }
 
   setupEventListeners() {
@@ -167,6 +493,7 @@ class WebarmoniumApp {
     const audioToggle = document.getElementById('audioToggle')
     audioToggle.addEventListener('click', () => this.toggleAudio())
 
+    
     // Canvas drawing interaction
     this.setupDrawingEvents()
 
@@ -174,7 +501,14 @@ class WebarmoniumApp {
     this.socketService.on('room-joined', (data) => {
       this.currentRoom = data.room
       this.updateRoomDisplay()
-      console.log('🏠 Joined room:', data.room.id)
+      console.log('🏠 Joined room:', data.room.roomId)
+
+      // CRITICAL FIX: Set room context in gesture capture so gestures include roomId
+      // Without this, gestures have roomId: null and are never sent to backend
+      if (this.gestureCapture && this.gestureCapture.setRoomContext) {
+        this.gestureCapture.setRoomContext(data.room.roomId)
+        console.log('🎯 Set gesture capture room context to:', data.room.roomId)
+      }
     })
 
     this.socketService.on('user-joined', (data) => {
@@ -194,6 +528,18 @@ class WebarmoniumApp {
       }
     })
 
+    // Compositional parameters from collective metrics
+    this.compositionalParameters = null
+    this.socketService.on('compositional-parameters', (data) => {
+      this.compositionalParameters = data.parameters
+      console.log('🎼 Updated compositional parameters:', this.compositionalParameters)
+
+      // Update AudioService with new parameters for background generation
+      if (this.audioService && this.audioService.updateCompositionalParameters) {
+        this.audioService.updateCompositionalParameters(this.compositionalParameters)
+      }
+    })
+
     // Multi-user canvas events
     this.socketService.on('draw-stroke', (stroke) => {
       if (this.drawingRenderer) {
@@ -207,9 +553,7 @@ class WebarmoniumApp {
     })
 
     this.socketService.on('cursor-position', (data) => {
-      console.log('👆 Cursor position received:', data.userId.substring(0, 8), `(${data.x.toFixed(2)}, ${data.y.toFixed(2)})`, data.color)
       if (this.cursorManager) {
-        console.log('✅ Updating cursor in CursorManager')
         this.cursorManager.updateCursor(
           data.userId,
           data.x,
@@ -235,9 +579,87 @@ class WebarmoniumApp {
       }
     })
 
-    this.socketService.on('gesture-processed', (response) => {
-      if (this.isAudioStarted && response.sonicParams) {
-        this.audioService.updateSonicParams(response.sonicParams)
+    // PHASE 5: Removed unused 'gesture-processed' listener (82 lines)
+    // Backend never emits this event - it uses 'musical:event' instead
+    // Logic for remote gestures now handled by 'musical:event' listener above
+
+    // Handle hover events from backend for cross-layer modulation
+    this.socketService.on('hover-update', (data) => {
+      console.log('🎛️ REMOTE HOVER UPDATE RECEIVED:', {
+        isAudioStarted: this.isAudioStarted,
+        hasAudioService: !!this.audioService,
+        hasHandleHoverModulation: !!(this.audioService && this.audioService.handleHoverModulation),
+        data: data,
+        timestamp: Date.now()
+      })
+
+      if (this.isAudioStarted && this.audioService && this.audioService.handleHoverModulation) {
+        console.log('🎛️ CALLING handleHoverModulation for remote hover...')
+        this.audioService.handleHoverModulation({
+          position: data.position,
+          velocity: data.velocity,
+          intensity: data.intensity,
+          isRemote: true // Remote hover
+        })
+        console.log('✅ Remote hover modulation completed')
+      } else {
+        console.warn('⚠️ Remote hover blocked - audio not ready:', {
+          isAudioStarted: this.isAudioStarted,
+          hasAudioService: !!this.audioService,
+          hasHandleHoverModulation: !!(this.audioService && this.audioService.handleHoverModulation)
+        })
+      }
+    })
+
+    // Handle musical events from backend (drag phrases, etc.)
+    // PHASE 4 FIX: Changed from 'musical-event' (dash) to 'musical:event' (colon) to match backend
+    // PHASE 7 FIX: Extract actual event from wrapper (backend sends { event: {...} })
+    // CRITICAL FIX: Schedule notes based on timestamp to avoid cluster playback
+    this.socketService.on('musical:event', (musicalEventWrapper) => {
+      if (!this.isAudioStarted || !musicalEventWrapper?.event) {
+        return
+      }
+
+      const event = musicalEventWrapper.event
+
+      // Minimal logging: only first note of phrase + critical info
+      if (event.properties?.noteIndex === 0 || !event.properties?.noteIndex) {
+        console.log(`🎵 Remote: ${event.properties?.gestureAction || 'unknown'} - freq=${event.properties?.frequency?.toFixed(0)}Hz, notes=${event.properties?.totalNotes || 1}`)
+      }
+
+      // CRITICAL FIX: Schedule note playback based on timestamp
+      // Backend sends timestamp = Date.now() + startTime
+      // Calculate delay from current time
+      const now = Date.now()
+      const eventTime = event.timestamp || now
+      const delay = Math.max(0, eventTime - now) // Ensure non-negative
+
+      if (delay > 0) {
+        // Schedule note for future playback
+        setTimeout(() => {
+          if (this.isAudioStarted && this.audioService) {
+            this.audioService.playMusicalEvent(event)
+          }
+        }, delay)
+      } else {
+        // Play immediately if timestamp is in the past
+        this.audioService.playMusicalEvent(event)
+      }
+    })
+
+    // Handle unified modulation from HoverOrchestrator
+    this.socketService.on('unified-modulation', (modulationData) => {
+      if (this.isAudioStarted && modulationData) {
+        this.audioService.applyUnifiedModulation(modulationData)
+      }
+    })
+
+    // Debug: handle raw hover events in development
+    this.socketService.on('hover-update-raw', (hoverData) => {
+      if (process.env.NODE_ENV === 'development' && this.isAudioStarted && hoverData) {
+        console.log('🐛 Debug: Processing raw hover event:', hoverData)
+        // Apply old-style hover modulation for comparison
+        this.audioService.handleHoverModulation(hoverData)
       }
     })
 
@@ -355,22 +777,23 @@ class WebarmoniumApp {
       currentStrokeId = null
     }
 
-    // Mouse events
-    this.canvas.addEventListener('mousedown', startDrawing)
-    this.canvas.addEventListener('mousemove', draw)
-    this.canvas.addEventListener('mouseup', endDrawing)
-    this.canvas.addEventListener('mouseleave', endDrawing)
-
-    // Touch events
-    this.canvas.addEventListener('touchstart', startDrawing)
-    this.canvas.addEventListener('touchmove', draw)
-    this.canvas.addEventListener('touchend', endDrawing)
-    this.canvas.addEventListener('touchcancel', endDrawing)
+    // Mouse/Touch events - DISABLED to avoid conflicts with EnhancedGestureCapture
+    // NOTE: EnhancedGestureCapture handles all gesture events including hover
+    console.log('🚫 Mouse/Touch events disabled - using EnhancedGestureCapture instead')
   }
 
   async connectToServer() {
     try {
-      await this.socketService.connect()
+      // Determine backend URL based on environment
+      // In production (tripitak.it), use the same origin (nginx proxy)
+      // In development (localhost/127.0.0.1), use port 3001 directly
+      const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+      const backendUrl = isDevelopment
+        ? 'http://localhost:3001'
+        : `${window.location.protocol}//${window.location.host}`
+
+      console.log(`🔌 Connecting to backend at: ${backendUrl}`)
+      await this.socketService.connect(backendUrl)
 
       // Join a room
       const userData = {
@@ -405,17 +828,25 @@ class WebarmoniumApp {
 
     if (!this.isAudioStarted) {
       try {
+        console.log('🔊 Manual audio start requested...')
         // Start audio context (requires user interaction)
-        await this.audioService.start()
-        this.isAudioStarted = true
-        button.textContent = '🔇 Stop Audio'
-        button.classList.remove('disabled')
-        console.log('🔊 Audio started')
+        const startResult = await this.audioService.start()
+        console.log('🔊 AudioService.start() result:', startResult)
+
+        if (startResult) {
+          this.isAudioStarted = true
+          button.textContent = '🔇 Stop Audio'
+          button.classList.remove('disabled')
+          console.log('🔊 Audio started successfully')
+        } else {
+          console.warn('⚠️ AudioService.start() returned false')
+        }
       } catch (error) {
         console.error('❌ Failed to start audio:', error)
         this.showError('Failed to start audio: ' + error.message)
       }
     } else {
+      console.log('🔇 Stopping audio...')
       this.audioService.stop()
       this.isAudioStarted = false
       button.textContent = '🔊 Start Audio'
@@ -423,27 +854,60 @@ class WebarmoniumApp {
     }
   }
 
-  handleGesture(gesture) {
-    // Send gesture to server
-    this.socketService.sendGesture(gesture)
+  /**
+   * Attempt to auto-start audio context
+   * Browser policies may require user interaction, but we try
+   */
+  async attemptAutoStartAudio() {
+    try {
+      // Try to start audio context automatically
+      if (this.audioService && !this.isAudioStarted) {
+        console.log('🔊 Attempting auto-start audio...')
 
-    // Immediate local audio feedback per FR-006 (<200ms latency)
-    if (this.isAudioStarted) {
-      const sonicParams = {
-        x: gesture.coordinates.x,
-        y: gesture.coordinates.y,
-        intensity: gesture.intensity,
-        timestamp: gesture.timestamp
+        // Force manual interaction by creating a dummy click event
+        const startResult = await this.audioService.start()
+        console.log('🔊 AudioService.start() result:', startResult)
+
+        if (startResult) {
+          this.isAudioStarted = true
+
+          // Update button state
+          const button = document.getElementById('audioToggle')
+          if (button) {
+            button.textContent = '🔇 Stop Audio'
+            button.classList.remove('disabled')
+          }
+
+          console.log('🔊 Audio auto-started successfully')
+        } else {
+          console.warn('⚠️ AudioService.start() returned false')
+        }
+      } else {
+        console.log('🔊 Audio already started or service not available')
       }
-      console.log('🎵 Processing gesture for audio:', sonicParams)
-      this.audioService.updateSonicParams(sonicParams)
-    } else {
-      console.log('🎵 Gesture captured but audio not started')
+    } catch (error) {
+      console.error('❌ Auto-start audio failed:', error)
+      console.warn('⚠️ User may need to click Start Audio button manually')
     }
-
-    // Draw gesture trail on canvas
-    this.drawGestureTrail(gesture)
   }
+
+  // Sprint 4: Delegate to GestureProcessor
+  handleGesture(gesture) {
+    this.gestureProcessor.processGesture(gesture, this.isAudioStarted)
+  }
+
+  // Sprint 4: All gesture processing methods moved to GestureProcessor:
+  // - processClickGesture()
+  // - processDragGesture()
+  // - processGestureByAction()
+  // - generateLocalMusicalPhrase()
+  // - createLocalPhrase()
+  // - determineGestureAction()
+  // - calculateGestureSpeed()
+  // - calculateGestureLength()
+  // - calculatePitchRange()
+  // - calculateNoteFromGesture()
+  // - selectArticulationFromGesture()
 
   drawGestureTrail(gesture) {
     const { coordinates, intensity } = gesture
@@ -496,49 +960,17 @@ class WebarmoniumApp {
     requestAnimationFrame(render)
   }
 
+  // Sprint 2: UI methods delegated to UIManager
   updateRoomDisplay() {
-    const userCountEl = document.getElementById('userCount')
-    const roomIdEl = document.getElementById('roomId')
-
-    if (userCountEl) {
-      const userText = this.userCount === 1 ? 'user' : 'users'
-      userCountEl.textContent = `👥 ${this.userCount} ${userText}`
-    }
-
-    if (roomIdEl && this.currentRoom) {
-      roomIdEl.textContent = `Room: ${this.currentRoom.id}`
-    }
+    this.uiManager.updateRoomDisplay(this.currentRoom, this.userCount)
   }
 
   showApp() {
-    const loadingScreen = document.getElementById('loadingScreen')
-    const appContent = document.getElementById('appContent')
-
-    if (loadingScreen) {
-      loadingScreen.style.display = 'none'
-    }
-
-    if (appContent) {
-      appContent.classList.add('loaded')
-    }
+    this.uiManager.showApp()
   }
 
   showError(message) {
-    const errorDisplay = document.getElementById('errorDisplay')
-    const errorMessage = document.getElementById('errorMessage')
-    const loadingScreen = document.getElementById('loadingScreen')
-
-    if (loadingScreen) {
-      loadingScreen.style.display = 'none'
-    }
-
-    if (errorMessage) {
-      errorMessage.textContent = message
-    }
-
-    if (errorDisplay) {
-      errorDisplay.style.display = 'block'
-    }
+    this.uiManager.showError(message)
   }
 
   handleMuteChange(muted) {
@@ -546,6 +978,62 @@ class WebarmoniumApp {
     if (this.audioService) {
       this.audioService.setMuted(muted)
       console.log(`🔇 Audio ${muted ? 'muted' : 'unmuted'}, audioService.muted is now: ${this.audioService.muted}`)
+    }
+  }
+
+  /**
+   * Update tremolo indicator on canvas
+   * Shows visual feedback when tremolo is active in top 30% of canvas
+   */
+  updateTremoloIndicator(hoverData) {
+    if (!this.canvas) return
+
+    const position = hoverData?.position || { x: 0.5, y: 0.5 }
+    const safeY = position?.y ?? 0.5
+
+    // Check if in tremolo zone (top 30%)
+    const isTremoloZone = safeY < 0.3
+    const intensity = isTremoloZone ? (1 - safeY / 0.3) : 0
+
+    // Create or update tremolo indicator
+    let indicator = document.getElementById('tremoloIndicator')
+    if (!indicator) {
+      indicator = document.createElement('div')
+      indicator.id = 'tremoloIndicator'
+      indicator.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 30%;
+        background: linear-gradient(to bottom,
+          rgba(255, 0, 100, ${intensity * 0.3}),
+          rgba(255, 0, 100, 0));
+        border-bottom: 2px solid rgba(255, 0, 100, ${intensity * 0.8});
+        pointer-events: none;
+        z-index: 1000;
+        transition: all 0.1s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      `
+      this.canvas.parentElement.appendChild(indicator)
+    }
+
+    // Update indicator visibility and content
+    if (isTremoloZone) {
+      indicator.style.display = 'flex'
+      indicator.style.opacity = intensity.toString()
+      indicator.textContent = `🌊 TREMOLO ${Math.round(intensity * 100)}%`
+      indicator.style.background = `linear-gradient(to bottom,
+        rgba(255, 0, 100, ${intensity * 0.4}),
+        rgba(255, 0, 100, 0))`
+    } else {
+      indicator.style.display = 'none'
     }
   }
 
@@ -564,10 +1052,13 @@ class WebarmoniumApp {
   destroy() {
     console.log('🧹 Cleaning up Webarmonium app...')
 
-    // Remove event listeners
-    if (this.boundResizeHandler) {
-      window.removeEventListener('resize', this.boundResizeHandler)
-      this.boundResizeHandler = null
+    // Sprint 2: Delegate cleanup to extracted components
+    if (this.canvasManager) {
+      this.canvasManager.destroy()
+    }
+
+    if (this.uiManager) {
+      this.uiManager.destroy()
     }
 
     // Stop rendering loops
@@ -615,3 +1106,14 @@ window.addEventListener('beforeunload', () => {
 
 // Make available globally for debugging
 window.WebarmoniumApp = WebarmoniumApp
+
+// Expose filter test method for debugging
+window.testFilterModulation = () => {
+  if (window.webarmoniumApp && window.webarmoniumApp.audioService) {
+    window.webarmoniumApp.audioService.testFilterModulation()
+  } else {
+    console.warn('WebarmoniumApp or AudioService not available')
+  }
+}
+
+console.log('🧪 Filter test method exposed: window.testFilterModulation()')

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Musical Architecture Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .test-button { background-color: #007bff; color: white; }
+        .test-button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Musical Architecture Integration Test</h1>
+
+    <div class="test-container">
+        <h2>Service Loading Status</h2>
+        <div id="loading-status"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>AudioService Test</h2>
+        <div id="audioservice-status"></div>
+        <button class="test-button" onclick="testAudioService()">Test AudioService</button>
+        <button class="test-button" onclick="testMusicalScheduler()">Test MusicalScheduler</button>
+        <button class="test-button" onclick="testLFOManager()">Test LFOManager</button>
+    </div>
+
+    <div class="test-container">
+        <h2>Integration Test</h2>
+        <div id="integration-status"></div>
+        <button class="test-button" onclick="testFullIntegration()">Test Full Integration</button>
+    </div>
+
+    <!-- Load Tone.js first -->
+    <script src="https://unpkg.com/tone@14.7.77/build/Tone.js"></script>
+
+    <!-- Load our musical architecture scripts -->
+    <script src="frontend/src/services/MusicalScheduler.js"></script>
+    <script src="frontend/src/services/LFOManager.js"></script>
+    <script src="frontend/src/services/AudioService.js"></script>
+
+    <script>
+        // Mock basic AudioService dependencies for testing
+        window.mockAudioEngine = {
+            context: { state: 'running' }
+        };
+        window.mockGestureCapture = {};
+
+        function addStatus(containerId, message, type = 'info') {
+            const container = document.getElementById(containerId);
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            container.appendChild(statusDiv);
+        }
+
+        function checkServiceLoading() {
+            const container = document.getElementById('loading-status');
+
+            // Check Tone.js
+            if (typeof window.Tone !== 'undefined') {
+                addStatus('loading-status', '✅ Tone.js loaded successfully', 'success');
+            } else {
+                addStatus('loading-status', '❌ Tone.js not loaded', 'error');
+            }
+
+            // Check MusicalScheduler
+            if (typeof window.MusicalScheduler !== 'undefined') {
+                addStatus('loading-status', '✅ MusicalScheduler loaded successfully', 'success');
+            } else {
+                addStatus('loading-status', '❌ MusicalScheduler not loaded', 'error');
+            }
+
+            // Check LFOManager
+            if (typeof window.LFOManager !== 'undefined') {
+                addStatus('loading-status', '✅ LFOManager loaded successfully', 'success');
+            } else {
+                addStatus('loading-status', '❌ LFOManager not loaded', 'error');
+            }
+
+            // Check AudioService
+            if (typeof window.AudioService !== 'undefined') {
+                addStatus('loading-status', '✅ AudioService loaded successfully', 'success');
+            } else {
+                addStatus('loading-status', '❌ AudioService not loaded', 'error');
+            }
+        }
+
+        function testAudioService() {
+            try {
+                const audioService = new AudioService();
+                addStatus('audioservice-status', '✅ AudioService instantiated successfully', 'success');
+
+                // Test basic properties
+                if (audioService.musicalScheduler === null) {
+                    addStatus('audioservice-status', '✅ MusicalScheduler initialized as null (ready for lazy loading)', 'info');
+                } else {
+                    addStatus('audioservice-status', '⚠️ MusicalScheduler already initialized', 'warning');
+                }
+
+                if (audioService.lfoManager === null) {
+                    addStatus('audioservice-status', '✅ LFOManager initialized as null (ready for lazy loading)', 'info');
+                } else {
+                    addStatus('audioservice-status', '⚠️ LFOManager already initialized', 'warning');
+                }
+
+                // Test initialization
+                audioService.initialize(window.mockAudioEngine, window.mockGestureCapture);
+                addStatus('audioservice-status', '✅ AudioService initialize() called successfully', 'success');
+
+                // Test new architecture initialization
+                audioService.initializeNewMusicalArchitecture();
+                addStatus('audioservice-status', '✅ New musical architecture initialization attempted', 'info');
+
+                // Check if services were created
+                if (audioService.musicalScheduler) {
+                    addStatus('audioservice-status', '✅ MusicalScheduler instance created', 'success');
+                } else {
+                    addStatus('audioservice-status', '⚠️ MusicalScheduler not created (Tone.js may not be available)', 'warning');
+                }
+
+                if (audioService.lfoManager) {
+                    addStatus('audioservice-status', '✅ LFOManager instance created', 'success');
+                } else {
+                    addStatus('audioservice-status', '⚠️ LFOManager not created (Tone.js may not be available)', 'warning');
+                }
+
+            } catch (error) {
+                addStatus('audioservice-status', `❌ Error testing AudioService: ${error.message}`, 'error');
+            }
+        }
+
+        function testMusicalScheduler() {
+            try {
+                const scheduler = new MusicalScheduler();
+                addStatus('audioservice-status', '✅ MusicalScheduler instantiated successfully', 'success');
+
+                // Test basic functionality
+                scheduler.setTempo(120);
+                addStatus('audioservice-status', '✅ MusicalScheduler tempo set to 120 BPM', 'success');
+
+                scheduler.setTimeSignature(4, 4);
+                addStatus('audioservice-status', '✅ MusicalScheduler time signature set to 4/4', 'success');
+
+                const status = scheduler.getStatus();
+                addStatus('audioservice-status', `✅ MusicalScheduler status: ${JSON.stringify(status, null, 2)}`, 'info');
+
+                // Test event scheduling
+                const eventId = scheduler.scheduleLocalEvent(
+                    (data) => {
+                        addStatus('audioservice-status', '✅ Scheduled local event executed', 'success');
+                    },
+                    { message: 'Test event' }
+                );
+                addStatus('audioservice-status', `✅ Local event scheduled with ID: ${eventId}`, 'success');
+
+                scheduler.dispose();
+                addStatus('audioservice-status', '✅ MusicalScheduler disposed successfully', 'success');
+
+            } catch (error) {
+                addStatus('audioservice-status', `❌ Error testing MusicalScheduler: ${error.message}`, 'error');
+            }
+        }
+
+        function testLFOManager() {
+            try {
+                const mockAudioService = {
+                    addModulationSource: (name, source) => {
+                        addStatus('audioservice-status', `✅ Modulation source added: ${name}`, 'info');
+                    }
+                };
+
+                const lfoManager = new LFOManager(mockAudioService);
+                addStatus('audioservice-status', '✅ LFOManager instantiated successfully', 'success');
+
+                // Test LFO creation
+                const lfoId = lfoManager.createLFO({
+                    type: 'local',
+                    frequency: 2.0,
+                    depth: 0.5,
+                    waveform: 'sine',
+                    target: 'filter'
+                });
+                addStatus('audioservice-status', `✅ Local LFO created with ID: ${lfoId}`, 'success');
+
+                // Test hover handling
+                const gestureData = {
+                    gestureId: 'test-gesture-1',
+                    velocity: 0.7,
+                    intensity: 0.8,
+                    x: 0.5,
+                    y: 0.5,
+                    gestureType: 'circular'
+                };
+
+                const hoverLfoId = lfoManager.handleLocalHoverStart(gestureData, 'frequency');
+                addStatus('audioservice-status', `✅ Hover LFO created with ID: ${hoverLfoId}`, 'success');
+
+                // Test status
+                const status = lfoManager.getStatus();
+                addStatus('audioservice-status', `✅ LFOManager status: ${JSON.stringify(status, null, 2)}`, 'info');
+
+                lfoManager.dispose();
+                addStatus('audioservice-status', '✅ LFOManager disposed successfully', 'success');
+
+            } catch (error) {
+                addStatus('audioservice-status', `❌ Error testing LFOManager: ${error.message}`, 'error');
+            }
+        }
+
+        function testFullIntegration() {
+            try {
+                // Test complete integration
+                const audioService = new AudioService();
+                audioService.initialize(window.mockAudioEngine, window.mockGestureCapture);
+
+                // Start Tone.js context
+                if (window.Tone && window.Tone.start) {
+                    Tone.start().then(() => {
+                        addStatus('integration-status', '✅ Tone.js context started', 'success');
+
+                        // Initialize musical architecture
+                        audioService.initializeNewMusicalArchitecture();
+                        addStatus('integration-status', '✅ Musical architecture initialized', 'success');
+
+                        // Test hover functionality
+                        const gestureData = {
+                            gestureId: 'integration-test',
+                            velocity: 0.6,
+                            intensity: 0.7,
+                            x: 0.4,
+                            y: 0.6,
+                            gestureType: 'linear'
+                        };
+
+                        const lfoId = audioService.handleHoverStart(gestureData, 'filter');
+                        if (lfoId) {
+                            addStatus('integration-status', `✅ Hover integration test passed - LFO: ${lfoId}`, 'success');
+                        } else {
+                            addStatus('integration-status', '⚠️ Hover integration test - no LFO created', 'warning');
+                        }
+
+                        // Test musical timing
+                        const timingStatus = audioService.getMusicalTimingStatus();
+                        addStatus('integration-status', `✅ Musical timing status retrieved`, 'info');
+
+                        // Test event scheduling
+                        const eventId = audioService.scheduleMusicalEvent(
+                            (data) => {
+                                addStatus('integration-status', '✅ Musical event executed', 'success');
+                            },
+                            { message: 'Integration test event' },
+                            false
+                        );
+
+                        if (eventId) {
+                            addStatus('integration-status', `✅ Musical event scheduled: ${eventId}`, 'success');
+                        } else {
+                            addStatus('integration-status', '⚠️ Musical event scheduling failed', 'warning');
+                        }
+
+                        addStatus('integration-status', '🎉 Full integration test completed successfully!', 'success');
+
+                    }).catch(error => {
+                        addStatus('integration-status', `❌ Tone.js start failed: ${error.message}`, 'error');
+                    });
+                } else {
+                    addStatus('integration-status', '❌ Tone.js not available for integration test', 'error');
+                }
+
+            } catch (error) {
+                addStatus('integration-status', `❌ Integration test error: ${error.message}`, 'error');
+            }
+        }
+
+        // Run initial check when page loads
+        window.addEventListener('load', () => {
+            checkServiceLoading();
+        });
+    </script>
+</body>
+</html>

@@ -144,9 +144,6 @@ class CursorManager {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
     // Render each cursor
-    if (this.cursors.size > 0) {
-      console.log(`🖱️  Rendering ${this.cursors.size} cursor(s)`)
-    }
     this.cursors.forEach((cursor, userId) => {
       this.renderSingleCursor(cursor, userId)
     })

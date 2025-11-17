@@ -1,7 +1,7 @@
 /**
  * Room Model
  * Virtual collaborative space with unique sonic personality
- * Constitutional requirement: 5-10 users max, 24-hour memory retention
+ * Constitutional requirement: 3 users max, 24-hour memory retention
  */
 class Room {
   constructor (id) {
@@ -11,7 +11,7 @@ class Room {
     this.users = new Map() // userId -> User object
     this.memoryState = null
     this.isActive = false
-    this.maxUsers = 10 // Constitutional limit
+    this.maxUsers = 3 // Limited for better musical control
 
     // Multi-user canvas state
     this.drawingStrokes = [] // Array of completed DrawingStroke objects

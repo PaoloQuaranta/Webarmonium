@@ -278,16 +278,55 @@
     <script src="src/utils/ErrorReporter.js?v=5"></script>
 
     <!-- Application services -->
-    <script src="src/services/GestureCapture.js?v=5"></script>
-    <script src="src/services/SocketService.js?v=5"></script>
-    <script src="src/services/AudioService.js?v=5"></script>
+    <!-- <script src="src/services/GestureCapture.js?v=5"></script> --> <!-- DISABLED - using EnhancedGestureCapture instead -->
+    <script src="src/services/SocketService.js?v=6"></script>
+    <!-- Sprint 2 refactoring: Extracted components -->
+    <script src="src/services/CanvasManager.js?v=1"></script>
+    <script src="src/services/UIManager.js?v=1"></script>
+    <script src="src/services/VolumeController.js?v=1"></script>
+
+    <!-- Musical Architecture (from commit a3c12b9) - PHASE 2 FIX -->
+    <script src="src/services/MusicalScheduler.js?v=1"></script>
+    <script src="src/services/LFOManager.js?v=1"></script>
+
+    <script src="src/services/AudioService.js?v=17"></script> <!-- PHASE 1+2: Re-enabled hover, musical architecture loaded -->
+    <script>
+      // Initialize AudioService BEFORE main.js to ensure availability
+      window.AudioServicePromise = new Promise((resolve, reject) => {
+        const checkService = () => {
+          if (window.AudioService) {
+            console.log('✅ AudioService available from previous load')
+            resolve(window.AudioService)
+          } else {
+            setTimeout(checkService, 50) // Retry every 50ms
+          }
+        }
+        checkService()
+      })
+    </script>
     <script src="src/services/DrawingRenderer.js?v=5"></script>
     <script src="src/services/CursorManager.js?v=5"></script>
 
+    <!-- Enhanced generative music services -->
+    <script src="src/services/EnhancedGestureCapture.js?v=9"></script>
+
+    <!-- Sprint 4: Gesture processing component -->
+    <script src="src/services/GestureProcessor.js?v=1"></script>
+
     <!-- UI components -->
     <script src="src/components/AudioControls.js?v=5"></script>
+    <!-- CompositionVisualizer disabled for three-tier implementation -->
 
     <!-- Main application -->
-    <script src="src/main.js?v=5"></script>
+    <script>
+      // Fallback initialization
+      setTimeout(() => {
+        if (!window.webarmoniumApp) {
+          console.log('🚀 Fallback: Initializing WebarmoniumApp...')
+          window.webarmoniumApp = new WebarmoniumApp()
+        }
+      }, 1000)
+    </script>
+    <script src="src/main.js?v=42"></script> <!-- Fixed: Use nginx proxy for production WebSocket connection -->
 </body>
 </html>
