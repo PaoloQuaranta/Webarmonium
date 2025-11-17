@@ -667,8 +667,31 @@ class AudioService {
           layer.nextNoteTime -= deltaTime
           if (layer.nextNoteTime <= 0) {
             this.playLayer(layerName)
-            // Schedule next note with rhythmic variation
-            layer.nextNoteTime = layer.rhythm * (0.9 + Math.random() * 0.2)
+
+            // ORGANIC RHYTHMIC VARIATION: Non-periodic polyrhythmic texture
+            // Each layer has different variation range for natural polyrhythm
+            let rhythmVariation
+            if (layerName === 'bass') {
+              // Bass: 50-150% variation (1-3 seconds)
+              // Creates walking bass-like rhythm
+              rhythmVariation = 0.5 + Math.random() * 1.0
+            } else if (layerName === 'pad') {
+              // Pad: 60-200% variation (2.4-8 seconds)
+              // Long sustains with unpredictable changes
+              rhythmVariation = 0.6 + Math.random() * 1.4
+            } else if (layerName === 'chords') {
+              // Chords: 40-160% variation (2.4-9.6 seconds)
+              // Syncopated, avoids metric regularity
+              rhythmVariation = 0.4 + Math.random() * 1.2
+            }
+
+            // Complexity influences density: low complexity = sparser rhythm
+            const complexityFactor = 0.8 + (state.complexity * 0.5)
+
+            // Evolution cycle adds slow drift to avoid exact repetition
+            const driftFactor = 0.95 + Math.sin(state.evolutionCycle * 0.01) * 0.1
+
+            layer.nextNoteTime = layer.rhythm * rhythmVariation * complexityFactor * driftFactor
           }
         })
 
@@ -814,15 +837,27 @@ class AudioService {
     // Calculate frequencies based on layer type
     let frequencies = []
 
-    // Layer-specific durations for better balance
-    let duration
+    // ORGANIC DURATION VARIATION: Avoid mechanical regularity
+    // Durations vary based on complexity and random variation
+    let baseDuration, durationVariation
+
     if (layerName === 'bass') {
-      duration = 1.2  // 1.2 seconds - short and punchy
+      // Bass: 0.8-2.0 seconds (short to medium)
+      baseDuration = 1.2
+      durationVariation = 0.7 + Math.random() * 0.6  // 70-130%
     } else if (layerName === 'pad') {
-      duration = 3.0  // 3 seconds - sustained
+      // Pad: 2.0-5.0 seconds (medium to long sustains)
+      baseDuration = 3.0
+      durationVariation = 0.67 + Math.random() * 0.67  // 67-133%
     } else if (layerName === 'chords') {
-      duration = 2.0  // 2 seconds - shorter than before (was 4.8s)
+      // Chords: 1.2-3.2 seconds (short to medium)
+      baseDuration = 2.0
+      durationVariation = 0.6 + Math.random() * 0.6  // 60-120%
     }
+
+    // Complexity affects articulation: higher complexity = shorter notes
+    const articulationFactor = 1.2 - (state.complexity * 0.4)
+    const duration = baseDuration * durationVariation * articulationFactor
 
     if (layerName === 'bass') {
       // BASS: Single root note
@@ -858,15 +893,33 @@ class AudioService {
       layer.lastFrequencies = frequencies
     }
 
+    // ORGANIC VELOCITY VARIATION: Musical dynamics
+    // Each layer varies around its base velocity with different ranges
+    let velocityVariation
+    if (layerName === 'bass') {
+      // Bass: ±20% variation for rhythmic emphasis
+      velocityVariation = 0.8 + Math.random() * 0.4
+    } else if (layerName === 'pad') {
+      // Pad: ±15% variation for subtle swells
+      velocityVariation = 0.85 + Math.random() * 0.3
+    } else if (layerName === 'chords') {
+      // Chords: ±25% variation for dynamic interest
+      velocityVariation = 0.75 + Math.random() * 0.5
+    }
+
+    // Complexity adds micro-variations in dynamics
+    const dynamicFactor = 0.9 + (Math.random() * 0.2) * state.complexity
+    const playVelocity = layer.velocity * velocityVariation * dynamicFactor
+
     // Trigger notes
     try {
       frequencies.forEach(freq => {
-        synth.triggerAttackRelease(freq, duration, Tone.now(), layer.velocity)
+        synth.triggerAttackRelease(freq, duration, Tone.now(), playVelocity)
       })
 
-      // ALWAYS log for debugging - remove random condition
+      // Detailed logging for rhythm debugging
       const freqStr = frequencies.map(f => f.toFixed(1) + 'Hz').join(', ')
-      console.log(`🎵 ${layerName}: ${freqStr} (octave=${layer.octave}, tonic=${state.currentTonic}Hz, chord=${state.currentChord})`)
+      console.log(`🎵 ${layerName}: ${freqStr} dur=${duration.toFixed(2)}s vel=${playVelocity.toFixed(2)} (chord=${state.currentChord})`)
     } catch (error) {
       console.warn(`🎵 Layer ${layerName} play error:`, error.message)
     }
