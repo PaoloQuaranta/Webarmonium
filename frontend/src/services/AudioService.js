@@ -524,7 +524,8 @@ class AudioService {
       currentProgressionIndex: 0,
       chordProgression: [0, 4, 5, 3], // Start with I-V-vi-IV
       currentChord: 0,
-      chordDuration: 8000, // Time on each chord
+      chordDuration: 8000, // Time on each chord in milliseconds
+      lastChordChange: Date.now(), // Track when chord last changed
       progressionCycles: 0, // How many times through current progression
       nextProgressionChange: 4 // Change progression after N cycles
     }
@@ -671,9 +672,11 @@ class AudioService {
           }
         })
 
-        // Periodic harmonic progression change
-        if (this.generativeState.evolutionCycle % 4 === 0) {
+        // Harmonic progression change based on actual time (chordDuration)
+        const timeSinceChordChange = now - this.generativeState.lastChordChange
+        if (timeSinceChordChange >= this.generativeState.chordDuration) {
           this.advanceHarmony()
+          this.generativeState.lastChordChange = now
         }
 
         this.generativeState.evolutionCycle++
