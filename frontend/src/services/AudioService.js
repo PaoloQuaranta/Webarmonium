@@ -511,10 +511,22 @@ class AudioService {
         }
       },
 
-      // HARMONIC CONTEXT
-      chordProgression: [0, 4, 2, 4], // Scale degree roots for chords (I-V-iii-V)
+      // HARMONIC CONTEXT - Multiple progressions for variety
+      availableProgressions: [
+        { name: 'I-V-vi-IV', degrees: [0, 4, 5, 3], mood: 'uplifting' },     // Pop progression
+        { name: 'I-IV-V-IV', degrees: [0, 3, 4, 3], mood: 'driving' },       // Rock progression
+        { name: 'i-VI-III-VII', degrees: [0, 5, 2, 6], mood: 'dramatic' },   // Minor progression
+        { name: 'I-vi-IV-V', degrees: [0, 5, 3, 4], mood: 'circular' },      // Classic progression
+        { name: 'I-V-vi-iii-IV', degrees: [0, 4, 5, 2, 3], mood: 'flowing' },// Extended progression
+        { name: 'I-iii-vi-IV', degrees: [0, 2, 5, 3], mood: 'melancholic' }, // Sad progression
+        { name: 'I-VII-IV-V', degrees: [0, 6, 3, 4], mood: 'mysterious' }    // Modal progression
+      ],
+      currentProgressionIndex: 0,
+      chordProgression: [0, 4, 5, 3], // Start with I-V-vi-IV
       currentChord: 0,
-      chordDuration: 8000 // Time on each chord
+      chordDuration: 8000, // Time on each chord
+      progressionCycles: 0, // How many times through current progression
+      nextProgressionChange: 4 // Change progression after N cycles
     }
 
     // Create multi-layer ambient synth system with REDUCED POLYPHONY
@@ -859,17 +871,67 @@ class AudioService {
 
   /**
    * Advance harmonic progression
-   * Changes current chord in progression
+   * Changes current chord in progression and evolves progressions
    */
   advanceHarmony() {
     const state = this.generativeState
     state.currentChord = (state.currentChord + 1) % state.chordProgression.length
 
-    console.log(`🎵 Harmony advanced to chord ${state.currentChord} (root: ${state.chordProgression[state.currentChord]})`)
+    // If we completed a full progression cycle
+    if (state.currentChord === 0) {
+      state.progressionCycles++
 
-    // Occasionally modulate or change progression
-    if (state.evolutionCycle % 16 === 0 && Math.random() < 0.3) {
+      // Change progression after N cycles based on collective metrics
+      if (state.progressionCycles >= state.nextProgressionChange) {
+        this.changeProgression()
+        state.progressionCycles = 0
+        // Vary the cycles between changes (3-6 cycles)
+        state.nextProgressionChange = 3 + Math.floor(Math.random() * 4)
+      }
+    }
+
+    const currentProg = state.availableProgressions[state.currentProgressionIndex]
+    console.log(`🎵 Harmony: ${currentProg.name} chord ${state.currentChord}/${state.chordProgression.length} (root: ${state.chordProgression[state.currentChord]})`)
+
+    // Occasional key modulation
+    if (state.evolutionCycle % 32 === 0 && Math.random() < 0.2) {
       this.mutateHarmonicContext()
+    }
+  }
+
+  /**
+   * Change to a different chord progression based on activity
+   */
+  changeProgression() {
+    const state = this.generativeState
+
+    // Use complexity to choose progression mood
+    let targetMoods
+    if (state.complexity > 0.7) {
+      // High energy: use driving/uplifting progressions
+      targetMoods = ['driving', 'uplifting', 'flowing']
+    } else if (state.complexity > 0.4) {
+      // Medium energy: use circular/mysterious progressions
+      targetMoods = ['circular', 'mysterious', 'flowing']
+    } else {
+      // Low energy: use melancholic/dramatic progressions
+      targetMoods = ['melancholic', 'dramatic', 'mysterious']
+    }
+
+    // Filter progressions by mood
+    const suitableProgressions = state.availableProgressions
+      .map((prog, index) => ({ ...prog, index }))
+      .filter(prog => targetMoods.includes(prog.mood))
+
+    // Choose random from suitable progressions (avoid current)
+    const options = suitableProgressions.filter(p => p.index !== state.currentProgressionIndex)
+    if (options.length > 0) {
+      const chosen = options[Math.floor(Math.random() * options.length)]
+      state.currentProgressionIndex = chosen.index
+      state.chordProgression = chosen.degrees
+      state.currentChord = 0 // Reset to beginning of new progression
+
+      console.log(`🎼 PROGRESSION CHANGE: ${chosen.name} (${chosen.mood}) complexity=${state.complexity.toFixed(2)}`)
     }
   }
 

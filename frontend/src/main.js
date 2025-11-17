@@ -217,12 +217,14 @@ class WebarmoniumApp {
       const x = noteData.position.x
       const y = noteData.position.y
 
-      // MELODIC GENERATION: Use scale and octave from collective metrics
+      // MELODIC GENERATION: Dynamic melody creation based on gesture properties
       // Scales influenced by collective activity
       const scales = {
         'pentatonic': [0, 2, 4, 7, 9],      // Major pentatonic
         'major': [0, 2, 4, 5, 7, 9, 11],    // Major scale
-        'minor': [0, 2, 3, 5, 7, 8, 10]     // Natural minor
+        'minor': [0, 2, 3, 5, 7, 8, 10],    // Natural minor
+        'dorian': [0, 2, 3, 5, 7, 9, 10],   // Dorian mode
+        'mixolydian': [0, 2, 4, 5, 7, 9, 10] // Mixolydian mode
       }
 
       const params = this.compositionalParameters || {}
@@ -230,21 +232,92 @@ class WebarmoniumApp {
       const scale = scales[scaleType] || scales['pentatonic']
       const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
 
-      // Create melodic variation based on velocity and position
+      // GESTURE DIRECTION: Calculate vertical direction from position change
+      const prevY = this.lastDragY || y
+      const deltaY = y - prevY
+      this.lastDragY = y
+      const isAscending = deltaY < -0.02  // Moving up
+      const isDescending = deltaY > 0.02  // Moving down
+
+      // MELODIC MEMORY: Keep track of last notes for coherent phrases
+      if (!this.melodicMemory) {
+        this.melodicMemory = {
+          lastNotes: [],
+          currentDirection: 0,  // -1 down, 0 neutral, 1 up
+          phrasePosition: 0
+        }
+      }
+
+      // Create melodic variation based on velocity, direction, and memory
       const velocity = noteData.velocity
       let scaleIndex
 
       if (velocity > 0.7) {
-        // Fast movement: Arpeggios (1-3-5 pattern)
-        const arpPattern = [0, 2, 4, 2, 0] // Root-5th-octave-5th-root
-        scaleIndex = arpPattern[noteData.noteIndex % arpPattern.length]
+        // FAST: Dynamic arpeggios that change direction
+        if (isAscending) {
+          // Ascending arpeggio: 0-2-4-5-7 (root-3rd-5th-6th-octave)
+          const arpPattern = [0, 2, 4, 5, 7]
+          scaleIndex = arpPattern[noteData.noteIndex % arpPattern.length]
+        } else if (isDescending) {
+          // Descending arpeggio: 7-5-4-2-0
+          const arpPattern = [7, 5, 4, 2, 0]
+          scaleIndex = arpPattern[noteData.noteIndex % arpPattern.length]
+        } else {
+          // Broken chord pattern with variation
+          const arpPattern = [0, 4, 2, 5, 0, 3, 4, 2]
+          scaleIndex = arpPattern[noteData.noteIndex % arpPattern.length]
+        }
       } else if (velocity > 0.4) {
-        // Medium: Stepwise with occasional jumps
-        const melodicPattern = [0, 1, 0, 2, 1, 3, 2, 4] // More interesting contour
-        scaleIndex = melodicPattern[noteData.noteIndex % melodicPattern.length]
+        // MEDIUM: Contour melodies with leaps and steps
+        // Use X position to add horizontal variation
+        const xInfluence = Math.floor(x * 3) // 0, 1, or 2
+
+        if (isAscending) {
+          // Ascending contour with occasional leaps
+          const patterns = [
+            [0, 1, 2, 3, 4, 5, 6],           // Stepwise up
+            [0, 2, 1, 3, 2, 4, 5],           // Steps with neighbor tones
+            [0, 2, 4, 3, 5, 4, 6]            // Leaps mixed with steps
+          ]
+          const pattern = patterns[xInfluence]
+          scaleIndex = pattern[noteData.noteIndex % pattern.length]
+        } else if (isDescending) {
+          // Descending contour
+          const patterns = [
+            [6, 5, 4, 3, 2, 1, 0],           // Stepwise down
+            [6, 4, 5, 3, 4, 2, 0],           // Steps with neighbor tones
+            [6, 4, 2, 3, 1, 2, 0]            // Leaps mixed with steps
+          ]
+          const pattern = patterns[xInfluence]
+          scaleIndex = pattern[noteData.noteIndex % pattern.length]
+        } else {
+          // Wave-like contour (up and down)
+          const wavePattern = [0, 2, 1, 3, 2, 4, 3, 5, 4, 3, 2, 1]
+          scaleIndex = wavePattern[noteData.noteIndex % wavePattern.length]
+        }
       } else {
-        // Slow: Smooth stepwise motion
-        scaleIndex = Math.floor(x * scale.length)
+        // SLOW: Intervallic exploration based on position
+        // Use both X and Y for melodic choices
+        const xIndex = Math.floor(x * scale.length)
+        const yIndex = Math.floor((1 - y) * 3) // 0-2 range for intervals
+
+        // Choose intervals based on Y position: thirds, fourths, fifths
+        const intervals = [2, 3, 4] // 3rds, 4ths, 5ths
+        const interval = intervals[yIndex]
+
+        // Create melodic line using intervals
+        if (noteData.noteIndex % 4 === 0) {
+          scaleIndex = xIndex
+        } else {
+          const lastIndex = this.melodicMemory.lastNotes[this.melodicMemory.lastNotes.length - 1] || 0
+          scaleIndex = (lastIndex + interval) % scale.length
+        }
+      }
+
+      // REMEMBER THIS NOTE for next iteration
+      this.melodicMemory.lastNotes.push(scaleIndex)
+      if (this.melodicMemory.lastNotes.length > 5) {
+        this.melodicMemory.lastNotes.shift() // Keep only last 5 notes
       }
 
       // Calculate MIDI note from scale (using collective metrics scale)
