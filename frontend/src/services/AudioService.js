@@ -672,6 +672,12 @@ class AudioService {
     // Start composition loop
     setTimeout(() => {
       console.log('🎵 Starting bass + pad + chords composition system')
+      console.log('🎵 Initial layer state:', {
+        bass: this.generativeState.layers.bass.octave,
+        pad: this.generativeState.layers.pad.octave,
+        chords: this.generativeState.layers.chords.octave,
+        tonic: this.generativeState.currentTonic
+      })
       compositionLoop()
     }, 2000)
 
@@ -829,11 +835,9 @@ class AudioService {
         synth.triggerAttackRelease(freq, duration, Tone.now(), layer.velocity)
       })
 
-      // Log with frequency details for verification
-      if (Math.random() < 0.2) {
-        const freqStr = frequencies.map(f => f.toFixed(1) + 'Hz').join(', ')
-        console.log(`🎵 ${layerName}: ${freqStr} (chord ${state.currentChord}, duration ${duration.toFixed(1)}s)`)
-      }
+      // ALWAYS log for debugging - remove random condition
+      const freqStr = frequencies.map(f => f.toFixed(1) + 'Hz').join(', ')
+      console.log(`🎵 ${layerName}: ${freqStr} (octave=${layer.octave}, tonic=${state.currentTonic}Hz, chord=${state.currentChord})`)
     } catch (error) {
       console.warn(`🎵 Layer ${layerName} play error:`, error.message)
     }
