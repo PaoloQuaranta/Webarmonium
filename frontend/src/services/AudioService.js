@@ -487,26 +487,26 @@ class AudioService {
       layers: {
         bass: {
           nextNoteTime: 0,
-          rhythm: 4000,      // Slow bass notes
+          rhythm: 2000,      // FASTER: Bass every 2 seconds (was 4s)
           currentNote: 0,    // Current scale degree
           octave: -2,        // Two octaves below tonic (55-110Hz range)
-          velocity: 0.7,     // Louder for audibility
+          velocity: 0.8,     // LOUDER for prominence
           lastFrequency: null  // Track for release
         },
         pad: {
-          nextNoteTime: 1000,
-          rhythm: 6000,      // Very slow pad changes
+          nextNoteTime: 500,
+          rhythm: 4000,      // FASTER: Pad every 4 seconds (was 6s)
           currentNotes: [2, 4],  // Two notes for pad (third and fifth)
           octave: 0,         // Same as tonic (220Hz range)
-          velocity: 0.3,
+          velocity: 0.25,    // QUIETER to support bass
           lastFrequencies: []  // Track for release
         },
         chords: {
-          nextNoteTime: 2000,
-          rhythm: 8000,      // Slow chord changes
+          nextNoteTime: 1000,
+          rhythm: 6000,      // SLOWER but shorter: Chords every 6s (was 8s)
           currentChord: 0,   // Index in progression
           octave: 1,         // One octave above tonic (440Hz range)
-          velocity: 0.4,
+          velocity: 0.3,     // QUIETER to not dominate
           lastFrequencies: []  // Track for release
         }
       },
@@ -548,7 +548,12 @@ class AudioService {
           count: 2,
           spread: 20
         },
-        envelope: { attack: 1, decay: 0.5, sustain: 0.6, release: 2 },
+        envelope: {
+          attack: 0.3,   // Faster attack (was 1s)
+          decay: 0.4,    // Shorter decay (was 0.5s)
+          sustain: 0.3,  // Less sustain (was 0.6)
+          release: 0.8   // Shorter release (was 2s)
+        },
         maxPolyphony: 3  // Triads have 3 notes
       })
     }
@@ -560,11 +565,11 @@ class AudioService {
       chords: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 2 })  // Brighter chords
     }
 
-    // Balanced volumes - bass louder for audibility
+    // Balanced volumes - bass VERY loud, chords quiet
     this.ambientVolumes = {
-      bass: new Tone.Volume(-3),    // Loud foundation
-      pad: new Tone.Volume(-8),     // Subtle pad
-      chords: new Tone.Volume(-6)   // Clear chords
+      bass: new Tone.Volume(0),     // FULL VOLUME for deep bass prominence
+      pad: new Tone.Volume(-10),    // Very subtle pad
+      chords: new Tone.Volume(-9)   // Quiet chords (was -6dB)
     }
 
     // Connect each layer: synth -> filter -> volume -> effects -> master
@@ -793,7 +798,16 @@ class AudioService {
 
     // Calculate frequencies based on layer type
     let frequencies = []
-    let duration = layer.rhythm / 1000 * 0.8 // 80% of rhythm duration
+
+    // Layer-specific durations for better balance
+    let duration
+    if (layerName === 'bass') {
+      duration = 1.2  // 1.2 seconds - short and punchy
+    } else if (layerName === 'pad') {
+      duration = 3.0  // 3 seconds - sustained
+    } else if (layerName === 'chords') {
+      duration = 2.0  // 2 seconds - shorter than before (was 4.8s)
+    }
 
     if (layerName === 'bass') {
       // BASS: Single root note
