@@ -107,7 +107,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '0.0.3-alpha',
+    version: 'V.0.0.3-alpha',
     rooms: rooms.length,
     users: totalUsers,
     environment: NODE_ENV
