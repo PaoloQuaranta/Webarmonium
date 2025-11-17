@@ -686,10 +686,10 @@ class AudioService {
             }
 
             // Complexity influences density: low complexity = sparser rhythm
-            const complexityFactor = 0.8 + (state.complexity * 0.5)
+            const complexityFactor = 0.8 + (this.generativeState.complexity * 0.5)
 
             // Evolution cycle adds slow drift to avoid exact repetition
-            const driftFactor = 0.95 + Math.sin(state.evolutionCycle * 0.01) * 0.1
+            const driftFactor = 0.95 + Math.sin(this.generativeState.evolutionCycle * 0.01) * 0.1
 
             layer.nextNoteTime = layer.rhythm * rhythmVariation * complexityFactor * driftFactor
           }
