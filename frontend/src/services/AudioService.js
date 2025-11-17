@@ -482,6 +482,23 @@ class AudioService {
       evolutionSpeed: 8000, // Base evolution cycle
       complexity: 0.3, // Starting complexity
 
+      // RHYTHMIC PATTERNS: Different combinations of note durations
+      // Each pattern is an array of multipliers applied to base rhythm
+      rhythmPatterns: [
+        [0.5, 1.5],           // short-long (classic)
+        [1.5, 0.5],           // long-short (inverted)
+        [0.4, 0.4, 0.4, 1.4], // triplet + long
+        [1.0, 1.0, 1.0],      // even (steady pulse)
+        [0.5, 0.5, 1.0],      // gallop (two shorts + long)
+        [1.0, 0.5, 0.5],      // reverse gallop (long + two shorts)
+        [0.3, 0.3, 0.3, 0.3, 1.6], // four shorts + very long
+        [2.0],                // single long note
+        [0.5, 0.5, 0.5, 0.5], // four short notes
+        [1.2, 0.8],           // slightly long + slightly short
+        [0.6, 1.4],           // slightly short + very long
+        [0.7, 0.7, 1.6],      // two medium + long
+      ],
+
       // SIMPLIFIED STRUCTURE: Bass + Pad + Chords
       // Reduces polyphony and creates clearer musical texture
       // BALANCED RHYTHMS: All layers similar speed to avoid dominant pulse
@@ -492,7 +509,9 @@ class AudioService {
           currentNote: 0,    // Current scale degree
           octave: -2,        // Two octaves below tonic (55-110Hz range)
           velocity: 0.45,    // QUIETER: was 0.8, too dominant
-          lastFrequency: null  // Track for release
+          lastFrequency: null,  // Track for release
+          currentPatternIndex: 0,  // Which rhythm pattern is active
+          patternPosition: 0       // Position within the pattern
         },
         pad: {
           nextNoteTime: 1200,  // Offset start to avoid initial cluster
@@ -500,7 +519,9 @@ class AudioService {
           currentNotes: [2, 4],  // Two notes for pad (third and fifth)
           octave: 0,         // Same as tonic (220Hz range)
           velocity: 0.30,    // LOUDER: was 0.25, too quiet
-          lastFrequencies: []  // Track for release
+          lastFrequencies: [],  // Track for release
+          currentPatternIndex: 3,  // Start with different pattern
+          patternPosition: 0
         },
         chords: {
           nextNoteTime: 2400, // Different offset
@@ -508,7 +529,9 @@ class AudioService {
           currentChord: 0,   // Index in progression
           octave: 1,         // One octave above tonic (440Hz range)
           velocity: 0.40,    // LOUDER: was 0.3, chords should be prominent
-          lastFrequencies: []  // Track for release
+          lastFrequencies: [],  // Track for release
+          currentPatternIndex: 7,  // Start with different pattern (single long)
+          patternPosition: 0
         }
       },
 
@@ -669,22 +692,28 @@ class AudioService {
           if (layer.nextNoteTime <= 0) {
             this.playLayer(layerName)
 
-            // BALANCED ORGANIC VARIATION: Wide enough to break patterns, not too chaotic
-            // Each layer has moderate variation for smooth yet unpredictable flow
-            let rhythmVariation
-            if (layerName === 'bass') {
-              // Bass: 50-180% variation (2350ms - 8460ms)
-              // Prevents fast pulse while maintaining presence
-              rhythmVariation = 0.5 + Math.random() * 1.3
-            } else if (layerName === 'pad') {
-              // Pad: 60-200% variation (3060ms - 10200ms)
-              // Long sustains with moderate variation
-              rhythmVariation = 0.6 + Math.random() * 1.4
-            } else if (layerName === 'chords') {
-              // Chords: 55-190% variation (3245ms - 11210ms)
-              // Balanced unpredictability
-              rhythmVariation = 0.55 + Math.random() * 1.35
+            // PATTERN-BASED RHYTHM SYSTEM
+            // Get the current rhythmic pattern for this layer
+            const currentPattern = this.generativeState.rhythmPatterns[layer.currentPatternIndex]
+            const patternMultiplier = currentPattern[layer.patternPosition]
+
+            // Advance position in pattern
+            layer.patternPosition++
+
+            // If pattern is complete, choose a new random pattern
+            if (layer.patternPosition >= currentPattern.length) {
+              const oldPattern = layer.currentPatternIndex
+              // Choose different pattern than current one
+              do {
+                layer.currentPatternIndex = Math.floor(Math.random() * this.generativeState.rhythmPatterns.length)
+              } while (layer.currentPatternIndex === oldPattern && this.generativeState.rhythmPatterns.length > 1)
+
+              layer.patternPosition = 0
+              console.log(`${layerName}: pattern change ${oldPattern} → ${layer.currentPatternIndex} [${this.generativeState.rhythmPatterns[layer.currentPatternIndex].join(', ')}]`)
             }
+
+            // Subtle random variation around pattern multiplier (±15%)
+            const microVariation = 0.85 + Math.random() * 0.3
 
             // Complexity influences density: low complexity = sparser rhythm
             const complexityFactor = 0.75 + (this.generativeState.complexity * 0.5)
@@ -704,7 +733,8 @@ class AudioService {
             const layerSeed = layerName.charCodeAt(0) * 137  // Different seed per layer
             const jitter = 0.92 + (Math.sin((Date.now() + layerSeed) * 0.001) * 0.16)
 
-            layer.nextNoteTime = layer.rhythm * rhythmVariation * complexityFactor * driftFactor1 * driftFactor2 * jitter
+            // Apply pattern multiplier + all variation factors
+            layer.nextNoteTime = layer.rhythm * patternMultiplier * microVariation * complexityFactor * driftFactor1 * driftFactor2 * jitter
           }
         })
 
