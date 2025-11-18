@@ -524,8 +524,7 @@ class AudioService {
           velocity: 0.45,    // QUIETER: was 0.8, too dominant
           lastFrequency: null,  // Track for release
           currentPatternIndex: 3,  // Start with SHORT pattern (four rapid)
-          patternPosition: 0,      // Position within the pattern
-          noteVariation: 0         // Vary bass notes within chord
+          patternPosition: 0       // Position within the pattern
         },
         pad: {
           nextNoteTime: 1200,  // Offset start to avoid initial cluster
@@ -904,30 +903,14 @@ class AudioService {
     console.log(`🎼 ${layerName} DURATION: pattern[${currentPosition}]=${patternMultiplier} → dur=${duration.toFixed(2)}s (from pattern ${layer.currentPatternIndex}: [${currentPattern.join(', ')}])`)
 
     if (layerName === 'bass') {
-      // BASS: Vary between root, fifth, and octave to prevent monotony
-      // Cycle through variations to add interest even within same chord
-      const variations = [
-        chordRoot,                    // Root note
-        scale[(chordRootIndex + 4) % scale.length],  // Fifth
-        chordRoot,                    // Root again (octave higher)
-      ]
-
-      const octaveVariations = [
-        layer.octave,      // Normal octave
-        layer.octave,      // Normal octave
-        layer.octave + 1,  // One octave higher
-      ]
-
-      const scaleNote = variations[layer.noteVariation % 3]
-      const octaveOffset = octaveVariations[layer.noteVariation % 3]
-      layer.noteVariation++ // Advance variation
-
-      // Formula: tonic * 2^(scaleNote/12 + octaveOffset)
-      const frequency = state.currentTonic * Math.pow(2, (scaleNote / 12) + octaveOffset)
+      // BASS: ONLY root note - NO variation to avoid repetitive melodic pattern
+      // Previous variation [root, fifth, root+octave] created "C-G-C" repetition
+      // User perceived this as "note played twice" pattern
+      const scaleNote = chordRoot
+      const frequency = state.currentTonic * Math.pow(2, (scaleNote / 12) + layer.octave)
       frequencies = [frequency]
 
       // CRITICAL: Always release all previous notes to prevent polyphony overflow
-      // Using releaseAll() instead of conditional release ensures no voice accumulation
       try {
         synth.releaseAll()
       } catch (e) {
