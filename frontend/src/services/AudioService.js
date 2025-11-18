@@ -518,7 +518,7 @@ class AudioService {
       layers: {
         bass: {
           nextNoteTime: 0,
-          rhythm: 4700,      // SLOWER: was 2300, now similar to others
+          rhythm: 3700,      // PRIME-ISH: Prevents synchronization with other layers
           currentNote: 0,    // Current scale degree
           octave: -2,        // Two octaves below tonic (55-110Hz range)
           velocity: 0.45,    // QUIETER: was 0.8, too dominant
@@ -529,7 +529,7 @@ class AudioService {
         },
         pad: {
           nextNoteTime: 1200,  // Offset start to avoid initial cluster
-          rhythm: 5100,      // Medium rhythm
+          rhythm: 5300,      // PRIME: Completely independent from bass/chords
           currentNotes: [2, 4],  // Two notes for pad (third and fifth)
           octave: 0,         // Same as tonic (220Hz range)
           velocity: 0.30,    // LOUDER: was 0.25, too quiet
@@ -539,7 +539,7 @@ class AudioService {
         },
         chords: {
           nextNoteTime: 2400, // Different offset
-          rhythm: 5900,      // Slower rhythm
+          rhythm: 7900,      // PRIME: Maximum desynchronization from others
           currentChord: 0,   // Index in progression
           octave: 1,         // One octave above tonic (440Hz range)
           velocity: 0.40,    // LOUDER: was 0.3, chords should be prominent
@@ -4154,10 +4154,13 @@ class AudioService {
       const speedFactor = 1 + parameters.rhythmicDensity
       Object.keys(this.generativeState.layers).forEach(layerName => {
         const layer = this.generativeState.layers[layerName]
+        // CRITICAL: Use PRIME NUMBERS to prevent rhythmic synchronization
+        // Previous values (4000, 6000, 8000) were exact multiples → LCM=24000ms
+        // All layers synchronized every 24 seconds creating "ta-taaaan" pattern
         const baseRhythm = {
-          bass: 4000,
-          pad: 6000,
-          chords: 8000
+          bass: 3700,   // PRIME-ISH: Ensures bass never aligns with others
+          pad: 5300,    // PRIME: Completely independent rhythm
+          chords: 7900  // PRIME: Maximum desynchronization
         }[layerName]
         layer.rhythm = baseRhythm / speedFactor
       })
