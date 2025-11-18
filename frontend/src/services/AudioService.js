@@ -900,6 +900,9 @@ class AudioService {
     const articulationFactor = 0.8 - (state.complexity * 0.1)  // Higher complexity = more staccato
     const duration = baseDuration * patternMultiplier * articulationFactor
 
+    // DEBUG: Log pattern usage for duration calculation
+    console.log(`🎼 ${layerName} DURATION: pattern[${currentPosition}]=${patternMultiplier} → dur=${duration.toFixed(2)}s (from pattern ${layer.currentPatternIndex}: [${currentPattern.join(', ')}])`)
+
     if (layerName === 'bass') {
       // BASS: Vary between root, fifth, and octave to prevent monotony
       // Cycle through variations to add interest even within same chord
