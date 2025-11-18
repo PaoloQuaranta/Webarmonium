@@ -576,7 +576,12 @@ class AudioService {
           count: 3,
           spread: 30
         },
-        envelope: { attack: 0.5, decay: 0.3, sustain: 0.7, release: 2 },
+        envelope: {
+          attack: 0.01,   // INSTANT attack for rhythmic clarity (was 0.5s!)
+          decay: 0.05,    // Very short decay
+          sustain: 0.9,   // High sustain for held notes
+          release: 0.1    // QUICK release for rhythmic separation (was 2s!)
+        },
         maxPolyphony: 3  // INCREASED: Allow overlap during release (was 1)
       }),
 
@@ -587,7 +592,12 @@ class AudioService {
           count: 3,
           spread: 40
         },
-        envelope: { attack: 2, decay: 1, sustain: 0.8, release: 3 },  // Very slow envelope
+        envelope: {
+          attack: 0.05,   // Quick attack for clarity (was 2s!)
+          decay: 0.1,     // Short decay
+          sustain: 0.85,  // High sustain
+          release: 0.2    // Quick release for rhythmic patterns (was 3s!)
+        },
         maxPolyphony: 6  // INCREASED: Allow overlap during long release (was 2)
       }),
 
@@ -599,10 +609,10 @@ class AudioService {
           spread: 20
         },
         envelope: {
-          attack: 0.3,   // Faster attack (was 1s)
-          decay: 0.4,    // Shorter decay (was 0.5s)
-          sustain: 0.3,  // Less sustain (was 0.6)
-          release: 0.8   // Shorter release (was 2s)
+          attack: 0.02,   // Quick attack for rhythmic clarity (was 0.3s)
+          decay: 0.1,     // Short decay
+          sustain: 0.8,   // Good sustain
+          release: 0.15   // Quick release for pattern separation (was 0.8s)
         },
         maxPolyphony: 9  // INCREASED: 3 notes × 3 voices = 9 (was 3)
       })
