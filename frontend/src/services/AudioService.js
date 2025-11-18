@@ -732,32 +732,14 @@ class AudioService {
               } while (layer.currentPatternIndex === oldPattern && this.generativeState.rhythmPatterns.length > 1)
 
               layer.patternPosition = 0
-              console.log(`${layerName}: pattern change ${oldPattern} → ${layer.currentPatternIndex} [${this.generativeState.rhythmPatterns[layer.currentPatternIndex].join(', ')}]`)
+              console.log(`🔄 ${layerName}: pattern change ${oldPattern} → ${layer.currentPatternIndex} [${this.generativeState.rhythmPatterns[layer.currentPatternIndex].join(', ')}]`)
             }
 
-            // Subtle random variation around pattern multiplier (±15%)
-            const microVariation = 0.85 + Math.random() * 0.3
+            // PURE PATTERN - NO DRIFT, NO JITTER, NO VARIATION
+            // Just the pattern multiplier applied to base rhythm
+            layer.nextNoteTime = layer.rhythm * patternMultiplier
 
-            // Complexity influences density: low complexity = sparser rhythm
-            const complexityFactor = 0.75 + (this.generativeState.complexity * 0.5)
-
-            // Layer-specific phase offsets (different for each layer)
-            // This ensures each layer has INDEPENDENT rhythmic drift
-            const phaseOffset = layerName === 'bass' ? 0 : layerName === 'pad' ? 2.1 : 4.7
-
-            // INDEPENDENT drift per layer using different phase offsets
-            // Each layer evolves at different "starting points" in the sine/cosine cycles
-            const cycle = this.generativeState.evolutionCycle
-            const driftFactor1 = 0.92 + Math.sin((cycle + phaseOffset * 100) * 0.013) * 0.12
-            const driftFactor2 = 0.96 + Math.cos((cycle + phaseOffset * 200) * 0.007) * 0.08
-
-            // INDEPENDENT jitter per layer using layer name as seed
-            // Each layer gets unique timestamp-based variation
-            const layerSeed = layerName.charCodeAt(0) * 137  // Different seed per layer
-            const jitter = 0.92 + (Math.sin((Date.now() + layerSeed) * 0.001) * 0.16)
-
-            // Apply pattern multiplier + all variation factors
-            layer.nextNoteTime = layer.rhythm * patternMultiplier * microVariation * complexityFactor * driftFactor1 * driftFactor2 * jitter
+            console.log(`⏱️ ${layerName}: nextNote in ${Math.round(layer.nextNoteTime)}ms (rhythm=${layer.rhythm} × pattern=${patternMultiplier})`)
           }
         })
 
