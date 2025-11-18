@@ -578,10 +578,10 @@ class AudioService {
           spread: 30
         },
         envelope: {
-          attack: 0.01,   // INSTANT attack for rhythmic clarity (was 0.5s!)
-          decay: 0.05,    // Very short decay
+          attack: 0.15,   // SMOOTHER attack to reduce percussive "ta" transient (was 0.01s)
+          decay: 0.1,     // Short decay
           sustain: 0.9,   // High sustain for held notes
-          release: 0.1    // QUICK release for rhythmic separation (was 2s!)
+          release: 0.3    // Slightly longer release for smoothness (was 0.1s)
         },
         maxPolyphony: 3  // INCREASED: Allow overlap during release (was 1)
       }),
@@ -594,10 +594,10 @@ class AudioService {
           spread: 40
         },
         envelope: {
-          attack: 0.05,   // Quick attack for clarity (was 2s!)
-          decay: 0.1,     // Short decay
+          attack: 0.3,    // SMOOTHER attack to reduce transient (was 0.05s)
+          decay: 0.2,     // Longer decay for smoothness
           sustain: 0.85,  // High sustain
-          release: 0.2    // Quick release for rhythmic patterns (was 3s!)
+          release: 0.5    // Longer release for pad-like sound (was 0.2s)
         },
         maxPolyphony: 6  // INCREASED: Allow overlap during long release (was 2)
       }),
@@ -610,10 +610,10 @@ class AudioService {
           spread: 20
         },
         envelope: {
-          attack: 0.02,   // Quick attack for rhythmic clarity (was 0.3s)
-          decay: 0.1,     // Short decay
+          attack: 0.2,    // SMOOTHER attack to reduce transient (was 0.02s)
+          decay: 0.15,    // Slightly longer decay
           sustain: 0.8,   // Good sustain
-          release: 0.15   // Quick release for pattern separation (was 0.8s)
+          release: 0.4    // Longer release for smoothness (was 0.15s)
         },
         maxPolyphony: 9  // INCREASED: 3 notes × 3 voices = 9 (was 3)
       })
