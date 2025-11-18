@@ -426,11 +426,12 @@ class AudioService {
    */
   createContinuousGenerativeSystem() {
     console.log('🔨 Creating continuous generative system...')
-    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-ENVELOPE-SHARP-v6')
+    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-PURE-PATTERNS-v7')
+    console.log('✅ PURE PATTERNS: Zero variation - only rhythm × pattern (no drift/jitter/random)')
     console.log('✅ Pattern system: 12 contrasted patterns (LONG/SHORT/MIXED/EVEN categories)')
-    console.log('✅ Percussive envelopes: attack 0.01-0.05s, release 0.1-0.2s (was 0.5-2s + 2-3s!)')
+    console.log('✅ Percussive envelopes: attack 0.01-0.05s, release 0.1-0.2s')
     console.log('✅ Bass variation: root→fifth→octave cycling')
-    console.log('🎯 Rhythmic patterns now clearly separated (no more blurred "ta-taaaan")')
+    console.log('🎯 Mathematically precise patterns - should be CLEARLY audible')
 
     // CRITICAL FIX: Never dispose synths immediately!
     // Tone.js internal timeouts from triggerAttackRelease() may still be scheduled
