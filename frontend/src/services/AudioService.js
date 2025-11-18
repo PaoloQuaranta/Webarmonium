@@ -636,9 +636,10 @@ class AudioService {
     Object.keys(this.ambientLayers).forEach(layer => {
       this.ambientLayers[layer].connect(this.ambientFilters[layer])
       this.ambientFilters[layer].connect(this.ambientVolumes[layer])
-      // Route through effects for richer sound
+      // Route through reverb only (NO DELAY to prevent note repetition)
       this.ambientVolumes[layer].connect(this.reverb)
-      this.ambientVolumes[layer].connect(this.delay)
+      // Also connect directly to master for dry signal
+      this.ambientVolumes[layer].connect(this.masterVolume)
     })
 
     // Create gesture-responsive synth with INCREASED polyphony and cleaner sound
