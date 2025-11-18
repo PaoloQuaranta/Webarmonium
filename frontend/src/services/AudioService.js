@@ -576,7 +576,7 @@ class AudioService {
           spread: 30
         },
         envelope: { attack: 0.5, decay: 0.3, sustain: 0.7, release: 2 },
-        maxPolyphony: 1  // Single bass note
+        maxPolyphony: 3  // INCREASED: Allow overlap during release (was 1)
       }),
 
       // PAD: Warm pad-like sound (1-2 notes)
@@ -587,7 +587,7 @@ class AudioService {
           spread: 40
         },
         envelope: { attack: 2, decay: 1, sustain: 0.8, release: 3 },  // Very slow envelope
-        maxPolyphony: 2  // Pad can have 2 notes
+        maxPolyphony: 6  // INCREASED: Allow overlap during long release (was 2)
       }),
 
       // CHORDS: Triad chords (3 notes)
@@ -603,7 +603,7 @@ class AudioService {
           sustain: 0.3,  // Less sustain (was 0.6)
           release: 0.8   // Shorter release (was 2s)
         },
-        maxPolyphony: 3  // Triads have 3 notes
+        maxPolyphony: 9  // INCREASED: 3 notes × 3 voices = 9 (was 3)
       })
     }
 
@@ -929,13 +929,12 @@ class AudioService {
       const frequency = state.currentTonic * Math.pow(2, (scaleNote / 12) + octaveOffset)
       frequencies = [frequency]
 
-      // Only release if frequency is different (prevents retriggering same note)
-      if (layer.lastFrequency && Math.abs(layer.lastFrequency - frequency) > 0.1) {
-        try {
-          synth.triggerRelease(layer.lastFrequency)
-        } catch (e) {
-          // Ignore release errors
-        }
+      // CRITICAL: Always release all previous notes to prevent polyphony overflow
+      // Using releaseAll() instead of conditional release ensures no voice accumulation
+      try {
+        synth.releaseAll()
+      } catch (e) {
+        // Ignore release errors
       }
       layer.lastFrequency = frequency
 
@@ -949,18 +948,11 @@ class AudioService {
       const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
       frequencies = [freq3, freq5]
 
-      // Release old frequencies only if they're different from new ones
-      if (layer.lastFrequencies && layer.lastFrequencies.length > 0) {
-        layer.lastFrequencies.forEach(oldFreq => {
-          const isDifferent = !frequencies.some(newFreq => Math.abs(newFreq - oldFreq) < 0.1)
-          if (isDifferent) {
-            try {
-              synth.triggerRelease(oldFreq)
-            } catch (e) {
-              // Ignore release errors
-            }
-          }
-        })
+      // CRITICAL: Always release all previous notes to prevent polyphony overflow
+      try {
+        synth.releaseAll()
+      } catch (e) {
+        // Ignore release errors
       }
       layer.lastFrequencies = frequencies
 
@@ -976,18 +968,11 @@ class AudioService {
       const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
       frequencies = [freqR, freq3, freq5]
 
-      // Release old frequencies only if they're different from new ones
-      if (layer.lastFrequencies && layer.lastFrequencies.length > 0) {
-        layer.lastFrequencies.forEach(oldFreq => {
-          const isDifferent = !frequencies.some(newFreq => Math.abs(newFreq - oldFreq) < 0.1)
-          if (isDifferent) {
-            try {
-              synth.triggerRelease(oldFreq)
-            } catch (e) {
-              // Ignore release errors
-            }
-          }
-        })
+      // CRITICAL: Always release all previous notes to prevent polyphony overflow
+      try {
+        synth.releaseAll()
+      } catch (e) {
+        // Ignore release errors
       }
       layer.lastFrequencies = frequencies
     }
