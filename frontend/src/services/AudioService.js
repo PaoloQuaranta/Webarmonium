@@ -426,10 +426,11 @@ class AudioService {
    */
   createContinuousGenerativeSystem() {
     console.log('🔨 Creating continuous generative system...')
-    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-PATTERN-REBALANCE-v4')
+    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-POLYPHONY-FIX-v5')
     console.log('✅ Pattern system: 12 contrasted patterns (LONG/SHORT/MIXED/EVEN categories)')
-    console.log('✅ Conditional release: prevents polyphony overflow')
+    console.log('✅ releaseAll() + increased maxPolyphony (bass:3, pad:6, chords:9)')
     console.log('✅ Bass variation: root→fifth→octave cycling')
+    console.log('🎯 Should eliminate ALL "Max polyphony exceeded" warnings')
 
     // CRITICAL FIX: Never dispose synths immediately!
     // Tone.js internal timeouts from triggerAttackRelease() may still be scheduled
