@@ -426,6 +426,10 @@ class AudioService {
    */
   createContinuousGenerativeSystem() {
     console.log('🔨 Creating continuous generative system...')
+    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-PATTERN-REBALANCE-v4')
+    console.log('✅ Pattern system: 12 contrasted patterns (LONG/SHORT/MIXED/EVEN categories)')
+    console.log('✅ Conditional release: prevents polyphony overflow')
+    console.log('✅ Bass variation: root→fifth→octave cycling')
 
     // CRITICAL FIX: Never dispose synths immediately!
     // Tone.js internal timeouts from triggerAttackRelease() may still be scheduled
