@@ -858,6 +858,8 @@ class AudioService {
    * @param {string} layerName - Name of layer ('bass', 'pad', 'chords')
    */
   playLayer(layerName) {
+    console.log(`🎹 playLayer CALLED for ${layerName} at ${Date.now()}`)
+
     const state = this.generativeState
     const layer = state.layers[layerName]
     const scale = state.currentScale
@@ -977,8 +979,12 @@ class AudioService {
 
     // Trigger notes
     try {
-      frequencies.forEach(freq => {
-        synth.triggerAttackRelease(freq, duration, Tone.now(), playVelocity)
+      const triggerTime = Tone.now()
+      console.log(`🔊 TRIGGERING ${layerName} at Tone.now()=${triggerTime.toFixed(3)}`)
+
+      frequencies.forEach((freq, idx) => {
+        console.log(`  ↳ Trigger #${idx+1}: freq=${freq.toFixed(1)}Hz, dur=${duration.toFixed(3)}s, vel=${playVelocity.toFixed(2)}`)
+        synth.triggerAttackRelease(freq, duration, triggerTime, playVelocity)
       })
 
       // Detailed logging for rhythm debugging
