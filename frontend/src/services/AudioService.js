@@ -426,12 +426,12 @@ class AudioService {
    */
   createContinuousGenerativeSystem() {
     console.log('🔨 Creating continuous generative system...')
-    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-PRIME-RHYTHMS-v8-FINAL')
-    console.log('✅ PRIME RHYTHMS: 3700, 5300, 7900 (LCM=43 HOURS not 24 seconds!)')
+    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-SMOOTH-ENVELOPE-v9')
+    console.log('✅ PRIME RHYTHMS: 3700, 5300, 7900 (LCM=43 HOURS)')
     console.log('✅ PURE PATTERNS: Zero variation - only rhythm × pattern')
-    console.log('✅ Pattern system: 12 contrasted patterns (LONG/SHORT/MIXED/EVEN categories)')
-    console.log('✅ Percussive envelopes: attack 0.01-0.05s, release 0.1-0.2s')
-    console.log('🎯 Complete desynchronization - NO MORE "ta-taaaan" alignment!')
+    console.log('✅ SMOOTH ENVELOPES: attack 0.15-0.3s, release 0.3-0.5s (NO more "ta" transient!)')
+    console.log('✅ Pattern system: 12 contrasted patterns (LONG/SHORT/MIXED/EVEN)')
+    console.log('🎯 Organic sound - no more percussive "ribattuta" feeling!')
 
     // CRITICAL FIX: Never dispose synths immediately!
     // Tone.js internal timeouts from triggerAttackRelease() may still be scheduled
