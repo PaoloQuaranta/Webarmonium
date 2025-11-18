@@ -482,21 +482,28 @@ class AudioService {
       evolutionSpeed: 8000, // Base evolution cycle
       complexity: 0.3, // Starting complexity
 
-      // RHYTHMIC PATTERNS: Different combinations of note durations
-      // Each pattern is an array of multipliers applied to base rhythm
+      // RHYTHMIC PATTERNS: Highly contrasted combinations to eliminate repetition
+      // Categories: LONG-dominant, SHORT-dominant, MIXED, EVEN
       rhythmPatterns: [
-        [0.5, 1.5],           // short-long (classic)
-        [1.5, 0.5],           // long-short (inverted)
-        [0.4, 0.4, 0.4, 1.4], // triplet + long
-        [1.0, 1.0, 1.0],      // even (steady pulse)
-        [0.5, 0.5, 1.0],      // gallop (two shorts + long)
-        [1.0, 0.5, 0.5],      // reverse gallop (long + two shorts)
-        [0.3, 0.3, 0.3, 0.3, 1.6], // four shorts + very long
-        [2.0],                // single long note
-        [0.5, 0.5, 0.5, 0.5], // four short notes
-        [1.2, 0.8],           // slightly long + slightly short
-        [0.6, 1.4],           // slightly short + very long
-        [0.7, 0.7, 1.6],      // two medium + long
+        // LONG-dominant patterns (sustained notes)
+        [3.0],                      // 0: single very long note
+        [2.0, 1.0],                 // 1: long + medium
+        [1.5, 1.5],                 // 2: two sustained notes
+
+        // SHORT-dominant patterns (rapid notes)
+        [0.3, 0.3, 0.3, 0.3],       // 3: four rapid notes
+        [0.4, 0.4, 0.4, 0.4, 0.4],  // 4: five rapid notes
+        [0.25, 0.25, 0.5],          // 5: very fast triplet
+
+        // MIXED patterns (contrast within pattern)
+        [0.5, 1.5],                 // 6: classic short-long
+        [1.5, 0.5],                 // 7: inverted long-short
+        [0.3, 2.0],                 // 8: very short + very long (dramatic)
+        [2.0, 0.3],                 // 9: very long + very short (dramatic inverted)
+
+        // EVEN patterns (steady pulse)
+        [1.0, 1.0, 1.0],            // 10: steady triplet
+        [0.8, 0.8, 0.8, 0.8],       // 11: steady quadruplet
       ],
 
       // SIMPLIFIED STRUCTURE: Bass + Pad + Chords
@@ -510,8 +517,9 @@ class AudioService {
           octave: -2,        // Two octaves below tonic (55-110Hz range)
           velocity: 0.45,    // QUIETER: was 0.8, too dominant
           lastFrequency: null,  // Track for release
-          currentPatternIndex: 0,  // Which rhythm pattern is active
-          patternPosition: 0       // Position within the pattern
+          currentPatternIndex: 3,  // Start with SHORT pattern (four rapid)
+          patternPosition: 0,      // Position within the pattern
+          noteVariation: 0         // Vary bass notes within chord
         },
         pad: {
           nextNoteTime: 1200,  // Offset start to avoid initial cluster
@@ -520,7 +528,7 @@ class AudioService {
           octave: 0,         // Same as tonic (220Hz range)
           velocity: 0.30,    // LOUDER: was 0.25, too quiet
           lastFrequencies: [],  // Track for release
-          currentPatternIndex: 3,  // Start with different pattern
+          currentPatternIndex: 0,  // Start with LONG pattern (single sustained)
           patternPosition: 0
         },
         chords: {
@@ -530,7 +538,7 @@ class AudioService {
           octave: 1,         // One octave above tonic (440Hz range)
           velocity: 0.40,    // LOUDER: was 0.3, chords should be prominent
           lastFrequencies: [],  // Track for release
-          currentPatternIndex: 7,  // Start with different pattern (single long)
+          currentPatternIndex: 10,  // Start with EVEN pattern (steady triplet)
           patternPosition: 0
         }
       },
@@ -866,16 +874,8 @@ class AudioService {
     const chordRoot = state.chordProgression[state.currentChord]
     const chordRootIndex = scale.indexOf(chordRoot)
 
-    // Release previous notes to prevent polyphony exceeded
-    try {
-      if (layerName === 'bass' && layer.lastFrequency) {
-        synth.triggerRelease(layer.lastFrequency)
-      } else if (layer.lastFrequencies && layer.lastFrequencies.length > 0) {
-        layer.lastFrequencies.forEach(freq => synth.triggerRelease(freq))
-      }
-    } catch (error) {
-      // Ignore release errors
-    }
+    // Release previous notes moved inside layer-specific code
+    // to prevent releasing notes we're about to retrigger
 
     // Calculate frequencies based on layer type
     let frequencies = []
@@ -903,12 +903,36 @@ class AudioService {
     const duration = baseDuration * patternMultiplier * articulationFactor
 
     if (layerName === 'bass') {
-      // BASS: Single root note
-      const scaleNote = chordRoot
+      // BASS: Vary between root, fifth, and octave to prevent monotony
+      // Cycle through variations to add interest even within same chord
+      const variations = [
+        chordRoot,                    // Root note
+        scale[(chordRootIndex + 4) % scale.length],  // Fifth
+        chordRoot,                    // Root again (octave higher)
+      ]
+
+      const octaveVariations = [
+        layer.octave,      // Normal octave
+        layer.octave,      // Normal octave
+        layer.octave + 1,  // One octave higher
+      ]
+
+      const scaleNote = variations[layer.noteVariation % 3]
+      const octaveOffset = octaveVariations[layer.noteVariation % 3]
+      layer.noteVariation++ // Advance variation
+
       // Formula: tonic * 2^(scaleNote/12 + octaveOffset)
-      // octave=-2 → two octaves below tonic
-      const frequency = state.currentTonic * Math.pow(2, (scaleNote / 12) + layer.octave)
+      const frequency = state.currentTonic * Math.pow(2, (scaleNote / 12) + octaveOffset)
       frequencies = [frequency]
+
+      // Only release if frequency is different (prevents retriggering same note)
+      if (layer.lastFrequency && Math.abs(layer.lastFrequency - frequency) > 0.1) {
+        try {
+          synth.triggerRelease(layer.lastFrequency)
+        } catch (e) {
+          // Ignore release errors
+        }
+      }
       layer.lastFrequency = frequency
 
     } else if (layerName === 'pad') {
@@ -920,6 +944,20 @@ class AudioService {
       const freq3 = state.currentTonic * Math.pow(2, (third / 12) + layer.octave)
       const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
       frequencies = [freq3, freq5]
+
+      // Release old frequencies only if they're different from new ones
+      if (layer.lastFrequencies && layer.lastFrequencies.length > 0) {
+        layer.lastFrequencies.forEach(oldFreq => {
+          const isDifferent = !frequencies.some(newFreq => Math.abs(newFreq - oldFreq) < 0.1)
+          if (isDifferent) {
+            try {
+              synth.triggerRelease(oldFreq)
+            } catch (e) {
+              // Ignore release errors
+            }
+          }
+        })
+      }
       layer.lastFrequencies = frequencies
 
     } else if (layerName === 'chords') {
@@ -933,6 +971,20 @@ class AudioService {
       const freq3 = state.currentTonic * Math.pow(2, (third / 12) + layer.octave)
       const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
       frequencies = [freqR, freq3, freq5]
+
+      // Release old frequencies only if they're different from new ones
+      if (layer.lastFrequencies && layer.lastFrequencies.length > 0) {
+        layer.lastFrequencies.forEach(oldFreq => {
+          const isDifferent = !frequencies.some(newFreq => Math.abs(newFreq - oldFreq) < 0.1)
+          if (isDifferent) {
+            try {
+              synth.triggerRelease(oldFreq)
+            } catch (e) {
+              // Ignore release errors
+            }
+          }
+        })
+      }
       layer.lastFrequencies = frequencies
     }
 
