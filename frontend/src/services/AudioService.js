@@ -426,12 +426,12 @@ class AudioService {
    */
   createContinuousGenerativeSystem() {
     console.log('🔨 Creating continuous generative system...')
-    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-PURE-PATTERNS-v7')
-    console.log('✅ PURE PATTERNS: Zero variation - only rhythm × pattern (no drift/jitter/random)')
+    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-PRIME-RHYTHMS-v8-FINAL')
+    console.log('✅ PRIME RHYTHMS: 3700, 5300, 7900 (LCM=43 HOURS not 24 seconds!)')
+    console.log('✅ PURE PATTERNS: Zero variation - only rhythm × pattern')
     console.log('✅ Pattern system: 12 contrasted patterns (LONG/SHORT/MIXED/EVEN categories)')
     console.log('✅ Percussive envelopes: attack 0.01-0.05s, release 0.1-0.2s')
-    console.log('✅ Bass variation: root→fifth→octave cycling')
-    console.log('🎯 Mathematically precise patterns - should be CLEARLY audible')
+    console.log('🎯 Complete desynchronization - NO MORE "ta-taaaan" alignment!')
 
     // CRITICAL FIX: Never dispose synths immediately!
     // Tone.js internal timeouts from triggerAttackRelease() may still be scheduled
