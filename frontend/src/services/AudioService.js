@@ -426,12 +426,12 @@ class AudioService {
    */
   createContinuousGenerativeSystem() {
     console.log('🔨 Creating continuous generative system...')
-    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-SMOOTH-ENVELOPE-v9')
+    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-FLAT-ENVELOPE-v10')
     console.log('✅ PRIME RHYTHMS: 3700, 5300, 7900 (LCM=43 HOURS)')
     console.log('✅ PURE PATTERNS: Zero variation - only rhythm × pattern')
-    console.log('✅ SMOOTH ENVELOPES: attack 0.15-0.3s, release 0.3-0.5s (NO more "ta" transient!)')
+    console.log('✅ FLAT ENVELOPES: attack/release 5ms ONLY - envelope does NOT mask pattern!')
     console.log('✅ Pattern system: 12 contrasted patterns (LONG/SHORT/MIXED/EVEN)')
-    console.log('🎯 Organic sound - no more percussive "ribattuta" feeling!')
+    console.log('🎯 Duration = EXACT pattern multiplier - no envelope artifacts!')
 
     // CRITICAL FIX: Never dispose synths immediately!
     // Tone.js internal timeouts from triggerAttackRelease() may still be scheduled
@@ -578,10 +578,10 @@ class AudioService {
           spread: 30
         },
         envelope: {
-          attack: 0.15,   // SMOOTHER attack to reduce percussive "ta" transient (was 0.01s)
-          decay: 0.1,     // Short decay
-          sustain: 0.9,   // High sustain for held notes
-          release: 0.3    // Slightly longer release for smoothness (was 0.1s)
+          attack: 0.005,  // MINIMAL attack - just enough to prevent click (5ms)
+          decay: 0.01,    // Minimal decay
+          sustain: 1.0,   // FULL sustain - note at constant volume
+          release: 0.005  // MINIMAL release - just anti-click (5ms)
         },
         maxPolyphony: 3  // INCREASED: Allow overlap during release (was 1)
       }),
@@ -594,10 +594,10 @@ class AudioService {
           spread: 40
         },
         envelope: {
-          attack: 0.3,    // SMOOTHER attack to reduce transient (was 0.05s)
-          decay: 0.2,     // Longer decay for smoothness
-          sustain: 0.85,  // High sustain
-          release: 0.5    // Longer release for pad-like sound (was 0.2s)
+          attack: 0.005,  // MINIMAL attack (5ms)
+          decay: 0.01,    // Minimal decay
+          sustain: 1.0,   // FULL sustain
+          release: 0.005  // MINIMAL release (5ms)
         },
         maxPolyphony: 6  // INCREASED: Allow overlap during long release (was 2)
       }),
@@ -610,10 +610,10 @@ class AudioService {
           spread: 20
         },
         envelope: {
-          attack: 0.2,    // SMOOTHER attack to reduce transient (was 0.02s)
-          decay: 0.15,    // Slightly longer decay
-          sustain: 0.8,   // Good sustain
-          release: 0.4    // Longer release for smoothness (was 0.15s)
+          attack: 0.005,  // MINIMAL attack (5ms)
+          decay: 0.01,    // Minimal decay
+          sustain: 1.0,   // FULL sustain
+          release: 0.005  // MINIMAL release (5ms)
         },
         maxPolyphony: 9  // INCREASED: 3 notes × 3 voices = 9 (was 3)
       })
