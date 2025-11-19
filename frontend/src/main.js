@@ -382,18 +382,22 @@ class WebarmoniumApp {
       if (this.audioService.gestureSynth) {
         this.audioService.gestureSynth.set({ envelope })
 
+        // Higher velocity for local gesture prominence
+        const velocity = 0.8 + noteData.velocity * 0.2 // 0.8-1.0 range (was 0.5-0.8)
+
         console.log('🎵🎵 PLAYING LOCAL NOTE:', {
           frequency: frequency.toFixed(1),
           duration: duration,
           articulation: noteData.articulation,
-          velocity: noteData.velocity.toFixed(3)
+          velocity: velocity.toFixed(3),
+          synthVolume: this.audioService.gestureSynth.volume.value
         })
 
         this.audioService.gestureSynth.triggerAttackRelease(
           frequency,
           duration,
           Tone.now(),
-          0.5 + noteData.velocity * 0.3 // 0.5-0.8 volume
+          velocity
         )
       }
 
