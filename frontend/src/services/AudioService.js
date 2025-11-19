@@ -59,22 +59,23 @@ class AudioService {
     }
 
     // Three-tier audio architecture parameters
+    // Volume hierarchy: background < remote < local
     this.threeTierConfig = {
       background: {
         waveform: 'triangle',
-        volumeMultiplier: 1.0,  // Baseline volume (0dB)
+        volumeMultiplier: 0.7,  // Background quieter
         baseFrequency: 110,      // A2 - warm foundation
         color: '#4a9eff'
       },
       remote: {
         waveform: 'square',
-        volumeMultiplier: 1.3,  // +2-3dB above background
+        volumeMultiplier: 1.5,  // Slightly above background
         baseFrequency: 440,      // A4 - mid range
         color: '#ff6b6b'
       },
       local: {
         waveform: 'sawtooth',
-        volumeMultiplier: 1.6,  // +4-6dB above background
+        volumeMultiplier: 2.0,  // Most prominent (local gestures)
         baseFrequency: 880,      // A5 - bright upper register
         color: '#6bcf7f'
       }
@@ -649,9 +650,9 @@ class AudioService {
 
     // Balanced volumes - bass VERY loud, chords quiet
     this.ambientVolumes = {
-      bass: new Tone.Volume(0),     // FULL VOLUME for deep bass prominence
-      pad: new Tone.Volume(-10),    // Very subtle pad
-      chords: new Tone.Volume(-9)   // Quiet chords (was -6dB)
+      bass: new Tone.Volume(-8),    // Background bass (was 0dB, too loud)
+      pad: new Tone.Volume(-12),    // Very subtle pad
+      chords: new Tone.Volume(-10)  // Quiet chords
     }
 
     // Connect each layer with SEND/RETURN architecture
@@ -677,7 +678,7 @@ class AudioService {
         harmonicity: 0,  // Remove harmonicity to prevent triangle waves
         modulationType: 'none'  // Disable modulation
       },
-      volume: -10,  // Quieter default volume
+      volume: -3,  // Louder for gesture prominence (was -10dB)
       envelope: {
         attack: 0.02,  // Faster attack
         decay: 0.2,   // Faster decay
