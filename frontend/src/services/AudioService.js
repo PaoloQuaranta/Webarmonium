@@ -426,12 +426,13 @@ class AudioService {
    */
   createContinuousGenerativeSystem() {
     console.log('🔨 Creating continuous generative system...')
-    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-DELAY-FIX-v11')
+    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-SEND-RETURN-v12')
     console.log('✅ PRIME RHYTHMS: 3700, 5300, 7900 (LCM=43 HOURS)')
     console.log('✅ PATTERNS + MICROVARIATIONS: rhythm × pattern × jitter(±5%)')
     console.log('✅ FLAT ENVELOPES: attack/release 5ms ONLY - envelope does NOT mask pattern!')
     console.log('✅ Pattern system: 12 contrasted patterns (LONG/SHORT/MIXED/EVEN)')
-    console.log('✅ DELAY: FeedbackDelay with modulated speed and feedback (no doubling)')
+    console.log('✅ FX ARCHITECTURE: Send/Return buses for delay and reverb (global FX)')
+    console.log('✅ Send levels: bass(15%), pad(20/30%), chords(20/25%), gesture(25/30%)')
     console.log('🎯 Duration = EXACT pattern multiplier - no envelope artifacts!')
 
     // CRITICAL FIX: Never dispose synths immediately!
@@ -465,19 +466,38 @@ class AudioService {
     // Pass masterVolume to VolumeController (Sprint 2 refactoring)
     this.volumeController.setMasterVolumeNode(this.masterVolume)
 
-    // Create global effects for unified modulation
+    // Create global FX buses (100% wet for send/return architecture)
     this.reverb = new Tone.Reverb({
       decay: 3.0,        // 3 second decay
       preDelay: 0.01,    // 10ms predelay
-      wet: 0.2           // Start with subtle reverb
+      wet: 1.0           // 100% wet - this is a FX bus, not insert
     }).connect(this.masterVolume)
 
     this.delay = new Tone.FeedbackDelay({
       delayTime: 0.2,    // 200ms delay time
       maxDelay: 1,       // 1 second max
-      feedback: 0.4,     // Multiple repetitions (was implicitly 0)
-      wet: 0.05          // Half volume (was 0.1)
+      feedback: 0.4,     // Multiple repetitions
+      wet: 1.0           // 100% wet - this is a FX bus, not insert
     }).connect(this.masterVolume)
+
+    // Create send buses for each FX (gain nodes to control send levels)
+    this.delaySends = {
+      bass: new Tone.Gain(0.15),      // 15% to delay
+      pad: new Tone.Gain(0.2),        // 20% to delay
+      chords: new Tone.Gain(0.2),     // 20% to delay
+      gesture: new Tone.Gain(0.25)    // 25% to delay (more present)
+    }
+
+    this.reverbSends = {
+      bass: new Tone.Gain(0.15),      // 15% to reverb
+      pad: new Tone.Gain(0.3),        // 30% to reverb (pad loves reverb)
+      chords: new Tone.Gain(0.25),    // 25% to reverb
+      gesture: new Tone.Gain(0.3)     // 30% to reverb
+    }
+
+    // Connect send buses to FX
+    Object.values(this.delaySends).forEach(send => send.connect(this.delay))
+    Object.values(this.reverbSends).forEach(send => send.connect(this.reverb))
 
     // Initialize generative composition state
     this.generativeState = {
@@ -634,13 +654,20 @@ class AudioService {
       chords: new Tone.Volume(-9)   // Quiet chords (was -6dB)
     }
 
-    // Connect each layer: synth -> filter -> volume -> effects -> master
+    // Connect each layer with SEND/RETURN architecture
+    // Routing: synth -> filter -> volume -> [dry to master + sends to FX]
     Object.keys(this.ambientLayers).forEach(layer => {
       this.ambientLayers[layer].connect(this.ambientFilters[layer])
       this.ambientFilters[layer].connect(this.ambientVolumes[layer])
-      // Route through reverb and delay with feedback for musical echoes
-      this.ambientVolumes[layer].connect(this.reverb)
-      this.ambientVolumes[layer].connect(this.delay)
+
+      // Dry signal to master
+      this.ambientVolumes[layer].connect(this.masterVolume)
+
+      // Send to delay bus
+      this.ambientVolumes[layer].connect(this.delaySends[layer])
+
+      // Send to reverb bus
+      this.ambientVolumes[layer].connect(this.reverbSends[layer])
     })
 
     // Create gesture-responsive synth with INCREASED polyphony and cleaner sound
@@ -668,14 +695,20 @@ class AudioService {
     })
 
     // Add pan node for gesture synth spatial control
-    this.gesturePan = new Tone.Panner(0).toDestination()
+    this.gesturePan = new Tone.Panner(0)
 
-    // FIX: Correct routing - synth -> filter -> pan -> effects -> master -> destination
+    // SEND/RETURN routing: synth -> filter -> pan -> [dry to master + sends to FX]
     this.gestureSynth.connect(this.gestureFilter)
     this.gestureFilter.connect(this.gesturePan)
-    this.gesturePan.connect(this.reverb)
-    this.gesturePan.connect(this.delay)
+
+    // Dry signal to master
     this.gesturePan.connect(this.masterVolume)
+
+    // Send to delay bus
+    this.gesturePan.connect(this.delaySends.gesture)
+
+    // Send to reverb bus
+    this.gesturePan.connect(this.reverbSends.gesture)
 
     // Polyphony management
     this.maxTotalVoices = 8 // Maximum total voices across all synths
