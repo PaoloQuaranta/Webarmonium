@@ -426,11 +426,12 @@ class AudioService {
    */
   createContinuousGenerativeSystem() {
     console.log('🔨 Creating continuous generative system...')
-    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-FLAT-ENVELOPE-v10')
+    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-DELAY-FIX-v11')
     console.log('✅ PRIME RHYTHMS: 3700, 5300, 7900 (LCM=43 HOURS)')
-    console.log('✅ PURE PATTERNS: Zero variation - only rhythm × pattern')
+    console.log('✅ PATTERNS + MICROVARIATIONS: rhythm × pattern × jitter(±5%)')
     console.log('✅ FLAT ENVELOPES: attack/release 5ms ONLY - envelope does NOT mask pattern!')
     console.log('✅ Pattern system: 12 contrasted patterns (LONG/SHORT/MIXED/EVEN)')
+    console.log('✅ DELAY: FeedbackDelay with modulated speed and feedback (no doubling)')
     console.log('🎯 Duration = EXACT pattern multiplier - no envelope artifacts!')
 
     // CRITICAL FIX: Never dispose synths immediately!
@@ -471,10 +472,11 @@ class AudioService {
       wet: 0.2           // Start with subtle reverb
     }).connect(this.masterVolume)
 
-    this.delay = new Tone.Delay({
-      delayTime: 0.2,    // 200ms delay
+    this.delay = new Tone.FeedbackDelay({
+      delayTime: 0.2,    // 200ms delay time
       maxDelay: 1,       // 1 second max
-      wet: 0.1           // Start with subtle delay
+      feedback: 0.4,     // Multiple repetitions (was implicitly 0)
+      wet: 0.05          // Half volume (was 0.1)
     }).connect(this.masterVolume)
 
     // Initialize generative composition state
@@ -636,10 +638,9 @@ class AudioService {
     Object.keys(this.ambientLayers).forEach(layer => {
       this.ambientLayers[layer].connect(this.ambientFilters[layer])
       this.ambientFilters[layer].connect(this.ambientVolumes[layer])
-      // Route through reverb only (NO DELAY to prevent note repetition)
+      // Route through reverb and delay with feedback for musical echoes
       this.ambientVolumes[layer].connect(this.reverb)
-      // Also connect directly to master for dry signal
-      this.ambientVolumes[layer].connect(this.masterVolume)
+      this.ambientVolumes[layer].connect(this.delay)
     })
 
     // Create gesture-responsive synth with INCREASED polyphony and cleaner sound
@@ -736,11 +737,13 @@ class AudioService {
               console.log(`🔄 ${layerName}: pattern change ${oldPattern} → ${layer.currentPatternIndex} [${this.generativeState.rhythmPatterns[layer.currentPatternIndex].join(', ')}]`)
             }
 
-            // PURE PATTERN - NO DRIFT, NO JITTER, NO VARIATION
-            // Just the pattern multiplier applied to base rhythm
-            layer.nextNoteTime = layer.rhythm * patternMultiplier
+            // PATTERN + MICROVARIATIONS for organic timing
+            // Base timing from pattern, with subtle jitter (±5%) for human feel
+            const baseTime = layer.rhythm * patternMultiplier
+            const jitter = 1 + (Math.random() - 0.5) * 0.1  // ±5% variation
+            layer.nextNoteTime = baseTime * jitter
 
-            console.log(`⏱️ ${layerName}: nextNote in ${Math.round(layer.nextNoteTime)}ms (rhythm=${layer.rhythm} × pattern=${patternMultiplier})`)
+            console.log(`⏱️ ${layerName}: nextNote in ${Math.round(layer.nextNoteTime)}ms (rhythm=${layer.rhythm} × pattern=${patternMultiplier} × jitter=${jitter.toFixed(3)})`)
           }
         })
 
@@ -4183,12 +4186,29 @@ class AudioService {
       this.generativeState.mode = parameters.mode
     }
 
+    // DELAY MODULATION: Speed and feedback based on interaction metrics
+    if (this.delay) {
+      // Delay time: faster with higher rhythmic density (100ms - 400ms range)
+      if (parameters.rhythmicDensity !== undefined) {
+        const delayTime = 0.4 - (parameters.rhythmicDensity * 0.15)  // More dense = faster delay
+        this.delay.delayTime.rampTo(Math.max(0.1, delayTime), 2)  // Smooth 2s transition
+      }
+
+      // Feedback: more repetitions with higher harmonic density (0.2 - 0.6 range)
+      if (parameters.harmonicDensity !== undefined) {
+        const feedback = 0.2 + (parameters.harmonicDensity * 0.1)  // More complex = more echoes
+        this.delay.feedback.rampTo(Math.min(0.6, feedback), 2)  // Smooth 2s transition
+      }
+    }
+
     console.log('🎵 Updated generative state:', {
       scale: this.generativeState.currentScale,
       tonic: this.generativeState.currentTonic.toFixed(1),
       complexity: this.generativeState.complexity.toFixed(2),
       bassRhythm: this.generativeState.layers.bass.rhythm.toFixed(0),
-      activeLayers: Object.keys(this.generativeState.layers).length
+      activeLayers: Object.keys(this.generativeState.layers).length,
+      delayTime: this.delay ? this.delay.delayTime.value.toFixed(2) : 'N/A',
+      delayFeedback: this.delay ? this.delay.feedback.value.toFixed(2) : 'N/A'
     })
   }
 }
