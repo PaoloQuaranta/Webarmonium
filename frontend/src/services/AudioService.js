@@ -678,7 +678,7 @@ class AudioService {
         harmonicity: 0,  // Remove harmonicity to prevent triangle waves
         modulationType: 'none'  // Disable modulation
       },
-      volume: -3,  // Louder for gesture prominence (was -10dB)
+      volume: +5,  // High volume for gesture prominence
       envelope: {
         attack: 0.02,  // Faster attack
         decay: 0.2,   // Faster decay
@@ -1259,13 +1259,13 @@ class AudioService {
       const tierDuration = this.calculateThreeTierDuration(gestureVelocity, '8n')
 
       // Trigger gesture-responsive note with three-tier duration
-      // Use volume from gesture as velocity parameter (0.3-0.7 range)
+      // Use volume from gesture as velocity parameter (0.5-1.0 range for prominence)
       if (this.gestureSynth && this.gestureSynth.triggerAttackRelease) {
-        // FIX: Simplified approach without delay to prevent hanging
-        const velocity = Math.max(0.1, Math.min(0.8, 0.3 + (volume * 0.4)))
+        // Higher velocity range for local gesture prominence
+        const velocity = Math.max(0.5, Math.min(1.0, 0.5 + (volume * 0.5)))
 
-        // Trigger note directly with immediate effect and lower volume
-        this.gestureSynth.triggerAttackRelease(frequency, tierDuration, undefined, velocity * 0.6)
+        // Trigger note with full velocity (no reduction multiplier)
+        this.gestureSynth.triggerAttackRelease(frequency, tierDuration, undefined, velocity)
 
         console.log(`🎵 Triggering gesture note: ${frequency.toFixed(1)}Hz, duration: ${tierDuration}s, velocity: ${velocity.toFixed(2)}`)
       } else {
