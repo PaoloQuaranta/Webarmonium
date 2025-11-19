@@ -702,14 +702,22 @@ class AudioService {
     this.gestureSynth.connect(this.gestureFilter)
     this.gestureFilter.connect(this.gesturePan)
 
-    // Dry signal to master
-    this.gesturePan.connect(this.masterVolume)
+    // Create volume node for gesture dry signal (boost for prominence)
+    this.gestureVolume = new Tone.Volume(+10) // +10dB boost for local gesture prominence
+
+    // Dry signal routing: pan -> volume -> master
+    this.gesturePan.connect(this.gestureVolume)
+    this.gestureVolume.connect(this.masterVolume)
 
     // Send to delay bus
     this.gesturePan.connect(this.delaySends.gesture)
 
     // Send to reverb bus
     this.gesturePan.connect(this.reverbSends.gesture)
+
+    console.log('🔌 Gesture routing: gestureSynth → filter → pan → [gestureVolume → master + sends to FX]')
+    console.log('🔊 Gesture synth volume:', this.gestureSynth.volume.value, 'dB')
+    console.log('🔊 Gesture dry volume:', this.gestureVolume.volume.value, 'dB')
 
     // Polyphony management
     this.maxTotalVoices = 8 // Maximum total voices across all synths
@@ -1264,10 +1272,18 @@ class AudioService {
         // Higher velocity range for local gesture prominence
         const velocity = Math.max(0.5, Math.min(1.0, 0.5 + (volume * 0.5)))
 
+        console.log(`🔊 LOCAL GESTURE TRIGGER:`)
+        console.log(`  ↳ Frequency: ${frequency.toFixed(1)}Hz`)
+        console.log(`  ↳ Duration: ${tierDuration}s`)
+        console.log(`  ↳ Velocity: ${velocity.toFixed(2)}`)
+        console.log(`  ↳ Synth volume: ${this.gestureSynth.volume.value}dB`)
+        console.log(`  ↳ Active voices before: ${this.gestureSynth.activeVoices}`)
+
         // Trigger note with full velocity (no reduction multiplier)
         this.gestureSynth.triggerAttackRelease(frequency, tierDuration, undefined, velocity)
 
-        console.log(`🎵 Triggering gesture note: ${frequency.toFixed(1)}Hz, duration: ${tierDuration}s, velocity: ${velocity.toFixed(2)}`)
+        console.log(`  ↳ Active voices after: ${this.gestureSynth.activeVoices}`)
+        console.log(`  ↳ Trigger successful!`)
       } else {
         console.warn('🔇 Gesture synth not available for note triggering')
       }
