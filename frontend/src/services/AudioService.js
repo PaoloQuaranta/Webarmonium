@@ -1941,17 +1941,21 @@ class AudioService {
           }
 
           // Use triggerAttackRelease for accurate duration control
+          // Remote gestures should be quieter than local gestures
+          const finalVelocity = isStreamed ? adjustedVelocity * 0.6 : adjustedVelocity
+
           this.gestureSynth.triggerAttackRelease(
             frequency,
             adjustedDuration,  // Tone.js handles duration in seconds
             Tone.now(),
-            adjustedVelocity
+            finalVelocity
           )
 
-          console.log('🎶 Note played:', {
+          console.log(`🎶 Note played (${isStreamed ? 'REMOTE' : 'LOCAL'}):`, {
             frequency: frequency.toFixed(1),
             duration: adjustedDuration.toFixed(3),
-            velocity: adjustedVelocity.toFixed(2),
+            velocity: finalVelocity.toFixed(3),
+            type: isStreamed ? 'remote (×0.6)' : 'local (full)',
             articulation: articulation
           })
         } catch (e) {
