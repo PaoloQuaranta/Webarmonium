@@ -187,14 +187,20 @@ class GestureToMusicService {
     const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
 
     // Convert frequency to MIDI pitch for backend processing
-    const pitch = Math.round(12 * Math.log2(frequency / 440) + 69)
+    const rawPitch = Math.round(12 * Math.log2(frequency / 440) + 69)
 
-    console.log('🎯 REMOTE TAP:', {
+    // HARMONIC COHERENCE: Constrain pitch to current scale
+    const pitch = this.harmonicEngine.constrainToScale(rawPitch, this.currentKey, this.currentMode)
+
+    console.log('🎯 REMOTE TAP (HARMONIC):', {
       userId: gestureData.userId.substring(0, 8),
       x: x.toFixed(2),
       y: y.toFixed(2),
       freq: frequency.toFixed(0) + 'Hz',
-      pitch: pitch
+      rawPitch: rawPitch,
+      constrainedPitch: pitch,
+      key: this.currentKey,
+      mode: this.currentMode
     })
 
     return {
@@ -207,7 +213,7 @@ class GestureToMusicService {
         startBeat: 0
       }],
       metadata: {
-        scale: this.phraseMorphology.scales.major,
+        scale: this.harmonicEngine.getCurrentScale(this.currentKey, this.currentMode),
         key: musicalContext.key,
         length: 1,
         tempo: musicalContext.tempo,
@@ -218,9 +224,14 @@ class GestureToMusicService {
 
   generateHoverPhrase(gestureData, musicalContext) {
     // Long, sustained notes for hover gestures
+    const rawPitch = 48 + Math.round(gestureData.position.y * 24) // Y-based pitch
+
+    // HARMONIC COHERENCE: Constrain pitch to current scale
+    const pitch = this.harmonicEngine.constrainToScale(rawPitch, this.currentKey, this.currentMode)
+
     return {
       notes: [{
-        pitch: 48 + (gestureData.position.y * 24), // Y-based pitch
+        pitch: pitch,
         duration: 2.0 + gestureData.curvature, // Curvature affects length
         velocity: 60 + (gestureData.intensity * 20), // Intensity affects volume
         articulation: 'legato',
@@ -228,7 +239,7 @@ class GestureToMusicService {
         startBeat: 0
       }],
       metadata: {
-        scale: this.phraseMorphology.scales.minor,
+        scale: this.harmonicEngine.getCurrentScale(this.currentKey, this.currentMode),
         key: musicalContext.key,
         length: 1,
         tempo: musicalContext.tempo,
@@ -239,9 +250,14 @@ class GestureToMusicService {
 
   generateBasicPhrase(gestureData, musicalContext) {
     // Simple melodic contour for unknown gestures
+    const rawPitch = 60 + Math.round(gestureData.position.x * 12) // Chromatic pitch
+
+    // HARMONIC COHERENCE: Constrain pitch to current scale
+    const pitch = this.harmonicEngine.constrainToScale(rawPitch, this.currentKey, this.currentMode)
+
     return {
       notes: [{
-        pitch: 60 + (gestureData.position.x * 7), // Diatonic pitch
+        pitch: pitch, // Diatonic pitch in current scale
         duration: 0.5,
         velocity: 70,
         articulation: 'normal',

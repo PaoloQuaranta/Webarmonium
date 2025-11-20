@@ -475,6 +475,58 @@ class HarmonicEngine {
       quality: 'major'
     }
   }
+
+  /**
+   * Constrain MIDI pitch to current scale
+   * Snaps any pitch to the nearest note in the current key and mode
+   */
+  constrainToScale(pitch, key = null, mode = null) {
+    const useKey = key || this.currentKey
+    const useMode = mode || this.currentMode
+
+    // Get scale intervals
+    const scaleIntervals = this.scales[useMode] || this.scales.ionian
+
+    // Get tonic note
+    const tonic = this.getTonicNote(useKey)
+
+    // Calculate pitch class (0-11) and octave
+    const pitchClass = pitch % 12
+    const octave = Math.floor(pitch / 12)
+
+    // Find nearest scale degree
+    let nearestDistance = 12
+    let nearestScaleDegree = 0
+
+    scaleIntervals.forEach(interval => {
+      const scalePitchClass = (tonic + interval) % 12
+      const distance = Math.abs(pitchClass - scalePitchClass)
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance
+        nearestScaleDegree = interval
+      }
+    })
+
+    // Reconstruct pitch in scale
+    const constrainedPitchClass = (tonic + nearestScaleDegree) % 12
+    const constrainedPitch = octave * 12 + constrainedPitchClass
+
+    return constrainedPitch
+  }
+
+  /**
+   * Get current scale as array of MIDI pitches in one octave
+   */
+  getCurrentScale(key = null, mode = null) {
+    const useKey = key || this.currentKey
+    const useMode = mode || this.currentMode
+
+    const tonic = this.getTonicNote(useKey)
+    const scaleIntervals = this.scales[useMode] || this.scales.ionian
+
+    return scaleIntervals.map(interval => tonic + interval)
+  }
 }
 
 module.exports = HarmonicEngine

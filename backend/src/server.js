@@ -77,6 +77,14 @@ const gestureProcessor = new GestureProcessor(roomManager)
 const soundPatternGenerator = new SoundPatternGenerator()
 const environmentalMemoryCoordinator = new EnvironmentalMemoryCoordinator(roomManager)
 const backgroundCompositionService = new BackgroundCompositionService()
+const GestureToMusicService = require('./services/GestureToMusicService')
+const gestureToMusicService = new GestureToMusicService()
+
+// Sync harmonic context between background composition and gestures
+gestureToMusicService.currentKey = backgroundCompositionService.compositionEngine.keyCenter
+gestureToMusicService.currentMode = backgroundCompositionService.compositionEngine.mode
+gestureToMusicService.harmonicEngine.currentKey = backgroundCompositionService.compositionEngine.keyCenter
+gestureToMusicService.harmonicEngine.currentMode = backgroundCompositionService.compositionEngine.mode
 
 // Initialize Phase 3.3 services
 // Phase 3.3 service instances (temporarily commented for three-tier implementation)
@@ -94,7 +102,8 @@ const services = {
   gestureProcessor,
   soundPatternGenerator,
   environmentalMemoryCoordinator,
-  backgroundCompositionService
+  backgroundCompositionService,
+  gestureToMusicService
   // Phase 3.3 services temporarily commented for three-tier implementation
   // patternRecognitionService,
   // compositionEngine,

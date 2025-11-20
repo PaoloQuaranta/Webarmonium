@@ -347,9 +347,8 @@ const socketHandlers = {
           }
 
           try {
-            const GestureToMusicService = require('../services/GestureToMusicService')
-            const gestureToMusicService = new GestureToMusicService()
-            musicalResult = gestureToMusicService.processGesture(gestureData)
+            // Use shared service instance for harmonic coherence
+            musicalResult = socket.services.gestureToMusicService.processGesture(gestureData)
 
             // Add material to BackgroundCompositionService for continuous composition
             if (musicalResult && socket.services.backgroundCompositionService) {
@@ -953,9 +952,8 @@ const socketHandlers = {
           gesture: data.gesture
         }
 
-        const GestureToMusicService = require('../services/GestureToMusicService')
-        const gestureToMusicService = new GestureToMusicService()
-        const musicalResult = gestureToMusicService.processGesture(gestureData)
+        // Use shared service instance for harmonic coherence
+        const musicalResult = socket.services.gestureToMusicService.processGesture(gestureData)
 
         // Add material to BackgroundCompositionService for continuous composition
         if (musicalResult && socket.services.backgroundCompositionService) {
