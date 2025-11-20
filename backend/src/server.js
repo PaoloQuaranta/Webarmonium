@@ -15,6 +15,7 @@ const RoomManager = require('./services/RoomManager')
 const GestureProcessor = require('./services/GestureProcessor')
 const SoundPatternGenerator = require('./services/SoundPatternGenerator')
 const EnvironmentalMemoryCoordinator = require('./services/EnvironmentalMemoryCoordinator')
+const BackgroundCompositionService = require('./services/BackgroundCompositionService')
 const socketHandlers = require('./api/socketHandlers')
 
 // Phase 3.3 REST API services (temporarily commented for three-tier implementation)
@@ -75,6 +76,7 @@ const roomManager = new RoomManager()
 const gestureProcessor = new GestureProcessor(roomManager)
 const soundPatternGenerator = new SoundPatternGenerator()
 const environmentalMemoryCoordinator = new EnvironmentalMemoryCoordinator(roomManager)
+const backgroundCompositionService = new BackgroundCompositionService()
 
 // Initialize Phase 3.3 services
 // Phase 3.3 service instances (temporarily commented for three-tier implementation)
@@ -91,7 +93,8 @@ const services = {
   roomManager,
   gestureProcessor,
   soundPatternGenerator,
-  environmentalMemoryCoordinator
+  environmentalMemoryCoordinator,
+  backgroundCompositionService
   // Phase 3.3 services temporarily commented for three-tier implementation
   // patternRecognitionService,
   // compositionEngine,
@@ -895,6 +898,9 @@ app.delete('/api/rooms/:id', (req, res) => {
     })
   }
 })
+
+// Set Socket.IO instance for BackgroundCompositionService
+backgroundCompositionService.setSocketIO(io)
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {

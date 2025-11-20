@@ -158,6 +158,15 @@ const socketHandlers = {
           strokes: drawingHistory
         })
 
+        // Start background composition for the room
+        if (socket.services.backgroundCompositionService) {
+          socket.services.backgroundCompositionService.startComposition(roomId, {
+            roomId: roomId,
+            userCount: result.room.userCount,
+            activeUsers: result.users.map(u => u.id)
+          })
+        }
+
         console.log(`User ${socket.userId} joined room ${roomId} (${latency}ms)`)
 
         // Log constitutional compliance
@@ -341,6 +350,15 @@ const socketHandlers = {
             const GestureToMusicService = require('../services/GestureToMusicService')
             const gestureToMusicService = new GestureToMusicService()
             musicalResult = gestureToMusicService.processGesture(gestureData)
+
+            // Add material to BackgroundCompositionService for continuous composition
+            if (musicalResult && socket.services.backgroundCompositionService) {
+              socket.services.backgroundCompositionService.addMaterial(
+                socket.roomId,
+                gestureData,
+                musicalResult
+              )
+            }
           } catch (error) {
             console.error('GestureToMusicService failed:', error)
             // Continue with fallback gesture processing instead of throwing
@@ -798,6 +816,20 @@ const socketHandlers = {
           timestamp: Date.now()
         })
 
+        // Stop background composition if room is now empty
+        const roomAfterLeave = roomManager.getRoom(socket.roomId)
+        if (socket.services.backgroundCompositionService) {
+          if (!roomAfterLeave || roomAfterLeave.users.size === 0) {
+            socket.services.backgroundCompositionService.stopComposition(socket.roomId)
+          } else {
+            // Update room context with new user count
+            socket.services.backgroundCompositionService.updateRoomContext(socket.roomId, {
+              userCount: roomAfterLeave.users.size,
+              activeUsers: Array.from(roomAfterLeave.users.values()).map(u => u.id)
+            })
+          }
+        }
+
         console.log(`User ${socket.userId} disconnected from room ${socket.roomId}`)
       } catch (error) {
         console.error('Disconnection cleanup error:', error)
@@ -924,6 +956,15 @@ const socketHandlers = {
         const GestureToMusicService = require('../services/GestureToMusicService')
         const gestureToMusicService = new GestureToMusicService()
         const musicalResult = gestureToMusicService.processGesture(gestureData)
+
+        // Add material to BackgroundCompositionService for continuous composition
+        if (musicalResult && socket.services.backgroundCompositionService) {
+          socket.services.backgroundCompositionService.addMaterial(
+            socket.roomId,
+            gestureData,
+            musicalResult
+          )
+        }
 
         // Store gesture in room memory
         socket.services.roomManager.addGestureToRoom(socket.roomId, {

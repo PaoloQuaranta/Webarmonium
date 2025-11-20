@@ -583,6 +583,13 @@ class WebarmoniumApp {
       }
     })
 
+    this.socketService.on('background-composition', (data) => {
+      console.log('🎼 Received background composition:', data.compositionNumber)
+      if (this.isAudioStarted && data.composition) {
+        this.audioService.playComposition(data.composition)
+      }
+    })
+
     // PHASE 5: Removed unused 'gesture-processed' listener (82 lines)
     // Backend never emits this event - it uses 'musical:event' instead
     // Logic for remote gestures now handled by 'musical:event' listener above
