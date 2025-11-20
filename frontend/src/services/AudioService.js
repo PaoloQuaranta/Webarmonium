@@ -1744,7 +1744,7 @@ class AudioService {
       voice.notes.forEach(note => {
         const frequency = this.midiToFrequency(note.pitch || 60)
         const duration = note.duration || 0.5
-        const velocity = (note.velocity || 64) / 127 * 0.3
+        const velocity = (note.velocity || 64) / 127 * 1.2  // Increased from 0.3 to 1.2 for audible background
         const delay = (note.startBeat || 0) * 0.5
 
         setTimeout(() => {
@@ -1768,7 +1768,7 @@ class AudioService {
       content.melody.notes.forEach((note, index) => {
         const frequency = this.midiToFrequency(note.pitch || 60)
         const duration = note.duration || 0.5
-        const velocity = (note.velocity || 64) / 127 * 0.4
+        const velocity = (note.velocity || 64) / 127 * 1.5  // Increased from 0.4 to 1.5 for audible melody
         const delay = (note.startBeat || index * 0.5) * 0.5
 
         setTimeout(() => {
@@ -1804,7 +1804,7 @@ class AudioService {
           setTimeout(() => {
             if (this.ambientLayers && this.ambientLayers.backgroundMid) {
               this.ambientLayers.backgroundMid.triggerAttackRelease(
-                frequency, duration, undefined, 0.2
+                frequency, duration, undefined, 0.6  // Increased from 0.2 to 0.6 for audible arpeggios
               )
             }
           }, delay * 1000)
@@ -1822,7 +1822,7 @@ class AudioService {
           setTimeout(() => {
             if (this.ambientLayers && this.ambientLayers.backgroundLow) {
               this.ambientLayers.backgroundLow.triggerAttackRelease(
-                frequency, duration, undefined, 0.15
+                frequency, duration, undefined, 0.8  // Increased from 0.15 to 0.8 for clearly audible bass
               )
             }
           }, delay * 1000)
@@ -1850,7 +1850,7 @@ class AudioService {
       setTimeout(() => {
         if (this.ambientLayers && this.ambientLayers.backgroundLow) {
           this.ambientLayers.backgroundLow.triggerAttackRelease(
-            frequency, 8, undefined, 0.1
+            frequency, 8, undefined, 0.4  // Increased from 0.1 to 0.4 for audible ambient texture
           )
         }
       }, delay * 1000)
