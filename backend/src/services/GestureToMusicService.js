@@ -167,8 +167,8 @@ class GestureToMusicService {
         return this.generateTapPhrase(gestureData, musicalContext)
 
       case 'hover':
-        console.log('🎵 HOVER: Generating ambient texture')
-        return this.generateHoverPhrase(gestureData, musicalContext)
+        console.log('🎵 HOVER: NO SOUND - only filter modulation (cutoff/resonance)')
+        return null // Hover doesn't generate sound, only modulates filters
 
       default:
         console.log('🎵 DEFAULT: Generating basic phrase')
