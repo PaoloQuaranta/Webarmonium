@@ -1314,13 +1314,6 @@ class AudioService {
       if (this.gestureSynth && this.gestureSynth.filter) {
         this.gestureSynth.filter.frequency.linearRampToValueAtTime(filterFreq, Tone.now() + 0.05)
         console.log(`🎛️ Applied gesture filter: ${filterFreq.toFixed(1)}Hz (ramp 50ms)`)
-
-        // Also apply to master volume for cleaner routing
-        if (this.masterVolume && this.masterVolume.volume) {
-          const targetVolume = Math.max(-40, Math.min(0, -5)) // Reduce background to make local gesture clearer
-          this.masterVolume.volume.linearRampToValueAtTime(targetVolume, Tone.now() + 0.1)
-          console.log(`🎛️ Applied master volume: ${targetVolume}dB for gesture clarity`)
-        }
       }
 
       // Calculate three-tier duration based on gesture velocity
