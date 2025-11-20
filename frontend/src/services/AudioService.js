@@ -542,35 +542,35 @@ class AudioService {
       ],
 
       // SIMPLIFIED STRUCTURE: Bass + Pad + Chords
-      // Reduces polyphony and creates clearer musical texture
-      // BALANCED RHYTHMS: All layers similar speed to avoid dominant pulse
+      // Event density hierarchy: bass > chords > pad
+      // PRIME RHYTHMS: Prevent synchronization between layers
       layers: {
         bass: {
           nextNoteTime: 0,
-          rhythm: 3700,      // PRIME-ISH: Prevents synchronization with other layers
+          rhythm: 1900,      // VERY FAST: High event density for bass foundation
           currentNote: 0,    // Current scale degree
           octave: -2,        // Two octaves below tonic (55-110Hz range)
-          velocity: 0.45,    // QUIETER: was 0.8, too dominant
+          velocity: 0.45,    // Balanced velocity
           lastFrequency: null,  // Track for release
           currentPatternIndex: 3,  // Start with SHORT pattern (four rapid)
           patternPosition: 0       // Position within the pattern
         },
         pad: {
           nextNoteTime: 1200,  // Offset start to avoid initial cluster
-          rhythm: 5300,      // PRIME: Completely independent from bass/chords
+          rhythm: 8300,      // VERY SLOW: Low event density for ethereal pad
           currentNotes: [2, 4],  // Two notes for pad (third and fifth)
           octave: 0,         // Same as tonic (220Hz range)
-          velocity: 0.30,    // LOUDER: was 0.25, too quiet
+          velocity: 0.30,    // Quieter for subtle background
           lastFrequencies: [],  // Track for release
           currentPatternIndex: 0,  // Start with LONG pattern (single sustained)
           patternPosition: 0
         },
         chords: {
           nextNoteTime: 2400, // Different offset
-          rhythm: 7900,      // PRIME: Maximum desynchronization from others
+          rhythm: 4700,      // MEDIUM: Mid event density for harmonic rhythm
           currentChord: 0,   // Index in progression
           octave: 1,         // One octave above tonic (440Hz range)
-          velocity: 0.40,    // LOUDER: was 0.3, chords should be prominent
+          velocity: 0.40,    // Moderate velocity
           lastFrequencies: [],  // Track for release
           currentPatternIndex: 10,  // Start with EVEN pattern (steady triplet)
           patternPosition: 0
@@ -597,7 +597,7 @@ class AudioService {
     }
 
     // Create multi-layer ambient synth system with REDUCED POLYPHONY
-    // BASS: Deep, warm foundation (single note)
+    // BASS: Deep, warm foundation (2 voices for clarity)
     this.ambientLayers = {
       bass: new Tone.PolySynth({
         oscillator: {
@@ -611,10 +611,10 @@ class AudioService {
           sustain: 0.9,   // High sustain
           release: 0.2   // Short release
         },
-        maxPolyphony: 3
+        maxPolyphony: 2  // 2 voices as requested
       }),
 
-      // PAD: Ethereal, slow-evolving pad (distinct from chords)
+      // PAD: Ethereal, slow-evolving pad (4 voices for lush texture)
       pad: new Tone.PolySynth({
         oscillator: {
           type: 'fattriangle',  // Softer, rounder than square - DISTINCT from chords
@@ -622,15 +622,15 @@ class AudioService {
           spread: 60  // Wide spread for spacious sound
         },
         envelope: {
-          attack: 1.5,   // SLOW attack - pad swells in gently
-          decay: 0.5,
-          sustain: 0.8,
-          release: 2.5   // LONG release - pad lingers
+          attack: 3.0,   // VERY SLOW attack - pad swells in slowly
+          decay: 1.5,    // Longer decay
+          sustain: 0.7,
+          release: 4.0   // VERY LONG release - pad lingers
         },
-        maxPolyphony: 6
+        maxPolyphony: 4  // 4 voices as requested
       }),
 
-      // CHORDS: Bright, articulate chords (distinct from pad)
+      // CHORDS: Bright, articulate chords (4 voices)
       chords: new Tone.PolySynth({
         oscillator: {
           type: 'fatsquare',  // Hollow, bright - DISTINCT from pad
@@ -643,7 +643,7 @@ class AudioService {
           sustain: 0.7,
           release: 0.4   // Shorter release than pad
         },
-        maxPolyphony: 9
+        maxPolyphony: 4  // 4 voices as requested
       }),
 
       // BACKGROUND COMPOSITION LAYERS - High volume to match gestures
@@ -706,10 +706,10 @@ class AudioService {
       backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 300, Q: 2 })  // Bass layer
     }
 
-    // Balanced volumes - bass prominent, pad subtle, chords reduced
+    // Balanced volumes - bass prominent, pad very subtle, chords reduced
     this.ambientVolumes = {
       bass: new Tone.Volume(+2),     // Bass boosted for audibility and presence
-      pad: new Tone.Volume(-6),      // Pad subtle but present (ethereal background)
+      pad: new Tone.Volume(-12),     // Pad very subtle (reduced from -6 to -12)
       chords: new Tone.Volume(-18),  // Chords significantly reduced (were too loud)
       backgroundHigh: new Tone.Volume(+10),  // Same boost as gestures for balanced composition
       backgroundMid: new Tone.Volume(+10),   // Same boost as gestures for balanced composition
