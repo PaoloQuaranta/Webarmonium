@@ -602,58 +602,58 @@ class AudioService {
       bass: new Tone.PolySynth({
         oscillator: {
           type: 'fatsawtooth',  // Rich bass tone
-          count: 3,
-          spread: 30
-        },
-        envelope: {
-          attack: 0.005,  // MINIMAL attack - just enough to prevent click (5ms)
-          decay: 0.01,    // Minimal decay
-          sustain: 1.0,   // FULL sustain - note at constant volume
-          release: 0.005  // MINIMAL release - just anti-click (5ms)
-        },
-        maxPolyphony: 3  // INCREASED: Allow overlap during release (was 1)
-      }),
-
-      // PAD: Warm pad-like sound (1-2 notes)
-      pad: new Tone.PolySynth({
-        oscillator: {
-          type: 'fatsquare',  // Warm, hollow
-          count: 3,
+          count: 4,  // More unison voices for fuller bass
           spread: 40
         },
         envelope: {
-          attack: 0.005,  // MINIMAL attack (5ms)
-          decay: 0.01,    // Minimal decay
-          sustain: 1.0,   // FULL sustain
-          release: 0.005  // MINIMAL release (5ms)
+          attack: 0.01,  // Quick attack for punchy bass
+          decay: 0.1,
+          sustain: 0.9,   // High sustain
+          release: 0.2   // Short release
         },
-        maxPolyphony: 6  // INCREASED: Allow overlap during long release (was 2)
+        maxPolyphony: 3
       }),
 
-      // CHORDS: Triad chords (3 notes)
-      chords: new Tone.PolySynth({
+      // PAD: Ethereal, slow-evolving pad (distinct from chords)
+      pad: new Tone.PolySynth({
         oscillator: {
-          type: 'fatsquare',  // Warm for chords
-          count: 2,
-          spread: 20
+          type: 'fattriangle',  // Softer, rounder than square - DISTINCT from chords
+          count: 5,  // More voices for lush pad texture
+          spread: 60  // Wide spread for spacious sound
         },
         envelope: {
-          attack: 0.005,  // MINIMAL attack (5ms)
-          decay: 0.01,    // Minimal decay
-          sustain: 1.0,   // FULL sustain
-          release: 0.005  // MINIMAL release (5ms)
+          attack: 1.5,   // SLOW attack - pad swells in gently
+          decay: 0.5,
+          sustain: 0.8,
+          release: 2.5   // LONG release - pad lingers
         },
-        maxPolyphony: 9  // INCREASED: 3 notes × 3 voices = 9 (was 3)
+        maxPolyphony: 6
+      }),
+
+      // CHORDS: Bright, articulate chords (distinct from pad)
+      chords: new Tone.PolySynth({
+        oscillator: {
+          type: 'fatsquare',  // Hollow, bright - DISTINCT from pad
+          count: 2,  // Fewer voices for clarity
+          spread: 20  // Tighter spread
+        },
+        envelope: {
+          attack: 0.05,  // Quick attack for articulation
+          decay: 0.2,
+          sustain: 0.7,
+          release: 0.4   // Shorter release than pad
+        },
+        maxPolyphony: 9
       }),
 
       // BACKGROUND COMPOSITION LAYERS - High volume to match gestures
       backgroundHigh: new Tone.PolySynth({
         oscillator: {
-          type: 'sine',
+          type: 'sine',  // Pure tone for melodic clarity
           count: 2,
           spread: 20
         },
-        volume: +5,  // Same volume as gestureSynth for balanced mix
+        volume: +5,
         envelope: {
           attack: 0.02,
           decay: 0.2,
@@ -665,11 +665,11 @@ class AudioService {
 
       backgroundMid: new Tone.PolySynth({
         oscillator: {
-          type: 'triangle',
+          type: 'triangle',  // Softer than sine, good for arpeggios
           count: 2,
           spread: 15
         },
-        volume: +5,  // Same volume as gestureSynth for balanced mix
+        volume: +5,
         envelope: {
           attack: 0.05,
           decay: 0.3,
@@ -681,11 +681,11 @@ class AudioService {
 
       backgroundLow: new Tone.PolySynth({
         oscillator: {
-          type: 'sawtooth',
+          type: 'sawtooth',  // Bright harmonics for bass presence
           count: 3,
           spread: 30
         },
-        volume: +5,  // Same volume as gestureSynth for audible bass
+        volume: +5,
         envelope: {
           attack: 0.1,
           decay: 0.3,
@@ -706,11 +706,11 @@ class AudioService {
       backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 300, Q: 2 })  // Bass layer
     }
 
-    // Balanced volumes - bass VERY loud, chords quiet
+    // Balanced volumes - bass prominent, pad subtle, chords reduced
     this.ambientVolumes = {
-      bass: new Tone.Volume(-8),    // Background bass (was 0dB, too loud)
-      pad: new Tone.Volume(-12),    // Very subtle pad
-      chords: new Tone.Volume(-10),  // Quiet chords
+      bass: new Tone.Volume(+2),     // Bass boosted for audibility and presence
+      pad: new Tone.Volume(-6),      // Pad subtle but present (ethereal background)
+      chords: new Tone.Volume(-18),  // Chords significantly reduced (were too loud)
       backgroundHigh: new Tone.Volume(+10),  // Same boost as gestures for balanced composition
       backgroundMid: new Tone.Volume(+10),   // Same boost as gestures for balanced composition
       backgroundLow: new Tone.Volume(+10)    // Same boost as gestures for audible bass
