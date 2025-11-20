@@ -486,14 +486,20 @@ class AudioService {
       bass: new Tone.Gain(0.15),      // 15% to delay
       pad: new Tone.Gain(0.2),        // 20% to delay
       chords: new Tone.Gain(0.2),     // 20% to delay
-      gesture: new Tone.Gain(0.25)    // 25% to delay (more present)
+      gesture: new Tone.Gain(0.25),   // 25% to delay (more present)
+      backgroundHigh: new Tone.Gain(0.2),  // 20% to delay for composition
+      backgroundMid: new Tone.Gain(0.2),   // 20% to delay for composition
+      backgroundLow: new Tone.Gain(0.15)   // 15% to delay for composition bass
     }
 
     this.reverbSends = {
       bass: new Tone.Gain(0.15),      // 15% to reverb
       pad: new Tone.Gain(0.3),        // 30% to reverb (pad loves reverb)
       chords: new Tone.Gain(0.25),    // 25% to reverb
-      gesture: new Tone.Gain(0.3)     // 30% to reverb
+      gesture: new Tone.Gain(0.3),    // 30% to reverb
+      backgroundHigh: new Tone.Gain(0.25),  // 25% to reverb for composition
+      backgroundMid: new Tone.Gain(0.25),   // 25% to reverb for composition
+      backgroundLow: new Tone.Gain(0.2)     // 20% to reverb for composition bass
     }
 
     // Connect send buses to FX
@@ -638,6 +644,55 @@ class AudioService {
           release: 0.005  // MINIMAL release (5ms)
         },
         maxPolyphony: 9  // INCREASED: 3 notes × 3 voices = 9 (was 3)
+      }),
+
+      // BACKGROUND COMPOSITION LAYERS - High volume to match gestures
+      backgroundHigh: new Tone.PolySynth({
+        oscillator: {
+          type: 'sine',
+          count: 2,
+          spread: 20
+        },
+        volume: +5,  // Same volume as gestureSynth for balanced mix
+        envelope: {
+          attack: 0.02,
+          decay: 0.2,
+          sustain: 0.7,
+          release: 0.5
+        },
+        maxPolyphony: 12
+      }),
+
+      backgroundMid: new Tone.PolySynth({
+        oscillator: {
+          type: 'triangle',
+          count: 2,
+          spread: 15
+        },
+        volume: +5,  // Same volume as gestureSynth for balanced mix
+        envelope: {
+          attack: 0.05,
+          decay: 0.3,
+          sustain: 0.6,
+          release: 0.8
+        },
+        maxPolyphony: 12
+      }),
+
+      backgroundLow: new Tone.PolySynth({
+        oscillator: {
+          type: 'sawtooth',
+          count: 3,
+          spread: 30
+        },
+        volume: +5,  // Same volume as gestureSynth for audible bass
+        envelope: {
+          attack: 0.1,
+          decay: 0.3,
+          sustain: 0.8,
+          release: 1.0
+        },
+        maxPolyphony: 12
       })
     }
 
@@ -645,14 +700,20 @@ class AudioService {
     this.ambientFilters = {
       bass: new Tone.Filter({ type: 'lowpass', frequency: 150, Q: 1 }),    // Deep bass (50-150Hz)
       pad: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 1.5 }),   // Mid-range pad
-      chords: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 2 })  // Brighter chords
+      chords: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 2 }),  // Brighter chords
+      backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 1 }),  // Bright melodic layer
+      backgroundMid: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 1.5 }),  // Mid-range arpeggios
+      backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 300, Q: 2 })  // Bass layer
     }
 
     // Balanced volumes - bass VERY loud, chords quiet
     this.ambientVolumes = {
       bass: new Tone.Volume(-8),    // Background bass (was 0dB, too loud)
       pad: new Tone.Volume(-12),    // Very subtle pad
-      chords: new Tone.Volume(-10)  // Quiet chords
+      chords: new Tone.Volume(-10),  // Quiet chords
+      backgroundHigh: new Tone.Volume(+10),  // Same boost as gestures for balanced composition
+      backgroundMid: new Tone.Volume(+10),   // Same boost as gestures for balanced composition
+      backgroundLow: new Tone.Volume(+10)    // Same boost as gestures for audible bass
     }
 
     // Connect each layer with SEND/RETURN architecture
