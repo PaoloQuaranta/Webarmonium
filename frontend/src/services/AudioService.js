@@ -739,7 +739,7 @@ class AudioService {
         harmonicity: 0,  // Remove harmonicity to prevent triangle waves
         modulationType: 'none'  // Disable modulation
       },
-      volume: +5,  // High volume for gesture prominence
+      volume: -5,  // Reduced volume to match background composition
       envelope: {
         attack: 0.02,  // Faster attack
         decay: 0.2,   // Faster decay
@@ -763,8 +763,8 @@ class AudioService {
     this.gestureSynth.connect(this.gestureFilter)
     this.gestureFilter.connect(this.gesturePan)
 
-    // Create volume node for gesture dry signal (boost for prominence)
-    this.gestureVolume = new Tone.Volume(+10) // +10dB boost for local gesture prominence
+    // Create volume node for gesture dry signal (same as background composition)
+    this.gestureVolume = new Tone.Volume(0) // 0dB - balanced with background composition
 
     // Dry signal routing: pan -> volume -> master
     this.gesturePan.connect(this.gestureVolume)
