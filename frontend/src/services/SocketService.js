@@ -204,6 +204,16 @@ class SocketService {
       this.emit('compositional-parameters', data)
     })
 
+    // Background composition events from BackgroundCompositionService
+    this.socket.on('background-composition', (data) => {
+      console.log('🎼🎼 SocketService received background-composition:', {
+        compositionNumber: data.compositionNumber,
+        roomId: data.roomId,
+        type: data.composition?.type
+      })
+      this.emit('background-composition', data)
+    })
+
     // Debug: raw hover events (development only)
     this.socket.on('hover-update-raw', (data) => {
       if (process.env.NODE_ENV === 'development') {
