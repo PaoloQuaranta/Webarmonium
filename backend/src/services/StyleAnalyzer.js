@@ -32,10 +32,10 @@ class StyleAnalyzer {
     }
 
     this.styleHistory = []
-    this.smoothingFactor = 0.9 // Exponential smoothing
+    this.smoothingFactor = 0.9 // Exponential smoothing (default)
   }
 
-  analyzeGestureStyle(gestures) {
+  analyzeGestureStyle(gestures, gestureWeight = 0.5) {
     if (!gestures || gestures.length === 0) {
       return this.currentStyle
     }
@@ -90,8 +90,10 @@ class StyleAnalyzer {
       timestamp: Date.now()
     }
 
-    // Smooth style evolution
-    this.currentStyle = this.evolveStyle(this.currentStyle, newStyle)
+    // Smooth style evolution WITH GESTURE WEIGHT
+    // High weight (initial gestures) = strong influence
+    // Low weight (later gestures) = weak influence
+    this.currentStyle = this.evolveStyle(this.currentStyle, newStyle, gestureWeight)
     this.styleHistory.push(this.currentStyle)
 
     // Keep history manageable
@@ -516,8 +518,15 @@ class StyleAnalyzer {
     return weights
   }
 
-  evolveStyle(currentStyle, newAnalysis) {
-    // Smooth evolution to avoid abrupt style changes
+  evolveStyle(currentStyle, newAnalysis, gestureWeight = 0.5) {
+    // ADAPTIVE SMOOTHING based on gesture weight
+    // High weight (initial gestures) = strong influence
+    // Low weight (later gestures) = weak influence
+    const baseAlpha = 1 - this.smoothingFactor
+    const alpha = baseAlpha * gestureWeight // Scale by gesture weight
+
+    console.log(`🎨 Style evolution: weight=${gestureWeight.toFixed(2)}, alpha=${alpha.toFixed(2)} (${gestureWeight >= 0.8 ? 'STRONG' : gestureWeight >= 0.5 ? 'MODERATE' : 'WEAK'} influence)`)
+
     const evolved = {}
 
     Object.keys(newAnalysis).forEach(key => {
@@ -525,11 +534,13 @@ class StyleAnalyzer {
         evolved[key] = {}
         Object.keys(newAnalysis[key]).forEach(subKey => {
           const current = currentStyle[key]?.[subKey] || newAnalysis[key][subKey]
-          evolved[key][subKey] = current * this.smoothingFactor + newAnalysis[key][subKey] * (1 - this.smoothingFactor)
+          // Apply weighted smoothing
+          evolved[key][subKey] = current * (1 - alpha) + newAnalysis[key][subKey] * alpha
         })
       } else {
         const current = currentStyle[key] || newAnalysis[key]
-        evolved[key] = current * this.smoothingFactor + newAnalysis[key] * (1 - this.smoothingFactor)
+        // Apply weighted smoothing
+        evolved[key] = current * (1 - alpha) + newAnalysis[key] * alpha
       }
     })
 

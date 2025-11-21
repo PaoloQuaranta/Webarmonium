@@ -97,11 +97,13 @@ class BackgroundCompositionService {
 
     console.log(`🎼 Starting continuous composition for room ${roomId}`)
 
-    // Initialize room composition state
+    // Initialize room composition state with SESSION PROFILING
     this.roomCompositions.set(roomId, {
       roomId,
       roomContext,
       compositionCount: 0,
+      gestureCount: 0,           // Track gestures in this session
+      initialGestureWindow: 5,    // First N gestures are highly influential
       startTime: Date.now(),
       lastCompositionTime: Date.now()
     })
@@ -134,28 +136,117 @@ class BackgroundCompositionService {
    * @param {Object} musicalPhrase - Musical phrase generated from gesture
    */
   addMaterial(roomId, gestureData, musicalPhrase) {
+    const roomState = this.roomCompositions.get(roomId)
+    if (!roomState) {
+      console.warn(`🎼 No room state for ${roomId}, creating...`)
+      this.startComposition(roomId, {})
+      return
+    }
+
+    // INCREMENT GESTURE COUNT for session profiling
+    roomState.gestureCount++
+
+    // CALCULATE GESTURE WEIGHT: First gestures have maximum influence
+    const gestureWeight = this.calculateGestureWeight(roomState.gestureCount, roomState.initialGestureWindow)
+
+    console.log(`🎵 Gesture #${roomState.gestureCount} - Weight: ${gestureWeight.toFixed(2)} (${gestureWeight >= 0.8 ? 'HIGH' : gestureWeight >= 0.5 ? 'MEDIUM' : 'LOW'} influence)`)
+
     // Convert musical phrase to material format
     const material = {
       notes: musicalPhrase.notes || [],
       duration: musicalPhrase.duration || 1000,
       userId: gestureData.userId,
       gestureData: gestureData,
+      weight: gestureWeight,  // Store weight with material
       timestamp: Date.now()
     }
 
     // Add to material library
     const materialId = this.materialLibrary.addMaterial(material)
 
-    // Update style analyzer
-    this.styleAnalyzer.analyzeGestureStyle([gestureData])
+    // Update style analyzer WITH WEIGHTED GESTURE
+    this.styleAnalyzer.analyzeGestureStyle([gestureData], gestureWeight)
 
-    console.log(`🎼 Added material ${materialId} from user ${gestureData.userId}:`, {
+    // APPLY STYLE TO COMPOSITION ENGINE
+    this.applyStyleToComposition(roomId)
+
+    console.log(`🎼 Added material ${materialId} (gesture #${roomState.gestureCount}):`, {
       notesCount: material.notes.length,
-      hasPhraseNotes: !!musicalPhrase.notes,
+      weight: gestureWeight.toFixed(2),
       phraseType: musicalPhrase.type || 'unknown'
     })
 
     return materialId
+  }
+
+  /**
+   * Calculate gesture weight based on position in session
+   * First gestures have high weight, later gestures require repetition
+   */
+  calculateGestureWeight(gestureCount, initialWindow) {
+    if (gestureCount <= initialWindow) {
+      // First N gestures: MAXIMUM influence (weight 1.0)
+      return 1.0
+    } else {
+      // After initial window: exponentially decreasing weight
+      // Requires repetition to influence composition
+      const excessGestures = gestureCount - initialWindow
+      return Math.max(0.1, 1.0 / Math.pow(1.5, excessGestures / 5))
+    }
+  }
+
+  /**
+   * Apply analyzed style to composition parameters
+   */
+  applyStyleToComposition(roomId) {
+    const style = this.styleAnalyzer.getCurrentStyle()
+
+    // MAP STYLE TO COMPOSITION PARAMETERS
+    // Tempo from style
+    this.compositionEngine.tempo = Math.round(style.tempo)
+
+    // Key and mode from harmonic complexity
+    const { keyCenter, mode } = this.selectKeyAndMode(style)
+    if (keyCenter !== this.compositionEngine.keyCenter || mode !== this.compositionEngine.mode) {
+      this.compositionEngine.keyCenter = keyCenter
+      this.compositionEngine.mode = mode
+      console.log(`🎼 Style influenced composition: ${keyCenter} ${mode}, tempo ${this.compositionEngine.tempo}`)
+      // Sync to gestures
+      this.syncHarmonicContext()
+    }
+
+    // Complexity and density from energy
+    this.compositionEngine.complexityLevel = Math.min(0.9, Math.max(0.1, style.energy))
+    this.compositionEngine.density = Math.min(0.9, Math.max(0.1, style.energy * 1.2))
+
+    console.log(`🎼 Applied style: energy=${style.energy.toFixed(2)}, tempo=${this.compositionEngine.tempo}, complexity=${this.compositionEngine.complexityLevel.toFixed(2)}`)
+  }
+
+  /**
+   * Select key and mode based on style analysis
+   */
+  selectKeyAndMode(style) {
+    const modalFlavor = style.harmonicComplexity?.modalFlavor || 'major'
+
+    // Map modalFlavor to mode
+    const modeMap = {
+      'major': 'ionian',
+      'minor': 'aeolian',
+      'dorian': 'dorian',
+      'phrygian': 'phrygian',
+      'lydian': 'lydian',
+      'mixolydian': 'mixolydian',
+      'locrian': 'locrian'
+    }
+    const mode = modeMap[modalFlavor] || 'ionian'
+
+    // Select key based on energy (low energy = flat keys, high energy = sharp keys)
+    const energy = style.energy || 0.5
+    const keys = ['F', 'C', 'G', 'D', 'A', 'E']
+    const keyIndex = Math.floor(energy * (keys.length - 1))
+    const keyCenter = keys[keyIndex]
+
+    return { keyCenter, mode }
   }
 
   /**
