@@ -218,6 +218,7 @@ class CompositionEngine {
     // Create voices for each material/user
     const voices = materials.map((material, i) => {
       const voice = this.counterpointEngine.createVoice(material, i, progression)
+      console.log(`🎼   Voice ${i}: ${voice.notes?.length || 0} notes`)
       return {
         ...voice,
         materialId: material.id,
@@ -265,10 +266,11 @@ class CompositionEngine {
   }
 
   composeAmbient(progression, style, sectionLength) {
-    console.log(`🎼 Composing ambient section (no material)`)
+    console.log(`🎼 Composing ambient section (no material available)`)
 
     // Generate textural material based on style
     const texture = this.generateAmbientTexture(style, sectionLength)
+    console.log(`🎼   Ambient texture: ${texture.layers.length} layers (static texture - minimal notes)`)
 
     return {
       type: 'ambient',
