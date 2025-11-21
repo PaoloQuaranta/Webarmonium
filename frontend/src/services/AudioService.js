@@ -765,8 +765,8 @@ class AudioService {
     this.gestureSynth.connect(this.gestureFilter)
     this.gestureFilter.connect(this.gesturePan)
 
-    // Create volume node for gesture dry signal (same as background composition)
-    this.gestureVolume = new Tone.Volume(0) // 0dB - balanced with background composition
+    // Create volume node for gesture dry signal (increased for prominence)
+    this.gestureVolume = new Tone.Volume(+6) // +6dB - gesture prominence over background
 
     // Dry signal routing: pan -> volume -> master
     this.gesturePan.connect(this.gestureVolume)
@@ -1799,14 +1799,23 @@ class AudioService {
       if (!voice.notes || !Array.isArray(voice.notes)) return
 
       voice.notes.forEach(note => {
-        const frequency = this.midiToFrequency(note.pitch || 60)
+        const pitch = note.pitch || 60
+        const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
-        const velocity = 1.0  // Same volume as local gestures
+        const velocity = 0.3  // Reduced from 1.0 - subtle background
         const delay = (note.startBeat || 0) * 0.5
 
+        // Route to appropriate layer based on pitch range
+        let targetLayer = 'backgroundMid'  // Default
+        if (pitch < 48) {
+          targetLayer = 'backgroundLow'  // Bass range
+        } else if (pitch > 72) {
+          targetLayer = 'backgroundHigh'  // High range
+        }
+
         setTimeout(() => {
-          if (this.ambientLayers && this.ambientLayers.backgroundHigh) {
-            this.ambientLayers.backgroundHigh.triggerAttackRelease(
+          if (this.ambientLayers && this.ambientLayers[targetLayer]) {
+            this.ambientLayers[targetLayer].triggerAttackRelease(
               frequency, duration, undefined, velocity
             )
           }
@@ -1823,9 +1832,10 @@ class AudioService {
 
     if (content.melody && content.melody.notes) {
       content.melody.notes.forEach((note, index) => {
-        const frequency = this.midiToFrequency(note.pitch || 60)
+        const pitch = note.pitch || 60
+        const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
-        const velocity = 1.0  // Same volume as local gestures
+        const velocity = 0.35  // Reduced from 1.0 - melody slightly louder than harmony
         const delay = (note.startBeat || index * 0.5) * 0.5
 
         setTimeout(() => {
@@ -1861,7 +1871,7 @@ class AudioService {
           setTimeout(() => {
             if (this.ambientLayers && this.ambientLayers.backgroundMid) {
               this.ambientLayers.backgroundMid.triggerAttackRelease(
-                frequency, duration, undefined, 1.0  // Same volume as local gestures
+                frequency, duration, undefined, 0.25  // Reduced from 1.0 - subtle arpeggio
               )
             }
           }, delay * 1000)
@@ -1879,7 +1889,7 @@ class AudioService {
           setTimeout(() => {
             if (this.ambientLayers && this.ambientLayers.backgroundLow) {
               this.ambientLayers.backgroundLow.triggerAttackRelease(
-                frequency, duration, undefined, 1.0  // Same volume as local gestures for audible bass
+                frequency, duration, undefined, 0.2  // Reduced from 1.0 - subtle pad
               )
             }
           }, delay * 1000)
@@ -1907,7 +1917,7 @@ class AudioService {
       setTimeout(() => {
         if (this.ambientLayers && this.ambientLayers.backgroundLow) {
           this.ambientLayers.backgroundLow.triggerAttackRelease(
-            frequency, 8, undefined, 1.0  // Same volume as local gestures
+            frequency, 8, undefined, 0.15  // Reduced from 1.0 - very subtle ambient texture
           )
         }
       }, delay * 1000)
