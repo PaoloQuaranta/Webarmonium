@@ -543,11 +543,13 @@ class AudioService {
 
       // SIMPLIFIED STRUCTURE: Bass + Pad + Chords
       // Event density hierarchy: bass > chords > pad
-      // PRIME RHYTHMS: Prevent synchronization between layers
+      // MUSICALLY SYNCHRONIZED RHYTHMS: All based on chordDuration (8000ms = 1 bar)
+      // chordDuration = 8000ms represents 1 bar at 120bpm (4/4 time)
+      // This creates organic, musically coherent composition
       layers: {
         bass: {
           nextNoteTime: 0,
-          rhythm: 1900,      // VERY FAST: High event density for bass foundation
+          rhythm: 2000,      // 1/4 bar = 1 beat (4 events per chord change)
           currentNote: 0,    // Current scale degree
           octave: -2,        // Two octaves below tonic (55-110Hz range)
           velocity: 0.45,    // Balanced velocity
@@ -557,7 +559,7 @@ class AudioService {
         },
         pad: {
           nextNoteTime: 1200,  // Offset start to avoid initial cluster
-          rhythm: 8300,      // VERY SLOW: Low event density for ethereal pad
+          rhythm: 16000,     // 2 bars (plays every 2 chord changes for sustained harmony)
           currentNotes: [2, 4],  // Two notes for pad (third and fifth)
           octave: 0,         // Same as tonic (220Hz range)
           velocity: 0.30,    // Quieter for subtle background
@@ -567,7 +569,7 @@ class AudioService {
         },
         chords: {
           nextNoteTime: 2400, // Different offset
-          rhythm: 4700,      // MEDIUM: Mid event density for harmonic rhythm
+          rhythm: 4000,      // 1/2 bar (2 events per chord change for rhythmic interest)
           currentChord: 0,   // Index in progression
           octave: 1,         // One octave above tonic (440Hz range)
           velocity: 0.40,    // Moderate velocity
