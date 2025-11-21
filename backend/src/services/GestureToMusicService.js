@@ -192,7 +192,15 @@ class GestureToMusicService {
     // HARMONIC COHERENCE: Constrain pitch to current scale
     const pitch = this.harmonicEngine.constrainToScale(rawPitch, this.currentKey, this.currentMode)
 
-    console.log('🎯 REMOTE TAP (HARMONIC):', {
+    console.log('🎯 TAP (HARMONIC COHERENCE):', {
+      key: this.currentKey,
+      mode: this.currentMode,
+      rawPitch,
+      constrainedPitch: pitch,
+      adjusted: rawPitch !== pitch
+    })
+
+    console.log('🎯 REMOTE TAP:', {
       userId: gestureData.userId.substring(0, 8),
       x: x.toFixed(2),
       y: y.toFixed(2),

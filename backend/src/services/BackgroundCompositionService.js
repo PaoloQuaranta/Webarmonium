@@ -45,6 +45,9 @@ class BackgroundCompositionService {
     // Socket.io instance (set by server)
     this.io = null
 
+    // Reference to GestureToMusicService for harmonic synchronization
+    this.gestureToMusicService = null
+
     console.log('🎼 BackgroundCompositionService initialized')
   }
 
@@ -55,6 +58,30 @@ class BackgroundCompositionService {
   setSocketIO(io) {
     this.io = io
     console.log('🎼 BackgroundCompositionService: Socket.IO connected')
+  }
+
+  /**
+   * Set GestureToMusicService reference for harmonic synchronization
+   * @param {GestureToMusicService} gestureService - GestureToMusicService instance
+   */
+  setGestureToMusicService(gestureService) {
+    this.gestureToMusicService = gestureService
+    // Initial sync
+    this.syncHarmonicContext()
+    console.log('🎼 BackgroundCompositionService: GestureToMusicService linked for harmonic sync')
+  }
+
+  /**
+   * Sync harmonic context to GestureToMusicService
+   */
+  syncHarmonicContext() {
+    if (this.gestureToMusicService) {
+      this.gestureToMusicService.currentKey = this.compositionEngine.keyCenter
+      this.gestureToMusicService.currentMode = this.compositionEngine.mode
+      this.gestureToMusicService.harmonicEngine.currentKey = this.compositionEngine.keyCenter
+      this.gestureToMusicService.harmonicEngine.currentMode = this.compositionEngine.mode
+      console.log(`🎵 Synced harmonic context: ${this.compositionEngine.keyCenter} ${this.compositionEngine.mode}`)
+    }
   }
 
   /**
@@ -269,7 +296,10 @@ class BackgroundCompositionService {
     this.compositionEngine.keyCenter = key
     this.compositionEngine.mode = mode
 
-    console.log(`🎼 Set key for room ${roomId}: ${key} ${mode}`)
+    // SYNC: Update GestureToMusicService harmonic context
+    this.syncHarmonicContext()
+
+    console.log(`🎼 Set key for room ${roomId}: ${key} ${mode} (synced to gestures)`)
   }
 
   /**

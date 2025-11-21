@@ -1805,25 +1805,25 @@ class AudioService {
       const roleConfig = {
         'melody': {
           layer: 'backgroundHigh',
-          velocity: 0.12,  // Brighter, more prominent
+          velocity: 0.10,  // Reduced from 0.12 - brighter but subtle
           articulation: 'staccato'
         },
         'harmony': {
           layer: 'backgroundMid',
-          velocity: 0.08,   // Medium presence
+          velocity: 0.06,   // Reduced from 0.08 - medium presence
           articulation: 'normal'
         },
         'bass': {
           layer: 'backgroundLow',
-          velocity: 0.10,   // Punchy but controlled
+          velocity: 0.08,   // Reduced from 0.10 - punchy but controlled
           articulation: 'legato'
         },
         'pad': {
           layer: 'backgroundLow',
-          velocity: 0.06,   // Soft, ethereal
+          velocity: 0.04,   // Reduced from 0.06 - very soft, ethereal
           articulation: 'legato'
         }
-      }[voiceRole] || { layer: 'backgroundMid', velocity: 0.08, articulation: 'normal' }
+      }[voiceRole] || { layer: 'backgroundMid', velocity: 0.06, articulation: 'normal' }
 
       voice.notes.forEach((note, noteIndex) => {
         const pitch = note.pitch || 60

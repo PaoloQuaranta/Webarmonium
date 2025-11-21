@@ -80,11 +80,9 @@ const backgroundCompositionService = new BackgroundCompositionService()
 const GestureToMusicService = require('./services/GestureToMusicService')
 const gestureToMusicService = new GestureToMusicService()
 
-// Sync harmonic context between background composition and gestures
-gestureToMusicService.currentKey = backgroundCompositionService.compositionEngine.keyCenter
-gestureToMusicService.currentMode = backgroundCompositionService.compositionEngine.mode
-gestureToMusicService.harmonicEngine.currentKey = backgroundCompositionService.compositionEngine.keyCenter
-gestureToMusicService.harmonicEngine.currentMode = backgroundCompositionService.compositionEngine.mode
+// Link services for DYNAMIC harmonic synchronization
+// This ensures gestures stay in sync with background key/mode changes
+backgroundCompositionService.setGestureToMusicService(gestureToMusicService)
 
 // Initialize Phase 3.3 services
 // Phase 3.3 service instances (temporarily commented for three-tier implementation)
