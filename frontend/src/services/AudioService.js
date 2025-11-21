@@ -785,10 +785,11 @@ class AudioService {
     // Polyphony management
     this.maxTotalVoices = 8 // Maximum total voices across all synths
 
-    // Start evolving generative system
-    this.startEvolvingGeneration()
+    // DISABLED: Old single-event generative system
+    // Now using BackgroundCompositionService which generates structured compositions
+    // this.startEvolvingGeneration()
 
-    console.log('🎵 Evolutive generative system created with limited polyphony management')
+    console.log('🎵 Audio system initialized - BackgroundCompositionService generates compositions from backend')
   }
 
   /**

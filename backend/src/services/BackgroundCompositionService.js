@@ -35,8 +35,9 @@ class BackgroundCompositionService {
     this.roomCompositions = new Map() // roomId -> composition state
 
     // Composition intervals (in milliseconds)
-    this.minCompositionInterval = 8000  // 8 seconds minimum between compositions
-    this.maxCompositionInterval = 16000 // 16 seconds maximum between compositions
+    // FREQUENT compositions for continuous musical flow
+    this.minCompositionInterval = 3000  // 3 seconds minimum between compositions
+    this.maxCompositionInterval = 6000  // 6 seconds maximum between compositions
 
     // Active composition timers
     this.compositionTimers = new Map() // roomId -> timer
