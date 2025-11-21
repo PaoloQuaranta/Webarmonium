@@ -128,7 +128,8 @@ class CounterpointEngine {
           pitch: adaptedPitch,
           duration: note.duration || 1,
           velocity: note.velocity || 80,
-          articulation: note.articulation || 'normal'
+          articulation: note.articulation || 'normal',
+          startBeat: i * 2  // Distribute notes over time (1 note every 2 beats)
         })
       })
     } else {
@@ -148,7 +149,8 @@ class CounterpointEngine {
           pitch,
           duration: this.generateDuration(profile.activity, i, noteCount),
           velocity: this.generateVelocity(profile.activity),
-          articulation: this.generateArticulation(profile.activity)
+          articulation: this.generateArticulation(profile.activity),
+          startBeat: i * 2  // Distribute notes over time (1 note every 2 beats)
         })
       }
     }

@@ -1802,7 +1802,7 @@ class AudioService {
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
-        const velocity = 0.3  // Reduced from 1.0 - subtle background
+        const velocity = 0.15  // Very subtle background (reduced from 0.3)
         const delay = (note.startBeat || 0) * 0.5
 
         // Route to appropriate layer based on pitch range
@@ -1835,7 +1835,7 @@ class AudioService {
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
-        const velocity = 0.35  // Reduced from 1.0 - melody slightly louder than harmony
+        const velocity = 0.2  // Very subtle melody (reduced from 0.35)
         const delay = (note.startBeat || index * 0.5) * 0.5
 
         setTimeout(() => {
@@ -1871,7 +1871,7 @@ class AudioService {
           setTimeout(() => {
             if (this.ambientLayers && this.ambientLayers.backgroundMid) {
               this.ambientLayers.backgroundMid.triggerAttackRelease(
-                frequency, duration, undefined, 0.25  // Reduced from 1.0 - subtle arpeggio
+                frequency, duration, undefined, 0.12  // Very subtle arpeggio (reduced from 0.25)
               )
             }
           }, delay * 1000)
@@ -1889,7 +1889,7 @@ class AudioService {
           setTimeout(() => {
             if (this.ambientLayers && this.ambientLayers.backgroundLow) {
               this.ambientLayers.backgroundLow.triggerAttackRelease(
-                frequency, duration, undefined, 0.2  // Reduced from 1.0 - subtle pad
+                frequency, duration, undefined, 0.1  // Very subtle pad (reduced from 0.2)
               )
             }
           }, delay * 1000)
@@ -1917,7 +1917,7 @@ class AudioService {
       setTimeout(() => {
         if (this.ambientLayers && this.ambientLayers.backgroundLow) {
           this.ambientLayers.backgroundLow.triggerAttackRelease(
-            frequency, 8, undefined, 0.15  // Reduced from 1.0 - very subtle ambient texture
+            frequency, 8, undefined, 0.08  // Extremely subtle ambient texture (reduced from 0.15)
           )
         }
       }, delay * 1000)
