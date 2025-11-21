@@ -112,6 +112,7 @@ class CounterpointEngine {
 
   generateVoiceNotes(material, range, profile, progression) {
     const voiceNotes = []
+    let currentBeat = 0
 
     if (material.notes && material.notes.length > 0) {
       // Adapt existing material to voice range
@@ -124,13 +125,17 @@ class CounterpointEngine {
           adaptedPitch = this.applyVoiceLeading(prevNote.pitch, adaptedPitch, range)
         }
 
+        const duration = note.duration || 1
         voiceNotes.push({
           pitch: adaptedPitch,
-          duration: note.duration || 1,
+          duration: duration,
           velocity: note.velocity || 80,
           articulation: note.articulation || 'normal',
-          startBeat: i * 2  // Distribute notes over time (1 note every 2 beats)
+          startBeat: currentBeat
         })
+
+        // Accumulate timing: next note starts after this one plus optional gap
+        currentBeat += duration + (Math.random() * 0.5) // Small random gap
       })
     } else {
       // Generate new voice based on gesture characteristics
@@ -145,13 +150,20 @@ class CounterpointEngine {
           pitch = this.applyVoiceLeading(prevNote.pitch, pitch, range)
         }
 
+        const duration = this.generateDuration(profile.activity, i, noteCount)
         voiceNotes.push({
           pitch,
-          duration: this.generateDuration(profile.activity, i, noteCount),
+          duration: duration,
           velocity: this.generateVelocity(profile.activity),
           articulation: this.generateArticulation(profile.activity),
-          startBeat: i * 2  // Distribute notes over time (1 note every 2 beats)
+          startBeat: currentBeat
         })
+
+        // Accumulate timing with variation based on activity
+        const gap = profile.activity === 'high' ? Math.random() * 0.5 :
+                    profile.activity === 'low' ? 0.5 + Math.random() * 1.5 :
+                    Math.random() * 1.0
+        currentBeat += duration + gap
       }
     }
 
@@ -240,14 +252,21 @@ class CounterpointEngine {
   }
 
   generateDuration(activity, index, total) {
-    // Generate note duration based on activity level
+    // Generate note duration with variation based on activity level
+    const random = Math.random()
+
     switch (activity) {
       case 'high':
-        return [0.25, 0.5, 0.25, 0.5][index % 4] // Fast, varied
+        // Fast, varied: mix of 16th, 8th, quarter notes
+        const fastDurations = [0.25, 0.5, 0.75, 1.0]
+        return fastDurations[Math.floor(random * fastDurations.length)]
       case 'low':
-        return index === 0 ? 2.0 : 1.0 // Long, sustained
+        // Long, sustained: half notes and whole notes with variation
+        return 1.5 + (random * 2.5) // 1.5 to 4.0 beats
       default:
-        return 1.0 // Medium length
+        // Medium: quarter and half notes with syncopation
+        const mediumDurations = [0.5, 0.75, 1.0, 1.5, 2.0]
+        return mediumDurations[Math.floor(random * mediumDurations.length)]
     }
   }
 

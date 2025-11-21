@@ -122,7 +122,11 @@ class BackgroundCompositionService {
     // Update style analyzer
     this.styleAnalyzer.analyzeGestureStyle([gestureData])
 
-    console.log(`🎼 Added material ${materialId} from user ${gestureData.userId} to room ${roomId}`)
+    console.log(`🎼 Added material ${materialId} from user ${gestureData.userId}:`, {
+      notesCount: material.notes.length,
+      hasPhraseNotes: !!musicalPhrase.notes,
+      phraseType: musicalPhrase.type || 'unknown'
+    })
 
     return materialId
   }

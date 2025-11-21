@@ -1798,12 +1798,15 @@ class AudioService {
     content.voices.forEach((voice, voiceIndex) => {
       if (!voice.notes || !Array.isArray(voice.notes)) return
 
+      // Add temporal stagger: each voice starts at different time
+      const voiceOffset = voiceIndex * 2  // Voice 0: 0s, Voice 1: 2s, Voice 2: 4s, Voice 3: 6s
+
       voice.notes.forEach(note => {
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
-        const velocity = 0.15  // Very subtle background (reduced from 0.3)
-        const delay = (note.startBeat || 0) * 0.5
+        const velocity = 0.08  // Very subtle background (reduced from 0.15)
+        const delay = ((note.startBeat || 0) * 0.5) + voiceOffset
 
         // Route to appropriate layer based on pitch range
         let targetLayer = 'backgroundMid'  // Default
@@ -1812,6 +1815,8 @@ class AudioService {
         } else if (pitch > 72) {
           targetLayer = 'backgroundHigh'  // High range
         }
+
+        console.log(`  🎵 Voice ${voiceIndex}: pitch=${pitch}, layer=${targetLayer}, delay=${delay.toFixed(1)}s`)
 
         setTimeout(() => {
           if (this.ambientLayers && this.ambientLayers[targetLayer]) {
@@ -1835,7 +1840,7 @@ class AudioService {
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
-        const velocity = 0.2  // Very subtle melody (reduced from 0.35)
+        const velocity = 0.12  // Very subtle melody (reduced from 0.2)
         const delay = (note.startBeat || index * 0.5) * 0.5
 
         setTimeout(() => {
@@ -1871,7 +1876,7 @@ class AudioService {
           setTimeout(() => {
             if (this.ambientLayers && this.ambientLayers.backgroundMid) {
               this.ambientLayers.backgroundMid.triggerAttackRelease(
-                frequency, duration, undefined, 0.12  // Very subtle arpeggio (reduced from 0.25)
+                frequency, duration, undefined, 0.06  // Very subtle arpeggio (reduced from 0.12)
               )
             }
           }, delay * 1000)
@@ -1889,7 +1894,7 @@ class AudioService {
           setTimeout(() => {
             if (this.ambientLayers && this.ambientLayers.backgroundLow) {
               this.ambientLayers.backgroundLow.triggerAttackRelease(
-                frequency, duration, undefined, 0.1  // Very subtle pad (reduced from 0.2)
+                frequency, duration, undefined, 0.05  // Very subtle pad (reduced from 0.1)
               )
             }
           }, delay * 1000)
@@ -1917,7 +1922,7 @@ class AudioService {
       setTimeout(() => {
         if (this.ambientLayers && this.ambientLayers.backgroundLow) {
           this.ambientLayers.backgroundLow.triggerAttackRelease(
-            frequency, 8, undefined, 0.08  // Extremely subtle ambient texture (reduced from 0.15)
+            frequency, 8, undefined, 0.04  // Extremely subtle ambient texture (reduced from 0.08)
           )
         }
       }, delay * 1000)
