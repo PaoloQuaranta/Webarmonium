@@ -33,37 +33,77 @@ class CounterpointEngine {
   }
 
   createVoice(material, voiceIndex, progression) {
-    // Create a voice for polyphonic texture with proper voice leading
-    const voiceType = this.getVoiceType(voiceIndex, material.userId || 'unknown')
+    // Create a voice with DISTINCT ROLE based on index
+    // Voice 0: MELODY (lead, soprano, fast notes)
+    // Voice 1: HARMONY (supporting, alto, medium notes)
+    // Voice 2: BASS (foundation, bass, long notes)
+    // Voice 3: PAD (texture, tenor, very long notes)
+
+    const voiceRole = this.getVoiceRole(voiceIndex)
+    const voiceType = voiceRole.type
     const range = this.voiceRanges[voiceType]
 
     // Analyze material for melodic characteristics
     const melodicProfile = this.analyzeMaterialForVoice(material)
 
-    // Generate voice based on material characteristics
+    // Override profile with role-specific characteristics
+    melodicProfile.role = voiceRole.name
+    melodicProfile.density = voiceRole.density
+    melodicProfile.noteLength = voiceRole.noteLength
+    melodicProfile.activity = voiceRole.activity
+
+    // Generate voice based on role
     const voiceNotes = this.generateVoiceNotes(material, range, melodicProfile, progression)
 
     return {
       voiceType,
+      voiceRole: voiceRole.name,
       userId: material.userId,
       notes: voiceNotes,
       range: range,
       character: melodicProfile,
-      voiceIndex: voiceIndex
+      voiceIndex: voiceIndex,
+      timbre: voiceRole.timbre
     }
   }
 
-  getVoiceType(voiceIndex, userId) {
-    // Distribute voice types among users
-    const voiceTypes = ['soprano', 'alto', 'tenor', 'bass']
+  getVoiceRole(voiceIndex) {
+    const roles = [
+      {
+        name: 'melody',
+        type: 'soprano',
+        density: 'high',      // Many notes
+        noteLength: 'short',  // Quick articulation
+        activity: 'high',
+        timbre: 'bright'
+      },
+      {
+        name: 'harmony',
+        type: 'alto',
+        density: 'medium',    // Moderate notes
+        noteLength: 'medium', // Normal articulation
+        activity: 'medium',
+        timbre: 'warm'
+      },
+      {
+        name: 'bass',
+        type: 'bass',
+        density: 'low',       // Few notes
+        noteLength: 'long',   // Sustained notes
+        activity: 'low',
+        timbre: 'deep'
+      },
+      {
+        name: 'pad',
+        type: 'tenor',
+        density: 'sparse',    // Very few notes
+        noteLength: 'verylong', // Very sustained
+        activity: 'low',
+        timbre: 'soft'
+      }
+    ]
 
-    // Use userId hash for consistent voice assignment
-    const userHash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-    const baseVoiceType = voiceTypes[userHash % 4]
-
-    // Adjust based on voice index to avoid conflicts
-    const adjustedIndex = (voiceTypes.indexOf(baseVoiceType) + voiceIndex) % 4
-    return voiceTypes[adjustedIndex]
+    return roles[voiceIndex % 4]
   }
 
   analyzeMaterialForVoice(material) {
@@ -138,9 +178,16 @@ class CounterpointEngine {
         currentBeat += duration + (Math.random() * 0.5) // Small random gap
       })
     } else {
-      // Generate new voice based on gesture characteristics
-      const gestureActivity = profile.activity
-      const noteCount = gestureActivity === 'high' ? 8 : gestureActivity === 'low' ? 3 : 5
+      // Generate new voice based on ROLE (not just activity)
+      const role = profile.role || 'melody'
+
+      // Note count based on role density
+      const noteCount = {
+        'melody': 8,      // Many fast notes
+        'harmony': 5,     // Moderate notes
+        'bass': 3,        // Few long notes
+        'pad': 2          // Very sparse
+      }[role] || 5
 
       for (let i = 0; i < noteCount; i++) {
         let pitch = this.generatePitchForVoice(range, profile, i, noteCount)
@@ -150,19 +197,17 @@ class CounterpointEngine {
           pitch = this.applyVoiceLeading(prevNote.pitch, pitch, range)
         }
 
-        const duration = this.generateDuration(profile.activity, i, noteCount)
+        const duration = this.generateDurationByRole(role, i, noteCount)
         voiceNotes.push({
           pitch,
           duration: duration,
           velocity: this.generateVelocity(profile.activity),
-          articulation: this.generateArticulation(profile.activity),
+          articulation: this.generateArticulationByRole(role),
           startBeat: currentBeat
         })
 
-        // Accumulate timing with variation based on activity
-        const gap = profile.activity === 'high' ? Math.random() * 0.5 :
-                    profile.activity === 'low' ? 0.5 + Math.random() * 1.5 :
-                    Math.random() * 1.0
+        // Gap based on role
+        const gap = this.generateGapByRole(role)
         currentBeat += duration + gap
       }
     }
@@ -285,6 +330,58 @@ class CounterpointEngine {
       case 'high': return Math.random() > 0.5 ? 'staccato' : 'marcato'
       case 'low': return 'legato'
       default: return 'normal'
+    }
+  }
+
+  generateDurationByRole(role, index, total) {
+    // Role-specific duration generation for STRUCTURE
+    switch (role) {
+      case 'melody':
+        // Fast, varied: 8th and 16th notes
+        return [0.25, 0.5, 0.25, 0.75][index % 4]
+      case 'harmony':
+        // Medium: quarter and half notes
+        return [1.0, 1.5, 0.75, 1.0][index % 4]
+      case 'bass':
+        // Long: whole notes and half notes
+        return [3.0, 4.0, 2.0][index % 3]
+      case 'pad':
+        // Very long: sustained notes
+        return [6.0, 8.0][index % 2]
+      default:
+        return 1.0
+    }
+  }
+
+  generateArticulationByRole(role) {
+    // Role-specific articulation for TIMBRAL DISTINCTION
+    switch (role) {
+      case 'melody':
+        return Math.random() < 0.7 ? 'staccato' : 'normal'  // Bright, detached
+      case 'harmony':
+        return 'normal'                                      // Standard
+      case 'bass':
+        return 'legato'                                      // Smooth, connected
+      case 'pad':
+        return 'legato'                                      // Sustained, flowing
+      default:
+        return 'normal'
+    }
+  }
+
+  generateGapByRole(role) {
+    // Role-specific gaps for PIENI/VUOTI (full/empty sections)
+    switch (role) {
+      case 'melody':
+        return Math.random() * 0.25  // Tight spacing - continuous
+      case 'harmony':
+        return 0.5 + Math.random() * 0.5  // Medium spacing
+      case 'bass':
+        return 1.0 + Math.random() * 2.0  // Wide spacing - allows silence
+      case 'pad':
+        return 2.0 + Math.random() * 4.0  // Very wide spacing - creates vuoti
+      default:
+        return Math.random() * 1.0
     }
   }
 

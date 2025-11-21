@@ -1798,30 +1798,45 @@ class AudioService {
     content.voices.forEach((voice, voiceIndex) => {
       if (!voice.notes || !Array.isArray(voice.notes)) return
 
-      // Add temporal stagger: each voice starts at different time
-      const voiceOffset = voiceIndex * 2  // Voice 0: 0s, Voice 1: 2s, Voice 2: 4s, Voice 3: 6s
+      const voiceRole = voice.voiceRole || 'harmony'
+      console.log(`🎵 Voice ${voiceIndex} - Role: ${voiceRole}, Notes: ${voice.notes.length}`)
 
-      voice.notes.forEach(note => {
+      // Role-based configuration for TIMBRAL DISTINCTION
+      const roleConfig = {
+        'melody': {
+          layer: 'backgroundHigh',
+          velocity: 0.12,  // Brighter, more prominent
+          articulation: 'staccato'
+        },
+        'harmony': {
+          layer: 'backgroundMid',
+          velocity: 0.08,   // Medium presence
+          articulation: 'normal'
+        },
+        'bass': {
+          layer: 'backgroundLow',
+          velocity: 0.10,   // Punchy but controlled
+          articulation: 'legato'
+        },
+        'pad': {
+          layer: 'backgroundLow',
+          velocity: 0.06,   // Soft, ethereal
+          articulation: 'legato'
+        }
+      }[voiceRole] || { layer: 'backgroundMid', velocity: 0.08, articulation: 'normal' }
+
+      voice.notes.forEach((note, noteIndex) => {
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
-        const velocity = 0.08  // Very subtle background (reduced from 0.15)
-        const delay = ((note.startBeat || 0) * 0.5) + voiceOffset
+        const delay = (note.startBeat || 0) * 0.5
 
-        // Route to appropriate layer based on pitch range
-        let targetLayer = 'backgroundMid'  // Default
-        if (pitch < 48) {
-          targetLayer = 'backgroundLow'  // Bass range
-        } else if (pitch > 72) {
-          targetLayer = 'backgroundHigh'  // High range
-        }
-
-        console.log(`  🎵 Voice ${voiceIndex}: pitch=${pitch}, layer=${targetLayer}, delay=${delay.toFixed(1)}s`)
+        console.log(`  🎵 ${voiceRole} note ${noteIndex}: pitch=${pitch}, dur=${duration.toFixed(1)}, delay=${delay.toFixed(1)}s`)
 
         setTimeout(() => {
-          if (this.ambientLayers && this.ambientLayers[targetLayer]) {
-            this.ambientLayers[targetLayer].triggerAttackRelease(
-              frequency, duration, undefined, velocity
+          if (this.ambientLayers && this.ambientLayers[roleConfig.layer]) {
+            this.ambientLayers[roleConfig.layer].triggerAttackRelease(
+              frequency, duration, undefined, roleConfig.velocity
             )
           }
         }, delay * 1000)
