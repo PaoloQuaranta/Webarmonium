@@ -142,7 +142,7 @@ class BackgroundCompositionService {
           type: 'drone',
           note: 'C3',  // Root note
           duration: 8000,  // 8 seconds
-          velocity: 0.03,  // Very quiet
+          velocity: 0.2,  // Audible but subtle atmospheric pad
           articulation: 'legato'
         }]
       }
