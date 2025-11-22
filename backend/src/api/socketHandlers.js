@@ -351,12 +351,33 @@ const socketHandlers = {
             musicalResult = socket.services.gestureToMusicService.processGesture(gestureData)
 
             // Add material to BackgroundCompositionService for continuous composition
+            console.log('🔍 DEBUG addMaterial condition check:', {
+              hasMusicalResult: !!musicalResult,
+              hasBackgroundService: !!socket.services.backgroundCompositionService,
+              roomId: socket.roomId,
+              gestureType: gestureData.type
+            })
+
             if (musicalResult && socket.services.backgroundCompositionService) {
-              socket.services.backgroundCompositionService.addMaterial(
-                socket.roomId,
-                gestureData,
-                musicalResult
-              )
+              console.log('✅ Calling addMaterial with:', {
+                roomId: socket.roomId,
+                gestureType: gestureData.type,
+                musicalResultKeys: Object.keys(musicalResult),
+                notes: musicalResult.notes?.length || 0
+              })
+
+              try {
+                socket.services.backgroundCompositionService.addMaterial(
+                  socket.roomId,
+                  gestureData,
+                  musicalResult
+                )
+                console.log('✅ addMaterial completed successfully')
+              } catch (error) {
+                console.error('❌ addMaterial ERROR:', error)
+              }
+            } else {
+              console.warn('⚠️ Skipping addMaterial - condition not met')
             }
           } catch (error) {
             console.error('GestureToMusicService failed:', error)
@@ -956,12 +977,33 @@ const socketHandlers = {
         const musicalResult = socket.services.gestureToMusicService.processGesture(gestureData)
 
         // Add material to BackgroundCompositionService for continuous composition
+        console.log('🔍 DEBUG addMaterial condition check (gesture:record):', {
+          hasMusicalResult: !!musicalResult,
+          hasBackgroundService: !!socket.services.backgroundCompositionService,
+          roomId: socket.roomId,
+          gestureType: gestureData.type
+        })
+
         if (musicalResult && socket.services.backgroundCompositionService) {
-          socket.services.backgroundCompositionService.addMaterial(
-            socket.roomId,
-            gestureData,
-            musicalResult
-          )
+          console.log('✅ Calling addMaterial (gesture:record) with:', {
+            roomId: socket.roomId,
+            gestureType: gestureData.type,
+            musicalResultKeys: Object.keys(musicalResult),
+            notes: musicalResult.notes?.length || 0
+          })
+
+          try {
+            socket.services.backgroundCompositionService.addMaterial(
+              socket.roomId,
+              gestureData,
+              musicalResult
+            )
+            console.log('✅ addMaterial completed successfully')
+          } catch (error) {
+            console.error('❌ addMaterial ERROR:', error)
+          }
+        } else {
+          console.warn('⚠️ Skipping addMaterial - condition not met')
         }
 
         // Store gesture in room memory
