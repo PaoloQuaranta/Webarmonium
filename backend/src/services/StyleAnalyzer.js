@@ -42,12 +42,24 @@ class StyleAnalyzer {
 
     const gestureArray = Array.isArray(gestures) ? gestures : [gestures]
 
+    console.log(`🎨 StyleAnalyzer analyzing ${gestureArray.length} gesture(s):`, {
+      gestureCount: gestureArray.length,
+      weight: gestureWeight.toFixed(2)
+    })
+
     // Analyze energy from gesture density and velocity
     const energy = this.calculateEnergy(gestureArray)
 
     // Analyze tempo and meter from timing
     const tempo = this.estimateTempo(gestureArray)
     const timeSignature = this.detectMeter(gestureArray)
+
+    console.log(`🎨 Calculated from gestures:`, {
+      energy: energy.toFixed(2),
+      tempo,
+      timeSignature,
+      gesturesNeededForTempo: gestureArray.length < 2 ? `Need ${2 - gestureArray.length} more` : 'OK'
+    })
 
     // Analyze rhythmic character
     const rhythmicCharacter = {

@@ -165,6 +165,15 @@ class BackgroundCompositionService {
     const materialId = this.materialLibrary.addMaterial(material)
 
     // Update style analyzer WITH WEIGHTED GESTURE
+    console.log('🔍 Passing to analyzeGestureStyle:', {
+      gestureType: gestureData.gesture?.type,
+      gestureAction: gestureData.gesture?.action,
+      hasVelocity: 'velocity' in (gestureData.gesture || {}),
+      hasAcceleration: 'acceleration' in (gestureData.gesture || {}),
+      hasTimestamp: 'timestamp' in (gestureData.gesture || {}),
+      gestureKeys: Object.keys(gestureData.gesture || {})
+    })
+
     this.styleAnalyzer.analyzeGestureStyle([gestureData], gestureWeight)
 
     // APPLY STYLE TO COMPOSITION ENGINE
