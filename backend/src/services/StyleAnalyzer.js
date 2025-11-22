@@ -161,8 +161,9 @@ class StyleAnalyzer {
     // Assuming each gesture could represent a beat
     const bpm = Math.round(60000 / avgInterval)
 
-    // Clamp to reasonable musical tempo range
-    return Math.max(40, Math.min(200, bpm))
+    // Clamp to wide musical tempo range (30-300 BPM)
+    // 30 BPM = very slow ambient, 300 BPM = very fast drum'n'bass
+    return Math.max(30, Math.min(300, bpm))
   }
 
   detectMeter(gestures) {
@@ -542,6 +543,13 @@ class StyleAnalyzer {
     const evolved = {}
 
     Object.keys(newAnalysis).forEach(key => {
+      // TEMPO: Use calculated BPM directly without smoothing
+      if (key === 'tempo') {
+        evolved[key] = newAnalysis[key]
+        return
+      }
+
+      // Other properties: Apply weighted smoothing
       if (typeof newAnalysis[key] === 'object' && !Array.isArray(newAnalysis[key])) {
         evolved[key] = {}
         Object.keys(newAnalysis[key]).forEach(subKey => {
