@@ -95,7 +95,7 @@ class BackgroundCompositionService {
       return
     }
 
-    console.log(`🎼 Starting continuous composition for room ${roomId}`)
+    console.log(`🎼 Starting with DRONE (waiting for gestures to define composition)`)
 
     // Initialize room composition state with SESSION PROFILING
     this.roomCompositions.set(roomId, {
@@ -104,15 +104,61 @@ class BackgroundCompositionService {
       compositionCount: 0,
       gestureCount: 0,           // Track gestures in this session
       initialGestureWindow: 5,    // First N gestures are highly influential
+      compositionStarted: false,  // Start with drone, transition to composition after gestures
       startTime: Date.now(),
       lastCompositionTime: Date.now()
     })
 
-    // Start immediate composition
-    this.generateAndBroadcastComposition(roomId, roomContext)
+    // Start with DRONE only (atmospheric pad)
+    this.generateAndBroadcastDrone(roomId)
 
-    // Schedule continuous compositions
-    this.scheduleNextComposition(roomId, roomContext)
+    // DON'T schedule continuous compositions yet - wait for gestures
+    // Compositions will start automatically after 2+ gestures (see addMaterial)
+  }
+
+  /**
+   * Generate and broadcast DRONE (atmospheric pad) for initial state
+   * @param {string} roomId - Room ID
+   */
+  generateAndBroadcastDrone(roomId) {
+    console.log(`🎵 Generating initial DRONE for room ${roomId}`)
+
+    // Simple drone: single sustained note in root key
+    const droneComposition = {
+      type: 'ambient',
+      metadata: {
+        tempo: 60,
+        keyCenter: this.compositionEngine.keyCenter,
+        mode: this.compositionEngine.mode,
+        timeSignature: '4/4'
+      },
+      structure: {
+        form: 'drone',
+        currentSection: 'ambient'
+      },
+      content: {
+        texture: [{
+          type: 'drone',
+          note: 'C3',  // Root note
+          duration: 8000,  // 8 seconds
+          velocity: 0.03,  // Very quiet
+          articulation: 'legato'
+        }]
+      }
+    }
+
+    // Broadcast drone to room
+    if (this.io) {
+      this.io.to(roomId).emit('background-composition', {
+        roomId,
+        composition: droneComposition,
+        compositionNumber: 0,
+        isDrone: true,  // Mark as drone for frontend
+        timestamp: Date.now()
+      })
+
+      console.log(`🎵 Broadcast DRONE to room ${roomId} (waiting for gestures...)`)
+    }
   }
 
   /**
@@ -164,20 +210,41 @@ class BackgroundCompositionService {
     // Add to material library
     const materialId = this.materialLibrary.addMaterial(material)
 
-    // Update style analyzer WITH WEIGHTED GESTURE
-    console.log('🔍 Passing to analyzeGestureStyle:', {
-      gestureType: gestureData.gesture?.type,
-      gestureAction: gestureData.gesture?.action,
-      hasVelocity: 'velocity' in (gestureData.gesture || {}),
-      hasAcceleration: 'acceleration' in (gestureData.gesture || {}),
-      hasTimestamp: 'timestamp' in (gestureData.gesture || {}),
-      gestureKeys: Object.keys(gestureData.gesture || {})
+    // NORMALIZE gesture properties for StyleAnalyzer
+    // StyleAnalyzer expects: velocity, acceleration, timestamp
+    // Gesture has: speed, intensity, startTime/endTime
+    const normalizedGesture = {
+      ...gestureData.gesture,
+      velocity: gestureData.gesture.speed || 50,  // Map speed → velocity
+      acceleration: gestureData.gesture.intensity || 0.5,  // Map intensity → acceleration
+      timestamp: gestureData.gesture.startTime || Date.now()  // Map startTime → timestamp
+    }
+
+    console.log('🔍 Normalized gesture for StyleAnalyzer:', {
+      type: normalizedGesture.type,
+      velocity: normalizedGesture.velocity,
+      acceleration: normalizedGesture.acceleration,
+      timestamp: normalizedGesture.timestamp,
+      duration: normalizedGesture.duration
     })
 
-    this.styleAnalyzer.analyzeGestureStyle([gestureData], gestureWeight)
+    // Update style analyzer WITH NORMALIZED GESTURE
+    this.styleAnalyzer.analyzeGestureStyle([normalizedGesture], gestureWeight)
 
     // APPLY STYLE TO COMPOSITION ENGINE
     this.applyStyleToComposition(roomId)
+
+    // TRANSITION from DRONE to FULL COMPOSITION after initial gestures
+    if (roomState.gestureCount >= 2 && !roomState.compositionStarted) {
+      console.log('🎼 Transitioning from drone to full composition (2+ gestures collected)')
+      roomState.compositionStarted = true
+
+      // Generate first real composition
+      this.generateAndBroadcastComposition(roomId, roomState.roomContext)
+
+      // Schedule continuous compositions
+      this.scheduleNextComposition(roomId, roomState.roomContext)
+    }
 
     console.log(`🎼 Added material ${materialId} (gesture #${roomState.gestureCount}):`, {
       notesCount: material.notes.length,
