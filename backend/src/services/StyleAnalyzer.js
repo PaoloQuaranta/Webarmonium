@@ -32,7 +32,7 @@ class StyleAnalyzer {
     }
 
     this.styleHistory = []
-    this.smoothingFactor = 0.9 // Exponential smoothing (default)
+    this.smoothingFactor = 0.5 // Exponential smoothing - allows 50% influence for initial gestures (weight=1.0)
   }
 
   analyzeGestureStyle(gestures, gestureWeight = 0.5) {
