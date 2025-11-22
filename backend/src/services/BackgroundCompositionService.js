@@ -105,6 +105,7 @@ class BackgroundCompositionService {
       gestureCount: 0,           // Track gestures in this session
       initialGestureWindow: 5,    // First N gestures are highly influential
       compositionStarted: false,  // Start with drone, transition to composition after gestures
+      gestureHistory: [],        // Accumulate gestures for tempo calculation (StyleAnalyzer needs 2+)
       startTime: Date.now(),
       lastCompositionTime: Date.now()
     })
@@ -211,12 +212,12 @@ class BackgroundCompositionService {
     const materialId = this.materialLibrary.addMaterial(material)
 
     // NORMALIZE gesture properties for StyleAnalyzer
-    // StyleAnalyzer expects: velocity, acceleration, timestamp
-    // Gesture has: speed, intensity, startTime/endTime
+    // StyleAnalyzer expects: velocity (0-100), acceleration (0-50), timestamp
+    // Gesture has: speed (0-1), intensity (0-1), startTime/endTime
     const normalizedGesture = {
       ...gestureData.gesture,
-      velocity: gestureData.gesture.speed || 50,  // Map speed → velocity
-      acceleration: gestureData.gesture.intensity || 0.5,  // Map intensity → acceleration
+      velocity: (gestureData.gesture.speed || 0.5) * 100,  // Scale 0-1 → 0-100
+      acceleration: (gestureData.gesture.intensity || 0.5) * 50,  // Scale 0-1 → 0-50
       timestamp: gestureData.gesture.startTime || Date.now()  // Map startTime → timestamp
     }
 
@@ -228,8 +229,17 @@ class BackgroundCompositionService {
       duration: normalizedGesture.duration
     })
 
-    // Update style analyzer WITH NORMALIZED GESTURE
-    this.styleAnalyzer.analyzeGestureStyle([normalizedGesture], gestureWeight)
+    // ACCUMULATE gestures for tempo calculation (StyleAnalyzer needs 2+ for tempo)
+    roomState.gestureHistory.push(normalizedGesture)
+    // Keep only recent 10 gestures for analysis window
+    if (roomState.gestureHistory.length > 10) {
+      roomState.gestureHistory = roomState.gestureHistory.slice(-10)
+    }
+
+    console.log(`🔍 Gesture history size: ${roomState.gestureHistory.length} gestures`)
+
+    // Update style analyzer WITH ACCUMULATED GESTURES
+    this.styleAnalyzer.analyzeGestureStyle(roomState.gestureHistory, gestureWeight)
 
     // APPLY STYLE TO COMPOSITION ENGINE
     this.applyStyleToComposition(roomId)
