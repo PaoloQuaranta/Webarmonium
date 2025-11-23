@@ -1762,10 +1762,12 @@ class AudioService {
       return
     }
 
+    const tempo = composition.metadata?.tempo || 120
+
     console.log(`🎼 Playing ${composition.type} composition:`, {
       form: composition.structure?.form,
       section: composition.structure?.currentSection,
-      tempo: composition.metadata?.tempo,
+      tempo: tempo,
       key: composition.metadata?.keyCenter
     })
 
@@ -1774,11 +1776,11 @@ class AudioService {
 
     try {
       if (type === 'polyphonic' && content.voices) {
-        this.playPolyphonicComposition(content)
+        this.playPolyphonicComposition(content, tempo)
       } else if (type === 'homophonic' && content.melody) {
-        this.playHomophonicComposition(content)
+        this.playHomophonicComposition(content, tempo)
       } else if (type === 'ambient' && content.texture) {
-        this.playAmbientComposition(content)
+        this.playAmbientComposition(content, tempo)
       } else {
         console.warn('🎼 Unknown composition type:', type)
       }
@@ -1789,11 +1791,19 @@ class AudioService {
 
   /**
    * Play polyphonic composition (multiple voices)
+   * @param {Object} content - Composition content with voices
+   * @param {number} tempo - Tempo in BPM (30-300)
    */
-  playPolyphonicComposition(content) {
+  playPolyphonicComposition(content, tempo = 120) {
     if (!content.voices || !Array.isArray(content.voices)) return
 
-    console.log(`🎼 Playing polyphonic: ${content.voices.length} voices`)
+    // Calculate beat duration from tempo: beatDuration = 60 / BPM
+    // 30 BPM → 2.0 seconds per beat (very slow)
+    // 120 BPM → 0.5 seconds per beat (standard)
+    // 300 BPM → 0.2 seconds per beat (very fast)
+    const beatDuration = 60 / tempo
+
+    console.log(`🎼 Playing polyphonic: ${content.voices.length} voices at ${tempo} BPM (${beatDuration.toFixed(2)}s/beat)`)
 
     content.voices.forEach((voice, voiceIndex) => {
       if (!voice.notes || !Array.isArray(voice.notes)) return
@@ -1829,9 +1839,9 @@ class AudioService {
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
-        const delay = (note.startBeat || 0) * 0.5
+        const delay = (note.startBeat || 0) * beatDuration  // Use tempo-based beat duration
 
-        console.log(`  🎵 ${voiceRole} note ${noteIndex}: pitch=${pitch}, dur=${duration.toFixed(1)}, delay=${delay.toFixed(1)}s`)
+        console.log(`  🎵 ${voiceRole} note ${noteIndex}: pitch=${pitch}, dur=${duration.toFixed(1)}, delay=${delay.toFixed(2)}s`)
 
         setTimeout(() => {
           if (this.ambientLayers && this.ambientLayers[roleConfig.layer]) {
@@ -1846,9 +1856,12 @@ class AudioService {
 
   /**
    * Play homophonic composition (melody + accompaniment)
+   * @param {Object} content - Composition content
+   * @param {number} tempo - Tempo in BPM
    */
-  playHomophonicComposition(content) {
-    console.log('🎼 Playing homophonic composition')
+  playHomophonicComposition(content, tempo = 120) {
+    const beatDuration = 60 / tempo
+    console.log(`🎼 Playing homophonic composition at ${tempo} BPM`)
 
     if (content.melody && content.melody.notes) {
       content.melody.notes.forEach((note, index) => {
@@ -1856,7 +1869,7 @@ class AudioService {
         const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
         const velocity = 0.12  // Very subtle melody (reduced from 0.2)
-        const delay = (note.startBeat || index * 0.5) * 0.5
+        const delay = (note.startBeat || index * 0.5) * beatDuration
 
         setTimeout(() => {
           if (this.ambientLayers && this.ambientLayers.backgroundHigh) {
@@ -1869,14 +1882,17 @@ class AudioService {
     }
 
     if (content.accompaniment) {
-      this.playAccompaniment(content.accompaniment)
+      this.playAccompaniment(content.accompaniment, tempo)
     }
   }
 
   /**
    * Play accompaniment (arpeggios, chord pads)
+   * @param {Object} accompaniment - Accompaniment data
+   * @param {number} tempo - Tempo in BPM
    */
-  playAccompaniment(accompaniment) {
+  playAccompaniment(accompaniment, tempo = 120) {
+    const beatDuration = 60 / tempo
     const type = accompaniment.type
 
     if (type === 'arpeggio' && accompaniment.pattern) {
@@ -1886,7 +1902,7 @@ class AudioService {
         chord.notes.forEach((pitch, noteIndex) => {
           const frequency = this.midiToFrequency(pitch)
           const duration = chord.rhythm || 0.25
-          const delay = (chordIndex * 2 + noteIndex * 0.25) * 0.5
+          const delay = (chordIndex * 2 + noteIndex * 0.25) * beatDuration
 
           setTimeout(() => {
             if (this.ambientLayers && this.ambientLayers.backgroundMid) {
@@ -1900,7 +1916,7 @@ class AudioService {
     } else if (type === 'chord_pads' && accompaniment.chords) {
       accompaniment.chords.forEach((chord, index) => {
         const chordNotes = this.buildChordFromName(chord.chord || 'C')
-        const delay = index * 4 * 0.5
+        const delay = index * 4 * beatDuration
 
         chordNotes.forEach(pitch => {
           const frequency = this.midiToFrequency(pitch)
@@ -1920,9 +1936,12 @@ class AudioService {
 
   /**
    * Play ambient composition (textural)
+   * @param {Object} content - Composition content
+   * @param {number} tempo - Tempo in BPM
    */
-  playAmbientComposition(content) {
-    console.log('🎼 Playing ambient composition')
+  playAmbientComposition(content, tempo = 120) {
+    const beatDuration = 60 / tempo
+    console.log(`🎼 Playing ambient composition at ${tempo} BPM`)
 
     if (!content.texture) return
 
@@ -1932,7 +1951,7 @@ class AudioService {
 
     for (let i = 0; i < 4; i++) {
       const frequency = baseFreq * Math.pow(2, i * 0.25)
-      const delay = i * 2
+      const delay = i * 2 * beatDuration
 
       setTimeout(() => {
         if (this.ambientLayers && this.ambientLayers.backgroundLow) {
