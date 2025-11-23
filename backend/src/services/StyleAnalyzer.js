@@ -32,15 +32,20 @@ class StyleAnalyzer {
     }
 
     this.styleHistory = []
-    this.smoothingFactor = 0.9 // Exponential smoothing
+    this.smoothingFactor = 0.5 // Exponential smoothing - allows 50% influence for initial gestures (weight=1.0)
   }
 
-  analyzeGestureStyle(gestures) {
+  analyzeGestureStyle(gestures, gestureWeight = 0.5) {
     if (!gestures || gestures.length === 0) {
       return this.currentStyle
     }
 
     const gestureArray = Array.isArray(gestures) ? gestures : [gestures]
+
+    console.log(`🎨 StyleAnalyzer analyzing ${gestureArray.length} gesture(s):`, {
+      gestureCount: gestureArray.length,
+      weight: gestureWeight.toFixed(2)
+    })
 
     // Analyze energy from gesture density and velocity
     const energy = this.calculateEnergy(gestureArray)
@@ -48,6 +53,13 @@ class StyleAnalyzer {
     // Analyze tempo and meter from timing
     const tempo = this.estimateTempo(gestureArray)
     const timeSignature = this.detectMeter(gestureArray)
+
+    console.log(`🎨 Calculated from gestures:`, {
+      energy: energy.toFixed(2),
+      tempo,
+      timeSignature,
+      gesturesNeededForTempo: gestureArray.length < 2 ? `Need ${2 - gestureArray.length} more` : 'OK'
+    })
 
     // Analyze rhythmic character
     const rhythmicCharacter = {
@@ -90,8 +102,10 @@ class StyleAnalyzer {
       timestamp: Date.now()
     }
 
-    // Smooth style evolution
-    this.currentStyle = this.evolveStyle(this.currentStyle, newStyle)
+    // Smooth style evolution WITH GESTURE WEIGHT
+    // High weight (initial gestures) = strong influence
+    // Low weight (later gestures) = weak influence
+    this.currentStyle = this.evolveStyle(this.currentStyle, newStyle, gestureWeight)
     this.styleHistory.push(this.currentStyle)
 
     // Keep history manageable
@@ -132,23 +146,46 @@ class StyleAnalyzer {
       return this.currentStyle.tempo // Keep current tempo
     }
 
-    // Calculate intervals between gestures
-    const intervals = []
+    const allIntervals = []
+
+    // Collect intervals between gestures (macro rhythm)
     for (let i = 1; i < gestures.length; i++) {
       const prevTime = gestures[i - 1].timestamp || Date.now() - 1000
       const currTime = gestures[i].timestamp || Date.now()
-      intervals.push(currTime - prevTime)
+      const interval = currTime - prevTime
+
+      // Only include reasonable intervals (50ms - 5000ms)
+      if (interval >= 50 && interval <= 5000) {
+        allIntervals.push(interval)
+      }
+    }
+
+    // ALSO collect inter-onset intervals from DRAG gestures (micro rhythm)
+    // These are the intervals between notes WITHIN a single drag gesture
+    for (const gesture of gestures) {
+      if (gesture.interOnsetInterval && gesture.interOnsetInterval > 0) {
+        // Inter-onset intervals represent subdivision rhythm (faster than beat)
+        // Weight them slightly less than gesture-to-gesture intervals
+        allIntervals.push(gesture.interOnsetInterval)
+
+        console.log(`🎵 Using inter-onset interval from drag: ${gesture.interOnsetInterval.toFixed(1)}ms`)
+      }
+    }
+
+    if (allIntervals.length === 0) {
+      return this.currentStyle.tempo
     }
 
     // Find the most common interval (tempo indication)
-    const avgInterval = intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length
+    const avgInterval = allIntervals.reduce((sum, interval) => sum + interval, 0) / allIntervals.length
 
     // Convert interval to BPM (beats per minute)
-    // Assuming each gesture could represent a beat
     const bpm = Math.round(60000 / avgInterval)
 
-    // Clamp to reasonable musical tempo range
-    return Math.max(40, Math.min(200, bpm))
+    console.log(`🎼 Tempo calculated from ${allIntervals.length} intervals: ${bpm} BPM (avg interval: ${avgInterval.toFixed(1)}ms)`)
+
+    // Clamp to wide musical tempo range (30-300 BPM)
+    return Math.max(30, Math.min(300, bpm))
   }
 
   detectMeter(gestures) {
@@ -516,20 +553,36 @@ class StyleAnalyzer {
     return weights
   }
 
-  evolveStyle(currentStyle, newAnalysis) {
-    // Smooth evolution to avoid abrupt style changes
+  evolveStyle(currentStyle, newAnalysis, gestureWeight = 0.5) {
+    // ADAPTIVE SMOOTHING based on gesture weight
+    // High weight (initial gestures) = strong influence
+    // Low weight (later gestures) = weak influence
+    const baseAlpha = 1 - this.smoothingFactor
+    const alpha = baseAlpha * gestureWeight // Scale by gesture weight
+
+    console.log(`🎨 Style evolution: weight=${gestureWeight.toFixed(2)}, alpha=${alpha.toFixed(2)} (${gestureWeight >= 0.8 ? 'STRONG' : gestureWeight >= 0.5 ? 'MODERATE' : 'WEAK'} influence)`)
+
     const evolved = {}
 
     Object.keys(newAnalysis).forEach(key => {
+      // TEMPO: Use calculated BPM directly without smoothing
+      if (key === 'tempo') {
+        evolved[key] = newAnalysis[key]
+        return
+      }
+
+      // Other properties: Apply weighted smoothing
       if (typeof newAnalysis[key] === 'object' && !Array.isArray(newAnalysis[key])) {
         evolved[key] = {}
         Object.keys(newAnalysis[key]).forEach(subKey => {
           const current = currentStyle[key]?.[subKey] || newAnalysis[key][subKey]
-          evolved[key][subKey] = current * this.smoothingFactor + newAnalysis[key][subKey] * (1 - this.smoothingFactor)
+          // Apply weighted smoothing
+          evolved[key][subKey] = current * (1 - alpha) + newAnalysis[key][subKey] * alpha
         })
       } else {
         const current = currentStyle[key] || newAnalysis[key]
-        evolved[key] = current * this.smoothingFactor + newAnalysis[key] * (1 - this.smoothingFactor)
+        // Apply weighted smoothing
+        evolved[key] = current * (1 - alpha) + newAnalysis[key] * alpha
       }
     })
 

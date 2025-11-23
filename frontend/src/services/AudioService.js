@@ -59,22 +59,23 @@ class AudioService {
     }
 
     // Three-tier audio architecture parameters
+    // Volume hierarchy: background < remote < local
     this.threeTierConfig = {
       background: {
         waveform: 'triangle',
-        volumeMultiplier: 1.0,  // Baseline volume (0dB)
+        volumeMultiplier: 0.7,  // Background quieter
         baseFrequency: 110,      // A2 - warm foundation
         color: '#4a9eff'
       },
       remote: {
         waveform: 'square',
-        volumeMultiplier: 1.3,  // +2-3dB above background
+        volumeMultiplier: 1.5,  // Slightly above background
         baseFrequency: 440,      // A4 - mid range
         color: '#ff6b6b'
       },
       local: {
         waveform: 'sawtooth',
-        volumeMultiplier: 1.6,  // +4-6dB above background
+        volumeMultiplier: 2.0,  // Most prominent (local gestures)
         baseFrequency: 880,      // A5 - bright upper register
         color: '#6bcf7f'
       }
@@ -426,6 +427,14 @@ class AudioService {
    */
   createContinuousGenerativeSystem() {
     console.log('🔨 Creating continuous generative system...')
+    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-SEND-RETURN-v12')
+    console.log('✅ PRIME RHYTHMS: 3700, 5300, 7900 (LCM=43 HOURS)')
+    console.log('✅ PATTERNS + MICROVARIATIONS: rhythm × pattern × jitter(±5%)')
+    console.log('✅ FLAT ENVELOPES: attack/release 5ms ONLY - envelope does NOT mask pattern!')
+    console.log('✅ Pattern system: 12 contrasted patterns (LONG/SHORT/MIXED/EVEN)')
+    console.log('✅ FX ARCHITECTURE: Send/Return buses for delay and reverb (global FX)')
+    console.log('✅ Send levels: bass(15%), pad(20/30%), chords(20/25%), gesture(25/30%)')
+    console.log('🎯 Duration = EXACT pattern multiplier - no envelope artifacts!')
 
     // CRITICAL FIX: Never dispose synths immediately!
     // Tone.js internal timeouts from triggerAttackRelease() may still be scheduled
@@ -458,18 +467,44 @@ class AudioService {
     // Pass masterVolume to VolumeController (Sprint 2 refactoring)
     this.volumeController.setMasterVolumeNode(this.masterVolume)
 
-    // Create global effects for unified modulation
+    // Create global FX buses (100% wet for send/return architecture)
     this.reverb = new Tone.Reverb({
       decay: 3.0,        // 3 second decay
       preDelay: 0.01,    // 10ms predelay
-      wet: 0.2           // Start with subtle reverb
+      wet: 1.0           // 100% wet - this is a FX bus, not insert
     }).connect(this.masterVolume)
 
-    this.delay = new Tone.Delay({
-      delayTime: 0.2,    // 200ms delay
+    this.delay = new Tone.FeedbackDelay({
+      delayTime: 0.2,    // 200ms delay time
       maxDelay: 1,       // 1 second max
-      wet: 0.1           // Start with subtle delay
+      feedback: 0.4,     // Multiple repetitions
+      wet: 1.0           // 100% wet - this is a FX bus, not insert
     }).connect(this.masterVolume)
+
+    // Create send buses for each FX (gain nodes to control send levels)
+    this.delaySends = {
+      bass: new Tone.Gain(0.15),      // 15% to delay
+      pad: new Tone.Gain(0.2),        // 20% to delay
+      chords: new Tone.Gain(0.2),     // 20% to delay
+      gesture: new Tone.Gain(0.25),   // 25% to delay (more present)
+      backgroundHigh: new Tone.Gain(0.2),  // 20% to delay for composition
+      backgroundMid: new Tone.Gain(0.2),   // 20% to delay for composition
+      backgroundLow: new Tone.Gain(0.15)   // 15% to delay for composition bass
+    }
+
+    this.reverbSends = {
+      bass: new Tone.Gain(0.15),      // 15% to reverb
+      pad: new Tone.Gain(0.3),        // 30% to reverb (pad loves reverb)
+      chords: new Tone.Gain(0.25),    // 25% to reverb
+      gesture: new Tone.Gain(0.3),    // 30% to reverb
+      backgroundHigh: new Tone.Gain(0.25),  // 25% to reverb for composition
+      backgroundMid: new Tone.Gain(0.25),   // 25% to reverb for composition
+      backgroundLow: new Tone.Gain(0.2)     // 20% to reverb for composition bass
+    }
+
+    // Connect send buses to FX
+    Object.values(this.delaySends).forEach(send => send.connect(this.delay))
+    Object.values(this.reverbSends).forEach(send => send.connect(this.reverb))
 
     // Initialize generative composition state
     this.generativeState = {
@@ -482,33 +517,65 @@ class AudioService {
       evolutionSpeed: 8000, // Base evolution cycle
       complexity: 0.3, // Starting complexity
 
+      // RHYTHMIC PATTERNS: Highly contrasted combinations to eliminate repetition
+      // Categories: LONG-dominant, SHORT-dominant, MIXED, EVEN
+      rhythmPatterns: [
+        // LONG-dominant patterns (sustained notes)
+        [3.0],                      // 0: single very long note
+        [2.0, 1.0],                 // 1: long + medium
+        [1.5, 1.5],                 // 2: two sustained notes
+
+        // SHORT-dominant patterns (rapid notes)
+        [0.3, 0.3, 0.3, 0.3],       // 3: four rapid notes
+        [0.4, 0.4, 0.4, 0.4, 0.4],  // 4: five rapid notes
+        [0.25, 0.25, 0.5],          // 5: very fast triplet
+
+        // MIXED patterns (contrast within pattern)
+        [0.5, 1.5],                 // 6: classic short-long
+        [1.5, 0.5],                 // 7: inverted long-short
+        [0.3, 2.0],                 // 8: very short + very long (dramatic)
+        [2.0, 0.3],                 // 9: very long + very short (dramatic inverted)
+
+        // EVEN patterns (steady pulse)
+        [1.0, 1.0, 1.0],            // 10: steady triplet
+        [0.8, 0.8, 0.8, 0.8],       // 11: steady quadruplet
+      ],
+
       // SIMPLIFIED STRUCTURE: Bass + Pad + Chords
-      // Reduces polyphony and creates clearer musical texture
-      // BALANCED RHYTHMS: All layers similar speed to avoid dominant pulse
+      // Event density hierarchy: bass > chords > pad
+      // MUSICALLY SYNCHRONIZED RHYTHMS: All based on chordDuration (8000ms = 1 bar)
+      // chordDuration = 8000ms represents 1 bar at 120bpm (4/4 time)
+      // This creates organic, musically coherent composition
       layers: {
         bass: {
           nextNoteTime: 0,
-          rhythm: 4700,      // SLOWER: was 2300, now similar to others
+          rhythm: 2000,      // 1/4 bar = 1 beat (4 events per chord change)
           currentNote: 0,    // Current scale degree
           octave: -2,        // Two octaves below tonic (55-110Hz range)
-          velocity: 0.45,    // QUIETER: was 0.8, too dominant
-          lastFrequency: null  // Track for release
+          velocity: 0.45,    // Balanced velocity
+          lastFrequency: null,  // Track for release
+          currentPatternIndex: 3,  // Start with SHORT pattern (four rapid)
+          patternPosition: 0       // Position within the pattern
         },
         pad: {
           nextNoteTime: 1200,  // Offset start to avoid initial cluster
-          rhythm: 5100,      // Medium rhythm
+          rhythm: 16000,     // 2 bars (plays every 2 chord changes for sustained harmony)
           currentNotes: [2, 4],  // Two notes for pad (third and fifth)
           octave: 0,         // Same as tonic (220Hz range)
-          velocity: 0.30,    // LOUDER: was 0.25, too quiet
-          lastFrequencies: []  // Track for release
+          velocity: 0.30,    // Quieter for subtle background
+          lastFrequencies: [],  // Track for release
+          currentPatternIndex: 0,  // Start with LONG pattern (single sustained)
+          patternPosition: 0
         },
         chords: {
           nextNoteTime: 2400, // Different offset
-          rhythm: 5900,      // Slower rhythm
+          rhythm: 4000,      // 1/2 bar (2 events per chord change for rhythmic interest)
           currentChord: 0,   // Index in progression
           octave: 1,         // One octave above tonic (440Hz range)
-          velocity: 0.40,    // LOUDER: was 0.3, chords should be prominent
-          lastFrequencies: []  // Track for release
+          velocity: 0.40,    // Moderate velocity
+          lastFrequencies: [],  // Track for release
+          currentPatternIndex: 10,  // Start with EVEN pattern (steady triplet)
+          patternPosition: 0
         }
       },
 
@@ -532,43 +599,102 @@ class AudioService {
     }
 
     // Create multi-layer ambient synth system with REDUCED POLYPHONY
-    // BASS: Deep, warm foundation (single note)
+    // BASS: Deep, warm foundation (2 voices for clarity)
     this.ambientLayers = {
       bass: new Tone.PolySynth({
         oscillator: {
           type: 'fatsawtooth',  // Rich bass tone
-          count: 3,
-          spread: 30
-        },
-        envelope: { attack: 0.5, decay: 0.3, sustain: 0.7, release: 2 },
-        maxPolyphony: 1  // Single bass note
-      }),
-
-      // PAD: Warm pad-like sound (1-2 notes)
-      pad: new Tone.PolySynth({
-        oscillator: {
-          type: 'fatsquare',  // Warm, hollow
-          count: 3,
+          count: 4,  // More unison voices for fuller bass
           spread: 40
         },
-        envelope: { attack: 2, decay: 1, sustain: 0.8, release: 3 },  // Very slow envelope
-        maxPolyphony: 2  // Pad can have 2 notes
+        envelope: {
+          attack: 0.01,  // Quick attack for punchy bass
+          decay: 0.1,
+          sustain: 0.9,   // High sustain
+          release: 0.2   // Short release
+        },
+        maxPolyphony: 2  // 2 voices as requested
       }),
 
-      // CHORDS: Triad chords (3 notes)
+      // PAD: Ethereal, slow-evolving pad (4 voices for lush texture)
+      pad: new Tone.PolySynth({
+        oscillator: {
+          type: 'fattriangle',  // Softer, rounder than square - DISTINCT from chords
+          count: 5,  // More voices for lush pad texture
+          spread: 60  // Wide spread for spacious sound
+        },
+        envelope: {
+          attack: 3.0,   // VERY SLOW attack - pad swells in slowly
+          decay: 1.5,    // Longer decay
+          sustain: 0.7,
+          release: 4.0   // VERY LONG release - pad lingers
+        },
+        maxPolyphony: 4  // 4 voices as requested
+      }),
+
+      // CHORDS: Bright, articulate chords (4 voices)
       chords: new Tone.PolySynth({
         oscillator: {
-          type: 'fatsquare',  // Warm for chords
+          type: 'fatsquare',  // Hollow, bright - DISTINCT from pad
+          count: 2,  // Fewer voices for clarity
+          spread: 20  // Tighter spread
+        },
+        envelope: {
+          attack: 0.05,  // Quick attack for articulation
+          decay: 0.2,
+          sustain: 0.7,
+          release: 0.4   // Shorter release than pad
+        },
+        maxPolyphony: 4  // 4 voices as requested
+      }),
+
+      // BACKGROUND COMPOSITION LAYERS - High volume to match gestures
+      backgroundHigh: new Tone.PolySynth({
+        oscillator: {
+          type: 'sine',  // Pure tone for melodic clarity
           count: 2,
           spread: 20
         },
+        volume: +5,
         envelope: {
-          attack: 0.3,   // Faster attack (was 1s)
-          decay: 0.4,    // Shorter decay (was 0.5s)
-          sustain: 0.3,  // Less sustain (was 0.6)
-          release: 0.8   // Shorter release (was 2s)
+          attack: 0.02,
+          decay: 0.2,
+          sustain: 0.7,
+          release: 0.5
         },
-        maxPolyphony: 3  // Triads have 3 notes
+        maxPolyphony: 12
+      }),
+
+      backgroundMid: new Tone.PolySynth({
+        oscillator: {
+          type: 'triangle',  // Softer than sine, good for arpeggios
+          count: 2,
+          spread: 15
+        },
+        volume: +5,
+        envelope: {
+          attack: 0.05,
+          decay: 0.3,
+          sustain: 0.6,
+          release: 0.8
+        },
+        maxPolyphony: 12
+      }),
+
+      backgroundLow: new Tone.PolySynth({
+        oscillator: {
+          type: 'sawtooth',  // Bright harmonics for bass presence
+          count: 3,
+          spread: 30
+        },
+        volume: +5,
+        envelope: {
+          attack: 0.1,
+          decay: 0.3,
+          sustain: 0.8,
+          release: 1.0
+        },
+        maxPolyphony: 12
       })
     }
 
@@ -576,23 +702,36 @@ class AudioService {
     this.ambientFilters = {
       bass: new Tone.Filter({ type: 'lowpass', frequency: 150, Q: 1 }),    // Deep bass (50-150Hz)
       pad: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 1.5 }),   // Mid-range pad
-      chords: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 2 })  // Brighter chords
+      chords: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 2 }),  // Brighter chords
+      backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 1 }),  // Bright melodic layer
+      backgroundMid: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 1.5 }),  // Mid-range arpeggios
+      backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 2 })  // INCREASED from 300Hz for audibility
     }
 
-    // Balanced volumes - bass VERY loud, chords quiet
+    // Balanced volumes - bass prominent, pad INCREASED for drone audibility, chords reduced
     this.ambientVolumes = {
-      bass: new Tone.Volume(0),     // FULL VOLUME for deep bass prominence
-      pad: new Tone.Volume(-10),    // Very subtle pad
-      chords: new Tone.Volume(-9)   // Quiet chords (was -6dB)
+      bass: new Tone.Volume(+2),     // Bass boosted for audibility and presence
+      pad: new Tone.Volume(+5),      // INCREASED from -12 to +5 for audible drone
+      chords: new Tone.Volume(-18),  // Chords significantly reduced (were too loud)
+      backgroundHigh: new Tone.Volume(+10),  // Same boost as gestures for balanced composition
+      backgroundMid: new Tone.Volume(+10),   // Same boost as gestures for balanced composition
+      backgroundLow: new Tone.Volume(+10)    // Same boost as gestures for audible bass
     }
 
-    // Connect each layer: synth -> filter -> volume -> effects -> master
+    // Connect each layer with SEND/RETURN architecture
+    // Routing: synth -> filter -> volume -> [dry to master + sends to FX]
     Object.keys(this.ambientLayers).forEach(layer => {
       this.ambientLayers[layer].connect(this.ambientFilters[layer])
       this.ambientFilters[layer].connect(this.ambientVolumes[layer])
-      // Route through effects for richer sound
-      this.ambientVolumes[layer].connect(this.reverb)
-      this.ambientVolumes[layer].connect(this.delay)
+
+      // Dry signal to master
+      this.ambientVolumes[layer].connect(this.masterVolume)
+
+      // Send to delay bus
+      this.ambientVolumes[layer].connect(this.delaySends[layer])
+
+      // Send to reverb bus
+      this.ambientVolumes[layer].connect(this.reverbSends[layer])
     })
 
     // Create gesture-responsive synth with INCREASED polyphony and cleaner sound
@@ -602,7 +741,7 @@ class AudioService {
         harmonicity: 0,  // Remove harmonicity to prevent triangle waves
         modulationType: 'none'  // Disable modulation
       },
-      volume: -10,  // Quieter default volume
+      volume: -5,  // Reduced volume to match background composition
       envelope: {
         attack: 0.02,  // Faster attack
         decay: 0.2,   // Faster decay
@@ -620,22 +759,37 @@ class AudioService {
     })
 
     // Add pan node for gesture synth spatial control
-    this.gesturePan = new Tone.Panner(0).toDestination()
+    this.gesturePan = new Tone.Panner(0)
 
-    // FIX: Correct routing - synth -> filter -> pan -> effects -> master -> destination
+    // SEND/RETURN routing: synth -> filter -> pan -> [dry to master + sends to FX]
     this.gestureSynth.connect(this.gestureFilter)
     this.gestureFilter.connect(this.gesturePan)
-    this.gesturePan.connect(this.reverb)
-    this.gesturePan.connect(this.delay)
-    this.gesturePan.connect(this.masterVolume)
+
+    // Create volume node for gesture dry signal (increased for prominence)
+    this.gestureVolume = new Tone.Volume(+6) // +6dB - gesture prominence over background
+
+    // Dry signal routing: pan -> volume -> master
+    this.gesturePan.connect(this.gestureVolume)
+    this.gestureVolume.connect(this.masterVolume)
+
+    // Send to delay bus
+    this.gesturePan.connect(this.delaySends.gesture)
+
+    // Send to reverb bus
+    this.gesturePan.connect(this.reverbSends.gesture)
+
+    console.log('🔌 Gesture routing: gestureSynth → filter → pan → [gestureVolume → master + sends to FX]')
+    console.log('🔊 Gesture synth volume:', this.gestureSynth.volume.value, 'dB')
+    console.log('🔊 Gesture dry volume:', this.gestureVolume.volume.value, 'dB')
 
     // Polyphony management
     this.maxTotalVoices = 8 // Maximum total voices across all synths
 
-    // Start evolving generative system
-    this.startEvolvingGeneration()
+    // DISABLED: Old single-event generative system
+    // Now using BackgroundCompositionService which generates structured compositions
+    // this.startEvolvingGeneration()
 
-    console.log('🎵 Evolutive generative system created with limited polyphony management')
+    console.log('🎵 Audio system initialized - BackgroundCompositionService generates compositions from backend')
   }
 
   /**
@@ -669,42 +823,33 @@ class AudioService {
           if (layer.nextNoteTime <= 0) {
             this.playLayer(layerName)
 
-            // BALANCED ORGANIC VARIATION: Wide enough to break patterns, not too chaotic
-            // Each layer has moderate variation for smooth yet unpredictable flow
-            let rhythmVariation
-            if (layerName === 'bass') {
-              // Bass: 50-180% variation (2350ms - 8460ms)
-              // Prevents fast pulse while maintaining presence
-              rhythmVariation = 0.5 + Math.random() * 1.3
-            } else if (layerName === 'pad') {
-              // Pad: 60-200% variation (3060ms - 10200ms)
-              // Long sustains with moderate variation
-              rhythmVariation = 0.6 + Math.random() * 1.4
-            } else if (layerName === 'chords') {
-              // Chords: 55-190% variation (3245ms - 11210ms)
-              // Balanced unpredictability
-              rhythmVariation = 0.55 + Math.random() * 1.35
+            // PATTERN-BASED RHYTHM SYSTEM
+            // Get the current rhythmic pattern for this layer
+            const currentPattern = this.generativeState.rhythmPatterns[layer.currentPatternIndex]
+            const patternMultiplier = currentPattern[layer.patternPosition]
+
+            // Advance position in pattern
+            layer.patternPosition++
+
+            // If pattern is complete, choose a new random pattern
+            if (layer.patternPosition >= currentPattern.length) {
+              const oldPattern = layer.currentPatternIndex
+              // Choose different pattern than current one
+              do {
+                layer.currentPatternIndex = Math.floor(Math.random() * this.generativeState.rhythmPatterns.length)
+              } while (layer.currentPatternIndex === oldPattern && this.generativeState.rhythmPatterns.length > 1)
+
+              layer.patternPosition = 0
+              console.log(`🔄 ${layerName}: pattern change ${oldPattern} → ${layer.currentPatternIndex} [${this.generativeState.rhythmPatterns[layer.currentPatternIndex].join(', ')}]`)
             }
 
-            // Complexity influences density: low complexity = sparser rhythm
-            const complexityFactor = 0.75 + (this.generativeState.complexity * 0.5)
+            // PATTERN + MICROVARIATIONS for organic timing
+            // Base timing from pattern, with subtle jitter (±5%) for human feel
+            const baseTime = layer.rhythm * patternMultiplier
+            const jitter = 1 + (Math.random() - 0.5) * 0.1  // ±5% variation
+            layer.nextNoteTime = baseTime * jitter
 
-            // Layer-specific phase offsets (different for each layer)
-            // This ensures each layer has INDEPENDENT rhythmic drift
-            const phaseOffset = layerName === 'bass' ? 0 : layerName === 'pad' ? 2.1 : 4.7
-
-            // INDEPENDENT drift per layer using different phase offsets
-            // Each layer evolves at different "starting points" in the sine/cosine cycles
-            const cycle = this.generativeState.evolutionCycle
-            const driftFactor1 = 0.92 + Math.sin((cycle + phaseOffset * 100) * 0.013) * 0.12
-            const driftFactor2 = 0.96 + Math.cos((cycle + phaseOffset * 200) * 0.007) * 0.08
-
-            // INDEPENDENT jitter per layer using layer name as seed
-            // Each layer gets unique timestamp-based variation
-            const layerSeed = layerName.charCodeAt(0) * 137  // Different seed per layer
-            const jitter = 0.92 + (Math.sin((Date.now() + layerSeed) * 0.001) * 0.16)
-
-            layer.nextNoteTime = layer.rhythm * rhythmVariation * complexityFactor * driftFactor1 * driftFactor2 * jitter
+            console.log(`⏱️ ${layerName}: nextNote in ${Math.round(layer.nextNoteTime)}ms (rhythm=${layer.rhythm} × pattern=${patternMultiplier} × jitter=${jitter.toFixed(3)})`)
           }
         })
 
@@ -823,6 +968,8 @@ class AudioService {
    * @param {string} layerName - Name of layer ('bass', 'pad', 'chords')
    */
   playLayer(layerName) {
+    console.log(`🎹 playLayer CALLED for ${layerName} at ${Date.now()}`)
+
     const state = this.generativeState
     const layer = state.layers[layerName]
     const scale = state.currentScale
@@ -836,49 +983,51 @@ class AudioService {
     const chordRoot = state.chordProgression[state.currentChord]
     const chordRootIndex = scale.indexOf(chordRoot)
 
-    // Release previous notes to prevent polyphony exceeded
-    try {
-      if (layerName === 'bass' && layer.lastFrequency) {
-        synth.triggerRelease(layer.lastFrequency)
-      } else if (layer.lastFrequencies && layer.lastFrequencies.length > 0) {
-        layer.lastFrequencies.forEach(freq => synth.triggerRelease(freq))
-      }
-    } catch (error) {
-      // Ignore release errors
-    }
+    // Release previous notes moved inside layer-specific code
+    // to prevent releasing notes we're about to retrigger
 
     // Calculate frequencies based on layer type
     let frequencies = []
 
-    // ORGANIC DURATION VARIATION: Avoid mechanical regularity
-    // Durations vary based on complexity and random variation
-    let baseDuration, durationVariation
+    // PATTERN-BASED DURATION: Match note duration to rhythmic pattern
+    // Duration should reflect the pattern multiplier for coherent rhythm
+    const currentPattern = state.rhythmPatterns[layer.currentPatternIndex]
+    const currentPosition = (layer.patternPosition - 1 + currentPattern.length) % currentPattern.length
+    const patternMultiplier = currentPattern[currentPosition]
 
+    // Base durations per layer
+    let baseDuration
     if (layerName === 'bass') {
-      // Bass: 0.8-2.0 seconds (short to medium)
-      baseDuration = 1.2
-      durationVariation = 0.7 + Math.random() * 0.6  // 70-130%
+      baseDuration = 1.0  // 1 second base
     } else if (layerName === 'pad') {
-      // Pad: 2.0-5.0 seconds (medium to long sustains)
-      baseDuration = 3.0
-      durationVariation = 0.67 + Math.random() * 0.67  // 67-133%
+      baseDuration = 2.5  // 2.5 seconds base (longer sustains)
     } else if (layerName === 'chords') {
-      // Chords: 1.2-3.2 seconds (short to medium)
-      baseDuration = 2.0
-      durationVariation = 0.6 + Math.random() * 0.6  // 60-120%
+      baseDuration = 1.8  // 1.8 seconds base
     }
 
-    // Complexity affects articulation: higher complexity = shorter notes
-    const articulationFactor = 1.2 - (state.complexity * 0.4)
-    const duration = baseDuration * durationVariation * articulationFactor
+    // Duration matches pattern: if pattern says 2.0x rhythm, note lasts 2.0x duration
+    // This creates coherent relationship between note spacing and note length
+    // Articulation: notes slightly shorter than inter-onset for clarity (80%)
+    const articulationFactor = 0.8 - (state.complexity * 0.1)  // Higher complexity = more staccato
+    const duration = baseDuration * patternMultiplier * articulationFactor
+
+    // DEBUG: Log pattern usage for duration calculation
+    console.log(`🎼 ${layerName} DURATION: pattern[${currentPosition}]=${patternMultiplier} → dur=${duration.toFixed(2)}s (from pattern ${layer.currentPatternIndex}: [${currentPattern.join(', ')}])`)
 
     if (layerName === 'bass') {
-      // BASS: Single root note
+      // BASS: ONLY root note - NO variation to avoid repetitive melodic pattern
+      // Previous variation [root, fifth, root+octave] created "C-G-C" repetition
+      // User perceived this as "note played twice" pattern
       const scaleNote = chordRoot
-      // Formula: tonic * 2^(scaleNote/12 + octaveOffset)
-      // octave=-2 → two octaves below tonic
       const frequency = state.currentTonic * Math.pow(2, (scaleNote / 12) + layer.octave)
       frequencies = [frequency]
+
+      // CRITICAL: Always release all previous notes to prevent polyphony overflow
+      try {
+        synth.releaseAll()
+      } catch (e) {
+        // Ignore release errors
+      }
       layer.lastFrequency = frequency
 
     } else if (layerName === 'pad') {
@@ -890,6 +1039,13 @@ class AudioService {
       const freq3 = state.currentTonic * Math.pow(2, (third / 12) + layer.octave)
       const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
       frequencies = [freq3, freq5]
+
+      // CRITICAL: Always release all previous notes to prevent polyphony overflow
+      try {
+        synth.releaseAll()
+      } catch (e) {
+        // Ignore release errors
+      }
       layer.lastFrequencies = frequencies
 
     } else if (layerName === 'chords') {
@@ -903,6 +1059,13 @@ class AudioService {
       const freq3 = state.currentTonic * Math.pow(2, (third / 12) + layer.octave)
       const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
       frequencies = [freqR, freq3, freq5]
+
+      // CRITICAL: Always release all previous notes to prevent polyphony overflow
+      try {
+        synth.releaseAll()
+      } catch (e) {
+        // Ignore release errors
+      }
       layer.lastFrequencies = frequencies
     }
 
@@ -926,8 +1089,12 @@ class AudioService {
 
     // Trigger notes
     try {
-      frequencies.forEach(freq => {
-        synth.triggerAttackRelease(freq, duration, Tone.now(), playVelocity)
+      const triggerTime = Tone.now()
+      console.log(`🔊 TRIGGERING ${layerName} at Tone.now()=${triggerTime.toFixed(3)}`)
+
+      frequencies.forEach((freq, idx) => {
+        console.log(`  ↳ Trigger #${idx+1}: freq=${freq.toFixed(1)}Hz, dur=${duration.toFixed(3)}s, vel=${playVelocity.toFixed(2)}`)
+        synth.triggerAttackRelease(freq, duration, triggerTime, playVelocity)
       })
 
       // Detailed logging for rhythm debugging
@@ -1150,13 +1317,6 @@ class AudioService {
       if (this.gestureSynth && this.gestureSynth.filter) {
         this.gestureSynth.filter.frequency.linearRampToValueAtTime(filterFreq, Tone.now() + 0.05)
         console.log(`🎛️ Applied gesture filter: ${filterFreq.toFixed(1)}Hz (ramp 50ms)`)
-
-        // Also apply to master volume for cleaner routing
-        if (this.masterVolume && this.masterVolume.volume) {
-          const targetVolume = Math.max(-40, Math.min(0, -5)) // Reduce background to make local gesture clearer
-          this.masterVolume.volume.linearRampToValueAtTime(targetVolume, Tone.now() + 0.1)
-          console.log(`🎛️ Applied master volume: ${targetVolume}dB for gesture clarity`)
-        }
       }
 
       // Calculate three-tier duration based on gesture velocity
@@ -1164,15 +1324,23 @@ class AudioService {
       const tierDuration = this.calculateThreeTierDuration(gestureVelocity, '8n')
 
       // Trigger gesture-responsive note with three-tier duration
-      // Use volume from gesture as velocity parameter (0.3-0.7 range)
+      // Use volume from gesture as velocity parameter (0.5-1.0 range for prominence)
       if (this.gestureSynth && this.gestureSynth.triggerAttackRelease) {
-        // FIX: Simplified approach without delay to prevent hanging
-        const velocity = Math.max(0.1, Math.min(0.8, 0.3 + (volume * 0.4)))
+        // Higher velocity range for local gesture prominence
+        const velocity = Math.max(0.5, Math.min(1.0, 0.5 + (volume * 0.5)))
 
-        // Trigger note directly with immediate effect and lower volume
-        this.gestureSynth.triggerAttackRelease(frequency, tierDuration, undefined, velocity * 0.6)
+        console.log(`🔊 LOCAL GESTURE TRIGGER:`)
+        console.log(`  ↳ Frequency: ${frequency.toFixed(1)}Hz`)
+        console.log(`  ↳ Duration: ${tierDuration}s`)
+        console.log(`  ↳ Velocity: ${velocity.toFixed(2)}`)
+        console.log(`  ↳ Synth volume: ${this.gestureSynth.volume.value}dB`)
+        console.log(`  ↳ Active voices before: ${this.gestureSynth.activeVoices}`)
 
-        console.log(`🎵 Triggering gesture note: ${frequency.toFixed(1)}Hz, duration: ${tierDuration}s, velocity: ${velocity.toFixed(2)}`)
+        // Trigger note with full velocity (no reduction multiplier)
+        this.gestureSynth.triggerAttackRelease(frequency, tierDuration, undefined, velocity)
+
+        console.log(`  ↳ Active voices after: ${this.gestureSynth.activeVoices}`)
+        console.log(`  ↳ Trigger successful!`)
       } else {
         console.warn('🔇 Gesture synth not available for note triggering')
       }
@@ -1579,6 +1747,311 @@ class AudioService {
   }
 
   /**
+   * Play background composition generated by CompositionEngine
+   * Handles polyphonic, homophonic, and ambient compositions
+   * @param {Object} composition - Composition from BackgroundCompositionService
+   */
+  playComposition(composition, isDrone = false) {
+    if (!this.isInitialized || this.muted) {
+      console.log('🔇 playComposition blocked - initialized:', this.isInitialized, 'muted:', this.muted)
+      return
+    }
+
+    if (!composition || !composition.content) {
+      console.warn('🎼 Invalid composition data')
+      return
+    }
+
+    const tempo = composition.metadata?.tempo || 120
+
+    console.log(`🎼 Playing ${composition.type} composition${isDrone ? ' (DRONE)' : ''}:`, {
+      form: composition.structure?.form,
+      section: composition.structure?.currentSection,
+      tempo: tempo,
+      key: composition.metadata?.keyCenter
+    })
+
+    // If this is NOT a drone and we have a drone loop running, stop it
+    if (!isDrone && this.droneLoopInterval) {
+      console.log('🛑 Stopping drone loop - real composition starting')
+      clearInterval(this.droneLoopInterval)
+      this.droneLoopInterval = null
+    }
+
+    const content = composition.content
+    const type = composition.type
+
+    try {
+      if (type === 'polyphonic' && content.voices) {
+        this.playPolyphonicComposition(content, tempo)
+      } else if (type === 'homophonic' && content.melody) {
+        this.playHomophonicComposition(content, tempo)
+      } else if (type === 'ambient' && content.texture) {
+        this.playAmbientComposition(content, tempo, isDrone)
+      } else {
+        console.warn('🎼 Unknown composition type:', type)
+      }
+    } catch (error) {
+      console.error('🎼 Error playing composition:', error)
+    }
+  }
+
+  /**
+   * Play polyphonic composition (multiple voices)
+   * @param {Object} content - Composition content with voices
+   * @param {number} tempo - Tempo in BPM (30-300)
+   */
+  playPolyphonicComposition(content, tempo = 120) {
+    if (!content.voices || !Array.isArray(content.voices)) return
+
+    // Calculate beat duration from tempo: beatDuration = 60 / BPM
+    // 30 BPM → 2.0 seconds per beat (very slow)
+    // 120 BPM → 0.5 seconds per beat (standard)
+    // 300 BPM → 0.2 seconds per beat (very fast)
+    const beatDuration = 60 / tempo
+
+    console.log(`🎼 Playing polyphonic: ${content.voices.length} voices at ${tempo} BPM (${beatDuration.toFixed(2)}s/beat)`)
+
+    content.voices.forEach((voice, voiceIndex) => {
+      if (!voice.notes || !Array.isArray(voice.notes)) return
+
+      const voiceRole = voice.voiceRole || 'harmony'
+      console.log(`🎵 Voice ${voiceIndex} - Role: ${voiceRole}, Notes: ${voice.notes.length}`)
+
+      // Role-based configuration for TIMBRAL DISTINCTION
+      const roleConfig = {
+        'melody': {
+          layer: 'backgroundHigh',
+          velocity: 0.10,  // Reduced from 0.12 - brighter but subtle
+          articulation: 'staccato'
+        },
+        'harmony': {
+          layer: 'backgroundMid',
+          velocity: 0.06,   // Reduced from 0.08 - medium presence
+          articulation: 'normal'
+        },
+        'bass': {
+          layer: 'backgroundLow',
+          velocity: 0.08,   // Reduced from 0.10 - punchy but controlled
+          articulation: 'legato'
+        },
+        'pad': {
+          layer: 'backgroundLow',
+          velocity: 0.04,   // Reduced from 0.06 - very soft, ethereal
+          articulation: 'legato'
+        }
+      }[voiceRole] || { layer: 'backgroundMid', velocity: 0.06, articulation: 'normal' }
+
+      voice.notes.forEach((note, noteIndex) => {
+        const pitch = note.pitch || 60
+        const frequency = this.midiToFrequency(pitch)
+        const duration = note.duration || 0.5
+        const delay = (note.startBeat || 0) * beatDuration  // Use tempo-based beat duration
+
+        console.log(`  🎵 ${voiceRole} note ${noteIndex}: pitch=${pitch}, dur=${duration.toFixed(1)}, delay=${delay.toFixed(2)}s`)
+
+        setTimeout(() => {
+          if (this.ambientLayers && this.ambientLayers[roleConfig.layer]) {
+            this.ambientLayers[roleConfig.layer].triggerAttackRelease(
+              frequency, duration, undefined, roleConfig.velocity
+            )
+          }
+        }, delay * 1000)
+      })
+    })
+  }
+
+  /**
+   * Play homophonic composition (melody + accompaniment)
+   * @param {Object} content - Composition content
+   * @param {number} tempo - Tempo in BPM
+   */
+  playHomophonicComposition(content, tempo = 120) {
+    const beatDuration = 60 / tempo
+    console.log(`🎼 Playing homophonic composition at ${tempo} BPM`)
+
+    if (content.melody && content.melody.notes) {
+      content.melody.notes.forEach((note, index) => {
+        const pitch = note.pitch || 60
+        const frequency = this.midiToFrequency(pitch)
+        const duration = note.duration || 0.5
+        const velocity = 0.12  // Very subtle melody (reduced from 0.2)
+        const delay = (note.startBeat || index * 0.5) * beatDuration
+
+        setTimeout(() => {
+          if (this.ambientLayers && this.ambientLayers.backgroundHigh) {
+            this.ambientLayers.backgroundHigh.triggerAttackRelease(
+              frequency, duration, undefined, velocity
+            )
+          }
+        }, delay * 1000)
+      })
+    }
+
+    if (content.accompaniment) {
+      this.playAccompaniment(content.accompaniment, tempo)
+    }
+  }
+
+  /**
+   * Play accompaniment (arpeggios, chord pads)
+   * @param {Object} accompaniment - Accompaniment data
+   * @param {number} tempo - Tempo in BPM
+   */
+  playAccompaniment(accompaniment, tempo = 120) {
+    const beatDuration = 60 / tempo
+    const type = accompaniment.type
+
+    if (type === 'arpeggio' && accompaniment.pattern) {
+      accompaniment.pattern.forEach((chord, chordIndex) => {
+        if (!chord.notes || !Array.isArray(chord.notes)) return
+
+        chord.notes.forEach((pitch, noteIndex) => {
+          const frequency = this.midiToFrequency(pitch)
+          const duration = chord.rhythm || 0.25
+          const delay = (chordIndex * 2 + noteIndex * 0.25) * beatDuration
+
+          setTimeout(() => {
+            if (this.ambientLayers && this.ambientLayers.backgroundMid) {
+              this.ambientLayers.backgroundMid.triggerAttackRelease(
+                frequency, duration, undefined, 0.06  // Very subtle arpeggio (reduced from 0.12)
+              )
+            }
+          }, delay * 1000)
+        })
+      })
+    } else if (type === 'chord_pads' && accompaniment.chords) {
+      accompaniment.chords.forEach((chord, index) => {
+        const chordNotes = this.buildChordFromName(chord.chord || 'C')
+        const delay = index * 4 * beatDuration
+
+        chordNotes.forEach(pitch => {
+          const frequency = this.midiToFrequency(pitch)
+          const duration = chord.duration || 4
+
+          setTimeout(() => {
+            if (this.ambientLayers && this.ambientLayers.backgroundLow) {
+              this.ambientLayers.backgroundLow.triggerAttackRelease(
+                frequency, duration, undefined, 0.05  // Very subtle pad (reduced from 0.1)
+              )
+            }
+          }, delay * 1000)
+        })
+      })
+    }
+  }
+
+  /**
+   * Play ambient composition (textural)
+   * @param {Object} content - Composition content
+   * @param {number} tempo - Tempo in BPM
+   */
+  playAmbientComposition(content, tempo = 120, isDrone = false) {
+    const beatDuration = 60 / tempo
+    console.log(`🎼 Playing ambient composition at ${tempo} BPM${isDrone ? ' (DRONE - will loop)' : ''}`)
+
+    if (!content.texture || !Array.isArray(content.texture)) {
+      console.warn('🎼 No texture array in ambient composition')
+      return
+    }
+
+    // Play each texture element from the composition
+    content.texture.forEach((textureItem, index) => {
+      const delay = index * 0.5  // Small delay between texture layers
+
+      setTimeout(() => {
+        if (textureItem.note) {
+          // Convert note name to MIDI then to frequency
+          const midiNote = this.noteNameToMidi(textureItem.note)
+          const frequency = this.midiToFrequency(midiNote)
+          const duration = (textureItem.duration || 8000) / 1000  // Convert ms to seconds
+          const velocity = textureItem.velocity || 0.2
+
+          console.log(`🎵🎵🎵 DRONE/AMBIENT: ${textureItem.note} (MIDI=${midiNote}, ${frequency.toFixed(1)}Hz), dur=${duration.toFixed(1)}s, vel=${velocity}, isDrone=${isDrone}`)
+
+          // Use PAD layer for drone (slow attack, long release, perfect for atmospheric sounds)
+          const layer = isDrone ? this.ambientLayers.pad : this.ambientLayers.backgroundLow
+
+          if (layer) {
+            console.log(`  ✅ Triggering on layer: ${isDrone ? 'pad' : 'backgroundLow'}`)
+            layer.triggerAttackRelease(frequency, duration, undefined, velocity)
+          } else {
+            console.warn(`  ❌ Layer not found: ${isDrone ? 'pad' : 'backgroundLow'}`)
+          }
+
+          // If this is a drone, schedule it to loop
+          if (isDrone) {
+            // Set up interval to repeat the drone every 'duration' seconds
+            if (this.droneLoopInterval) {
+              clearInterval(this.droneLoopInterval)
+            }
+
+            this.droneLoopInterval = setInterval(() => {
+              console.log('🔁 Looping drone... (MIDI=' + midiNote + ', ' + frequency.toFixed(1) + 'Hz)')
+              if (this.ambientLayers && this.ambientLayers.pad) {
+                this.ambientLayers.pad.triggerAttackRelease(
+                  frequency, duration, undefined, velocity
+                )
+              }
+            }, duration * 1000)
+          }
+        }
+      }, delay * 1000)
+    })
+  }
+
+  /**
+   * Convert note name to MIDI number (e.g., "C3" -> 48)
+   */
+  noteNameToMidi(noteName) {
+    const noteMap = {
+      'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11
+    }
+
+    const match = noteName.match(/^([A-G])([#b]?)(\d+)$/)
+    if (!match) return 60  // Default to C4
+
+    const [, note, accidental, octave] = match
+    let midiNote = noteMap[note] + (parseInt(octave) + 1) * 12
+
+    if (accidental === '#') midiNote += 1
+    if (accidental === 'b') midiNote -= 1
+
+    return midiNote
+  }
+
+  /**
+   * Convert MIDI note to frequency
+   */
+  midiToFrequency(midiNote) {
+    return 440 * Math.pow(2, (midiNote - 69) / 12)
+  }
+
+  /**
+   * Build chord from chord name
+   */
+  buildChordFromName(chordName) {
+    const noteMap = {
+      'C': 60, 'C#': 61, 'Db': 61, 'D': 62, 'D#': 63, 'Eb': 63,
+      'E': 64, 'F': 65, 'F#': 66, 'Gb': 66, 'G': 67, 'G#': 68,
+      'Ab': 68, 'A': 69, 'A#': 70, 'Bb': 70, 'B': 71
+    }
+
+    const rootMatch = chordName.match(/^([A-G][#b]?)/)
+    if (!rootMatch) return [60, 64, 67]
+
+    const root = noteMap[rootMatch[1]] || 60
+
+    if (chordName.includes('m')) {
+      return [root, root + 3, root + 7]
+    } else if (chordName.includes('7')) {
+      return [root, root + 4, root + 7, root + 10]
+    } else {
+      return [root, root + 4, root + 7]
+    }
+  }
+
+  /**
    * Cleanup hanging notes to prevent audio issues
    * FIX: Added note hanging prevention
    */
@@ -1830,17 +2303,21 @@ class AudioService {
           }
 
           // Use triggerAttackRelease for accurate duration control
+          // Remote gestures should be quieter than local gestures
+          const finalVelocity = isStreamed ? adjustedVelocity * 0.6 : adjustedVelocity
+
           this.gestureSynth.triggerAttackRelease(
             frequency,
             adjustedDuration,  // Tone.js handles duration in seconds
             Tone.now(),
-            adjustedVelocity
+            finalVelocity
           )
 
-          console.log('🎶 Note played:', {
+          console.log(`🎶 Note played (${isStreamed ? 'REMOTE' : 'LOCAL'}):`, {
             frequency: frequency.toFixed(1),
             duration: adjustedDuration.toFixed(3),
-            velocity: adjustedVelocity.toFixed(2),
+            velocity: finalVelocity.toFixed(3),
+            type: isStreamed ? 'remote (×0.6)' : 'local (full)',
             articulation: articulation
           })
         } catch (e) {
@@ -4089,10 +4566,13 @@ class AudioService {
       const speedFactor = 1 + parameters.rhythmicDensity
       Object.keys(this.generativeState.layers).forEach(layerName => {
         const layer = this.generativeState.layers[layerName]
+        // CRITICAL: Use PRIME NUMBERS to prevent rhythmic synchronization
+        // Previous values (4000, 6000, 8000) were exact multiples → LCM=24000ms
+        // All layers synchronized every 24 seconds creating "ta-taaaan" pattern
         const baseRhythm = {
-          bass: 4000,
-          pad: 6000,
-          chords: 8000
+          bass: 3700,   // PRIME-ISH: Ensures bass never aligns with others
+          pad: 5300,    // PRIME: Completely independent rhythm
+          chords: 7900  // PRIME: Maximum desynchronization
         }[layerName]
         layer.rhythm = baseRhythm / speedFactor
       })
@@ -4122,12 +4602,29 @@ class AudioService {
       this.generativeState.mode = parameters.mode
     }
 
+    // DELAY MODULATION: Speed and feedback based on interaction metrics
+    if (this.delay) {
+      // Delay time: faster with higher rhythmic density (100ms - 400ms range)
+      if (parameters.rhythmicDensity !== undefined) {
+        const delayTime = 0.4 - (parameters.rhythmicDensity * 0.15)  // More dense = faster delay
+        this.delay.delayTime.rampTo(Math.max(0.1, delayTime), 2)  // Smooth 2s transition
+      }
+
+      // Feedback: more repetitions with higher harmonic density (0.2 - 0.6 range)
+      if (parameters.harmonicDensity !== undefined) {
+        const feedback = 0.2 + (parameters.harmonicDensity * 0.1)  // More complex = more echoes
+        this.delay.feedback.rampTo(Math.min(0.6, feedback), 2)  // Smooth 2s transition
+      }
+    }
+
     console.log('🎵 Updated generative state:', {
       scale: this.generativeState.currentScale,
       tonic: this.generativeState.currentTonic.toFixed(1),
       complexity: this.generativeState.complexity.toFixed(2),
       bassRhythm: this.generativeState.layers.bass.rhythm.toFixed(0),
-      activeLayers: Object.keys(this.generativeState.layers).length
+      activeLayers: Object.keys(this.generativeState.layers).length,
+      delayTime: this.delay ? this.delay.delayTime.value.toFixed(2) : 'N/A',
+      delayFeedback: this.delay ? this.delay.feedback.value.toFixed(2) : 'N/A'
     })
   }
 }

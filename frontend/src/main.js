@@ -382,18 +382,22 @@ class WebarmoniumApp {
       if (this.audioService.gestureSynth) {
         this.audioService.gestureSynth.set({ envelope })
 
+        // Higher velocity for local gesture prominence
+        const velocity = 0.8 + noteData.velocity * 0.2 // 0.8-1.0 range (was 0.5-0.8)
+
         console.log('🎵🎵 PLAYING LOCAL NOTE:', {
           frequency: frequency.toFixed(1),
           duration: duration,
           articulation: noteData.articulation,
-          velocity: noteData.velocity.toFixed(3)
+          velocity: velocity.toFixed(3),
+          synthVolume: this.audioService.gestureSynth.volume.value
         })
 
         this.audioService.gestureSynth.triggerAttackRelease(
           frequency,
           duration,
           Tone.now(),
-          0.5 + noteData.velocity * 0.3 // 0.5-0.8 volume
+          velocity
         )
       }
 
@@ -578,6 +582,25 @@ class WebarmoniumApp {
         this.audioService.updatePatterns(update.patterns)
       }
     })
+
+    console.log('📡 Registering background-composition event listener...')
+    this.socketService.on('background-composition', (data) => {
+      console.log('🎼🎼🎼 BACKGROUND COMPOSITION EVENT RECEIVED 🎼🎼🎼')
+      console.log('  ↳ Composition number:', data.compositionNumber)
+      console.log('  ↳ isDrone:', data.isDrone)
+      console.log('  ↳ isAudioStarted:', this.isAudioStarted)
+      console.log('  ↳ Has composition:', !!data.composition)
+      console.log('  ↳ Composition type:', data.composition?.type)
+      console.log('  ↳ Full data:', data)
+
+      if (this.isAudioStarted && data.composition) {
+        console.log('✅ Playing composition...')
+        this.audioService.playComposition(data.composition, data.isDrone)
+      } else {
+        console.warn('❌ Not playing - isAudioStarted:', this.isAudioStarted, 'composition:', !!data.composition)
+      }
+    })
+    console.log('✅ background-composition listener registered')
 
     // PHASE 5: Removed unused 'gesture-processed' listener (82 lines)
     // Backend never emits this event - it uses 'musical:event' instead

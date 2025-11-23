@@ -158,6 +158,15 @@ const socketHandlers = {
           strokes: drawingHistory
         })
 
+        // Start background composition for the room
+        if (socket.services.backgroundCompositionService) {
+          socket.services.backgroundCompositionService.startComposition(roomId, {
+            roomId: roomId,
+            userCount: result.room.userCount,
+            activeUsers: result.users.map(u => u.id)
+          })
+        }
+
         console.log(`User ${socket.userId} joined room ${roomId} (${latency}ms)`)
 
         // Log constitutional compliance
@@ -288,7 +297,7 @@ const socketHandlers = {
 
         // Record gesture for collective metrics analysis (non-blocking)
         try {
-          this.roomManager.recordGesture(socket.roomId, {
+          socket.services.roomManager.recordGesture(socket.roomId, {
             ...data,
             userId: socket.userId,
             timestamp: Date.now()
@@ -301,8 +310,15 @@ const socketHandlers = {
         // CRITICAL: Check if gesture includes streamedNotes from frontend
         // If yes, use exact notes instead of generating new ones
         let musicalResult = null
+        let gestureData = {
+          userId: socket.userId,
+          roomId: socket.roomId,
+          gesture: data
+        }
 
         if (data.streamedNotes && Array.isArray(data.streamedNotes) && data.streamedNotes.length > 0) {
+          console.log('🔍 Processing streamedNotes from frontend:', data.streamedNotes.length, 'notes')
+
           // Convert streamedNotes to musical events format for broadcast
           const startTime = Date.now()
           musicalResult = data.streamedNotes.map((note, index) => {
@@ -331,21 +347,79 @@ const socketHandlers = {
           })
         } else {
           // Process gesture through our updated GestureToMusicService
-          const gestureData = {
-            userId: socket.userId,
-            roomId: socket.roomId,
-            gesture: data
-          }
-
           try {
-            const GestureToMusicService = require('../services/GestureToMusicService')
-            const gestureToMusicService = new GestureToMusicService()
-            musicalResult = gestureToMusicService.processGesture(gestureData)
+            // Use shared service instance for harmonic coherence
+            musicalResult = socket.services.gestureToMusicService.processGesture(gestureData)
           } catch (error) {
             console.error('GestureToMusicService failed:', error)
             // Continue with fallback gesture processing instead of throwing
             musicalResult = null
           }
+        }
+
+        // CRITICAL: Add material to BackgroundCompositionService for BOTH streamedNotes and processGesture paths
+        // This ensures the gestural profiling system works for all gesture types
+        if (musicalResult && socket.services.backgroundCompositionService) {
+          console.log('🔍 DEBUG addMaterial condition check:', {
+            hasMusicalResult: !!musicalResult,
+            hasBackgroundService: !!socket.services.backgroundCompositionService,
+            roomId: socket.roomId,
+            gestureType: gestureData.gesture?.type,
+            musicalResultType: Array.isArray(musicalResult) ? 'array' : 'object',
+            musicalResultLength: Array.isArray(musicalResult) ? musicalResult.length : 'N/A'
+          })
+
+          try {
+            // Helper: Convert Tone.js duration notation to milliseconds (at 120 BPM)
+            const toneDurationToMs = (toneDuration) => {
+              if (typeof toneDuration === 'number') return toneDuration // Already in ms
+
+              const durationMap = {
+                '32n': 62.5,   // 1/32 note at 120 BPM = 62.5ms
+                '16n': 125,    // 1/16 note at 120 BPM = 125ms
+                '8n': 250,     // 1/8 note at 120 BPM = 250ms
+                '4n': 500,     // 1/4 note at 120 BPM = 500ms
+                '2n': 1000,    // 1/2 note at 120 BPM = 1000ms
+                '1n': 2000     // Whole note at 120 BPM = 2000ms
+              }
+              return durationMap[toneDuration] || 250 // Default to 8n if unknown
+            }
+
+            // Convert array format (streamedNotes) to object format expected by addMaterial
+            const musicalPhrase = Array.isArray(musicalResult)
+              ? {
+                notes: musicalResult.map(event => ({
+                  pitch: event.properties.frequency,
+                  duration: toneDurationToMs(event.properties.duration), // Convert to ms
+                  velocity: event.properties.velocity / 100,
+                  articulation: event.properties.articulation,
+                  timestamp: event.timestamp
+                })),
+                duration: musicalResult.reduce((sum, event) => sum + toneDurationToMs(event.properties.duration), 0)
+              }
+              : musicalResult
+
+            console.log('✅ Calling addMaterial with:', {
+              roomId: socket.roomId,
+              gestureType: gestureData.gesture?.type,
+              notes: musicalPhrase.notes?.length || 0,
+              duration: musicalPhrase.duration
+            })
+
+            socket.services.backgroundCompositionService.addMaterial(
+              socket.roomId,
+              gestureData,
+              musicalPhrase
+            )
+            console.log('✅ addMaterial completed successfully')
+          } catch (error) {
+            console.error('❌ addMaterial ERROR:', error)
+          }
+        } else {
+          console.warn('⚠️ Skipping addMaterial - condition not met:', {
+            hasMusicalResult: !!musicalResult,
+            hasBackgroundService: !!socket.services.backgroundCompositionService
+          })
         }
 
         // Constitutional requirement: <200ms processing
@@ -798,6 +872,20 @@ const socketHandlers = {
           timestamp: Date.now()
         })
 
+        // Stop background composition if room is now empty
+        const roomAfterLeave = roomManager.getRoom(socket.roomId)
+        if (socket.services.backgroundCompositionService) {
+          if (!roomAfterLeave || roomAfterLeave.users.size === 0) {
+            socket.services.backgroundCompositionService.stopComposition(socket.roomId)
+          } else {
+            // Update room context with new user count
+            socket.services.backgroundCompositionService.updateRoomContext(socket.roomId, {
+              userCount: roomAfterLeave.users.size,
+              activeUsers: Array.from(roomAfterLeave.users.values()).map(u => u.id)
+            })
+          }
+        }
+
         console.log(`User ${socket.userId} disconnected from room ${socket.roomId}`)
       } catch (error) {
         console.error('Disconnection cleanup error:', error)
@@ -921,9 +1009,38 @@ const socketHandlers = {
           gesture: data.gesture
         }
 
-        const GestureToMusicService = require('../services/GestureToMusicService')
-        const gestureToMusicService = new GestureToMusicService()
-        const musicalResult = gestureToMusicService.processGesture(gestureData)
+        // Use shared service instance for harmonic coherence
+        const musicalResult = socket.services.gestureToMusicService.processGesture(gestureData)
+
+        // Add material to BackgroundCompositionService for continuous composition
+        console.log('🔍 DEBUG addMaterial condition check (gesture:record):', {
+          hasMusicalResult: !!musicalResult,
+          hasBackgroundService: !!socket.services.backgroundCompositionService,
+          roomId: socket.roomId,
+          gestureType: gestureData.type
+        })
+
+        if (musicalResult && socket.services.backgroundCompositionService) {
+          console.log('✅ Calling addMaterial (gesture:record) with:', {
+            roomId: socket.roomId,
+            gestureType: gestureData.type,
+            musicalResultKeys: Object.keys(musicalResult),
+            notes: musicalResult.notes?.length || 0
+          })
+
+          try {
+            socket.services.backgroundCompositionService.addMaterial(
+              socket.roomId,
+              gestureData,
+              musicalResult
+            )
+            console.log('✅ addMaterial completed successfully')
+          } catch (error) {
+            console.error('❌ addMaterial ERROR:', error)
+          }
+        } else {
+          console.warn('⚠️ Skipping addMaterial - condition not met')
+        }
 
         // Store gesture in room memory
         socket.services.roomManager.addGestureToRoom(socket.roomId, {

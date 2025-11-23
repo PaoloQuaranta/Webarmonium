@@ -213,17 +213,21 @@ class CompositionEngine {
   }
 
   composePolyphonic(materials, progression, style, sectionLength) {
-    console.log(`🎼 Composing polyphonic section with ${materials.length} voices`)
+    // LIMIT to 4 voices max for clarity (melody, harmony, bass, pad)
+    const maxVoices = Math.min(materials.length, 4)
+    const selectedMaterials = materials.slice(0, maxVoices)
 
-    // Create voices for each material/user
-    const voices = materials.map((material, i) => {
+    console.log(`🎼 Composing polyphonic section with ${maxVoices} voices (from ${materials.length} materials)`)
+
+    // Create voices for each material/user with DISTINCT ROLES
+    const voices = selectedMaterials.map((material, i) => {
       const voice = this.counterpointEngine.createVoice(material, i, progression)
+      console.log(`🎼   Voice ${i} (${voice.voiceRole}): ${voice.notes?.length || 0} notes, timbre=${voice.timbre}`)
       return {
         ...voice,
         materialId: material.id,
         userId: material.metadata.userId,
-        pan: this.counterpointEngine.calculatePan(i, materials.length),
-        timbre: this.counterpointEngine.selectTimbre(material, style)
+        pan: this.counterpointEngine.calculatePan(i, maxVoices)
       }
     })
 
@@ -265,10 +269,11 @@ class CompositionEngine {
   }
 
   composeAmbient(progression, style, sectionLength) {
-    console.log(`🎼 Composing ambient section (no material)`)
+    console.log(`🎼 Composing ambient section (no material available)`)
 
     // Generate textural material based on style
     const texture = this.generateAmbientTexture(style, sectionLength)
+    console.log(`🎼   Ambient texture: ${texture.layers.length} layers (static texture - minimal notes)`)
 
     return {
       type: 'ambient',
