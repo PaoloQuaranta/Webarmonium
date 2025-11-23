@@ -586,6 +586,7 @@ class WebarmoniumApp {
     this.socketService.on('background-composition', (data) => {
       console.log('🎼🎼🎼 BACKGROUND COMPOSITION EVENT RECEIVED 🎼🎼🎼')
       console.log('  ↳ Composition number:', data.compositionNumber)
+      console.log('  ↳ isDrone:', data.isDrone)
       console.log('  ↳ isAudioStarted:', this.isAudioStarted)
       console.log('  ↳ Has composition:', !!data.composition)
       console.log('  ↳ Composition type:', data.composition?.type)
@@ -593,7 +594,7 @@ class WebarmoniumApp {
 
       if (this.isAudioStarted && data.composition) {
         console.log('✅ Playing composition...')
-        this.audioService.playComposition(data.composition)
+        this.audioService.playComposition(data.composition, data.isDrone)
       } else {
         console.warn('❌ Not playing - isAudioStarted:', this.isAudioStarted, 'composition:', !!data.composition)
       }

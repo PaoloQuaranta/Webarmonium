@@ -1751,7 +1751,7 @@ class AudioService {
    * Handles polyphonic, homophonic, and ambient compositions
    * @param {Object} composition - Composition from BackgroundCompositionService
    */
-  playComposition(composition) {
+  playComposition(composition, isDrone = false) {
     if (!this.isInitialized || this.muted) {
       console.log('🔇 playComposition blocked - initialized:', this.isInitialized, 'muted:', this.muted)
       return
@@ -1764,12 +1764,19 @@ class AudioService {
 
     const tempo = composition.metadata?.tempo || 120
 
-    console.log(`🎼 Playing ${composition.type} composition:`, {
+    console.log(`🎼 Playing ${composition.type} composition${isDrone ? ' (DRONE)' : ''}:`, {
       form: composition.structure?.form,
       section: composition.structure?.currentSection,
       tempo: tempo,
       key: composition.metadata?.keyCenter
     })
+
+    // If this is NOT a drone and we have a drone loop running, stop it
+    if (!isDrone && this.droneLoopInterval) {
+      console.log('🛑 Stopping drone loop - real composition starting')
+      clearInterval(this.droneLoopInterval)
+      this.droneLoopInterval = null
+    }
 
     const content = composition.content
     const type = composition.type
@@ -1780,7 +1787,7 @@ class AudioService {
       } else if (type === 'homophonic' && content.melody) {
         this.playHomophonicComposition(content, tempo)
       } else if (type === 'ambient' && content.texture) {
-        this.playAmbientComposition(content, tempo)
+        this.playAmbientComposition(content, tempo, isDrone)
       } else {
         console.warn('🎼 Unknown composition type:', type)
       }
@@ -1939,9 +1946,9 @@ class AudioService {
    * @param {Object} content - Composition content
    * @param {number} tempo - Tempo in BPM
    */
-  playAmbientComposition(content, tempo = 120) {
+  playAmbientComposition(content, tempo = 120, isDrone = false) {
     const beatDuration = 60 / tempo
-    console.log(`🎼 Playing ambient composition at ${tempo} BPM`)
+    console.log(`🎼 Playing ambient composition at ${tempo} BPM${isDrone ? ' (DRONE - will loop)' : ''}`)
 
     if (!content.texture || !Array.isArray(content.texture)) {
       console.warn('🎼 No texture array in ambient composition')
@@ -1966,6 +1973,23 @@ class AudioService {
             this.ambientLayers.backgroundLow.triggerAttackRelease(
               frequency, duration, undefined, velocity
             )
+          }
+
+          // If this is a drone, schedule it to loop
+          if (isDrone) {
+            // Set up interval to repeat the drone every 'duration' seconds
+            if (this.droneLoopInterval) {
+              clearInterval(this.droneLoopInterval)
+            }
+
+            this.droneLoopInterval = setInterval(() => {
+              console.log('🔁 Looping drone...')
+              if (this.ambientLayers && this.ambientLayers.backgroundLow) {
+                this.ambientLayers.backgroundLow.triggerAttackRelease(
+                  frequency, duration, undefined, velocity
+                )
+              }
+            }, duration * 1000)
           }
         }
       }, delay * 1000)
