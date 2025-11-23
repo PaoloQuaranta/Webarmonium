@@ -705,13 +705,13 @@ class AudioService {
       chords: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 2 }),  // Brighter chords
       backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 1 }),  // Bright melodic layer
       backgroundMid: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 1.5 }),  // Mid-range arpeggios
-      backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 300, Q: 2 })  // Bass layer
+      backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 2 })  // INCREASED from 300Hz for audibility
     }
 
-    // Balanced volumes - bass prominent, pad very subtle, chords reduced
+    // Balanced volumes - bass prominent, pad INCREASED for drone audibility, chords reduced
     this.ambientVolumes = {
       bass: new Tone.Volume(+2),     // Bass boosted for audibility and presence
-      pad: new Tone.Volume(-12),     // Pad very subtle (reduced from -6 to -12)
+      pad: new Tone.Volume(+5),      // INCREASED from -12 to +5 for audible drone
       chords: new Tone.Volume(-18),  // Chords significantly reduced (were too loud)
       backgroundHigh: new Tone.Volume(+10),  // Same boost as gestures for balanced composition
       backgroundMid: new Tone.Volume(+10),   // Same boost as gestures for balanced composition
@@ -1967,12 +1967,16 @@ class AudioService {
           const duration = (textureItem.duration || 8000) / 1000  // Convert ms to seconds
           const velocity = textureItem.velocity || 0.2
 
-          console.log(`  🎵 Ambient texture: ${textureItem.note} (${frequency.toFixed(1)}Hz), dur=${duration.toFixed(1)}s, vel=${velocity}`)
+          console.log(`🎵🎵🎵 DRONE/AMBIENT: ${textureItem.note} (MIDI=${midiNote}, ${frequency.toFixed(1)}Hz), dur=${duration.toFixed(1)}s, vel=${velocity}, isDrone=${isDrone}`)
 
-          if (this.ambientLayers && this.ambientLayers.backgroundLow) {
-            this.ambientLayers.backgroundLow.triggerAttackRelease(
-              frequency, duration, undefined, velocity
-            )
+          // Use PAD layer for drone (slow attack, long release, perfect for atmospheric sounds)
+          const layer = isDrone ? this.ambientLayers.pad : this.ambientLayers.backgroundLow
+
+          if (layer) {
+            console.log(`  ✅ Triggering on layer: ${isDrone ? 'pad' : 'backgroundLow'}`)
+            layer.triggerAttackRelease(frequency, duration, undefined, velocity)
+          } else {
+            console.warn(`  ❌ Layer not found: ${isDrone ? 'pad' : 'backgroundLow'}`)
           }
 
           // If this is a drone, schedule it to loop
@@ -1983,9 +1987,9 @@ class AudioService {
             }
 
             this.droneLoopInterval = setInterval(() => {
-              console.log('🔁 Looping drone...')
-              if (this.ambientLayers && this.ambientLayers.backgroundLow) {
-                this.ambientLayers.backgroundLow.triggerAttackRelease(
+              console.log('🔁 Looping drone... (MIDI=' + midiNote + ', ' + frequency.toFixed(1) + 'Hz)')
+              if (this.ambientLayers && this.ambientLayers.pad) {
+                this.ambientLayers.pad.triggerAttackRelease(
                   frequency, duration, undefined, velocity
                 )
               }
