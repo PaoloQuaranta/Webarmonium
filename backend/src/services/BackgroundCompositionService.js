@@ -213,11 +213,21 @@ class BackgroundCompositionService {
 
     // NORMALIZE gesture properties for StyleAnalyzer
     // StyleAnalyzer expects: velocity (0-100), acceleration (0-50), timestamp
-    // Gesture has: speed (0-1), intensity (0-1), startTime/endTime
+    // Gesture has: speed (unreliable), intensity (0-1), duration (ms), startTime/endTime
+
+    // Use gesture DURATION as proxy for velocity (shorter gesture = faster = higher velocity)
+    // Fast gestures: 100-300ms → velocity 70-100
+    // Medium gestures: 300-800ms → velocity 30-70
+    // Slow gestures: 800-2000ms → velocity 10-30
+    const duration = gestureData.gesture.duration || 500
+    const velocityFromDuration = Math.max(10, Math.min(100, 100 - (duration / 20)))
+
+    const rawIntensity = gestureData.gesture.intensity || 0.5
+
     const normalizedGesture = {
       ...gestureData.gesture,
-      velocity: (gestureData.gesture.speed || 0.5) * 100,  // Scale 0-1 → 0-100
-      acceleration: (gestureData.gesture.intensity || 0.5) * 50,  // Scale 0-1 → 0-50
+      velocity: velocityFromDuration,  // Derived from gesture duration
+      acceleration: rawIntensity * 50,  // Scale 0-1 → 0-50
       timestamp: gestureData.gesture.startTime || Date.now()  // Map startTime → timestamp
     }
 
