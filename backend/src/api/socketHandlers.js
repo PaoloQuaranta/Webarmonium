@@ -297,7 +297,7 @@ const socketHandlers = {
 
         // Record gesture for collective metrics analysis (non-blocking)
         try {
-          this.roomManager.recordGesture(socket.roomId, {
+          socket.services.roomManager.recordGesture(socket.roomId, {
             ...data,
             userId: socket.userId,
             timestamp: Date.now()
@@ -370,17 +370,32 @@ const socketHandlers = {
           })
 
           try {
+            // Helper: Convert Tone.js duration notation to milliseconds (at 120 BPM)
+            const toneDurationToMs = (toneDuration) => {
+              if (typeof toneDuration === 'number') return toneDuration // Already in ms
+
+              const durationMap = {
+                '32n': 62.5,   // 1/32 note at 120 BPM = 62.5ms
+                '16n': 125,    // 1/16 note at 120 BPM = 125ms
+                '8n': 250,     // 1/8 note at 120 BPM = 250ms
+                '4n': 500,     // 1/4 note at 120 BPM = 500ms
+                '2n': 1000,    // 1/2 note at 120 BPM = 1000ms
+                '1n': 2000     // Whole note at 120 BPM = 2000ms
+              }
+              return durationMap[toneDuration] || 250 // Default to 8n if unknown
+            }
+
             // Convert array format (streamedNotes) to object format expected by addMaterial
             const musicalPhrase = Array.isArray(musicalResult)
               ? {
                 notes: musicalResult.map(event => ({
                   pitch: event.properties.frequency,
-                  duration: event.properties.duration,
+                  duration: toneDurationToMs(event.properties.duration), // Convert to ms
                   velocity: event.properties.velocity / 100,
                   articulation: event.properties.articulation,
                   timestamp: event.timestamp
                 })),
-                duration: musicalResult.reduce((sum, event) => sum + event.properties.duration, 0)
+                duration: musicalResult.reduce((sum, event) => sum + toneDurationToMs(event.properties.duration), 0)
               }
               : musicalResult
 
