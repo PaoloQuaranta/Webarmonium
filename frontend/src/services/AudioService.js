@@ -1943,24 +1943,53 @@ class AudioService {
     const beatDuration = 60 / tempo
     console.log(`🎼 Playing ambient composition at ${tempo} BPM`)
 
-    if (!content.texture) return
+    if (!content.texture || !Array.isArray(content.texture)) {
+      console.warn('🎼 No texture array in ambient composition')
+      return
+    }
 
-    const atmosphere = content.atmosphere || 'calm'
-    const baseFreq = atmosphere === 'calm' ? 110 :
-                     atmosphere === 'tense' ? 220 : 165
-
-    for (let i = 0; i < 4; i++) {
-      const frequency = baseFreq * Math.pow(2, i * 0.25)
-      const delay = i * 2 * beatDuration
+    // Play each texture element from the composition
+    content.texture.forEach((textureItem, index) => {
+      const delay = index * 0.5  // Small delay between texture layers
 
       setTimeout(() => {
-        if (this.ambientLayers && this.ambientLayers.backgroundLow) {
-          this.ambientLayers.backgroundLow.triggerAttackRelease(
-            frequency, 8, undefined, 0.04  // Extremely subtle ambient texture (reduced from 0.08)
-          )
+        if (textureItem.note) {
+          // Convert note name to MIDI then to frequency
+          const midiNote = this.noteNameToMidi(textureItem.note)
+          const frequency = this.midiToFrequency(midiNote)
+          const duration = (textureItem.duration || 8000) / 1000  // Convert ms to seconds
+          const velocity = textureItem.velocity || 0.2
+
+          console.log(`  🎵 Ambient texture: ${textureItem.note} (${frequency.toFixed(1)}Hz), dur=${duration.toFixed(1)}s, vel=${velocity}`)
+
+          if (this.ambientLayers && this.ambientLayers.backgroundLow) {
+            this.ambientLayers.backgroundLow.triggerAttackRelease(
+              frequency, duration, undefined, velocity
+            )
+          }
         }
       }, delay * 1000)
+    })
+  }
+
+  /**
+   * Convert note name to MIDI number (e.g., "C3" -> 48)
+   */
+  noteNameToMidi(noteName) {
+    const noteMap = {
+      'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11
     }
+
+    const match = noteName.match(/^([A-G])([#b]?)(\d+)$/)
+    if (!match) return 60  // Default to C4
+
+    const [, note, accidental, octave] = match
+    let midiNote = noteMap[note] + (parseInt(octave) + 1) * 12
+
+    if (accidental === '#') midiNote += 1
+    if (accidental === 'b') midiNote -= 1
+
+    return midiNote
   }
 
   /**
