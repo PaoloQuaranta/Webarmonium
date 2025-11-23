@@ -226,28 +226,71 @@ class BackgroundCompositionService {
     // StyleAnalyzer expects: velocity (0-100), acceleration (0-50), timestamp
     // Gesture has: speed (unreliable), intensity (0-1), duration (ms), startTime/endTime
 
-    // Use gesture DURATION as proxy for velocity (shorter gesture = faster = higher velocity)
-    // Fast gestures: 100-300ms → velocity 70-100
-    // Medium gestures: 300-800ms → velocity 30-70
-    // Slow gestures: 800-2000ms → velocity 10-30
-    const duration = gestureData.gesture.duration || 500
-    const velocityFromDuration = Math.max(10, Math.min(100, 100 - (duration / 20)))
+    let velocity, acceleration, interOnsetInterval
 
-    const rawIntensity = gestureData.gesture.intensity || 0.5
+    // FOR DRAG GESTURES: Analyze individual notes for accurate velocity and rhythm
+    if (musicalPhrase.notes && musicalPhrase.notes.length > 0) {
+      // Calculate average velocity from notes (0-1 → 0-100)
+      const avgNoteVelocity = musicalPhrase.notes.reduce((sum, note) => sum + (note.velocity || 0), 0) / musicalPhrase.notes.length
+      velocity = avgNoteVelocity * 100
+
+      // Calculate inter-onset intervals (rhythm between notes)
+      if (musicalPhrase.notes.length >= 2) {
+        const intervals = []
+        for (let i = 1; i < musicalPhrase.notes.length; i++) {
+          const interval = musicalPhrase.notes[i].timestamp - musicalPhrase.notes[i - 1].timestamp
+          if (interval > 0) intervals.push(interval)
+        }
+
+        if (intervals.length > 0) {
+          interOnsetInterval = intervals.reduce((sum, i) => sum + i, 0) / intervals.length
+        }
+      }
+
+      // Calculate acceleration from velocity variance (dynamic range)
+      const velocities = musicalPhrase.notes.map(n => n.velocity || 0)
+      const velocityVariance = Math.sqrt(
+        velocities.reduce((sum, v) => sum + Math.pow(v - avgNoteVelocity, 2), 0) / velocities.length
+      )
+      acceleration = velocityVariance * 100  // Higher variance = more dynamic = higher acceleration
+
+      console.log('🎹 Analyzed DRAG notes:', {
+        noteCount: musicalPhrase.notes.length,
+        avgVelocity: velocity.toFixed(1),
+        interOnsetInterval: interOnsetInterval ? interOnsetInterval.toFixed(1) + 'ms' : 'N/A',
+        velocityVariance: velocityVariance.toFixed(3),
+        acceleration: acceleration.toFixed(1)
+      })
+    }
+    // FOR TAP GESTURES: Use gesture duration as proxy (fallback)
+    else {
+      const duration = gestureData.gesture.duration || 500
+      velocity = Math.max(10, Math.min(100, 100 - (duration / 20)))
+
+      const rawIntensity = gestureData.gesture.intensity || 0.5
+      acceleration = rawIntensity * 50
+
+      console.log('👆 Analyzed TAP gesture:', {
+        duration: duration.toFixed(0) + 'ms',
+        velocity: velocity.toFixed(1),
+        acceleration: acceleration.toFixed(1)
+      })
+    }
 
     const normalizedGesture = {
       ...gestureData.gesture,
-      velocity: velocityFromDuration,  // Derived from gesture duration
-      acceleration: rawIntensity * 50,  // Scale 0-1 → 0-50
-      timestamp: gestureData.gesture.startTime || Date.now()  // Map startTime → timestamp
+      velocity,
+      acceleration,
+      interOnsetInterval,  // Add rhythm information
+      timestamp: gestureData.gesture.startTime || Date.now()
     }
 
     console.log('🔍 Normalized gesture for StyleAnalyzer:', {
       type: normalizedGesture.type,
-      velocity: normalizedGesture.velocity,
-      acceleration: normalizedGesture.acceleration,
-      timestamp: normalizedGesture.timestamp,
-      duration: normalizedGesture.duration
+      velocity: normalizedGesture.velocity.toFixed(1),
+      acceleration: normalizedGesture.acceleration.toFixed(1),
+      interOnsetInterval: normalizedGesture.interOnsetInterval ? normalizedGesture.interOnsetInterval.toFixed(1) + 'ms' : 'N/A',
+      timestamp: normalizedGesture.timestamp
     })
 
     // ACCUMULATE gestures for tempo calculation (StyleAnalyzer needs 2+ for tempo)

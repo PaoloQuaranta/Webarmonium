@@ -146,23 +146,45 @@ class StyleAnalyzer {
       return this.currentStyle.tempo // Keep current tempo
     }
 
-    // Calculate intervals between gestures
-    const intervals = []
+    const allIntervals = []
+
+    // Collect intervals between gestures (macro rhythm)
     for (let i = 1; i < gestures.length; i++) {
       const prevTime = gestures[i - 1].timestamp || Date.now() - 1000
       const currTime = gestures[i].timestamp || Date.now()
-      intervals.push(currTime - prevTime)
+      const interval = currTime - prevTime
+
+      // Only include reasonable intervals (50ms - 5000ms)
+      if (interval >= 50 && interval <= 5000) {
+        allIntervals.push(interval)
+      }
+    }
+
+    // ALSO collect inter-onset intervals from DRAG gestures (micro rhythm)
+    // These are the intervals between notes WITHIN a single drag gesture
+    for (const gesture of gestures) {
+      if (gesture.interOnsetInterval && gesture.interOnsetInterval > 0) {
+        // Inter-onset intervals represent subdivision rhythm (faster than beat)
+        // Weight them slightly less than gesture-to-gesture intervals
+        allIntervals.push(gesture.interOnsetInterval)
+
+        console.log(`🎵 Using inter-onset interval from drag: ${gesture.interOnsetInterval.toFixed(1)}ms`)
+      }
+    }
+
+    if (allIntervals.length === 0) {
+      return this.currentStyle.tempo
     }
 
     // Find the most common interval (tempo indication)
-    const avgInterval = intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length
+    const avgInterval = allIntervals.reduce((sum, interval) => sum + interval, 0) / allIntervals.length
 
     // Convert interval to BPM (beats per minute)
-    // Assuming each gesture could represent a beat
     const bpm = Math.round(60000 / avgInterval)
 
+    console.log(`🎼 Tempo calculated from ${allIntervals.length} intervals: ${bpm} BPM (avg interval: ${avgInterval.toFixed(1)}ms)`)
+
     // Clamp to wide musical tempo range (30-300 BPM)
-    // 30 BPM = very slow ambient, 300 BPM = very fast drum'n'bass
     return Math.max(30, Math.min(300, bpm))
   }
 
