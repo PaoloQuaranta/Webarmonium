@@ -334,22 +334,32 @@ class CounterpointEngine {
   }
 
   generateDurationByRole(role, index, total) {
-    // Role-specific duration generation for STRUCTURE
+    // Role-specific duration generation with RANDOMIZATION for variety
+    const random = Math.random()
+
     switch (role) {
       case 'melody':
-        // Fast, varied: 8th and 16th notes
-        return [0.25, 0.5, 0.25, 0.75][index % 4]
+        // Fast, varied: 8th and 16th notes with variation
+        const melodyOptions = [0.25, 0.5, 0.25, 0.75, 0.375, 0.625]
+        return melodyOptions[Math.floor(random * melodyOptions.length)]
+
       case 'harmony':
-        // Medium: quarter and half notes
-        return [1.0, 1.5, 0.75, 1.0][index % 4]
+        // Medium: quarter and half notes with variation
+        const harmonyOptions = [1.0, 1.5, 0.75, 1.0, 1.25, 0.5]
+        return harmonyOptions[Math.floor(random * harmonyOptions.length)]
+
       case 'bass':
-        // Long: whole notes and half notes
-        return [3.0, 4.0, 2.0][index % 3]
+        // Long: whole notes and half notes with variation
+        const bassOptions = [3.0, 4.0, 2.0, 2.5, 3.5]
+        return bassOptions[Math.floor(random * bassOptions.length)]
+
       case 'pad':
-        // Very long: sustained notes
-        return [6.0, 8.0][index % 2]
+        // Very long: sustained notes with variation
+        const padOptions = [6.0, 8.0, 7.0, 5.0, 9.0]
+        return padOptions[Math.floor(random * padOptions.length)]
+
       default:
-        return 1.0
+        return 0.5 + random * 1.5  // 0.5 to 2.0 random
     }
   }
 
