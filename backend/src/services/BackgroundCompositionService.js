@@ -351,25 +351,27 @@ class BackgroundCompositionService {
    * @param {Object} roomContext - Room context
    */
   scheduleNextComposition(roomId, roomContext) {
-    // Calculate next composition interval
-    // Use shorter intervals with more users (more activity)
-    const userCount = roomContext.userCount || 1
-    const baseInterval = this.minCompositionInterval
-    const maxInterval = this.maxCompositionInterval
+    // Calculate next composition interval BASED ON CURRENT TEMPO
+    // Generate compositions at a fixed number of beats, not fixed time
+    const currentStyle = this.styleAnalyzer.getCurrentStyle()
+    const tempo = currentStyle.tempo || 120
 
-    // More users = shorter intervals (more frequent compositions)
-    const intervalRange = maxInterval - baseInterval
-    const userFactor = Math.max(0, 1 - (userCount - 1) * 0.2) // Decrease by 20% per additional user
-    const interval = baseInterval + (intervalRange * userFactor)
+    // Generate new composition every 8-16 beats (musically natural phrase length)
+    const beatsPerComposition = 8 + Math.random() * 8  // 8-16 beats
+    const beatDuration = 60000 / tempo  // milliseconds per beat
+    const interval = beatsPerComposition * beatDuration
+
+    // Clamp to reasonable bounds (don't go crazy)
+    const clampedInterval = Math.max(1000, Math.min(20000, interval))
 
     const timer = setTimeout(() => {
       this.generateAndBroadcastComposition(roomId, roomContext)
       this.scheduleNextComposition(roomId, roomContext)
-    }, interval)
+    }, clampedInterval)
 
     this.compositionTimers.set(roomId, timer)
 
-    console.log(`🎼 Next composition for room ${roomId} scheduled in ${(interval/1000).toFixed(1)}s`)
+    console.log(`🎼 Next composition for room ${roomId} in ${(clampedInterval/1000).toFixed(1)}s (${beatsPerComposition.toFixed(0)} beats @ ${tempo} BPM)`)
   }
 
   /**
