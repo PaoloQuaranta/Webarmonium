@@ -111,7 +111,10 @@ class BackgroundCompositionService {
     })
 
     // Start with DRONE only (atmospheric pad)
-    this.generateAndBroadcastDrone(roomId)
+    // Add 500ms delay to ensure socket has fully joined room before broadcasting
+    setTimeout(() => {
+      this.generateAndBroadcastDrone(roomId)
+    }, 500)
 
     // DON'T schedule continuous compositions yet - wait for gestures
     // Compositions will start automatically after 2+ gestures (see addMaterial)
@@ -150,6 +153,12 @@ class BackgroundCompositionService {
 
     // Broadcast drone to room
     if (this.io) {
+      // Get sockets in room for verification
+      const socketsInRoom = this.io.sockets.adapter.rooms.get(roomId)
+      const socketCount = socketsInRoom ? socketsInRoom.size : 0
+
+      console.log(`🎵 Broadcasting DRONE to room ${roomId} (${socketCount} sockets in room)`)
+
       this.io.to(roomId).emit('background-composition', {
         roomId,
         composition: droneComposition,
@@ -158,7 +167,9 @@ class BackgroundCompositionService {
         timestamp: Date.now()
       })
 
-      console.log(`🎵 Broadcast DRONE to room ${roomId} (waiting for gestures...)`)
+      console.log(`✅ DRONE broadcast complete for room ${roomId}`)
+    } else {
+      console.error(`❌ Cannot broadcast DRONE - io not initialized`)
     }
   }
 

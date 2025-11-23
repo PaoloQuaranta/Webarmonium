@@ -583,6 +583,7 @@ class WebarmoniumApp {
       }
     })
 
+    console.log('📡 Registering background-composition event listener...')
     this.socketService.on('background-composition', (data) => {
       console.log('🎼🎼🎼 BACKGROUND COMPOSITION EVENT RECEIVED 🎼🎼🎼')
       console.log('  ↳ Composition number:', data.compositionNumber)
@@ -599,6 +600,7 @@ class WebarmoniumApp {
         console.warn('❌ Not playing - isAudioStarted:', this.isAudioStarted, 'composition:', !!data.composition)
       }
     })
+    console.log('✅ background-composition listener registered')
 
     // PHASE 5: Removed unused 'gesture-processed' listener (82 lines)
     // Backend never emits this event - it uses 'musical:event' instead
