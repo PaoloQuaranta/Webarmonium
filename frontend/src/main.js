@@ -981,9 +981,6 @@ class WebarmoniumApp {
   }
 
   setupDrawingEvents() {
-    let isDrawing = false
-    let currentStrokeId = null
-
     // Throttle cursor-move to 50ms (20fps) for performance (FR-006)
     let lastCursorEmit = 0
     const cursorThrottleMs = 50
@@ -1018,74 +1015,30 @@ class WebarmoniumApp {
           timestamp: now
         })
         lastCursorEmit = now
+
+        // Update local visual service with cursor position
+        if (this.visualService && this.socketService && this.socketService.socket) {
+          const userId = this.socketService.socket.id || 'local'
+          const color = this.currentUserColor || '#00ff00'
+          this.visualService.updateCursorPosition(userId, x, y, color)
+        }
       }
     }
 
-    const startDrawing = (e) => {
-      e.preventDefault()
-      isDrawing = true
-      currentStrokeId = `stroke-${Date.now()}-${Math.random()}`
-
+    // DISABLED: Drawing functions removed (DrawingRenderer replaced by p5.js)
+    // Mouse/Touch events for continuous cursor tracking
+    // NOTE: Drawing is disabled (DrawingRenderer replaced by p5.js)
+    // But we need cursor tracking for the visualization graph
+    const handleCursorMove = (e) => {
       const { x, y } = getCanvasCoordinates(e)
-
-      // Emit draw-start event
-      this.socketService.socket.emit('draw-start', {
-        strokeId: currentStrokeId,
-        x,
-        y,
-        strokeWidth: this.currentStrokeWidth,
-        timestamp: Date.now()
-      })
-
-      console.log('✏️ Draw started:', currentStrokeId)
+      emitCursorPosition(x, y, false)
     }
 
-    const draw = (e) => {
-      const { x, y } = getCanvasCoordinates(e)
+    // Add mouse/touch move listeners for cursor tracking
+    this.canvas.addEventListener('mousemove', handleCursorMove)
+    this.canvas.addEventListener('touchmove', handleCursorMove)
 
-      if (!isDrawing) {
-        // Emit cursor position with throttling (FR-006)
-        emitCursorPosition(x, y, false)
-        return
-      }
-
-      e.preventDefault()
-
-      // Emit draw-point event
-      this.socketService.socket.emit('draw-point', {
-        strokeId: currentStrokeId,
-        x,
-        y,
-        timestamp: Date.now()
-      })
-
-      // Also emit cursor-move with throttling
-      emitCursorPosition(x, y, true)
-    }
-
-    const endDrawing = (e) => {
-      if (!isDrawing) return
-
-      e.preventDefault()
-      isDrawing = false
-
-      const { x, y } = getCanvasCoordinates(e)
-
-      // Emit draw-end event with coordinates
-      this.socketService.socket.emit('draw-end', {
-        strokeId: currentStrokeId,
-        x,
-        y,
-        timestamp: Date.now()
-      })
-
-      console.log('✏️ Draw ended:', currentStrokeId)
-      currentStrokeId = null
-    }
-
-    // Mouse/Touch events - DISABLED to avoid conflicts with EnhancedGestureCapture
-    // NOTE: EnhancedGestureCapture handles all gesture events including hover
-    console.log('🚫 Mouse/Touch events disabled - using EnhancedGestureCapture instead')
+    console.log('✅ Cursor tracking enabled for p5.js visualization')
   }
 
   async connectToServer() {
@@ -1111,7 +1064,13 @@ class WebarmoniumApp {
         }
       }
 
-      await this.socketService.joinRoom('main-room', userData)
+      const joinResponse = await this.socketService.joinRoom('main-room', userData)
+
+      // Store assigned user color for p5.js visualization
+      if (joinResponse && joinResponse.assignedColor) {
+        this.currentUserColor = joinResponse.assignedColor
+        console.log('✅ User color assigned:', this.currentUserColor)
+      }
 
     } catch (error) {
       throw new Error('Failed to connect to server: ' + error.message)
