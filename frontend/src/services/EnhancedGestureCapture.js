@@ -43,6 +43,18 @@ class EnhancedGestureCapture {
       streamedNotes: [] // CRITICAL: Array of all notes played during streaming
     }
 
+    // Sustained hold state for note gate control
+    this.sustainedHold = {
+      isActive: false,
+      startTime: 0,
+      holdThreshold: 100,      // ms - distinguishes tap from hold (reduced for faster response)
+      activeNoteId: null,
+      startPosition: null,
+      holdTimer: null,         // setTimeout reference for cleanup
+      transitionTimer: null,   // For hold → drag overlap
+      overlapDuration: 200     // ms - overlap when transitioning to drag
+    }
+
     // Enhanced gesture tracking
     this.gestureTracker = {
       startPosition: null,
@@ -85,6 +97,8 @@ class EnhancedGestureCapture {
     this.onMultiUserGesture = null
     this.onHoverModulation = null
     this.onDragStreamingNote = null // Real-time drag note streaming callback
+    this.onSustainedHoldStart = null  // Called when hold timer fires (gate opens)
+    this.onSustainedHoldEnd = null    // Called on mouseup or transition complete (gate closes)
 
     // Initialize
     this.setupEventListeners()
@@ -184,16 +198,41 @@ class EnhancedGestureCapture {
       lastUpdateTime: Date.now()
     }
 
-    // CRITICAL: START drag streaming IMMEDIATELY on mousedown!
-    // Don't wait for movement - instrumental feedback must be instant!
+    // CRITICAL: START drag streaming state (but DON'T play first note yet)
+    // Wait to see if this becomes a sustained hold first
     this.dragStreaming.isActive = true
     this.dragStreaming.totalDistance = 0
     this.dragStreaming.noteCount = 0
     this.dragStreaming.lastNoteTime = Date.now()
     this.dragStreaming.streamedNotes = [] // Reset notes array for new gesture
+    this.dragStreaming.firstNotePlayed = false // NEW: Track if first note was played
 
-    // CRITICAL: Play FIRST note IMMEDIATELY on mousedown!
-    this.playDragStreamingNote(coordinates, { x: 0, y: 0 }, 0)
+    // SUSTAINED HOLD: Start hold detection timer FIRST
+    // Wait 300ms to determine if this is a sustained hold vs quick tap/drag
+    this.sustainedHold.holdTimer = setTimeout(() => {
+      if (this.isCapturing && this.currentGesture && this.currentGesture.action === 'potential-tap') {
+        // Still stationary after 300ms - this is a sustained hold
+        this.currentGesture.action = 'sustained-hold'
+        this.sustainedHold.isActive = true
+        this.sustainedHold.startTime = Date.now()
+        this.sustainedHold.activeNoteId = `hold-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        this.sustainedHold.startPosition = coordinates
+
+        // Mark that first note is "played" (via sustained hold, not drag)
+        this.dragStreaming.firstNotePlayed = true
+
+        // Trigger sustained hold start callback (gate opens)
+        if (this.onSustainedHoldStart) {
+          this.onSustainedHoldStart({
+            position: coordinates,
+            noteId: this.sustainedHold.activeNoteId,
+            timestamp: Date.now()
+          })
+        }
+
+        console.log(`🎵 Sustained hold started: ${this.sustainedHold.activeNoteId}`)
+      }
+    }, this.sustainedHold.holdThreshold)
 
     // Emit gesture start to server
     this.emitGestureStart(this.currentGesture)
@@ -249,13 +288,49 @@ class EnhancedGestureCapture {
       // Calculate total distance moved from start position
       this.dragStreaming.totalDistance += distance
 
-      // CRITICAL: Discriminate tap vs drag based on MOVEMENT (not time!)
+      // PRIORITY 1: Check if in sustained hold and now moving
+      if (this.sustainedHold.isActive && this.dragStreaming.totalDistance > this.dragStreaming.minDistanceForDrag) {
+        // Transition from sustained-hold to drag with overlap
+        console.log('🎛️ Transitioning from sustained-hold to drag (200ms overlap)')
+        this.currentGesture.action = 'drag'
+
+        // Set transition timer to release sustained note after overlap
+        this.sustainedHold.transitionTimer = setTimeout(() => {
+          if (this.sustainedHold.isActive && this.onSustainedHoldEnd) {
+            const duration = Date.now() - this.sustainedHold.startTime
+            this.onSustainedHoldEnd({
+              noteId: this.sustainedHold.activeNoteId,
+              duration: duration,
+              finalPosition: this.sustainedHold.startPosition,
+              timestamp: Date.now(),
+              reason: 'transition-to-drag'
+            })
+            console.log(`🎵 Sustained hold ended (transition): ${this.sustainedHold.activeNoteId} (${duration}ms)`)
+          }
+
+          // Clear sustained hold state
+          this.sustainedHold.isActive = false
+          this.sustainedHold.activeNoteId = null
+          this.sustainedHold.startPosition = null
+        }, this.sustainedHold.overlapDuration)
+
+        // Continue with drag streaming (already active)
+      }
+
+      // PRIORITY 2: Discriminate tap vs drag based on MOVEMENT (not time!)
       // If movement exceeds threshold, mark as 'drag'
       if (this.currentGesture.action === 'potential-tap' && this.dragStreaming.totalDistance > this.dragStreaming.minDistanceForDrag) {
         this.currentGesture.action = 'drag'
+
+        // Play FIRST drag note now that we know it's a drag (not a hold)
+        if (!this.dragStreaming.firstNotePlayed) {
+          this.playDragStreamingNote(this.gestureTracker.startPosition, { x: 0, y: 0 }, 0)
+          this.dragStreaming.firstNotePlayed = true
+          console.log('🎸 First drag note played (movement detected)')
+        }
       }
 
-      // CONTINUE streaming notes (already started in handleGestureStart)
+      // CONTINUE streaming notes
       // RHYTHM VARIATION: Adjust note interval based on velocity
       // Fast drag = rapid notes (64n), slow drag = sparse notes (1n)
       const speed = Math.sqrt(newVelocity.x ** 2 + newVelocity.y ** 2)
@@ -330,6 +405,40 @@ class EnhancedGestureCapture {
 
     const endTime = Date.now()
     const duration = endTime - this.currentGesture.startTime
+
+    // SUSTAINED HOLD: Clear hold timer if active
+    if (this.sustainedHold.holdTimer) {
+      clearTimeout(this.sustainedHold.holdTimer)
+      this.sustainedHold.holdTimer = null
+    }
+
+    // SUSTAINED HOLD: If in sustained hold, trigger release callback
+    if (this.sustainedHold.isActive) {
+      const holdDuration = Date.now() - this.sustainedHold.startTime
+
+      if (this.onSustainedHoldEnd) {
+        this.onSustainedHoldEnd({
+          noteId: this.sustainedHold.activeNoteId,
+          duration: holdDuration,
+          finalPosition: this.sustainedHold.startPosition,
+          timestamp: Date.now(),
+          reason: 'release'
+        })
+      }
+
+      console.log(`🎵 Sustained hold ended (release): ${this.sustainedHold.activeNoteId} (${holdDuration}ms)`)
+
+      // Clear transition timer if active
+      if (this.sustainedHold.transitionTimer) {
+        clearTimeout(this.sustainedHold.transitionTimer)
+        this.sustainedHold.transitionTimer = null
+      }
+
+      // Reset sustained hold state
+      this.sustainedHold.isActive = false
+      this.sustainedHold.activeNoteId = null
+      this.sustainedHold.startPosition = null
+    }
 
     // CRITICAL: Finalize gesture action based on movement
     // If still 'potential-tap', no significant movement occurred → it's a tap

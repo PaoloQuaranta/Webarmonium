@@ -1221,7 +1221,20 @@ class AudioService {
       this.evolvingGenerationActive = false
       this.stopUpdateLoop()
 
-      // STEP 4: Release all notes on all synths
+      // STEP 4: Release all active sustained notes before stopping
+      if (this.activeSustainedNotes && this.activeSustainedNotes.size > 0) {
+        console.log(`🛑 Releasing ${this.activeSustainedNotes.size} active sustained notes`)
+        for (const [noteId, noteData] of this.activeSustainedNotes.entries()) {
+          try {
+            this.gestureSynth.triggerRelease(noteData.frequency, Tone.now())
+          } catch (e) {
+            console.warn(`⚠️ Error releasing sustained note ${noteId}:`, e.message)
+          }
+        }
+        this.activeSustainedNotes.clear()
+      }
+
+      // STEP 5: Release all notes on all synths
       console.log('🎹 Releasing all notes on all synths...')
 
       try {
@@ -1464,6 +1477,91 @@ class AudioService {
   calculateFilterResonance(sonicParams) {
     const x = sonicParams.x || 0.5
     return 0.5 + (x * 4.5) // 0.5 to 5.0 Q range
+  }
+
+  /**
+   * SUSTAINED HOLD: Trigger sustained note attack (gate opens)
+   * Uses triggerAttack without triggerRelease for open gate control
+   * @param {number} frequency - Note frequency in Hz
+   * @param {number} velocity - Note velocity (0-1)
+   * @param {Object} position - Canvas position {x, y}
+   * @returns {Object|null} Note tracking data { noteId, frequency, startTime } or null if failed
+   */
+  triggerSustainedNoteAttack(frequency, velocity, position) {
+    if (!this.gestureSynth || this.gestureSynth.disposed) {
+      console.warn('🚫 gestureSynth not available for sustained note')
+      return null
+    }
+
+    // Check audio context state
+    if (Tone.context.state !== 'running') {
+      console.warn('⚠️ Audio context not running, cannot start sustained note')
+      return null
+    }
+
+    // Configure envelope for sustained hold
+    // CRITICAL: Long sustain, minimal attack/release
+    this.gestureSynth.set({
+      envelope: {
+        attack: 0.005,      // 5ms - instant response
+        decay: 0.01,        // 10ms - quick to sustain level
+        sustain: 1.0,       // Full sustain - note held at max level
+        release: 0.05       // 50ms - smooth release when gate closes (prevents clicks)
+      }
+    })
+
+    const noteId = `sustained-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const now = Tone.now()
+
+    // CRITICAL: Use triggerAttack (NOT triggerAttackRelease)
+    // This opens the gate without closing it
+    this.gestureSynth.triggerAttack(frequency, now, velocity)
+
+    // Track active sustained note for later release
+    if (!this.activeSustainedNotes) {
+      this.activeSustainedNotes = new Map()
+    }
+
+    this.activeSustainedNotes.set(noteId, {
+      noteId,
+      frequency,
+      startTime: Date.now(),
+      position,
+      velocity,
+      synth: this.gestureSynth
+    })
+
+    console.log(`🎵 Sustained note ATTACK: ${frequency.toFixed(1)}Hz, vel=${velocity.toFixed(2)}, noteId=${noteId}`)
+
+    return { noteId, frequency, startTime: Date.now() }
+  }
+
+  /**
+   * SUSTAINED HOLD: Release sustained note (gate closes)
+   * @param {string} noteId - Note ID from triggerSustainedNoteAttack
+   */
+  triggerSustainedNoteRelease(noteId) {
+    if (!this.gestureSynth || this.gestureSynth.disposed) {
+      console.warn('🚫 gestureSynth not available for note release')
+      return
+    }
+
+    const noteData = this.activeSustainedNotes?.get(noteId)
+    if (!noteData) {
+      console.warn(`⚠️ No active sustained note found for ${noteId}`)
+      return
+    }
+
+    // CRITICAL: Trigger release on specific frequency
+    // Tone.js synth can play multiple notes simultaneously (polyphony)
+    const now = Tone.now()
+    this.gestureSynth.triggerRelease(noteData.frequency, now)
+
+    // Remove from tracking
+    this.activeSustainedNotes.delete(noteId)
+
+    const duration = Date.now() - noteData.startTime
+    console.log(`🎵 Sustained note RELEASE: ${noteData.frequency.toFixed(1)}Hz, held ${duration}ms, noteId=${noteId}`)
   }
 
   /**

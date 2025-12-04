@@ -21,6 +21,9 @@ class Room {
       '#ffff33', '#a65628', '#f781bf', '#999999', '#66c2a5'
     ]) // 10-color pool for user assignment
     this.maxStrokes = 10000 // Soft limit for memory management
+
+    // SUSTAINED HOLD: Track active sustained holds for disconnect cleanup
+    this.activeHolds = new Map() // noteId -> { userId, startTime, noteId, frequency, position }
   }
 
   /**

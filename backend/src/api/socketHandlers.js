@@ -26,6 +26,10 @@ const socketHandlers = {
     this.registerHeartbeatHandler(socket)
     this.registerDisconnectionHandler(socket)
 
+    // SUSTAINED HOLD: Register hold event handlers
+    this.registerHoldStartHandler(socket)
+    this.registerHoldEndHandler(socket)
+
     // Multi-user canvas handlers
     this.registerDrawStartHandler(socket)
     this.registerDrawPointHandler(socket)
@@ -633,6 +637,144 @@ const socketHandlers = {
   },
 
   /**
+   * SUSTAINED HOLD: Register hold:start event handler
+   * @param {Socket} socket - Socket instance
+   */
+  registerHoldStartHandler (socket) {
+    socket.on('hold:start', async (data, callback) => {
+      const startTime = Date.now()
+
+      try {
+        // Validate session
+        if (!socket.userId || !socket.roomId) {
+          return this.sendError(callback, 'NO_ACTIVE_SESSION', 'No active room session')
+        }
+
+        // Validate data
+        if (!data || !data.noteId || !data.frequency || !data.position) {
+          return this.sendError(callback, 'INVALID_HOLD_DATA', 'Missing required hold data')
+        }
+
+        // Get room
+        const room = socket.services.roomManager.getRoom(socket.roomId)
+        if (!room) {
+          return this.sendError(callback, 'ROOM_NOT_FOUND', 'Room not found')
+        }
+
+        // Get user for color
+        const user = room.getUser(socket.userId)
+        const userColor = user?.assignedColor || '#6bcf7f'
+
+        // Track active hold for disconnect cleanup
+        room.activeHolds.set(data.noteId, {
+          userId: socket.userId,
+          startTime: Date.now(),
+          noteId: data.noteId,
+          frequency: data.frequency,
+          position: data.position
+        })
+
+        // Broadcast to other users in room
+        const broadcastData = {
+          type: 'hold:start',
+          userId: socket.userId,
+          noteId: data.noteId,
+          frequency: data.frequency,
+          velocity: data.velocity,
+          position: data.position,
+          userColor: userColor,
+          isRemote: true,
+          timestamp: Date.now()
+        }
+
+        console.log(`📡 Broadcasting hold:start to room ${socket.roomId}:`, {
+          noteId: data.noteId,
+          frequency: data.frequency,
+          userColor: userColor,
+          socketsInRoom: room.getUserCount()
+        })
+
+        socket.to(socket.roomId).emit('hold:start', broadcastData)
+
+        // Send acknowledgment
+        const latency = Date.now() - startTime
+        this.sendResponse(callback, {
+          success: true,
+          noteId: data.noteId,
+          latency,
+          timestamp: Date.now()
+        })
+
+        console.log(`🎵 Hold started: ${data.noteId} by ${socket.userId} (${latency}ms)`)
+
+        // Log constitutional compliance
+        if (latency > 100) {
+          console.warn(`⚠️ Hold start latency ${latency}ms exceeds 100ms requirement`)
+        }
+      } catch (error) {
+        console.error('❌ Hold start error:', error)
+        return this.sendError(callback, 'HOLD_START_FAILED', error.message)
+      }
+    })
+  },
+
+  /**
+   * SUSTAINED HOLD: Register hold:end event handler
+   * @param {Socket} socket - Socket instance
+   */
+  registerHoldEndHandler (socket) {
+    socket.on('hold:end', async (data, callback) => {
+      const startTime = Date.now()
+
+      try {
+        // Validate session
+        if (!socket.userId || !socket.roomId) {
+          return this.sendError(callback, 'NO_ACTIVE_SESSION', 'No active room session')
+        }
+
+        if (!data || !data.noteId) {
+          return this.sendError(callback, 'INVALID_HOLD_DATA', 'Missing note ID')
+        }
+
+        // Get room and remove from active holds
+        const room = socket.services.roomManager.getRoom(socket.roomId)
+        if (room?.activeHolds) {
+          room.activeHolds.delete(data.noteId)
+        }
+
+        // Broadcast to other users
+        socket.to(socket.roomId).emit('hold:end', {
+          type: 'hold:end',
+          userId: socket.userId,
+          noteId: data.noteId,
+          duration: data.duration,
+          timestamp: Date.now()
+        })
+
+        // Send acknowledgment
+        const latency = Date.now() - startTime
+        this.sendResponse(callback, {
+          success: true,
+          noteId: data.noteId,
+          duration: data.duration,
+          latency,
+          timestamp: Date.now()
+        })
+
+        console.log(`🎵 Hold ended: ${data.noteId} (${data.duration}ms, ${latency}ms latency)`)
+
+        // Log constitutional compliance
+        if (latency > 100) {
+          console.warn(`⚠️ Hold end latency ${latency}ms exceeds 100ms requirement`)
+        }
+      } catch (error) {
+        console.error('❌ Hold end error:', error)
+        return this.sendError(callback, 'HOLD_END_FAILED', error.message)
+      }
+    })
+  },
+
+  /**
    * Register draw-start event handler (T019)
    * @param {Socket} socket - Socket instance
    */
@@ -861,6 +1003,29 @@ const socketHandlers = {
         const room = roomManager.getRoom(socket.roomId)
         const user = room ? room.getUser(socket.userId) : null
         const userColor = user ? user.assignedColor : null
+
+        // SUSTAINED HOLD: Clean up any active holds from disconnected user
+        if (room?.activeHolds) {
+          let cleanedCount = 0
+          for (const [noteId, hold] of room.activeHolds.entries()) {
+            if (hold.userId === socket.userId) {
+              // Broadcast hold:end to remaining users
+              socket.to(socket.roomId).emit('hold:end', {
+                type: 'hold:end',
+                userId: socket.userId,
+                noteId: noteId,
+                duration: Date.now() - hold.startTime,
+                reason: 'disconnect',
+                timestamp: Date.now()
+              })
+              room.activeHolds.delete(noteId)
+              cleanedCount++
+            }
+          }
+          if (cleanedCount > 0) {
+            console.log(`🧹 Cleaned up ${cleanedCount} active holds from disconnected user ${socket.userId}`)
+          }
+        }
 
         // Remove user from room (T025: calls leaveRoom which releases color, cancels stroke, removes cursor)
         roomManager.leaveRoom(socket.userId)

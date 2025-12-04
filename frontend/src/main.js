@@ -37,6 +37,10 @@ class WebarmoniumApp {
 
     // Sprint 4: Gesture state moved to GestureProcessor
 
+    // SUSTAINED HOLD: State tracking
+    this.activeLocalHold = null  // { noteId, audioNoteId, frequency, startTime, position }
+    this.activeRemoteHolds = new Map()  // noteId -> { noteId, audioNoteId, userId, frequency, startTime }
+
     // Initialize the application
     this.init()
   }
@@ -149,12 +153,34 @@ class WebarmoniumApp {
     console.log('🎯 EnhancedGestureCapture started')
 
     // Initialize multi-user canvas services
-    this.drawingRenderer = new DrawingRenderer(this.canvas)
+    // DISABLED: DrawingRenderer replaced by p5.js generative graphics
+    // this.drawingRenderer = new DrawingRenderer(this.canvas)
     this.cursorManager = new CursorManager(this.cursorOverlayCanvas)
 
+    // Initialize generative visual service (p5.js)
+    console.log('🎨 Initializing GenerativeVisualService...')
+    this.visualService = new GenerativeVisualService()
+    const p5Container = document.getElementById('p5-container')
+    if (p5Container) {
+      this.visualService.initialize(p5Container)
+    } else {
+      console.warn('⚠️ p5-container not found, visual service not initialized')
+    }
+
     // Sprint 2: Register services as canvas resize listeners
-    this.canvasManager.addResizeListener(this.drawingRenderer)
+    // DISABLED: DrawingRenderer replaced by p5.js
+    // this.canvasManager.addResizeListener(this.drawingRenderer)
     this.canvasManager.addResizeListener(this.cursorManager)
+    if (this.visualService && this.visualService.p5Instance) {
+      // Register visual service for resize notifications
+      this.canvasManager.addResizeListener({
+        setCanvasSize: (width, height) => {
+          // Convert from device pixel ratio to logical pixels
+          const dpr = window.devicePixelRatio || 1
+          this.visualService.resize(width / dpr, height / dpr)
+        }
+      })
+    }
 
     // Initialize audio controls
     const audioControlsContainer = document.getElementById('audio-controls')
@@ -412,6 +438,139 @@ class WebarmoniumApp {
       }
     })
 
+    // SUSTAINED HOLD: Setup sustained hold callbacks for gate-based audio
+    this.gestureCapture.onSustainedHoldStart = (holdData) => {
+      console.log('🎵 Sustained hold start callback:', holdData)
+
+      if (!this.isAudioStarted || !this.audioService) {
+        console.warn('⚠️ Audio not ready for sustained hold')
+        return
+      }
+
+      // Calculate frequency from position (reuse existing logic from drag streaming)
+      const x = holdData.position.x
+      const y = holdData.position.y
+
+      // Use same pitch calculation as drag gestures for consistency
+      const scales = {
+        'pentatonic': [0, 2, 4, 7, 9],
+        'major': [0, 2, 4, 5, 7, 9, 11],
+        'minor': [0, 2, 3, 5, 7, 8, 10]
+      }
+
+      const params = this.compositionalParameters || {}
+      const scaleType = params.scaleType || 'pentatonic'
+      const scale = scales[scaleType] || scales['pentatonic']
+      const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
+
+      // Map X position to scale degree
+      const scaleIndex = Math.floor(x * scale.length)
+      const scaleNote = scale[scaleIndex % scale.length]
+      const octaveOffset = Math.floor(scaleIndex / scale.length)
+      const midiNote = 60 + (baseOctave - 4) * 12 + scaleNote + octaveOffset * 12
+
+      // Convert MIDI to frequency
+      const frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
+
+      // Velocity based on Y position (higher = louder)
+      const velocity = 0.6 + (1 - y) * 0.4 // 0.6-1.0 range
+
+      // Trigger note attack (gate opens)
+      const result = this.audioService.triggerSustainedNoteAttack(frequency, velocity, holdData.position)
+
+      if (result) {
+        // Store note data for updates and cleanup
+        this.activeLocalHold = {
+          noteId: holdData.noteId,
+          audioNoteId: result.noteId, // AudioService's internal note ID
+          frequency: frequency,
+          startTime: result.startTime,
+          position: holdData.position,
+          visualStartTime: Date.now() // For pulsing circle animation
+        }
+
+        console.log(`✅ Sustained hold started: ${frequency.toFixed(1)}Hz`)
+
+        // Emit hold:start to server for multi-user sync
+        if (this.socketService && this.socketService.socket) {
+          this.socketService.socket.emit('hold:start', {
+            noteId: holdData.noteId,
+            userId: this.socketService.userId,
+            roomId: this.socketService.roomId,
+            position: holdData.position,
+            frequency: frequency,
+            velocity: velocity,
+            timestamp: Date.now()
+          }, (response) => {
+            if (response && response.success) {
+              console.log(`✅ Hold start acknowledged: ${response.latency}ms latency`)
+            } else {
+              console.error('❌ Hold start failed:', response?.error)
+            }
+          })
+        }
+
+        // Update visual service with hold gesture
+        if (this.visualService && this.socketService && this.socketService.socket) {
+          const userId = this.socketService.socket.id || 'local'
+          const color = this.currentUserColor || '#00ff00'
+
+          this.visualService.updateCursorPosition(userId, holdData.position.x, holdData.position.y, color)
+          this.visualService.updateGestureData(userId, {
+            type: 'hold',
+            velocity: 0,
+            holdStart: Date.now(),
+            isActive: true
+          })
+        }
+      }
+    }
+
+    this.gestureCapture.onSustainedHoldEnd = (endData) => {
+      if (!this.isAudioStarted || !this.audioService || !this.activeLocalHold) {
+        return
+      }
+
+      console.log('🎵 Sustained hold end callback:', endData)
+
+      // Trigger note release (gate closes)
+      this.audioService.triggerSustainedNoteRelease(this.activeLocalHold.audioNoteId)
+
+      console.log(`✅ Sustained hold ended: ${endData.duration}ms, reason: ${endData.reason}`)
+
+      // Emit hold:end to server for multi-user sync
+      if (this.socketService && this.socketService.socket) {
+        this.socketService.socket.emit('hold:end', {
+          noteId: this.activeLocalHold.noteId,
+          userId: this.socketService.userId,
+          roomId: this.socketService.roomId,
+          duration: endData.duration,
+          finalPosition: endData.finalPosition,
+          timestamp: Date.now()
+        }, (response) => {
+          if (response && response.success) {
+            console.log(`✅ Hold end acknowledged: ${endData.duration}ms hold, ${response.latency}ms latency`)
+          } else {
+            console.error('❌ Hold end failed:', response?.error)
+          }
+        })
+      }
+
+      // Update visual service with hold end
+      if (this.visualService && this.socketService && this.socketService.socket) {
+        const userId = this.socketService.socket.id || 'local'
+
+        this.visualService.updateGestureData(userId, {
+          type: 'idle',
+          velocity: 0,
+          isActive: false
+        })
+      }
+
+      // Clear tracking
+      this.activeLocalHold = null
+    }
+
     // Setup gesture handling
     this.gestureCapture.onGesture = (gesture) => {
       this.lastGestureRenderTime = performance.now()
@@ -436,6 +595,20 @@ class WebarmoniumApp {
         this.audioService.updateFilterParams({
           frequency: 200 + (position.y * 2000),
           resonance: 0.5 + (position.x * 3)
+        })
+      }
+
+      // Update visual service with local gesture start
+      if (this.visualService && this.socketService && this.socketService.socket) {
+        const userId = this.socketService.socket.id || 'local'
+        const position = gesture.coordinates || gesture.startPosition || { x: 0.5, y: 0.5 }
+        const color = this.currentUserColor || '#00ff00' // Default green for local user
+
+        this.visualService.updateCursorPosition(userId, position.x, position.y, color)
+        this.visualService.updateGestureData(userId, {
+          type: 'drag', // Will be determined by gesture processing
+          velocity: gesture.speed || 0,
+          isActive: true
         })
       }
     }
@@ -486,6 +659,19 @@ class WebarmoniumApp {
 
       // Skip all other automatic musical events
       console.log('🚫 Skipping automatic musical event for non-drag gesture')
+
+      // Update visual service with local gesture end
+      if (this.visualService && this.socketService && this.socketService.socket) {
+        const userId = this.socketService.socket.id || 'local'
+        const position = gesture.coordinates || gesture.endPosition || { x: 0.5, y: 0.5 }
+
+        this.visualService.updateGestureData(userId, {
+          type: gestureAction || 'idle',
+          velocity: 0,
+          isActive: false
+        })
+      }
+
       return
     }
 
@@ -532,6 +718,91 @@ class WebarmoniumApp {
       }
     })
 
+    // SUSTAINED HOLD: Handle remote user hold:start events
+    this.socketService.on('hold:start', (data) => {
+      console.log('🔔 Received hold:start event:', { isRemote: data.isRemote, isAudioStarted: this.isAudioStarted, userId: data.userId?.substring(0, 8) })
+
+      // Only process if audio is started AND this is a remote hold
+      if (!this.isAudioStarted) {
+        console.log('⚠️ Ignoring remote hold - audio not started')
+        return
+      }
+
+      if (!data.isRemote) {
+        console.log('⚠️ Ignoring hold:start - not marked as remote')
+        return
+      }
+
+      console.log(`🌐 Remote hold start: user ${data.userId.substring(0, 8)}, freq ${data.frequency.toFixed(1)}Hz`)
+
+      // Trigger remote note attack (use same method, AudioService handles synth selection)
+      const result = this.audioService.triggerSustainedNoteAttack(
+        data.frequency,
+        data.velocity * 0.7, // Quieter for remote users
+        data.position
+      )
+
+      if (result) {
+        // Track remote hold for cleanup and visual feedback
+        this.activeRemoteHolds.set(data.noteId, {
+          noteId: data.noteId,
+          audioNoteId: result.noteId,
+          userId: data.userId,
+          frequency: data.frequency,
+          startTime: result.startTime,
+          position: data.position,
+          userColor: data.userColor || '#ff6b6b',
+          visualStartTime: Date.now()
+        })
+
+        // Update visual service with remote hold gesture
+        if (this.visualService) {
+          const color = data.userColor || '#ff6b6b'
+          this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
+          this.visualService.updateGestureData(data.userId, {
+            type: 'hold',
+            velocity: 0,
+            holdStart: Date.now(),
+            isActive: true
+          })
+        }
+      }
+    })
+
+    // SUSTAINED HOLD: Handle remote user hold:end events
+    this.socketService.on('hold:end', (data) => {
+      if (!this.activeRemoteHolds) {
+        return
+      }
+
+      const remoteHold = this.activeRemoteHolds.get(data.noteId)
+      if (!remoteHold) {
+        console.warn(`⚠️ Received hold:end for unknown note: ${data.noteId}`)
+        return
+      }
+
+      // Release remote note
+      if (this.audioService) {
+        this.audioService.triggerSustainedNoteRelease(remoteHold.audioNoteId)
+      }
+
+      // Update visual service with remote hold end
+      if (this.visualService) {
+        this.visualService.updateGestureData(data.userId, {
+          type: 'idle',
+          velocity: 0,
+          isActive: false
+        })
+      }
+
+      // Remove from tracking
+      this.activeRemoteHolds.delete(data.noteId)
+
+      console.log(`🌐 Remote hold end: user ${data.userId.substring(0, 8)}, ${data.duration}ms hold${data.reason ? ' (' + data.reason + ')' : ''}`)
+    })
+
+    console.log('✅ Sustained hold event listeners registered')
+
     // Compositional parameters from collective metrics
     this.compositionalParameters = null
     this.socketService.on('compositional-parameters', (data) => {
@@ -545,16 +816,17 @@ class WebarmoniumApp {
     })
 
     // Multi-user canvas events
-    this.socketService.on('draw-stroke', (stroke) => {
-      if (this.drawingRenderer) {
-        this.drawingRenderer.renderStroke(stroke)
-      }
+    // DISABLED: DrawingRenderer replaced by p5.js generative graphics
+    // this.socketService.on('draw-stroke', (stroke) => {
+    //   if (this.drawingRenderer) {
+    //     this.drawingRenderer.renderStroke(stroke)
+    //   }
 
-      // Play draw sound for remote user's stroke
-      if (this.audioService && stroke.color) {
-        this.audioService.playDrawSound(stroke.color)
-      }
-    })
+    //   // Play draw sound for remote user's stroke
+    //   if (this.audioService && stroke.color) {
+    //     this.audioService.playDrawSound(stroke.color)
+    //   }
+    // })
 
     this.socketService.on('cursor-position', (data) => {
       if (this.cursorManager) {
@@ -568,14 +840,25 @@ class WebarmoniumApp {
       } else {
         console.error('❌ CursorManager not initialized!')
       }
-    })
 
-    this.socketService.on('drawing-history', (data) => {
-      if (this.drawingRenderer && data.strokes) {
-        console.log(`📜 Received drawing history: ${data.strokes.length} strokes`)
-        this.drawingRenderer.renderStrokeHistory(data.strokes)
+      // Update visual service with cursor position
+      if (this.visualService) {
+        this.visualService.updateCursorPosition(
+          data.userId,
+          data.x,
+          data.y,
+          data.color
+        )
       }
     })
+
+    // DISABLED: DrawingRenderer replaced by p5.js generative graphics
+    // this.socketService.on('drawing-history', (data) => {
+    //   if (this.drawingRenderer && data.strokes) {
+    //     console.log(`📜 Received drawing history: ${data.strokes.length} strokes`)
+    //     this.drawingRenderer.renderStrokeHistory(data.strokes)
+    //   }
+    // })
 
     this.socketService.on('sonic-update', (update) => {
       if (this.isAudioStarted) {
@@ -967,14 +1250,75 @@ class WebarmoniumApp {
       }
       this.frameCount++
 
+      // DISABLED: Gesture trail rendering replaced by p5.js generative graphics
       // Only clear canvas with fade effect if there was a recent gesture (within 2 seconds)
       // This optimizes performance by avoiding unnecessary clearing when idle
-      if (timestamp - this.lastGestureRenderTime < 2000) {
-        this.ctx.save()
-        this.ctx.globalCompositeOperation = 'source-over'
-        this.ctx.fillStyle = 'rgba(26, 26, 46, 0.1)'
-        this.ctx.fillRect(0, 0, window.innerWidth, window.innerHeight)
-        this.ctx.restore()
+      // if (timestamp - this.lastGestureRenderTime < 2000) {
+      //   this.ctx.save()
+      //   this.ctx.globalCompositeOperation = 'source-over'
+      //   this.ctx.fillStyle = 'rgba(26, 26, 46, 0.1)'
+      //   this.ctx.fillRect(0, 0, window.innerWidth, window.innerHeight)
+      //   this.ctx.restore()
+      // }
+
+      // SUSTAINED HOLD: Render local sustained hold indicator (pulsing circle)
+      if (this.activeLocalHold && this.cursorOverlayCanvas) {
+        const now = Date.now()
+        if (!this.activeLocalHold.visualStartTime) {
+          this.activeLocalHold.visualStartTime = now
+        }
+        const elapsed = now - this.activeLocalHold.visualStartTime
+        const pulse = Math.sin(elapsed * 0.001 * Math.PI * 2) // 1Hz pulse (2π radians per second)
+        const radius = 20 + pulse * 5 // 15-25px oscillation
+        const opacity = 0.6 + pulse * 0.1 // 0.5-0.7 opacity oscillation
+
+        const overlayCtx = this.cursorOverlayCanvas.getContext('2d')
+        overlayCtx.save()
+        overlayCtx.globalAlpha = opacity
+        overlayCtx.strokeStyle = this.socketService?.userColor || '#6bcf7f'
+        overlayCtx.lineWidth = 3
+        overlayCtx.beginPath()
+        overlayCtx.arc(
+          this.activeLocalHold.position.x * this.canvas.width,
+          this.activeLocalHold.position.y * this.canvas.height,
+          radius,
+          0,
+          Math.PI * 2
+        )
+        overlayCtx.stroke()
+        overlayCtx.restore()
+      }
+
+      // SUSTAINED HOLD: Render remote sustained hold indicators
+      if (this.activeRemoteHolds && this.activeRemoteHolds.size > 0 && this.cursorOverlayCanvas) {
+        const now = Date.now()
+        const overlayCtx = this.cursorOverlayCanvas.getContext('2d')
+
+        for (const [noteId, hold] of this.activeRemoteHolds.entries()) {
+          if (!hold.visualStartTime) {
+            hold.visualStartTime = now
+          }
+          const elapsed = now - hold.visualStartTime
+          const pulse = Math.sin(elapsed * 0.001 * Math.PI * 2)
+          const radius = 20 + pulse * 5
+          const opacity = 0.6 + pulse * 0.1
+
+          overlayCtx.save()
+          overlayCtx.globalAlpha = opacity
+          // Use a different color for remote holds (or get from hold.userColor if available)
+          overlayCtx.strokeStyle = hold.userColor || '#ff6b6b'
+          overlayCtx.lineWidth = 3
+          overlayCtx.beginPath()
+          overlayCtx.arc(
+            hold.position.x * this.canvas.width,
+            hold.position.y * this.canvas.height,
+            radius,
+            0,
+            Math.PI * 2
+          )
+          overlayCtx.stroke()
+          overlayCtx.restore()
+        }
       }
 
       requestAnimationFrame(render)

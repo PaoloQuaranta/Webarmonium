@@ -15,15 +15,18 @@ class CanvasManager {
   /**
    * @param {string} canvasId - Main gesture canvas ID
    * @param {string} overlayId - Cursor overlay canvas ID
+   * @param {string} p5ContainerId - p5.js container div ID
    */
-  constructor(canvasId = 'gestureCanvas', overlayId = 'cursorOverlay') {
+  constructor(canvasId = 'gestureCanvas', overlayId = 'cursorOverlay', p5ContainerId = 'p5-container') {
     this.canvasId = canvasId
     this.overlayId = overlayId
+    this.p5ContainerId = p5ContainerId
 
     // Canvas references
     this.canvas = null
     this.ctx = null
     this.cursorOverlayCanvas = null
+    this.p5Container = null
 
     // Resize handler reference for cleanup
     this.boundResizeHandler = null
@@ -49,6 +52,12 @@ class CanvasManager {
     this.cursorOverlayCanvas = document.getElementById(this.overlayId)
     if (!this.cursorOverlayCanvas) {
       this.cursorOverlayCanvas = this.createOverlayCanvas()
+    }
+
+    // Get p5.js container
+    this.p5Container = document.getElementById(this.p5ContainerId)
+    if (!this.p5Container) {
+      console.warn(`CanvasManager: p5.js container #${this.p5ContainerId} not found`)
     }
 
     // Initial resize
@@ -139,13 +148,14 @@ class CanvasManager {
 
   /**
    * Get canvas references
-   * @returns {Object} {canvas, ctx, cursorOverlayCanvas}
+   * @returns {Object} {canvas, ctx, cursorOverlayCanvas, p5Container}
    */
   getCanvasRefs() {
     return {
       canvas: this.canvas,
       ctx: this.ctx,
-      cursorOverlayCanvas: this.cursorOverlayCanvas
+      cursorOverlayCanvas: this.cursorOverlayCanvas,
+      p5Container: this.p5Container
     }
   }
 
@@ -177,6 +187,7 @@ class CanvasManager {
     this.canvas = null
     this.ctx = null
     this.cursorOverlayCanvas = null
+    this.p5Container = null
 
     console.log('✅ CanvasManager: Cleaned up')
   }
