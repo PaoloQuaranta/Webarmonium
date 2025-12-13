@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,7 +17,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- Favicon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
 
     <style>
         /* Critical CSS for immediate rendering */
@@ -62,8 +64,13 @@
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         /* Hidden until app loads */
@@ -219,6 +226,7 @@
         }
     </style>
 </head>
+
 <body>
     <div id="app">
         <!-- Loading state -->
@@ -247,13 +255,16 @@
             </div>
 
             <!-- p5.js generative graphics background -->
-            <div id="p5-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;"></div>
+            <div id="p5-container"
+                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;">
+            </div>
 
             <!-- Main gesture canvas -->
             <canvas id="gestureCanvas"></canvas>
 
             <!-- Cursor overlay canvas for multi-user cursors -->
-            <canvas id="cursorOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
+            <canvas id="cursorOverlay"
+                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
 
             <!-- Instructions -->
             <div class="instructions">
@@ -261,9 +272,9 @@
                 <div style="margin-top: 5px; font-size: 12px;">
                     X-axis controls frequency • Y-axis controls amplitude • Intensity affects dynamics
                 </div>
-								<div style="margin-top: 5px; font-size: 10px;">
-									Ver.0.0.8-alpha: cursors positions graph
-								</div>
+                <div style="margin-top: 5px; font-size: 10px;">
+                    Ver.0.0.8-alpha: cursors positions graph
+                </div>
             </div>
         </div>
 
@@ -285,7 +296,8 @@
     <script src="src/utils/ErrorReporter.js?v=5"></script>
 
     <!-- Application services -->
-    <!-- <script src="src/services/GestureCapture.js?v=5"></script> --> <!-- DISABLED - using EnhancedGestureCapture instead -->
+    <!-- <script src="src/services/GestureCapture.js?v=5"></script> -->
+    <!-- DISABLED - using EnhancedGestureCapture instead -->
     <script src="src/services/SocketService.js?v=6"></script>
     <!-- Sprint 2 refactoring: Extracted components -->
     <script src="src/services/CanvasManager.js?v=1"></script>
@@ -297,26 +309,27 @@
     <script src="src/services/MusicalScheduler.js?v=1"></script>
     <script src="src/services/LFOManager.js?v=1"></script>
 
-    <script src="src/services/AudioService.js?v=17"></script> <!-- PHASE 1+2: Re-enabled hover, musical architecture loaded -->
+    <script src="src/services/AudioService.js?v=17"></script>
+    <!-- PHASE 1+2: Re-enabled hover, musical architecture loaded -->
     <script>
-      // Initialize AudioService BEFORE main.js to ensure availability
-      window.AudioServicePromise = new Promise((resolve, reject) => {
-        const checkService = () => {
-          if (window.AudioService) {
-            console.log('✅ AudioService available from previous load')
-            resolve(window.AudioService)
-          } else {
-            setTimeout(checkService, 50) // Retry every 50ms
-          }
-        }
-        checkService()
-      })
+        // Initialize AudioService BEFORE main.js to ensure availability
+        window.AudioServicePromise = new Promise((resolve, reject) => {
+            const checkService = () => {
+                if (window.AudioService) {
+                    console.log('✅ AudioService available from previous load')
+                    resolve(window.AudioService)
+                } else {
+                    setTimeout(checkService, 50) // Retry every 50ms
+                }
+            }
+            checkService()
+        })
     </script>
     <script src="src/services/DrawingRenderer.js?v=5"></script>
     <script src="src/services/CursorManager.js?v=5"></script>
 
     <!-- Enhanced generative music services -->
-    <script src="src/services/EnhancedGestureCapture.js?v=9"></script>
+    <script src="src/services/EnhancedGestureCapture.js?v=11"></script>
 
     <!-- Sprint 4: Gesture processing component -->
     <script src="src/services/GestureProcessor.js?v=1"></script>
@@ -327,14 +340,15 @@
 
     <!-- Main application -->
     <script>
-      // Fallback initialization
-      setTimeout(() => {
-        if (!window.webarmoniumApp) {
-          console.log('🚀 Fallback: Initializing WebarmoniumApp...')
-          window.webarmoniumApp = new WebarmoniumApp()
-        }
-      }, 1000)
+        // Fallback initialization
+        setTimeout(() => {
+            if (!window.webarmoniumApp) {
+                console.log('🚀 Fallback: Initializing WebarmoniumApp...')
+                window.webarmoniumApp = new WebarmoniumApp()
+            }
+        }, 1000)
     </script>
     <script src="src/main.js?v=42"></script> <!-- Fixed: Use nginx proxy for production WebSocket connection -->
 </body>
+
 </html>

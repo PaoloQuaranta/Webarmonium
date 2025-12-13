@@ -288,33 +288,51 @@ class EnhancedGestureCapture {
       // Calculate total distance moved from start position
       this.dragStreaming.totalDistance += distance
 
-      // PRIORITY 1: Check if in sustained hold and now moving
-      if (this.sustainedHold.isActive && this.dragStreaming.totalDistance > this.dragStreaming.minDistanceForDrag) {
-        // Transition from sustained-hold to drag with overlap
-        console.log('🎛️ Transitioning from sustained-hold to drag (200ms overlap)')
+      // CRITICAL FIX: Cancel hold timer on ANY movement (even minimal)
+      // This prevents sustained hold from starting if user is about to drag
+      if (this.sustainedHold.holdTimer && distance > 0.001) {
+        clearTimeout(this.sustainedHold.holdTimer)
+        this.sustainedHold.holdTimer = null
+        console.log('🎸 Hold timer cancelled - ANY movement detected (prevents overlap)')
+      }
+
+      // PRIORITY 1: Check if in sustained hold and now moving - IMMEDIATE INTERRUPT
+      // Use MINIMAL movement threshold (not minDistanceForDrag) for immediate response
+      if (this.sustainedHold.isActive && distance > 0.001) {
+        // Movement detected - IMMEDIATELY stop sustained hold and transition to drag
+        console.log('🎛️ Movement detected - interrupting sustained hold IMMEDIATELY')
         this.currentGesture.action = 'drag'
 
-        // Set transition timer to release sustained note after overlap
-        this.sustainedHold.transitionTimer = setTimeout(() => {
-          if (this.sustainedHold.isActive && this.onSustainedHoldEnd) {
-            const duration = Date.now() - this.sustainedHold.startTime
-            this.onSustainedHoldEnd({
-              noteId: this.sustainedHold.activeNoteId,
-              duration: duration,
-              finalPosition: this.sustainedHold.startPosition,
-              timestamp: Date.now(),
-              reason: 'transition-to-drag'
-            })
-            console.log(`🎵 Sustained hold ended (transition): ${this.sustainedHold.activeNoteId} (${duration}ms)`)
-          }
+        // IMMEDIATE sustained hold release (no overlap)
+        if (this.onSustainedHoldEnd) {
+          const duration = Date.now() - this.sustainedHold.startTime
+          this.onSustainedHoldEnd({
+            noteId: this.sustainedHold.activeNoteId,
+            duration: duration,
+            finalPosition: this.sustainedHold.startPosition,
+            timestamp: Date.now(),
+            reason: 'interrupted-by-movement'
+          })
+          console.log(`🎵 Sustained hold INTERRUPTED: ${this.sustainedHold.activeNoteId} (${duration}ms)`)
+        }
 
-          // Clear sustained hold state
-          this.sustainedHold.isActive = false
-          this.sustainedHold.activeNoteId = null
-          this.sustainedHold.startPosition = null
-        }, this.sustainedHold.overlapDuration)
+        // Clear sustained hold state immediately
+        this.sustainedHold.isActive = false
+        this.sustainedHold.activeNoteId = null
+        this.sustainedHold.startPosition = null
 
-        // Continue with drag streaming (already active)
+        // Clear transition timer if it exists
+        if (this.sustainedHold.transitionTimer) {
+          clearTimeout(this.sustainedHold.transitionTimer)
+          this.sustainedHold.transitionTimer = null
+        }
+
+        // Now start drag streaming
+        if (!this.dragStreaming.firstNotePlayed) {
+          this.playDragStreamingNote(this.gestureTracker.startPosition, { x: 0, y: 0 }, 0)
+          this.dragStreaming.firstNotePlayed = true
+          console.log('🎸 First drag note played after interrupting hold')
+        }
       }
 
       // PRIORITY 2: Discriminate tap vs drag based on MOVEMENT (not time!)
@@ -366,10 +384,10 @@ class EnhancedGestureCapture {
         normalizedSpeed: normalizedSpeed.toFixed(3),
         intervalMs: adjustedInterval,
         noteValue: adjustedInterval <= 62.5 ? '32n-64n' :
-                   adjustedInterval <= 125 ? '16n' :
-                   adjustedInterval <= 250 ? '8n' :
-                   adjustedInterval <= 500 ? '4n' :
-                   adjustedInterval <= 1000 ? '2n' : '1n'
+          adjustedInterval <= 125 ? '16n' :
+            adjustedInterval <= 250 ? '8n' :
+              adjustedInterval <= 500 ? '4n' :
+                adjustedInterval <= 1000 ? '2n' : '1n'
       })
 
       // Play next note if enough time has passed
