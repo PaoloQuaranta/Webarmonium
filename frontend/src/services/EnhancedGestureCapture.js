@@ -351,43 +351,19 @@ class EnhancedGestureCapture {
       // CONTINUE streaming notes
       // RHYTHM VARIATION: Adjust note interval based on velocity
       // Fast drag = rapid notes (64n), slow drag = sparse notes (1n)
-      const speed = Math.sqrt(newVelocity.x ** 2 + newVelocity.y ** 2)
-      const normalizedSpeed = Math.min(speed, 3) // Allow up to 3x for very fast movements
+      // Using centralized VelocityCalculator utility
+      const speed = window.VelocityCalculator.calculateVelocityMagnitude(newVelocity.x, newVelocity.y)
+      const normalizedSpeed = window.VelocityCalculator.normalizeSpeed(speed) // Clamp to 0-3
 
-      // Map velocity to musical note intervals (120 BPM)
-      let adjustedInterval
-      if (normalizedSpeed > 2.0) {
-        // Very fast: 64th notes (31.25ms at 120 BPM)
-        adjustedInterval = 31.25
-      } else if (normalizedSpeed > 1.2) {
-        // Fast: 32nd notes (62.5ms)
-        adjustedInterval = 62.5
-      } else if (normalizedSpeed > 0.7) {
-        // Medium-fast: 16th notes (125ms)
-        adjustedInterval = 125
-      } else if (normalizedSpeed > 0.4) {
-        // Medium: 8th notes (250ms)
-        adjustedInterval = 250
-      } else if (normalizedSpeed > 0.2) {
-        // Slow: quarter notes (500ms)
-        adjustedInterval = 500
-      } else if (normalizedSpeed > 0.1) {
-        // Very slow: half notes (1000ms)
-        adjustedInterval = 1000
-      } else {
-        // Extremely slow: whole notes (2000ms)
-        adjustedInterval = 2000
-      }
+      // Map velocity to musical note intervals using utility
+      const intervalData = window.VelocityCalculator.getIntervalFromSpeed(normalizedSpeed)
+      const adjustedInterval = intervalData.interval
 
       console.log('🎸 Interval calculation:', {
         rawSpeed: speed.toFixed(3),
         normalizedSpeed: normalizedSpeed.toFixed(3),
         intervalMs: adjustedInterval,
-        noteValue: adjustedInterval <= 62.5 ? '32n-64n' :
-          adjustedInterval <= 125 ? '16n' :
-            adjustedInterval <= 250 ? '8n' :
-              adjustedInterval <= 500 ? '4n' :
-                adjustedInterval <= 1000 ? '2n' : '1n'
+        noteValue: intervalData.noteValue
       })
 
       // Play next note if enough time has passed

@@ -4,6 +4,9 @@
  * Constitutional requirement: <100ms processing latency, unified modulation synthesis
  */
 
+const { applySmoothingInPlace, applySmoothing } = require('../utils/SmoothingCalculator')
+const { DEFAULT_POSITION, DEFAULT_INTENSITY } = require('../constants/MusicConstants')
+
 class HoverOrchestrator {
   constructor(roomId, socketIo) {
     this.roomId = roomId
@@ -18,7 +21,7 @@ class HoverOrchestrator {
     this.aggregateState = {
       hoverCount: 0,
       uniqueUsers: new Set(),
-      averagePosition: { x: 0.5, y: 0.5 },
+      averagePosition: { ...DEFAULT_POSITION },
       density: 0, // hover al secondo
       spatialVariance: 0, // varianza spaziale
       intensityDistribution: { min: 0, max: 0, avg: 0 },
@@ -239,7 +242,7 @@ class HoverOrchestrator {
     this.aggregateState.uniqueUsers = new Set(recentHovers.map(h => h.userId))
 
     // Posizione media e varianza spaziale
-    const positions = recentHovers.map(h => h.position || { x: 0.5, y: 0.5 })
+    const positions = recentHovers.map(h => h.position || DEFAULT_POSITION)
     this.aggregateState.averagePosition = {
       x: positions.reduce((sum, p) => sum + p.x, 0) / positions.length,
       y: positions.reduce((sum, p) => sum + p.y, 0) / positions.length
@@ -303,7 +306,7 @@ class HoverOrchestrator {
    * Rileva cluster di hover
    */
   detectClusters(hovers) {
-    const positions = hovers.map(h => h.position || { x: 0.5, y: 0.5 })
+    const positions = hovers.map(h => h.position || DEFAULT_POSITION)
     const clusters = []
 
     // Simple k-means clustering con k=3
@@ -347,8 +350,8 @@ class HoverOrchestrator {
     let count = 0
 
     for (let i = 1; i < sortedHovers.length; i++) {
-      const prev = sortedHovers[i - 1].position || { x: 0.5, y: 0.5 }
-      const curr = sortedHovers[i].position || { x: 0.5, y: 0.5 }
+      const prev = sortedHovers[i - 1].position || DEFAULT_POSITION
+      const curr = sortedHovers[i].position || DEFAULT_POSITION
 
       const timeDiff = sortedHovers[i].timestamp - sortedHovers[i - 1].timestamp
 
@@ -415,7 +418,7 @@ class HoverOrchestrator {
         const yMax = (j + 1) / gridSize
 
         const count = hovers.filter(h => {
-          const pos = h.position || { x: 0.5, y: 0.5 }
+          const pos = h.position || DEFAULT_POSITION
           return pos.x >= xMin && pos.x < xMax && pos.y >= yMin && pos.y < yMax
         }).length
 
@@ -655,126 +658,71 @@ class HoverOrchestrator {
   /**
    * Apply smoothing to gradual parameter transitions
    * Uses exponential moving average for smooth changes
+   * Refactored to use SmoothingCalculator utility
    */
   applySmoothing() {
     const sp = this.smoothingParams
     const prev = this.previousModulation
     const curr = this.unifiedModulation
 
-    // LFO parameters smoothing
-    this.unifiedModulation.lfoFrequency =
-      prev.lfoFrequency * sp.lfoFrequencySmoothing +
-      curr.lfoFrequency * (1 - sp.lfoFrequencySmoothing)
-
-    this.unifiedModulation.lfoAmplitude =
-      prev.lfoAmplitude * sp.lfoAmplitudeSmoothing +
-      curr.lfoAmplitude * (1 - sp.lfoAmplitudeSmoothing)
+    // Primary LFO smoothing
+    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
+      lfoFrequency: sp.lfoFrequencySmoothing,
+      lfoAmplitude: sp.lfoAmplitudeSmoothing
+    })
 
     // Secondary LFO smoothing - ULTRA SMOOTH
-    if (prev.lfo2Frequency !== undefined && curr.lfo2Frequency !== undefined) {
-      this.unifiedModulation.lfo2Frequency =
-        prev.lfo2Frequency * sp.lfo2FrequencySmoothing +
-        curr.lfo2Frequency * (1 - sp.lfo2FrequencySmoothing)
-
-      this.unifiedModulation.lfo2Amplitude =
-        prev.lfo2Amplitude * sp.lfoAmplitudeSmoothing +
-        curr.lfo2Amplitude * (1 - sp.lfoAmplitudeSmoothing)
-    }
+    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
+      lfo2Frequency: sp.lfo2FrequencySmoothing,
+      lfo2Amplitude: sp.lfoAmplitudeSmoothing
+    })
 
     // Tertiary LFO smoothing - ESTREMAMENTE GRADUALE
-    if (prev.lfo3Frequency !== undefined && curr.lfo3Frequency !== undefined) {
-      this.unifiedModulation.lfo3Frequency =
-        prev.lfo3Frequency * sp.lfo3FrequencySmoothing +
-        curr.lfo3Frequency * (1 - sp.lfo3FrequencySmoothing)
+    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
+      lfo3Frequency: sp.lfo3FrequencySmoothing,
+      lfo3Amplitude: sp.lfoAmplitudeSmoothing
+    })
 
-      this.unifiedModulation.lfo3Amplitude =
-        prev.lfo3Amplitude * sp.lfoAmplitudeSmoothing +
-        curr.lfo3Amplitude * (1 - sp.lfoAmplitudeSmoothing)
-    }
+    // Quaternary LFO smoothing - QUASI IMPERCETTIBILE
+    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
+      lfo4Frequency: sp.lfo4FrequencySmoothing,
+      lfo4Amplitude: sp.lfoAmplitudeSmoothing
+    })
 
-    // Quaternary LFO smoothing - QUASI IMPERCEettibile
-    if (prev.lfo4Frequency !== undefined && curr.lfo4Frequency !== undefined) {
-      this.unifiedModulation.lfo4Frequency =
-        prev.lfo4Frequency * sp.lfo4FrequencySmoothing +
-        curr.lfo4Frequency * (1 - sp.lfo4FrequencySmoothing)
-
-      this.unifiedModulation.lfo4Amplitude =
-        prev.lfo4Amplitude * sp.lfoAmplitudeSmoothing +
-        curr.lfo4Amplitude * (1 - sp.lfoAmplitudeSmoothing)
-    }
-
-    // Filter parameters smoothing (more gradual)
-    this.unifiedModulation.filterCutoff =
-      prev.filterCutoff * sp.filterSmoothing +
-      curr.filterCutoff * (1 - sp.filterSmoothing)
-
-    this.unifiedModulation.filterResonance =
-      prev.filterResonance * sp.filterSmoothing +
-      curr.filterResonance * (1 - sp.filterSmoothing)
+    // Filter parameters smoothing
+    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
+      filterCutoff: sp.filterSmoothing,
+      filterResonance: sp.filterSmoothing,
+      filterFreqModDepth: sp.filterSmoothing,
+      filterResModDepth: sp.filterSmoothing
+    })
 
     // Spatial parameters smoothing
-    this.unifiedModulation.spatialPan =
-      prev.spatialPan * sp.spatialSmoothing +
-      curr.spatialPan * (1 - sp.spatialSmoothing)
-
-    this.unifiedModulation.spatialWidth =
-      prev.spatialWidth * sp.spatialSmoothing +
-      curr.spatialWidth * (1 - sp.spatialSmoothing)
+    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
+      spatialPan: sp.spatialSmoothing,
+      spatialWidth: sp.spatialSmoothing,
+      spatialRotateSpeed: sp.spatialSmoothing
+    })
 
     // Effects parameters smoothing (slow transitions)
-    this.unifiedModulation.reverbMix =
-      prev.reverbMix * sp.effectsSmoothing +
-      curr.reverbMix * (1 - sp.effectsSmoothing)
+    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
+      reverbMix: sp.effectsSmoothing,
+      delayTime: sp.effectsSmoothing
+    })
 
-    this.unifiedModulation.delayTime =
-      prev.delayTime * sp.effectsSmoothing +
-      curr.delayTime * (1 - sp.effectsSmoothing)
-
-    // NUOVI: Filter modulation depth smoothing
-    if (prev.filterFreqModDepth !== undefined && curr.filterFreqModDepth !== undefined) {
-      this.unifiedModulation.filterFreqModDepth =
-        prev.filterFreqModDepth * sp.filterSmoothing +
-        curr.filterFreqModDepth * (1 - sp.filterSmoothing)
-
-      this.unifiedModulation.filterResModDepth =
-        prev.filterResModDepth * sp.filterSmoothing +
-        curr.filterResModDepth * (1 - sp.filterSmoothing)
-    }
-
-    // NUOVI: Spatial rotation smoothing
-    if (prev.spatialRotateSpeed !== undefined && curr.spatialRotateSpeed !== undefined) {
-      this.unifiedModulation.spatialRotateSpeed =
-        prev.spatialRotateSpeed * sp.spatialSmoothing +
-        curr.spatialRotateSpeed * (1 - sp.spatialSmoothing)
-    }
-
-    // NUOVI: Modulation character parameters smoothing
-    if (prev.modulationDepth !== undefined && curr.modulationDepth !== undefined) {
-      this.unifiedModulation.modulationDepth =
-        prev.modulationDepth * 0.9 +
-        curr.modulationDepth * 0.1
-
-      this.unifiedModulation.modulationRate =
-        prev.modulationRate * sp.lfoFrequencySmoothing +
-        curr.modulationRate * (1 - sp.lfoFrequencySmoothing)
-
-      this.unifiedModulation.vibratoDepth =
-        prev.vibratoDepth * 0.95 +
-        curr.vibratoDepth * 0.05 // molto graduale
-
-      this.unifiedModulation.tremoloDepth =
-        prev.tremoloDepth * 0.97 +
-        curr.tremoloDepth * 0.03 // estremamente graduale
-    }
+    // Modulation character parameters - using fixed factors (previously hardcoded)
+    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
+      modulationDepth: 0.9,
+      modulationRate: sp.lfoFrequencySmoothing,
+      vibratoDepth: 0.95,
+      tremoloDepth: 0.97
+    })
 
     // Evolution and complexity parameters
-    this.unifiedModulation.evolutionSpeed =
-      prev.evolutionSpeed * 0.9 +
-      curr.evolutionSpeed * 0.1
-
-    this.unifiedModulation.complexity =
-      prev.complexity * 0.85 +
-      curr.complexity * 0.15
+    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
+      evolutionSpeed: 0.9,
+      complexity: 0.85
+    })
   }
 
   /**

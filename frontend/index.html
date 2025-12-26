@@ -292,8 +292,14 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="https://unpkg.com/tone@14.7.77/build/Tone.js"></script>
 
+    <!-- Phase 3: Constants (load first) -->
+    <script src="src/constants/MusicalConstants.js?v=1"></script>
+    <script src="src/constants/GestureConstants.js?v=1"></script>
+
     <!-- Utilities -->
     <script src="src/utils/ErrorReporter.js?v=5"></script>
+    <script src="src/utils/MusicalScales.js?v=1"></script>
+    <script src="src/utils/VelocityCalculator.js?v=1"></script>
 
     <!-- Application services -->
     <!-- <script src="src/services/GestureCapture.js?v=5"></script> -->
@@ -309,7 +315,17 @@
     <script src="src/services/MusicalScheduler.js?v=1"></script>
     <script src="src/services/LFOManager.js?v=1"></script>
 
-    <script src="src/services/AudioService.js?v=17"></script>
+    <!-- Phase 2 Refactoring: Extracted audio modules -->
+    <script src="src/services/audio/GestureAudioMapper.js?v=1"></script>
+    <script src="src/services/audio/PolyphonyManager.js?v=1"></script>
+    <script src="src/services/audio/CompositionPlayer.js?v=1"></script>
+    <script src="src/services/audio/GenerativeMusicEngine.js?v=1"></script>
+    <script src="src/services/audio/FilterModulationSystem.js?v=1"></script>
+    <script src="src/services/audio/ParameterController.js?v=1"></script>
+    <script src="src/services/audio/ThreeTierAudioSystem.js?v=1"></script>
+    <script src="src/services/audio/AudioServiceFacade.js?v=1"></script>
+
+    <script src="src/services/AudioService.js?v=18"></script>
     <!-- PHASE 1+2: Re-enabled hover, musical architecture loaded -->
     <script>
         // Initialize AudioService BEFORE main.js to ensure availability
@@ -325,14 +341,26 @@
             checkService()
         })
     </script>
-    <script src="src/services/DrawingRenderer.js?v=5"></script>
+    <!-- DrawingRenderer.js REMOVED - replaced by p5.js GenerativeVisualService -->
     <script src="src/services/CursorManager.js?v=5"></script>
 
+    <!-- Phase 3: Gesture modules (decomposed from EnhancedGestureCapture) -->
+    <script src="src/services/gesture/GestureCaptureCore.js?v=1"></script>
+    <script src="src/services/gesture/GestureStateMachine.js?v=1"></script>
+    <script src="src/services/gesture/GestureClassifier.js?v=1"></script>
+    <script src="src/services/gesture/HoverProcessor.js?v=1"></script>
+    <script src="src/services/gesture/DragStreamProcessor.js?v=1"></script>
+
     <!-- Enhanced generative music services -->
-    <script src="src/services/EnhancedGestureCapture.js?v=11"></script>
+    <script src="src/services/EnhancedGestureCapture.js?v=12"></script>
 
     <!-- Sprint 4: Gesture processing component -->
     <script src="src/services/GestureProcessor.js?v=1"></script>
+
+    <!-- Phase 2 Refactoring: Extracted handlers -->
+    <script src="src/handlers/DragStreamingHandler.js?v=1"></script>
+    <script src="src/handlers/SustainedHoldHandler.js?v=1"></script>
+    <script src="src/handlers/SocketEventCoordinator.js?v=1"></script>
 
     <!-- UI components -->
     <script src="src/components/AudioControls.js?v=5"></script>

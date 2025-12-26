@@ -239,11 +239,7 @@ class AudioService {
       }
     }
 
-    // Initialize LFO system - DISABILITATO per eliminare tremolo
-    // this.lfoSystem.init() // Vecchio LFO system rimosso
-    console.log('🛑 LFO system initialization DISABLED - using only unified modulation')
-
-    // NUCLEAR OPTION: Completely disable all LFO functionality to eliminate tremolo
+    // LFO system disabled - using only unified modulation
     this.disableAllLFOSystems()
   }
 
@@ -2630,53 +2626,7 @@ class AudioService {
    * @param {number} amplitude - LFO amplitude (0.0 to 1.0)
    */
   setupRemoteFilterLFO(speed, amplitude) {
-    // DISABLED: All remote filter LFO functionality removed
-    console.log('🛑 setupRemoteFilterLFO DISABLED')
-    return
-
-    if (amplitude === 0) {
-      // No amplitude, no LFO
-      this.remoteFilterLFO = null
-      console.log('🛑 Remote filter LFO disabled (amplitude = 0)')
-      return
-    }
-
-    // Apply dynamic scaling based on number of active users
-    const userCount = this.activeRemoteUsers.size || 1 // At least 1
-    const scalingMultiplier = this.calculateModulationScaling(userCount)
-
-    // Scale up amplitude for fewer users
-    const scaledAmplitude = Math.min(1.0, amplitude * scalingMultiplier)
-
-    // Scale speed slightly for more dramatic effect with fewer users
-    const scaledSpeed = speed * (1 + (scalingMultiplier - 1) * 0.5)
-
-    console.log(`👥 User scaling: ${userCount} users, multiplier=${scalingMultiplier.toFixed(2)}, amp=${(amplitude * 100).toFixed(0)}%→${(scaledAmplitude * 100).toFixed(0)}%`)
-
-    // Create new LFO for filter modulation with scaled parameters
-    // Use higher base frequency offset for more dramatic effect
-    const baseFreq = 1000 // 1kHz base frequency
-    const modulationDepth = baseFreq * scaledAmplitude // Modulate ± this amount
-
-    // Ensure minimum frequency doesn't go below 50Hz to prevent audio artifacts
-    const minFreq = Math.max(50, baseFreq - modulationDepth)
-    const maxFreq = baseFreq + modulationDepth
-
-    this.remoteFilterLFO = new Tone.LFO(scaledSpeed, minFreq, maxFreq).start()
-
-    // Connect LFO to all target filters with direct frequency control
-    this.connectLFOToFiltersDirect()
-
-    console.log(`🌊 Remote filter LFO: speed=${scaledSpeed.toFixed(2)}Hz, range=${(baseFreq - modulationDepth).toFixed(0)}-${(baseFreq + modulationDepth).toFixed(0)}Hz, users=${userCount}`)
-
-    // Debug: test LFO output briefly
-    setTimeout(() => {
-      if (this.remoteFilterLFO) {
-        console.log('✅ Remote LFO is running and should be modulating filters')
-      } else {
-        console.warn('⚠️ Remote LFO disappeared unexpectedly')
-      }
-    }, 1000)
+    // DISABLED: Remote filter LFO functionality removed - stub for backward compatibility
   }
 
   /**
@@ -2785,15 +2735,7 @@ class AudioService {
    * Stop remote filter LFO
    */
   stopRemoteFilterLFO() {
-    // DISABLED: All remote filter LFO functionality removed
-    console.log('🛑 stopRemoteFilterLFO DISABLED')
-    return
-
-    // For direct connections, we just clear the tracking
-    // Tone.js handles disconnection automatically when the LFO is disposed
-    this.remoteLFOTargetFilters.clear()
-
-    console.log('🛑 Remote filter LFO stopped and disconnected')
+    // DISABLED: Remote filter LFO functionality removed - stub for backward compatibility
   }
 
   /**
@@ -2802,29 +2744,7 @@ class AudioService {
    * @param {number} currentTime - Current audio context time
    */
   applyTremolo(amount, currentTime = Tone.now()) {
-    // DISABLED: All tremolo functionality removed
-    console.log('🛑 applyTremolo DISABLED')
-    return
-
-    if (!this.gestureSynth || amount <= 0) return
-
-    // Create tremolo using volume modulation
-    const tremoloRate = 4 + amount * 8 // 4Hz to 12Hz based on amount
-    const tremoloDepth = amount * 0.6 // Max 60% depth for musical effect
-
-    // We'll use a simple LFO on the volume parameter
-    if (!this.tremoloLFO) {
-      this.tremoloLFO = new Tone.LFO(tremoloRate, 1 - tremoloDepth, 1).start()
-      this.tremoloLFO.connect(this.gestureSynth.volume)
-    } else {
-      // Stop existing LFO and create new one with updated parameters
-      this.tremoloLFO.stop()
-      this.tremoloLFO.dispose()
-      this.tremoloLFO = new Tone.LFO(tremoloRate, 1 - tremoloDepth, 1).start()
-      this.tremoloLFO.connect(this.gestureSynth.volume)
-    }
-
-    console.log(`🎛️ Applied tremolo: rate=${tremoloRate.toFixed(1)}Hz, depth=${(tremoloDepth * 100).toFixed(1)}%`)
+    // DISABLED: Tremolo functionality removed - stub for backward compatibility
   }
 
 
@@ -4578,9 +4498,7 @@ class AudioService {
    * @param {Object} modulationData - Unified modulation data from server
    */
   applyUnifiedModulation(modulationData) {
-    // DISABLED: All unified modulation functionality removed
-    console.log('🛑 applyUnifiedModulation DISABLED')
-    return
+    // DISABLED: Unified modulation functionality removed - stub for backward compatibility
   }
 
   cleanup() {

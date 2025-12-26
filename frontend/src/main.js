@@ -244,18 +244,9 @@ class WebarmoniumApp {
       const y = noteData.position.y
 
       // MELODIC GENERATION: Dynamic melody creation based on gesture properties
-      // Scales influenced by collective activity
-      const scales = {
-        'pentatonic': [0, 2, 4, 7, 9],      // Major pentatonic
-        'major': [0, 2, 4, 5, 7, 9, 11],    // Major scale
-        'minor': [0, 2, 3, 5, 7, 8, 10],    // Natural minor
-        'dorian': [0, 2, 3, 5, 7, 9, 10],   // Dorian mode
-        'mixolydian': [0, 2, 4, 5, 7, 9, 10] // Mixolydian mode
-      }
-
+      // PERFORMANCE: Use cached scale instead of looking up on every note
       const params = this.compositionalParameters || {}
-      const scaleType = params.scaleType || 'pentatonic'
-      const scale = scales[scaleType] || scales['pentatonic']
+      const scale = this.cachedScale || window.MusicalScales.getScale('pentatonic')
       const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
 
       // GESTURE DIRECTION: Calculate vertical direction from position change
@@ -452,15 +443,9 @@ class WebarmoniumApp {
       const y = holdData.position.y
 
       // Use same pitch calculation as drag gestures for consistency
-      const scales = {
-        'pentatonic': [0, 2, 4, 7, 9],
-        'major': [0, 2, 4, 5, 7, 9, 11],
-        'minor': [0, 2, 3, 5, 7, 8, 10]
-      }
-
+      // PERFORMANCE: Use cached scale instead of looking up on every note
       const params = this.compositionalParameters || {}
-      const scaleType = params.scaleType || 'pentatonic'
-      const scale = scales[scaleType] || scales['pentatonic']
+      const scale = this.cachedScale || window.MusicalScales.getScale('pentatonic')
       const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
 
       // Map X position to scale degree
@@ -804,9 +789,22 @@ class WebarmoniumApp {
     console.log('✅ Sustained hold event listeners registered')
 
     // Compositional parameters from collective metrics
+    // PERFORMANCE: Cache scale array to avoid lookup on every drag note
     this.compositionalParameters = null
+    this.cachedScale = null  // Cached scale array for performance
+    this.cachedScaleType = null  // Track which scale type is cached
+
     this.socketService.on('compositional-parameters', (data) => {
       this.compositionalParameters = data.parameters
+
+      // PERFORMANCE: Update cached scale when parameters change
+      const newScaleType = data.parameters?.scaleType || 'pentatonic'
+      if (this.cachedScaleType !== newScaleType) {
+        this.cachedScale = window.MusicalScales.getScale(newScaleType)
+        this.cachedScaleType = newScaleType
+        console.log(`🎼 Cached scale updated: ${newScaleType}`)
+      }
+
       console.log('🎼 Updated compositional parameters:', this.compositionalParameters)
 
       // Update AudioService with new parameters for background generation
@@ -814,19 +812,6 @@ class WebarmoniumApp {
         this.audioService.updateCompositionalParameters(this.compositionalParameters)
       }
     })
-
-    // Multi-user canvas events
-    // DISABLED: DrawingRenderer replaced by p5.js generative graphics
-    // this.socketService.on('draw-stroke', (stroke) => {
-    //   if (this.drawingRenderer) {
-    //     this.drawingRenderer.renderStroke(stroke)
-    //   }
-
-    //   // Play draw sound for remote user's stroke
-    //   if (this.audioService && stroke.color) {
-    //     this.audioService.playDrawSound(stroke.color)
-    //   }
-    // })
 
     this.socketService.on('cursor-position', (data) => {
       if (this.cursorManager) {
@@ -851,14 +836,6 @@ class WebarmoniumApp {
         )
       }
     })
-
-    // DISABLED: DrawingRenderer replaced by p5.js generative graphics
-    // this.socketService.on('drawing-history', (data) => {
-    //   if (this.drawingRenderer && data.strokes) {
-    //     console.log(`📜 Received drawing history: ${data.strokes.length} strokes`)
-    //     this.drawingRenderer.renderStrokeHistory(data.strokes)
-    //   }
-    // })
 
     this.socketService.on('sonic-update', (update) => {
       if (this.isAudioStarted) {
@@ -1208,17 +1185,6 @@ class WebarmoniumApp {
         this.lastFrameTime = timestamp
       }
       this.frameCount++
-
-      // DISABLED: Gesture trail rendering replaced by p5.js generative graphics
-      // Only clear canvas with fade effect if there was a recent gesture (within 2 seconds)
-      // This optimizes performance by avoiding unnecessary clearing when idle
-      // if (timestamp - this.lastGestureRenderTime < 2000) {
-      //   this.ctx.save()
-      //   this.ctx.globalCompositeOperation = 'source-over'
-      //   this.ctx.fillStyle = 'rgba(26, 26, 46, 0.1)'
-      //   this.ctx.fillRect(0, 0, window.innerWidth, window.innerHeight)
-      //   this.ctx.restore()
-      // }
 
       // SUSTAINED HOLD: Render local sustained hold indicator (pulsing circle)
       if (this.activeLocalHold && this.cursorOverlayCanvas) {

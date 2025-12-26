@@ -1,0 +1,566 @@
+/**
+ * GenerativeMusicEngine.js
+ * Handles background music generation, harmonic progressions, and composition
+ * Extracted from AudioService.js for Phase 2 refactoring
+ */
+class GenerativeMusicEngine {
+  constructor() {
+    // Reference to ambient layer synths (set by AudioService)
+    this.ambientLayers = null
+
+    // Mute state
+    this.muted = false
+
+    // Active state for generation loop
+    this.evolvingGenerationActive = false
+    this.lastVoiceUpdateTime = Date.now()
+
+    // Initialize generative composition state
+    this.generativeState = {
+      currentScale: [0, 2, 4, 7, 9], // Pentatonic major
+      currentTonic: 220, // A3
+      harmonicProgression: 0,
+      evolutionCycle: 0,
+      userInfluence: 0,
+      lastUserActivity: Date.now(),
+      evolutionSpeed: 8000,
+      complexity: 0.3,
+      rhythmicComplexity: 0.5,
+      harmonicTension: 0.3,
+      pendingModulation: null,
+      mode: 'major',
+
+      // Rhythmic patterns for variety
+      rhythmPatterns: [
+        [3.0],                      // 0: single very long note
+        [2.0, 1.0],                 // 1: long + medium
+        [1.5, 1.5],                 // 2: two sustained notes
+        [0.3, 0.3, 0.3, 0.3],       // 3: four rapid notes
+        [0.4, 0.4, 0.4, 0.4, 0.4],  // 4: five rapid notes
+        [0.25, 0.25, 0.5],          // 5: very fast triplet
+        [0.5, 1.5],                 // 6: classic short-long
+        [1.5, 0.5],                 // 7: inverted long-short
+        [0.3, 2.0],                 // 8: very short + very long
+        [2.0, 0.3],                 // 9: very long + very short
+        [1.0, 1.0, 1.0],            // 10: steady triplet
+        [0.8, 0.8, 0.8, 0.8],       // 11: steady quadruplet
+      ],
+
+      // Layer configuration
+      layers: {
+        bass: {
+          nextNoteTime: 0,
+          rhythm: 2000,
+          currentNote: 0,
+          octave: -2,
+          velocity: 0.45,
+          lastFrequency: null,
+          currentPatternIndex: 3,
+          patternPosition: 0
+        },
+        pad: {
+          nextNoteTime: 1200,
+          rhythm: 16000,
+          currentNotes: [2, 4],
+          octave: 0,
+          velocity: 0.30,
+          lastFrequencies: [],
+          currentPatternIndex: 0,
+          patternPosition: 0
+        },
+        chords: {
+          nextNoteTime: 2400,
+          rhythm: 4000,
+          currentChord: 0,
+          octave: 1,
+          velocity: 0.40,
+          lastFrequencies: [],
+          currentPatternIndex: 10,
+          patternPosition: 0
+        }
+      },
+
+      // Harmonic progressions
+      availableProgressions: [
+        { name: 'I-V-vi-IV', degrees: [0, 4, 5, 3], mood: 'uplifting' },
+        { name: 'I-IV-V-IV', degrees: [0, 3, 4, 3], mood: 'driving' },
+        { name: 'i-VI-III-VII', degrees: [0, 5, 2, 6], mood: 'dramatic' },
+        { name: 'I-vi-IV-V', degrees: [0, 5, 3, 4], mood: 'circular' },
+        { name: 'I-V-vi-iii-IV', degrees: [0, 4, 5, 2, 3], mood: 'flowing' },
+        { name: 'I-iii-vi-IV', degrees: [0, 2, 5, 3], mood: 'melancholic' },
+        { name: 'I-VII-IV-V', degrees: [0, 6, 3, 4], mood: 'mysterious' }
+      ],
+      currentProgressionIndex: 0,
+      chordProgression: [0, 4, 5, 3],
+      currentChord: 0,
+      chordDuration: 8000,
+      lastChordChange: Date.now(),
+      progressionCycles: 0,
+      nextProgressionChange: 4
+    }
+  }
+
+  /**
+   * Set synth references
+   * @param {Object} ambientLayers - Ambient layer synths
+   */
+  setAmbientLayers(ambientLayers) {
+    this.ambientLayers = ambientLayers
+  }
+
+  /**
+   * Set mute state
+   * @param {boolean} muted - Mute state
+   */
+  setMuted(muted) {
+    this.muted = muted
+  }
+
+  /**
+   * Start evolving generative music system
+   */
+  startEvolvingGeneration() {
+    if (this.evolvingGenerationActive) return
+
+    this.evolvingGenerationActive = true
+    this.lastVoiceUpdateTime = Date.now()
+
+    const compositionLoop = () => {
+      if (!this.evolvingGenerationActive) {
+        return
+      }
+
+      try {
+        const now = Date.now()
+        const deltaTime = now - this.lastVoiceUpdateTime
+        this.lastVoiceUpdateTime = now
+
+        // Update each layer independently
+        Object.keys(this.generativeState.layers).forEach(layerName => {
+          const layer = this.generativeState.layers[layerName]
+
+          layer.nextNoteTime -= deltaTime
+          if (layer.nextNoteTime <= 0) {
+            this.playLayer(layerName)
+
+            const currentPattern = this.generativeState.rhythmPatterns[layer.currentPatternIndex]
+            const patternMultiplier = currentPattern[layer.patternPosition]
+
+            layer.patternPosition++
+
+            if (layer.patternPosition >= currentPattern.length) {
+              const oldPattern = layer.currentPatternIndex
+              do {
+                layer.currentPatternIndex = Math.floor(Math.random() * this.generativeState.rhythmPatterns.length)
+              } while (layer.currentPatternIndex === oldPattern && this.generativeState.rhythmPatterns.length > 1)
+
+              layer.patternPosition = 0
+            }
+
+            const baseTime = layer.rhythm * patternMultiplier
+            const jitter = 1 + (Math.random() - 0.5) * 0.1
+            layer.nextNoteTime = baseTime * jitter
+          }
+        })
+
+        // Harmonic progression change
+        const timeSinceChordChange = now - this.generativeState.lastChordChange
+        if (timeSinceChordChange >= this.generativeState.chordDuration) {
+          this.advanceHarmony()
+          this.generativeState.lastChordChange = now
+        }
+
+        this.generativeState.evolutionCycle++
+
+      } catch (error) {
+        console.error('🎵 Error in composition loop:', error)
+      }
+
+      setTimeout(compositionLoop, 100)
+    }
+
+    setTimeout(() => {
+      console.log('🎵 Starting bass + pad + chords composition system')
+      compositionLoop()
+    }, 2000)
+  }
+
+  /**
+   * Stop evolving generation
+   */
+  stopEvolvingGeneration() {
+    this.evolvingGenerationActive = false
+    console.log('🎵 Evolving generation stopped')
+  }
+
+  /**
+   * Play a musical layer
+   * @param {string} layerName - Name of layer ('bass', 'pad', 'chords')
+   */
+  playLayer(layerName) {
+    const state = this.generativeState
+    const layer = state.layers[layerName]
+    const scale = state.currentScale
+
+    if (!this.ambientLayers || this.muted) return
+
+    const synth = this.ambientLayers[layerName]
+    if (!synth) return
+
+    const chordRoot = state.chordProgression[state.currentChord]
+    const chordRootIndex = scale.indexOf(chordRoot)
+
+    let frequencies = []
+
+    // Pattern-based duration
+    const currentPattern = state.rhythmPatterns[layer.currentPatternIndex]
+    const currentPosition = (layer.patternPosition - 1 + currentPattern.length) % currentPattern.length
+    const patternMultiplier = currentPattern[currentPosition]
+
+    let baseDuration
+    if (layerName === 'bass') baseDuration = 1.0
+    else if (layerName === 'pad') baseDuration = 2.5
+    else if (layerName === 'chords') baseDuration = 1.8
+
+    const articulationFactor = 0.8 - (state.complexity * 0.1)
+    const duration = baseDuration * patternMultiplier * articulationFactor
+
+    if (layerName === 'bass') {
+      const scaleNote = chordRoot
+      const frequency = state.currentTonic * Math.pow(2, (scaleNote / 12) + layer.octave)
+      frequencies = [frequency]
+
+      try { synth.releaseAll() } catch (e) {}
+      layer.lastFrequency = frequency
+
+    } else if (layerName === 'pad') {
+      const third = scale[(chordRootIndex + 2) % scale.length]
+      const fifth = scale[(chordRootIndex + 4) % scale.length]
+
+      const freq3 = state.currentTonic * Math.pow(2, (third / 12) + layer.octave)
+      const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
+      frequencies = [freq3, freq5]
+
+      try { synth.releaseAll() } catch (e) {}
+      layer.lastFrequencies = frequencies
+
+    } else if (layerName === 'chords') {
+      const root = chordRoot
+      const third = scale[(chordRootIndex + 2) % scale.length]
+      const fifth = scale[(chordRootIndex + 4) % scale.length]
+
+      const freqR = state.currentTonic * Math.pow(2, (root / 12) + layer.octave)
+      const freq3 = state.currentTonic * Math.pow(2, (third / 12) + layer.octave)
+      const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
+      frequencies = [freqR, freq3, freq5]
+
+      try { synth.releaseAll() } catch (e) {}
+      layer.lastFrequencies = frequencies
+    }
+
+    // Velocity variation
+    let velocityVariation
+    if (layerName === 'bass') velocityVariation = 0.8 + Math.random() * 0.4
+    else if (layerName === 'pad') velocityVariation = 0.85 + Math.random() * 0.3
+    else if (layerName === 'chords') velocityVariation = 0.75 + Math.random() * 0.5
+
+    const dynamicFactor = 0.9 + (Math.random() * 0.2) * state.complexity
+    const playVelocity = layer.velocity * velocityVariation * dynamicFactor
+
+    try {
+      const triggerTime = typeof Tone !== 'undefined' ? Tone.now() : undefined
+
+      frequencies.forEach(freq => {
+        synth.triggerAttackRelease(freq, duration, triggerTime, playVelocity)
+      })
+    } catch (error) {
+      console.warn(`🎵 Layer ${layerName} play error:`, error.message)
+    }
+  }
+
+  /**
+   * Update generative state based on user activity
+   */
+  updateGenerativeState() {
+    const state = this.generativeState
+    state.evolutionCycle++
+
+    const timeFactor = Math.sin(state.evolutionCycle * 0.05) * 0.5 + 0.5
+    state.complexity = 0.2 + timeFactor * 0.4 + state.userInfluence * 0.4
+
+    state.userInfluence *= 0.95
+    state.userInfluence = Math.max(0.1, state.userInfluence)
+
+    if (Math.random() < 0.3 + state.complexity * 0.2) {
+      state.harmonicProgression = (state.harmonicProgression + 1) % state.currentScale.length
+    }
+
+    if (state.evolutionCycle % 20 === 0) {
+      this.mutateHarmonicContext()
+    }
+
+    state.evolutionSpeed = 4000 + (1 - state.complexity) * 6000 + Math.random() * 2000
+  }
+
+  /**
+   * Mutate harmonic context for variety
+   */
+  mutateHarmonicContext() {
+    const state = this.generativeState
+    const mutationTypes = ['tonic_shift', 'scale_change', 'mode_change']
+    const mutation = mutationTypes[Math.floor(Math.random() * mutationTypes.length)]
+
+    switch (mutation) {
+      case 'tonic_shift':
+        const intervals = [3, 4, 5, 7, 9]
+        const interval = intervals[Math.floor(Math.random() * intervals.length)]
+        state.currentTonic = 110 + (state.currentTonic + interval * 20) % 440
+        break
+
+      case 'scale_change':
+        const scales = {
+          pentatonic_major: [0, 2, 4, 7, 9],
+          pentatonic_minor: [0, 3, 5, 7, 10],
+          natural_minor: [0, 2, 3, 5, 7, 8, 10],
+          dorian: [0, 2, 3, 5, 7, 9, 10],
+          mixolydian: [0, 2, 4, 5, 7, 9, 10]
+        }
+        const scaleNames = Object.keys(scales)
+        const newScaleName = scaleNames[Math.floor(Math.random() * scaleNames.length)]
+        state.currentScale = scales[newScaleName]
+        break
+
+      case 'mode_change':
+        if (Math.random() > 0.5) {
+          state.currentScale = [...state.currentScale, 1, 6, 8, 11].slice(0, 7)
+        }
+        break
+    }
+
+    console.log(`🎵 Harmonic mutation: ${mutation}, new tonic: ${state.currentTonic}Hz`)
+  }
+
+  /**
+   * Advance harmonic progression
+   */
+  advanceHarmony() {
+    const state = this.generativeState
+    state.currentChord = (state.currentChord + 1) % state.chordProgression.length
+
+    if (state.currentChord === 0) {
+      state.progressionCycles++
+
+      if (state.progressionCycles >= state.nextProgressionChange) {
+        this.changeProgression()
+        state.progressionCycles = 0
+        state.nextProgressionChange = 3 + Math.floor(Math.random() * 4)
+      }
+    }
+
+    if (state.evolutionCycle % 32 === 0 && Math.random() < 0.2) {
+      this.mutateHarmonicContext()
+    }
+  }
+
+  /**
+   * Change to a different chord progression
+   */
+  changeProgression() {
+    const state = this.generativeState
+
+    let targetMoods
+    if (state.complexity > 0.7) {
+      targetMoods = ['driving', 'uplifting', 'flowing']
+    } else if (state.complexity > 0.4) {
+      targetMoods = ['circular', 'mysterious', 'flowing']
+    } else {
+      targetMoods = ['melancholic', 'dramatic', 'mysterious']
+    }
+
+    const suitableProgressions = state.availableProgressions
+      .map((prog, index) => ({ ...prog, index }))
+      .filter(prog => targetMoods.includes(prog.mood))
+
+    const options = suitableProgressions.filter(p => p.index !== state.currentProgressionIndex)
+    if (options.length > 0) {
+      const chosen = options[Math.floor(Math.random() * options.length)]
+      state.currentProgressionIndex = chosen.index
+      state.chordProgression = chosen.degrees
+      state.currentChord = 0
+
+      console.log(`🎼 PROGRESSION CHANGE: ${chosen.name} (${chosen.mood})`)
+    }
+  }
+
+  /**
+   * Trigger immediate background evolution
+   */
+  triggerImmediateEvolution() {
+    const state = this.generativeState
+
+    if (state.pendingModulation) {
+      const frequencyRatio = Math.pow(2, state.pendingModulation / 12)
+      state.currentTonic *= frequencyRatio
+      state.currentTonic = Math.max(110, Math.min(440, state.currentTonic))
+      state.pendingModulation = null
+    }
+
+    if (state.complexity > 0.7) {
+      if (state.currentScale.length === 5) {
+        state.currentScale = [0, 2, 4, 7, 9, 11]
+      }
+    } else if (state.complexity < 0.3) {
+      state.currentScale = [0, 2, 4, 7, 9]
+    }
+  }
+
+  /**
+   * Consider harmonic modulation based on user input
+   * @param {number} targetPitchClass - Target pitch class
+   */
+  considerHarmonicModulation(targetPitchClass) {
+    const state = this.generativeState
+    const currentTonicClass = Math.round(state.currentTonic) % 12
+
+    let modulationInterval = (targetPitchClass - currentTonicClass + 12) % 12
+
+    const meaningfulIntervals = [5, 7, 2, 9, 4]
+    const closestInterval = meaningfulIntervals.reduce((prev, curr) => {
+      const prevDist = Math.abs((prev - modulationInterval + 12) % 12)
+      const currDist = Math.abs((curr - modulationInterval + 12) % 12)
+      return currDist < prevDist ? curr : prev
+    })
+
+    if (closestInterval <= 7) {
+      state.pendingModulation = closestInterval
+    }
+  }
+
+  /**
+   * Integrate user phrase into background composition
+   * @param {Object} musicalEvent - Musical event data
+   * @param {number} frequency - Note frequency
+   * @param {number} duration - Note duration
+   */
+  integrateUserPhrase(musicalEvent, frequency, duration) {
+    const state = this.generativeState
+
+    state.userInfluence = Math.min(1.0, state.userInfluence + 0.1)
+    state.lastUserActivity = Date.now()
+
+    const midiPitch = musicalEvent.pitch
+    const articulation = musicalEvent.articulation || 'default'
+
+    if (articulation === 'staccato') {
+      state.complexity = Math.min(1.0, state.complexity + 0.05)
+    } else if (articulation === 'legato') {
+      state.complexity = Math.max(0.1, state.complexity - 0.03)
+    }
+
+    if (midiPitch) {
+      const pitchClass = midiPitch % 12
+      const currentTonicClass = Math.round(state.currentTonic) % 12
+
+      const pitchDistance = Math.min((pitchClass - currentTonicClass + 12) % 12,
+                                   (currentTonicClass - pitchClass + 12) % 12)
+
+      if (pitchDistance > 4 && Math.random() > 0.7) {
+        this.considerHarmonicModulation(pitchClass)
+      }
+    }
+
+    if (duration < 0.2) {
+      state.rhythmicComplexity = Math.min(1.0, state.rhythmicComplexity + 0.1)
+    } else if (duration > 1.0) {
+      state.rhythmicComplexity = Math.max(0.2, state.rhythmicComplexity - 0.05)
+      state.harmonicTension = Math.min(1.0, (state.harmonicTension || 0.3) + 0.1)
+    }
+
+    if (state.userInfluence > 0.2) {
+      this.triggerImmediateEvolution()
+    }
+  }
+
+  /**
+   * Update compositional parameters from collective metrics
+   * @param {Object} parameters - Parameters from backend
+   */
+  updateCompositionalParameters(parameters) {
+    if (!parameters) return
+
+    const state = this.generativeState
+    const scales = {
+      'pentatonic': [0, 2, 4, 7, 9],
+      'major': [0, 2, 4, 5, 7, 9, 11],
+      'minor': [0, 2, 3, 5, 7, 8, 10]
+    }
+
+    if (parameters.scaleType) {
+      state.currentScale = scales[parameters.scaleType] || scales['pentatonic']
+    }
+
+    if (parameters.baseOctave) {
+      const baseFreq = 32.7 * Math.pow(2, parameters.baseOctave)
+      state.currentTonic = baseFreq
+    }
+
+    if (parameters.harmonicDensity) {
+      state.complexity = Math.min(parameters.harmonicDensity / 4, 1)
+    }
+
+    if (parameters.rhythmicDensity !== undefined && state.layers) {
+      const speedFactor = 1 + parameters.rhythmicDensity
+      Object.keys(state.layers).forEach(layerName => {
+        const layer = state.layers[layerName]
+        const baseRhythm = {
+          bass: 3700,
+          pad: 5300,
+          chords: 7900
+        }[layerName]
+        layer.rhythm = baseRhythm / speedFactor
+      })
+    }
+
+    if (parameters.articulationBias && state.layers) {
+      const velocityMap = {
+        'staccato': 0.3,
+        'marcato': 0.5,
+        'legato': 0.6
+      }
+      const baseVelocity = velocityMap[parameters.articulationBias] || 0.4
+      Object.keys(state.layers).forEach(layerName => {
+        state.layers[layerName].velocity = baseVelocity * (0.9 + Math.random() * 0.2)
+      })
+    }
+
+    if (parameters.mode) {
+      state.mode = parameters.mode
+    }
+  }
+
+  /**
+   * Get current generative state
+   * @returns {Object} Current state
+   */
+  getState() {
+    return { ...this.generativeState }
+  }
+
+  /**
+   * Check if generation is active
+   * @returns {boolean} True if active
+   */
+  isActive() {
+    return this.evolvingGenerationActive
+  }
+}
+
+// Export for browser (window global)
+if (typeof window !== 'undefined') {
+  window.GenerativeMusicEngine = GenerativeMusicEngine
+}
+
+// Export for module systems
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = GenerativeMusicEngine
+}
