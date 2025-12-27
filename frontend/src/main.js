@@ -243,6 +243,16 @@ class WebarmoniumApp {
       const x = noteData.position.x
       const y = noteData.position.y
 
+      // RESET state on first note of new gesture
+      if (noteData.noteIndex === 0) {
+        this.lastDragY = y  // Initialize to current position
+        this.melodicMemory = {
+          lastNotes: [],
+          currentDirection: 0,
+          phrasePosition: 0
+        }
+      }
+
       // MELODIC GENERATION: Dynamic melody creation based on gesture properties
       // PERFORMANCE: Use cached scale instead of looking up on every note
       const params = this.compositionalParameters || {}

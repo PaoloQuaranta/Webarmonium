@@ -382,6 +382,128 @@ const GestureHandler = {
 
     room.lastActivity = Date.now()
     room.totalGestures = (room.totalGestures || 0) + 1
+  },
+
+  /**
+   * Register gesture-complete event handler
+   * Handles completed gestures with streamedNotes from frontend
+   * @param {Socket} socket - Socket instance
+   */
+  registerGestureCompleteHandler (socket) {
+    socket.on('gesture-complete', async (data) => {
+      const startTime = Date.now()
+
+      try {
+        // Validate user is in a room
+        if (!socket.userId || !socket.roomId) {
+          console.warn('⚠️ gesture-complete: No active room session')
+          return
+        }
+
+        // Extract gesture from wrapper
+        const gesture = data.gesture
+        if (!gesture) {
+          console.warn('⚠️ gesture-complete: Missing gesture data')
+          return
+        }
+
+        console.log(`🎯 gesture-complete received from ${socket.userId?.substring(0, 8)}:`, {
+          hasStreamedNotes: !!(gesture.streamedNotes?.length),
+          noteCount: gesture.streamedNotes?.length || 0,
+          streamingWasActive: gesture.streamingWasActive
+        })
+
+        // CRITICAL: If streamedNotes present, broadcast exact notes for remote replication
+        if (gesture.streamedNotes && Array.isArray(gesture.streamedNotes) && gesture.streamedNotes.length > 0) {
+          const baseTime = Date.now()
+          const firstNoteTime = gesture.streamedNotes[0].timestamp
+
+          // Broadcast each note as a musical:event with proper timing
+          gesture.streamedNotes.forEach((note, index) => {
+            // Calculate relative delay from first note
+            const relativeDelay = note.timestamp - firstNoteTime
+
+            const musicalEventBroadcast = {
+              id: `streamed_${baseTime}_${index}`,
+              userId: socket.userId,
+              roomId: socket.roomId,
+              event: {
+                eventType: 'note',
+                timestamp: baseTime + relativeDelay,
+                position: note.position,
+                properties: {
+                  frequency: note.frequency,
+                  duration: note.duration,
+                  velocity: (note.velocity || 0.5) * 100,
+                  articulation: note.articulation || 'staccato',
+                  noteIndex: index,
+                  totalNotes: gesture.streamedNotes.length,
+                  isStreamed: true,
+                  gestureAction: 'drag'
+                }
+              },
+              timestamp: baseTime + relativeDelay
+            }
+
+            // Broadcast to other users in the room
+            socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
+          })
+
+          console.log(`✅ Broadcasted ${gesture.streamedNotes.length} streamed notes to room ${socket.roomId}`)
+        } else {
+          // No streamedNotes - use legacy behavior (let gestureToMusicService generate notes)
+          // This handles taps and other non-streaming gestures
+          const gestureData = {
+            userId: socket.userId,
+            roomId: socket.roomId,
+            gesture: {
+              type: gesture.type || 'tap',
+              coordinates: gesture.coordinates || gesture.position,
+              position: gesture.position || gesture.coordinates,
+              intensity: gesture.intensity || 0.5,
+              speed: gesture.speed || 0.5,
+              direction: gesture.direction || 'unknown',
+              duration: gesture.duration || 0
+            }
+          }
+
+          try {
+            const musicalResult = socket.services.gestureToMusicService.processGesture(gestureData)
+
+            if (musicalResult) {
+              const musicalEvents = Array.isArray(musicalResult) ? musicalResult : [musicalResult]
+
+              musicalEvents.forEach(musicalEvent => {
+                const musicalEventBroadcast = {
+                  id: musicalEvent.id,
+                  userId: socket.userId,
+                  roomId: socket.roomId,
+                  event: musicalEvent.toJSON ? musicalEvent.toJSON() : musicalEvent,
+                  timestamp: Date.now()
+                }
+
+                socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
+              })
+            }
+          } catch (error) {
+            console.error('❌ gestureToMusicService failed:', error)
+          }
+        }
+
+        // Update room stats
+        socket.services.roomManager.updateRoomStats(socket.roomId, {
+          gestureCount: 1,
+          lastActivity: Date.now()
+        })
+
+        const processingTime = Date.now() - startTime
+        if (processingTime > 100) {
+          console.warn(`⚠️ gesture-complete processing time ${processingTime}ms exceeds 100ms target`)
+        }
+      } catch (error) {
+        console.error('❌ gesture-complete error:', error)
+      }
+    })
   }
 }
 

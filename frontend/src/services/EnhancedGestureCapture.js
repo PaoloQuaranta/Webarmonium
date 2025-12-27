@@ -198,41 +198,31 @@ class EnhancedGestureCapture {
       lastUpdateTime: Date.now()
     }
 
-    // CRITICAL: START drag streaming state (but DON'T play first note yet)
-    // Wait to see if this becomes a sustained hold first
-    this.dragStreaming.isActive = true
+    // Initialize drag streaming state (will activate on movement)
+    this.dragStreaming.isActive = false  // Start inactive, activate on movement
     this.dragStreaming.totalDistance = 0
     this.dragStreaming.noteCount = 0
     this.dragStreaming.lastNoteTime = Date.now()
     this.dragStreaming.streamedNotes = [] // Reset notes array for new gesture
-    this.dragStreaming.firstNotePlayed = false // NEW: Track if first note was played
 
-    // SUSTAINED HOLD: Start hold detection timer FIRST
-    // Wait 300ms to determine if this is a sustained hold vs quick tap/drag
-    this.sustainedHold.holdTimer = setTimeout(() => {
-      if (this.isCapturing && this.currentGesture && this.currentGesture.action === 'potential-tap') {
-        // Still stationary after 300ms - this is a sustained hold
-        this.currentGesture.action = 'sustained-hold'
-        this.sustainedHold.isActive = true
-        this.sustainedHold.startTime = Date.now()
-        this.sustainedHold.activeNoteId = `hold-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        this.sustainedHold.startPosition = coordinates
+    // SUSTAINED NOTE: Start immediately on mousedown
+    // If user moves, we'll transition to drag streaming
+    // If user releases without moving, this is a tap with duration
+    this.sustainedHold.isActive = true
+    this.sustainedHold.startTime = Date.now()
+    this.sustainedHold.activeNoteId = `hold-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    this.sustainedHold.startPosition = coordinates
 
-        // Mark that first note is "played" (via sustained hold, not drag)
-        this.dragStreaming.firstNotePlayed = true
+    // Trigger sustained note callback (gate opens)
+    if (this.onSustainedHoldStart) {
+      this.onSustainedHoldStart({
+        position: coordinates,
+        noteId: this.sustainedHold.activeNoteId,
+        timestamp: Date.now()
+      })
+    }
 
-        // Trigger sustained hold start callback (gate opens)
-        if (this.onSustainedHoldStart) {
-          this.onSustainedHoldStart({
-            position: coordinates,
-            noteId: this.sustainedHold.activeNoteId,
-            timestamp: Date.now()
-          })
-        }
-
-        console.log(`🎵 Sustained hold started: ${this.sustainedHold.activeNoteId}`)
-      }
-    }, this.sustainedHold.holdThreshold)
+    console.log(`🎵 Sustained note started: ${this.sustainedHold.activeNoteId}`)
 
     // Emit gesture start to server
     this.emitGestureStart(this.currentGesture)
@@ -288,86 +278,86 @@ class EnhancedGestureCapture {
       // Calculate total distance moved from start position
       this.dragStreaming.totalDistance += distance
 
-      // CRITICAL FIX: Cancel hold timer on ANY movement (even minimal)
-      // This prevents sustained hold from starting if user is about to drag
-      if (this.sustainedHold.holdTimer && distance > 0.001) {
-        clearTimeout(this.sustainedHold.holdTimer)
-        this.sustainedHold.holdTimer = null
-        console.log('🎸 Hold timer cancelled - ANY movement detected (prevents overlap)')
-      }
-
-      // PRIORITY 1: Check if in sustained hold and now moving - IMMEDIATE INTERRUPT
-      // Use MINIMAL movement threshold (not minDistanceForDrag) for immediate response
+      // TRANSITION: If sustained note active AND movement detected → switch to drag
       if (this.sustainedHold.isActive && distance > 0.001) {
-        // Movement detected - IMMEDIATELY stop sustained hold and transition to drag
-        console.log('🎛️ Movement detected - interrupting sustained hold IMMEDIATELY')
-        this.currentGesture.action = 'drag'
+        console.log('🎛️ Movement detected - transitioning from sustained note to drag')
 
-        // IMMEDIATE sustained hold release (no overlap)
+        // End the sustained note
         if (this.onSustainedHoldEnd) {
-          const duration = Date.now() - this.sustainedHold.startTime
+          const holdDuration = Date.now() - this.sustainedHold.startTime
           this.onSustainedHoldEnd({
             noteId: this.sustainedHold.activeNoteId,
-            duration: duration,
+            duration: holdDuration,
             finalPosition: this.sustainedHold.startPosition,
             timestamp: Date.now(),
-            reason: 'interrupted-by-movement'
+            reason: 'transition-to-drag'
           })
-          console.log(`🎵 Sustained hold INTERRUPTED: ${this.sustainedHold.activeNoteId} (${duration}ms)`)
+          console.log(`🎵 Sustained note ended (→drag): ${holdDuration}ms`)
         }
 
-        // Clear sustained hold state immediately
+        // Clear sustained hold state
         this.sustainedHold.isActive = false
         this.sustainedHold.activeNoteId = null
         this.sustainedHold.startPosition = null
 
-        // Clear transition timer if it exists
-        if (this.sustainedHold.transitionTimer) {
-          clearTimeout(this.sustainedHold.transitionTimer)
-          this.sustainedHold.transitionTimer = null
-        }
-
-        // Now start drag streaming
-        if (!this.dragStreaming.firstNotePlayed) {
-          this.playDragStreamingNote(this.gestureTracker.startPosition, { x: 0, y: 0 }, 0)
-          this.dragStreaming.firstNotePlayed = true
-          console.log('🎸 First drag note played after interrupting hold')
-        }
+        // Activate drag streaming and play first drag note
+        this.dragStreaming.isActive = true
+        this.currentGesture.action = 'drag'
+        this.playDragStreamingNote(coordinates, newVelocity, 0)
+        this.dragStreaming.noteCount = 1
+        this.dragStreaming.lastNoteTime = Date.now()
       }
 
-      // PRIORITY 2: Discriminate tap vs drag based on MOVEMENT (not time!)
+      // CRITICAL: Discriminate tap vs drag based on MOVEMENT (not time!)
       // If movement exceeds threshold, mark as 'drag'
       if (this.currentGesture.action === 'potential-tap' && this.dragStreaming.totalDistance > this.dragStreaming.minDistanceForDrag) {
         this.currentGesture.action = 'drag'
-
-        // Play FIRST drag note now that we know it's a drag (not a hold)
-        if (!this.dragStreaming.firstNotePlayed) {
-          this.playDragStreamingNote(this.gestureTracker.startPosition, { x: 0, y: 0 }, 0)
-          this.dragStreaming.firstNotePlayed = true
-          console.log('🎸 First drag note played (movement detected)')
-        }
       }
 
-      // CONTINUE streaming notes
+      // CONTINUE streaming notes (only if drag streaming is active)
       // RHYTHM VARIATION: Adjust note interval based on velocity
       // Fast drag = rapid notes (64n), slow drag = sparse notes (1n)
-      // Using centralized VelocityCalculator utility
-      const speed = window.VelocityCalculator.calculateVelocityMagnitude(newVelocity.x, newVelocity.y)
-      const normalizedSpeed = window.VelocityCalculator.normalizeSpeed(speed) // Clamp to 0-3
+      const speed = Math.sqrt(newVelocity.x ** 2 + newVelocity.y ** 2)
+      const normalizedSpeed = Math.min(speed, 3) // Allow up to 3x for very fast movements
 
-      // Map velocity to musical note intervals using utility
-      const intervalData = window.VelocityCalculator.getIntervalFromSpeed(normalizedSpeed)
-      const adjustedInterval = intervalData.interval
+      // Map velocity to musical note intervals (120 BPM)
+      let adjustedInterval
+      if (normalizedSpeed > 2.0) {
+        // Very fast: 64th notes (31.25ms at 120 BPM)
+        adjustedInterval = 31.25
+      } else if (normalizedSpeed > 1.2) {
+        // Fast: 32nd notes (62.5ms)
+        adjustedInterval = 62.5
+      } else if (normalizedSpeed > 0.7) {
+        // Medium-fast: 16th notes (125ms)
+        adjustedInterval = 125
+      } else if (normalizedSpeed > 0.4) {
+        // Medium: 8th notes (250ms)
+        adjustedInterval = 250
+      } else if (normalizedSpeed > 0.2) {
+        // Slow: quarter notes (500ms)
+        adjustedInterval = 500
+      } else if (normalizedSpeed > 0.1) {
+        // Very slow: half notes (1000ms)
+        adjustedInterval = 1000
+      } else {
+        // Extremely slow: whole notes (2000ms)
+        adjustedInterval = 2000
+      }
 
       console.log('🎸 Interval calculation:', {
         rawSpeed: speed.toFixed(3),
         normalizedSpeed: normalizedSpeed.toFixed(3),
         intervalMs: adjustedInterval,
-        noteValue: intervalData.noteValue
+        noteValue: adjustedInterval <= 62.5 ? '32n-64n' :
+                   adjustedInterval <= 125 ? '16n' :
+                   adjustedInterval <= 250 ? '8n' :
+                   adjustedInterval <= 500 ? '4n' :
+                   adjustedInterval <= 1000 ? '2n' : '1n'
       })
 
-      // Play next note if enough time has passed
-      if (now - this.dragStreaming.lastNoteTime >= adjustedInterval) {
+      // Play next note if enough time has passed (only if drag streaming active)
+      if (this.dragStreaming.isActive && now - this.dragStreaming.lastNoteTime >= adjustedInterval) {
         this.dragStreaming.noteCount++
         this.dragStreaming.lastNoteTime = now
         this.playDragStreamingNote(coordinates, newVelocity, this.dragStreaming.noteCount)
@@ -842,7 +832,12 @@ class EnhancedGestureCapture {
           direction: gesture.direction,
           intensity: gesture.intensity,
           speed: gesture.speed,
-          musicalCharacteristics: gesture.musicalCharacteristics
+          musicalCharacteristics: gesture.musicalCharacteristics,
+          // CRITICAL: Include streamedNotes for exact remote replication
+          // Each note has: frequency, duration, articulation, position, velocity, timestamp
+          streamedNotes: gesture.streamedNotes || [],
+          streamingWasActive: gesture.streamingWasActive || false,
+          streamingNoteCount: gesture.streamingNoteCount || 0
         },
         musicalEvent,
         timestamp: Date.now()

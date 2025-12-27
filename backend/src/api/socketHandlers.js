@@ -34,6 +34,7 @@ const socketHandlers = {
     // Gesture handlers
     GestureHandler.registerGestureHandler(socket)
     GestureHandler.registerGestureRecordHandler(socket)
+    GestureHandler.registerGestureCompleteHandler(socket)
 
     // Musical handlers (sustained holds, events, sync)
     MusicalHandler.registerHoldStartHandler(socket)

@@ -388,3 +388,173 @@ frontend/src/services/gesture/
 4. Consider lazy loading for audio modules
 
 ---
+
+## Entry #3 - Post-Refactoring Bug Fixes: Hybrid Tap/Drag Gesture System
+
+**Date**: 2025-12-27
+**Time**: ~12:00 UTC
+**Author**: Claude Code (AI Assistant)
+**Reference**: Code review of Entry #1 and #2
+
+### Summary
+
+Fixed critical regressions introduced during the parallel backend/frontend refactoring. The refactoring had broken both local drag phrase generation and remote phrase synchronization. Implemented a hybrid tap/drag gesture system that restores original functionality while maintaining the new modular architecture.
+
+---
+
+### Issues Identified
+
+**Code Review Assessment:**
+1. Frontend handlers (SocketEventCoordinator, DragStreamingHandler, SustainedHoldHandler) not integrated in main.js
+2. Duplicate hover-update handling between cursor and gesture events
+3. Missing `gesture-complete` handler in backend
+
+**User-Reported Bugs:**
+1. Local drags not generating real-time phrases
+2. Remote phrases always identical with note clustering
+3. Long tap (sustained note with variable duration) not working
+
+---
+
+### Root Cause Analysis
+
+**Local Phrase Issues:**
+- Refactoring added a sustained hold timer that delayed first note playback
+- Notes were processed after mouseup instead of in real-time during drag
+- Velocity normalization was broken (`Math.min(speed, 1)` on pixel/second values always = 1.0)
+
+**Remote Phrase Issues:**
+- `streamedNotes` array not included in `gesture-complete` socket emission
+- Backend lacked handler for `gesture-complete` event
+- No timing preservation for remote note playback
+
+**Original Behavior (Pre-Refactoring):**
+- First note played immediately on mousedown
+- Simple interval-based streaming during mousemove
+- Tap vs drag differentiated by position change detection
+
+---
+
+### Fixes Implemented
+
+#### Frontend: EnhancedGestureCapture.js
+
+**Hybrid Tap/Drag System:**
+```javascript
+// handleGestureStart - Start sustained note immediately (gate opens)
+this.sustainedHold.isActive = true
+this.sustainedHold.startTime = Date.now()
+this.sustainedHold.activeNoteId = `hold-${Date.now()}-${...}`
+this.sustainedHold.startPosition = coordinates
+
+if (this.onSustainedHoldStart) {
+  this.onSustainedHoldStart({
+    position: coordinates,
+    noteId: this.sustainedHold.activeNoteId,
+    timestamp: Date.now()
+  })
+}
+```
+
+**Movement Detection - Transition to Drag:**
+```javascript
+// In handleGestureMove - if movement detected, end sustained and start drag
+if (this.sustainedHold.isActive && distance > 0.001) {
+  // End sustained note
+  if (this.onSustainedHoldEnd) {
+    this.onSustainedHoldEnd({
+      noteId: this.sustainedHold.activeNoteId,
+      duration: Date.now() - this.sustainedHold.startTime,
+      reason: 'transition-to-drag'
+    })
+  }
+  // Switch to drag streaming
+  this.sustainedHold.isActive = false
+  this.dragStreaming.isActive = true
+  this.playDragStreamingNote(coordinates, newVelocity, 0)
+}
+```
+
+**Restored Original Streaming Logic:**
+- Direct interval calculation from velocity (not through broken normalization)
+- Real-time note playback during mousemove
+- Velocity-based variation for melodic diversity
+
+**Added streamedNotes to gesture-complete:**
+```javascript
+streamedNotes: gesture.streamedNotes || [],
+streamingWasActive: gesture.streamingWasActive || false,
+streamingNoteCount: gesture.streamingNoteCount || 0
+```
+
+#### Frontend: main.js
+
+**Reset melodic memory on first note:**
+```javascript
+if (noteData.noteIndex === 0) {
+  this.lastDragY = y
+  this.melodicMemory = { lastNotes: [], currentDirection: 0, phrasePosition: 0 }
+}
+```
+
+#### Backend: GestureHandler.js
+
+**New gesture-complete handler:**
+```javascript
+registerGestureCompleteHandler (socket) {
+  socket.on('gesture-complete', async (data) => {
+    // Broadcast streamedNotes as musical:event with timing preservation
+    if (gesture.streamedNotes && gesture.streamedNotes.length > 0) {
+      const baseTime = Date.now()
+      const firstNoteTime = gesture.streamedNotes[0].timestamp
+      gesture.streamedNotes.forEach((note) => {
+        const relativeDelay = note.timestamp - firstNoteTime
+        socket.to(socket.roomId).emit('musical:event', {
+          event: {
+            eventType: 'note',
+            timestamp: baseTime + relativeDelay,
+            properties: { frequency: note.frequency, duration: note.duration, ... }
+          }
+        })
+      })
+    }
+  })
+}
+```
+
+#### Backend: socketHandlers.js
+
+**Registered new handler:**
+```javascript
+GestureHandler.registerGestureCompleteHandler(socket)
+```
+
+---
+
+### Files Modified
+
+1. `frontend/src/services/EnhancedGestureCapture.js` - Hybrid tap/drag implementation
+2. `frontend/src/main.js` - Melodic memory reset on first note
+3. `backend/src/api/handlers/GestureHandler.js` - New gesture-complete handler
+4. `backend/src/api/socketHandlers.js` - Handler registration
+
+---
+
+### Behavior After Fix
+
+| Gesture Type | Behavior |
+|--------------|----------|
+| **Tap (no movement)** | Sustained note with duration = hold time (gate-based) |
+| **Drag (movement)** | Transition from sustained to streaming notes in real-time |
+| **Remote playback** | Exact note timing preserved via timestamp offsets |
+
+---
+
+### Testing Verification
+
+- Local drag phrases: Real-time generation with velocity/direction variation
+- Local tap: Sustained note with variable duration
+- Remote phrases: Proper timing distribution (no clustering)
+- Transition: Smooth switch from tap to drag on movement detection
+
+---
