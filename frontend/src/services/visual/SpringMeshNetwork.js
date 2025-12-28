@@ -100,10 +100,10 @@ class SpringMeshNetwork {
     // Cap dt to prevent instability on lag spikes
     dt = Math.min(dt, 0.1)
 
-    // Apply spring forces only for cursor-grid edges
-    // Grid-connection edges are static (no physics)
+    // Apply spring forces only for cursor-trace edges
+    // Trace-trace edges are static (no physics)
     for (const edge of this.edges) {
-      if (edge.type === 'cursor-grid') {
+      if (edge.type === 'cursor-trace') {
         this.applySpringForce(edge)
       }
     }
@@ -316,10 +316,10 @@ class SpringMeshNetwork {
 
       // Different curve amounts for different edge types
       let offset = this.controlPointOffset
-      if (edgeDef.type === 'grid-connection') {
-        offset = this.controlPointOffset * 0.2  // Subtle curves for grid
-      } else if (edgeDef.type === 'cursor-grid') {
-        offset = this.controlPointOffset * 0.5  // Medium curves for cursor-grid
+      if (edgeDef.type === 'trace-trace') {
+        offset = this.controlPointOffset * 0.2  // Subtle curves for trace-to-trace
+      } else if (edgeDef.type === 'cursor-trace') {
+        offset = this.controlPointOffset * 0.5  // Medium curves for cursor-to-trace
       }
 
       const controlPoint = {
@@ -499,7 +499,7 @@ class SpringMeshNetwork {
   }
 
   /**
-   * Render intermediate node (grid or circuit)
+   * Render intermediate node (trace nodes)
    * @param {p5} p - p5.js instance
    * @param {Object} node - Node object
    */
@@ -507,30 +507,18 @@ class SpringMeshNetwork {
     const x = node.x * p.width
     const y = node.y * p.height
 
-    // Grid nodes: small circles
-    if (node.type === 'grid') {
-      const size = this.topologyGenerator.gridTopology?.nodeSize || 4
-      p.noStroke()
-      p.fill(node.color)
-      p.circle(x, y, size)
+    // Trace nodes: small circles with pad effect
+    const size = this.topologyGenerator.traceTopology?.nodeSize || 5
 
-      // Small ring effect
-      p.stroke(node.color)
-      p.strokeWeight(0.5)
-      p.noFill()
-      p.circle(x, y, size * 1.5)
-    } else if (node.type === 'circuit') {
-      // Circuit nodes: slightly larger with pad effect
-      p.noStroke()
-      p.fill(node.color)
-      p.circle(x, y, this.topologyGenerator.gridTopology?.nodeSize || 3)
+    p.noStroke()
+    p.fill(node.color)
+    p.circle(x, y, size)
 
-      // Pad ring
-      p.stroke(node.color)
-      p.strokeWeight(0.5)
-      p.noFill()
-      p.circle(x, y, (this.topologyGenerator.gridTopology?.nodeSize || 3) * 2)
-    }
+    // Pad ring
+    p.stroke(node.color)
+    p.strokeWeight(0.5)
+    p.noFill()
+    p.circle(x, y, size * 2)
   }
 
   /**

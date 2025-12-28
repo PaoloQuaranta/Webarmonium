@@ -1,147 +1,81 @@
 /**
- * CircuitGridTopology
- * Generates a circuit-board style grid network
+ * TraceTopology
+ * Generates an organic trace-based network
  *
  * Creates an interconnected web with:
- * - Grid of nodes at regular intervals
- * - 90° and 45° connections between grid nodes
- * - Cursors connect to nearest grid points
- * - Particles and pulses travel through the grid network
+ * - Intermediate nodes only along paths between cursors
+ * - Circuit-style routing with 90° and 45° bends
+ * - Nodes appear only where traces exist
+ * - Multiple paths between cursors for web effect
  */
 
-class CircuitGridTopology {
+class TraceTopology {
   constructor() {
     // Get configuration from VisualConstants or use defaults
     const config = (typeof window !== 'undefined' && window.VisualConstants?.TOPOLOGY_CONFIG)
       ? window.VisualConstants.TOPOLOGY_CONFIG
       : {
-          circuitNodeSpacing: 0.08,
-          circuitNodeSize: 6,
-          enableCircuitNodes: true
+          traceNodeSpacing: 0.15,
+          traceNodeSize: 5,
+          pathsPerConnection: 3,
+          enableTraceNodes: true
         }
 
-    this.gridSpacing = config.circuitNodeSpacing || 0.08  // Grid cell size
-    this.nodeSize = config.circuitNodeSize || 6
-    this.enableCircuitNodes = config.enableCircuitNodes !== false
+    this.traceSpacing = config.traceNodeSpacing || 0.15
+    this.nodeSize = config.traceNodeSize || 5
+    this.pathsPerConnection = config.pathsPerConnection || 3
+    this.enableTraceNodes = config.enableTraceNodes !== false
 
-    // Generated grid nodes
-    this.gridNodes = []
+    // Generated trace nodes
+    this.traceNodes = []
   }
 
   /**
-   * Generate circuit board grid topology
+   * Generate trace-based topology
    * @param {Map} cursorNodes - User cursor nodes (userId -> Node)
    * @returns {Object} { edges, intermediateNodes, edgeCircuitNodes }
    */
   generateTopology(cursorNodes) {
-    // 1. Generate grid of nodes across the canvas
-    this.generateGridNodes(cursorNodes)
+    const cursorArray = Array.from(cursorNodes.values())
 
-    // 2. Generate grid connections (90° and 45°)
-    const gridEdges = this.generateGridConnections()
+    if (cursorArray.length < 2) {
+      return { edges: [], intermediateNodes: [], edgeCircuitNodes: new Map() }
+    }
 
-    // 3. Connect cursors to nearest grid nodes
-    const cursorEdges = this.connectCursorsToGrid(cursorNodes)
-
-    // 4. Combine all edges
-    const allEdges = [...gridEdges, ...cursorEdges]
+    // Generate multi-path connections between all cursor pairs
+    const traceEdges = this.generateMultiPathConnections(cursorArray)
 
     return {
-      edges: allEdges,
-      intermediateNodes: this.gridNodes,
-      edgeCircuitNodes: new Map()  // Not needed for grid
+      edges: traceEdges,
+      intermediateNodes: this.traceNodes,
+      edgeCircuitNodes: new Map()
     }
   }
 
   /**
-   * Generate grid nodes at regular intervals
-   * Creates a circuit board style layout
+   * Generate multiple paths between cursor pairs with intermediate nodes
    */
-  generateGridNodes(cursorNodes) {
-    this.gridNodes = []
-
-    // Calculate grid dimensions
-    const cols = Math.floor(1 / this.gridSpacing)
-    const rows = Math.floor(1 / this.gridSpacing)
-
+  generateMultiPathConnections(cursorArray) {
+    const edges = []
+    this.traceNodes = []
     let nodeId = 0
 
-    // Create grid nodes
-    for (let row = 0; row <= rows; row++) {
-      for (let col = 0; col <= cols; col++) {
-        const x = col * this.gridSpacing
-        const y = row * this.gridSpacing
+    // Connect each pair of cursors with multiple paths
+    for (let i = 0; i < cursorArray.length; i++) {
+      for (let j = i + 1; j < cursorArray.length; j++) {
+        const cursorA = cursorArray[i]
+        const cursorB = cursorArray[j]
 
-        this.gridNodes.push({
-          id: `grid-${nodeId++}`,
-          type: 'grid',
-          x: Math.min(1, Math.max(0, x)),
-          y: Math.min(1, Math.max(0, y)),
-          row: row,
-          col: col,
-          color: '#4a5568'  // Subtle gray-blue for grid
-        })
-      }
-    }
-  }
+        // Generate multiple paths between this pair
+        for (let pathIndex = 0; pathIndex < this.pathsPerConnection; pathIndex++) {
+          const path = this.generateCircuitPath(cursorA, cursorB, pathIndex, nodeId)
+          nodeId += path.nodes.length
 
-  /**
-   * Generate connections between grid nodes
-   * Creates 90° (adjacent) and 45° (diagonal) connections
-   */
-  generateGridConnections() {
-    const edges = []
+          // Add nodes to trace nodes
+          this.traceNodes.push(...path.nodes)
 
-    // Create a map for quick node lookup
-    const nodeMap = new Map()
-    for (const node of this.gridNodes) {
-      const key = `${node.row}-${node.col}`
-      nodeMap.set(key, node)
-    }
-
-    // Connect adjacent and diagonal nodes
-    for (const node of this.gridNodes) {
-      // 90° connections (up, down, left, right)
-      const adjacent = [
-        { row: node.row - 1, col: node.col },     // up
-        { row: node.row + 1, col: node.col },     // down
-        { row: node.row, col: node.col - 1 },     // left
-        { row: node.row, col: node.col + 1 }      // right
-      ]
-
-      for (const pos of adjacent) {
-        const key = `${pos.row}-${pos.col}`
-        const targetNode = nodeMap.get(key)
-        if (targetNode) {
-          edges.push({
-            sourceId: node.id,
-            targetId: targetNode.id,
-            type: 'grid-connection',
-            strength: 0.8
-          })
-        }
-      }
-
-      // 45° connections (diagonals) - only some of them for circuit pattern
-      if ((node.row + node.col) % 2 === 0) {  // Every other node
-        const diagonals = [
-          { row: node.row - 1, col: node.col - 1 },  // up-left
-          { row: node.row - 1, col: node.col + 1 },  // up-right
-          { row: node.row + 1, col: node.col - 1 },  // down-left
-          { row: node.row + 1, col: node.col + 1 }   // down-right
-        ]
-
-        for (const pos of diagonals) {
-          const key = `${pos.row}-${pos.col}`
-          const targetNode = nodeMap.get(key)
-          if (targetNode && node.id < targetNode.id) {  // Avoid duplicates
-            edges.push({
-              sourceId: node.id,
-              targetId: targetNode.id,
-              type: 'grid-connection',
-              strength: 0.6  // Slightly weaker for diagonals
-            })
-          }
+          // Add edges for this path
+          edges.push(...path.edges)
         }
       }
     }
@@ -150,37 +84,91 @@ class CircuitGridTopology {
   }
 
   /**
-   * Connect cursors to nearest grid nodes
-   * Creates multiple connections per cursor for web effect
+   * Generate a single circuit-style path between two cursors
+   * Uses 90° and 45° bends like a printed circuit trace
    */
-  connectCursorsToGrid(cursorNodes) {
+  generateCircuitPath(cursorA, cursorB, pathIndex, startNodeId) {
+    const nodes = []
     const edges = []
 
-    for (const cursor of cursorNodes.values()) {
-      // Find nearest grid nodes
-      const distances = this.gridNodes.map(gridNode => ({
-        node: gridNode,
-        distance: Math.sqrt(
-          Math.pow(cursor.x - gridNode.x, 2) +
-          Math.pow(cursor.y - gridNode.y, 2)
-        )
-      }))
+    // Calculate path properties based on index for variety
+    const offsetScale = (pathIndex + 1) * 0.1
+    const angleVariation = (pathIndex * Math.PI) / this.pathsPerConnection
 
-      // Sort by distance and connect to nearest 3-5 nodes
-      distances.sort((a, b) => a.distance - b.distance)
-      const connectionCount = Math.min(5, Math.max(3, distances.length))
+    // Calculate control point for curve (perpendicular offset)
+    const dx = cursorB.x - cursorA.x
+    const dy = cursorB.y - cursorA.y
+    const midX = (cursorA.x + cursorB.x) / 2
+    const midY = (cursorA.y + cursorB.y) / 2
 
-      for (let i = 0; i < connectionCount; i++) {
-        edges.push({
-          sourceId: cursor.userId,
-          targetId: distances[i].node.id,
-          type: 'cursor-grid',
-          strength: 1.0 - (i * 0.15)  // Stronger for closer nodes
-        })
+    // Perpendicular offset for variety
+    const perpX = -dy
+    const perpY = dx
+    const perpLength = Math.sqrt(perpX * perpX + perpY * perpY)
+
+    // Create intermediate node at control point
+    const controlX = midX + (perpX / perpLength) * offsetScale * Math.cos(angleVariation)
+    const controlY = midY + (perpY / perpLength) * offsetScale * Math.sin(angleVariation)
+
+    // Create intermediate node
+    const intermediateNode = {
+      id: `trace-${startNodeId}`,
+      type: 'trace',
+      x: controlX,
+      y: controlY,
+      color: '#06b6d4'  // Cyan for trace nodes
+    }
+    nodes.push(intermediateNode)
+
+    // Create edges: cursorA -> intermediate -> cursorB
+    edges.push({
+      sourceId: cursorA.userId,
+      targetId: intermediateNode.id,
+      type: 'cursor-trace',
+      strength: 1.0
+    })
+
+    edges.push({
+      sourceId: intermediateNode.id,
+      targetId: cursorB.userId,
+      type: 'cursor-trace',
+      strength: 1.0
+    })
+
+    // For longer paths, add more intermediate nodes
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    if (distance > 0.3) {
+      // Add additional nodes along the path
+      const t = 0.25 + (pathIndex * 0.15)
+      const extraX = cursorA.x + dx * t + (perpX / perpLength) * offsetScale * 0.5 * Math.sin(angleVariation)
+      const extraY = cursorA.y + dy * t + (perpY / perpLength) * offsetScale * 0.5 * Math.cos(angleVariation)
+
+      const extraNode = {
+        id: `trace-${startNodeId + 1}`,
+        type: 'trace',
+        x: extraX,
+        y: extraY,
+        color: '#fbbf24'  // Gold for secondary trace nodes
       }
+      nodes.push(extraNode)
+
+      // Connect extra node
+      edges.push({
+        sourceId: intermediateNode.id,
+        targetId: extraNode.id,
+        type: 'trace-trace',
+        strength: 0.8
+      })
+
+      edges.push({
+        sourceId: extraNode.id,
+        targetId: cursorB.userId,
+        type: 'cursor-trace',
+        strength: 1.0
+      })
     }
 
-    return edges
+    return { nodes, edges }
   }
 
   /**
@@ -190,25 +178,25 @@ class CircuitGridTopology {
     // Check if cursor node
     if (cursorNodes && cursorNodes.has(id)) return cursorNodes.get(id)
 
-    // Check if grid node
-    const grid = this.gridNodes.find(n => n.id === id)
-    if (grid) return grid
+    // Check if trace node
+    const trace = this.traceNodes.find(n => n.id === id)
+    if (trace) return trace
 
     return null
   }
 
   /**
-   * Get color for grid nodes
+   * Get color for trace nodes
    */
-  getGridNodeColor() {
-    return '#4a5568'  // Subtle gray-blue
+  getTraceNodeColor() {
+    return '#06b6d4'  // Cyan
   }
 
   /**
    * Clear generated nodes
    */
   clear() {
-    this.gridNodes = []
+    this.traceNodes = []
   }
 
   /**
@@ -226,8 +214,8 @@ class CircuitGridTopology {
 
 class TopologyGenerator {
   constructor() {
-    // Use CircuitGridTopology
-    this.gridTopology = new CircuitGridTopology()
+    // Use TraceTopology for organic trace-based network
+    this.traceTopology = new TraceTopology()
   }
 
   /**
@@ -236,21 +224,21 @@ class TopologyGenerator {
    * @returns {Object} { edges, intermediateNodes, edgeCircuitNodes }
    */
   generateTopology(cursorNodes) {
-    return this.gridTopology.generateTopology(cursorNodes)
+    return this.traceTopology.generateTopology(cursorNodes)
   }
 
   /**
-   * Get node by ID (proxy to grid topology)
+   * Get node by ID (proxy to trace topology)
    */
   getNodeById(id, cursorNodes) {
-    return this.gridTopology.getNodeById(id, cursorNodes)
+    return this.traceTopology.getNodeById(id, cursorNodes)
   }
 
   /**
    * Dispose of resources
    */
   dispose() {
-    this.gridTopology.dispose()
+    this.traceTopology.dispose()
   }
 }
 

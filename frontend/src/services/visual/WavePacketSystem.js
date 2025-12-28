@@ -56,9 +56,9 @@ class WavePacketSystem {
     // Update node's last pulse time
     sourceNode.lastPulseTime = Date.now()
 
-    // Find all cursor-grid edges from this cursor
+    // Find all cursor-trace edges from this cursor
     const connectedEdges = this.springMesh.edges.filter(
-      edge => edge.sourceId === sourceUserId && edge.type === 'cursor-grid'
+      edge => edge.sourceId === sourceUserId && edge.type === 'cursor-trace'
     )
 
     // Don't exceed maximum pulse count
