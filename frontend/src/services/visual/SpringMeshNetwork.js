@@ -403,8 +403,8 @@ class SpringMeshNetwork {
    * @param {Object} edge - Edge object
    */
   renderEdge(p, edge) {
-    const nodeA = this.nodes.get(edge.sourceId)
-    const nodeB = this.nodes.get(edge.targetId)
+    const nodeA = this.getNodeOrIntermediate(edge.sourceId)
+    const nodeB = this.getNodeOrIntermediate(edge.targetId)
 
     if (!nodeA || !nodeB) return
 
