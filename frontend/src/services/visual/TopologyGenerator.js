@@ -1,16 +1,15 @@
 /**
  * TopologyGenerator
- * Generates dynamic network topology based on cursor proximity
+ * Generates dynamic network topology with multiple connection paths
  *
- * Creates a hybrid aesthetic combining:
- * - Spiderweb: Cursor-to-radial connections
- * - Mandala: Concentric radial node rings
- * - Printed circuit: Decorative nodes along edges
+ * Creates a web-like pattern with:
+ * - Multiple curved paths between each cursor pair
+ * - Intermediate nodes along paths (circuit aesthetic)
+ * - Complex network resembling spiderweb/circuit board
  *
  * Edge Types:
  * - cursor-cursor: Physics-enabled, carries pulses/particles
- * - cursor-radial: Visual only, no physics
- * - radial-ring: Visual only, connects radial nodes in circles
+ * - Multiple edges per cursor pair with different control points
  */
 
 class TopologyGenerator {
@@ -35,43 +34,38 @@ class TopologyGenerator {
     this.circuitNodeSpacing = config.circuitNodeSpacing
     this.radialNodeSize = config.radialNodeSize
     this.circuitNodeSize = config.circuitNodeSize
-    this.enableRadialNodes = config.enableRadialNodes
+    this.enableRadialNodes = false  // DISABLE radial nodes (user doesn't want them)
     this.enableCircuitNodes = config.enableCircuitNodes
+    this.pathsPerPair = 3  // Number of different paths between each cursor pair
 
     // Generated node storage
     this.radialNodes = []
     this.circuitNodes = []
+    this.webNodes = []  // New: intermediate nodes for web pattern
 
-    // Initialize radial pattern
+    // Initialize radial pattern (disabled but kept for compatibility)
     this.updateRadialNodes()
   }
 
   /**
    * Generate network topology based on cursor positions
+   * Creates multiple curved paths between each cursor pair for web effect
    * @param {Map} cursorNodes - User cursor nodes (userId -> Node)
    * @returns {Object} { edges, intermediateNodes, edgeCircuitNodes }
    */
   generateTopology(cursorNodes) {
-    // 1. Update radial node positions (mandala pattern)
-    this.updateRadialNodes()
+    // Generate multiple paths between each cursor pair
+    const cursorEdges = this.generateMultiPathEdges(cursorNodes)
 
-    // 2. Generate cursor-cursor edges (proximity-based)
-    const cursorEdges = this.generateCursorEdges(cursorNodes)
-
-    // 3. Generate cursor-radial edges (spiderweb pattern)
-    const radialEdges = this.enableRadialNodes
-      ? this.generateRadialEdges(cursorNodes)
-      : []
-
-    // 4. Generate circuit nodes along edges (printed circuit pattern)
-    const allEdges = [...cursorEdges, ...radialEdges]
+    // Generate intermediate nodes along each path
     const circuitData = this.enableCircuitNodes
-      ? this.generateCircuitNodes(allEdges, cursorNodes)
+      ? this.generateCircuitNodes(cursorEdges, cursorNodes)
       : { nodes: [], edgeMapping: new Map() }
 
+    // No radial nodes (user doesn't want them)
     return {
-      edges: allEdges,
-      intermediateNodes: [...this.radialNodes, ...circuitData.nodes],
+      edges: cursorEdges,
+      intermediateNodes: circuitData.nodes,
       edgeCircuitNodes: circuitData.edgeMapping
     }
   }
@@ -111,12 +105,12 @@ class TopologyGenerator {
   }
 
   /**
-   * Generate edges between ALL cursors (complete graph)
-   * Creates permanent connections between all users
+   * Generate multiple curved paths between ALL cursor pairs
+   * Creates a web-like pattern with several different curves per pair
    * @param {Map} cursorNodes - User cursor nodes
    * @returns {Array} Array of edge objects
    */
-  generateCursorEdges(cursorNodes) {
+  generateMultiPathEdges(cursorNodes) {
     const edges = []
     const cursorArray = Array.from(cursorNodes.values())
 
@@ -125,13 +119,17 @@ class TopologyGenerator {
         const nodeA = cursorArray[i]
         const nodeB = cursorArray[j]
 
-        // Connect ALL cursors (complete graph, no proximity filter)
-        edges.push({
-          sourceId: nodeA.userId,
-          targetId: nodeB.userId,
-          type: 'cursor-cursor',
-          strength: 1.0  // Full strength for all connections
-        })
+        // Create multiple paths between each cursor pair
+        for (let pathIndex = 0; pathIndex < this.pathsPerPair; pathIndex++) {
+          edges.push({
+            sourceId: nodeA.userId,
+            targetId: nodeB.userId,
+            type: 'cursor-cursor',
+            pathIndex: pathIndex,  // Which path of the pair
+            strength: 1.0 - (pathIndex * 0.2),  // Slightly weaker for alternate paths
+            controlPointOffset: (pathIndex - 1) * 0.15  // Different curve for each path
+          })
+        }
       }
     }
 

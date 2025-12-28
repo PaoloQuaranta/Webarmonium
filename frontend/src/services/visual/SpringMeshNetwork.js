@@ -278,13 +278,13 @@ class SpringMeshNetwork {
 
   /**
    * Rebuild edge list based on current nodes using topology generation
-   * Generates proximity-based network with radial and circuit nodes
+   * Generates multiple paths between cursors with radial and circuit nodes
    */
   rebuildEdges() {
-    // Store existing pulses and particles for migration
+    // Store existing pulses and particles for migration (include pathIndex)
     const edgeData = new Map()
     for (const edge of this.edges) {
-      const key = `${edge.sourceId}-${edge.targetId}`
+      const key = `${edge.sourceId}-${edge.targetId}-${edge.pathIndex || 0}`
       edgeData.set(key, {
         pulses: edge.pulses || [],
         particles: edge.particles || []
@@ -311,25 +311,31 @@ class SpringMeshNetwork {
 
       if (!nodeA || !nodeB) continue
 
-      // Calculate Bezier control point
+      // Calculate Bezier control point - use edge-specific offset for multiple paths
       const dx = nodeB.x - nodeA.x
       const dy = nodeB.y - nodeA.y
       const midX = (nodeA.x + nodeB.x) / 2
       const midY = (nodeA.y + nodeB.y) / 2
 
+      // Use edge-specific offset if provided, otherwise use default
+      const offset = edgeDef.controlPointOffset !== undefined
+        ? edgeDef.controlPointOffset
+        : this.controlPointOffset
+
       const controlPoint = {
-        x: midX - dy * this.controlPointOffset,
-        y: midY + dx * this.controlPointOffset
+        x: midX - dy * offset,
+        y: midY + dx * offset
       }
 
       // Restore existing data if available
-      const key = `${edgeDef.sourceId}-${edgeDef.targetId}`
+      const key = `${edgeDef.sourceId}-${edgeDef.targetId}-${edgeDef.pathIndex || 0}`
       const existingData = edgeData.get(key)
 
       this.edges.push({
         sourceId: edgeDef.sourceId,
         targetId: edgeDef.targetId,
         type: edgeDef.type,
+        pathIndex: edgeDef.pathIndex || 0,
         strength: edgeDef.strength,
         controlPoint,
         restLength: this.springRestLength * edgeDef.strength,
