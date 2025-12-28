@@ -100,12 +100,12 @@ class SpringMeshNetwork {
     // Cap dt to prevent instability on lag spikes
     dt = Math.min(dt, 0.1)
 
-    // Apply spring forces (only for cursor-cursor edges)
+    // Apply spring forces only for cursor-grid edges
+    // Grid-connection edges are static (no physics)
     for (const edge of this.edges) {
-      if (edge.type === 'cursor-cursor') {
+      if (edge.type === 'cursor-grid') {
         this.applySpringForce(edge)
       }
-      // Radial and circuit nodes are static decoration, no physics
     }
 
     // Apply repulsion between all node pairs
@@ -278,13 +278,13 @@ class SpringMeshNetwork {
 
   /**
    * Rebuild edge list based on current nodes using topology generation
-   * Generates multiple paths between cursors with radial and circuit nodes
+   * Generates circuit grid topology
    */
   rebuildEdges() {
-    // Store existing pulses and particles for migration (include pathIndex)
+    // Store existing pulses and particles for migration
     const edgeData = new Map()
     for (const edge of this.edges) {
-      const key = `${edge.sourceId}-${edge.targetId}-${edge.pathIndex || 0}`
+      const key = `${edge.sourceId}-${edge.targetId}`
       edgeData.set(key, {
         pulses: edge.pulses || [],
         particles: edge.particles || []
@@ -300,10 +300,7 @@ class SpringMeshNetwork {
       this.intermediateNodes.set(node.id, node)
     }
 
-    // Update edge circuit node mapping
-    this.edgeCircuitNodes = topology.edgeCircuitNodes
-
-    // Build edge array with proper Bezier control points
+    // Build edge array
     this.edges = []
     for (const edgeDef of topology.edges) {
       const nodeA = this.getNodeOrIntermediate(edgeDef.sourceId)
@@ -311,16 +308,19 @@ class SpringMeshNetwork {
 
       if (!nodeA || !nodeB) continue
 
-      // Calculate Bezier control point - use edge-specific offset for multiple paths
+      // Calculate Bezier control point for all edges
       const dx = nodeB.x - nodeA.x
       const dy = nodeB.y - nodeA.y
       const midX = (nodeA.x + nodeB.x) / 2
       const midY = (nodeA.y + nodeB.y) / 2
 
-      // Use edge-specific offset if provided, otherwise use default
-      const offset = edgeDef.controlPointOffset !== undefined
-        ? edgeDef.controlPointOffset
-        : this.controlPointOffset
+      // Different curve amounts for different edge types
+      let offset = this.controlPointOffset
+      if (edgeDef.type === 'grid-connection') {
+        offset = this.controlPointOffset * 0.2  // Subtle curves for grid
+      } else if (edgeDef.type === 'cursor-grid') {
+        offset = this.controlPointOffset * 0.5  // Medium curves for cursor-grid
+      }
 
       const controlPoint = {
         x: midX - dy * offset,
@@ -328,16 +328,15 @@ class SpringMeshNetwork {
       }
 
       // Restore existing data if available
-      const key = `${edgeDef.sourceId}-${edgeDef.targetId}-${edgeDef.pathIndex || 0}`
+      const key = `${edgeDef.sourceId}-${edgeDef.targetId}`
       const existingData = edgeData.get(key)
 
       this.edges.push({
         sourceId: edgeDef.sourceId,
         targetId: edgeDef.targetId,
         type: edgeDef.type,
-        pathIndex: edgeDef.pathIndex || 0,
         strength: edgeDef.strength,
-        controlPoint,
+        controlPoint: controlPoint,
         restLength: this.springRestLength * edgeDef.strength,
         stiffness: this.springStiffness * edgeDef.strength,
         pulses: existingData?.pulses || [],
@@ -500,7 +499,7 @@ class SpringMeshNetwork {
   }
 
   /**
-   * Render intermediate node (radial or circuit)
+   * Render intermediate node (grid or circuit)
    * @param {p5} p - p5.js instance
    * @param {Object} node - Node object
    */
@@ -508,36 +507,29 @@ class SpringMeshNetwork {
     const x = node.x * p.width
     const y = node.y * p.height
 
-    // Different styles for different intermediate node types
-    if (node.type === 'radial') {
-      // Radial nodes: small diamond shapes, rotated by angle
-      p.push()
-      p.translate(x, y)
-      p.rotate(node.angle || 0)
+    // Grid nodes: small circles
+    if (node.type === 'grid') {
+      const size = this.topologyGenerator.gridTopology?.nodeSize || 4
       p.noStroke()
       p.fill(node.color)
+      p.circle(x, y, size)
 
-      // Draw small diamond
-      p.beginShape()
-      const size = this.topologyGenerator.radialNodeSize || 4
-      p.vertex(size, 0)
-      p.vertex(0, size)
-      p.vertex(-size, 0)
-      p.vertex(0, -size)
-      p.endShape(p.CLOSE)
-
-      p.pop()
-    } else if (node.type === 'circuit') {
-      // Circuit nodes: small circles with pad effect
-      p.noStroke()
-      p.fill(node.color)
-      p.circle(x, y, this.topologyGenerator.circuitNodeSize || 3)
-
-      // Small pad ring
+      // Small ring effect
       p.stroke(node.color)
       p.strokeWeight(0.5)
       p.noFill()
-      p.circle(x, y, (this.topologyGenerator.circuitNodeSize || 3) * 2)
+      p.circle(x, y, size * 1.5)
+    } else if (node.type === 'circuit') {
+      // Circuit nodes: slightly larger with pad effect
+      p.noStroke()
+      p.fill(node.color)
+      p.circle(x, y, this.topologyGenerator.gridTopology?.nodeSize || 3)
+
+      // Pad ring
+      p.stroke(node.color)
+      p.strokeWeight(0.5)
+      p.noFill()
+      p.circle(x, y, (this.topologyGenerator.gridTopology?.nodeSize || 3) * 2)
     }
   }
 

@@ -1,134 +1,147 @@
 /**
- * TopologyGenerator
- * Generates dynamic network topology with multiple connection paths
+ * CircuitGridTopology
+ * Generates a circuit-board style grid network
  *
- * Creates a web-like pattern with:
- * - Multiple curved paths between each cursor pair
- * - Intermediate nodes along paths (circuit aesthetic)
- * - Complex network resembling spiderweb/circuit board
- *
- * Edge Types:
- * - cursor-cursor: Physics-enabled, carries pulses/particles
- * - Multiple edges per cursor pair with different control points
+ * Creates an interconnected web with:
+ * - Grid of nodes at regular intervals
+ * - 90° and 45° connections between grid nodes
+ * - Cursors connect to nearest grid points
+ * - Particles and pulses travel through the grid network
  */
 
-class TopologyGenerator {
+class CircuitGridTopology {
   constructor() {
     // Get configuration from VisualConstants or use defaults
     const config = (typeof window !== 'undefined' && window.VisualConstants?.TOPOLOGY_CONFIG)
       ? window.VisualConstants.TOPOLOGY_CONFIG
       : {
-          proximityThreshold: 0.4,
-          radialRingCount: 3,
-          nodesPerRing: 8,
-          circuitNodeSpacing: 0.15,
-          radialNodeSize: 4,
-          circuitNodeSize: 3,
-          enableRadialNodes: true,
+          circuitNodeSpacing: 0.08,
+          circuitNodeSize: 6,
           enableCircuitNodes: true
         }
 
-    this.proximityThreshold = config.proximityThreshold
-    this.radialRingCount = config.radialRingCount
-    this.nodesPerRing = config.nodesPerRing
-    this.circuitNodeSpacing = config.circuitNodeSpacing
-    this.radialNodeSize = config.radialNodeSize
-    this.circuitNodeSize = config.circuitNodeSize
-    this.enableRadialNodes = false  // DISABLE radial nodes (user doesn't want them)
-    this.enableCircuitNodes = config.enableCircuitNodes
-    this.pathsPerPair = 3  // Number of different paths between each cursor pair
+    this.gridSpacing = config.circuitNodeSpacing || 0.08  // Grid cell size
+    this.nodeSize = config.circuitNodeSize || 6
+    this.enableCircuitNodes = config.enableCircuitNodes !== false
 
-    // Generated node storage
-    this.radialNodes = []
-    this.circuitNodes = []
-    this.webNodes = []  // New: intermediate nodes for web pattern
-
-    // Initialize radial pattern (disabled but kept for compatibility)
-    this.updateRadialNodes()
+    // Generated grid nodes
+    this.gridNodes = []
   }
 
   /**
-   * Generate network topology based on cursor positions
-   * Creates multiple curved paths between each cursor pair for web effect
+   * Generate circuit board grid topology
    * @param {Map} cursorNodes - User cursor nodes (userId -> Node)
    * @returns {Object} { edges, intermediateNodes, edgeCircuitNodes }
    */
   generateTopology(cursorNodes) {
-    // Generate multiple paths between each cursor pair
-    const cursorEdges = this.generateMultiPathEdges(cursorNodes)
+    // 1. Generate grid of nodes across the canvas
+    this.generateGridNodes(cursorNodes)
 
-    // Generate intermediate nodes along each path
-    const circuitData = this.enableCircuitNodes
-      ? this.generateCircuitNodes(cursorEdges, cursorNodes)
-      : { nodes: [], edgeMapping: new Map() }
+    // 2. Generate grid connections (90° and 45°)
+    const gridEdges = this.generateGridConnections()
 
-    // No radial nodes (user doesn't want them)
+    // 3. Connect cursors to nearest grid nodes
+    const cursorEdges = this.connectCursorsToGrid(cursorNodes)
+
+    // 4. Combine all edges
+    const allEdges = [...gridEdges, ...cursorEdges]
+
     return {
-      edges: cursorEdges,
-      intermediateNodes: circuitData.nodes,
-      edgeCircuitNodes: circuitData.edgeMapping
+      edges: allEdges,
+      intermediateNodes: this.gridNodes,
+      edgeCircuitNodes: new Map()  // Not needed for grid
     }
   }
 
   /**
-   * Update radial node positions (mandala pattern)
-   * Creates concentric rings from screen center
+   * Generate grid nodes at regular intervals
+   * Creates a circuit board style layout
    */
-  updateRadialNodes() {
-    this.radialNodes = []
-    if (!this.enableRadialNodes) return
+  generateGridNodes(cursorNodes) {
+    this.gridNodes = []
 
-    const centerX = 0.5
-    const centerY = 0.5
+    // Calculate grid dimensions
+    const cols = Math.floor(1 / this.gridSpacing)
+    const rows = Math.floor(1 / this.gridSpacing)
 
-    for (let ring = 1; ring <= this.radialRingCount; ring++) {
-      const radius = ring * 0.2  // 0.2, 0.4, 0.6 from center (stay within canvas)
-      const nodeCount = this.nodesPerRing * ring  // More nodes in outer rings
+    let nodeId = 0
 
-      for (let i = 0; i < nodeCount; i++) {
-        const angle = (Math.PI * 2 / nodeCount) * i
+    // Create grid nodes
+    for (let row = 0; row <= rows; row++) {
+      for (let col = 0; col <= cols; col++) {
+        const x = col * this.gridSpacing
+        const y = row * this.gridSpacing
 
-        // Add slight offset for organic feel
-        const angleOffset = (ring % 2 === 0) ? (Math.PI / nodeCount) : 0
-
-        this.radialNodes.push({
-          id: `radial-${ring}-${i}`,
-          type: 'radial',
-          x: centerX + Math.cos(angle + angleOffset) * radius,
-          y: centerY + Math.sin(angle + angleOffset) * radius,
-          ring: ring,
-          angle: angle + angleOffset,
-          color: this.getRadialNodeColor(ring)
+        this.gridNodes.push({
+          id: `grid-${nodeId++}`,
+          type: 'grid',
+          x: Math.min(1, Math.max(0, x)),
+          y: Math.min(1, Math.max(0, y)),
+          row: row,
+          col: col,
+          color: '#4a5568'  // Subtle gray-blue for grid
         })
       }
     }
   }
 
   /**
-   * Generate multiple curved paths between ALL cursor pairs
-   * Creates a web-like pattern with several different curves per pair
-   * @param {Map} cursorNodes - User cursor nodes
-   * @returns {Array} Array of edge objects
+   * Generate connections between grid nodes
+   * Creates 90° (adjacent) and 45° (diagonal) connections
    */
-  generateMultiPathEdges(cursorNodes) {
+  generateGridConnections() {
     const edges = []
-    const cursorArray = Array.from(cursorNodes.values())
 
-    for (let i = 0; i < cursorArray.length; i++) {
-      for (let j = i + 1; j < cursorArray.length; j++) {
-        const nodeA = cursorArray[i]
-        const nodeB = cursorArray[j]
+    // Create a map for quick node lookup
+    const nodeMap = new Map()
+    for (const node of this.gridNodes) {
+      const key = `${node.row}-${node.col}`
+      nodeMap.set(key, node)
+    }
 
-        // Create multiple paths between each cursor pair
-        for (let pathIndex = 0; pathIndex < this.pathsPerPair; pathIndex++) {
+    // Connect adjacent and diagonal nodes
+    for (const node of this.gridNodes) {
+      // 90° connections (up, down, left, right)
+      const adjacent = [
+        { row: node.row - 1, col: node.col },     // up
+        { row: node.row + 1, col: node.col },     // down
+        { row: node.row, col: node.col - 1 },     // left
+        { row: node.row, col: node.col + 1 }      // right
+      ]
+
+      for (const pos of adjacent) {
+        const key = `${pos.row}-${pos.col}`
+        const targetNode = nodeMap.get(key)
+        if (targetNode) {
           edges.push({
-            sourceId: nodeA.userId,
-            targetId: nodeB.userId,
-            type: 'cursor-cursor',
-            pathIndex: pathIndex,  // Which path of the pair
-            strength: 1.0 - (pathIndex * 0.2),  // Slightly weaker for alternate paths
-            controlPointOffset: (pathIndex - 1) * 0.15  // Different curve for each path
+            sourceId: node.id,
+            targetId: targetNode.id,
+            type: 'grid-connection',
+            strength: 0.8
           })
+        }
+      }
+
+      // 45° connections (diagonals) - only some of them for circuit pattern
+      if ((node.row + node.col) % 2 === 0) {  // Every other node
+        const diagonals = [
+          { row: node.row - 1, col: node.col - 1 },  // up-left
+          { row: node.row - 1, col: node.col + 1 },  // up-right
+          { row: node.row + 1, col: node.col - 1 },  // down-left
+          { row: node.row + 1, col: node.col + 1 }   // down-right
+        ]
+
+        for (const pos of diagonals) {
+          const key = `${pos.row}-${pos.col}`
+          const targetNode = nodeMap.get(key)
+          if (targetNode && node.id < targetNode.id) {  // Avoid duplicates
+            edges.push({
+              sourceId: node.id,
+              targetId: targetNode.id,
+              type: 'grid-connection',
+              strength: 0.6  // Slightly weaker for diagonals
+            })
+          }
         }
       }
     }
@@ -137,49 +150,32 @@ class TopologyGenerator {
   }
 
   /**
-   * Generate edges between cursors and radial nodes
-   * Creates spiderweb pattern
-   * @param {Map} cursorNodes - User cursor nodes
-   * @returns {Array} Array of edge objects
+   * Connect cursors to nearest grid nodes
+   * Creates multiple connections per cursor for web effect
    */
-  generateRadialEdges(cursorNodes) {
+  connectCursorsToGrid(cursorNodes) {
     const edges = []
 
-    // Connect cursors to nearest radial nodes
     for (const cursor of cursorNodes.values()) {
-      // Calculate distances to all radial nodes
-      const radialDistances = this.radialNodes.map(radial => ({
-        node: radial,
+      // Find nearest grid nodes
+      const distances = this.gridNodes.map(gridNode => ({
+        node: gridNode,
         distance: Math.sqrt(
-          Math.pow(cursor.x - radial.x, 2) +
-          Math.pow(cursor.y - radial.y, 2)
+          Math.pow(cursor.x - gridNode.x, 2) +
+          Math.pow(cursor.y - gridNode.y, 2)
         )
       }))
 
-      // Sort by distance and connect to nearest 3-5
-      radialDistances.sort((a, b) => a.distance - b.distance)
-      const connectionCount = Math.min(5, Math.max(3, Math.min(this.radialNodes.length, 8)))
+      // Sort by distance and connect to nearest 3-5 nodes
+      distances.sort((a, b) => a.distance - b.distance)
+      const connectionCount = Math.min(5, Math.max(3, distances.length))
 
       for (let i = 0; i < connectionCount; i++) {
         edges.push({
           sourceId: cursor.userId,
-          targetId: radialDistances[i].node.id,
-          type: 'cursor-radial',
-          strength: 0.5
-        })
-      }
-    }
-
-    // Connect radial nodes in rings (mandala pattern)
-    for (let ring = 1; ring <= this.radialRingCount; ring++) {
-      const ringNodes = this.radialNodes.filter(n => n.ring === ring)
-      for (let i = 0; i < ringNodes.length; i++) {
-        const nextIndex = (i + 1) % ringNodes.length
-        edges.push({
-          sourceId: ringNodes[i].id,
-          targetId: ringNodes[nextIndex].id,
-          type: 'radial-ring',
-          strength: 0.3
+          targetId: distances[i].node.id,
+          type: 'cursor-grid',
+          strength: 1.0 - (i * 0.15)  // Stronger for closer nodes
         })
       }
     }
@@ -188,113 +184,31 @@ class TopologyGenerator {
   }
 
   /**
-   * Generate decorative circuit nodes along edges
-   * Creates printed circuit board aesthetic
-   * @param {Array} edges - Array of edge objects
-   * @param {Map} cursorNodes - User cursor nodes for reference
-   * @returns {Object} { nodes: [], edgeMapping: Map }
-   */
-  generateCircuitNodes(edges, cursorNodes) {
-    const circuitNodes = []
-    const edgeMapping = new Map()  // edgeId -> [circuitNodeIds]
-
-    for (const edge of edges) {
-      const edgeId = `${edge.sourceId}-${edge.targetId}`
-      const nodeA = this.getNodeById(edge.sourceId, cursorNodes)
-      const nodeB = this.getNodeById(edge.targetId, cursorNodes)
-
-      if (!nodeA || !nodeB) continue
-
-      // Calculate number of circuit nodes based on edge length
-      const distance = Math.sqrt(
-        Math.pow(nodeB.x - nodeA.x, 2) +
-        Math.pow(nodeB.y - nodeA.y, 2)
-      )
-
-      const nodeCount = Math.floor(distance / this.circuitNodeSpacing)
-
-      const edgeCircuitNodes = []
-
-      for (let i = 1; i < nodeCount; i++) {
-        const t = i / nodeCount
-        const circuitNodeId = `circuit-${edgeId}-${i}`
-
-        circuitNodes.push({
-          id: circuitNodeId,
-          type: 'circuit',
-          x: nodeA.x + (nodeB.x - nodeA.x) * t,
-          y: nodeA.y + (nodeB.y - nodeA.y) * t,
-          edgeId: edgeId,
-          t: t,
-          color: this.getCircuitNodeColor()
-        })
-
-        edgeCircuitNodes.push(circuitNodeId)
-      }
-
-      edgeMapping.set(edgeId, edgeCircuitNodes)
-    }
-
-    return {
-      nodes: circuitNodes,
-      edgeMapping: edgeMapping
-    }
-  }
-
-  /**
-   * Get node by ID from cursor nodes or generated radial nodes
-   * @param {string} id - Node ID
-   * @param {Map} cursorNodes - User cursor nodes
-   * @returns {Object|null} Node object or null
+   * Get node by ID
    */
   getNodeById(id, cursorNodes) {
     // Check if cursor node
     if (cursorNodes && cursorNodes.has(id)) return cursorNodes.get(id)
 
-    // Check if radial node
-    const radial = this.radialNodes.find(n => n.id === id)
-    if (radial) return radial
-
-    // Check if circuit node
-    const circuit = this.circuitNodes.find(n => n.id === id)
-    if (circuit) return circuit
+    // Check if grid node
+    const grid = this.gridNodes.find(n => n.id === id)
+    if (grid) return grid
 
     return null
   }
 
   /**
-   * Get color for radial nodes (bright, visible)
-   * @param {number} ring - Ring number
-   * @returns {string} Hex color
+   * Get color for grid nodes
    */
-  getRadialNodeColor(ring) {
-    // Bright cyan-teal colors for different rings - very visible
-    const colors = ['#00ffff', '#00cccc', '#009999', '#00ffff']
-    return colors[(ring - 1) % colors.length]
-  }
-
-  /**
-   * Get color for circuit nodes (bright gold)
-   * @returns {string} Hex color
-   */
-  getCircuitNodeColor() {
-    return '#ffd700'  // Bright gold, very visible
-  }
-
-  /**
-   * Get all intermediate nodes
-   * @returns {Array} Array of intermediate node objects
-   */
-  getIntermediateNodes() {
-    return [...this.radialNodes, ...this.circuitNodes]
+  getGridNodeColor() {
+    return '#4a5568'  // Subtle gray-blue
   }
 
   /**
    * Clear generated nodes
    */
   clear() {
-    this.radialNodes = []
-    this.circuitNodes = []
+    this.gridNodes = []
   }
 
   /**
@@ -302,6 +216,41 @@ class TopologyGenerator {
    */
   dispose() {
     this.clear()
+  }
+}
+
+/**
+ * TopologyGenerator (Factory)
+ * Creates the appropriate topology generator
+ */
+
+class TopologyGenerator {
+  constructor() {
+    // Use CircuitGridTopology
+    this.gridTopology = new CircuitGridTopology()
+  }
+
+  /**
+   * Generate network topology based on cursor positions
+   * @param {Map} cursorNodes - User cursor nodes (userId -> Node)
+   * @returns {Object} { edges, intermediateNodes, edgeCircuitNodes }
+   */
+  generateTopology(cursorNodes) {
+    return this.gridTopology.generateTopology(cursorNodes)
+  }
+
+  /**
+   * Get node by ID (proxy to grid topology)
+   */
+  getNodeById(id, cursorNodes) {
+    return this.gridTopology.getNodeById(id, cursorNodes)
+  }
+
+  /**
+   * Dispose of resources
+   */
+  dispose() {
+    this.gridTopology.dispose()
   }
 }
 
