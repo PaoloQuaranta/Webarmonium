@@ -216,11 +216,8 @@ class GenerativeVisualService {
         // Emit wave pulse on tap or drag start
         if (gestureData.type === 'tap' || gestureData.type === 'drag') {
           this.wavePackets.emitPulse(userId, node.color)
-        }
-
-        // Emit particles continuously on drag
-        if (gestureData.type === 'drag') {
-          this.particles.emitParticles(userId, 2)
+          // Also emit particles on tap for better visual feedback
+          this.particles.emitParticles(userId, gestureData.type === 'tap' ? 5 : 2)
         }
       }
     }

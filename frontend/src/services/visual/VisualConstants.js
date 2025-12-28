@@ -16,23 +16,23 @@ const SPRING_CONFIG = {
 
 // Wave Packet Pulse Configuration
 const PULSE_CONFIG = {
-  speed: 0.8,             // Base speed (units per second)
-  speedVariation: 0.4,    // Random speed variation
+  speed: 1.2,             // Base speed (units per second) - increased for better travel visibility
+  speedVariation: 0.3,    // Random speed variation
   intensity: 1.0,         // Initial intensity
-  decayRate: 2.0,         // Intensity decay per second
-  width: 8,               // Pulse width in pixels
-  maxPulses: 50           // Maximum active pulses
+  decayRate: 1.5,         // Intensity decay per second - slower for longer travel
+  width: 10,              // Pulse width in pixels - increased for better visibility
+  maxPulses: 80           // Maximum active pulses - increased for cascade
 }
 
 // Particle Configuration
 const PARTICLE_CONFIG = {
-  speed: 0.3,             // Base speed
-  speedVariation: 0.5,    // Random speed variation
-  minSize: 2,             // Minimum particle size
-  maxSize: 5,             // Maximum particle size
-  lifeDecay: 0.3,         // Life decay per second
+  speed: 0.5,             // Base speed - increased for better travel
+  speedVariation: 0.3,    // Random speed variation
+  minSize: 3,             // Minimum particle size - increased for visibility
+  maxSize: 6,             // Maximum particle size - increased for visibility
+  lifeDecay: 0.2,         // Life decay per second - slower for longer travel
   emitCount: 5,           // Particles per emission
-  maxParticles: 200,      // Maximum active particles
+  maxParticles: 300,      // Maximum active particles - increased for cascade
   cleanupInterval: 5000,  // Cleanup interval (ms)
   maxAge: 10000           // Maximum particle age (ms)
 }
@@ -73,8 +73,8 @@ const EDGE_CONFIG = {
   activeThickness: 3,
   segments: 20,           // Curve segments for gradient
   controlPointOffset: 0.05, // Normalized offset for Bezier control
-  minAlpha: 30,           // Very subtle base edge (reduced from 100)
-  maxAlpha: 50            // Subtle base edge (reduced from 150)
+  minAlpha: 5,            // Almost invisible base edge (reduced from 30)
+  maxAlpha: 10            // Very subtle base edge (reduced from 50)
 }
 
 // Export all configurations
