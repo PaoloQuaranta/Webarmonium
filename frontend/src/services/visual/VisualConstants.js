@@ -39,12 +39,12 @@ const PARTICLE_CONFIG = {
 
 // Network Topology Configuration
 const TOPOLOGY_CONFIG = {
-  proximityThreshold: 0.4,     // Max distance for cursor connections
+  proximityThreshold: 0.4,     // Max distance for cursor connections (not used, complete graph)
   radialRingCount: 3,          // Number of concentric rings
-  nodesPerRing: 8,             // Base nodes per ring
-  circuitNodeSpacing: 0.15,    // Spacing for circuit nodes along edges
-  radialNodeSize: 4,           // Size of radial nodes
-  circuitNodeSize: 3,          // Size of circuit nodes
+  nodesPerRing: 12,            // Base nodes per ring (increased for more visible mandala)
+  circuitNodeSpacing: 0.08,    // Spacing for circuit nodes along edges (more nodes)
+  radialNodeSize: 8,           // Size of radial nodes (increased for visibility)
+  circuitNodeSize: 6,          // Size of circuit nodes (increased for visibility)
   enableRadialNodes: true,     // Show radial mandala pattern
   enableCircuitNodes: true     // Show circuit decoration
 }

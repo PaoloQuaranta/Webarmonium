@@ -111,7 +111,8 @@ class TopologyGenerator {
   }
 
   /**
-   * Generate edges between nearby cursors
+   * Generate edges between ALL cursors (complete graph)
+   * Creates permanent connections between all users
    * @param {Map} cursorNodes - User cursor nodes
    * @returns {Array} Array of edge objects
    */
@@ -124,20 +125,13 @@ class TopologyGenerator {
         const nodeA = cursorArray[i]
         const nodeB = cursorArray[j]
 
-        const distance = Math.sqrt(
-          Math.pow(nodeB.x - nodeA.x, 2) +
-          Math.pow(nodeB.y - nodeA.y, 2)
-        )
-
-        // Only connect if within proximity threshold
-        if (distance <= this.proximityThreshold) {
-          edges.push({
-            sourceId: nodeA.userId,
-            targetId: nodeB.userId,
-            type: 'cursor-cursor',
-            strength: 1 - (distance / this.proximityThreshold)  // Stronger when closer
-          })
-        }
+        // Connect ALL cursors (complete graph, no proximity filter)
+        edges.push({
+          sourceId: nodeA.userId,
+          targetId: nodeB.userId,
+          type: 'cursor-cursor',
+          strength: 1.0  // Full strength for all connections
+        })
       }
     }
 
@@ -271,22 +265,22 @@ class TopologyGenerator {
   }
 
   /**
-   * Get color for radial nodes (subtle, decorative)
+   * Get color for radial nodes (bright, visible)
    * @param {number} ring - Ring number
    * @returns {string} Hex color
    */
   getRadialNodeColor(ring) {
-    // Subtle blue-teal colors for different rings
-    const colors = ['#2a3a5a', '#3a4a6a', '#4a5a7a', '#5a6a8a']
+    // Bright cyan-teal colors for different rings - very visible
+    const colors = ['#00ffff', '#00cccc', '#009999', '#00ffff']
     return colors[(ring - 1) % colors.length]
   }
 
   /**
-   * Get color for circuit nodes (subtle gray-blue)
+   * Get color for circuit nodes (bright gold)
    * @returns {string} Hex color
    */
   getCircuitNodeColor() {
-    return '#4a5568'
+    return '#ffd700'  // Bright gold, very visible
   }
 
   /**
