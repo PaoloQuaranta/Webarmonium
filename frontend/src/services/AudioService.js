@@ -2379,26 +2379,17 @@ class AudioService {
               }
           }
 
-          if (isStreamed) {
-            this.gestureSynth.set({
-              oscillator: {
-                type: 'square' // Square wave for remote notes
-              },
-              envelope
-            })
-          } else {
-            // Local notes use sawtooth (default)
-            this.gestureSynth.set({
-              oscillator: {
-                type: 'sawtooth' // Sawtooth for local notes
-              },
-              envelope
-            })
-          }
+          // FIX: Use sawtooth wave for both local and remote notes (square wave was inaudible)
+          this.gestureSynth.set({
+            oscillator: {
+              type: 'sawtooth' // Sawtooth for all notes
+            },
+            envelope
+          })
 
           // Use triggerAttackRelease for accurate duration control
-          // Remote gestures should be quieter than local gestures
-          const finalVelocity = isStreamed ? adjustedVelocity * 0.6 : adjustedVelocity
+          // Remote gestures at slightly reduced volume (was ×0.6, increased to ×0.9 for audibility)
+          const finalVelocity = isStreamed ? adjustedVelocity * 0.9 : adjustedVelocity
 
           this.gestureSynth.triggerAttackRelease(
             frequency,
@@ -2411,7 +2402,7 @@ class AudioService {
             frequency: frequency.toFixed(1),
             duration: adjustedDuration.toFixed(3),
             velocity: finalVelocity.toFixed(3),
-            type: isStreamed ? 'remote (×0.6)' : 'local (full)',
+            type: isStreamed ? 'remote (×0.9)' : 'local (full)',
             articulation: articulation
           })
         } catch (e) {
