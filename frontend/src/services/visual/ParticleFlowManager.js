@@ -81,28 +81,45 @@ class ParticleFlowManager {
   emitParticles(sourceUserId, count = this.emitCount) {
     // Check particle count limit
     if (this.particles.size >= this.maxParticles) {
+      console.warn('⚠️ emitParticles: Max particles reached', this.particles.size, '/', this.maxParticles)
       return
     }
 
     const sourceNode = this.springMesh.nodes.get(sourceUserId)
-    if (!sourceNode) return
+    if (!sourceNode) {
+      console.warn('⚠️ emitParticles: Source node not found', sourceUserId.substring(0, 8))
+      return
+    }
 
     // Find all cursor-trace edges from this cursor
     const sourceEdges = this.springMesh.edges.filter(
       edge => edge.sourceId === sourceUserId && edge.type === 'cursor-trace'
     )
 
+    console.log('✨ emitParticles:', {
+      userId: sourceUserId.substring(0, 8),
+      sourceEdgesFound: sourceEdges.length,
+      totalEdges: this.springMesh.edges.length,
+      countPerEdge: count,
+      activeParticlesBefore: this.particles.size
+    })
+
+    let created = 0
     // Emit particles along each source edge
     for (const edge of sourceEdges) {
       for (let i = 0; i < count; i++) {
         // Check limit before each particle
         if (this.particles.size >= this.maxParticles) {
+          console.warn('⚠️ emitParticles: Max particles reached during creation', this.particles.size, '/', this.maxParticles)
           return
         }
 
-        this.createParticle(edge, sourceNode.color)
+        const particle = this.createParticle(edge, sourceNode.color)
+        if (particle) created++
       }
     }
+
+    console.log('✅ Particles created:', created, 'activeParticles:', this.particles.size)
   }
 
   /**

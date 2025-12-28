@@ -51,7 +51,10 @@ class WavePacketSystem {
    */
   emitPulse(sourceUserId, color) {
     const sourceNode = this.springMesh.nodes.get(sourceUserId)
-    if (!sourceNode) return
+    if (!sourceNode) {
+      console.warn('⚠️ emitPulse: Source node not found', sourceUserId.substring(0, 8))
+      return
+    }
 
     // Update node's last pulse time
     sourceNode.lastPulseTime = Date.now()
@@ -61,14 +64,25 @@ class WavePacketSystem {
       edge => edge.sourceId === sourceUserId && edge.type === 'cursor-trace'
     )
 
+    console.log('🌊 emitPulse:', {
+      userId: sourceUserId.substring(0, 8),
+      sourceEdgesFound: sourceEdges.length,
+      totalEdges: this.springMesh.edges.length,
+      activePulsesBefore: this.activePulses.size
+    })
+
     // Don't exceed maximum pulse count
     if (this.activePulses.size >= this.maxPulses) {
+      console.warn('⚠️ emitPulse: Max pulses reached', this.activePulses.size, '/', this.maxPulses)
       return
     }
 
     // Emit pulse along each source edge
     for (const edge of sourceEdges) {
-      this.emitPulseOnEdge(edge, color)
+      const pulse = this.emitPulseOnEdge(edge, color)
+      if (pulse) {
+        console.log('✅ Pulse created:', pulse.id.substring(0, 15), 'activePulses:', this.activePulses.size)
+      }
     }
   }
 
