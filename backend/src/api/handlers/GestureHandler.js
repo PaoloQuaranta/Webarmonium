@@ -415,21 +415,22 @@ const GestureHandler = {
 
         // CRITICAL: If streamedNotes present, broadcast exact notes for remote replication
         if (gesture.streamedNotes && Array.isArray(gesture.streamedNotes) && gesture.streamedNotes.length > 0) {
-          const baseTime = Date.now()
           const firstNoteTime = gesture.streamedNotes[0].timestamp
+          const broadcastTime = Date.now()
 
           // Broadcast each note as a musical:event with proper timing
           gesture.streamedNotes.forEach((note, index) => {
-            // Calculate relative delay from first note
+            // Calculate relative delay from first note (in milliseconds)
             const relativeDelay = note.timestamp - firstNoteTime
 
             const musicalEventBroadcast = {
-              id: `streamed_${baseTime}_${index}`,
+              id: `streamed_${broadcastTime}_${index}`,
               userId: socket.userId,
               roomId: socket.roomId,
               event: {
                 eventType: 'note',
-                timestamp: baseTime + relativeDelay,
+                timestamp: broadcastTime + relativeDelay,
+                relativeDelay: relativeDelay, // FIX: Include explicit delay for frontend
                 position: note.position,
                 properties: {
                   frequency: note.frequency,
@@ -442,7 +443,7 @@ const GestureHandler = {
                   gestureAction: 'drag'
                 }
               },
-              timestamp: baseTime + relativeDelay
+              timestamp: broadcastTime + relativeDelay
             }
 
             // Broadcast to other users in the room

@@ -711,6 +711,22 @@ class WebarmoniumApp {
       if (data.userId && this.cursorManager) {
         this.cursorManager.removeCursor(data.userId)
       }
+      if (data.userId && this.visualService) {
+        this.visualService.removeUser(data.userId)
+      }
+    })
+
+    // FIX: Handle user-disconnected for unexpected disconnects (e.g., browser close)
+    this.socketService.on('user-disconnected', (data) => {
+      console.log('🔌 User disconnected unexpectedly:', data.userId)
+
+      // Remove user's cursor from visualization
+      if (data.userId && this.cursorManager) {
+        this.cursorManager.removeCursor(data.userId)
+      }
+      if (data.userId && this.visualService) {
+        this.visualService.removeUser(data.userId)
+      }
     })
 
     // SUSTAINED HOLD: Handle remote user hold:start events
@@ -920,12 +936,18 @@ class WebarmoniumApp {
         console.log(`🎵 Remote: ${event.properties?.gestureAction || 'unknown'} - freq=${event.properties?.frequency?.toFixed(0)}Hz, notes=${event.properties?.totalNotes || 1}`)
       }
 
-      // CRITICAL FIX: Schedule note playback based on timestamp
-      // Backend sends timestamp = Date.now() + startTime
-      // Calculate delay from current time
-      const now = Date.now()
-      const eventTime = event.timestamp || now
-      const delay = Math.max(0, eventTime - now) // Ensure non-negative
+      // CRITICAL FIX: Schedule note playback based on relativeDelay
+      // Backend now sends explicit relativeDelay for streamed notes
+      let delay
+      if (event.relativeDelay !== undefined) {
+        // Use explicit relativeDelay from backend (most accurate)
+        delay = Math.max(0, event.relativeDelay)
+      } else {
+        // Fallback: calculate from timestamp
+        const now = Date.now()
+        const eventTime = event.timestamp || now
+        delay = Math.max(0, eventTime - now)
+      }
 
       if (delay > 0) {
         // Schedule note for future playback
