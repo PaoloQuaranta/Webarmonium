@@ -205,21 +205,44 @@ class GenerativeVisualService {
    * @param {Object} gestureData - {type, velocity, holdStart, isActive}
    */
   updateGestureData(userId, gestureData) {
+    // DEBUG: Log entry
+    console.log('🎨 updateGestureData called:', {
+      userId: userId.substring(0, 8),
+      type: gestureData.type,
+      isActive: gestureData.isActive
+    })
+
     // Update the node in the spring mesh
     const node = this.springMesh.nodes.get(userId)
+    console.log('🎨 Node exists?', !!node, 'Total nodes:', this.springMesh.nodes.size)
+
     if (node) {
       node.gestureType = gestureData.type || 'idle'
       node.isActive = gestureData.isActive || false
+
+      console.log('🎨 Node updated:', {
+        userId: userId.substring(0, 8),
+        gestureType: node.gestureType,
+        isActive: node.isActive,
+        color: node.color
+      })
 
       // Trigger visual effects based on gesture state
       if (gestureData.isActive) {
         // Emit wave pulse on tap or drag start
         if (gestureData.type === 'tap' || gestureData.type === 'drag') {
+          console.log('✨ Emitting pulse for', gestureData, 'userId:', userId.substring(0, 8))
           this.wavePackets.emitPulse(userId, node.color)
+
           // Also emit particles on tap for better visual feedback
-          this.particles.emitParticles(userId, gestureData.type === 'tap' ? 5 : 2)
+          const particleCount = gestureData.type === 'tap' ? 5 : 2
+          console.log('✨ Emitting', particleCount, 'particles for', gestureData.type, 'userId:', userId.substring(0, 8))
+          this.particles.emitParticles(userId, particleCount)
         }
       }
+    } else {
+      console.warn('⚠️ Node not found in spring mesh for userId:', userId.substring(0, 8))
+      console.log('🎨 Available nodes:', Array.from(this.springMesh.nodes.keys()).map(id => id.substring(0, 8)))
     }
 
     this.lastActivityTime = Date.now()
