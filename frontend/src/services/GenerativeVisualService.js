@@ -6,7 +6,6 @@
  * - SpringMeshNetwork: Physics simulation and curved edges
  * - WavePacketSystem: Pulse propagation along edges
  * - ParticleFlowManager: Particle flow effects
- * - SacredGeometryRenderer: Sacred geometry overlays
  *
  * Responsibilities:
  * - p5.js instance lifecycle (setup, draw, dispose)
@@ -24,7 +23,6 @@ class GenerativeVisualService {
     this.springMesh = null
     this.wavePackets = null
     this.particles = null
-    this.geometry = null
 
     // Performance monitoring
     this.lastFrameTime = 0
@@ -70,9 +68,6 @@ class GenerativeVisualService {
 
       console.log('🎨 Creating ParticleFlowManager...')
       this.particles = new ParticleFlowManager(this.springMesh)
-
-      console.log('🎨 Creating SacredGeometryRenderer...')
-      this.geometry = new SacredGeometryRenderer()
 
       console.log('🎨 Creating p5 instance...')
       // Create p5.js instance in instance mode
@@ -149,12 +144,7 @@ class GenerativeVisualService {
       this.particles.update(dt)
 
       // Render layers (back to front)
-      // 1. Sacred geometry (background layer)
-      if (this.performanceMode === 'normal') {
-        this.geometry.render(p, this.springMesh.nodes)
-      }
-
-      // 2. Spring mesh network (curved edges + nodes)
+      // 1. Spring mesh network (curved edges + nodes)
       this.springMesh.render(p)
 
       // 3. Wave pulses
@@ -323,8 +313,7 @@ class GenerativeVisualService {
     return {
       springMesh: this.springMesh,
       wavePackets: this.wavePackets,
-      particles: this.particles,
-      geometry: this.geometry
+      particles: this.particles
     }
   }
 
@@ -346,11 +335,6 @@ class GenerativeVisualService {
     if (this.springMesh) {
       this.springMesh.dispose()
       this.springMesh = null
-    }
-
-    if (this.geometry) {
-      this.geometry.dispose()
-      this.geometry = null
     }
 
     // Remove p5.js instance

@@ -73,7 +73,8 @@ class ParticleFlowManager {
   }
 
   /**
-   * Emit particles from a node along all connected edges
+   * Emit particles from a node along all connected cursor-cursor edges
+   * Only emits on cursor-cursor edges (not radial/circuit connections)
    * @param {string} sourceUserId - Source user ID
    * @param {number} count - Number of particles to emit per edge
    */
@@ -86,10 +87,12 @@ class ParticleFlowManager {
     const sourceNode = this.springMesh.nodes.get(sourceUserId)
     if (!sourceNode) return
 
-    // Find all edges connected to this node
-    const connectedEdges = this.springMesh.getConnectedEdges(sourceUserId)
+    // Find all cursor-cursor edges connected to this node
+    const connectedEdges = this.springMesh.edges.filter(
+      edge => edge.sourceId === sourceUserId && edge.type === 'cursor-cursor'
+    )
 
-    // Emit particles along each connected edge
+    // Emit particles along each connected cursor-cursor edge
     for (const edge of connectedEdges) {
       for (let i = 0; i < count; i++) {
         // Check limit before each particle

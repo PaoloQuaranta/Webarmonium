@@ -8,8 +8,13 @@
  * - Semi-implicit Euler integration
  * - Velocity damping for stability
  *
+ * Network Topology:
+ * - Dynamic proximity-based connections (TopologyGenerator)
+ * - Radial nodes (mandala pattern)
+ * - Circuit nodes (decorative along edges)
+ *
  * Visual Style:
- * - Quadratic Bezier curves for organic web/rete appearance
+ * - Quadratic Bezier curves for organic web appearance
  * - Control points offset perpendicular to edge direction
  * - Gradient colors along curves
  */
@@ -58,6 +63,11 @@ class SpringMeshNetwork {
     // Edge storage: Array of Edge objects
     this.edges = []
 
+    // Topology generation
+    this.topologyGenerator = new TopologyGenerator()
+    this.intermediateNodes = new Map()  // Non-cursor nodes (radial, circuit)
+    this.edgeCircuitNodes = new Map()    // edgeId -> [circuitNodeIds]
+
     // Physics state
     this.physicsEnabled = true
     this.lastUpdateTime = 0
@@ -90,9 +100,12 @@ class SpringMeshNetwork {
     // Cap dt to prevent instability on lag spikes
     dt = Math.min(dt, 0.1)
 
-    // Apply spring forces
+    // Apply spring forces (only for cursor-cursor edges)
     for (const edge of this.edges) {
-      this.applySpringForce(edge)
+      if (edge.type === 'cursor-cursor') {
+        this.applySpringForce(edge)
+      }
+      // Radial and circuit nodes are static decoration, no physics
     }
 
     // Apply repulsion between all node pairs
@@ -264,11 +277,11 @@ class SpringMeshNetwork {
   }
 
   /**
-   * Rebuild edge list based on current nodes (complete graph topology)
-   * Each new pair of nodes gets a curved edge with a control point
+   * Rebuild edge list based on current nodes using topology generation
+   * Generates proximity-based network with radial and circuit nodes
    */
   rebuildEdges() {
-    // Store existing pulses and particles
+    // Store existing pulses and particles for migration
     const edgeData = new Map()
     for (const edge of this.edges) {
       const key = `${edge.sourceId}-${edge.targetId}`
@@ -278,40 +291,52 @@ class SpringMeshNetwork {
       })
     }
 
-    const nodeArray = Array.from(this.nodes.entries())
+    // Generate new topology using TopologyGenerator
+    const topology = this.topologyGenerator.generateTopology(this.nodes)
+
+    // Update intermediate nodes
+    this.intermediateNodes.clear()
+    for (const node of topology.intermediateNodes) {
+      this.intermediateNodes.set(node.id, node)
+    }
+
+    // Update edge circuit node mapping
+    this.edgeCircuitNodes = topology.edgeCircuitNodes
+
+    // Build edge array with proper Bezier control points
     this.edges = []
+    for (const edgeDef of topology.edges) {
+      const nodeA = this.getNodeOrIntermediate(edgeDef.sourceId)
+      const nodeB = this.getNodeOrIntermediate(edgeDef.targetId)
 
-    for (let i = 0; i < nodeArray.length; i++) {
-      for (let j = i + 1; j < nodeArray.length; j++) {
-        const [userIdA, nodeA] = nodeArray[i]
-        const [userIdB, nodeB] = nodeArray[j]
+      if (!nodeA || !nodeB) continue
 
-        // Calculate perpendicular control point for organic curve
-        const dx = nodeB.x - nodeA.x
-        const dy = nodeB.y - nodeA.y
-        const midX = (nodeA.x + nodeB.x) / 2
-        const midY = (nodeA.y + nodeB.y) / 2
+      // Calculate Bezier control point
+      const dx = nodeB.x - nodeA.x
+      const dy = nodeB.y - nodeA.y
+      const midX = (nodeA.x + nodeB.x) / 2
+      const midY = (nodeA.y + nodeB.y) / 2
 
-        // Perpendicular offset for Bezier control point
-        const controlPoint = {
-          x: midX - dy * this.controlPointOffset,
-          y: midY + dx * this.controlPointOffset
-        }
-
-        // Restore existing pulses/particles if any
-        const key = `${userIdA}-${userIdB}`
-        const existingData = edgeData.get(key)
-
-        this.edges.push({
-          sourceId: userIdA,
-          targetId: userIdB,
-          controlPoint,
-          restLength: this.springRestLength,
-          stiffness: this.springStiffness,
-          pulses: existingData?.pulses || [],
-          particles: existingData?.particles || []
-        })
+      const controlPoint = {
+        x: midX - dy * this.controlPointOffset,
+        y: midY + dx * this.controlPointOffset
       }
+
+      // Restore existing data if available
+      const key = `${edgeDef.sourceId}-${edgeDef.targetId}`
+      const existingData = edgeData.get(key)
+
+      this.edges.push({
+        sourceId: edgeDef.sourceId,
+        targetId: edgeDef.targetId,
+        type: edgeDef.type,
+        strength: edgeDef.strength,
+        controlPoint,
+        restLength: this.springRestLength * edgeDef.strength,
+        stiffness: this.springStiffness * edgeDef.strength,
+        pulses: existingData?.pulses || [],
+        particles: existingData?.particles || []
+      })
     }
   }
 
@@ -322,6 +347,17 @@ class SpringMeshNetwork {
   removeNode(userId) {
     this.nodes.delete(userId)
     this.rebuildEdges()
+  }
+
+  /**
+   * Get node from cursor nodes or intermediate nodes
+   * @param {string} id - Node identifier
+   * @returns {Object|null} Node object or null
+   */
+  getNodeOrIntermediate(id) {
+    if (this.nodes.has(id)) return this.nodes.get(id)
+    if (this.intermediateNodes.has(id)) return this.intermediateNodes.get(id)
+    return null
   }
 
   /**
@@ -345,7 +381,12 @@ class SpringMeshNetwork {
       this.renderEdge(p, edge)
     }
 
-    // Draw nodes on top
+    // Draw intermediate nodes (circuit and radial)
+    for (const node of this.intermediateNodes.values()) {
+      this.renderIntermediateNode(p, node)
+    }
+
+    // Draw cursor nodes on top
     for (const node of this.nodes.values()) {
       this.renderNode(p, node)
     }
@@ -378,18 +419,8 @@ class SpringMeshNetwork {
     p.strokeWeight(thickness)
     p.noFill()
 
-    // Flash white for active gestures
-    if (nodeA.isActive || nodeB.isActive) {
-      p.stroke(255, 255, 255, 150)
-      // Draw the Bezier curve
-      p.beginShape()
-      p.vertex(x1, y1)
-      p.quadraticVertex(cx, cy, x2, y2)
-      p.endShape()
-    } else {
-      // Draw gradient curve using segments
-      this.drawGradientCurve(p, x1, y1, cx, cy, x2, y2, nodeA.color, nodeB.color)
-    }
+    // Always render gradient curve (wave pulses provide active visual effects)
+    this.drawGradientCurve(p, x1, y1, cx, cy, x2, y2, nodeA.color, nodeB.color)
   }
 
   /**
@@ -460,6 +491,48 @@ class SpringMeshNetwork {
 
     // Reset shadow
     p.drawingContext.shadowBlur = 0
+  }
+
+  /**
+   * Render intermediate node (radial or circuit)
+   * @param {p5} p - p5.js instance
+   * @param {Object} node - Node object
+   */
+  renderIntermediateNode(p, node) {
+    const x = node.x * p.width
+    const y = node.y * p.height
+
+    // Different styles for different intermediate node types
+    if (node.type === 'radial') {
+      // Radial nodes: small diamond shapes, rotated by angle
+      p.push()
+      p.translate(x, y)
+      p.rotate(node.angle || 0)
+      p.noStroke()
+      p.fill(node.color)
+
+      // Draw small diamond
+      p.beginShape()
+      const size = this.topologyGenerator.radialNodeSize || 4
+      p.vertex(size, 0)
+      p.vertex(0, size)
+      p.vertex(-size, 0)
+      p.vertex(0, -size)
+      p.endShape(p.CLOSE)
+
+      p.pop()
+    } else if (node.type === 'circuit') {
+      // Circuit nodes: small circles with pad effect
+      p.noStroke()
+      p.fill(node.color)
+      p.circle(x, y, this.topologyGenerator.circuitNodeSize || 3)
+
+      // Small pad ring
+      p.stroke(node.color)
+      p.strokeWeight(0.5)
+      p.noFill()
+      p.circle(x, y, (this.topologyGenerator.circuitNodeSize || 3) * 2)
+    }
   }
 
   /**

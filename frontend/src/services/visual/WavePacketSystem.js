@@ -45,6 +45,7 @@ class WavePacketSystem {
 
   /**
    * Emit pulse from a node to all connected nodes
+   * Only emits on cursor-cursor edges (not radial/circuit connections)
    * @param {string} sourceUserId - Source user ID
    * @param {string} color - Pulse color (hex)
    */
@@ -55,15 +56,17 @@ class WavePacketSystem {
     // Update node's last pulse time
     sourceNode.lastPulseTime = Date.now()
 
-    // Find all edges connected to this node
-    const connectedEdges = this.springMesh.getConnectedEdges(sourceUserId)
+    // Find all cursor-cursor edges connected to this node
+    const connectedEdges = this.springMesh.edges.filter(
+      edge => edge.sourceId === sourceUserId && edge.type === 'cursor-cursor'
+    )
 
     // Don't exceed maximum pulse count
     if (this.activePulses.size >= this.maxPulses) {
       return
     }
 
-    // Emit pulse along each connected edge
+    // Emit pulse along each connected cursor-cursor edge
     for (const edge of connectedEdges) {
       const pulseId = `pulse-${this.pulseCounter++}`
 

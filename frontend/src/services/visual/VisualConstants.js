@@ -37,14 +37,16 @@ const PARTICLE_CONFIG = {
   maxAge: 10000           // Maximum particle age (ms)
 }
 
-// Sacred Geometry Configuration
-const GEOMETRY_CONFIG = {
-  enabled: true,
-  opacity: 0.15,          // Base opacity (0-1)
-  scale: 100,             // Base scale in pixels
-  flowerOfLifeRings: 7,   // Number of rings in flower pattern
-  hexagonalGrid: true,    // Show hexagonal grid
-  gridOpacity: 50         // Grid opacity (0-255)
+// Network Topology Configuration
+const TOPOLOGY_CONFIG = {
+  proximityThreshold: 0.4,     // Max distance for cursor connections
+  radialRingCount: 3,          // Number of concentric rings
+  nodesPerRing: 8,             // Base nodes per ring
+  circuitNodeSpacing: 0.15,    // Spacing for circuit nodes along edges
+  radialNodeSize: 4,           // Size of radial nodes
+  circuitNodeSize: 3,          // Size of circuit nodes
+  enableRadialNodes: true,     // Show radial mandala pattern
+  enableCircuitNodes: true     // Show circuit decoration
 }
 
 // Performance Configuration
@@ -85,7 +87,7 @@ if (typeof window !== 'undefined') {
     SPRING_CONFIG,
     PULSE_CONFIG,
     PARTICLE_CONFIG,
-    GEOMETRY_CONFIG,
+    TOPOLOGY_CONFIG,
     PERFORMANCE_CONFIG,
     NODE_CONFIG,
     EDGE_CONFIG
@@ -98,7 +100,7 @@ if (typeof module !== 'undefined' && module.exports) {
     SPRING_CONFIG,
     PULSE_CONFIG,
     PARTICLE_CONFIG,
-    GEOMETRY_CONFIG,
+    TOPOLOGY_CONFIG,
     PERFORMANCE_CONFIG,
     NODE_CONFIG,
     EDGE_CONFIG
