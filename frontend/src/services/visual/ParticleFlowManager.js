@@ -255,8 +255,8 @@ class ParticleFlowManager {
    */
   renderParticle(p, particle) {
     const edge = particle.edge
-    const nodeA = this.springMesh.nodes.get(edge.sourceId)
-    const nodeB = this.springMesh.nodes.get(edge.targetId)
+    const nodeA = this.springMesh.getNodeOrIntermediate(edge.sourceId)
+    const nodeB = this.springMesh.getNodeOrIntermediate(edge.targetId)
 
     if (!nodeA || !nodeB) return
 
