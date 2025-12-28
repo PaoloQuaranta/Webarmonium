@@ -307,8 +307,22 @@ class SpringMeshNetwork {
       })
     }
 
+    // DEBUG: Log before topology generation
+    console.log('🕸️ rebuildEdges:', {
+      cursorCount: this.nodes.size,
+      oldEdgeCount: this.edges.length,
+      userIds: Array.from(this.nodes.keys()).map(id => id.substring(0, 8))
+    })
+
     // Generate new topology using TopologyGenerator
     const topology = this.topologyGenerator.generateTopology(this.nodes)
+
+    // DEBUG: Log generated topology
+    console.log('🕸️ Generated topology:', {
+      edgesCount: topology.edges.length,
+      intermediateNodesCount: topology.intermediateNodes.length,
+      edgeTypes: topology.edges.map(e => `${e.sourceId.substring(0, 6)}->${e.targetId.substring(0, 6)}:${e.type}`)
+    })
 
     // Update intermediate nodes
     this.intermediateNodes.clear()
@@ -359,6 +373,14 @@ class SpringMeshNetwork {
         particles: existingData?.particles || []
       })
     }
+
+    // DEBUG: Log final edge state
+    const cursorTraceEdges = this.edges.filter(e => e.type === 'cursor-trace')
+    console.log('🕸️ Final edges:', {
+      totalEdges: this.edges.length,
+      cursorTraceEdges: cursorTraceEdges.length,
+      cursorTraceSources: cursorTraceEdges.map(e => e.sourceId.substring(0, 8))
+    })
   }
 
   /**
