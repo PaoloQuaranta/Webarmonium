@@ -933,10 +933,15 @@ class WebarmoniumApp {
       const event = musicalEventWrapper.event
       const remoteUserId = musicalEventWrapper.userId
 
-      // Minimal logging: only first note of phrase + critical info
-      if (event.properties?.noteIndex === 0 || !event.properties?.noteIndex) {
-        console.log(`🎵 Remote: ${event.properties?.gestureAction || 'unknown'} - freq=${event.properties?.frequency?.toFixed(0)}Hz, notes=${event.properties?.totalNotes || 1}`)
-      }
+      // DEBUG: Log all event properties
+      console.log('🔍 Remote musical:event:', {
+        userId: remoteUserId?.substring(0, 8),
+        gestureAction: event.properties?.gestureAction,
+        isStreamed: event.properties?.isStreamed,
+        totalNotes: event.properties?.totalNotes,
+        noteIndex: event.properties?.noteIndex,
+        frequency: event.properties?.frequency?.toFixed(0)
+      })
 
       // CRITICAL FIX: Add visual feedback for remote gestures (pulses + particles)
       // Get gesture type: tap if single note, drag if streamed/phrase
@@ -945,26 +950,44 @@ class WebarmoniumApp {
       const noteIndex = event.properties?.noteIndex || 0
 
       // Only trigger visual on first note to avoid duplicate effects
-      const shouldTriggerVisual = (noteIndex === 0 || !noteIndex)
+      const shouldTriggerVisual = (noteIndex === 0 || noteIndex === undefined)
 
       // Tap: single note (totalNotes=1, not streamed)
       // Drag: multiple notes (totalNotes>1) or streamed
       const gestureType = (totalNotes === 1 && !isStreamed) ? 'tap' : 'drag'
 
+      console.log('🎨 Visual trigger:', {
+        shouldTriggerVisual,
+        gestureType,
+        isStreamed,
+        totalNotes,
+        noteIndex
+      })
+
       // Get remote user's cursor position from cursor manager
       let remotePosition = { x: 0.5, y: 0.5 } // Default center
       let userColor = '#ff6b6b' // Default color
+      let cursorFound = false
 
       if (this.cursorManager) {
         const remoteCursor = this.cursorManager.cursors.get(remoteUserId)
         if (remoteCursor) {
           remotePosition = { x: remoteCursor.x, y: remoteCursor.y }
           userColor = remoteCursor.color
+          cursorFound = true
         }
       }
 
+      console.log('🖱️ Cursor info:', {
+        cursorFound,
+        remotePosition,
+        userColor
+      })
+
       // CRITICAL: First ensure node exists in visual service, then trigger gesture
       if (this.visualService && shouldTriggerVisual) {
+        console.log('✨ Calling updateCursorPosition for remote user:', remoteUserId.substring(0, 8))
+
         // Ensure node exists (creates if not present)
         this.visualService.updateCursorPosition(
           remoteUserId,
@@ -972,6 +995,8 @@ class WebarmoniumApp {
           remotePosition.y,
           userColor
         )
+
+        console.log('✨ Calling updateGestureData with:', gestureType, 'isActive=true')
 
         // Now trigger gesture effects (pulses + particles)
         this.visualService.updateGestureData(remoteUserId, {
@@ -989,6 +1014,8 @@ class WebarmoniumApp {
             })
           }
         }, 100)
+      } else {
+        console.log('⚠️ Visual NOT triggered:', { hasVisualService: !!this.visualService, shouldTriggerVisual })
       }
 
       // CRITICAL FIX: Schedule note playback based on relativeDelay
