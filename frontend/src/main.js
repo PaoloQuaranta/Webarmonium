@@ -939,9 +939,17 @@ class WebarmoniumApp {
       }
 
       // CRITICAL FIX: Add visual feedback for remote gestures (pulses + particles)
-      // Get gesture type from event properties
-      const gestureAction = event.properties?.gestureAction || 'tap'
-      const gestureType = gestureAction === 'drag' ? 'drag' : 'tap'
+      // Get gesture type: tap if single note, drag if streamed/phrase
+      const isStreamed = event.properties?.isStreamed || false
+      const totalNotes = event.properties?.totalNotes || 1
+      const noteIndex = event.properties?.noteIndex || 0
+
+      // Only trigger visual on first note to avoid duplicate effects
+      const shouldTriggerVisual = (noteIndex === 0 || !noteIndex)
+
+      // Tap: single note (totalNotes=1, not streamed)
+      // Drag: multiple notes (totalNotes>1) or streamed
+      const gestureType = (totalNotes === 1 && !isStreamed) ? 'tap' : 'drag'
 
       // Get remote user's cursor position from cursor manager
       let remotePosition = { x: 0.5, y: 0.5 } // Default center
@@ -955,8 +963,17 @@ class WebarmoniumApp {
         }
       }
 
-      // Update visual service with remote gesture data to trigger pulses/particles
-      if (this.visualService) {
+      // CRITICAL: First ensure node exists in visual service, then trigger gesture
+      if (this.visualService && shouldTriggerVisual) {
+        // Ensure node exists (creates if not present)
+        this.visualService.updateCursorPosition(
+          remoteUserId,
+          remotePosition.x,
+          remotePosition.y,
+          userColor
+        )
+
+        // Now trigger gesture effects (pulses + particles)
         this.visualService.updateGestureData(remoteUserId, {
           type: gestureType,
           velocity: event.properties?.velocity / 100 || 0.5,
