@@ -232,12 +232,25 @@ class GenerativeVisualService {
         // Emit wave pulse on tap or drag start
         if (gestureData.type === 'tap' || gestureData.type === 'drag') {
           console.log('✨ Emitting pulse for', gestureData, 'userId:', userId.substring(0, 8))
-          this.wavePackets.emitPulse(userId, node.color)
+
+          // DEBUG: Check if wavePackets exists
+          if (!this.wavePackets) {
+            console.error('❌ this.wavePackets is NULL or UNDEFINED!')
+            console.log('🔍 Available subsystems:', Object.keys(this))
+          } else {
+            this.wavePackets.emitPulse(userId, node.color)
+          }
 
           // Also emit particles on tap for better visual feedback
           const particleCount = gestureData.type === 'tap' ? 5 : 2
           console.log('✨ Emitting', particleCount, 'particles for', gestureData.type, 'userId:', userId.substring(0, 8))
-          this.particles.emitParticles(userId, particleCount)
+
+          // DEBUG: Check if particles exists
+          if (!this.particles) {
+            console.error('❌ this.particles is NULL or UNDEFINED!')
+          } else {
+            this.particles.emitParticles(userId, particleCount)
+          }
         }
       }
     } else {
