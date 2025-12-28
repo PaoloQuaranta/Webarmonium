@@ -2388,8 +2388,8 @@ class AudioService {
           })
 
           // Use triggerAttackRelease for accurate duration control
-          // Remote gestures at slightly reduced volume (was ×0.6, increased to ×0.9 for audibility)
-          const finalVelocity = isStreamed ? adjustedVelocity * 0.9 : adjustedVelocity
+          // Volume hierarchy: local (×1.0) > remote (×0.7) > background (×0.5)
+          const finalVelocity = isStreamed ? adjustedVelocity * 0.7 : adjustedVelocity
 
           this.gestureSynth.triggerAttackRelease(
             frequency,
@@ -2402,7 +2402,7 @@ class AudioService {
             frequency: frequency.toFixed(1),
             duration: adjustedDuration.toFixed(3),
             velocity: finalVelocity.toFixed(3),
-            type: isStreamed ? 'remote (×0.9)' : 'local (full)',
+            type: isStreamed ? 'remote (×0.7)' : 'local (full)',
             articulation: articulation
           })
         } catch (e) {
