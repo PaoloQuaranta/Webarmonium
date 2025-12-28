@@ -1,24 +1,18 @@
 /**
  * GenerativeVisualService
- * Manages p5.js generative graphics driven purely by user gestures
+ * Orchestrates enhanced generative graphics driven by user gestures
+ *
+ * Architecture:
+ * - SpringMeshNetwork: Physics simulation and curved edges
+ * - WavePacketSystem: Pulse propagation along edges
+ * - ParticleFlowManager: Particle flow effects
+ * - SacredGeometryRenderer: Sacred geometry overlays
  *
  * Responsibilities:
  * - p5.js instance lifecycle (setup, draw, dispose)
- * - Track cursor positions per user (multi-user graph nodes)
- * - Track gesture states per user (velocity, type, hold state)
- * - Render graph pattern connecting users (nodes + edges)
- * - Visual properties modulated by gesture data (NO audio)
- * - Performance monitoring and degradation
- *
- * Visual Design:
- * - Nodes: User cursor positions (10-30px based on gesture type)
- * - Edges: Lines connecting all users (1-6px based on gesture velocity)
- * - Graph topology: Complete graph (all nodes connected)
- *
- * Performance:
- * - Target: 30fps for p5.js rendering
- * - Degradation: Simplify visuals if FPS drops below 20
- * - Idle detection: Pause rendering after 10s inactivity
+ * - Coordinate all visual subsystems
+ * - Maintain API compatibility (updateCursorPosition, updateGestureData, removeUser)
+ * - Performance monitoring and degradation modes
  */
 
 class GenerativeVisualService {
@@ -26,43 +20,77 @@ class GenerativeVisualService {
     // p5.js instance (created in instance mode)
     this.p5Instance = null
 
-    // Multi-user cursor tracking
-    // userId -> {x, y, color, velocity, gestureType, isActive}
-    this.cursorNodes = new Map()
-
-    // Gesture state tracking per user
-    // userId -> {type, velocity, holdStart, isActive}
-    this.gestureStates = new Map()
+    // Subsystems
+    this.springMesh = null
+    this.wavePackets = null
+    this.particles = null
+    this.geometry = null
 
     // Performance monitoring
     this.lastFrameTime = 0
-    this.frameCount = 0
     this.fps = 30
     this.performanceMode = 'normal' // 'normal', 'degraded', 'disabled'
+    this.frameCount = 0
 
     // Idle detection
     this.lastActivityTime = Date.now()
     this.idleThreshold = 10000 // 10 seconds
     this.isPaused = false
+
+    // Performance configuration
+    this.targetFps = 30
+    this.degradeThreshold = 20
+    this.disableThreshold = 15
+    this.recoveryThreshold = 28
+    this.frameSampleInterval = 60
+
+    // Background color (matching Webarmonium theme)
+    this.bgColor = [26, 26, 46]
   }
 
   /**
-   * Initialize p5.js instance in the given container
+   * Initialize p5.js instance and all subsystems
    * @param {HTMLElement} containerElement - DOM element to attach p5.js canvas
    */
   initialize(containerElement) {
+    console.log('🎨 GenerativeVisualService.initialize() called with container:', containerElement)
+
     if (!containerElement) {
-      console.error('GenerativeVisualService: Container element not found')
+      console.error('❌ GenerativeVisualService: Container element not found')
       return
     }
 
-    // Create p5.js instance in instance mode
-    this.p5Instance = new p5((p) => {
-      p.setup = () => this.setup(p)
-      p.draw = () => this.draw(p)
-    }, containerElement)
+    try {
+      // Initialize subsystems
+      console.log('🎨 Creating SpringMeshNetwork...')
+      this.springMesh = new SpringMeshNetwork()
 
-    console.log('✅ GenerativeVisualService: p5.js initialized')
+      console.log('🎨 Creating WavePacketSystem...')
+      this.wavePackets = new WavePacketSystem(this.springMesh)
+
+      console.log('🎨 Creating ParticleFlowManager...')
+      this.particles = new ParticleFlowManager(this.springMesh)
+
+      console.log('🎨 Creating SacredGeometryRenderer...')
+      this.geometry = new SacredGeometryRenderer()
+
+      console.log('🎨 Creating p5 instance...')
+      // Create p5.js instance in instance mode
+      this.p5Instance = new p5((p) => {
+        p.setup = () => {
+          console.log('🎨 p5 setup() called')
+          this.setup(p)
+        }
+        p.draw = () => {
+          this.draw(p)
+        }
+      }, containerElement)
+
+      console.log('✅ GenerativeVisualService: Enhanced p5.js initialized with subsystems')
+    } catch (error) {
+      console.error('❌ Error during GenerativeVisualService initialization:', error)
+      throw error
+    }
   }
 
   /**
@@ -73,10 +101,15 @@ class GenerativeVisualService {
     // Create canvas matching viewport size
     p.createCanvas(window.innerWidth, window.innerHeight)
 
-    // Set frame rate cap to 30fps
-    p.frameRate(30)
+    // Set frame rate cap
+    p.frameRate(this.targetFps)
+
+    // Initialize frame time
+    this.lastFrameTime = p.millis()
 
     console.log('✅ GenerativeVisualService: Canvas created', window.innerWidth, 'x', window.innerHeight)
+    console.log('🎨 p5 canvas element:', p.canvas)
+    console.log('🎨 p5 canvas parent:', p.canvas?.parentElement)
   }
 
   /**
@@ -89,143 +122,117 @@ class GenerativeVisualService {
       return
     }
 
+    // Calculate delta time
+    const now = p.millis()
+    const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1) // Cap at 100ms
+    this.lastFrameTime = now
+
     // Performance monitoring
     this.updatePerformanceMetrics(p)
 
     // Clear background (match Webarmonium background color)
     p.background(26, 26, 46)
 
-    // Render graph pattern connecting cursor nodes
-    this.renderGraphPattern(p)
-  }
-
-  /**
-   * Render graph pattern: nodes at cursor positions, edges connecting users
-   * Visual properties modulated by gesture velocity, type, and hold state
-   * @param {p5} p - p5.js instance
-   */
-  renderGraphPattern(p) {
-    const nodes = Array.from(this.cursorNodes.values())
-
-    // Skip rendering if no nodes
-    if (nodes.length === 0) {
-      return
+    // Debug: Log node count
+    if (this.springMesh && this.springMesh.nodes.size > 0 && p.frameCount % 60 === 0) {
+      console.log('🎨 Rendering', this.springMesh.nodes.size, 'nodes,', this.springMesh.edges.length, 'edges')
     }
 
-    // Draw edges between all pairs (complete graph)
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        this.renderEdge(p, nodes[i], nodes[j])
+    // Update and render based on performance mode
+    if (this.performanceMode === 'disabled') {
+      // Minimal rendering - simple nodes only
+      this.renderSimpleNodes(p)
+    } else {
+      // Update physics
+      this.springMesh.updatePhysics(dt)
+      this.wavePackets.update(dt)
+      this.particles.update(dt)
+
+      // Render layers (back to front)
+      // 1. Sacred geometry (background layer)
+      if (this.performanceMode === 'normal') {
+        this.geometry.render(p, this.springMesh.nodes)
+      }
+
+      // 2. Spring mesh network (curved edges + nodes)
+      this.springMesh.render(p)
+
+      // 3. Wave pulses
+      this.wavePackets.render(p)
+
+      // 4. Particles (skip in degraded mode)
+      if (this.performanceMode === 'normal') {
+        this.particles.render(p)
       }
     }
-
-    // Draw nodes at cursor positions
-    nodes.forEach(node => {
-      this.renderNode(p, node)
-    })
   }
 
   /**
-   * Render edge between two cursor nodes
-   * Thickness modulated by gesture velocity
+   * Render simple nodes only (fallback mode)
    * @param {p5} p - p5.js instance
-   * @param {Object} nodeI - First cursor node
-   * @param {Object} nodeJ - Second cursor node
    */
-  renderEdge(p, nodeI, nodeJ) {
-    // Edge thickness from gesture velocity (1-6px range)
-    const avgVelocity = (nodeI.velocity + nodeJ.velocity) / 2
-    const thickness = 1 + Math.min(avgVelocity / 50, 5)
+  renderSimpleNodes(p) {
+    for (const node of this.springMesh.nodes.values()) {
+      const x = node.x * p.width
+      const y = node.y * p.height
 
-    p.strokeWeight(thickness)
-
-    // Flash white for active gestures
-    if (nodeI.isActive || nodeJ.isActive) {
-      p.stroke(255, 255, 255, 150) // White flash with 150 alpha
-    } else {
-      // Use source node color
-      p.stroke(nodeI.color)
-    }
-
-    // Draw line between nodes (normalized coordinates)
-    p.line(
-      nodeI.x * p.width, nodeI.y * p.height,
-      nodeJ.x * p.width, nodeJ.y * p.height
-    )
-  }
-
-  /**
-   * Render node at cursor position
-   * Size based on gesture type, pulsing for holds
-   * @param {p5} p - p5.js instance
-   * @param {Object} node - Cursor node data
-   */
-  renderNode(p, node) {
-    // Node size based on gesture type
-    let nodeSize = 10 // Default idle
-
-    if (node.gestureType === 'tap') {
-      nodeSize = 15
-    } else if (node.gestureType === 'drag') {
-      nodeSize = 20
-    } else if (node.gestureType === 'hold') {
-      // Pulsing animation for holds (sine wave)
-      const pulse = Math.sin(p.millis() * 0.005) * 5
-      nodeSize = 25 + pulse // 20-30px pulsing
-    }
-
-    // Draw main node
-    p.fill(node.color)
-    p.noStroke()
-    p.circle(node.x * p.width, node.y * p.height, nodeSize)
-
-    // Glow effect for active gestures (2x size, 25% opacity)
-    if (node.isActive) {
-      const glowColor = p.color(node.color)
-      glowColor.setAlpha(64) // 25% opacity (255 * 0.25 = 64)
-      p.fill(glowColor)
-      p.circle(node.x * p.width, node.y * p.height, nodeSize * 2)
+      p.noStroke()
+      p.fill(node.color)
+      p.circle(x, y, 10)
     }
   }
 
   /**
-   * Update cursor position for a user
+   * Update cursor position for a user (API compatible)
    * @param {string} userId - User identifier
    * @param {number} x - Normalized x position (0-1)
    * @param {number} y - Normalized y position (0-1)
    * @param {string} color - CSS color string
    */
   updateCursorPosition(userId, x, y, color) {
-    const existing = this.cursorNodes.get(userId) || {}
+    if (!this.springMesh) {
+      console.warn('⚠️ springMesh not initialized in updateCursorPosition')
+      return
+    }
 
-    this.cursorNodes.set(userId, {
-      x,
-      y,
-      color,
-      velocity: existing.velocity || 0,
-      gestureType: existing.gestureType || 'idle',
-      isActive: existing.isActive || false
+    this.springMesh.updateNode(userId, x, y, color, {
+      type: 'idle',
+      isActive: false
     })
 
     this.lastActivityTime = Date.now()
     this.isPaused = false
+
+    // Debug: Log first cursor update
+    if (this.springMesh.nodes.size === 1) {
+      console.log('🎨 First cursor added to visual service:', userId, 'at', x, y)
+    }
   }
 
   /**
-   * Update gesture data for a user
+   * Update gesture data for a user (API compatible)
    * @param {string} userId - User identifier
    * @param {Object} gestureData - {type, velocity, holdStart, isActive}
    */
   updateGestureData(userId, gestureData) {
-    // Store gesture state
-    this.gestureStates.set(userId, gestureData)
-
-    // Update cursor node with gesture info
-    const node = this.cursorNodes.get(userId)
+    // Update the node in the spring mesh
+    const node = this.springMesh.nodes.get(userId)
     if (node) {
-      node.velocity = gestureData.velocity || 0
       node.gestureType = gestureData.type || 'idle'
       node.isActive = gestureData.isActive || false
+
+      // Trigger visual effects based on gesture state
+      if (gestureData.isActive) {
+        // Emit wave pulse on tap or drag start
+        if (gestureData.type === 'tap' || gestureData.type === 'drag') {
+          this.wavePackets.emitPulse(userId, node.color)
+        }
+
+        // Emit particles continuously on drag
+        if (gestureData.type === 'drag') {
+          this.particles.emitParticles(userId, 2)
+        }
+      }
     }
 
     this.lastActivityTime = Date.now()
@@ -233,12 +240,11 @@ class GenerativeVisualService {
   }
 
   /**
-   * Remove user from visualization
+   * Remove user from visualization (API compatible)
    * @param {string} userId - User identifier
    */
   removeUser(userId) {
-    this.cursorNodes.delete(userId)
-    this.gestureStates.delete(userId)
+    this.springMesh.removeNode(userId)
   }
 
   /**
@@ -261,7 +267,6 @@ class GenerativeVisualService {
   updatePerformanceMetrics(p) {
     const now = p.millis()
     const delta = now - this.lastFrameTime
-    this.lastFrameTime = now
 
     // Calculate FPS (exponential moving average)
     if (delta > 0) {
@@ -271,51 +276,88 @@ class GenerativeVisualService {
 
     this.frameCount++
 
-    // Check for performance degradation every 60 frames (~2s at 30fps)
-    if (this.frameCount % 60 === 0) {
-      if (this.fps < 20 && this.performanceMode !== 'disabled') {
-        console.warn('GenerativeVisualService: FPS below 20, disabling visuals')
+    // Check for performance degradation every N frames
+    if (this.frameCount % this.frameSampleInterval === 0) {
+      if (this.fps < this.disableThreshold && this.performanceMode !== 'disabled') {
+        console.warn('GenerativeVisualService: FPS below threshold, disabling effects')
         this.performanceMode = 'disabled'
-        this.isPaused = true
-      } else if (this.fps < 29 && this.performanceMode === 'normal') {
-        console.warn('GenerativeVisualService: FPS below 29, entering degraded mode')
+      } else if (this.fps < this.degradeThreshold && this.performanceMode === 'normal') {
+        console.warn('GenerativeVisualService: FPS below threshold, entering degraded mode')
         this.performanceMode = 'degraded'
+      } else if (this.fps > this.recoveryThreshold && this.performanceMode !== 'normal') {
+        console.log('GenerativeVisualService: FPS recovered, returning to normal mode')
+        this.performanceMode = 'normal'
       }
     }
 
     // Check idle state
     if (Date.now() - this.lastActivityTime > this.idleThreshold) {
       if (!this.isPaused) {
-        console.log('GenerativeVisualService: Pausing due to inactivity')
         this.isPaused = true
+        console.log('GenerativeVisualService: Paused due to inactivity')
       }
     }
   }
 
   /**
    * Get performance metrics
-   * @returns {Object} {fps, performanceMode, isPaused}
+   * @returns {Object} Performance metrics
    */
   getPerformanceMetrics() {
     return {
       fps: Math.round(this.fps),
       performanceMode: this.performanceMode,
       isPaused: this.isPaused,
-      nodeCount: this.cursorNodes.size
+      nodeCount: this.springMesh?.getNodeCount() || 0,
+      edgeCount: this.springMesh?.getEdgeCount() || 0,
+      particleCount: this.particles?.getParticleCount() || 0,
+      pulseCount: this.wavePackets?.getPulseCount() || 0
     }
   }
 
   /**
-   * Cleanup: remove p5.js instance
+   * Get subsystem references for external access
+   * @returns {Object} Subsystem references
+   */
+  getSubsystems() {
+    return {
+      springMesh: this.springMesh,
+      wavePackets: this.wavePackets,
+      particles: this.particles,
+      geometry: this.geometry
+    }
+  }
+
+  /**
+   * Cleanup: remove p5.js instance and dispose subsystems
    */
   dispose() {
+    // Dispose subsystems
+    if (this.particles) {
+      this.particles.dispose()
+      this.particles = null
+    }
+
+    if (this.wavePackets) {
+      this.wavePackets.dispose()
+      this.wavePackets = null
+    }
+
+    if (this.springMesh) {
+      this.springMesh.dispose()
+      this.springMesh = null
+    }
+
+    if (this.geometry) {
+      this.geometry.dispose()
+      this.geometry = null
+    }
+
+    // Remove p5.js instance
     if (this.p5Instance) {
       this.p5Instance.remove()
       this.p5Instance = null
     }
-
-    this.cursorNodes.clear()
-    this.gestureStates.clear()
 
     console.log('✅ GenerativeVisualService: Disposed')
   }
