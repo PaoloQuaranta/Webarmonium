@@ -116,6 +116,7 @@ class WavePacketSystem {
   update(dt) {
     const now = Date.now()
     const pulsesToRemove = []
+    const pulsesToPropagate = []
 
     // Cap dt to prevent huge jumps
     dt = Math.min(dt, 0.1)
@@ -128,8 +129,18 @@ class WavePacketSystem {
       const age = (now - pulse.createdAt) / 1000 // seconds
       pulse.intensity = Math.max(0, this.baseIntensity - age * this.decayRate)
 
-      // Mark for removal if complete or faded
-      if (pulse.progress >= 1 || pulse.intensity <= 0) {
+      // Check if pulse completed its current edge
+      if (pulse.progress >= 1) {
+        // Mark for cascade propagation - continue to connected edges
+        if (pulse.intensity > 0.3) {  // Only propagate if still bright enough
+          pulsesToPropagate.push({
+            edge: pulse.edge,
+            intensity: pulse.intensity * 0.7,  // Reduce intensity for next hop
+            color: pulse.color
+          })
+        }
+        pulsesToRemove.push(pulseId)
+      } else if (pulse.intensity <= 0) {
         pulsesToRemove.push(pulseId)
       }
     }
@@ -137,6 +148,56 @@ class WavePacketSystem {
     // Remove completed/faded pulses
     for (const pulseId of pulsesToRemove) {
       this.removePulse(pulseId)
+    }
+
+    // Propagate pulses to connected edges (cascade effect)
+    for (const propagate of pulsesToPropagate) {
+      this.propagatePulse(propagate.edge, propagate.intensity, propagate.color)
+    }
+  }
+
+  /**
+   * Propagate pulse to connected edges from the target node
+   * @param {Object} sourceEdge - Edge that pulse just completed
+   * @param {number} intensity - Propagated intensity (reduced)
+   * @param {string} color - Pulse color
+   */
+  propagatePulse(sourceEdge, intensity, color) {
+    const targetNodeId = sourceEdge.targetId
+
+    // Find all edges from the target node (cascade to connected edges)
+    const connectedEdges = this.springMesh.edges.filter(
+      edge => edge.sourceId === targetNodeId
+    )
+
+    // Don't exceed maximum pulse count
+    if (this.activePulses.size >= this.maxPulses) {
+      return
+    }
+
+    // Emit pulse on each connected edge with reduced intensity
+    for (const edge of connectedEdges) {
+      const pulseId = `pulse-${this.pulseCounter++}`
+
+      const pulse = {
+        id: pulseId,
+        edge: edge,
+        progress: 0,
+        speed: this.baseSpeed + Math.random() * this.speedVariation,
+        intensity: intensity,  // Use reduced intensity from propagation
+        color: color,
+        width: this.pulseWidth * intensity,  // Scale width by intensity
+        createdAt: Date.now()
+      }
+
+      // Add to edge's pulse array
+      if (!edge.pulses) {
+        edge.pulses = []
+      }
+      edge.pulses.push(pulse)
+
+      // Track in active pulses
+      this.activePulses.set(pulseId, pulse)
     }
   }
 

@@ -110,9 +110,11 @@ class ParticleFlowManager {
    * @param {Object} edge - Edge object
    * @param {string} color - Particle color (hex)
    * @param {number} startProgress - Starting progress (0-1)
+   * @param {number} initialLife - Initial life value (default 1.0)
+   * @param {number} initialSize - Initial size (optional, random if not provided)
    * @returns {Object} The created particle or null if limit reached
    */
-  createParticle(edge, color, startProgress = 0) {
+  createParticle(edge, color, startProgress = 0, initialLife = 1.0, initialSize = null) {
     // Check particle count limit
     if (this.particles.size >= this.maxParticles) {
       return null
@@ -125,9 +127,9 @@ class ParticleFlowManager {
       edge: edge,
       progress: startProgress,
       speed: this.baseSpeed + Math.random() * this.speedVariation,
-      size: this.minSize + Math.random() * (this.maxSize - this.minSize),
+      size: initialSize || (this.minSize + Math.random() * (this.maxSize - this.minSize)),
       color: color,
-      life: 1.0,
+      life: initialLife,
       createdAt: Date.now()
     }
 
@@ -152,6 +154,7 @@ class ParticleFlowManager {
     dt = Math.min(dt, 0.1)
 
     const particlesToRemove = []
+    const particlesToPropagate = []
 
     for (const [particleId, particle] of this.particles) {
       // Update progress along the edge
@@ -160,8 +163,19 @@ class ParticleFlowManager {
       // Decay life
       particle.life -= this.lifeDecay * dt
 
-      // Mark for removal if complete or dead
-      if (particle.progress >= 1 || particle.life <= 0) {
+      // Check if particle completed its current edge
+      if (particle.progress >= 1) {
+        // Mark for cascade propagation - continue to connected edges
+        if (particle.life > 0.4) {  // Only propagate if still alive enough
+          particlesToPropagate.push({
+            edge: particle.edge,
+            life: particle.life * 0.7,  // Reduce life for next hop
+            color: particle.color,
+            size: particle.size * 0.9  // Slightly smaller for next hop
+          })
+        }
+        particlesToRemove.push(particleId)
+      } else if (particle.life <= 0) {
         particlesToRemove.push(particleId)
       }
     }
@@ -169,6 +183,37 @@ class ParticleFlowManager {
     // Remove dead particles
     for (const particleId of particlesToRemove) {
       this.removeParticle(particleId)
+    }
+
+    // Propagate particles to connected edges (cascade effect)
+    for (const propagate of particlesToPropagate) {
+      this.propagateParticle(propagate.edge, propagate.life, propagate.color, propagate.size)
+    }
+  }
+
+  /**
+   * Propagate particle to connected edges from the target node
+   * @param {Object} sourceEdge - Edge that particle just completed
+   * @param {number} life - Propagated life (reduced)
+   * @param {string} color - Particle color
+   * @param {number} size - Particle size
+   */
+  propagateParticle(sourceEdge, life, color, size) {
+    const targetNodeId = sourceEdge.targetId
+
+    // Find all edges from the target node (cascade to connected edges)
+    const connectedEdges = this.springMesh.edges.filter(
+      edge => edge.sourceId === targetNodeId
+    )
+
+    // Don't exceed particle count limit
+    if (this.particles.size >= this.maxParticles) {
+      return
+    }
+
+    // Emit particle on each connected edge with reduced life
+    for (const edge of connectedEdges) {
+      this.createParticle(edge, color, 0, life, size)
     }
   }
 
