@@ -924,16 +924,54 @@ class WebarmoniumApp {
     // PHASE 4 FIX: Changed from 'musical-event' (dash) to 'musical:event' (colon) to match backend
     // PHASE 7 FIX: Extract actual event from wrapper (backend sends { event: {...} })
     // CRITICAL FIX: Schedule notes based on timestamp to avoid cluster playback
+    // VISUAL FIX: Add visual feedback (pulses + particles) for remote gestures
     this.socketService.on('musical:event', (musicalEventWrapper) => {
       if (!this.isAudioStarted || !musicalEventWrapper?.event) {
         return
       }
 
       const event = musicalEventWrapper.event
+      const remoteUserId = musicalEventWrapper.userId
 
       // Minimal logging: only first note of phrase + critical info
       if (event.properties?.noteIndex === 0 || !event.properties?.noteIndex) {
         console.log(`🎵 Remote: ${event.properties?.gestureAction || 'unknown'} - freq=${event.properties?.frequency?.toFixed(0)}Hz, notes=${event.properties?.totalNotes || 1}`)
+      }
+
+      // CRITICAL FIX: Add visual feedback for remote gestures (pulses + particles)
+      // Get gesture type from event properties
+      const gestureAction = event.properties?.gestureAction || 'tap'
+      const gestureType = gestureAction === 'drag' ? 'drag' : 'tap'
+
+      // Get remote user's cursor position from cursor manager
+      let remotePosition = { x: 0.5, y: 0.5 } // Default center
+      let userColor = '#ff6b6b' // Default color
+
+      if (this.cursorManager) {
+        const remoteCursor = this.cursorManager.cursors.get(remoteUserId)
+        if (remoteCursor) {
+          remotePosition = { x: remoteCursor.x, y: remoteCursor.y }
+          userColor = remoteCursor.color
+        }
+      }
+
+      // Update visual service with remote gesture data to trigger pulses/particles
+      if (this.visualService) {
+        this.visualService.updateGestureData(remoteUserId, {
+          type: gestureType,
+          velocity: event.properties?.velocity / 100 || 0.5,
+          isActive: true
+        })
+
+        // Reset gesture state after short delay to prevent continuous emission
+        setTimeout(() => {
+          if (this.visualService) {
+            this.visualService.updateGestureData(remoteUserId, {
+              type: 'idle',
+              isActive: false
+            })
+          }
+        }, 100)
       }
 
       // CRITICAL FIX: Schedule note playback based on relativeDelay
