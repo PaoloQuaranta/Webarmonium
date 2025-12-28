@@ -232,7 +232,8 @@ class GenerativeVisualService {
         // Emit wave pulse on tap or drag start
         if (gestureData.type === 'tap' || gestureData.type === 'drag') {
           console.log('✨ Emitting pulse for', gestureData, 'userId:', userId.substring(0, 8))
-          console.log('🔍 wavePackets type:', typeof this.wavePackets, 'instanceof check:', this.wavePackets instanceof WavePacketSystem)
+          console.log('🔍 wavePackets type:', typeof this.wavePackets, 'is truthy:', !!this.wavePackets)
+          console.log('🔍 wavePackets keys:', this.wavePackets ? Object.keys(this.wavePackets).slice(0, 5) : 'N/A')
 
           // DEBUG: Check if wavePackets exists
           if (!this.wavePackets) {
@@ -250,7 +251,7 @@ class GenerativeVisualService {
           // Also emit particles on tap for better visual feedback
           const particleCount = gestureData.type === 'tap' ? 5 : 2
           console.log('✨ Emitting', particleCount, 'particles for', gestureData.type, 'userId:', userId.substring(0, 8))
-          console.log('🔍 particles type:', typeof this.particles)
+          console.log('🔍 particles type:', typeof this.particles, 'is truthy:', !!this.particles)
 
           // DEBUG: Check if particles exists
           if (!this.particles) {
