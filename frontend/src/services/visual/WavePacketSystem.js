@@ -44,8 +44,8 @@ class WavePacketSystem {
   }
 
   /**
-   * Emit pulse from a cursor to the grid network
-   * Pulses travel through cursor-grid and grid-connection edges
+   * Emit pulse from a cursor through the entire trace network
+   * Pulses travel through all edge types from the source cursor
    * @param {string} sourceUserId - Source user ID
    * @param {string} color - Pulse color (hex)
    */
@@ -56,8 +56,8 @@ class WavePacketSystem {
     // Update node's last pulse time
     sourceNode.lastPulseTime = Date.now()
 
-    // Find all cursor-trace edges from this cursor
-    const connectedEdges = this.springMesh.edges.filter(
+    // Find all edges from this cursor (cursor-trace edges)
+    const sourceEdges = this.springMesh.edges.filter(
       edge => edge.sourceId === sourceUserId && edge.type === 'cursor-trace'
     )
 
@@ -66,29 +66,9 @@ class WavePacketSystem {
       return
     }
 
-    // Emit pulse along each cursor-grid edge
-    for (const edge of connectedEdges) {
-      const pulseId = `pulse-${this.pulseCounter++}`
-
-      const pulse = {
-        id: pulseId,
-        edge: edge,
-        progress: 0,
-        speed: this.baseSpeed + Math.random() * this.speedVariation,
-        intensity: this.baseIntensity,
-        color: color,
-        width: this.pulseWidth,
-        createdAt: Date.now()
-      }
-
-      // Add to edge's pulse array
-      if (!edge.pulses) {
-        edge.pulses = []
-      }
-      edge.pulses.push(pulse)
-
-      // Track in active pulses
-      this.activePulses.set(pulseId, pulse)
+    // Emit pulse along each source edge
+    for (const edge of sourceEdges) {
+      this.emitPulseOnEdge(edge, color)
     }
   }
 

@@ -72,6 +72,10 @@ class SpringMeshNetwork {
     this.physicsEnabled = true
     this.lastUpdateTime = 0
 
+    // Topology rebuild throttling (for dynamic trace nodes)
+    this.lastTopologyRebuildTime = 0
+    this.topologyRebuildInterval = 100  // ms between rebuilds
+
     // Configuration
     this.springStiffness = springConfig.stiffness
     this.springRestLength = springConfig.restLength
@@ -241,6 +245,7 @@ class SpringMeshNetwork {
    */
   updateNode(userId, x, y, color, gestureData) {
     const existing = this.nodes.get(userId)
+    let wasNew = false
 
     if (existing) {
       // Smoothly interpolate towards target position
@@ -253,6 +258,13 @@ class SpringMeshNetwork {
       existing.color = color
       existing.gestureType = gestureData.type || 'idle'
       existing.isActive = gestureData.isActive || false
+
+      // Rebuild topology when cursor moves (throttled for dynamic trace nodes)
+      const now = Date.now()
+      if (now - this.lastTopologyRebuildTime > this.topologyRebuildInterval) {
+        this.rebuildEdges()
+        this.lastTopologyRebuildTime = now
+      }
     } else {
       // Create new node
       this.nodes.set(userId, {
@@ -270,10 +282,14 @@ class SpringMeshNetwork {
         connections: new Set(),
         lastPulseTime: 0
       })
+      wasNew = true
 
       // Rebuild edges when node count changes
       this.rebuildEdges()
+      this.lastTopologyRebuildTime = Date.now()
     }
+
+    return wasNew
   }
 
   /**

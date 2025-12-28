@@ -73,8 +73,8 @@ const EDGE_CONFIG = {
   activeThickness: 3,
   segments: 20,           // Curve segments for gradient
   controlPointOffset: 0.05, // Normalized offset for Bezier control
-  minAlpha: 100,
-  maxAlpha: 150
+  minAlpha: 30,           // Very subtle base edge (reduced from 100)
+  maxAlpha: 50            // Subtle base edge (reduced from 150)
 }
 
 // Export all configurations
