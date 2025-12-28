@@ -227,6 +227,11 @@ class WavePacketSystem {
    * @param {p5} p - p5.js instance
    */
   render(p) {
+    // DEBUG: Log pulse count occasionally
+    if (p.frameCount % 60 === 0 && this.activePulses.size > 0) {
+      console.log('🌊 Rendering', this.activePulses.size, 'pulses')
+    }
+
     for (const pulse of this.activePulses.values()) {
       this.renderPulse(p, pulse)
     }
@@ -242,7 +247,10 @@ class WavePacketSystem {
     const nodeA = this.springMesh.getNodeOrIntermediate(edge.sourceId)
     const nodeB = this.springMesh.getNodeOrIntermediate(edge.targetId)
 
-    if (!nodeA || !nodeB) return
+    if (!nodeA || !nodeB) {
+      console.warn('⚠️ Pulse render: Missing nodes for edge', edge.sourceId.substring(0, 8), '->', edge.targetId.substring(0, 8))
+      return
+    }
 
     // Calculate position on Bezier curve
     const pos = this.calculateBezierPosition(
@@ -258,6 +266,18 @@ class WavePacketSystem {
     // Calculate visual properties
     const alpha = Math.floor(pulse.intensity * 255)
     const size = pulse.width * pulse.intensity
+
+    // DEBUG: Log first few renders
+    if (this.activePulses.size <= 3 && p.frameCount % 10 === 0) {
+      console.log('🌊 Rendering pulse:', {
+        pos: `(${Math.round(pos.x)}, ${Math.round(pos.y)})`,
+        progress: pulse.progress.toFixed(2),
+        intensity: pulse.intensity.toFixed(2),
+        size: size.toFixed(1),
+        alpha: alpha,
+        color: pulse.color
+      })
+    }
 
     // Draw outer glow
     p.noStroke()

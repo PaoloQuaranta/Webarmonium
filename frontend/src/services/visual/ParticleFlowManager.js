@@ -243,6 +243,11 @@ class ParticleFlowManager {
    * @param {p5} p - p5.js instance
    */
   render(p) {
+    // DEBUG: Log particle count occasionally
+    if (p.frameCount % 60 === 0 && this.particles.size > 0) {
+      console.log('✨ Rendering', this.particles.size, 'particles')
+    }
+
     for (const particle of this.particles.values()) {
       this.renderParticle(p, particle)
     }
@@ -258,7 +263,10 @@ class ParticleFlowManager {
     const nodeA = this.springMesh.getNodeOrIntermediate(edge.sourceId)
     const nodeB = this.springMesh.getNodeOrIntermediate(edge.targetId)
 
-    if (!nodeA || !nodeB) return
+    if (!nodeA || !nodeB) {
+      console.warn('⚠️ Particle render: Missing nodes for edge', edge.sourceId.substring(0, 8), '->', edge.targetId.substring(0, 8))
+      return
+    }
 
     // Calculate position on Bezier curve
     const pos = this.calculateBezierPosition(
@@ -273,6 +281,18 @@ class ParticleFlowManager {
 
     // Calculate alpha based on life
     const alpha = Math.floor(particle.life * 180) // Max 180/255
+
+    // DEBUG: Log first few renders
+    if (this.particles.size <= 5 && p.frameCount % 10 === 0) {
+      console.log('✨ Rendering particle:', {
+        pos: `(${Math.round(pos.x)}, ${Math.round(pos.y)})`,
+        progress: particle.progress.toFixed(2),
+        life: particle.life.toFixed(2),
+        size: particle.size.toFixed(1),
+        alpha: alpha,
+        color: particle.color
+      })
+    }
 
     // Parse color
     const rgb = this.hexToRgbArray(particle.color)
