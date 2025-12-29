@@ -92,21 +92,23 @@ class ParticleFlowManager {
     }
 
     // Find all cursor-trace edges from this cursor
+    // FIX: Also find edges where this user is the TARGET (for remote users)
     const sourceEdges = this.springMesh.edges.filter(
-      edge => edge.sourceId === sourceUserId && edge.type === 'cursor-trace'
+      edge => (edge.sourceId === sourceUserId || edge.targetId === sourceUserId) && edge.type === 'cursor-trace'
     )
 
     console.log('✨ emitParticles:', {
       userId: sourceUserId.substring(0, 8),
-      sourceEdgesFound: sourceEdges.length,
-      totalEdges: this.springMesh.edges.length,
-      countPerEdge: count,
-      activeParticlesBefore: this.particles.size
+      edgesFound: sourceEdges.length,
+      countPerEdge: count
     })
 
     let created = 0
-    // Emit particles along each source edge
+    // Emit particles along each edge
     for (const edge of sourceEdges) {
+      // If user is the target, start particle from the end (backwards)
+      const startFromEnd = (edge.targetId === sourceUserId)
+
       for (let i = 0; i < count; i++) {
         // Check limit before each particle
         if (this.particles.size >= this.maxParticles) {
@@ -114,7 +116,7 @@ class ParticleFlowManager {
           return
         }
 
-        const particle = this.createParticle(edge, sourceNode.color)
+        const particle = this.createParticle(edge, sourceNode.color, startFromEnd ? 1 : 0)
         if (particle) created++
       }
     }

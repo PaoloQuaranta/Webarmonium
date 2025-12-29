@@ -60,19 +60,14 @@ class WavePacketSystem {
     sourceNode.lastPulseTime = Date.now()
 
     // Find all edges from this cursor (cursor-trace edges)
+    // FIX: Also find edges where this user is the TARGET (for remote users)
+    // Remote users are always targets in the topology, so pulses must travel backwards
     const sourceEdges = this.springMesh.edges.filter(
-      edge => edge.sourceId === sourceUserId && edge.type === 'cursor-trace'
+      edge => (edge.sourceId === sourceUserId || edge.targetId === sourceUserId) && edge.type === 'cursor-trace'
     )
 
-    // DEBUG: Print edge sources directly
     console.log('🌊 emitPulse userId:', sourceUserId)
-    console.log('🌊 Looking for edges with sourceId=', sourceUserId, 'type=cursor-trace')
-    console.log('🌊 Found:', sourceEdges.length, 'edges')
-    console.log('🌊 All edges in mesh:')
-    this.springMesh.edges.forEach((e, i) => {
-      console.log('  Edge', i, ': source=', e.sourceId, 'target=', e.targetId, 'type=', e.type)
-    })
-    console.log('🌊 All nodes in mesh:', Array.from(this.springMesh.nodes.keys()))
+    console.log('🌊 Found edges where user is source OR target:', sourceEdges.length)
 
     // Don't exceed maximum pulse count
     if (this.activePulses.size >= this.maxPulses) {
@@ -80,11 +75,13 @@ class WavePacketSystem {
       return
     }
 
-    // Emit pulse along each source edge
+    // Emit pulse along each edge
     for (const edge of sourceEdges) {
-      const pulse = this.emitPulseOnEdge(edge, color)
+      // If user is the target, start pulse from the end (backwards)
+      const startFromEnd = (edge.targetId === sourceUserId)
+      const pulse = this.emitPulseOnEdge(edge, color, startFromEnd ? 1 : 0)
       if (pulse) {
-        console.log('✅ Pulse created:', pulse.id.substring(0, 15), 'activePulses:', this.activePulses.size)
+        console.log('✅ Pulse created:', pulse.id.substring(0, 15), 'direction:', startFromEnd ? 'BACKWARD' : 'FORWARD')
       }
     }
   }
