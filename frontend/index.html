@@ -90,6 +90,7 @@
             height: 100%;
             cursor: crosshair;
             touch-action: none;
+            z-index: 5; /* CRITICAL: Above p5 canvas (z-index: 0) to receive mouse/touch events */
         }
 
         .room-interface {
