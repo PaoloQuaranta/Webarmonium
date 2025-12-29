@@ -755,6 +755,12 @@ class WebarmoniumApp {
         data.position
       )
 
+      // CRITICAL: Track that this user is using hold system to ignore duplicate musical:event
+      if (!this.holdSystemUsers) {
+        this.holdSystemUsers = new Set()
+      }
+      this.holdSystemUsers.add(data.userId)
+
       if (result) {
         // Track remote hold for cleanup and visual feedback
         this.activeRemoteHolds.set(data.noteId, {
@@ -810,6 +816,15 @@ class WebarmoniumApp {
 
       // Remove from tracking
       this.activeRemoteHolds.delete(data.noteId)
+
+      // CRITICAL: Remove user from holdSystemUsers set after a delay to ignore any duplicate musical:event
+      // The backend may send musical:event even when hold system was used (if not respecting holdWasActive)
+      setTimeout(() => {
+        if (this.holdSystemUsers) {
+          this.holdSystemUsers.delete(data.userId)
+          console.log(`✅ Removed ${data.userId.substring(0, 8)} from holdSystemUsers (safe to process musical:event again)`)
+        }
+      }, 2000) // 2 second delay to ignore any duplicate events
 
       console.log(`🌐 Remote hold end: user ${data.userId.substring(0, 8)}, ${data.duration}ms hold${data.reason ? ' (' + data.reason + ')' : ''}`)
     })
@@ -939,6 +954,14 @@ class WebarmoniumApp {
       // When local gesture creates sound, backend broadcasts it back
       // We must ignore it to avoid playing it twice (strum effect)
       if (remoteUserId === this.socketService.socket.id) {
+        return
+      }
+
+      // CRITICAL WORKAROUND: Ignore musical:event from users who just used hold system
+      // The backend should respect holdWasActive flag, but if it doesn't (e.g., outdated code),
+      // we ignore duplicate events here since hold:start/hold:end already played the note
+      if (this.holdSystemUsers && this.holdSystemUsers.has(remoteUserId)) {
+        console.log(`⏭️ Ignoring musical:event from ${remoteUserId.substring(0, 8)} - hold system was active`)
         return
       }
 
