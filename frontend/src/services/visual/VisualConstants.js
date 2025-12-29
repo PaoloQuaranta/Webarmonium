@@ -57,11 +57,11 @@ const PERFORMANCE_CONFIG = {
 
 // Node Visualization Configuration
 const NODE_CONFIG = {
-  idleSize: 10,
-  tapSize: 15,
-  dragSize: 20,
-  holdPulseMin: 20,
-  holdPulseMax: 30,
+  idleSize: 6,            // Reduced from 10
+  tapSize: 10,            // Reduced from 15
+  dragSize: 14,           // Reduced from 20
+  holdPulseMin: 15,       // Reduced proportionally
+  holdPulseMax: 22,       // Reduced proportionally
   holdPulseSpeed: 0.005,
   glowBlur: 20,
   glowActiveOnly: true
@@ -73,8 +73,8 @@ const EDGE_CONFIG = {
   activeThickness: 3,
   segments: 20,           // Curve segments for gradient
   controlPointOffset: 0.05, // Normalized offset for Bezier control
-  minAlpha: 5,            // Almost invisible base edge (reduced from 30)
-  maxAlpha: 10            // Very subtle base edge (reduced from 50)
+  minAlpha: 30,           // Increased from 5 for better visibility
+  maxAlpha: 60            // Increased from 10 for better visibility
 }
 
 // Export all configurations
