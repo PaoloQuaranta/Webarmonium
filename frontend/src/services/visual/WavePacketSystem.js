@@ -108,6 +108,7 @@ class WavePacketSystem {
       intensity: this.baseIntensity,
       color: color,
       width: this.pulseWidth,
+      reverse: startProgress === 1,  // Flag for backward travel
       createdAt: Date.now()
     }
 
@@ -136,23 +137,20 @@ class WavePacketSystem {
     dt = Math.min(dt, 0.1)
 
     for (const [pulseId, pulse] of this.activePulses) {
-      // Update progress along the edge
-      pulse.progress += pulse.speed * dt
+      // Update progress along the edge (forward or backward)
+      if (pulse.reverse) {
+        pulse.progress -= pulse.speed * dt
+      } else {
+        pulse.progress += pulse.speed * dt
+      }
 
       // Calculate age-based intensity decay
       const age = (now - pulse.createdAt) / 1000 // seconds
       pulse.intensity = Math.max(0, this.baseIntensity - age * this.decayRate)
 
       // Check if pulse completed its current edge
-      if (pulse.progress >= 1) {
-        // Mark for cascade propagation - continue to connected edges
-        if (pulse.intensity > 0.3) {  // Only propagate if still bright enough
-          pulsesToPropagate.push({
-            edge: pulse.edge,
-            intensity: pulse.intensity * 0.7,  // Reduce intensity for next hop
-            color: pulse.color
-          })
-        }
+      const completed = pulse.reverse ? (pulse.progress <= 0) : (pulse.progress >= 1)
+      if (completed) {
         pulsesToRemove.push(pulseId)
       } else if (pulse.intensity <= 0) {
         pulsesToRemove.push(pulseId)

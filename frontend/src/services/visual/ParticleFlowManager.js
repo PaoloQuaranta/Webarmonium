@@ -149,6 +149,7 @@ class ParticleFlowManager {
       size: initialSize || (this.minSize + Math.random() * (this.maxSize - this.minSize)),
       color: color,
       life: initialLife,
+      reverse: startProgress === 1,  // Flag for backward travel
       createdAt: Date.now()
     }
 
@@ -176,23 +177,19 @@ class ParticleFlowManager {
     const particlesToPropagate = []
 
     for (const [particleId, particle] of this.particles) {
-      // Update progress along the edge
-      particle.progress += particle.speed * dt
+      // Update progress along the edge (forward or backward)
+      if (particle.reverse) {
+        particle.progress -= particle.speed * dt
+      } else {
+        particle.progress += particle.speed * dt
+      }
 
       // Decay life
       particle.life -= this.lifeDecay * dt
 
       // Check if particle completed its current edge
-      if (particle.progress >= 1) {
-        // Mark for cascade propagation - continue to connected edges
-        if (particle.life > 0.4) {  // Only propagate if still alive enough
-          particlesToPropagate.push({
-            edge: particle.edge,
-            life: particle.life * 0.7,  // Reduce life for next hop
-            color: particle.color,
-            size: particle.size * 0.9  // Slightly smaller for next hop
-          })
-        }
+      const completed = particle.reverse ? (particle.progress <= 0) : (particle.progress >= 1)
+      if (completed) {
         particlesToRemove.push(particleId)
       } else if (particle.life <= 0) {
         particlesToRemove.push(particleId)
