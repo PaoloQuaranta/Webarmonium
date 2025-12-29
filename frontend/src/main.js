@@ -965,6 +965,15 @@ class WebarmoniumApp {
         return
       }
 
+      // DEBUG: Log holdSystemUsers state to understand why filter isn't working
+      console.log(`🔍 holdSystemUsers check:`, {
+        hasSet: !!this.holdSystemUsers,
+        setSize: this.holdSystemUsers?.size || 0,
+        setMembers: Array.from(this.holdSystemUsers || []).map(id => id.substring(0, 8)),
+        inSet: this.holdSystemUsers?.has(remoteUserId) || false,
+        remoteUserId: remoteUserId?.substring(0, 8)
+      })
+
       // DEBUG: Log all event properties
       console.log('🔍 Remote musical:event:', {
         userId: remoteUserId?.substring(0, 8),
