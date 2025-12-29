@@ -46,6 +46,7 @@ class EnhancedGestureCapture {
     // Sustained hold state for note gate control
     this.sustainedHold = {
       isActive: false,
+      wasActive: false,        // CRITICAL: Tracks if hold system was used at any point (even after transition to drag)
       startTime: 0,
       holdThreshold: 100,      // ms - distinguishes tap from hold (reduced for faster response)
       activeNoteId: null,
@@ -205,10 +206,14 @@ class EnhancedGestureCapture {
     this.dragStreaming.lastNoteTime = Date.now()
     this.dragStreaming.streamedNotes = [] // Reset notes array for new gesture
 
+    // Reset wasActive for new gesture (will be set to true when hold activates)
+    this.sustainedHold.wasActive = false
+
     // SUSTAINED NOTE: Start immediately on mousedown
     // If user moves, we'll transition to drag streaming
     // If user releases without moving, this is a tap with duration
     this.sustainedHold.isActive = true
+    this.sustainedHold.wasActive = true  // CRITICAL: Mark that hold system was used
     this.sustainedHold.startTime = Date.now()
     this.sustainedHold.activeNoteId = `hold-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     this.sustainedHold.startPosition = coordinates
@@ -422,9 +427,12 @@ class EnhancedGestureCapture {
       this.sustainedHold.isActive = false
       this.sustainedHold.activeNoteId = null
       this.sustainedHold.startPosition = null
+    }
 
-      // CRITICAL: Mark that hold system was used for this gesture
-      // Backend should NOT generate additional notes via gestureToMusicService
+    // CRITICAL: Mark that hold system was used for this gesture
+    // Backend should NOT generate additional notes via gestureToMusicService
+    // Use wasActive instead of isActive (isActive may be false after transition to drag)
+    if (this.sustainedHold.wasActive) {
       this.currentGesture.holdWasActive = true
     }
 
