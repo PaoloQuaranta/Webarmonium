@@ -57,11 +57,11 @@ const PERFORMANCE_CONFIG = {
 
 // Node Visualization Configuration
 const NODE_CONFIG = {
-  idleSize: 6,            // Reduced from 10
-  tapSize: 10,            // Reduced from 15
-  dragSize: 14,           // Reduced from 20
-  holdPulseMin: 15,       // Reduced proportionally
-  holdPulseMax: 22,       // Reduced proportionally
+  idleSize: 4,            // Further reduced from 6
+  tapSize: 6,             // Further reduced from 10
+  dragSize: 8,            // Further reduced from 14
+  holdPulseMin: 12,       // Reduced proportionally
+  holdPulseMax: 18,       // Reduced proportionally
   holdPulseSpeed: 0.005,
   glowBlur: 20,
   glowActiveOnly: true
