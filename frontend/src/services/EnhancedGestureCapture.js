@@ -825,6 +825,7 @@ class EnhancedGestureCapture {
           id: gesture.id,
           userId: gesture.userId,
           roomId: gesture.roomId,
+          action: gesture.action, // CRITICAL: Include action so backend knows if it's tap/drag/hover
           path: gesture.path,
           position: gesture.coordinates || gesture.currentPosition || { x: 0.5, y: 0.5 }, // Object format
           coordinates: gesture.coordinates || gesture.currentPosition, // Also include for compatibility
