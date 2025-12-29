@@ -935,9 +935,17 @@ class WebarmoniumApp {
       const event = musicalEventWrapper.event
       const remoteUserId = musicalEventWrapper.userId
 
+      // CRITICAL: Ignore own musical events to prevent duplicate playback
+      // When local gesture creates sound, backend broadcasts it back
+      // We must ignore it to avoid playing it twice (strum effect)
+      if (remoteUserId === this.socketService.socket.id) {
+        return
+      }
+
       // DEBUG: Log all event properties
       console.log('🔍 Remote musical:event:', {
         userId: remoteUserId?.substring(0, 8),
+        isOwn: remoteUserId === this.socketService.socket.id,
         gestureAction: event.properties?.gestureAction,
         isStreamed: event.properties?.isStreamed,
         totalNotes: event.properties?.totalNotes,

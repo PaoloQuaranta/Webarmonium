@@ -422,6 +422,10 @@ class EnhancedGestureCapture {
       this.sustainedHold.isActive = false
       this.sustainedHold.activeNoteId = null
       this.sustainedHold.startPosition = null
+
+      // CRITICAL: Mark that hold system was used for this gesture
+      // Backend should NOT generate additional notes via gestureToMusicService
+      this.currentGesture.holdWasActive = true
     }
 
     // CRITICAL: Finalize gesture action based on movement
@@ -838,7 +842,10 @@ class EnhancedGestureCapture {
           // Each note has: frequency, duration, articulation, position, velocity, timestamp
           streamedNotes: gesture.streamedNotes || [],
           streamingWasActive: gesture.streamingWasActive || false,
-          streamingNoteCount: gesture.streamingNoteCount || 0
+          streamingNoteCount: gesture.streamingNoteCount || 0,
+          // CRITICAL: holdWasActive indicates if gesture was handled by hold:start/hold:end system
+          // When true, backend should NOT generate additional notes via gestureToMusicService
+          holdWasActive: gesture.holdWasActive || false
         },
         musicalEvent,
         timestamp: Date.now()
