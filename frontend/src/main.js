@@ -621,9 +621,11 @@ class WebarmoniumApp {
       const gestureAction = gesture.action || this.gestureProcessor.determineGestureAction(gesture)
       console.log('🔍 Final gesture action for end callback:', gestureAction)
 
+      // REMOTE FIX: TAP gestures MUST send musical events for remote users
+      // Don't skip - let it fall through to emit musical:event to backend
       if (gestureAction === 'tap') {
-        console.log('🚫 Skipping automatic musical event for TAP gesture')
-        return
+        console.log('🎯 TAP gesture - sending musical event for remote sync')
+        // Continue to musical event emission below
       }
 
       // Process drag gestures - check if timer is still pending
