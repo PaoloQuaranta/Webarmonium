@@ -64,21 +64,15 @@ class WavePacketSystem {
       edge => edge.sourceId === sourceUserId && edge.type === 'cursor-trace'
     )
 
-    // DEBUG: Show all edge sources to debug mismatch
-    const edgeSources = this.springMesh.edges.map(e => ({
-      source: e.sourceId.substring(0, 8),
-      target: e.targetId.substring(0, 8),
-      type: e.type
-    }))
-
-    console.log('🌊 emitPulse:', {
-      userId: sourceUserId.substring(0, 8),
-      sourceEdgesFound: sourceEdges.length,
-      totalEdges: this.springMesh.edges.length,
-      activePulsesBefore: this.activePulses.size,
-      allEdgeSources: edgeSources,
-      nodesInMesh: Array.from(this.springMesh.nodes.keys()).map(id => id.substring(0, 8))
+    // DEBUG: Print edge sources directly
+    console.log('🌊 emitPulse userId:', sourceUserId)
+    console.log('🌊 Looking for edges with sourceId=', sourceUserId, 'type=cursor-trace')
+    console.log('🌊 Found:', sourceEdges.length, 'edges')
+    console.log('🌊 All edges in mesh:')
+    this.springMesh.edges.forEach((e, i) => {
+      console.log('  Edge', i, ': source=', e.sourceId, 'target=', e.targetId, 'type=', e.type)
     })
+    console.log('🌊 All nodes in mesh:', Array.from(this.springMesh.nodes.keys()))
 
     // Don't exceed maximum pulse count
     if (this.activePulses.size >= this.maxPulses) {
