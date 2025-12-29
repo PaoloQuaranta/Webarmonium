@@ -456,6 +456,11 @@ const GestureHandler = {
           // CRITICAL: hold:start/hold:end system was used for this gesture
           // Do NOT generate additional notes via gestureToMusicService to avoid duplicate playback (strum effect)
           console.log(`⏭️ Skipping gestureToMusicService - hold system was active (already handled via hold:start/hold:end)`)
+          console.log(`🔍 holdWasActive check:`, {
+            holdWasActive: gesture.holdWasActive,
+            action: gesture.action,
+            streamedNotes: gesture.streamedNotes?.length || 0
+          })
         } else {
           // No streamedNotes - use legacy behavior (let gestureToMusicService generate notes)
           // This handles taps and other non-streaming gestures

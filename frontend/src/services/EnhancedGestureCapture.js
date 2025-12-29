@@ -858,6 +858,14 @@ class EnhancedGestureCapture {
         musicalEvent,
         timestamp: Date.now()
       })
+
+      // DEBUG: Log what was sent
+      console.log('📤 gesture-complete emitted:', {
+        action: gesture.action,
+        holdWasActive: gesture.holdWasActive,
+        streamedNotes: gesture.streamedNotes?.length || 0,
+        duration: gesture.duration
+      })
     }
   }
 
