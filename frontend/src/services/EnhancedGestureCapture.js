@@ -283,9 +283,9 @@ class EnhancedGestureCapture {
       // Calculate total distance moved from start position
       this.dragStreaming.totalDistance += distance
 
-      // TRANSITION: If sustained note active AND movement detected → switch to drag
-      if (this.sustainedHold.isActive && distance > 0.001) {
-        console.log('🎛️ Movement detected - transitioning from sustained note to drag')
+      // TRANSITION: If sustained note active AND movement exceeds threshold → switch to drag
+      if (this.sustainedHold.isActive && this.dragStreaming.totalDistance > this.dragStreaming.minDistanceForDrag) {
+        console.log('🎛️ Movement exceeds threshold - transitioning from sustained note to drag')
 
         // End the sustained note
         if (this.onSustainedHoldEnd) {
