@@ -311,6 +311,9 @@ class EnhancedGestureCapture {
         this.sustainedHold.isActive = false
         this.sustainedHold.activeNoteId = null
         this.sustainedHold.startPosition = null
+        // CRITICAL FIX: Reset wasActive when transitioning to drag
+        // This gesture now uses streaming, not hold system - backend should process streamedNotes
+        this.sustainedHold.wasActive = false
 
         // Activate drag streaming and play first drag note
         this.dragStreaming.isActive = true
