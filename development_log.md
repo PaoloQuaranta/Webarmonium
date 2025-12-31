@@ -1523,3 +1523,108 @@ The system has **TWO parallel audio systems**:
 4. Development log update (this entry)
 
 ---
+
+## Entry #8 - Drag Detection Bug Fix (RESOLVED)
+
+**Date**: 2025-12-31
+**Time**: ~14:30 UTC
+**Author**: Claude Code (AI Assistant)
+**Status**: RESOLVED - Both tap and drag working correctly
+
+### Problem Statement
+
+After fixing the remote tap bug, drags were broken. When performing a drag gesture:
+- Expected: Streaming notes played in real-time during drag
+- Actual: Sustained note played during entire drag, cluster of notes at mouseup
+
+User reported: "drag locale e remoto è ancora come prima. nota lunga durante il drag e quando rilascio il mouse sento un grappolo di note simultanee."
+
+---
+
+### Root Cause Analysis
+
+**Initial Diagnosis:** Thought the issue was related to the `holdWasActive` flag not being reset during tap→drag transition.
+
+**Actual Root Cause (from user logs):**
+```
+🔍 GESTURE CLASSIFICATION: Final action is TAP {totalDistance: '1.07px', minDistanceForDrag: '15px', ...}
+```
+
+The user clearly moved ~370 pixels (x: 0.26 → 0.63 on a 1000px canvas), but `totalDistance` showed only **1.07px**.
+
+**The Bug:** Unit mismatch in distance comparison
+- `distance` calculated in **normalized coordinates** (0-1 range)
+- `minDistanceForDrag: 15` in **pixels**
+- Comparison: `normalizedDistance (0.37) < pixelThreshold (15)` → always true!
+
+This caused the gesture to never transition from tap to drag, so:
+1. Sustained note kept playing during movement
+2. No drag streaming notes were played
+3. Gesture classified as TAP instead of DRAG
+
+---
+
+### Fix Implemented
+
+**File:** `frontend/src/services/EnhancedGestureCapture.js` (v20 → v21)
+
+**Convert normalized distance to pixels before comparison:**
+
+```javascript
+// CRITICAL FIX: Convert normalized distance (0-1) to pixels for comparison
+// Normalized coordinates don't directly compare to pixel threshold
+const canvasSize = Math.max(this.canvas.width, this.canvas.height)
+const pixelDistance = this.dragStreaming.totalDistance * canvasSize
+
+// TRANSITION: If sustained note active AND movement exceeds threshold → switch to drag
+if (this.sustainedHold.isActive && pixelDistance > this.dragStreaming.minDistanceForDrag) {
+  // Transition to drag streaming
+}
+```
+
+**Also fixed the second comparison and logging:**
+```javascript
+// Use pixelDistance (calculated above) for comparison with pixel threshold
+if (this.currentGesture.action === 'potential-tap' && pixelDistance > this.dragStreaming.minDistanceForDrag) {
+  this.currentGesture.action = 'drag'
+}
+
+// Logging also shows pixel distance now
+console.log('🔍 GESTURE CLASSIFICATION: Final action is TAP', {
+  totalDistance: finalPixelDistance.toFixed(2) + 'px',  // Now shows actual pixels!
+  minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
+  ...
+})
+```
+
+---
+
+### Files Modified
+
+1. `frontend/src/services/EnhancedGestureCapture.js` (v20 → v21)
+   - Convert normalized distance to pixels before comparison
+   - Fixed all three locations where distance is compared
+   - Updated logging to show pixel distances
+
+2. `frontend/index.html`
+   - Updated script version for cache busting (v=21)
+
+---
+
+### Behavior After Fix
+
+| Gesture Type | Distance | Behavior |
+|--------------|----------|----------|
+| **Tap** | < 15px | Sustained note with duration = hold time |
+| **Drag** | ≥ 15px | Transition to streaming notes in real-time |
+
+**User confirmation:** "alleluja!! funziona."
+
+---
+
+### Commits
+
+1. `FIX: Drag regression - reset wasActive when transitioning to drag` (1151e37)
+2. `FIX: Drag detection broken - unit mismatch in distance calculation` (21c07c0)
+
+---
