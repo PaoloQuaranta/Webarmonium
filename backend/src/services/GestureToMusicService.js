@@ -28,7 +28,7 @@ class GestureToMusicService {
 
   processGesture(gestureData) {
     try {
-      console.log('🎵 GestureToMusicService processing gesture:', gestureData)
+// console.log('🎵 GestureToMusicService processing gesture:', gestureData)
 
       // Extract and normalize gesture data
       const normalizedGesture = this.normalizeGestureData(gestureData)
@@ -42,13 +42,13 @@ class GestureToMusicService {
       // Store material in library for future compositions
       this.storeMaterial(normalizedGesture, musicalPhrase)
 
-      console.log(`🎵 Generated musical phrase: ${musicalPhrase.notes.length} notes, mood: ${musicalPhrase.metadata.gestureMood}`)
+// console.log(`🎵 Generated musical phrase: ${musicalPhrase.notes.length} notes, mood: ${musicalPhrase.metadata.gestureMood}`)
 
       // Return musical events in the expected format
       return this.formatMusicalEvents(musicalPhrase, normalizedGesture)
 
     } catch (error) {
-      console.error('Error processing gesture:', error)
+// console.error('Error processing gesture:', error)
       return this.createFallbackEvents(gestureData)
     }
   }
@@ -61,7 +61,7 @@ class GestureToMusicService {
     const gestureType = gesture.type || gestureData.gestureType || 'unknown'
 
     // DEBUG: Log what we receive to identify format issue
-    console.log('🔍 BACKEND RECEIVED gesture data:', {
+// console.log('🔍 BACKEND RECEIVED gesture data:', {
       hasGestureCoordinates: !!gesture.coordinates,
       gestureCoordinates: gesture.coordinates,
       coordinatesType: typeof gesture.coordinates,
@@ -100,7 +100,7 @@ class GestureToMusicService {
       direction: this.calculateTrajectoryDirection(position)
     }
 
-    console.log('🎵 Normalized gesture data:', {
+// console.log('🎵 Normalized gesture data:', {
       userId,
       gestureAction,
       gestureType,
@@ -159,19 +159,19 @@ class GestureToMusicService {
     // Generate phrase based on gesture action
     switch (gestureData.gestureAction) {
       case 'drag':
-        console.log('🎵 DRAG: Generating musical phrase')
+// console.log('🎵 DRAG: Generating musical phrase')
         return this.phraseMorphology.generatePhrase(gestureData, musicalContext)
 
       case 'tap':
-        console.log('🎵 TAP: Generating short phrase')
+// console.log('🎵 TAP: Generating short phrase')
         return this.generateTapPhrase(gestureData, musicalContext)
 
       case 'hover':
-        console.log('🎵 HOVER: NO SOUND - only filter modulation (cutoff/resonance)')
+// console.log('🎵 HOVER: NO SOUND - only filter modulation (cutoff/resonance)')
         return null // Hover doesn't generate sound, only modulates filters
 
       default:
-        console.log('🎵 DEFAULT: Generating basic phrase')
+// console.log('🎵 DEFAULT: Generating basic phrase')
         return this.generateBasicPhrase(gestureData, musicalContext)
     }
   }
@@ -192,7 +192,7 @@ class GestureToMusicService {
     // HARMONIC COHERENCE: Constrain pitch to current scale
     const pitch = this.harmonicEngine.constrainToScale(rawPitch, this.currentKey, this.currentMode)
 
-    console.log('🎯 TAP (HARMONIC COHERENCE):', {
+// console.log('🎯 TAP (HARMONIC COHERENCE):', {
       key: this.currentKey,
       mode: this.currentMode,
       rawPitch,
@@ -200,7 +200,7 @@ class GestureToMusicService {
       adjusted: rawPitch !== pitch
     })
 
-    console.log('🎯 REMOTE TAP:', {
+// console.log('🎯 REMOTE TAP:', {
       userId: gestureData.userId.substring(0, 8),
       x: x.toFixed(2),
       y: y.toFixed(2),
@@ -337,7 +337,7 @@ class GestureToMusicService {
 
   createFallbackEvents(gestureData) {
     // Create simple fallback events if something goes wrong
-    console.log('🎵 Creating fallback events due to error')
+// console.log('🎵 Creating fallback events due to error')
 
     const fallbackEvent = {
       id: `fallback_${Date.now()}`,
@@ -391,7 +391,7 @@ class GestureToMusicService {
     try {
       return this.compositionEngine.compose(roomContext)
     } catch (error) {
-      console.error('Error in room composition:', error)
+// console.error('Error in room composition:', error)
       return this.compositionEngine.createFallbackComposition()
     }
   }

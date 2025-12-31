@@ -11,30 +11,30 @@ const CursorHandler = {
   registerCursorMoveHandler (socket) {
     socket.on('cursor-move', async (data) => {
       try {
-        console.log(`👆 cursor-move received from ${socket.userId?.substring(0, 8)}`, data)
+        // console.log(`👆 cursor-move received from ${socket.userId?.substring(0, 8)}`, data)
 
         // Validate user is in a room
         if (!socket.userId || !socket.roomId) {
-          console.log('❌ cursor-move: No userId or roomId')
+          // console.log('❌ cursor-move: No userId or roomId')
           return
         }
 
         // Validate data
         if (!data || typeof data.x !== 'number' || typeof data.y !== 'number' || typeof data.isDrawing !== 'boolean') {
-          console.log('❌ cursor-move: Invalid data', data)
+          // console.log('❌ cursor-move: Invalid data', data)
           return
         }
 
         // Get room and user
         const room = socket.services.roomManager.getUserRoom(socket.userId)
         if (!room) {
-          console.log('❌ cursor-move: No room found')
+          // console.log('❌ cursor-move: No room found')
           return
         }
 
         const user = room.getUser(socket.userId)
         if (!user || !user.assignedColor) {
-          console.log('❌ cursor-move: No user or color')
+          // console.log('❌ cursor-move: No user or color')
           return
         }
 
@@ -53,7 +53,7 @@ const CursorHandler = {
 
         // Broadcast cursor position to other users in room
         const payload = cursorPosition.toEventPayload(user.assignedColor)
-        console.log(`✅ Broadcasting cursor-position to room ${socket.roomId}:`, payload)
+        // console.log(`✅ Broadcasting cursor-position to room ${socket.roomId}:`, payload)
         socket.to(socket.roomId).emit('cursor-position', payload)
 
         // Generate hover-update event for remote audio modulation (three-tier architecture)
@@ -64,10 +64,10 @@ const CursorHandler = {
           userId: socket.userId,
           isRemote: true
         }
-        console.log(`✅ Broadcasting hover-update to room ${socket.roomId}:`, hoverData)
+        // console.log(`✅ Broadcasting hover-update to room ${socket.roomId}:`, hoverData)
         socket.broadcast.to(socket.roomId).emit('hover-update', hoverData)
       } catch (error) {
-        console.error('cursor-move error:', error)
+        // console.error('cursor-move error:', error)
       }
     })
   },
@@ -82,14 +82,14 @@ const CursorHandler = {
       try {
         // Validate input data
         if (!data || !socket.roomId || !socket.userId) {
-          console.warn('⚠️ cursor-position validation failed - missing required fields')
+          // console.warn('⚠️ cursor-position validation failed - missing required fields')
           return
         }
 
         // Get room
         const room = socket.services.roomManager.getRoom(socket.roomId)
         if (!room) {
-          console.warn('⚠️ cursor-position failed - room not found:', socket.roomId)
+          // console.warn('⚠️ cursor-position failed - room not found:', socket.roomId)
           return
         }
 
@@ -103,12 +103,12 @@ const CursorHandler = {
           timestamp: data.timestamp || Date.now()
         }
 
-        console.log(`👆 Received cursor-position from ${cursorData.userId}:`, cursorData)
+        // console.log(`👆 Received cursor-position from ${cursorData.userId}:`, cursorData)
 
         // Broadcast to ALL other users in room (excluding sender)
         socket.broadcast.to(socket.roomId).emit('cursor-position', cursorData)
 
-        console.log(`✅ Broadcasted cursor-position to room ${socket.roomId}:`, {
+        // console.log(`✅ Broadcasted cursor-position to room ${socket.roomId}:`, {
           userId: cursorData.userId,
           x: cursorData.x,
           y: cursorData.y,
@@ -118,7 +118,7 @@ const CursorHandler = {
         // Update room activity
         room.lastActivity = Date.now()
       } catch (error) {
-        console.error('❌ cursor-position error:', error)
+        // console.error('❌ cursor-position error:', error)
       }
     })
   }

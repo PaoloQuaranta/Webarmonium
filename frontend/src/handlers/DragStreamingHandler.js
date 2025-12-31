@@ -51,7 +51,7 @@ class DragStreamingHandler {
     if (this.cachedScaleType !== newScaleType) {
       this.cachedScale = window.MusicalScales?.getScale(newScaleType) || [0, 2, 4, 5, 7, 9, 11]
       this.cachedScaleType = newScaleType
-      console.log(`🎼 Cached scale updated: ${newScaleType}`)
+      // console.log(`🎼 Cached scale updated: ${newScaleType}`)
     }
   }
 
@@ -70,7 +70,7 @@ class DragStreamingHandler {
    */
   processDragStreamingNote(noteData) {
     if (!this.audioService || !this.audioService.gestureSynth) {
-      console.warn('🎸🎸 BLOCKED - audio not ready')
+      // console.warn('🎸🎸 BLOCKED - audio not ready')
       return null
     }
 
@@ -116,7 +116,7 @@ class DragStreamingHandler {
       this.audioService.gestureSynth.set({ envelope })
       const noteVelocity = 0.8 + noteData.velocity * 0.2
 
-      console.log('🎵🎵 PLAYING LOCAL NOTE:', {
+      // console.log('🎵🎵 PLAYING LOCAL NOTE:', {
         frequency: frequency.toFixed(1),
         duration: duration,
         articulation: noteData.articulation,
@@ -130,7 +130,7 @@ class DragStreamingHandler {
         noteVelocity
       )
     } catch (error) {
-      console.warn('🎵 Error playing note:', error.message)
+      // console.warn('🎵 Error playing note:', error.message)
       return null
     }
 

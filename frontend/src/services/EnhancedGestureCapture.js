@@ -104,7 +104,7 @@ class EnhancedGestureCapture {
     // Initialize
     this.setupEventListeners()
 
-    console.log('EnhancedGestureCapture initialized')
+    // console.log('EnhancedGestureCapture initialized')
   }
 
   /**
@@ -120,11 +120,11 @@ class EnhancedGestureCapture {
    */
   setupEventListeners() {
     // Verify canvas is valid
-    console.log('🔍 setupEventListeners: canvas element:', this.canvas?.id, 'tagName:', this.canvas?.tagName)
+    // console.log('🔍 setupEventListeners: canvas element:', this.canvas?.id, 'tagName:', this.canvas?.tagName)
 
     // Mouse events
     const mousedownHandler = (e) => {
-      console.log('🔥 Mousedown event received on canvas:', { type: e.type, button: e.button, target: e.target?.id })
+      // console.log('🔥 Mousedown event received on canvas:', { type: e.type, button: e.button, target: e.target?.id })
       this.handleGestureStart(e)
     }
     this.canvas.addEventListener('mousedown', mousedownHandler)
@@ -147,7 +147,7 @@ class EnhancedGestureCapture {
     this.canvas.addEventListener('touchstart', (e) => e.preventDefault())
     this.canvas.addEventListener('touchmove', (e) => e.preventDefault())
 
-    console.log('👆 Enhanced gesture event listeners setup complete')
+    // console.log('👆 Enhanced gesture event listeners setup complete')
   }
 
   /**
@@ -155,7 +155,7 @@ class EnhancedGestureCapture {
    */
   start() {
     this.isActive = true
-    console.log('▶️ EnhancedGestureCapture started')
+    // console.log('▶️ EnhancedGestureCapture started')
   }
 
   /**
@@ -165,7 +165,7 @@ class EnhancedGestureCapture {
     this.isActive = false
     this.isCapturing = false
     this.currentGesture = null
-    console.log('⏸️ EnhancedGestureCapture stopped')
+    // console.log('⏸️ EnhancedGestureCapture stopped')
   }
 
   /**
@@ -173,7 +173,7 @@ class EnhancedGestureCapture {
    * @param {Event} event - Mouse or touch event
    */
   handleGestureStart(event) {
-    console.log('🎯 GESTURE START TRIGGERED - button pressed')
+    // console.log('🎯 GESTURE START TRIGGERED - button pressed')
     if (!this.isActive) return
 
     event.preventDefault()
@@ -234,7 +234,7 @@ class EnhancedGestureCapture {
       })
     }
 
-    console.log(`🎵 Sustained note started: ${this.sustainedHold.activeNoteId}`)
+    // console.log(`🎵 Sustained note started: ${this.sustainedHold.activeNoteId}`)
 
     // Emit gesture start to server
     this.emitGestureStart(this.currentGesture)
@@ -244,7 +244,7 @@ class EnhancedGestureCapture {
       this.onGestureStart(this.currentGesture)
     }
 
-    console.log('👆 Gesture started:', this.currentGesture.id)
+    // console.log('👆 Gesture started:', this.currentGesture.id)
   }
 
   /**
@@ -297,7 +297,7 @@ class EnhancedGestureCapture {
 
       // TRANSITION: If sustained note active AND movement exceeds threshold → switch to drag
       if (this.sustainedHold.isActive && pixelDistance > this.dragStreaming.minDistanceForDrag) {
-        console.log('🎛️ Movement exceeds threshold - transitioning from sustained note to drag')
+        // console.log('🎛️ Movement exceeds threshold - transitioning from sustained note to drag')
 
         // End the sustained note
         if (this.onSustainedHoldEnd) {
@@ -309,7 +309,7 @@ class EnhancedGestureCapture {
             timestamp: Date.now(),
             reason: 'transition-to-drag'
           })
-          console.log(`🎵 Sustained note ended (→drag): ${holdDuration}ms`)
+          // console.log(`🎵 Sustained note ended (→drag): ${holdDuration}ms`)
         }
 
         // Clear sustained hold state
@@ -332,7 +332,7 @@ class EnhancedGestureCapture {
       // If movement exceeds threshold, mark as 'drag'
       // Use pixelDistance (calculated above) for comparison with pixel threshold
       if (this.currentGesture.action === 'potential-tap' && pixelDistance > this.dragStreaming.minDistanceForDrag) {
-        console.log('🔍 GESTURE CLASSIFICATION: Transitioning to DRAG', {
+        // console.log('🔍 GESTURE CLASSIFICATION: Transitioning to DRAG', {
           totalDistance: pixelDistance.toFixed(2) + 'px',
           minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
           previousAction: this.currentGesture.action,
@@ -373,7 +373,7 @@ class EnhancedGestureCapture {
         adjustedInterval = 2000
       }
 
-      console.log('🎸 Interval calculation:', {
+      // console.log('🎸 Interval calculation:', {
         rawSpeed: speed.toFixed(3),
         normalizedSpeed: normalizedSpeed.toFixed(3),
         intervalMs: adjustedInterval,
@@ -407,9 +407,9 @@ class EnhancedGestureCapture {
    * @param {Event} event - Mouse or touch event
    */
   handleGestureEnd(event) {
-    console.log('🎯 GESTURE END TRIGGERED - button released')
+    // console.log('🎯 GESTURE END TRIGGERED - button released')
     if (!this.isActive || !this.isCapturing || !this.currentGesture) {
-      console.log('🎯 GESTURE END - not capturing or no current gesture')
+      // console.log('🎯 GESTURE END - not capturing or no current gesture')
       return
     }
 
@@ -438,7 +438,7 @@ class EnhancedGestureCapture {
         })
       }
 
-      console.log(`🎵 Sustained hold ended (release): ${this.sustainedHold.activeNoteId} (${holdDuration}ms)`)
+      // console.log(`🎵 Sustained hold ended (release): ${this.sustainedHold.activeNoteId} (${holdDuration}ms)`)
 
       // Clear transition timer if active
       if (this.sustainedHold.transitionTimer) {
@@ -466,7 +466,7 @@ class EnhancedGestureCapture {
     const finalPixelDistance = this.dragStreaming.totalDistance * canvasSize
 
     if (this.currentGesture.action === 'potential-tap') {
-      console.log('🔍 GESTURE CLASSIFICATION: Final action is TAP', {
+      // console.log('🔍 GESTURE CLASSIFICATION: Final action is TAP', {
         totalDistance: finalPixelDistance.toFixed(2) + 'px',
         minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
         finalAction: 'tap',
@@ -475,7 +475,7 @@ class EnhancedGestureCapture {
       })
       this.currentGesture.action = 'tap'
     } else {
-      console.log('🔍 GESTURE CLASSIFICATION: Final action', {
+      // console.log('🔍 GESTURE CLASSIFICATION: Final action', {
         totalDistance: finalPixelDistance.toFixed(2) + 'px',
         minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
         finalAction: this.currentGesture.action,
@@ -535,7 +535,7 @@ class EnhancedGestureCapture {
     this.isCapturing = false
     this.currentGesture = null
 
-    console.log('👋 Gesture completed:', classifiedGesture.id, 'duration:', duration + 'ms')
+    // console.log('👋 Gesture completed:', classifiedGesture.id, 'duration:', duration + 'ms')
   }
 
   /**
@@ -587,7 +587,7 @@ class EnhancedGestureCapture {
     const classified = { ...gesture }
 
     // DEBUG: Log gesture data before coordinate assignment
-    console.log('🔍 CLASSIFY GESTURE - Input data:', {
+    // console.log('🔍 CLASSIFY GESTURE - Input data:', {
       hasCurrentPosition: !!gesture.currentPosition,
       currentPosition: gesture.currentPosition,
       pathLength: gesture.path?.length || 0,
@@ -601,7 +601,7 @@ class EnhancedGestureCapture {
         x: gesture.currentPosition.x,
         y: gesture.currentPosition.y
       }
-      console.log('🔍 Using currentPosition for coordinates:', classified.coordinates)
+      // console.log('🔍 Using currentPosition for coordinates:', classified.coordinates)
     } else if (gesture.path && gesture.path.length > 0) {
       // Use last position from path
       const lastPos = gesture.path[gesture.path.length - 1]
@@ -609,11 +609,11 @@ class EnhancedGestureCapture {
         x: lastPos.x,
         y: lastPos.y
       }
-      console.log('🔍 Using last path point for coordinates:', classified.coordinates)
+      // console.log('🔍 Using last path point for coordinates:', classified.coordinates)
     } else {
       // Default coordinates
       classified.coordinates = { x: 0.5, y: 0.5 }
-      console.log('🔍 Using DEFAULT coordinates (0.5, 0.5) - NO POSITION DATA!')
+      // console.log('🔍 Using DEFAULT coordinates (0.5, 0.5) - NO POSITION DATA!')
     }
 
     // Calculate gesture properties
@@ -902,7 +902,7 @@ class EnhancedGestureCapture {
       })
 
       // DEBUG: Log what was sent
-      console.log('📤 gesture-complete emitted:', {
+      // console.log('📤 gesture-complete emitted:', {
         action: gesture.action,
         holdWasActive: gesture.holdWasActive,
         streamedNotes: gesture.streamedNotes?.length || 0,
@@ -930,7 +930,7 @@ class EnhancedGestureCapture {
       this.onMultiUserGesture(data)
     }
 
-    console.log('👥 Received multi-user gesture from:', userId)
+    // console.log('👥 Received multi-user gesture from:', userId)
   }
 
   /**
@@ -939,7 +939,7 @@ class EnhancedGestureCapture {
    */
   setRoomContext(roomId) {
     this.currentRoom = roomId
-    console.log('🏠 EnhancedGestureCapture room context set to:', roomId)
+    // console.log('🏠 EnhancedGestureCapture room context set to:', roomId)
   }
 
   /**
@@ -973,7 +973,7 @@ class EnhancedGestureCapture {
   clearHistory() {
     this.gestureHistory = []
     this.participantGestures.clear()
-    console.log('🧹 EnhancedGestureCapture history cleared')
+    // console.log('🧹 EnhancedGestureCapture history cleared')
   }
 
   /**
@@ -989,7 +989,7 @@ class EnhancedGestureCapture {
       this.hoverState.position = coordinates
     }
 
-    console.log('🎯 Hover started at:', this.hoverState.position)
+    // console.log('🎯 Hover started at:', this.hoverState.position)
   }
 
   /**
@@ -1031,7 +1031,7 @@ class EnhancedGestureCapture {
     this.hoverState.position = coordinates
     this.hoverState.lastHoverTime = now
 
-    console.log(`🎛️ Hover: pos=(${coordinates.x.toFixed(2)}, ${coordinates.y.toFixed(2)}), intensity=${this.hoverState.hoverIntensity.toFixed(2)}`)
+    // console.log(`🎛️ Hover: pos=(${coordinates.x.toFixed(2)}, ${coordinates.y.toFixed(2)}), intensity=${this.hoverState.hoverIntensity.toFixed(2)}`)
 
     // Trigger cross-layer modulation
     if (this.onHoverModulation) {
@@ -1071,7 +1071,7 @@ class EnhancedGestureCapture {
       })
     }
 
-    console.log('🎯 Hover ended')
+    // console.log('🎯 Hover ended')
   }
 
   /**
@@ -1093,14 +1093,14 @@ class EnhancedGestureCapture {
       })
     }
 
-    console.log('🌐 Remote hover from user:', userId)
+    // console.log('🌐 Remote hover from user:', userId)
   }
 
   /**
    * Emit hover update to server
    */
   emitHoverUpdate() {
-    console.log('🛸 emitHoverUpdate called:', {
+    // console.log('🛸 emitHoverUpdate called:', {
       hasSocketService: !!this.socketService,
       hasSocket: !!(this.socketService && this.socketService.socket),
       isHovering: this.hoverState.isHovering,
@@ -1119,10 +1119,10 @@ class EnhancedGestureCapture {
         timestamp: Date.now()
       }
 
-      console.log('🛸 Emitting hover-update:', hoverData)
+      // console.log('🛸 Emitting hover-update:', hoverData)
       this.socketService.socket.emit('hover-update', hoverData)
     } else {
-      console.log('❌ emitHoverUpdate blocked - conditions not met')
+      // console.log('❌ emitHoverUpdate blocked - conditions not met')
     }
   }
 
@@ -1131,12 +1131,12 @@ class EnhancedGestureCapture {
    */
   emitCursorPosition() {
     if (!this.socketService || !this.socketService.socket) {
-      console.log('❌ emitCursorPosition blocked - no socket service')
+      // console.log('❌ emitCursorPosition blocked - no socket service')
       return
     }
 
     const position = this.hoverState.position || { x: 0.5, y: 0.5 }
-    console.log('🎯 Emitting cursor position:', {
+    // console.log('🎯 Emitting cursor position:', {
       x: position.x,
       y: position.y,
       isDrawing: this.isCapturing,
@@ -1152,7 +1152,7 @@ class EnhancedGestureCapture {
       userId: this.localUserId  // Use same user ID as hover-update events
     })
 
-    console.log('👆 Cursor position emitted successfully')
+    // console.log('👆 Cursor position emitted successfully')
   }
 
   /**
@@ -1161,7 +1161,7 @@ class EnhancedGestureCapture {
    */
   setHoverModulationCallback(callback) {
     this.onHoverModulation = callback
-    console.log('🎛️ Hover modulation callback set')
+    // console.log('🎛️ Hover modulation callback set')
   }
 
   /**
@@ -1170,7 +1170,7 @@ class EnhancedGestureCapture {
    */
   setDragStreamingNoteCallback(callback) {
     this.onDragStreamingNote = callback
-    console.log('🎸 Drag streaming note callback set')
+    // console.log('🎸 Drag streaming note callback set')
   }
 
   /**
@@ -1181,7 +1181,7 @@ class EnhancedGestureCapture {
    */
   playDragStreamingNote(coordinates, velocity, noteIndex) {
     if (!this.onDragStreamingNote) {
-      console.warn('🎸 No drag streaming callback set')
+      // console.warn('🎸 No drag streaming callback set')
       return
     }
 
@@ -1256,7 +1256,7 @@ class EnhancedGestureCapture {
     this.canvas.removeEventListener('mouseenter', this.handleHoverStart)
     this.canvas.removeEventListener('mouseleave', this.handleHoverEnd)
 
-    console.log('🧹 EnhancedGestureCapture destroyed')
+    // console.log('🧹 EnhancedGestureCapture destroyed')
   }
 }
 

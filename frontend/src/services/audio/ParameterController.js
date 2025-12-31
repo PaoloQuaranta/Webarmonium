@@ -108,7 +108,7 @@ class ParameterController {
 
       // Constitutional requirement check
       if (processingLatency > 200) {
-        console.warn(`Gesture-to-audio latency ${processingLatency}ms exceeds 200ms constitutional requirement`)
+        // console.warn(`Gesture-to-audio latency ${processingLatency}ms exceeds 200ms constitutional requirement`)
       }
 
       return {
@@ -118,7 +118,7 @@ class ParameterController {
       }
 
     } catch (error) {
-      console.error('Error processing gesture audio:', error)
+      // console.error('Error processing gesture audio:', error)
       return null
     }
   }
@@ -230,7 +230,7 @@ class ParameterController {
 
     requestAnimationFrame(updateLoop)
 
-    console.log('ParameterController update loop started at 60fps')
+    // console.log('ParameterController update loop started at 60fps')
   }
 
   /**
@@ -238,7 +238,7 @@ class ParameterController {
    */
   stopUpdateLoop() {
     this.updateLoopActive = false
-    console.log('ParameterController update loop stopped')
+    // console.log('ParameterController update loop stopped')
   }
 
   /**
@@ -257,7 +257,7 @@ class ParameterController {
     //   }
     //   this.performanceMetrics.totalUpdates++
     // } catch (error) {
-    //   console.error('Parameter update failed:', error)
+    //   // console.error('Parameter update failed:', error)
     //   this.performanceMetrics.droppedUpdates++
     // }
   }
@@ -323,7 +323,7 @@ class ParameterController {
         ...this.gestureAudioMapper.parameterMappings[parameter],
         ...mapping
       }
-      console.log(`Updated ${parameter} mapping`)
+      // console.log(`Updated ${parameter} mapping`)
     }
   }
 
@@ -352,7 +352,7 @@ class ParameterController {
       droppedUpdates: 0,
       totalUpdates: 0
     }
-    console.log('ParameterController performance metrics reset')
+    // console.log('ParameterController performance metrics reset')
   }
 
   /**
@@ -386,7 +386,7 @@ class ParameterController {
     this.clearGestureBuffer()
     this.audioEngine = null
     this.audioContextState = 'not-initialized'
-    console.log('ParameterController cleanup completed')
+    // console.log('ParameterController cleanup completed')
   }
 }
 

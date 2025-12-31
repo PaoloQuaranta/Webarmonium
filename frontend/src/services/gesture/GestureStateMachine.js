@@ -127,7 +127,7 @@ class GestureStateMachine {
         })
       }
 
-      console.log(`GestureStateMachine: Sustained hold started: ${this.sustainedHold.activeNoteId}`)
+      // console.log(`GestureStateMachine: Sustained hold started: ${this.sustainedHold.activeNoteId}`)
     }, this.sustainedHold.holdThreshold)
   }
 
@@ -138,7 +138,7 @@ class GestureStateMachine {
     if (this.sustainedHold.holdTimer) {
       clearTimeout(this.sustainedHold.holdTimer)
       this.sustainedHold.holdTimer = null
-      console.log('GestureStateMachine: Hold timer cancelled')
+      // console.log('GestureStateMachine: Hold timer cancelled')
     }
   }
 
@@ -164,7 +164,7 @@ class GestureStateMachine {
       })
     }
 
-    console.log(`GestureStateMachine: Sustained hold ended (${reason}): ${this.sustainedHold.activeNoteId} (${holdDuration}ms)`)
+    // console.log(`GestureStateMachine: Sustained hold ended (${reason}): ${this.sustainedHold.activeNoteId} (${holdDuration}ms)`)
 
     // Clear transition timer if active
     if (this.sustainedHold.transitionTimer) {
@@ -282,7 +282,7 @@ class GestureStateMachine {
       overlapDuration: this.sustainedHold.overlapDuration
     }
 
-    console.log('GestureStateMachine: State reset')
+    // console.log('GestureStateMachine: State reset')
   }
 }
 

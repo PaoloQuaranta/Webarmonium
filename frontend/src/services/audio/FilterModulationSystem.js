@@ -410,7 +410,7 @@ class FilterModulationSystem {
       }
 
     } catch (error) {
-      console.error('❌ Filter modulation failed:', error)
+      // console.error('❌ Filter modulation failed:', error)
     }
   }
 

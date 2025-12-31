@@ -33,7 +33,7 @@ class PhraseMorphology {
     const gestureDurationMs = gestureData.duration || 1000 // Default 1 second if missing
     const phraseDurationBeats = this.quantizeGestureDuration(gestureDurationMs, tempo)
 
-    console.log('🎵 DRAG PHRASE - Gesture duration:', {
+// console.log('🎵 DRAG PHRASE - Gesture duration:', {
       durationMs: gestureDurationMs,
       tempo: tempo,
       quantizedBeats: phraseDurationBeats
@@ -63,7 +63,7 @@ class PhraseMorphology {
     // 8. Create articulation pattern
     const articulations = this.generateArticulations(velocity, curvature)
 
-    console.log('🎵 Generated phrase:', {
+// console.log('🎵 Generated phrase:', {
       noteCount: phraseLength,
       totalDurationBeats: phraseDurationBeats,
       actualDurationBeats: rhythm.reduce((sum, dur) => sum + dur, 0).toFixed(2)
@@ -139,7 +139,7 @@ class PhraseMorphology {
     // Clamp to reasonable range (min 2, max 32 notes)
     const noteCount = Math.max(2, Math.min(32, idealNoteCount))
 
-    console.log('📏 Phrase length calculation:', {
+// console.log('📏 Phrase length calculation:', {
       phraseDurationBeats,
       velocity,
       baseDuration,
@@ -186,7 +186,7 @@ class PhraseMorphology {
     const scaleFactor = targetDurationBeats / totalDuration
     const scaledRhythm = rhythm.map(dur => dur * scaleFactor)
 
-    console.log('🎵 Rhythm scaled:', {
+// console.log('🎵 Rhythm scaled:', {
       originalTotal: totalDuration.toFixed(2),
       targetDuration: targetDurationBeats,
       scaleFactor: scaleFactor.toFixed(3),

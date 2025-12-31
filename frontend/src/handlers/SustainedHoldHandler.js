@@ -94,7 +94,7 @@ class SustainedHoldHandler {
    */
   handleLocalHoldStart(holdData) {
     if (!this.audioService) {
-      console.warn('⚠️ Audio not ready for sustained hold')
+      // console.warn('⚠️ Audio not ready for sustained hold')
       return false
     }
 
@@ -115,7 +115,7 @@ class SustainedHoldHandler {
         visualStartTime: Date.now()
       }
 
-      console.log(`✅ Sustained hold started: ${frequency.toFixed(1)}Hz`)
+      // console.log(`✅ Sustained hold started: ${frequency.toFixed(1)}Hz`)
 
       // Emit to server for multi-user sync
       this.emitHoldStart(holdData, frequency, velocity)
@@ -138,12 +138,12 @@ class SustainedHoldHandler {
       return
     }
 
-    console.log('🎵 Sustained hold end:', endData)
+    // console.log('🎵 Sustained hold end:', endData)
 
     // Trigger note release (gate closes)
     this.audioService.triggerSustainedNoteRelease(this.activeLocalHold.audioNoteId)
 
-    console.log(`✅ Sustained hold ended: ${endData.duration}ms, reason: ${endData.reason}`)
+    // console.log(`✅ Sustained hold ended: ${endData.duration}ms, reason: ${endData.reason}`)
 
     // Emit to server for multi-user sync
     this.emitHoldEnd(endData)
@@ -164,7 +164,7 @@ class SustainedHoldHandler {
       return
     }
 
-    console.log(`🌐 Remote hold start: user ${data.userId.substring(0, 8)}, freq ${data.frequency.toFixed(1)}Hz`)
+    // console.log(`🌐 Remote hold start: user ${data.userId.substring(0, 8)}, freq ${data.frequency.toFixed(1)}Hz`)
 
     // Trigger remote note attack (quieter for remote users)
     const result = this.audioService.triggerSustainedNoteAttack(
@@ -207,7 +207,7 @@ class SustainedHoldHandler {
   handleRemoteHoldEnd(data) {
     const remoteHold = this.activeRemoteHolds.get(data.noteId)
     if (!remoteHold) {
-      console.warn(`⚠️ Received hold:end for unknown note: ${data.noteId}`)
+      // console.warn(`⚠️ Received hold:end for unknown note: ${data.noteId}`)
       return
     }
 
@@ -228,7 +228,7 @@ class SustainedHoldHandler {
     // Remove from tracking
     this.activeRemoteHolds.delete(data.noteId)
 
-    console.log(`🌐 Remote hold end: user ${data.userId.substring(0, 8)}, ${data.duration}ms hold`)
+    // console.log(`🌐 Remote hold end: user ${data.userId.substring(0, 8)}, ${data.duration}ms hold`)
   }
 
   /**
@@ -250,9 +250,9 @@ class SustainedHoldHandler {
       timestamp: Date.now()
     }, (response) => {
       if (response && response.success) {
-        console.log(`✅ Hold start acknowledged: ${response.latency}ms latency`)
+        // console.log(`✅ Hold start acknowledged: ${response.latency}ms latency`)
       } else {
-        console.error('❌ Hold start failed:', response?.error)
+        // console.error('❌ Hold start failed:', response?.error)
       }
     })
   }
@@ -273,9 +273,9 @@ class SustainedHoldHandler {
       timestamp: Date.now()
     }, (response) => {
       if (response && response.success) {
-        console.log(`✅ Hold end acknowledged: ${endData.duration}ms hold, ${response.latency}ms latency`)
+        // console.log(`✅ Hold end acknowledged: ${endData.duration}ms hold, ${response.latency}ms latency`)
       } else {
-        console.error('❌ Hold end failed:', response?.error)
+        // console.error('❌ Hold end failed:', response?.error)
       }
     })
   }
@@ -364,7 +364,7 @@ class SustainedHoldHandler {
     }
     this.activeRemoteHolds.clear()
 
-    console.log('🛑 All holds released')
+    // console.log('🛑 All holds released')
   }
 
   /**

@@ -57,7 +57,7 @@ class CanvasManager {
     // Get p5.js container
     this.p5Container = document.getElementById(this.p5ContainerId)
     if (!this.p5Container) {
-      console.warn(`CanvasManager: p5.js container #${this.p5ContainerId} not found`)
+      // console.warn(`CanvasManager: p5.js container #${this.p5ContainerId} not found`)
     }
 
     // Initial resize
@@ -67,7 +67,7 @@ class CanvasManager {
     this.boundResizeHandler = () => this.resize()
     window.addEventListener('resize', this.boundResizeHandler)
 
-    console.log('✅ CanvasManager: Canvases initialized')
+    // console.log('✅ CanvasManager: Canvases initialized')
 
     return this.getCanvasRefs()
   }
@@ -141,7 +141,7 @@ class CanvasManager {
       try {
         service.setCanvasSize(width, height)
       } catch (error) {
-        console.warn('CanvasManager: Error notifying resize listener:', error)
+        // console.warn('CanvasManager: Error notifying resize listener:', error)
       }
     })
   }
@@ -189,7 +189,7 @@ class CanvasManager {
     this.cursorOverlayCanvas = null
     this.p5Container = null
 
-    console.log('✅ CanvasManager: Cleaned up')
+    // console.log('✅ CanvasManager: Cleaned up')
   }
 }
 

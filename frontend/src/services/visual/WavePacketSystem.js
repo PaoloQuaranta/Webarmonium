@@ -52,7 +52,7 @@ class WavePacketSystem {
   emitPulse(sourceUserId, color) {
     const sourceNode = this.springMesh.nodes.get(sourceUserId)
     if (!sourceNode) {
-      console.warn('⚠️ emitPulse: Source node not found', sourceUserId.substring(0, 8))
+      // console.warn('⚠️ emitPulse: Source node not found', sourceUserId.substring(0, 8))
       return
     }
 
@@ -66,12 +66,12 @@ class WavePacketSystem {
       edge => (edge.sourceId === sourceUserId || edge.targetId === sourceUserId) && edge.type === 'cursor-trace'
     )
 
-    console.log('🌊 emitPulse userId:', sourceUserId)
-    console.log('🌊 Found edges where user is source OR target:', sourceEdges.length)
+    // console.log('🌊 emitPulse userId:', sourceUserId)
+    // console.log('🌊 Found edges where user is source OR target:', sourceEdges.length)
 
     // Don't exceed maximum pulse count
     if (this.activePulses.size >= this.maxPulses) {
-      console.warn('⚠️ emitPulse: Max pulses reached', this.activePulses.size, '/', this.maxPulses)
+      // console.warn('⚠️ emitPulse: Max pulses reached', this.activePulses.size, '/', this.maxPulses)
       return
     }
 
@@ -81,7 +81,7 @@ class WavePacketSystem {
       const startFromEnd = (edge.targetId === sourceUserId)
       const pulse = this.emitPulseOnEdge(edge, color, startFromEnd ? 1 : 0)
       if (pulse) {
-        console.log('✅ Pulse created:', pulse.id.substring(0, 15), 'direction:', startFromEnd ? 'BACKWARD' : 'FORWARD')
+        // console.log('✅ Pulse created:', pulse.id.substring(0, 15), 'direction:', startFromEnd ? 'BACKWARD' : 'FORWARD')
       }
     }
   }
@@ -241,7 +241,7 @@ class WavePacketSystem {
   render(p) {
     // DEBUG: Log pulse count occasionally
     if (p.frameCount % 60 === 0 && this.activePulses.size > 0) {
-      console.log('🌊 Rendering', this.activePulses.size, 'pulses')
+      // console.log('🌊 Rendering', this.activePulses.size, 'pulses')
     }
 
     for (const pulse of this.activePulses.values()) {
@@ -260,7 +260,7 @@ class WavePacketSystem {
     const nodeB = this.springMesh.getNodeOrIntermediate(edge.targetId)
 
     if (!nodeA || !nodeB) {
-      console.warn('⚠️ Pulse render: Missing nodes for edge', edge.sourceId.substring(0, 8), '->', edge.targetId.substring(0, 8))
+      // console.warn('⚠️ Pulse render: Missing nodes for edge', edge.sourceId.substring(0, 8), '->', edge.targetId.substring(0, 8))
       return
     }
 
@@ -281,7 +281,7 @@ class WavePacketSystem {
 
     // DEBUG: Log first few renders
     if (this.activePulses.size <= 3 && p.frameCount % 10 === 0) {
-      console.log('🌊 Rendering pulse:', {
+      // console.log('🌊 Rendering pulse:', {
         pos: `(${Math.round(pos.x)}, ${Math.round(pos.y)})`,
         progress: pulse.progress.toFixed(2),
         intensity: pulse.intensity.toFixed(2),
@@ -383,7 +383,7 @@ class WavePacketSystem {
 // Export for different module systems
 if (typeof window !== 'undefined') {
   window.WavePacketSystem = WavePacketSystem
-  console.log('✅ WavePacketSystem exported to window')
+  // console.log('✅ WavePacketSystem exported to window')
 }
 
 if (typeof module !== 'undefined' && module.exports) {

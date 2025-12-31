@@ -45,13 +45,13 @@ class CursorManager {
    * @param {boolean} isDrawing - Whether user is currently drawing
    */
   updateCursor (userId, x, y, color, isDrawing = false) {
-    console.log(`👆 CursorManager.updateCursor called - userId: ${userId?.substring(0,8)}, x: ${x}, y: ${y}, color: ${color}`)
+    // console.log(`👆 CursorManager.updateCursor called - userId: ${userId?.substring(0,8)}, x: ${x}, y: ${y}, color: ${color}`)
 
     if (!userId || typeof userId !== 'string') {
       if (window.ErrorReporter) {
         window.ErrorReporter.warn('CursorManager', 'Invalid userId', userId)
       } else {
-        console.warn('CursorManager: Invalid userId', userId)
+        // console.warn('CursorManager: Invalid userId', userId)
       }
       return
     }
@@ -60,7 +60,7 @@ class CursorManager {
       if (window.ErrorReporter) {
         window.ErrorReporter.warn('CursorManager', 'Invalid coordinates', { x, y })
       } else {
-        console.warn('CursorManager: Invalid coordinates', { x, y })
+        // console.warn('CursorManager: Invalid coordinates', { x, y })
       }
       return
     }
@@ -69,7 +69,7 @@ class CursorManager {
       if (window.ErrorReporter) {
         window.ErrorReporter.warn('CursorManager', 'Invalid color format', color)
       } else {
-        console.warn('CursorManager: Invalid color format', color)
+        // console.warn('CursorManager: Invalid color format', color)
       }
       return
     }
@@ -82,7 +82,7 @@ class CursorManager {
       timestamp: Date.now()
     })
 
-    console.log(`✅ Cursor updated! Total cursors: ${this.cursors.size}`)
+    // console.log(`✅ Cursor updated! Total cursors: ${this.cursors.size}`)
   }
 
   /**
@@ -125,7 +125,7 @@ class CursorManager {
   renderCursors () {
     // CRITICAL: Check if rendering should continue BEFORE processing
     if (!this.animationFrameId) {
-      console.log('CursorManager: Rendering stopped (no animationFrameId)')
+      // console.log('CursorManager: Rendering stopped (no animationFrameId)')
       return
     }
 
@@ -256,7 +256,7 @@ class CursorManager {
    */
   startRendering () {
     if (!this.animationFrameId) {
-      console.log('🖱️  CursorManager: Starting rendering loop')
+      // console.log('🖱️  CursorManager: Starting rendering loop')
       this.lastRenderTime = performance.now()
       // CRITICAL FIX: Set animationFrameId to a truthy value before calling renderCursors
       // This ensures renderCursors doesn't exit immediately on the animationFrameId check
@@ -269,7 +269,7 @@ class CursorManager {
       this.staleCheckInterval = setInterval(() => {
         const removed = this.removeStale(5000)
         if (removed > 0) {
-          console.log(`CursorManager: Removed ${removed} stale cursors`)
+          // console.log(`CursorManager: Removed ${removed} stale cursors`)
         }
       }, 10000)
     }
@@ -352,7 +352,7 @@ class CursorManager {
    * Cleanup and destroy
    */
   destroy () {
-    console.log('CursorManager: Destroying instance')
+    // console.log('CursorManager: Destroying instance')
     this.stopRendering()
     this.clearAll()
 

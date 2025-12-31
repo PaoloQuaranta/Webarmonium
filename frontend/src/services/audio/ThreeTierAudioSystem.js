@@ -161,12 +161,12 @@ class ThreeTierAudioSystem {
     try {
       // Check if global classes are available
       if (typeof window.MusicalScheduler === 'undefined') {
-        console.warn('⚠️ MusicalScheduler not available - musical timing features disabled')
+        // console.warn('⚠️ MusicalScheduler not available - musical timing features disabled')
         return false
       }
 
       if (typeof window.LFOManager === 'undefined') {
-        console.warn('⚠️ LFOManager not available - modulation features disabled')
+        // console.warn('⚠️ LFOManager not available - modulation features disabled')
         return false
       }
 
@@ -182,10 +182,10 @@ class ThreeTierAudioSystem {
       // Setup event listeners for cross-service communication
       this.setupMusicalArchitectureEvents(audioServiceContext)
 
-      console.log('🎵 New musical architecture initialized - MusicalScheduler and LFOManager active')
+      // console.log('🎵 New musical architecture initialized - MusicalScheduler and LFOManager active')
       return true
     } catch (error) {
-      console.error('🔴 Failed to initialize new musical architecture:', error)
+      // console.error('🔴 Failed to initialize new musical architecture:', error)
       return false
     }
   }
@@ -337,21 +337,21 @@ class ThreeTierAudioSystem {
    */
   updatePatterns(patterns, updateBackgroundFilters) {
     if (!this.isInitialized || this.muted) {
-      console.log('🔇 updatePatterns blocked - initialized:', this.isInitialized, 'muted:', this.muted)
+      // console.log('🔇 updatePatterns blocked - initialized:', this.isInitialized, 'muted:', this.muted)
       return
     }
 
     // Rate limiting: prevent spamming collaborative patterns
     const now = Date.now()
     if (this.lastCollaborativePatternTime && (now - this.lastCollaborativePatternTime < 500)) {
-      console.log('🔇 Collaborative patterns rate limited')
+      // console.log('🔇 Collaborative patterns rate limited')
       return
     }
     this.lastCollaborativePatternTime = now
 
     // Store patterns for later processing
     this.collaborativePatterns = patterns || []
-    console.log('🎵 Updated collaborative patterns:', patterns?.length || 0)
+    // console.log('🎵 Updated collaborative patterns:', patterns?.length || 0)
 
     // EVOLUTIVE: Update generative state based on user activity
     if (this.generativeState && patterns && patterns.length > 0) {
@@ -374,12 +374,12 @@ class ThreeTierAudioSystem {
         }
       }
 
-      console.log(`🎵 User influence updated: ${this.generativeState.userInfluence.toFixed(2)}, complexity: ${this.generativeState.complexity.toFixed(2)}`)
+      // console.log(`🎵 User influence updated: ${this.generativeState.userInfluence.toFixed(2)}, complexity: ${this.generativeState.complexity.toFixed(2)}`)
     }
 
     // Check if patterns are the same as last time to avoid repetition
     if (this.lastCollaborativePatterns && this.arePatternsEqual(this.lastCollaborativePatterns, patterns)) {
-      console.log('🔇 Skipping duplicate collaborative patterns')
+      // console.log('🔇 Skipping duplicate collaborative patterns')
       return
     }
     this.lastCollaborativePatterns = [...(patterns || [])]
@@ -395,7 +395,7 @@ class ThreeTierAudioSystem {
 
       // Apply remote filter modulation to background
       updateBackgroundFilters(avgPosition)
-      console.log(`🎛️ Applied remote filter modulation: x=${avgPosition.x.toFixed(2)}, y=${avgPosition.y.toFixed(2)}`)
+      // console.log(`🎛️ Applied remote filter modulation: x=${avgPosition.x.toFixed(2)}, y=${avgPosition.y.toFixed(2)}`)
     }
 
     // Play audio feedback for each pattern from remote users
@@ -459,7 +459,7 @@ class ThreeTierAudioSystem {
         }, delay * 1000)
 
       } catch (e) {
-        console.warn(`⚠️ Error playing remote pattern ${index}:`, e.message)
+        // console.warn(`⚠️ Error playing remote pattern ${index}:`, e.message)
       }
     })
   }
@@ -493,7 +493,7 @@ class ThreeTierAudioSystem {
 
     const tierConfig = this.threeTierConfig[tier]
     if (!tierConfig) {
-      console.warn(`Unknown tier: ${tier}, falling back to local`)
+      // console.warn(`Unknown tier: ${tier}, falling back to local`)
       tier = 'local'
     }
 
@@ -502,7 +502,7 @@ class ThreeTierAudioSystem {
     const adjustedVolume = this.calculateThreeTierVolume(tier, options.volume || 0.5)
     const adjustedDuration = this.calculateThreeTierDuration(velocity, options.duration || '8n')
 
-    console.log(`🎵 Playing ${tierConfig.waveform} note on ${tier} tier: ${adjustedFrequency}Hz, velocity: ${velocity}`)
+    // console.log(`🎵 Playing ${tierConfig.waveform} note on ${tier} tier: ${adjustedFrequency}Hz, velocity: ${velocity}`)
 
     // Configure synth with tier-specific waveform
     this.gestureSynth.set({
@@ -639,7 +639,7 @@ class ThreeTierAudioSystem {
       volume: gestureData.intensity || 0.5
     })
 
-    console.log(`🎹 Three-tier gesture: tier=${tier}, velocity=${gestureData.velocity}, freq=${baseFreq}`)
+    // console.log(`🎹 Three-tier gesture: tier=${tier}, velocity=${gestureData.velocity}, freq=${baseFreq}`)
   }
 
   /**
@@ -653,11 +653,11 @@ class ThreeTierAudioSystem {
 
     // Validate position and userId to prevent undefined errors
     if (!position || (position.x === null || position.y === null)) {
-      console.warn('🔇 Hover data missing or invalid position, skipping modulation')
+      // console.warn('🔇 Hover data missing or invalid position, skipping modulation')
       return
     }
 
-    console.log(`🎛️ Cross-layer hover modulation: userId=${userId}, intensity=${intensity}`)
+    // console.log(`🎛️ Cross-layer hover modulation: userId=${userId}, intensity=${intensity}`)
 
     // Local user hover modulates:
     // 1. Background filters (low-mid frequency range)
@@ -805,7 +805,7 @@ class ThreeTierAudioSystem {
             noteData.synth.triggerRelease(noteData.frequency)
           }
           this.activeNotes.delete(noteId)
-          console.log(`🔇 Force-released hanging note: ${noteData.frequency.toFixed(1)}Hz`)
+          // console.log(`🔇 Force-released hanging note: ${noteData.frequency.toFixed(1)}Hz`)
         } catch (e) {
           this.activeNotes.delete(noteId)
         }
@@ -835,7 +835,7 @@ class ThreeTierAudioSystem {
     this.ambientFilters = null
     this.masterVolume = null
     this.generativeState = null
-    console.log('ThreeTierAudioSystem cleanup completed')
+    // console.log('ThreeTierAudioSystem cleanup completed')
   }
 }
 

@@ -81,13 +81,13 @@ class ParticleFlowManager {
   emitParticles(sourceUserId, count = this.emitCount) {
     // Check particle count limit
     if (this.particles.size >= this.maxParticles) {
-      console.warn('⚠️ emitParticles: Max particles reached', this.particles.size, '/', this.maxParticles)
+      // console.warn('⚠️ emitParticles: Max particles reached', this.particles.size, '/', this.maxParticles)
       return
     }
 
     const sourceNode = this.springMesh.nodes.get(sourceUserId)
     if (!sourceNode) {
-      console.warn('⚠️ emitParticles: Source node not found', sourceUserId.substring(0, 8))
+      // console.warn('⚠️ emitParticles: Source node not found', sourceUserId.substring(0, 8))
       return
     }
 
@@ -97,7 +97,7 @@ class ParticleFlowManager {
       edge => (edge.sourceId === sourceUserId || edge.targetId === sourceUserId) && edge.type === 'cursor-trace'
     )
 
-    console.log('✨ emitParticles:', {
+    // console.log('✨ emitParticles:', {
       userId: sourceUserId.substring(0, 8),
       edgesFound: sourceEdges.length,
       countPerEdge: count
@@ -112,7 +112,7 @@ class ParticleFlowManager {
       for (let i = 0; i < count; i++) {
         // Check limit before each particle
         if (this.particles.size >= this.maxParticles) {
-          console.warn('⚠️ emitParticles: Max particles reached during creation', this.particles.size, '/', this.maxParticles)
+          // console.warn('⚠️ emitParticles: Max particles reached during creation', this.particles.size, '/', this.maxParticles)
           return
         }
 
@@ -121,7 +121,7 @@ class ParticleFlowManager {
       }
     }
 
-    console.log('✅ Particles created:', created, 'activeParticles:', this.particles.size)
+    // console.log('✅ Particles created:', created, 'activeParticles:', this.particles.size)
   }
 
   /**
@@ -261,7 +261,7 @@ class ParticleFlowManager {
   render(p) {
     // DEBUG: Log particle count occasionally
     if (p.frameCount % 60 === 0 && this.particles.size > 0) {
-      console.log('✨ Rendering', this.particles.size, 'particles')
+      // console.log('✨ Rendering', this.particles.size, 'particles')
     }
 
     for (const particle of this.particles.values()) {
@@ -280,7 +280,7 @@ class ParticleFlowManager {
     const nodeB = this.springMesh.getNodeOrIntermediate(edge.targetId)
 
     if (!nodeA || !nodeB) {
-      console.warn('⚠️ Particle render: Missing nodes for edge', edge.sourceId.substring(0, 8), '->', edge.targetId.substring(0, 8))
+      // console.warn('⚠️ Particle render: Missing nodes for edge', edge.sourceId.substring(0, 8), '->', edge.targetId.substring(0, 8))
       return
     }
 
@@ -300,7 +300,7 @@ class ParticleFlowManager {
 
     // DEBUG: Log first few renders
     if (this.particles.size <= 5 && p.frameCount % 10 === 0) {
-      console.log('✨ Rendering particle:', {
+      // console.log('✨ Rendering particle:', {
         pos: `(${Math.round(pos.x)}, ${Math.round(pos.y)})`,
         progress: particle.progress.toFixed(2),
         life: particle.life.toFixed(2),
@@ -395,7 +395,7 @@ class ParticleFlowManager {
 // Export for different module systems
 if (typeof window !== 'undefined') {
   window.ParticleFlowManager = ParticleFlowManager
-  console.log('✅ ParticleFlowManager exported to window')
+  // console.log('✅ ParticleFlowManager exported to window')
 }
 
 if (typeof module !== 'undefined' && module.exports) {

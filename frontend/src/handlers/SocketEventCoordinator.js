@@ -81,7 +81,7 @@ class SocketEventCoordinator {
    */
   registerEventListeners() {
     if (!this.socketService) {
-      console.warn('⚠️ SocketService not available for event registration')
+      // console.warn('⚠️ SocketService not available for event registration')
       return
     }
 
@@ -103,7 +103,7 @@ class SocketEventCoordinator {
     // Error events
     this.registerErrorEvents()
 
-    console.log('✅ SocketEventCoordinator: All event listeners registered')
+    // console.log('✅ SocketEventCoordinator: All event listeners registered')
   }
 
   /**
@@ -112,7 +112,7 @@ class SocketEventCoordinator {
   registerRoomEvents() {
     this.socketService.on('room-joined', (data) => {
       this.currentRoom = data.room
-      console.log('🏠 Joined room:', data.room.roomId)
+      // console.log('🏠 Joined room:', data.room.roomId)
 
       if (this.onRoomJoined) {
         this.onRoomJoined(data)
@@ -121,7 +121,7 @@ class SocketEventCoordinator {
 
     this.socketService.on('user-joined', (data) => {
       this.userCount = data.userCount
-      console.log('👤 User joined, total users:', this.userCount)
+      // console.log('👤 User joined, total users:', this.userCount)
 
       if (this.onUserCountChange) {
         this.onUserCountChange(this.userCount)
@@ -130,7 +130,7 @@ class SocketEventCoordinator {
 
     this.socketService.on('user-left', (data) => {
       this.userCount = data.userCount
-      console.log('👋 User left, total users:', this.userCount)
+      // console.log('👋 User left, total users:', this.userCount)
 
       // Remove user's cursor
       if (data.userId && this.cursorManager) {
@@ -177,14 +177,14 @@ class SocketEventCoordinator {
     // Compositional parameters from collective metrics
     this.socketService.on('compositional-parameters', (data) => {
       this.compositionalParameters = data.parameters
-      console.log('🎼 Updated compositional parameters:', this.compositionalParameters)
+      // console.log('🎼 Updated compositional parameters:', this.compositionalParameters)
 
       // Update cached scale
       const newScaleType = data.parameters?.scaleType || 'pentatonic'
       if (this.cachedScaleType !== newScaleType) {
         this.cachedScale = window.MusicalScales?.getScale(newScaleType) || [0, 2, 4, 7, 9]
         this.cachedScaleType = newScaleType
-        console.log(`🎼 Cached scale updated: ${newScaleType}`)
+        // console.log(`🎼 Cached scale updated: ${newScaleType}`)
       }
 
       // Update AudioService
@@ -210,7 +210,7 @@ class SocketEventCoordinator {
 
     // Background composition
     this.socketService.on('background-composition', (data) => {
-      console.log('🎼 Background composition received:', {
+      // console.log('🎼 Background composition received:', {
         compositionNumber: data.compositionNumber,
         isDrone: data.isDrone,
         type: data.composition?.type
@@ -224,7 +224,7 @@ class SocketEventCoordinator {
     // Hover updates
     this.socketService.on('hover-update', (data) => {
       if (this.isAudioStarted && this.audioService && this.audioService.handleHoverModulation) {
-        console.log('🎛️ Remote hover update:', data)
+        // console.log('🎛️ Remote hover update:', data)
         this.audioService.handleHoverModulation({
           position: data.position,
           velocity: data.velocity,
@@ -247,18 +247,18 @@ class SocketEventCoordinator {
    */
   registerHoldEvents() {
     this.socketService.on('hold:start', (data) => {
-      console.log('🔔 Received hold:start event:', {
+      // console.log('🔔 Received hold:start event:', {
         isRemote: data.isRemote,
         userId: data.userId?.substring(0, 8)
       })
 
       if (!this.isAudioStarted) {
-        console.log('⚠️ Ignoring remote hold - audio not started')
+        // console.log('⚠️ Ignoring remote hold - audio not started')
         return
       }
 
       if (!data.isRemote) {
-        console.log('⚠️ Ignoring hold:start - not marked as remote')
+        // console.log('⚠️ Ignoring hold:start - not marked as remote')
         return
       }
 
@@ -276,7 +276,7 @@ class SocketEventCoordinator {
       }
     })
 
-    console.log('✅ Sustained hold event listeners registered')
+    // console.log('✅ Sustained hold event listeners registered')
   }
 
   /**
@@ -293,7 +293,7 @@ class SocketEventCoordinator {
 
       // Minimal logging
       if (event.properties?.noteIndex === 0 || !event.properties?.noteIndex) {
-        console.log(`🎵 Remote: ${event.properties?.gestureAction || 'unknown'} - freq=${event.properties?.frequency?.toFixed(0)}Hz`)
+        // console.log(`🎵 Remote: ${event.properties?.gestureAction || 'unknown'} - freq=${event.properties?.frequency?.toFixed(0)}Hz`)
       }
 
       // Schedule note playback based on timestamp
@@ -320,14 +320,14 @@ class SocketEventCoordinator {
    */
   registerErrorEvents() {
     this.socketService.on('connect_error', (error) => {
-      console.error('❌ Socket connection error:', error)
+      // console.error('❌ Socket connection error:', error)
       if (this.onError) {
         this.onError('Unable to connect to server. Please ensure the backend is running on port 3001.')
       }
     })
 
     this.socketService.on('room-full', (data) => {
-      console.error('❌ Room is full:', data.error)
+      // console.error('❌ Room is full:', data.error)
       if (this.onError) {
         this.onError(`Unable to join room: ${data.error}. Maximum capacity (10 users) reached.`)
       }
@@ -339,7 +339,7 @@ class SocketEventCoordinator {
    * @param {Object} data - Remote hold data
    */
   handleRemoteHoldStartFallback(data) {
-    console.log(`🌐 Remote hold start (fallback): user ${data.userId.substring(0, 8)}, freq ${data.frequency.toFixed(1)}Hz`)
+    // console.log(`🌐 Remote hold start (fallback): user ${data.userId.substring(0, 8)}, freq ${data.frequency.toFixed(1)}Hz`)
 
     const result = this.audioService.triggerSustainedNoteAttack(
       data.frequency,
@@ -395,7 +395,7 @@ class SocketEventCoordinator {
     this.sustainedHoldHandler = null
     this.dragStreamingHandler = null
     this.compositionalParameters = null
-    console.log('✅ SocketEventCoordinator cleanup completed')
+    // console.log('✅ SocketEventCoordinator cleanup completed')
   }
 }
 

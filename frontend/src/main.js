@@ -48,7 +48,7 @@ class WebarmoniumApp {
 
   async init() {
     try {
-      console.log('🎵 Initializing Webarmonium...')
+      // console.log('🎵 Initializing Webarmonium...')
 
       // Setup canvas
       this.setupCanvas()
@@ -71,9 +71,9 @@ class WebarmoniumApp {
       // Hide loading screen
       this.showApp()
 
-      console.log('✅ Webarmonium initialized successfully')
+      // console.log('✅ Webarmonium initialized successfully')
     } catch (error) {
-      console.error('❌ Failed to initialize Webarmonium:', error)
+      // console.error('❌ Failed to initialize Webarmonium:', error)
       this.showError('Failed to initialize application: ' + error.message)
     }
   }
@@ -87,7 +87,7 @@ class WebarmoniumApp {
     this.ctx = canvasRefs.ctx
     this.cursorOverlayCanvas = canvasRefs.cursorOverlayCanvas
 
-    console.log('✅ Canvas setup delegated to CanvasManager')
+    // console.log('✅ Canvas setup delegated to CanvasManager')
   }
 
   // Sprint 2: resizeCanvas() removed - now handled by CanvasManager
@@ -96,16 +96,16 @@ class WebarmoniumApp {
   async initializeServices() {
     // Initialize audio service with proper ordering
     if (window.AudioService) {
-      console.log('✅ AudioService class found, creating instance')
+      // console.log('✅ AudioService class found, creating instance')
       this.audioService = new window.AudioService()
       window.AudioServicePromise = null // Clean up
     } else {
-      console.log('⚠️ AudioService not found, creating new instance')
+      // console.log('⚠️ AudioService not found, creating new instance')
       this.audioService = new AudioService()
     }
 
     // Initialize socket service using SocketService (which uses socket.io)
-    console.log('🔌 Initializing SocketService...')
+    // console.log('🔌 Initializing SocketService...')
     this.socketService = new SocketService()
     this.socketServicePromise = Promise.resolve(this.socketService.socket);
 
@@ -113,7 +113,7 @@ class WebarmoniumApp {
     const basicGestureToMusicMapper = {
       gestureToMusicalEvent: (gesture) => {
         // DEBUG: Log what mapper receives
-        console.log('🎵 MAPPER RECEIVED:', {
+        // console.log('🎵 MAPPER RECEIVED:', {
           hasCoordinates: !!gesture.coordinates,
           coordinates: gesture.coordinates,
           intensity: gesture.intensity,
@@ -126,7 +126,7 @@ class WebarmoniumApp {
         const velocity = Math.floor((gesture.intensity || 0.5) * 127)
         const duration = 0.2 + (1 - (gesture.speed || 0.5)) * 0.8 // Speed affects duration
 
-        console.log('🎵 MAPPER OUTPUT:', { yValue, pitch, velocity, duration })
+        // console.log('🎵 MAPPER OUTPUT:', { yValue, pitch, velocity, duration })
 
         return {
           pitch,
@@ -137,21 +137,21 @@ class WebarmoniumApp {
         }
       },
       setTempo: (tempo) => {
-        console.log('🎛️ Gesture mapper tempo set to:', tempo)
+        // console.log('🎛️ Gesture mapper tempo set to:', tempo)
       },
       setScale: (scale) => {
-        console.log('🎛️ Gesture mapper scale set to:', scale)
+        // console.log('🎛️ Gesture mapper scale set to:', scale)
       }
     }
 
     // Initialize gesture capture with EnhancedGestureCapture for three-tier architecture
-    console.log('🎯 Initializing EnhancedGestureCapture with canvas:', this.canvas)
+    // console.log('🎯 Initializing EnhancedGestureCapture with canvas:', this.canvas)
     this.gestureCapture = new EnhancedGestureCapture(this.canvas, basicGestureToMusicMapper, this.socketService)
-    console.log('🎯 EnhancedGestureCapture created:', this.gestureCapture)
+    // console.log('🎯 EnhancedGestureCapture created:', this.gestureCapture)
 
     // Start EnhancedGestureCapture
     this.gestureCapture.start()
-    console.log('🎯 EnhancedGestureCapture started')
+    // console.log('🎯 EnhancedGestureCapture started')
 
     // Initialize multi-user canvas services
     // DISABLED: DrawingRenderer replaced by p5.js generative graphics
@@ -159,13 +159,13 @@ class WebarmoniumApp {
     this.cursorManager = new CursorManager(this.cursorOverlayCanvas)
 
     // Initialize generative visual service (p5.js)
-    console.log('🎨 Initializing GenerativeVisualService...')
+    // console.log('🎨 Initializing GenerativeVisualService...')
     this.visualService = new GenerativeVisualService()
     const p5Container = document.getElementById('p5-container')
     if (p5Container) {
       this.visualService.initialize(p5Container)
     } else {
-      console.warn('⚠️ p5-container not found, visual service not initialized')
+      // console.warn('⚠️ p5-container not found, visual service not initialized')
     }
 
     // Sprint 2: Register services as canvas resize listeners
@@ -199,7 +199,7 @@ class WebarmoniumApp {
       this.socketService,
       (gesture) => this.drawGestureTrail(gesture)
     )
-    console.log('🎯 GestureProcessor initialized')
+    // console.log('🎯 GestureProcessor initialized')
 
     // Start cursor rendering loop (60fps)
     this.cursorManager.startRendering()
@@ -209,32 +209,32 @@ class WebarmoniumApp {
 
     // Setup hover modulation for three-tier architecture
     this.gestureCapture.setHoverModulationCallback((hoverData) => {
-      console.log('🎛️ Hover modulation callback triggered:', hoverData)
+      // console.log('🎛️ Hover modulation callback triggered:', hoverData)
 
       // Rimuoviamo l'indicatore visivo del tremolo
       // this.updateTremoloIndicator(hoverData)
 
-      console.log('🔊 Audio state - started:', this.isAudioStarted, 'service exists:', !!this.audioService, 'method exists:', !!(this.audioService && this.audioService.handleHoverModulation))
+      // console.log('🔊 Audio state - started:', this.isAudioStarted, 'service exists:', !!this.audioService, 'method exists:', !!(this.audioService && this.audioService.handleHoverModulation))
 
       if (this.isAudioStarted && this.audioService && this.audioService.handleHoverModulation) {
-        console.log('🎛️ Calling handleHoverModulation...')
+        // console.log('🎛️ Calling handleHoverModulation...')
         this.audioService.handleHoverModulation(hoverData)
       } else {
-        console.warn('⚠️ Hover modulation blocked - Audio not ready')
+        // console.warn('⚠️ Hover modulation blocked - Audio not ready')
       }
     })
 
     // Setup drag streaming note callback for real-time feedback
     // CRITICAL: Return note data for backend broadcast
     this.gestureCapture.setDragStreamingNoteCallback((noteData) => {
-      console.log('🎸🎸 DRAG STREAMING CALLBACK CALLED:', {
+      // console.log('🎸🎸 DRAG STREAMING CALLBACK CALLED:', {
         hasAudio: this.isAudioStarted,
         hasService: !!this.audioService,
         noteData
       })
 
       if (!this.isAudioStarted || !this.audioService) {
-        console.warn('🎸🎸 BLOCKED - audio not ready')
+        // console.warn('🎸🎸 BLOCKED - audio not ready')
         return null // No note played
       }
 
@@ -413,7 +413,7 @@ class WebarmoniumApp {
         // Higher velocity for local gesture prominence
         const velocity = 0.8 + noteData.velocity * 0.2 // 0.8-1.0 range (was 0.5-0.8)
 
-        console.log('🎵🎵 PLAYING LOCAL NOTE:', {
+        // console.log('🎵🎵 PLAYING LOCAL NOTE:', {
           frequency: frequency.toFixed(1),
           duration: duration,
           articulation: noteData.articulation,
@@ -442,7 +442,7 @@ class WebarmoniumApp {
 
     // SUSTAINED HOLD: Setup sustained hold callbacks for gate-based audio
     this.gestureCapture.onSustainedHoldStart = (holdData) => {
-      console.log('🎵 Sustained hold start callback:', holdData)
+      // console.log('🎵 Sustained hold start callback:', holdData)
 
       // Calculate frequency from position (reuse existing logic from drag streaming)
       // CRITICAL: Calculate this regardless of audio state for network sync
@@ -478,7 +478,7 @@ class WebarmoniumApp {
           velocity: velocity,
           timestamp: Date.now()
         }
-        console.log('📤 EMITTING hold:start to backend:', {
+        // console.log('📤 EMITTING hold:start to backend:', {
           noteId: emitData.noteId,
           userId: emitData.userId?.substring(0, 8),
           roomId: emitData.roomId,
@@ -487,14 +487,14 @@ class WebarmoniumApp {
         })
         this.socketService.socket.emit('hold:start', emitData, (response) => {
           if (response && response.success) {
-            console.log(`✅ hold:start acknowledged by backend: ${response.latency}ms latency`)
+            // console.log(`✅ hold:start acknowledged by backend: ${response.latency}ms latency`)
           } else {
-            console.error('❌ hold:start failed:', response?.error)
+            // console.error('❌ hold:start failed:', response?.error)
           }
         })
-        console.log('✅ hold:start emit called successfully')
+        // console.log('✅ hold:start emit called successfully')
       } else {
-        console.error('❌ Cannot emit hold:start - socketService or socket not available', {
+        // console.error('❌ Cannot emit hold:start - socketService or socket not available', {
           hasSocketService: !!this.socketService,
           hasSocket: !!(this.socketService?.socket)
         })
@@ -511,7 +511,7 @@ class WebarmoniumApp {
 
       // LOCAL AUDIO: Only play locally if audio is ready
       if (!this.isAudioStarted || !this.audioService) {
-        console.warn('⚠️ Audio not ready for local playback - hold:start still sent to network')
+        // console.warn('⚠️ Audio not ready for local playback - hold:start still sent to network')
         return
       }
 
@@ -529,7 +529,7 @@ class WebarmoniumApp {
           visualStartTime: Date.now() // For pulsing circle animation
         }
 
-        console.log(`✅ Sustained hold started: ${frequency.toFixed(1)}Hz`)
+        // console.log(`✅ Sustained hold started: ${frequency.toFixed(1)}Hz`)
 
         // Update visual service with hold gesture
         if (this.visualService && this.socketService && this.socketService.socket) {
@@ -548,7 +548,7 @@ class WebarmoniumApp {
     }
 
     this.gestureCapture.onSustainedHoldEnd = (endData) => {
-      console.log('🎵 Sustained hold end callback:', endData)
+      // console.log('🎵 Sustained hold end callback:', endData)
 
       // EMIT TO NETWORK: Always emit hold:end for remote sync
       // Use pendingHoldNoteData (set in onSustainedHoldStart) for network emission
@@ -563,13 +563,13 @@ class WebarmoniumApp {
           timestamp: Date.now()
         }, (response) => {
           if (response && response.success) {
-            console.log(`✅ Hold end acknowledged: ${endData.duration}ms hold, ${response.latency}ms latency`)
+            // console.log(`✅ Hold end acknowledged: ${endData.duration}ms hold, ${response.latency}ms latency`)
           } else {
-            console.error('❌ Hold end failed:', response?.error)
+            // console.error('❌ Hold end failed:', response?.error)
           }
         })
       } else {
-        console.warn('⚠️ Cannot emit hold:end - missing socket or pendingHoldNoteData', {
+        // console.warn('⚠️ Cannot emit hold:end - missing socket or pendingHoldNoteData', {
           hasSocketService: !!this.socketService,
           hasSocket: !!(this.socketService?.socket),
           hasPendingHoldData: !!this.pendingHoldNoteData
@@ -580,9 +580,9 @@ class WebarmoniumApp {
       if (this.isAudioStarted && this.audioService && this.activeLocalHold) {
         // Trigger note release (gate closes)
         this.audioService.triggerSustainedNoteRelease(this.activeLocalHold.audioNoteId)
-        console.log(`✅ Local sustained hold ended: ${endData.duration}ms, reason: ${endData.reason}`)
+        // console.log(`✅ Local sustained hold ended: ${endData.duration}ms, reason: ${endData.reason}`)
       } else {
-        console.log(`📡 Network-only hold ended: ${endData.duration}ms, reason: ${endData.reason}`)
+        // console.log(`📡 Network-only hold ended: ${endData.duration}ms, reason: ${endData.reason}`)
       }
 
       // Update visual service with hold end
@@ -604,20 +604,20 @@ class WebarmoniumApp {
     // Setup gesture handling
     this.gestureCapture.onGesture = (gesture) => {
       this.lastGestureRenderTime = performance.now()
-      console.log('🎯 Gesture callback triggered:', gesture)
-      console.log('🔊 Audio state when gesture received - started:', this.isAudioStarted, 'service exists:', !!this.audioService)
+      // console.log('🎯 Gesture callback triggered:', gesture)
+      // console.log('🔊 Audio state when gesture received - started:', this.isAudioStarted, 'service exists:', !!this.audioService)
 
       // Sprint 4: Delegate gesture action determination to GestureProcessor
       const gestureAction = this.gestureProcessor.determineGestureAction(gesture)
       const enhancedGesture = { ...gesture, action: gestureAction }
 
-      console.log('🎯 Enhanced gesture action:', gestureAction, 'will call handleGesture')
+      // console.log('🎯 Enhanced gesture action:', gestureAction, 'will call handleGesture')
       this.handleGesture(enhancedGesture)
     }
 
     // Setup gesture start/end for proper three-tier handling
     this.gestureCapture.onGestureStart = (gesture) => {
-      console.log('👆 Gesture start callback:', gesture.id)
+      // console.log('👆 Gesture start callback:', gesture.id)
       // Handle initial gesture filtering
       if (this.audioService && this.audioService.updateFilterParams) {
         // Apply initial filter based on gesture start position
@@ -644,8 +644,8 @@ class WebarmoniumApp {
     }
 
     this.gestureCapture.onGestureEnd = (gesture, musicalEvent) => {
-      console.log('👋 Gesture end callback:', gesture.id, musicalEvent)
-      console.log('🔍 Gesture end details:', {
+      // console.log('👋 Gesture end callback:', gesture.id, musicalEvent)
+      // console.log('🔍 Gesture end details:', {
         gestureAction: gesture.action,
         willCalculate: this.gestureProcessor.determineGestureAction(gesture)
       })
@@ -654,28 +654,28 @@ class WebarmoniumApp {
       // We want only our custom click logic for taps, and no auto-notes for hover
       // Sprint 4: Delegate to GestureProcessor
       const gestureAction = gesture.action || this.gestureProcessor.determineGestureAction(gesture)
-      console.log('🔍 Final gesture action for end callback:', gestureAction)
+      // console.log('🔍 Final gesture action for end callback:', gestureAction)
 
       // REMOTE FIX: TAP gestures MUST send musical events for remote users
       // Don't skip - let it fall through to emit musical:event to backend
       if (gestureAction === 'tap') {
-        console.log('🎯 TAP gesture - sending musical event for remote sync')
+        // console.log('🎯 TAP gesture - sending musical event for remote sync')
         // Continue to musical event emission below
       }
 
       // Process drag gestures - check if timer is still pending
       if (gestureAction === 'drag') {
-        console.log('🎵 DRAG gesture in onGestureEnd - checking timer status')
+        // console.log('🎵 DRAG gesture in onGestureEnd - checking timer status')
 
         // Sprint 4: Check GestureProcessor's pending gesture state
         // If timer is still pending, let it handle the phrase
         if (this.gestureProcessor.pendingGesture && this.gestureProcessor.pendingGesture.id === gesture.id) {
-          console.log('🎵 DRAG timer will handle phrase - skipping musicalEvent')
+          // console.log('🎵 DRAG timer will handle phrase - skipping musicalEvent')
           return
         }
 
         // If timer already fired or gesture is very quick, process immediately via GestureProcessor
-        console.log('🎵 DRAG timer already fired - processing immediately')
+        // console.log('🎵 DRAG timer already fired - processing immediately')
         const sonicParams = {
           x: gesture.coordinates?.x || 0.5,
           y: gesture.coordinates?.y || 0.5,
@@ -690,7 +690,7 @@ class WebarmoniumApp {
       }
 
       // Skip all other automatic musical events
-      console.log('🚫 Skipping automatic musical event for non-drag gesture')
+      // console.log('🚫 Skipping automatic musical event for non-drag gesture')
 
       // Update visual service with local gesture end
       if (this.visualService && this.socketService && this.socketService.socket) {
@@ -707,7 +707,7 @@ class WebarmoniumApp {
       return
     }
 
-    console.log('🎯 All gesture callbacks set up including hover modulation')
+    // console.log('🎯 All gesture callbacks set up including hover modulation')
   }
 
   setupEventListeners() {
@@ -723,26 +723,26 @@ class WebarmoniumApp {
     this.socketService.on('room-joined', (data) => {
       this.currentRoom = data.room
       this.updateRoomDisplay()
-      console.log('🏠 Joined room:', data.room.roomId)
+      // console.log('🏠 Joined room:', data.room.roomId)
 
       // CRITICAL FIX: Set room context in gesture capture so gestures include roomId
       // Without this, gestures have roomId: null and are never sent to backend
       if (this.gestureCapture && this.gestureCapture.setRoomContext) {
         this.gestureCapture.setRoomContext(data.room.roomId)
-        console.log('🎯 Set gesture capture room context to:', data.room.roomId)
+        // console.log('🎯 Set gesture capture room context to:', data.room.roomId)
       }
     })
 
     this.socketService.on('user-joined', (data) => {
       this.userCount = data.userCount
       this.updateRoomDisplay()
-      console.log('👤 User joined, total users:', this.userCount)
+      // console.log('👤 User joined, total users:', this.userCount)
     })
 
     this.socketService.on('user-left', (data) => {
       this.userCount = data.userCount
       this.updateRoomDisplay()
-      console.log('👋 User left, total users:', this.userCount)
+      // console.log('👋 User left, total users:', this.userCount)
 
       // Remove user's cursor
       if (data.userId && this.cursorManager) {
@@ -755,7 +755,7 @@ class WebarmoniumApp {
 
     // FIX: Handle user-disconnected for unexpected disconnects (e.g., browser close)
     this.socketService.on('user-disconnected', (data) => {
-      console.log('🔌 User disconnected unexpectedly:', data.userId)
+      // console.log('🔌 User disconnected unexpectedly:', data.userId)
 
       // Remove user's cursor from visualization
       if (data.userId && this.cursorManager) {
@@ -768,7 +768,7 @@ class WebarmoniumApp {
 
     // SUSTAINED HOLD: Handle remote user hold:start events
     this.socketService.on('hold:start', (data) => {
-      console.log('📥 RECEIVED hold:start from server:', {
+      // console.log('📥 RECEIVED hold:start from server:', {
         noteId: data.noteId,
         userId: data.userId?.substring(0, 8),
         isRemote: data.isRemote,
@@ -779,16 +779,16 @@ class WebarmoniumApp {
 
       // Only process if audio is started AND this is a remote hold
       if (!this.isAudioStarted) {
-        console.log('⏭️ Skipping hold:start - audio not started')
+        // console.log('⏭️ Skipping hold:start - audio not started')
         return
       }
 
       if (!data.isRemote) {
-        console.log('⏭️ Skipping hold:start - not marked as remote (is my own event)')
+        // console.log('⏭️ Skipping hold:start - not marked as remote (is my own event)')
         return
       }
 
-      console.log('▶️ PLAYING remote sustained note')
+      // console.log('▶️ PLAYING remote sustained note')
 
       // Trigger remote note attack (use same method, AudioService handles synth selection)
       const result = this.audioService.triggerSustainedNoteAttack(
@@ -832,7 +832,7 @@ class WebarmoniumApp {
 
       const remoteHold = this.activeRemoteHolds.get(data.noteId)
       if (!remoteHold) {
-        console.warn(`⚠️ Received hold:end for unknown note: ${data.noteId}`)
+        // console.warn(`⚠️ Received hold:end for unknown note: ${data.noteId}`)
         return
       }
 
@@ -853,10 +853,10 @@ class WebarmoniumApp {
       // Remove from tracking
       this.activeRemoteHolds.delete(data.noteId)
 
-      console.log(`🌐 Remote hold end: user ${data.userId.substring(0, 8)}, ${data.duration}ms hold${data.reason ? ' (' + data.reason + ')' : ''}`)
+      // console.log(`🌐 Remote hold end: user ${data.userId.substring(0, 8)}, ${data.duration}ms hold${data.reason ? ' (' + data.reason + ')' : ''}`)
     })
 
-    console.log('✅ Sustained hold event listeners registered')
+    // console.log('✅ Sustained hold event listeners registered')
 
     // Compositional parameters from collective metrics
     // PERFORMANCE: Cache scale array to avoid lookup on every drag note
@@ -872,10 +872,10 @@ class WebarmoniumApp {
       if (this.cachedScaleType !== newScaleType) {
         this.cachedScale = window.MusicalScales.getScale(newScaleType)
         this.cachedScaleType = newScaleType
-        console.log(`🎼 Cached scale updated: ${newScaleType}`)
+        // console.log(`🎼 Cached scale updated: ${newScaleType}`)
       }
 
-      console.log('🎼 Updated compositional parameters:', this.compositionalParameters)
+      // console.log('🎼 Updated compositional parameters:', this.compositionalParameters)
 
       // Update AudioService with new parameters for background generation
       if (this.audioService && this.audioService.updateCompositionalParameters) {
@@ -893,7 +893,7 @@ class WebarmoniumApp {
           data.isDrawing
         )
       } else {
-        console.error('❌ CursorManager not initialized!')
+        // console.error('❌ CursorManager not initialized!')
       }
 
       // Update visual service with cursor position
@@ -913,24 +913,24 @@ class WebarmoniumApp {
       }
     })
 
-    console.log('📡 Registering background-composition event listener...')
+    // console.log('📡 Registering background-composition event listener...')
     this.socketService.on('background-composition', (data) => {
-      console.log('🎼🎼🎼 BACKGROUND COMPOSITION EVENT RECEIVED 🎼🎼🎼')
-      console.log('  ↳ Composition number:', data.compositionNumber)
-      console.log('  ↳ isDrone:', data.isDrone)
-      console.log('  ↳ isAudioStarted:', this.isAudioStarted)
-      console.log('  ↳ Has composition:', !!data.composition)
-      console.log('  ↳ Composition type:', data.composition?.type)
-      console.log('  ↳ Full data:', data)
+      // console.log('🎼🎼🎼 BACKGROUND COMPOSITION EVENT RECEIVED 🎼🎼🎼')
+      // console.log('  ↳ Composition number:', data.compositionNumber)
+      // console.log('  ↳ isDrone:', data.isDrone)
+      // console.log('  ↳ isAudioStarted:', this.isAudioStarted)
+      // console.log('  ↳ Has composition:', !!data.composition)
+      // console.log('  ↳ Composition type:', data.composition?.type)
+      // console.log('  ↳ Full data:', data)
 
       if (this.isAudioStarted && data.composition) {
-        console.log('✅ Playing composition...')
+        // console.log('✅ Playing composition...')
         this.audioService.playComposition(data.composition, data.isDrone)
       } else {
-        console.warn('❌ Not playing - isAudioStarted:', this.isAudioStarted, 'composition:', !!data.composition)
+        // console.warn('❌ Not playing - isAudioStarted:', this.isAudioStarted, 'composition:', !!data.composition)
       }
     })
-    console.log('✅ background-composition listener registered')
+    // console.log('✅ background-composition listener registered')
 
     // PHASE 5: Removed unused 'gesture-processed' listener (82 lines)
     // Backend never emits this event - it uses 'musical:event' instead
@@ -938,7 +938,7 @@ class WebarmoniumApp {
 
     // Handle hover events from backend for cross-layer modulation
     this.socketService.on('hover-update', (data) => {
-      console.log('🎛️ REMOTE HOVER UPDATE RECEIVED:', {
+      // console.log('🎛️ REMOTE HOVER UPDATE RECEIVED:', {
         isAudioStarted: this.isAudioStarted,
         hasAudioService: !!this.audioService,
         hasHandleHoverModulation: !!(this.audioService && this.audioService.handleHoverModulation),
@@ -947,16 +947,16 @@ class WebarmoniumApp {
       })
 
       if (this.isAudioStarted && this.audioService && this.audioService.handleHoverModulation) {
-        console.log('🎛️ CALLING handleHoverModulation for remote hover...')
+        // console.log('🎛️ CALLING handleHoverModulation for remote hover...')
         this.audioService.handleHoverModulation({
           position: data.position,
           velocity: data.velocity,
           intensity: data.intensity,
           isRemote: true // Remote hover
         })
-        console.log('✅ Remote hover modulation completed')
+        // console.log('✅ Remote hover modulation completed')
       } else {
-        console.warn('⚠️ Remote hover blocked - audio not ready:', {
+        // console.warn('⚠️ Remote hover blocked - audio not ready:', {
           isAudioStarted: this.isAudioStarted,
           hasAudioService: !!this.audioService,
           hasHandleHoverModulation: !!(this.audioService && this.audioService.handleHoverModulation)
@@ -985,7 +985,7 @@ class WebarmoniumApp {
       }
 
       // DEBUG: Log all event properties
-      console.log('🔍 Remote musical:event:', {
+      // console.log('🔍 Remote musical:event:', {
         userId: remoteUserId?.substring(0, 8),
         isOwn: remoteUserId === this.socketService.socket.id,
         gestureAction: event.properties?.gestureAction,
@@ -1008,7 +1008,7 @@ class WebarmoniumApp {
       // Drag: multiple notes (totalNotes>1) or streamed
       const gestureType = (totalNotes === 1 && !isStreamed) ? 'tap' : 'drag'
 
-      console.log('🎨 Visual trigger:', {
+      // console.log('🎨 Visual trigger:', {
         shouldTriggerVisual,
         gestureType,
         isStreamed,
@@ -1030,7 +1030,7 @@ class WebarmoniumApp {
         }
       }
 
-      console.log('🖱️ Cursor info:', {
+      // console.log('🖱️ Cursor info:', {
         cursorFound,
         remotePosition,
         userColor
@@ -1038,7 +1038,7 @@ class WebarmoniumApp {
 
       // CRITICAL: First ensure node exists in visual service, then trigger gesture
       if (this.visualService && shouldTriggerVisual) {
-        console.log('✨ Calling updateCursorPosition for remote user:', remoteUserId.substring(0, 8))
+        // console.log('✨ Calling updateCursorPosition for remote user:', remoteUserId.substring(0, 8))
 
         // Ensure node exists (creates if not present)
         this.visualService.updateCursorPosition(
@@ -1048,7 +1048,7 @@ class WebarmoniumApp {
           userColor
         )
 
-        console.log('✨ Calling updateGestureData with:', gestureType, 'isActive=true')
+        // console.log('✨ Calling updateGestureData with:', gestureType, 'isActive=true')
 
         // Now trigger gesture effects (pulses + particles)
         this.visualService.updateGestureData(remoteUserId, {
@@ -1067,7 +1067,7 @@ class WebarmoniumApp {
           }
         }, 100)
       } else {
-        console.log('⚠️ Visual NOT triggered:', { hasVisualService: !!this.visualService, shouldTriggerVisual })
+        // console.log('⚠️ Visual NOT triggered:', { hasVisualService: !!this.visualService, shouldTriggerVisual })
       }
 
       // CRITICAL FIX: Schedule note playback based on relativeDelay
@@ -1106,19 +1106,19 @@ class WebarmoniumApp {
     // Debug: handle raw hover events in development
     this.socketService.on('hover-update-raw', (hoverData) => {
       if (process.env.NODE_ENV === 'development' && this.isAudioStarted && hoverData) {
-        console.log('🐛 Debug: Processing raw hover event:', hoverData)
+        // console.log('🐛 Debug: Processing raw hover event:', hoverData)
         // Apply old-style hover modulation for comparison
         this.audioService.handleHoverModulation(hoverData)
       }
     })
 
     this.socketService.on('connect_error', (error) => {
-      console.error('❌ Socket connection error:', error)
+      // console.error('❌ Socket connection error:', error)
       this.showError('Unable to connect to server. Please ensure the backend is running on port 3001.')
     })
 
     this.socketService.on('room-full', (data) => {
-      console.error('❌ Room is full:', data.error)
+      // console.error('❌ Room is full:', data.error)
       this.showError(`Unable to join room: ${data.error}. The room has reached maximum capacity (10 users). Please try again later.`)
     })
   }
@@ -1150,7 +1150,7 @@ class WebarmoniumApp {
     const emitCursorPosition = (x, y, isDrawingState) => {
       const now = Date.now()
       if (now - lastCursorEmit >= cursorThrottleMs) {
-        console.log(`📍 Emitting cursor-move: (${x.toFixed(2)}, ${y.toFixed(2)}), drawing: ${isDrawingState}`)
+        // console.log(`📍 Emitting cursor-move: (${x.toFixed(2)}, ${y.toFixed(2)}), drawing: ${isDrawingState}`)
         this.socketService.socket.emit('cursor-move', {
           x,
           y,
@@ -1181,7 +1181,7 @@ class WebarmoniumApp {
     this.canvas.addEventListener('mousemove', handleCursorMove)
     this.canvas.addEventListener('touchmove', handleCursorMove)
 
-    console.log('✅ Cursor tracking enabled for p5.js visualization')
+    // console.log('✅ Cursor tracking enabled for p5.js visualization')
   }
 
   async connectToServer() {
@@ -1194,7 +1194,7 @@ class WebarmoniumApp {
         ? 'http://localhost:3001'
         : `${window.location.protocol}//${window.location.host}`
 
-      console.log(`🔌 Connecting to backend at: ${backendUrl}`)
+      // console.log(`🔌 Connecting to backend at: ${backendUrl}`)
       await this.socketService.connect(backendUrl)
 
       // Join a room
@@ -1212,7 +1212,7 @@ class WebarmoniumApp {
       // Store assigned user color for p5.js visualization
       if (joinResponse && joinResponse.assignedColor) {
         this.currentUserColor = joinResponse.assignedColor
-        console.log('✅ User color assigned:', this.currentUserColor)
+        // console.log('✅ User color assigned:', this.currentUserColor)
       }
 
     } catch (error) {
@@ -1236,29 +1236,29 @@ class WebarmoniumApp {
 
     if (!this.isAudioStarted) {
       try {
-        console.log('🔊 Manual audio start requested...')
+        // console.log('🔊 Manual audio start requested...')
         // Start audio context (requires user interaction)
         const startResult = await this.audioService.start()
-        console.log('🔊 AudioService.start() result:', startResult)
+        // console.log('🔊 AudioService.start() result:', startResult)
 
         if (startResult) {
           this.isAudioStarted = true
           button.textContent = '🔇 Stop Audio'
           button.classList.remove('disabled')
-          console.log('🔊 Audio started successfully')
+          // console.log('🔊 Audio started successfully')
         } else {
-          console.warn('⚠️ AudioService.start() returned false')
+          // console.warn('⚠️ AudioService.start() returned false')
         }
       } catch (error) {
-        console.error('❌ Failed to start audio:', error)
+        // console.error('❌ Failed to start audio:', error)
         this.showError('Failed to start audio: ' + error.message)
       }
     } else {
-      console.log('🔇 Stopping audio...')
+      // console.log('🔇 Stopping audio...')
       this.audioService.stop()
       this.isAudioStarted = false
       button.textContent = '🔊 Start Audio'
-      console.log('🔇 Audio stopped')
+      // console.log('🔇 Audio stopped')
     }
   }
 
@@ -1270,11 +1270,11 @@ class WebarmoniumApp {
     try {
       // Try to start audio context automatically
       if (this.audioService && !this.isAudioStarted) {
-        console.log('🔊 Attempting auto-start audio...')
+        // console.log('🔊 Attempting auto-start audio...')
 
         // Force manual interaction by creating a dummy click event
         const startResult = await this.audioService.start()
-        console.log('🔊 AudioService.start() result:', startResult)
+        // console.log('🔊 AudioService.start() result:', startResult)
 
         if (startResult) {
           this.isAudioStarted = true
@@ -1286,16 +1286,16 @@ class WebarmoniumApp {
             button.classList.remove('disabled')
           }
 
-          console.log('🔊 Audio auto-started successfully')
+          // console.log('🔊 Audio auto-started successfully')
         } else {
-          console.warn('⚠️ AudioService.start() returned false')
+          // console.warn('⚠️ AudioService.start() returned false')
         }
       } else {
-        console.log('🔊 Audio already started or service not available')
+        // console.log('🔊 Audio already started or service not available')
       }
     } catch (error) {
-      console.error('❌ Auto-start audio failed:', error)
-      console.warn('⚠️ User may need to click Start Audio button manually')
+      // console.error('❌ Auto-start audio failed:', error)
+      // console.warn('⚠️ User may need to click Start Audio button manually')
     }
   }
 
@@ -1432,10 +1432,10 @@ class WebarmoniumApp {
   }
 
   handleMuteChange(muted) {
-    console.log(`🔇 handleMuteChange called with: ${muted}, audioService exists: ${!!this.audioService}`)
+    // console.log(`🔇 handleMuteChange called with: ${muted}, audioService exists: ${!!this.audioService}`)
     if (this.audioService) {
       this.audioService.setMuted(muted)
-      console.log(`🔇 Audio ${muted ? 'muted' : 'unmuted'}, audioService.muted is now: ${this.audioService.muted}`)
+      // console.log(`🔇 Audio ${muted ? 'muted' : 'unmuted'}, audioService.muted is now: ${this.audioService.muted}`)
     }
   }
 
@@ -1496,10 +1496,10 @@ class WebarmoniumApp {
   }
 
   handleVolumeChange(volume) {
-    console.log(`🔊 handleVolumeChange called with: ${volume}, audioService exists: ${!!this.audioService}`)
+    // console.log(`🔊 handleVolumeChange called with: ${volume}, audioService exists: ${!!this.audioService}`)
     if (this.audioService) {
       this.audioService.setVolume(volume / 100) // Convert 0-100 to 0-1
-      console.log(`🔊 Volume set to ${volume}%, audioService.volume is now: ${this.audioService.volume}`)
+      // console.log(`🔊 Volume set to ${volume}%, audioService.volume is now: ${this.audioService.volume}`)
     }
   }
 
@@ -1508,7 +1508,7 @@ class WebarmoniumApp {
    * Prevents memory leaks by cleaning up all services
    */
   destroy() {
-    console.log('🧹 Cleaning up Webarmonium app...')
+    // console.log('🧹 Cleaning up Webarmonium app...')
 
     // Sprint 2: Delegate cleanup to extracted components
     if (this.canvasManager) {
@@ -1542,7 +1542,7 @@ class WebarmoniumApp {
       this.socketService.disconnect()
     }
 
-    console.log('✅ Webarmonium cleanup complete')
+    // console.log('✅ Webarmonium cleanup complete')
   }
 }
 
@@ -1570,8 +1570,8 @@ window.testFilterModulation = () => {
   if (window.webarmoniumApp && window.webarmoniumApp.audioService) {
     window.webarmoniumApp.audioService.testFilterModulation()
   } else {
-    console.warn('WebarmoniumApp or AudioService not available')
+    // console.warn('WebarmoniumApp or AudioService not available')
   }
 }
 
-console.log('🧪 Filter test method exposed: window.testFilterModulation()')
+// console.log('🧪 Filter test method exposed: window.testFilterModulation()')

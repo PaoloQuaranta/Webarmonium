@@ -66,7 +66,7 @@ class GestureProcessor {
     }
 
     // DEBUG: Verify position is set before sending
-    console.log('🔧 GESTURE PROCESSOR - Before sendGesture:', {
+    // console.log('🔧 GESTURE PROCESSOR - Before sendGesture:', {
       hasCoordinates: !!gesture.coordinates,
       coordinates: gesture.coordinates,
       hasPosition: !!gestureToSend.position,
@@ -79,7 +79,7 @@ class GestureProcessor {
 
     // Handle different gesture types for local audio
     if (!isAudioStarted) {
-      console.log('🎵 Gesture captured but audio not started')
+      // console.log('🎵 Gesture captured but audio not started')
       if (this.drawGestureTrailCallback) {
         this.drawGestureTrailCallback(gesture)
       }
@@ -88,7 +88,7 @@ class GestureProcessor {
 
     // CRITICAL FIX: Use timer to distinguish click from drag
     const gestureAction = gesture.action || this.determineGestureAction(gesture)
-    console.log('🔍 Determined gesture action:', gestureAction, 'from gesture.action:', gesture.action)
+    // console.log('🔍 Determined gesture action:', gestureAction, 'from gesture.action:', gesture.action)
 
     // Clear any existing timer
     if (this.gestureTimer) {
@@ -109,17 +109,17 @@ class GestureProcessor {
     // No setTimeout delays - tap/drag discrimination happens in real-time based on movement
     if (gestureAction === 'tap') {
       // Immediate handling for tap/click
-      console.log('🎯 TAP branch - calling processClickGesture')
+      // console.log('🎯 TAP branch - calling processClickGesture')
       this.processClickGesture(gesture, sonicParams)
     } else if (gestureAction === 'drag') {
       // IMMEDIATE handling for drag - no delay!
       // Note: If streaming was active, we already returned early at line 47
       // This only processes drag gestures where streaming didn't activate (rare edge case)
-      console.log('🎯 DRAG branch - IMMEDIATE processing (no setTimeout)')
+      // console.log('🎯 DRAG branch - IMMEDIATE processing (no setTimeout)')
       this.processDragGesture(gesture, sonicParams)
     } else {
       // Fallback to original logic
-      console.log('🚯 ELSE branch - calling processGestureByAction for action:', gestureAction)
+      // console.log('🚯 ELSE branch - calling processGestureByAction for action:', gestureAction)
       this.processGestureByAction(gesture, sonicParams)
     }
   }
@@ -130,8 +130,8 @@ class GestureProcessor {
    * @param {Object} sonicParams - Sonic parameters
    */
   processClickGesture(gesture, sonicParams) {
-    console.log('🎵 Processing TAP gesture - single note')
-    console.log('🎵 TAP gesture ID:', gesture.id, 'call count:', (this.tapCallCount = (this.tapCallCount || 0) + 1))
+    // console.log('🎵 Processing TAP gesture - single note')
+    // console.log('🎵 TAP gesture ID:', gesture.id, 'call count:', (this.tapCallCount = (this.tapCallCount || 0) + 1))
 
     if (this.audioService && this.audioService.playThreeTierNote) {
       // Calculate frequency using BOTH X and Y for maximum variation
@@ -142,11 +142,11 @@ class GestureProcessor {
 
       const tier = sonicParams.x < 0.33 ? 'background' : sonicParams.x < 0.67 ? 'remote' : 'local'
 
-      console.log(`🎵 Playing CLICK note: ${frequency.toFixed(1)}Hz (y=${sonicParams.y.toFixed(2)}, x=${sonicParams.x.toFixed(2)}), tier: ${tier}`)
+      // console.log(`🎵 Playing CLICK note: ${frequency.toFixed(1)}Hz (y=${sonicParams.y.toFixed(2)}, x=${sonicParams.x.toFixed(2)}), tier: ${tier}`)
 
       // Play single note directly - BYPASS three-tier system for TAP
       // This ensures our X/Y frequency calculation is respected
-      console.log('🔍 TAP intensity check:', {
+      // console.log('🔍 TAP intensity check:', {
         gestureIntensity: gesture.intensity,
         sonicIntensity: sonicParams.intensity,
         positionX: sonicParams.x,
@@ -179,7 +179,7 @@ class GestureProcessor {
           noteVolume
         )
 
-        console.log(`🎵 DIRECT TAP note: ${frequency.toFixed(1)}Hz (y=${sonicParams.y.toFixed(2)}, x=${sonicParams.x.toFixed(2)}), tier: ${tier}`)
+        // console.log(`🎵 DIRECT TAP note: ${frequency.toFixed(1)}Hz (y=${sonicParams.y.toFixed(2)}, x=${sonicParams.x.toFixed(2)}), tier: ${tier}`)
       }
     }
   }
@@ -190,8 +190,8 @@ class GestureProcessor {
    * @param {Object} sonicParams - Sonic parameters
    */
   processDragGesture(gesture, sonicParams) {
-    console.log('🎵 Processing DRAG gesture - musical phrase')
-    console.log('🎵 Drag details:', {
+    // console.log('🎵 Processing DRAG gesture - musical phrase')
+    // console.log('🎵 Drag details:', {
       velocity: gesture.velocity,
       dx: gesture.dx,
       dy: gesture.dy,
@@ -201,7 +201,7 @@ class GestureProcessor {
     // CRITICAL FIX: Limit drag phrase generation to prevent polyphony overload
     const now = Date.now()
     if (this.lastDragPhraseTime && (now - this.lastDragPhraseTime) < 500) {
-      console.log('🚫 Drag phrase throttled - too recent')
+      // console.log('🚫 Drag phrase throttled - too recent')
       return
     }
     this.lastDragPhraseTime = now
@@ -221,8 +221,8 @@ class GestureProcessor {
    * @param {Object} sonicParams - Sonic parameters
    */
   processGestureByAction(gesture, sonicParams) {
-    console.log('🚨 FALLBACK gesture processing for action:', sonicParams.action)
-    console.log('🚨 This should not happen for tap/drag - check logic!')
+    // console.log('🚨 FALLBACK gesture processing for action:', sonicParams.action)
+    // console.log('🚨 This should not happen for tap/drag - check logic!')
 
     // Simple fallback - generate single note
     if (this.audioService && this.audioService.playThreeTierNote) {
@@ -239,7 +239,7 @@ class GestureProcessor {
    */
   generateLocalMusicalPhrase(gesture, sonicParams) {
     if (!this.audioService || !this.audioService.isInitialized) {
-      console.log('🔇 AudioService not initialized for phrase generation')
+      // console.log('🔇 AudioService not initialized for phrase generation')
       return
     }
 
@@ -247,7 +247,7 @@ class GestureProcessor {
       // Create musical phrase locally based on gesture characteristics
       const phrase = this.createLocalPhrase(gesture, sonicParams)
 
-      console.log(`🎵 Generated local phrase with ${phrase.length} notes`)
+      // console.log(`🎵 Generated local phrase with ${phrase.length} notes`)
 
       // Play each note in the phrase
       phrase.forEach((note, index) => {
@@ -263,13 +263,13 @@ class GestureProcessor {
 
             this.audioService.playMusicalEvent(musicalEvent)
           } catch (e) {
-            console.warn(`🔇 Error playing phrase note ${index}:`, e)
+            // console.warn(`🔇 Error playing phrase note ${index}:`, e)
           }
         }, note.startTime * 1000) // Convert seconds to milliseconds
       })
 
     } catch (error) {
-      console.error('🔇 Error generating local phrase:', error)
+      // console.error('🔇 Error generating local phrase:', error)
     }
   }
 
@@ -314,7 +314,7 @@ class GestureProcessor {
     const contourPattern = this.generateContourPattern(contourType, noteCount)
     const contourData = { scaleType, contourType, contourPattern }
 
-    console.log(`🎼 Local: ${scaleType} ${contourType}, ${noteCount} notes`)
+    // console.log(`🎼 Local: ${scaleType} ${contourType}, ${noteCount} notes`)
 
     let baseDuration
 
@@ -388,7 +388,7 @@ class GestureProcessor {
     const duration = gesture.duration || 0
     const size = gesture.size || 0
 
-    console.log('🔍 Simplified gesture classification:', {
+    // console.log('🔍 Simplified gesture classification:', {
       duration: duration,
       size: size,
       direction: gesture.direction
@@ -396,12 +396,12 @@ class GestureProcessor {
 
     // Simple tap: very short duration, minimal movement
     if (duration < 200 && size < 0.05) {
-      console.log('🔍 TAP - very short and small')
+      // console.log('🔍 TAP - very short and small')
       return 'tap'
     }
 
     // Everything else is treated as drag for musical purposes
-    console.log('🔍 DRAG - default musical gesture')
+    // console.log('🔍 DRAG - default musical gesture')
     return 'drag'
   }
 
@@ -581,7 +581,7 @@ class GestureProcessor {
     this.socketService = null
     this.drawGestureTrailCallback = null
 
-    console.log('✅ GestureProcessor: Cleaned up')
+    // console.log('✅ GestureProcessor: Cleaned up')
   }
 }
 

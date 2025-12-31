@@ -74,7 +74,7 @@ class UIManager {
       appContent.classList.add('loaded')
     }
 
-    console.log('✅ UIManager: App displayed, loading screen hidden')
+    // console.log('✅ UIManager: App displayed, loading screen hidden')
   }
 
   /**
@@ -98,7 +98,7 @@ class UIManager {
       errorDisplay.style.display = 'block'
     }
 
-    console.error('❌ UIManager: Error displayed:', message)
+    // console.error('❌ UIManager: Error displayed:', message)
   }
 
   /**
@@ -161,7 +161,7 @@ class UIManager {
   destroy() {
     this.currentRoom = null
     this.userCount = 1
-    console.log('✅ UIManager: Cleaned up')
+    // console.log('✅ UIManager: Cleaned up')
   }
 }
 

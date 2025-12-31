@@ -46,7 +46,7 @@ class SocketService {
    */
   async connect(serverUrl = 'http://localhost:3001', options = {}) {
     if (this.socket && this.socket.connected) {
-      console.warn('Already connected to WebSocket')
+      // console.warn('Already connected to WebSocket')
       return
     }
 
@@ -77,7 +77,7 @@ class SocketService {
           // Calculate connection latency
           this.performanceMetrics.connectionLatency = performance.now() - connectionStartTime
 
-          console.log('Connected to Webarmonium server:', {
+          // console.log('Connected to Webarmonium server:', {
             socketId: this.socket.id,
             latency: this.performanceMetrics.connectionLatency
           })
@@ -98,7 +98,7 @@ class SocketService {
       })
 
     } catch (error) {
-      console.error('WebSocket connection failed:', error)
+      // console.error('WebSocket connection failed:', error)
       this.handleConnectionError(error)
       throw error
     }
@@ -110,7 +110,7 @@ class SocketService {
   setupEventHandlers() {
     // Connection events
     this.socket.on('disconnect', (reason) => {
-      console.log('Disconnected from server:', reason)
+      // console.log('Disconnected from server:', reason)
       this.isConnected = false
       this.performanceMetrics.connectionDrops++
       this.stopHeartbeat()
@@ -124,7 +124,7 @@ class SocketService {
     })
 
     this.socket.on('reconnect', () => {
-      console.log('Reconnected to server')
+      // console.log('Reconnected to server')
       this.isConnected = true
       this.startHeartbeat()
       this.emit('reconnected')
@@ -163,7 +163,7 @@ class SocketService {
 
     // Multi-user canvas events
     this.socket.on('cursor-position', (data) => {
-      console.log('🖱️ SocketService received cursor-position:', data)
+      // console.log('🖱️ SocketService received cursor-position:', data)
       this.emit('cursor-position', data)
     })
 
@@ -182,19 +182,19 @@ class SocketService {
 
     // Multi-user hover events
     this.socket.on('hover-update', (data) => {
-      console.log('🎛️ SocketService received hover-update:', data)
+      // console.log('🎛️ SocketService received hover-update:', data)
       this.emit('hover-update', data)
     })
 
     // Musical events for gesture processing
     this.socket.on('musical:event', (data) => {
-      console.log('🎵 SocketService received musical:event:', data)
+      // console.log('🎵 SocketService received musical:event:', data)
       this.emit('musical:event', data)
     })
 
     // Sustained hold events for remote note synchronization
     this.socket.on('hold:start', (data) => {
-      console.log('🎵 SocketService received hold:start:', {
+      // console.log('🎵 SocketService received hold:start:', {
         noteId: data.noteId,
         userId: data.userId?.substring(0, 8),
         frequency: data.frequency?.toFixed(1) + 'Hz',
@@ -204,7 +204,7 @@ class SocketService {
     })
 
     this.socket.on('hold:end', (data) => {
-      console.log('🎵 SocketService received hold:end:', {
+      // console.log('🎵 SocketService received hold:end:', {
         noteId: data.noteId,
         userId: data.userId?.substring(0, 8),
         duration: data.duration + 'ms'
@@ -214,19 +214,19 @@ class SocketService {
 
     // Unified modulation from HoverOrchestrator
     this.socket.on('unified-modulation', (data) => {
-      console.log('🎛️ SocketService received unified-modulation:', data)
+      // console.log('🎛️ SocketService received unified-modulation:', data)
       this.emit('unified-modulation', data)
     })
 
     // Collective compositional parameters
     this.socket.on('compositional-parameters', (data) => {
-      console.log('🎼 SocketService received compositional-parameters:', data.parameters)
+      // console.log('🎼 SocketService received compositional-parameters:', data.parameters)
       this.emit('compositional-parameters', data)
     })
 
     // Background composition events from BackgroundCompositionService
     this.socket.on('background-composition', (data) => {
-      console.log('🎼🎼 SocketService received background-composition:', {
+      // console.log('🎼🎼 SocketService received background-composition:', {
         compositionNumber: data.compositionNumber,
         roomId: data.roomId,
         type: data.composition?.type
@@ -237,14 +237,14 @@ class SocketService {
     // Debug: raw hover events (development only)
     this.socket.on('hover-update-raw', (data) => {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🐛 Debug: SocketService received hover-update-raw:', data)
+        // console.log('🐛 Debug: SocketService received hover-update-raw:', data)
         this.emit('hover-update-raw', data)
       }
     })
 
     // Error handling
     this.socket.on('error', (error) => {
-      console.error('Socket error:', error)
+      // console.error('Socket error:', error)
       this.emit('socket-error', error)
     })
   }
@@ -281,7 +281,7 @@ class SocketService {
         const latency = performance.now() - startTime
         this.updateLatencyMetrics(latency)
 
-        console.log('Joined room successfully:', {
+        // console.log('Joined room successfully:', {
           roomId: response.room.roomId,
           userCount: response.room.userCount,
           latency
@@ -294,7 +294,7 @@ class SocketService {
       }
 
     } catch (error) {
-      console.error('Join room failed:', error)
+      // console.error('Join room failed:', error)
       throw error
     }
   }
@@ -316,7 +316,7 @@ class SocketService {
         this.currentUser = null
         this.roomUsers = []
 
-        console.log('Left room successfully:', roomId)
+        // console.log('Left room successfully:', roomId)
 
         this.emit('room-left', response)
         return response
@@ -325,7 +325,7 @@ class SocketService {
       }
 
     } catch (error) {
-      console.error('Leave room failed:', error)
+      // console.error('Leave room failed:', error)
       throw error
     }
   }
@@ -359,7 +359,7 @@ class SocketService {
 
         // Check constitutional latency requirement
         if (latency > 100) {
-          console.warn(`Gesture latency ${latency}ms exceeds 100ms constitutional requirement`)
+          // console.warn(`Gesture latency ${latency}ms exceeds 100ms constitutional requirement`)
         }
 
         this.emit('gesture-sent', {
@@ -374,7 +374,7 @@ class SocketService {
       }
 
     } catch (error) {
-      console.error('Send gesture failed:', error)
+      // console.error('Send gesture failed:', error)
       // Don't throw - gesture loss is acceptable for real-time performance
     }
   }
@@ -451,7 +451,7 @@ class SocketService {
         try {
           await this.sendWithResponse('heartbeat', {})
         } catch (error) {
-          console.warn('Heartbeat failed:', error)
+          // console.warn('Heartbeat failed:', error)
         }
       }
     }, this.heartbeatFrequency)
@@ -471,7 +471,7 @@ class SocketService {
    * Handle room joined event
    */
   handleRoomJoined(data) {
-    console.log('Room joined event received:', data)
+    // console.log('Room joined event received:', data)
     this.emit('room-joined-update', data)
   }
 
@@ -479,7 +479,7 @@ class SocketService {
    * Handle user joined event
    */
   handleUserJoined(data) {
-    console.log('User joined:', data.userId)
+    // console.log('User joined:', data.userId)
 
     // Add user to room users list
     if (!this.roomUsers.find(u => u.id === data.userId)) {
@@ -496,7 +496,7 @@ class SocketService {
    * Handle user left event
    */
   handleUserLeft(data) {
-    console.log('User left:', data.userId)
+    // console.log('User left:', data.userId)
 
     // Remove user from room users list
     this.roomUsers = this.roomUsers.filter(u => u.id !== data.userId)
@@ -511,7 +511,7 @@ class SocketService {
    * Handle user disconnected event
    */
   handleUserDisconnected(data) {
-    console.log('User disconnected:', data.userId)
+    // console.log('User disconnected:', data.userId)
 
     // Remove user from room users list
     this.roomUsers = this.roomUsers.filter(u => u.id !== data.userId)
@@ -539,7 +539,7 @@ class SocketService {
    * Handle sonic update from server
    */
   handleSonicUpdate(data) {
-    console.log('Sonic update received:', {
+    // console.log('Sonic update received:', {
       patternCount: data.patterns?.length || 0,
       memoryInfluence: data.memoryInfluence
     })
@@ -551,7 +551,7 @@ class SocketService {
    * Handle users inactive notification
    */
   handleUsersInactive(data) {
-    console.log('Users marked inactive:', data.inactiveUsers)
+    // console.log('Users marked inactive:', data.inactiveUsers)
 
     // Update user activity status
     data.inactiveUsers.forEach(userId => {
@@ -568,7 +568,7 @@ class SocketService {
    * Handle connection errors and attempt reconnection
    */
   handleConnectionError(error) {
-    console.error('Connection error:', error)
+    // console.error('Connection error:', error)
     this.emit('connection-error', error)
   }
 
@@ -577,7 +577,7 @@ class SocketService {
    */
   async attemptReconnection() {
     if (this.connectionAttempts >= this.maxReconnectionAttempts) {
-      console.error('Max reconnection attempts reached')
+      // console.error('Max reconnection attempts reached')
       this.emit('reconnection-failed')
       return
     }
@@ -585,7 +585,7 @@ class SocketService {
     this.connectionAttempts++
     const delay = this.reconnectionDelay * Math.pow(2, this.connectionAttempts - 1)
 
-    console.log(`Attempting reconnection ${this.connectionAttempts}/${this.maxReconnectionAttempts} in ${delay}ms`)
+    // console.log(`Attempting reconnection ${this.connectionAttempts}/${this.maxReconnectionAttempts} in ${delay}ms`)
 
     setTimeout(async () => {
       try {
@@ -596,7 +596,7 @@ class SocketService {
           await this.joinRoom(this.currentRoom.roomId)
         }
       } catch (error) {
-        console.error('Reconnection failed:', error)
+        // console.error('Reconnection failed:', error)
         this.attemptReconnection()
       }
     }, delay)
@@ -673,7 +673,7 @@ class SocketService {
         try {
           callback(data)
         } catch (error) {
-          console.error(`Error in event listener for ${event}:`, error)
+          // console.error(`Error in event listener for ${event}:`, error)
         }
       })
     }
@@ -708,7 +708,7 @@ class SocketService {
     this.currentUser = null
     this.roomUsers = []
 
-    console.log('Disconnected from Webarmonium server')
+    // console.log('Disconnected from Webarmonium server')
   }
 
   /**

@@ -16,7 +16,7 @@ const GestureHandler = {
 
       // Ensure callback exists and provide timeout safety
       const timeoutId = setTimeout(() => {
-        console.warn('⚠️ Gesture processing timeout - sending fallback response')
+        // // console.warn('⚠️ Gesture processing timeout - sending fallback response')
         if (typeof callback === 'function') {
           callback({
             success: true,
@@ -49,7 +49,7 @@ const GestureHandler = {
             timestamp: Date.now()
           })
         } catch (error) {
-          console.warn('⚠️ Failed to record gesture for metrics:', error.message)
+          // // console.warn('⚠️ Failed to record gesture for metrics:', error.message)
         }
 
         // Check if gesture includes streamedNotes from frontend
@@ -63,10 +63,10 @@ const GestureHandler = {
         // CRITICAL FIX: Skip GestureToMusicService if hold system was active
         // This prevents duplicate note generation (strum effect) when hold:start/hold:end is used
         if (data.holdWasActive) {
-          console.log(`⏭️ [gesture handler] Skipping GestureToMusicService - hold system was active (already handled via hold:start/hold:end)`)
+          // // console.log(`⏭️ [gesture handler] Skipping GestureToMusicService - hold system was active (already handled via hold:start/hold:end)`)
           musicalResult = null
         } else if (data.streamedNotes && Array.isArray(data.streamedNotes) && data.streamedNotes.length > 0) {
-          console.log('🔍 Processing streamedNotes from frontend:', data.streamedNotes.length, 'notes')
+          // // console.log('🔍 Processing streamedNotes from frontend:', data.streamedNotes.length, 'notes')
 
           const startTime = Date.now()
           musicalResult = data.streamedNotes.map((note, index) => {
@@ -95,7 +95,7 @@ const GestureHandler = {
           try {
             musicalResult = socket.services.gestureToMusicService.processGesture(gestureData)
           } catch (error) {
-            console.error('GestureToMusicService failed:', error)
+            // // console.error('GestureToMusicService failed:', error)
             musicalResult = null
           }
         }
@@ -130,14 +130,14 @@ const GestureHandler = {
               musicalPhrase
             )
           } catch (error) {
-            console.error('❌ addMaterial ERROR:', error)
+            // // console.error('❌ addMaterial ERROR:', error)
           }
         }
 
         // Constitutional requirement: <200ms processing
         const processingLatency = Date.now() - startTime
         if (processingLatency > 200) {
-          console.warn(`Gesture processing exceeded 200ms: ${processingLatency}ms`)
+          // // console.warn(`Gesture processing exceeded 200ms: ${processingLatency}ms`)
         }
 
         // Store gesture in room memory using old system for compatibility
@@ -252,10 +252,10 @@ const GestureHandler = {
         socket.services.roomManager.updateUserActivity(socket.userId)
 
         if (totalLatency > 100) {
-          console.warn(`Gesture total latency ${totalLatency}ms exceeds 100ms constitutional requirement`)
+          // // console.warn(`Gesture total latency ${totalLatency}ms exceeds 100ms constitutional requirement`)
         }
       } catch (error) {
-        console.error('Gesture processing error:', error)
+        // // console.error('Gesture processing error:', error)
         clearTimeout(timeoutId)
         return ValidationHandler.sendError(callback, 'GESTURE_PROCESSING_FAILED', 'Gesture processing failed')
       }
@@ -298,7 +298,7 @@ const GestureHandler = {
               musicalResult
             )
           } catch (error) {
-            console.error('❌ addMaterial ERROR:', error)
+            // // console.error('❌ addMaterial ERROR:', error)
           }
         }
 
@@ -347,7 +347,7 @@ const GestureHandler = {
           timestamp: Date.now()
         })
       } catch (error) {
-        console.error('Gesture record error:', error)
+        // // console.error('Gesture record error:', error)
         ValidationHandler.sendError(callback, 'processing_error', error.message)
       }
     })
@@ -358,7 +358,7 @@ const GestureHandler = {
    */
   storeGestureForMultiUserSync (socket, roomId, userId, gesture, musicalEvent) {
     if (!socket.services.roomManager.rooms.has(roomId)) {
-      console.warn(`Room ${roomId} not found for multi-user sync`)
+      // // console.warn(`Room ${roomId} not found for multi-user sync`)
       return
     }
 
@@ -402,18 +402,18 @@ const GestureHandler = {
       try {
         // Validate user is in a room
         if (!socket.userId || !socket.roomId) {
-          console.warn('⚠️ gesture-complete: No active room session')
+          // // console.warn('⚠️ gesture-complete: No active room session')
           return
         }
 
         // Extract gesture from wrapper
         const gesture = data.gesture
         if (!gesture) {
-          console.warn('⚠️ gesture-complete: Missing gesture data')
+          // // console.warn('⚠️ gesture-complete: Missing gesture data')
           return
         }
 
-        console.log(`🎯 gesture-complete received from ${socket.userId?.substring(0, 8)}:`, {
+        // // console.log(`🎯 gesture-complete received from ${socket.userId?.substring(0, 8)}:`, {
           hasStreamedNotes: !!(gesture.streamedNotes?.length),
           noteCount: gesture.streamedNotes?.length || 0,
           streamingWasActive: gesture.streamingWasActive,
@@ -457,12 +457,12 @@ const GestureHandler = {
             socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
           })
 
-          console.log(`✅ Broadcasted ${gesture.streamedNotes.length} streamed notes to room ${socket.roomId}`)
+          // // console.log(`✅ Broadcasted ${gesture.streamedNotes.length} streamed notes to room ${socket.roomId}`)
         } else if (gesture.holdWasActive) {
           // CRITICAL: hold:start/hold:end system was used for this gesture
           // Do NOT generate additional notes via gestureToMusicService to avoid duplicate playback (strum effect)
-          console.log(`⏭️ Skipping gestureToMusicService - hold system was active (already handled via hold:start/hold:end)`)
-          console.log(`🔍 holdWasActive check:`, {
+          // // console.log(`⏭️ Skipping gestureToMusicService - hold system was active (already handled via hold:start/hold:end)`)
+          // // console.log(`🔍 holdWasActive check:`, {
             holdWasActive: gesture.holdWasActive,
             action: gesture.action,
             streamedNotes: gesture.streamedNotes?.length || 0
@@ -504,7 +504,7 @@ const GestureHandler = {
               })
             }
           } catch (error) {
-            console.error('❌ gestureToMusicService failed:', error)
+            // // console.error('❌ gestureToMusicService failed:', error)
           }
         }
 
@@ -516,10 +516,10 @@ const GestureHandler = {
 
         const processingTime = Date.now() - startTime
         if (processingTime > 100) {
-          console.warn(`⚠️ gesture-complete processing time ${processingTime}ms exceeds 100ms target`)
+          // // console.warn(`⚠️ gesture-complete processing time ${processingTime}ms exceeds 100ms target`)
         }
       } catch (error) {
-        console.error('❌ gesture-complete error:', error)
+        // // console.error('❌ gesture-complete error:', error)
       }
     })
   }

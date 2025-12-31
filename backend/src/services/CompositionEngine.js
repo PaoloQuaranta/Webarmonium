@@ -32,11 +32,11 @@ class CompositionEngine {
 
   compose(roomContext) {
     try {
-      console.log(`🎼 CompositionEngine: Composing for room with ${roomContext.userCount || 1} users`)
+// console.log(`🎼 CompositionEngine: Composing for room with ${roomContext.userCount || 1} users`)
 
       // 1. Analyze current musical context
       const currentStyle = this.styleAnalyzer.getCurrentStyle()
-      console.log(`🎼 Current style: energy=${currentStyle.energy?.toFixed(2)}, tempo=${currentStyle.tempo}`)
+// console.log(`🎼 Current style: energy=${currentStyle.energy?.toFixed(2)}, tempo=${currentStyle.tempo}`)
 
       // 2. Determine or maintain form structure
       if (!this.formStructure) {
@@ -46,7 +46,7 @@ class CompositionEngine {
 
       // 3. Get available musical material
       const availableMaterial = this.getAvailableMaterial(roomContext)
-      console.log(`🎼 Available material: ${availableMaterial.length} items`)
+// console.log(`🎼 Available material: ${availableMaterial.length} items`)
 
       // 4. Generate current section
       const section = this.composeSection(this.currentSection, currentStyle, availableMaterial)
@@ -78,7 +78,7 @@ class CompositionEngine {
       }
 
     } catch (error) {
-      console.error('Error in composition:', error)
+// console.error('Error in composition:', error)
       return this.createFallbackComposition()
     }
   }
@@ -107,7 +107,7 @@ class CompositionEngine {
   }
 
   initializeFormStructure(form) {
-    console.log(`🎼 Initializing form structure: ${form}`)
+// console.log(`🎼 Initializing form structure: ${form}`)
 
     this.formStructure = form
     this.currentSection = 'A'
@@ -217,12 +217,12 @@ class CompositionEngine {
     const maxVoices = Math.min(materials.length, 4)
     const selectedMaterials = materials.slice(0, maxVoices)
 
-    console.log(`🎼 Composing polyphonic section with ${maxVoices} voices (from ${materials.length} materials)`)
+// console.log(`🎼 Composing polyphonic section with ${maxVoices} voices (from ${materials.length} materials)`)
 
     // Create voices for each material/user with DISTINCT ROLES
     const voices = selectedMaterials.map((material, i) => {
       const voice = this.counterpointEngine.createVoice(material, i, progression)
-      console.log(`🎼   Voice ${i} (${voice.voiceRole}): ${voice.notes?.length || 0} notes, timbre=${voice.timbre}`)
+// console.log(`🎼   Voice ${i} (${voice.voiceRole}): ${voice.notes?.length || 0} notes, timbre=${voice.timbre}`)
       return {
         ...voice,
         materialId: material.id,
@@ -234,7 +234,7 @@ class CompositionEngine {
     // Validate voice leading
     const validation = this.counterpointEngine.validateVoiceLeading(voices)
     if (!validation.isValid) {
-      console.log(`🎼 Voice leading issues detected: ${validation.errors.length} errors`)
+// console.log(`🎼 Voice leading issues detected: ${validation.errors.length} errors`)
       // Apply corrections if needed
       this.correctVoiceLeading(voices, validation.errors)
     }
@@ -250,7 +250,7 @@ class CompositionEngine {
   }
 
   composeMonophonic(material, progression, style, sectionLength) {
-    console.log(`🎼 Composing monophonic section from material ${material.id}`)
+// console.log(`🎼 Composing monophonic section from material ${material.id}`)
 
     // Elaborate the primary material
     const melody = this.elaborateMaterial(material, progression, sectionLength)
@@ -269,11 +269,11 @@ class CompositionEngine {
   }
 
   composeAmbient(progression, style, sectionLength) {
-    console.log(`🎼 Composing ambient section (no material available)`)
+// console.log(`🎼 Composing ambient section (no material available)`)
 
     // Generate textural material based on style
     const texture = this.generateAmbientTexture(style, sectionLength)
-    console.log(`🎼   Ambient texture: ${texture.layers.length} layers (static texture - minimal notes)`)
+// console.log(`🎼   Ambient texture: ${texture.layers.length} layers (static texture - minimal notes)`)
 
     return {
       type: 'ambient',
@@ -288,7 +288,7 @@ class CompositionEngine {
     // Select elaboration technique based on material age and usage
     const technique = this.selectElaborationTechnique(material)
 
-    console.log(`🎼 Elaborating material with technique: ${technique}`)
+// console.log(`🎼 Elaborating material with technique: ${technique}`)
 
     let elaborated
     switch (technique) {

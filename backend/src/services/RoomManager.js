@@ -624,7 +624,7 @@ class RoomManager {
     if (orchestrator) {
       orchestrator.stop()
       this.hoverOrchestrators.delete(roomId)
-      console.log(`🗑️ Removed HoverOrchestrator for room ${roomId}`)
+      // console.log(`🗑️ Removed HoverOrchestrator for room ${roomId}`)
     }
   }
 
@@ -641,7 +641,7 @@ class RoomManager {
         this.leaveRoom(userId)
       } catch (error) {
         // Log error but continue shutdown
-        console.warn(`Error disconnecting user ${userId} during shutdown:`, error.message)
+        // console.warn(`Error disconnecting user ${userId} during shutdown:`, error.message)
       }
     })
 
@@ -649,9 +649,9 @@ class RoomManager {
     this.hoverOrchestrators.forEach((orchestrator, roomId) => {
       try {
         orchestrator.stop()
-        console.log(`🛑 Stopped HoverOrchestrator for room ${roomId}`)
+        // console.log(`🛑 Stopped HoverOrchestrator for room ${roomId}`)
       } catch (error) {
-        console.warn(`Error stopping HoverOrchestrator for room ${roomId}:`, error.message)
+        // console.warn(`Error stopping HoverOrchestrator for room ${roomId}:`, error.message)
       }
     })
 
@@ -659,9 +659,9 @@ class RoomManager {
     this.metricsAnalyzers.forEach((analyzer, roomId) => {
       try {
         analyzer.stop()
-        console.log(`🛑 Stopped CollectiveMetricsAnalyzer for room ${roomId}`)
+        // console.log(`🛑 Stopped CollectiveMetricsAnalyzer for room ${roomId}`)
       } catch (error) {
-        console.warn(`Error stopping CollectiveMetricsAnalyzer for room ${roomId}:`, error.message)
+        // console.warn(`Error stopping CollectiveMetricsAnalyzer for room ${roomId}:`, error.message)
       }
     })
 

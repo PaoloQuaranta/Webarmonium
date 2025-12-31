@@ -173,14 +173,14 @@ class GenerativeMusicEngine {
         this.generativeState.evolutionCycle++
 
       } catch (error) {
-        console.error('🎵 Error in composition loop:', error)
+        // console.error('🎵 Error in composition loop:', error)
       }
 
       setTimeout(compositionLoop, 100)
     }
 
     setTimeout(() => {
-      console.log('🎵 Starting bass + pad + chords composition system')
+      // console.log('🎵 Starting bass + pad + chords composition system')
       compositionLoop()
     }, 2000)
   }
@@ -190,7 +190,7 @@ class GenerativeMusicEngine {
    */
   stopEvolvingGeneration() {
     this.evolvingGenerationActive = false
-    console.log('🎵 Evolving generation stopped')
+    // console.log('🎵 Evolving generation stopped')
   }
 
   /**
@@ -274,7 +274,7 @@ class GenerativeMusicEngine {
         synth.triggerAttackRelease(freq, duration, triggerTime, playVelocity)
       })
     } catch (error) {
-      console.warn(`🎵 Layer ${layerName} play error:`, error.message)
+      // console.warn(`🎵 Layer ${layerName} play error:`, error.message)
     }
   }
 
@@ -337,7 +337,7 @@ class GenerativeMusicEngine {
         break
     }
 
-    console.log(`🎵 Harmonic mutation: ${mutation}, new tonic: ${state.currentTonic}Hz`)
+    // console.log(`🎵 Harmonic mutation: ${mutation}, new tonic: ${state.currentTonic}Hz`)
   }
 
   /**
@@ -388,7 +388,7 @@ class GenerativeMusicEngine {
       state.chordProgression = chosen.degrees
       state.currentChord = 0
 
-      console.log(`🎼 PROGRESSION CHANGE: ${chosen.name} (${chosen.mood})`)
+      // console.log(`🎼 PROGRESSION CHANGE: ${chosen.name} (${chosen.mood})`)
     }
   }
 

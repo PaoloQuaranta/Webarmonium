@@ -65,11 +65,11 @@ class MaterialLibrary {
         isVital: true
       })
 
-      console.log(`📚 MaterialLibrary: Added ${character} material with ${harmonicFunction} function`)
+      // console.log(`📚 MaterialLibrary: Added ${character} material with ${harmonicFunction} function`)
       return materialEntry.id
 
     } catch (error) {
-      console.error('Error adding material to library:', error)
+      // console.error('Error adding material to library:', error)
       return null
     }
   }
@@ -360,7 +360,7 @@ class MaterialLibrary {
       })
     })
 
-    console.log(`🧹 MaterialLibrary: Cleaned up old material, ${this.getTotalCount()} items remaining`)
+    // console.log(`🧹 MaterialLibrary: Cleaned up old material, ${this.getTotalCount()} items remaining`)
   }
 
   useMaterial(materialId) {

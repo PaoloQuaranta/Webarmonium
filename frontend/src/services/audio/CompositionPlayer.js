@@ -57,18 +57,18 @@ class CompositionPlayer {
    */
   playComposition(composition, isDrone = false) {
     if (this.muted) {
-      console.log('🔇 playComposition blocked - muted')
+      // console.log('🔇 playComposition blocked - muted')
       return
     }
 
     if (!composition || !composition.content) {
-      console.warn('🎼 Invalid composition data')
+      // console.warn('🎼 Invalid composition data')
       return
     }
 
     const tempo = composition.metadata?.tempo || 120
 
-    console.log(`🎼 Playing ${composition.type} composition${isDrone ? ' (DRONE)' : ''}:`, {
+    // console.log(`🎼 Playing ${composition.type} composition${isDrone ? ' (DRONE)' : ''}:`, {
       form: composition.structure?.form,
       section: composition.structure?.currentSection,
       tempo: tempo,
@@ -77,7 +77,7 @@ class CompositionPlayer {
 
     // If this is NOT a drone and we have a drone loop running, stop it
     if (!isDrone && this.droneLoopInterval) {
-      console.log('🛑 Stopping drone loop - real composition starting')
+      // console.log('🛑 Stopping drone loop - real composition starting')
       clearInterval(this.droneLoopInterval)
       this.droneLoopInterval = null
     }
@@ -93,10 +93,10 @@ class CompositionPlayer {
       } else if (type === 'ambient' && content.texture) {
         this.playAmbientComposition(content, tempo, isDrone)
       } else {
-        console.warn('🎼 Unknown composition type:', type)
+        // console.warn('🎼 Unknown composition type:', type)
       }
     } catch (error) {
-      console.error('🎼 Error playing composition:', error)
+      // console.error('🎼 Error playing composition:', error)
     }
   }
 
@@ -111,7 +111,7 @@ class CompositionPlayer {
 
     const beatDuration = 60 / tempo
 
-    console.log(`🎼 Playing polyphonic: ${content.voices.length} voices at ${tempo} BPM`)
+    // console.log(`🎼 Playing polyphonic: ${content.voices.length} voices at ${tempo} BPM`)
 
     content.voices.forEach((voice, voiceIndex) => {
       if (!voice.notes || !Array.isArray(voice.notes)) return
@@ -244,7 +244,7 @@ class CompositionPlayer {
     if (!this.ambientLayers) return
 
     if (!content.texture || !Array.isArray(content.texture)) {
-      console.warn('🎼 No texture array in ambient composition')
+      // console.warn('🎼 No texture array in ambient composition')
       return
     }
 
@@ -295,7 +295,7 @@ class CompositionPlayer {
     }
 
     if (!this.gestureSynth || this.gestureSynth.disposed) {
-      console.warn('🔇 Gesture synth not available')
+      // console.warn('🔇 Gesture synth not available')
       return
     }
 
@@ -318,7 +318,7 @@ class CompositionPlayer {
         articulation = musicalEvent.articulation
 
         if (pitch === undefined || velocity === undefined || duration === undefined) {
-          console.warn('🔇 Invalid musical event data')
+          // console.warn('🔇 Invalid musical event data')
           return
         }
 
@@ -393,7 +393,7 @@ class CompositionPlayer {
           )
 
         } catch (e) {
-          console.warn('Note play error:', e.message)
+          // console.warn('Note play error:', e.message)
         }
       }, delayMs)
 
@@ -402,11 +402,11 @@ class CompositionPlayer {
       // Track performance
       const latency = performance.now() - startTime
       if (latency > 50) {
-        console.warn(`🐌 High musical event latency: ${latency.toFixed(1)}ms`)
+        // console.warn(`🐌 High musical event latency: ${latency.toFixed(1)}ms`)
       }
 
     } catch (error) {
-      console.error('🔇 Error playing musical event:', error)
+      // console.error('🔇 Error playing musical event:', error)
     }
   }
 
@@ -467,14 +467,14 @@ class CompositionPlayer {
       const frequency = mapColorToFrequency(color)
 
       if (!frequency) {
-        console.warn('Invalid color for draw sound', color)
+        // console.warn('Invalid color for draw sound', color)
         return
       }
 
       this.gestureSynth.triggerAttackRelease(frequency, '16n', undefined, 0.3)
 
     } catch (error) {
-      console.warn('Error playing draw sound', error)
+      // console.warn('Error playing draw sound', error)
     }
   }
 
@@ -559,7 +559,7 @@ class CompositionPlayer {
     if (this.droneLoopInterval) {
       clearInterval(this.droneLoopInterval)
       this.droneLoopInterval = null
-      console.log('🛑 Drone loop stopped')
+      // console.log('🛑 Drone loop stopped')
     }
   }
 

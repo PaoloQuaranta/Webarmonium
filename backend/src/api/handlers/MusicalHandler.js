@@ -52,7 +52,7 @@ const MusicalHandler = {
           timestamp: Date.now()
         }
 
-        console.log(`📡 BROADCASTING hold:start to room ${socket.roomId}:`, {
+        // // console.log(`📡 BROADCASTING hold:start to room ${socket.roomId}:`, {
           noteId: broadcastData.noteId,
           userId: broadcastData.userId?.substring(0, 8),
           frequency: broadcastData.frequency?.toFixed(1) + 'Hz',
@@ -71,13 +71,13 @@ const MusicalHandler = {
           timestamp: Date.now()
         })
 
-        console.log(`🎵 Hold started: ${data.noteId} by ${socket.userId} (${latency}ms)`)
+        // // console.log(`🎵 Hold started: ${data.noteId} by ${socket.userId} (${latency}ms)`)
 
         if (latency > LATENCY.WEBSOCKET_MAX) {
-          console.warn(`⚠️ Hold start latency ${latency}ms exceeds ${LATENCY.WEBSOCKET_MAX}ms requirement`)
+          // // console.warn(`⚠️ Hold start latency ${latency}ms exceeds ${LATENCY.WEBSOCKET_MAX}ms requirement`)
         }
       } catch (error) {
-        console.error('❌ Hold start error:', error)
+        // // console.error('❌ Hold start error:', error)
         return ValidationHandler.sendError(callback, 'HOLD_START_FAILED', error.message)
       }
     })
@@ -122,13 +122,13 @@ const MusicalHandler = {
           timestamp: Date.now()
         })
 
-        console.log(`🎵 Hold ended: ${data.noteId} (${data.duration}ms, ${latency}ms latency)`)
+        // // console.log(`🎵 Hold ended: ${data.noteId} (${data.duration}ms, ${latency}ms latency)`)
 
         if (latency > LATENCY.WEBSOCKET_MAX) {
-          console.warn(`⚠️ Hold end latency ${latency}ms exceeds ${LATENCY.WEBSOCKET_MAX}ms requirement`)
+          // // console.warn(`⚠️ Hold end latency ${latency}ms exceeds ${LATENCY.WEBSOCKET_MAX}ms requirement`)
         }
       } catch (error) {
-        console.error('❌ Hold end error:', error)
+        // // console.error('❌ Hold end error:', error)
         return ValidationHandler.sendError(callback, 'HOLD_END_FAILED', error.message)
       }
     })
@@ -178,7 +178,7 @@ const MusicalHandler = {
           timestamp: Date.now()
         })
       } catch (error) {
-        console.error('Musical event error:', error)
+        // // console.error('Musical event error:', error)
         ValidationHandler.sendError(callback, 'processing_error', error.message)
       }
     })
@@ -226,7 +226,7 @@ const MusicalHandler = {
           timestamp: Date.now()
         })
       } catch (error) {
-        console.error('Composition update error:', error)
+        // // console.error('Composition update error:', error)
         ValidationHandler.sendError(callback, 'processing_error', error.message)
       }
     })
@@ -292,7 +292,7 @@ const MusicalHandler = {
           timestamp: Date.now()
         })
       } catch (error) {
-        console.error('Clock sync error:', error)
+        // // console.error('Clock sync error:', error)
         ValidationHandler.sendError(callback, 'processing_error', error.message)
       }
     })
@@ -307,13 +307,13 @@ const MusicalHandler = {
       const startTime = Date.now()
       try {
         if (!data || !socket.roomId || !socket.userId) {
-          console.warn('⚠️ hover-update validation failed - missing required fields')
+          // // console.warn('⚠️ hover-update validation failed - missing required fields')
           return
         }
 
         const room = socket.services.roomManager.getRoom(socket.roomId)
         if (!room) {
-          console.warn('⚠️ hover-update failed - room not found:', socket.roomId)
+          // // console.warn('⚠️ hover-update failed - room not found:', socket.roomId)
           return
         }
 
@@ -332,10 +332,10 @@ const MusicalHandler = {
 
         const processingTime = Date.now() - startTime
         if (processingTime > 50) {
-          console.warn(`⚠️ Hover processing time ${processingTime}ms exceeds 50ms target`)
+          // // console.warn(`⚠️ Hover processing time ${processingTime}ms exceeds 50ms target`)
         }
       } catch (error) {
-        console.error('❌ hover-update error:', error)
+        // // console.error('❌ hover-update error:', error)
       }
     })
   },
@@ -360,12 +360,12 @@ const MusicalHandler = {
 
       hoverOrchestrator.addHoverEvent(hoverData)
     } catch (error) {
-      console.error('❌ Failed to send hover to orchestrator:', error)
+      // // console.error('❌ Failed to send hover to orchestrator:', error)
 
       const io = socket.server || socket.nsp.server
       if (io) {
         io.to(socket.roomId).emit('hover-update', hoverData)
-        console.log(`🔄 Fallback: Broadcasted raw hover due to orchestrator error`)
+        // // console.log(`🔄 Fallback: Broadcasted raw hover due to orchestrator error`)
       }
     }
   }

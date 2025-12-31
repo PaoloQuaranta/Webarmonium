@@ -70,9 +70,9 @@ class LFOManager {
       this._connectToAudioSystem();
 
       this.isInitialized = true;
-      console.log('[LFOManager] Initialized with multi-source modulation support');
+      // console.log('[LFOManager] Initialized with multi-source modulation support');
     } catch (error) {
-      console.error('[LFOManager] Initialization failed:', error);
+      // console.error('[LFOManager] Initialization failed:', error);
     }
   }
 
@@ -168,11 +168,11 @@ class LFOManager {
       // Emit creation event
       this._emit('lfo:created', lfoData);
 
-      console.log(`[LFOManager] Created ${type} LFO: ${lfoId}`);
+      // console.log(`[LFOManager] Created ${type} LFO: ${lfoId}`);
       return lfoId;
 
     } catch (error) {
-      console.error('[LFOManager] Failed to create LFO:', error);
+      // console.error('[LFOManager] Failed to create LFO:', error);
       return null;
     }
   }
@@ -398,10 +398,10 @@ class LFOManager {
         type: lfoData.type
       });
 
-      console.log(`[LFOManager] Removed LFO: ${lfoId}`);
+      // console.log(`[LFOManager] Removed LFO: ${lfoId}`);
 
     } catch (error) {
-      console.error('[LFOManager] Error removing LFO:', error);
+      // console.error('[LFOManager] Error removing LFO:', error);
     }
   }
 
@@ -509,7 +509,7 @@ class LFOManager {
 
       return true;
     } catch (error) {
-      console.error('[LFOManager] Failed to update LFO:', error);
+      // console.error('[LFOManager] Failed to update LFO:', error);
       return false;
     }
   }
@@ -572,7 +572,7 @@ class LFOManager {
     });
 
     if (toRemove.length > 0) {
-      console.log(`[LFOManager] Cleaned up ${toRemove.length} inactive LFOs`);
+      // console.log(`[LFOManager] Cleaned up ${toRemove.length} inactive LFOs`);
     }
 
     return toRemove.length;
@@ -607,7 +607,7 @@ class LFOManager {
         try {
           callback(data);
         } catch (error) {
-          console.error(`[LFOManager] Event listener error for ${event}:`, error);
+          // console.error(`[LFOManager] Event listener error for ${event}:`, error);
         }
       });
     }
@@ -639,7 +639,7 @@ class LFOManager {
     this.eventListeners = {};
 
     this.isInitialized = false;
-    console.log('[LFOManager] Disposed');
+    // console.log('[LFOManager] Disposed');
   }
 }
 

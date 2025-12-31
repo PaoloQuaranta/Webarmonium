@@ -88,7 +88,7 @@ if (typeof window !== 'undefined') {
     NODE_CONFIG,
     EDGE_CONFIG
   }
-  console.log('✅ VisualConstants exported to window')
+  // console.log('✅ VisualConstants exported to window')
 }
 
 if (typeof module !== 'undefined' && module.exports) {

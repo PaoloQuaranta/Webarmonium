@@ -245,7 +245,7 @@ class TopologyGenerator {
 // Export for different module systems
 if (typeof window !== 'undefined') {
   window.TopologyGenerator = TopologyGenerator
-  console.log('✅ TopologyGenerator exported to window')
+  // console.log('✅ TopologyGenerator exported to window')
 }
 
 if (typeof module !== 'undefined' && module.exports) {

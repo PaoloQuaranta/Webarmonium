@@ -39,13 +39,13 @@ class PolyphonyManager {
    */
   triggerSustainedNoteAttack(frequency, velocity, position) {
     if (!this.synth || this.synth.disposed) {
-      console.warn('🚫 Synth not available for sustained note')
+      // console.warn('🚫 Synth not available for sustained note')
       return null
     }
 
     // Check audio context state
     if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
-      console.warn('⚠️ Audio context not running, cannot start sustained note')
+      // console.warn('⚠️ Audio context not running, cannot start sustained note')
       return null
     }
 
@@ -74,7 +74,7 @@ class PolyphonyManager {
       synth: this.synth
     })
 
-    console.log(`🎵 Sustained note ATTACK: ${frequency.toFixed(1)}Hz, vel=${velocity.toFixed(2)}, noteId=${noteId}`)
+    // console.log(`🎵 Sustained note ATTACK: ${frequency.toFixed(1)}Hz, vel=${velocity.toFixed(2)}, noteId=${noteId}`)
 
     return { noteId, frequency, startTime: Date.now() }
   }
@@ -85,13 +85,13 @@ class PolyphonyManager {
    */
   triggerSustainedNoteRelease(noteId) {
     if (!this.synth || this.synth.disposed) {
-      console.warn('🚫 Synth not available for note release')
+      // console.warn('🚫 Synth not available for note release')
       return
     }
 
     const noteData = this.activeSustainedNotes.get(noteId)
     if (!noteData) {
-      console.warn(`⚠️ No active sustained note found for ${noteId}`)
+      // console.warn(`⚠️ No active sustained note found for ${noteId}`)
       return
     }
 
@@ -101,7 +101,7 @@ class PolyphonyManager {
     this.activeSustainedNotes.delete(noteId)
 
     const duration = Date.now() - noteData.startTime
-    console.log(`🎵 Sustained note RELEASE: ${noteData.frequency.toFixed(1)}Hz, held ${duration}ms, noteId=${noteId}`)
+    // console.log(`🎵 Sustained note RELEASE: ${noteData.frequency.toFixed(1)}Hz, held ${duration}ms, noteId=${noteId}`)
   }
 
   /**
@@ -110,7 +110,7 @@ class PolyphonyManager {
   releaseAllSustainedNotes() {
     if (this.activeSustainedNotes.size === 0) return
 
-    console.log(`🛑 Releasing ${this.activeSustainedNotes.size} active sustained notes`)
+    // console.log(`🛑 Releasing ${this.activeSustainedNotes.size} active sustained notes`)
 
     for (const [noteId, noteData] of this.activeSustainedNotes.entries()) {
       try {
@@ -119,7 +119,7 @@ class PolyphonyManager {
           this.synth.triggerRelease(noteData.frequency, now)
         }
       } catch (e) {
-        console.warn(`⚠️ Error releasing sustained note ${noteId}:`, e.message)
+        // console.warn(`⚠️ Error releasing sustained note ${noteId}:`, e.message)
       }
     }
 
@@ -149,7 +149,7 @@ class PolyphonyManager {
             voiceData.synth.releaseAll()
           }
           this.activeVoices.delete(voiceId)
-          console.log(`🔇 Cleaned up voice ${voiceId} for polyphony management`)
+          // console.log(`🔇 Cleaned up voice ${voiceId} for polyphony management`)
         }
       }
     }
@@ -206,7 +206,7 @@ class PolyphonyManager {
           noteData.synth.triggerRelease(noteData.frequency)
         }
         this.activeNotes.delete(noteId)
-        console.log(`🔇 Released note: ${noteData.frequency.toFixed(1)}Hz`)
+        // console.log(`🔇 Released note: ${noteData.frequency.toFixed(1)}Hz`)
       } catch (e) {
         this.activeNotes.delete(noteId)
       }
@@ -229,7 +229,7 @@ class PolyphonyManager {
             noteData.synth.triggerRelease(noteData.frequency)
           }
           this.activeNotes.delete(noteId)
-          console.log(`🔇 Force-released hanging note: ${noteData.frequency.toFixed(1)}Hz`)
+          // console.log(`🔇 Force-released hanging note: ${noteData.frequency.toFixed(1)}Hz`)
         } catch (e) {
           this.activeNotes.delete(noteId)
         }
@@ -301,7 +301,7 @@ class PolyphonyManager {
     // Clear voice tracking
     this.activeVoices.clear()
 
-    console.log('🔇 PolyphonyManager: All voices released')
+    // console.log('🔇 PolyphonyManager: All voices released')
   }
 
   /**

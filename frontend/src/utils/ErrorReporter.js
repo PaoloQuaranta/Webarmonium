@@ -11,7 +11,7 @@ class ErrorReporter {
    */
   static warn (component, message, data = null) {
     const timestamp = new Date().toISOString()
-    console.warn(`[${timestamp}] [${component}] ${message}`, data || '')
+// console.warn(`[${timestamp}] [${component}] ${message}`, data || '')
 
     // Optional: Send to error tracking service (Sentry, etc.)
     // this.sendToErrorTracker('warn', component, message, data)
@@ -25,7 +25,7 @@ class ErrorReporter {
    */
   static error (component, message, error = null) {
     const timestamp = new Date().toISOString()
-    console.error(`[${timestamp}] [${component}] ${message}`, error || '')
+// console.error(`[${timestamp}] [${component}] ${message}`, error || '')
 
     // Show user-friendly error message if app is available
     if (window.webarmoniumApp) {
@@ -45,7 +45,7 @@ class ErrorReporter {
    */
   static info (component, message, data = null) {
     const timestamp = new Date().toISOString()
-    console.log(`[${timestamp}] [${component}] ${message}`, data || '')
+// console.log(`[${timestamp}] [${component}] ${message}`, data || '')
   }
 
   /**
@@ -57,7 +57,7 @@ class ErrorReporter {
   static debug (component, message, data = null) {
     if (process.env.NODE_ENV !== 'production') {
       const timestamp = new Date().toISOString()
-      console.debug(`[${timestamp}] [${component}] ${message}`, data || '')
+// console.debug(`[${timestamp}] [${component}] ${message}`, data || '')
     }
   }
 

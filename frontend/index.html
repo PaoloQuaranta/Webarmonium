@@ -340,7 +340,7 @@
         window.AudioServicePromise = new Promise((resolve, reject) => {
             const checkService = () => {
                 if (window.AudioService) {
-                    console.log('✅ AudioService available from previous load')
+                    // console.log('✅ AudioService available from previous load')
                     resolve(window.AudioService)
                 } else {
                     setTimeout(checkService, 50) // Retry every 50ms
@@ -379,7 +379,7 @@
         // Fallback initialization
         setTimeout(() => {
             if (!window.webarmoniumApp) {
-                console.log('🚀 Fallback: Initializing WebarmoniumApp...')
+                // console.log('🚀 Fallback: Initializing WebarmoniumApp...')
                 window.webarmoniumApp = new WebarmoniumApp()
             }
         }, 1000)

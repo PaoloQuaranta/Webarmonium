@@ -50,7 +50,7 @@ class HoverProcessor {
    */
   setHoverModulationCallback(callback) {
     this.onHoverModulation = callback
-    console.log('HoverProcessor: Hover modulation callback set')
+    // console.log('HoverProcessor: Hover modulation callback set')
   }
 
   /**
@@ -62,7 +62,7 @@ class HoverProcessor {
     if (coordinates) {
       this.hoverState.position = coordinates
     }
-    console.log('HoverProcessor: Hover started at:', this.hoverState.position)
+    // console.log('HoverProcessor: Hover started at:', this.hoverState.position)
   }
 
   /**
@@ -140,7 +140,7 @@ class HoverProcessor {
       })
     }
 
-    console.log('HoverProcessor: Hover ended')
+    // console.log('HoverProcessor: Hover ended')
   }
 
   /**
@@ -160,7 +160,7 @@ class HoverProcessor {
       })
     }
 
-    console.log('HoverProcessor: Remote hover from user:', userId)
+    // console.log('HoverProcessor: Remote hover from user:', userId)
   }
 
   /**
@@ -251,7 +251,7 @@ class HoverProcessor {
       hoverVelocity: hoverConfig.defaultVelocity
     }
 
-    console.log('HoverProcessor: State reset')
+    // console.log('HoverProcessor: State reset')
   }
 }
 

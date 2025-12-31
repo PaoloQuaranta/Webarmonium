@@ -308,7 +308,7 @@ class SpringMeshNetwork {
     }
 
     // DEBUG: Log before topology generation
-    console.log('🕸️ rebuildEdges:', {
+    // console.log('🕸️ rebuildEdges:', {
       cursorCount: this.nodes.size,
       oldEdgeCount: this.edges.length,
       userIds: Array.from(this.nodes.keys()).map(id => id.substring(0, 8))
@@ -318,7 +318,7 @@ class SpringMeshNetwork {
     const topology = this.topologyGenerator.generateTopology(this.nodes)
 
     // DEBUG: Log generated topology
-    console.log('🕸️ Generated topology:', {
+    // console.log('🕸️ Generated topology:', {
       edgesCount: topology.edges.length,
       intermediateNodesCount: topology.intermediateNodes.length,
       edgeTypes: topology.edges.map(e => `${e.sourceId.substring(0, 6)}->${e.targetId.substring(0, 6)}:${e.type}`)
@@ -376,7 +376,7 @@ class SpringMeshNetwork {
 
     // DEBUG: Log final edge state
     const cursorTraceEdges = this.edges.filter(e => e.type === 'cursor-trace')
-    console.log('🕸️ Final edges:', {
+    // console.log('🕸️ Final edges:', {
       totalEdges: this.edges.length,
       cursorTraceEdges: cursorTraceEdges.length,
       cursorTraceSources: cursorTraceEdges.map(e => e.sourceId.substring(0, 8))
@@ -613,7 +613,7 @@ class SpringMeshNetwork {
 // Export for different module systems
 if (typeof window !== 'undefined') {
   window.SpringMeshNetwork = SpringMeshNetwork
-  console.log('✅ SpringMeshNetwork exported to window')
+  // console.log('✅ SpringMeshNetwork exported to window')
 }
 
 if (typeof module !== 'undefined' && module.exports) {

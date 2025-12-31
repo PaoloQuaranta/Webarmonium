@@ -82,7 +82,7 @@ class GestureCaptureCore {
     this.canvas.addEventListener('touchstart', (e) => e.preventDefault())
     this.canvas.addEventListener('touchmove', (e) => e.preventDefault())
 
-    console.log('GestureCaptureCore: Event listeners setup complete')
+    // console.log('GestureCaptureCore: Event listeners setup complete')
   }
 
   /**
@@ -90,7 +90,7 @@ class GestureCaptureCore {
    */
   start() {
     this.isActive = true
-    console.log('GestureCaptureCore started')
+    // console.log('GestureCaptureCore started')
   }
 
   /**
@@ -100,7 +100,7 @@ class GestureCaptureCore {
     this.isActive = false
     this.isCapturing = false
     this.currentGesture = null
-    console.log('GestureCaptureCore stopped')
+    // console.log('GestureCaptureCore stopped')
   }
 
   /**
@@ -194,7 +194,7 @@ class GestureCaptureCore {
    */
   setRoomContext(roomId) {
     this.currentRoom = roomId
-    console.log('GestureCaptureCore room context set to:', roomId)
+    // console.log('GestureCaptureCore room context set to:', roomId)
   }
 
   /**
@@ -225,7 +225,7 @@ class GestureCaptureCore {
   clearHistory() {
     this.gestureHistory = []
     this.participantGestures.clear()
-    console.log('GestureCaptureCore history cleared')
+    // console.log('GestureCaptureCore history cleared')
   }
 
   /**
@@ -247,7 +247,7 @@ class GestureCaptureCore {
       this.onMultiUserGesture(data)
     }
 
-    console.log('Received multi-user gesture from:', userId)
+    // console.log('Received multi-user gesture from:', userId)
   }
 
   /**
@@ -318,7 +318,7 @@ class GestureCaptureCore {
   destroy() {
     this.stop()
     this.clearHistory()
-    console.log('GestureCaptureCore destroyed')
+    // console.log('GestureCaptureCore destroyed')
   }
 }
 

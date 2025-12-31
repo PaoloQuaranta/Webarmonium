@@ -253,7 +253,7 @@ if (typeof window !== 'undefined') {
     midpoint,
     normalize
   }
-  console.log('✅ VisualUtils exported to window')
+  // console.log('✅ VisualUtils exported to window')
 }
 
 if (typeof module !== 'undefined' && module.exports) {

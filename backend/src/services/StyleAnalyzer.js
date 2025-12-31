@@ -42,10 +42,10 @@ class StyleAnalyzer {
 
     const gestureArray = Array.isArray(gestures) ? gestures : [gestures]
 
-    console.log(`🎨 StyleAnalyzer analyzing ${gestureArray.length} gesture(s):`, {
-      gestureCount: gestureArray.length,
-      weight: gestureWeight.toFixed(2)
-    })
+    // console.log(`🎨 StyleAnalyzer analyzing ${gestureArray.length} gesture(s):`, {
+    //   gestureCount: gestureArray.length,
+    //   weight: gestureWeight.toFixed(2)
+    // })
 
     // Analyze energy from gesture density and velocity
     const energy = this.calculateEnergy(gestureArray)
@@ -54,12 +54,12 @@ class StyleAnalyzer {
     const tempo = this.estimateTempo(gestureArray)
     const timeSignature = this.detectMeter(gestureArray)
 
-    console.log(`🎨 Calculated from gestures:`, {
-      energy: energy.toFixed(2),
-      tempo,
-      timeSignature,
-      gesturesNeededForTempo: gestureArray.length < 2 ? `Need ${2 - gestureArray.length} more` : 'OK'
-    })
+    // console.log(`🎨 Calculated from gestures:`, {
+    //   energy: energy.toFixed(2),
+    //   tempo,
+    //   timeSignature,
+    //   gesturesNeededForTempo: gestureArray.length < 2 ? `Need ${2 - gestureArray.length} more` : 'OK'
+    // })
 
     // Analyze rhythmic character
     const rhythmicCharacter = {
@@ -168,7 +168,7 @@ class StyleAnalyzer {
         // Weight them slightly less than gesture-to-gesture intervals
         allIntervals.push(gesture.interOnsetInterval)
 
-        console.log(`🎵 Using inter-onset interval from drag: ${gesture.interOnsetInterval.toFixed(1)}ms`)
+        // console.log(`🎵 Using inter-onset interval from drag: ${gesture.interOnsetInterval.toFixed(1)}ms`)
       }
     }
 
@@ -182,7 +182,7 @@ class StyleAnalyzer {
     // Convert interval to BPM (beats per minute)
     const bpm = Math.round(60000 / avgInterval)
 
-    console.log(`🎼 Tempo calculated from ${allIntervals.length} intervals: ${bpm} BPM (avg interval: ${avgInterval.toFixed(1)}ms)`)
+    // console.log(`🎼 Tempo calculated from ${allIntervals.length} intervals: ${bpm} BPM (avg interval: ${avgInterval.toFixed(1)}ms)`)
 
     // Clamp to wide musical tempo range (30-300 BPM)
     return Math.max(30, Math.min(300, bpm))
@@ -560,7 +560,7 @@ class StyleAnalyzer {
     const baseAlpha = 1 - this.smoothingFactor
     const alpha = baseAlpha * gestureWeight // Scale by gesture weight
 
-    console.log(`🎨 Style evolution: weight=${gestureWeight.toFixed(2)}, alpha=${alpha.toFixed(2)} (${gestureWeight >= 0.8 ? 'STRONG' : gestureWeight >= 0.5 ? 'MODERATE' : 'WEAK'} influence)`)
+    // console.log(`🎨 Style evolution: weight=${gestureWeight.toFixed(2)}, alpha=${alpha.toFixed(2)} (${gestureWeight >= 0.8 ? 'STRONG' : gestureWeight >= 0.5 ? 'MODERATE' : 'WEAK'} influence)`)
 
     const evolved = {}
 

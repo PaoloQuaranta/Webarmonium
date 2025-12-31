@@ -53,7 +53,7 @@ const socketHandlers = {
     CursorHandler.registerCursorMoveHandler(socket)
     CursorHandler.registerCursorPositionHandler(socket)
 
-    console.log('🔌 Registered ALL handlers for socket:', socket.id)
+    // console.log('🔌 Registered ALL handlers for socket:', socket.id)
 
     // Performance monitoring
     socket.on('*', () => {

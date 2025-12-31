@@ -58,7 +58,7 @@ class VolumeController {
     // Apply to master volume node if initialized
     if (this.masterVolume) {
       this.masterVolume.mute = this.muted
-      console.log(`🔇 Master volume ${this.muted ? 'MUTED' : 'UNMUTED'}`)
+      // console.log(`🔇 Master volume ${this.muted ? 'MUTED' : 'UNMUTED'}`)
     }
   }
 
@@ -79,7 +79,7 @@ class VolumeController {
       // At volume=1 → 0dB
       const db = this.volume === 0 ? -Infinity : (this.volume - 1) * 60
       this.masterVolume.volume.rampTo(db, 0.1) // Smooth 100ms ramp
-      console.log(`🔊 Master volume set to ${(this.volume * 100).toFixed(0)}% (${db === -Infinity ? '-∞' : db.toFixed(1)}dB)`)
+      // console.log(`🔊 Master volume set to ${(this.volume * 100).toFixed(0)}% (${db === -Infinity ? '-∞' : db.toFixed(1)}dB)`)
     }
   }
 

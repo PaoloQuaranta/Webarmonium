@@ -32,7 +32,7 @@ class AudioServiceFacade {
    */
   initializeModules(config = {}) {
     try {
-      console.log('🔧 Initializing AudioServiceFacade modules...')
+      // console.log('🔧 Initializing AudioServiceFacade modules...')
 
       // Create module instances
       this.gestureAudioMapper = new (window.GestureAudioMapper || GestureAudioMapper)()
@@ -44,11 +44,11 @@ class AudioServiceFacade {
       this.threeTierAudioSystem = new (window.ThreeTierAudioSystem || ThreeTierAudioSystem)()
 
       this.modulesInitialized = true
-      console.log('✅ AudioServiceFacade modules initialized')
+      // console.log('✅ AudioServiceFacade modules initialized')
 
       return true
     } catch (error) {
-      console.error('❌ Failed to initialize AudioServiceFacade modules:', error)
+      // console.error('❌ Failed to initialize AudioServiceFacade modules:', error)
       return false
     }
   }
@@ -578,7 +578,7 @@ class AudioServiceFacade {
    * Cleanup all modules
    */
   cleanup() {
-    console.log('🧹 Cleaning up AudioServiceFacade modules...')
+    // console.log('🧹 Cleaning up AudioServiceFacade modules...')
 
     if (this.parameterController) {
       this.parameterController.cleanup()
@@ -605,7 +605,7 @@ class AudioServiceFacade {
     }
 
     this.isInitialized = false
-    console.log('✅ AudioServiceFacade cleanup completed')
+    // console.log('✅ AudioServiceFacade cleanup completed')
   }
 
   /**

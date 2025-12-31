@@ -46,7 +46,7 @@ class DragStreamProcessor {
    */
   setDragStreamingNoteCallback(callback) {
     this.onDragStreamingNote = callback
-    console.log('DragStreamProcessor: Drag streaming note callback set')
+    // console.log('DragStreamProcessor: Drag streaming note callback set')
   }
 
   /**
@@ -60,7 +60,7 @@ class DragStreamProcessor {
     this.dragStreaming.streamedNotes = []
     this.dragStreaming.firstNotePlayed = false
 
-    console.log('DragStreamProcessor: Started')
+    // console.log('DragStreamProcessor: Started')
   }
 
   /**
@@ -80,7 +80,7 @@ class DragStreamProcessor {
     this.dragStreaming.streamedNotes = []
     this.dragStreaming.firstNotePlayed = false
 
-    console.log('DragStreamProcessor: Stopped', finalData)
+    // console.log('DragStreamProcessor: Stopped', finalData)
     return finalData
   }
 
@@ -164,7 +164,7 @@ class DragStreamProcessor {
    */
   playNote(coordinates, velocity, noteIndex) {
     if (!this.onDragStreamingNote) {
-      console.warn('DragStreamProcessor: No drag streaming callback set')
+      // console.warn('DragStreamProcessor: No drag streaming callback set')
       return null
     }
 
@@ -319,7 +319,7 @@ class DragStreamProcessor {
       firstNotePlayed: false
     }
 
-    console.log('DragStreamProcessor: State reset')
+    // console.log('DragStreamProcessor: State reset')
   }
 }
 

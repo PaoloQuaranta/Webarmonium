@@ -48,7 +48,7 @@ class BackgroundCompositionService {
     // Reference to GestureToMusicService for harmonic synchronization
     this.gestureToMusicService = null
 
-    console.log('🎼 BackgroundCompositionService initialized')
+// console.log('🎼 BackgroundCompositionService initialized')
   }
 
   /**
@@ -57,7 +57,7 @@ class BackgroundCompositionService {
    */
   setSocketIO(io) {
     this.io = io
-    console.log('🎼 BackgroundCompositionService: Socket.IO connected')
+// console.log('🎼 BackgroundCompositionService: Socket.IO connected')
   }
 
   /**
@@ -68,7 +68,7 @@ class BackgroundCompositionService {
     this.gestureToMusicService = gestureService
     // Initial sync
     this.syncHarmonicContext()
-    console.log('🎼 BackgroundCompositionService: GestureToMusicService linked for harmonic sync')
+// console.log('🎼 BackgroundCompositionService: GestureToMusicService linked for harmonic sync')
   }
 
   /**
@@ -80,7 +80,7 @@ class BackgroundCompositionService {
       this.gestureToMusicService.currentMode = this.compositionEngine.mode
       this.gestureToMusicService.harmonicEngine.currentKey = this.compositionEngine.keyCenter
       this.gestureToMusicService.harmonicEngine.currentMode = this.compositionEngine.mode
-      console.log(`🎵 Synced harmonic context: ${this.compositionEngine.keyCenter} ${this.compositionEngine.mode}`)
+// console.log(`🎵 Synced harmonic context: ${this.compositionEngine.keyCenter} ${this.compositionEngine.mode}`)
     }
   }
 
@@ -91,11 +91,11 @@ class BackgroundCompositionService {
    */
   startComposition(roomId, roomContext = {}) {
     if (this.compositionTimers.has(roomId)) {
-      console.log(`🎼 Composition already running for room ${roomId}`)
+// console.log(`🎼 Composition already running for room ${roomId}`)
       return
     }
 
-    console.log(`🎼 Starting with DRONE (waiting for gestures to define composition)`)
+// console.log(`🎼 Starting with DRONE (waiting for gestures to define composition)`)
 
     // Initialize room composition state with SESSION PROFILING
     this.roomCompositions.set(roomId, {
@@ -125,7 +125,7 @@ class BackgroundCompositionService {
    * @param {string} roomId - Room ID
    */
   generateAndBroadcastDrone(roomId) {
-    console.log(`🎵 Generating initial DRONE for room ${roomId}`)
+// console.log(`🎵 Generating initial DRONE for room ${roomId}`)
 
     // Simple drone: single sustained note in root key
     const droneComposition = {
@@ -157,7 +157,7 @@ class BackgroundCompositionService {
       const socketsInRoom = this.io.sockets.adapter.rooms.get(roomId)
       const socketCount = socketsInRoom ? socketsInRoom.size : 0
 
-      console.log(`🎵 Broadcasting DRONE to room ${roomId} (${socketCount} sockets in room)`)
+// console.log(`🎵 Broadcasting DRONE to room ${roomId} (${socketCount} sockets in room)`)
 
       this.io.to(roomId).emit('background-composition', {
         roomId,
@@ -167,9 +167,9 @@ class BackgroundCompositionService {
         timestamp: Date.now()
       })
 
-      console.log(`✅ DRONE broadcast complete for room ${roomId}`)
+// console.log(`✅ DRONE broadcast complete for room ${roomId}`)
     } else {
-      console.error(`❌ Cannot broadcast DRONE - io not initialized`)
+// console.error(`❌ Cannot broadcast DRONE - io not initialized`)
     }
   }
 
@@ -183,7 +183,7 @@ class BackgroundCompositionService {
       clearTimeout(timer)
       this.compositionTimers.delete(roomId)
       this.roomCompositions.delete(roomId)
-      console.log(`🎼 Stopped composition for room ${roomId}`)
+// console.log(`🎼 Stopped composition for room ${roomId}`)
     }
   }
 
@@ -196,7 +196,7 @@ class BackgroundCompositionService {
   addMaterial(roomId, gestureData, musicalPhrase) {
     const roomState = this.roomCompositions.get(roomId)
     if (!roomState) {
-      console.warn(`🎼 No room state for ${roomId}, creating...`)
+// console.warn(`🎼 No room state for ${roomId}, creating...`)
       this.startComposition(roomId, {})
       return
     }
@@ -207,7 +207,7 @@ class BackgroundCompositionService {
     // CALCULATE GESTURE WEIGHT: First gestures have maximum influence
     const gestureWeight = this.calculateGestureWeight(roomState.gestureCount, roomState.initialGestureWindow)
 
-    console.log(`🎵 Gesture #${roomState.gestureCount} - Weight: ${gestureWeight.toFixed(2)} (${gestureWeight >= 0.8 ? 'HIGH' : gestureWeight >= 0.5 ? 'MEDIUM' : 'LOW'} influence)`)
+// console.log(`🎵 Gesture #${roomState.gestureCount} - Weight: ${gestureWeight.toFixed(2)} (${gestureWeight >= 0.8 ? 'HIGH' : gestureWeight >= 0.5 ? 'MEDIUM' : 'LOW'} influence)`)
 
     // Convert musical phrase to material format
     const material = {
@@ -254,7 +254,7 @@ class BackgroundCompositionService {
       )
       acceleration = velocityVariance * 100  // Higher variance = more dynamic = higher acceleration
 
-      console.log('🎹 Analyzed DRAG notes:', {
+// console.log('🎹 Analyzed DRAG notes:', {
         noteCount: musicalPhrase.notes.length,
         avgVelocity: velocity.toFixed(1),
         interOnsetInterval: interOnsetInterval ? interOnsetInterval.toFixed(1) + 'ms' : 'N/A',
@@ -270,7 +270,7 @@ class BackgroundCompositionService {
       const rawIntensity = gestureData.gesture.intensity || 0.5
       acceleration = rawIntensity * 50
 
-      console.log('👆 Analyzed TAP gesture:', {
+// console.log('👆 Analyzed TAP gesture:', {
         duration: duration.toFixed(0) + 'ms',
         velocity: velocity.toFixed(1),
         acceleration: acceleration.toFixed(1)
@@ -285,7 +285,7 @@ class BackgroundCompositionService {
       timestamp: gestureData.gesture.startTime || Date.now()
     }
 
-    console.log('🔍 Normalized gesture for StyleAnalyzer:', {
+// console.log('🔍 Normalized gesture for StyleAnalyzer:', {
       type: normalizedGesture.type,
       velocity: normalizedGesture.velocity.toFixed(1),
       acceleration: normalizedGesture.acceleration.toFixed(1),
@@ -300,7 +300,7 @@ class BackgroundCompositionService {
       roomState.gestureHistory = roomState.gestureHistory.slice(-10)
     }
 
-    console.log(`🔍 Gesture history size: ${roomState.gestureHistory.length} gestures`)
+// console.log(`🔍 Gesture history size: ${roomState.gestureHistory.length} gestures`)
 
     // Update style analyzer WITH ACCUMULATED GESTURES
     this.styleAnalyzer.analyzeGestureStyle(roomState.gestureHistory, gestureWeight)
@@ -310,7 +310,7 @@ class BackgroundCompositionService {
 
     // TRANSITION from DRONE to FULL COMPOSITION after initial gestures
     if (roomState.gestureCount >= 2 && !roomState.compositionStarted) {
-      console.log('🎼 Transitioning from drone to full composition (2+ gestures collected)')
+// console.log('🎼 Transitioning from drone to full composition (2+ gestures collected)')
       roomState.compositionStarted = true
 
       // Generate first real composition
@@ -320,7 +320,7 @@ class BackgroundCompositionService {
       this.scheduleNextComposition(roomId, roomState.roomContext)
     }
 
-    console.log(`🎼 Added material ${materialId} (gesture #${roomState.gestureCount}):`, {
+// console.log(`🎼 Added material ${materialId} (gesture #${roomState.gestureCount}):`, {
       notesCount: material.notes.length,
       weight: gestureWeight.toFixed(2),
       phraseType: musicalPhrase.type || 'unknown'
@@ -360,7 +360,7 @@ class BackgroundCompositionService {
     if (keyCenter !== this.compositionEngine.keyCenter || mode !== this.compositionEngine.mode) {
       this.compositionEngine.keyCenter = keyCenter
       this.compositionEngine.mode = mode
-      console.log(`🎼 Style influenced composition: ${keyCenter} ${mode}, tempo ${this.compositionEngine.tempo}`)
+// console.log(`🎼 Style influenced composition: ${keyCenter} ${mode}, tempo ${this.compositionEngine.tempo}`)
       // Sync to gestures
       this.syncHarmonicContext()
     }
@@ -369,7 +369,7 @@ class BackgroundCompositionService {
     this.compositionEngine.complexityLevel = Math.min(0.9, Math.max(0.1, style.energy))
     this.compositionEngine.density = Math.min(0.9, Math.max(0.1, style.energy * 1.2))
 
-    console.log(`🎼 Applied style: energy=${style.energy.toFixed(2)}, tempo=${this.compositionEngine.tempo}, complexity=${this.compositionEngine.complexityLevel.toFixed(2)}`)
+// console.log(`🎼 Applied style: energy=${style.energy.toFixed(2)}, tempo=${this.compositionEngine.tempo}, complexity=${this.compositionEngine.complexityLevel.toFixed(2)}`)
   }
 
   /**
@@ -425,7 +425,7 @@ class BackgroundCompositionService {
 
     this.compositionTimers.set(roomId, timer)
 
-    console.log(`🎼 Next composition for room ${roomId} in ${(clampedInterval/1000).toFixed(1)}s (${beatsPerComposition.toFixed(0)} beats @ ${tempo} BPM)`)
+// console.log(`🎼 Next composition for room ${roomId} in ${(clampedInterval/1000).toFixed(1)}s (${beatsPerComposition.toFixed(0)} beats @ ${tempo} BPM)`)
   }
 
   /**
@@ -435,12 +435,12 @@ class BackgroundCompositionService {
    */
   async generateAndBroadcastComposition(roomId, roomContext) {
     try {
-      console.log(`🎼 Generating composition for room ${roomId}`)
+// console.log(`🎼 Generating composition for room ${roomId}`)
 
       // Get room state
       const roomState = this.roomCompositions.get(roomId)
       if (!roomState) {
-        console.log(`🎼 No room state for ${roomId}, skipping composition`)
+// console.log(`🎼 No room state for ${roomId}, skipping composition`)
         return
       }
 
@@ -456,7 +456,7 @@ class BackgroundCompositionService {
         activeUsers: roomContext.activeUsers || []
       })
 
-      console.log(`🎼 Generated ${composition.type} composition:`, {
+// console.log(`🎼 Generated ${composition.type} composition:`, {
         form: composition.structure.form,
         section: composition.structure.currentSection,
         tempo: composition.metadata.tempo,
@@ -465,14 +465,14 @@ class BackgroundCompositionService {
 
       // Log composition details
       if (composition.content.voices) {
-        console.log(`🎼   ${composition.content.voices.length} voices (polyphonic)`)
+// console.log(`🎼   ${composition.content.voices.length} voices (polyphonic)`)
       } else if (composition.content.melody) {
-        console.log(`🎼   Melody + accompaniment (homophonic)`)
+// console.log(`🎼   Melody + accompaniment (homophonic)`)
         if (composition.content.accompaniment) {
-          console.log(`🎼   Accompaniment type: ${composition.content.accompaniment.type}`)
+// console.log(`🎼   Accompaniment type: ${composition.content.accompaniment.type}`)
         }
       } else if (composition.content.texture) {
-        console.log(`🎼   Ambient texture`)
+// console.log(`🎼   Ambient texture`)
       }
 
       // Broadcast composition to room
@@ -484,16 +484,16 @@ class BackgroundCompositionService {
           timestamp: Date.now()
         })
 
-        console.log(`🎼 Broadcast composition #${roomState.compositionCount} to room ${roomId}`)
+// console.log(`🎼 Broadcast composition #${roomState.compositionCount} to room ${roomId}`)
       } else {
-        console.log(`🎼 No Socket.IO instance, composition not broadcast`)
+// console.log(`🎼 No Socket.IO instance, composition not broadcast`)
       }
 
       // Update material library lifecycle
       this.materialLibrary.updateMaterialLifecycle()
 
     } catch (error) {
-      console.error(`🎼 Error generating composition for room ${roomId}:`, error)
+// console.error(`🎼 Error generating composition for room ${roomId}:`, error)
     }
   }
 
@@ -506,7 +506,7 @@ class BackgroundCompositionService {
     const roomState = this.roomCompositions.get(roomId)
     if (roomState) {
       roomState.roomContext = { ...roomState.roomContext, ...roomContext }
-      console.log(`🎼 Updated room context for ${roomId}:`, roomContext)
+// console.log(`🎼 Updated room context for ${roomId}:`, roomContext)
     }
   }
 
@@ -542,7 +542,7 @@ class BackgroundCompositionService {
     // SYNC: Update GestureToMusicService harmonic context
     this.syncHarmonicContext()
 
-    console.log(`🎼 Set key for room ${roomId}: ${key} ${mode} (synced to gestures)`)
+// console.log(`🎼 Set key for room ${roomId}: ${key} ${mode} (synced to gestures)`)
   }
 
   /**
@@ -554,7 +554,7 @@ class BackgroundCompositionService {
     this.materialLibrary.setTempo(tempo)
     this.compositionEngine.tempo = tempo
 
-    console.log(`🎼 Set tempo for room ${roomId}: ${tempo} BPM`)
+// console.log(`🎼 Set tempo for room ${roomId}: ${tempo} BPM`)
   }
 
   /**
@@ -576,7 +576,7 @@ class BackgroundCompositionService {
       const inactiveTime = now - roomState.lastCompositionTime
 
       if (inactiveTime > inactivityThreshold) {
-        console.log(`🎼 Cleaning up inactive room ${roomId} (inactive for ${(inactiveTime/1000).toFixed(0)}s)`)
+// console.log(`🎼 Cleaning up inactive room ${roomId} (inactive for ${(inactiveTime/1000).toFixed(0)}s)`)
         this.stopComposition(roomId)
       }
     }

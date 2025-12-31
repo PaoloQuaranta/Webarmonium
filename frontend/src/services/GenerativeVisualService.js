@@ -51,29 +51,29 @@ class GenerativeVisualService {
    * @param {HTMLElement} containerElement - DOM element to attach p5.js canvas
    */
   initialize(containerElement) {
-    console.log('🎨 GenerativeVisualService.initialize() called with container:', containerElement)
+    // console.log('🎨 GenerativeVisualService.initialize() called with container:', containerElement)
 
     if (!containerElement) {
-      console.error('❌ GenerativeVisualService: Container element not found')
+      // console.error('❌ GenerativeVisualService: Container element not found')
       return
     }
 
     try {
       // Initialize subsystems
-      console.log('🎨 Creating SpringMeshNetwork...')
+      // console.log('🎨 Creating SpringMeshNetwork...')
       this.springMesh = new SpringMeshNetwork()
 
-      console.log('🎨 Creating WavePacketSystem...')
+      // console.log('🎨 Creating WavePacketSystem...')
       this.wavePackets = new WavePacketSystem(this.springMesh)
 
-      console.log('🎨 Creating ParticleFlowManager...')
+      // console.log('🎨 Creating ParticleFlowManager...')
       this.particles = new ParticleFlowManager(this.springMesh)
 
-      console.log('🎨 Creating p5 instance...')
+      // console.log('🎨 Creating p5 instance...')
       // Create p5.js instance in instance mode
       this.p5Instance = new p5((p) => {
         p.setup = () => {
-          console.log('🎨 p5 setup() called')
+          // console.log('🎨 p5 setup() called')
           this.setup(p)
         }
         p.draw = () => {
@@ -81,9 +81,9 @@ class GenerativeVisualService {
         }
       }, containerElement)
 
-      console.log('✅ GenerativeVisualService: Enhanced p5.js initialized with subsystems')
+      // console.log('✅ GenerativeVisualService: Enhanced p5.js initialized with subsystems')
     } catch (error) {
-      console.error('❌ Error during GenerativeVisualService initialization:', error)
+      // console.error('❌ Error during GenerativeVisualService initialization:', error)
       throw error
     }
   }
@@ -102,9 +102,9 @@ class GenerativeVisualService {
     // Initialize frame time
     this.lastFrameTime = p.millis()
 
-    console.log('✅ GenerativeVisualService: Canvas created', window.innerWidth, 'x', window.innerHeight)
-    console.log('🎨 p5 canvas element:', p.canvas)
-    console.log('🎨 p5 canvas parent:', p.canvas?.parentElement)
+    // console.log('✅ GenerativeVisualService: Canvas created', window.innerWidth, 'x', window.innerHeight)
+    // console.log('🎨 p5 canvas element:', p.canvas)
+    // console.log('🎨 p5 canvas parent:', p.canvas?.parentElement)
   }
 
   /**
@@ -130,7 +130,7 @@ class GenerativeVisualService {
 
     // Debug: Log node count
     if (this.springMesh && this.springMesh.nodes.size > 0 && p.frameCount % 60 === 0) {
-      console.log('🎨 Rendering', this.springMesh.nodes.size, 'nodes,', this.springMesh.edges.length, 'edges')
+      // console.log('🎨 Rendering', this.springMesh.nodes.size, 'nodes,', this.springMesh.edges.length, 'edges')
     }
 
     // Update and render based on performance mode
@@ -181,7 +181,7 @@ class GenerativeVisualService {
    */
   updateCursorPosition(userId, x, y, color) {
     if (!this.springMesh) {
-      console.warn('⚠️ springMesh not initialized in updateCursorPosition')
+      // console.warn('⚠️ springMesh not initialized in updateCursorPosition')
       return
     }
 
@@ -195,7 +195,7 @@ class GenerativeVisualService {
 
     // Debug: Log first cursor update
     if (this.springMesh.nodes.size === 1) {
-      console.log('🎨 First cursor added to visual service:', userId, 'at', x, y)
+      // console.log('🎨 First cursor added to visual service:', userId, 'at', x, y)
     }
   }
 
@@ -206,7 +206,7 @@ class GenerativeVisualService {
    */
   updateGestureData(userId, gestureData) {
     // DEBUG: Log entry
-    console.log('🎨 updateGestureData called:', {
+    // console.log('🎨 updateGestureData called:', {
       userId: userId.substring(0, 8),
       type: gestureData.type,
       isActive: gestureData.isActive
@@ -214,13 +214,13 @@ class GenerativeVisualService {
 
     // Update the node in the spring mesh
     const node = this.springMesh.nodes.get(userId)
-    console.log('🎨 Node exists?', !!node, 'Total nodes:', this.springMesh.nodes.size)
+    // console.log('🎨 Node exists?', !!node, 'Total nodes:', this.springMesh.nodes.size)
 
     if (node) {
       node.gestureType = gestureData.type || 'idle'
       node.isActive = gestureData.isActive || false
 
-      console.log('🎨 Node updated:', {
+      // console.log('🎨 Node updated:', {
         userId: userId.substring(0, 8),
         gestureType: node.gestureType,
         isActive: node.isActive,
@@ -231,44 +231,44 @@ class GenerativeVisualService {
       if (gestureData.isActive) {
         // Emit wave pulse on tap or drag start
         if (gestureData.type === 'tap' || gestureData.type === 'drag') {
-          console.log('✨ Emitting pulse for', gestureData, 'userId:', userId.substring(0, 8))
-          console.log('🔍 wavePackets type:', typeof this.wavePackets, 'is truthy:', !!this.wavePackets)
-          console.log('🔍 wavePackets keys:', this.wavePackets ? Object.keys(this.wavePackets).slice(0, 5) : 'N/A')
+          // console.log('✨ Emitting pulse for', gestureData, 'userId:', userId.substring(0, 8))
+          // console.log('🔍 wavePackets type:', typeof this.wavePackets, 'is truthy:', !!this.wavePackets)
+          // console.log('🔍 wavePackets keys:', this.wavePackets ? Object.keys(this.wavePackets).slice(0, 5) : 'N/A')
 
           // DEBUG: Check if wavePackets exists
           if (!this.wavePackets) {
-            console.error('❌ this.wavePackets is NULL or UNDEFINED!')
-            console.log('🔍 Available subsystems:', Object.keys(this))
+            // console.error('❌ this.wavePackets is NULL or UNDEFINED!')
+            // console.log('🔍 Available subsystems:', Object.keys(this))
           } else {
             try {
               this.wavePackets.emitPulse(userId, node.color)
             } catch (error) {
-              console.error('❌ ERROR calling emitPulse:', error)
-              console.error('Stack trace:', error.stack)
+              // console.error('❌ ERROR calling emitPulse:', error)
+              // console.error('Stack trace:', error.stack)
             }
           }
 
           // Also emit particles on tap for better visual feedback
           const particleCount = gestureData.type === 'tap' ? 5 : 2
-          console.log('✨ Emitting', particleCount, 'particles for', gestureData.type, 'userId:', userId.substring(0, 8))
-          console.log('🔍 particles type:', typeof this.particles, 'is truthy:', !!this.particles)
+          // console.log('✨ Emitting', particleCount, 'particles for', gestureData.type, 'userId:', userId.substring(0, 8))
+          // console.log('🔍 particles type:', typeof this.particles, 'is truthy:', !!this.particles)
 
           // DEBUG: Check if particles exists
           if (!this.particles) {
-            console.error('❌ this.particles is NULL or UNDEFINED!')
+            // console.error('❌ this.particles is NULL or UNDEFINED!')
           } else {
             try {
               this.particles.emitParticles(userId, particleCount)
             } catch (error) {
-              console.error('❌ ERROR calling emitParticles:', error)
-              console.error('Stack trace:', error.stack)
+              // console.error('❌ ERROR calling emitParticles:', error)
+              // console.error('Stack trace:', error.stack)
             }
           }
         }
       }
     } else {
-      console.warn('⚠️ Node not found in spring mesh for userId:', userId.substring(0, 8))
-      console.log('🎨 Available nodes:', Array.from(this.springMesh.nodes.keys()).map(id => id.substring(0, 8)))
+      // console.warn('⚠️ Node not found in spring mesh for userId:', userId.substring(0, 8))
+      // console.log('🎨 Available nodes:', Array.from(this.springMesh.nodes.keys()).map(id => id.substring(0, 8)))
     }
 
     this.lastActivityTime = Date.now()
@@ -292,7 +292,7 @@ class GenerativeVisualService {
   resize(width, height) {
     if (this.p5Instance) {
       this.p5Instance.resizeCanvas(width, height)
-      console.log('GenerativeVisualService: Resized to', width, 'x', height)
+      // console.log('GenerativeVisualService: Resized to', width, 'x', height)
     }
   }
 
@@ -315,13 +315,13 @@ class GenerativeVisualService {
     // Check for performance degradation every N frames
     if (this.frameCount % this.frameSampleInterval === 0) {
       if (this.fps < this.disableThreshold && this.performanceMode !== 'disabled') {
-        console.warn('GenerativeVisualService: FPS below threshold, disabling effects')
+        // console.warn('GenerativeVisualService: FPS below threshold, disabling effects')
         this.performanceMode = 'disabled'
       } else if (this.fps < this.degradeThreshold && this.performanceMode === 'normal') {
-        console.warn('GenerativeVisualService: FPS below threshold, entering degraded mode')
+        // console.warn('GenerativeVisualService: FPS below threshold, entering degraded mode')
         this.performanceMode = 'degraded'
       } else if (this.fps > this.recoveryThreshold && this.performanceMode !== 'normal') {
-        console.log('GenerativeVisualService: FPS recovered, returning to normal mode')
+        // console.log('GenerativeVisualService: FPS recovered, returning to normal mode')
         this.performanceMode = 'normal'
       }
     }
@@ -330,7 +330,7 @@ class GenerativeVisualService {
     if (Date.now() - this.lastActivityTime > this.idleThreshold) {
       if (!this.isPaused) {
         this.isPaused = true
-        console.log('GenerativeVisualService: Paused due to inactivity')
+        // console.log('GenerativeVisualService: Paused due to inactivity')
       }
     }
   }
@@ -389,7 +389,7 @@ class GenerativeVisualService {
       this.p5Instance = null
     }
 
-    console.log('✅ GenerativeVisualService: Disposed')
+    // console.log('✅ GenerativeVisualService: Disposed')
   }
 }
 

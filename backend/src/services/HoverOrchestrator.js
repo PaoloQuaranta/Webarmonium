@@ -137,7 +137,7 @@ class HoverOrchestrator {
       }
     }, this.updateInterval)
 
-    console.log(`🎛️ HoverOrchestrator started for room ${this.roomId}`)
+// console.log(`🎛️ HoverOrchestrator started for room ${this.roomId}`)
   }
 
   /**
@@ -151,7 +151,7 @@ class HoverOrchestrator {
       this.analysisLoop = null
     }
 
-    console.log(`🛑 HoverOrchestrator stopped for room ${this.roomId}`)
+// console.log(`🛑 HoverOrchestrator stopped for room ${this.roomId}`)
   }
 
   /**
@@ -180,7 +180,7 @@ class HoverOrchestrator {
     // Update performance metrics
     this.performanceMetrics.hoverProcessed++
 
-    console.log(`📥 Hover event added: userId=${hoverEvent.userId}, position=(${hoverEvent.position?.x?.toFixed(2)}, ${hoverEvent.position?.y?.toFixed(2)})`)
+// console.log(`📥 Hover event added: userId=${hoverEvent.userId}, position=(${hoverEvent.position?.x?.toFixed(2)}, ${hoverEvent.position?.y?.toFixed(2)})`)
   }
 
   /**
@@ -220,11 +220,11 @@ class HoverOrchestrator {
 
       // Verifica requisito costituzionale
       if (processingTime > 100) {
-        console.warn(`⚠️ HoverOrchestrator processing time ${processingTime.toFixed(2)}ms exceeds 100ms constitutional requirement`)
+// console.warn(`⚠️ HoverOrchestrator processing time ${processingTime.toFixed(2)}ms exceeds 100ms constitutional requirement`)
       }
 
     } catch (error) {
-      console.error('❌ HoverOrchestrator analysis error:', error)
+// console.error('❌ HoverOrchestrator analysis error:', error)
     }
   }
 
@@ -475,7 +475,7 @@ class HoverOrchestrator {
     ))
 
     // Log range selection
-    console.log(`🎛️ LFO Range: ${frequencyRange}, freq=${this.unifiedModulation.lfoFrequency.toFixed(4)}Hz (${(1/this.unifiedModulation.lfoFrequency).toFixed(0)}s period)`)
+// console.log(`🎛️ LFO Range: ${frequencyRange}, freq=${this.unifiedModulation.lfoFrequency.toFixed(4)}Hz (${(1/this.unifiedModulation.lfoFrequency).toFixed(0)}s period)`)
 
     // LFO Amplitude basata su varianza spaziale e intensità
     this.unifiedModulation.lfoAmplitude = Math.max(0.1, Math.min(1.0,
@@ -624,7 +624,7 @@ class HoverOrchestrator {
     this.previousModulation = { ...this.unifiedModulation }
 
     // Log dettagliato con tutti gli LFO ultra-lenti
-    console.log(`🎛️ ULTRA-SLOW modulation generated (${frequencyRange}):`, {
+// console.log(`🎛️ ULTRA-SLOW modulation generated (${frequencyRange}):`, {
       roomId: this.roomId,
       generation: this.unifiedModulation.generation,
       // PRIMARY LFO
@@ -748,7 +748,7 @@ class HoverOrchestrator {
     // Update metrics
     this.performanceMetrics.modulationsGenerated++
 
-    console.log(`📡 Broadcast unified modulation to room ${this.roomId}:`, {
+// console.log(`📡 Broadcast unified modulation to room ${this.roomId}:`, {
       generation: this.unifiedModulation.generation,
       lfoFreq: this.unifiedModulation.lfoFrequency.toFixed(2),
       lfoAmp: this.unifiedModulation.lfoAmplitude.toFixed(2)
@@ -795,7 +795,7 @@ class HoverOrchestrator {
       averageLatency: 0
     }
 
-    console.log(`🔄 HoverOrchestrator reset for room ${this.roomId}`)
+// console.log(`🔄 HoverOrchestrator reset for room ${this.roomId}`)
   }
 }
 

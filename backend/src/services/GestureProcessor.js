@@ -45,7 +45,7 @@ class GestureProcessor {
 
     // Constitutional requirement: <200ms processing time
     if (processingTime > 200) {
-      console.warn(`Gesture processing exceeded 200ms: ${processingTime}ms for gesture ${gesture.id}`)
+      // console.warn(`Gesture processing exceeded 200ms: ${processingTime}ms for gesture ${gesture.id}`)
     }
 
     return gesture

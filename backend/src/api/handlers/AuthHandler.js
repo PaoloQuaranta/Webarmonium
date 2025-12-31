@@ -47,7 +47,7 @@ const AuthHandler = {
         socket.roomId = roomId
         socket.join(roomId)
 
-        console.log(`✅ User joined room:`, {
+        // console.log(`✅ User joined room:`, {
           userId: socket.userId,
           socketId: socket.id,
           roomId: socket.roomId,
@@ -125,14 +125,14 @@ const AuthHandler = {
           })
         }
 
-        console.log(`User ${socket.userId} joined room ${roomId} (${latency}ms)`)
+        // console.log(`User ${socket.userId} joined room ${roomId} (${latency}ms)`)
 
         // Log constitutional compliance
         if (latency > LATENCY.WEBSOCKET_MAX) {
-          console.warn(`Join-room latency ${latency}ms exceeds ${LATENCY.WEBSOCKET_MAX}ms constitutional requirement`)
+          // console.warn(`Join-room latency ${latency}ms exceeds ${LATENCY.WEBSOCKET_MAX}ms constitutional requirement`)
         }
       } catch (error) {
-        console.error('Join-room error:', error)
+        // console.error('Join-room error:', error)
 
         if (error.message === 'ROOM_FULL') {
           return ValidationHandler.sendError(callback, 'ROOM_FULL', 'Room has reached maximum capacity')
@@ -204,13 +204,13 @@ const AuthHandler = {
           timestamp: Date.now()
         })
 
-        console.log(`User ${socket.userId} left room ${roomId} (${latency}ms)`)
+        // console.log(`User ${socket.userId} left room ${roomId} (${latency}ms)`)
 
         if (latency > LATENCY.WEBSOCKET_MAX) {
-          console.warn(`Leave-room latency ${latency}ms exceeds ${LATENCY.WEBSOCKET_MAX}ms constitutional requirement`)
+          // console.warn(`Leave-room latency ${latency}ms exceeds ${LATENCY.WEBSOCKET_MAX}ms constitutional requirement`)
         }
       } catch (error) {
-        console.error('Leave-room error:', error)
+        // console.error('Leave-room error:', error)
         return ValidationHandler.sendError(callback, 'LEAVE_FAILED', 'Failed to leave room')
       }
     })
@@ -260,7 +260,7 @@ const AuthHandler = {
           })
         }
       } catch (error) {
-        console.error('Heartbeat error:', error)
+        // console.error('Heartbeat error:', error)
         return ValidationHandler.sendError(callback, 'HEARTBEAT_FAILED', 'Heartbeat processing failed')
       }
     })
@@ -307,7 +307,7 @@ const AuthHandler = {
             }
           }
           if (cleanedCount > 0) {
-            console.log(`🧹 Cleaned up ${cleanedCount} active holds from disconnected user ${socket.userId}`)
+            // console.log(`🧹 Cleaned up ${cleanedCount} active holds from disconnected user ${socket.userId}`)
           }
         }
 
@@ -334,9 +334,9 @@ const AuthHandler = {
           }
         }
 
-        console.log(`User ${socket.userId} disconnected from room ${socket.roomId}`)
+        // console.log(`User ${socket.userId} disconnected from room ${socket.roomId}`)
       } catch (error) {
-        console.error('Disconnection cleanup error:', error)
+        // console.error('Disconnection cleanup error:', error)
       }
     }
   }

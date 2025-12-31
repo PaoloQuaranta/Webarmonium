@@ -157,7 +157,7 @@ class AudioService {
         this.lastLfoUpdate = Date.now()
         this.currentLFOValue = 0
         this.isActive = false
-        console.log('🎛️ LFO system initialized for hover modulation')
+        // console.log('🎛️ LFO system initialized for hover modulation')
       },
 
       // Start continuous LFO updates
@@ -188,7 +188,7 @@ class AudioService {
 
         }, 1000 / 30) // 30 FPS updates - stable for audio
 
-        console.log('🌊 Continuous LFO started at 30Hz - stable for audio')
+        // console.log('🌊 Continuous LFO started at 30Hz - stable for audio')
       },
 
       // Stop continuous LFO updates
@@ -198,7 +198,7 @@ class AudioService {
           clearInterval(this.updateInterval)
           this.updateInterval = null
         }
-        console.log('⏹️ Continuous LFO stopped')
+        // console.log('⏹️ Continuous LFO stopped')
       },
 
       // Update LFO phase and get current value 
@@ -248,7 +248,7 @@ class AudioService {
    * This is the definitive fix for omnipresent tremolo issues
    */
   disableAllLFOSystems() {
-    console.log('🚨 NUCLEAR OPTION: Disabling ALL LFO systems to eliminate tremolo')
+    // console.log('🚨 NUCLEAR OPTION: Disabling ALL LFO systems to eliminate tremolo')
 
     // Disable lfoSystem completely
     if (this.lfoSystem) {
@@ -259,7 +259,7 @@ class AudioService {
         clearInterval(this.lfoSystem.updateInterval)
         this.lfoSystem.updateInterval = null
       }
-      console.log('🛑 lfoSystem completely disabled')
+      // console.log('🛑 lfoSystem completely disabled')
     }
 
     // Disable any existing LFO instances
@@ -267,17 +267,17 @@ class AudioService {
       this.remoteFilterLFO.stop()
       this.remoteFilterLFO.dispose()
       this.remoteFilterLFO = null
-      console.log('🛑 remoteFilterLFO destroyed')
+      // console.log('🛑 remoteFilterLFO destroyed')
     }
 
     if (this.tremoloLFO) {
       this.tremoloLFO.stop()
       this.tremoloLFO.dispose()
       this.tremoloLFO = null
-      console.log('🛑 tremoloLFO destroyed')
+      // console.log('🛑 tremoloLFO destroyed')
     }
 
-    console.log('✅ ALL LFO SYSTEMS DISABLED - tremolo should be eliminated')
+    // console.log('✅ ALL LFO SYSTEMS DISABLED - tremolo should be eliminated')
   }
 
   /**
@@ -332,11 +332,11 @@ class AudioService {
       this.isInitialized = true
       this.audioContextState = 'initialized'
 
-      console.log('AudioService initialized with 60fps parameter updates')
+      // console.log('AudioService initialized with 60fps parameter updates')
 
       return true
     } catch (error) {
-      console.error('AudioService initialization failed:', error)
+      // console.error('AudioService initialization failed:', error)
       throw error
     }
   }
@@ -352,23 +352,23 @@ class AudioService {
         // Always ensure Tone is started
         if (Tone.context.state !== 'running') {
           await Tone.start()
-          console.log('🔊 Tone.js context started/resumed')
+          // console.log('🔊 Tone.js context started/resumed')
         }
 
         // CRITICAL: Start Transport for scheduled events
         if (Tone.Transport.state !== 'started') {
           Tone.Transport.start()
-          console.log('🚀 Tone.Transport started for event scheduling')
+          // console.log('🚀 Tone.Transport started for event scheduling')
         }
 
         // CRITICAL: Ensure audioContext is properly set
         this.audioContext = Tone.context
-        console.log('🔊 AudioContext set:', !!this.audioContext, 'state:', Tone.context?.state)
+        // console.log('🔊 AudioContext set:', !!this.audioContext, 'state:', Tone.context?.state)
 
         // Create continuous generative music system if not already created
         // This will create new synths on first call, or reuse existing synths on subsequent calls
         if (!this.isInitialized) {
-          console.log('🔨 Starting audio system (will create or reuse synths)...')
+          // console.log('🔨 Starting audio system (will create or reuse synths)...')
 
           // This either creates new synths or reuses existing ones
           this.createContinuousGenerativeSystem()
@@ -382,24 +382,24 @@ class AudioService {
           }
 
           this.isInitialized = true
-          console.log('🔊 AudioService initialized successfully - Continuous generative music active')
+          // console.log('🔊 AudioService initialized successfully - Continuous generative music active')
         }
 
         // CRITICAL: Always restore master volume after stop() (was set to -Infinity)
         if (this.masterVolume && this.masterVolume.volume.value === -Infinity) {
           this.masterVolume.volume.value = -10
-          console.log('🔊 Master volume restored to -10dB')
+          // console.log('🔊 Master volume restored to -10dB')
         }
 
         // Verify components
         if (this.masterVolume && this.gestureSynth) {
-          console.log('✅ Audio components verified:', {
+          // console.log('✅ Audio components verified:', {
             gestureSynthDisposed: this.gestureSynth.disposed,
             masterVolumeExists: !!this.masterVolume,
             masterVolumeValue: this.masterVolume.volume.value
           })
         } else {
-          console.error('❌ Missing audio components:', {
+          // console.error('❌ Missing audio components:', {
             masterVolume: !!this.masterVolume,
             gestureSynth: !!this.gestureSynth
           })
@@ -410,7 +410,7 @@ class AudioService {
         throw new Error('Tone.js not available')
       }
     } catch (error) {
-      console.error('❌ Failed to start AudioService:', error)
+      // console.error('❌ Failed to start AudioService:', error)
       throw error
     }
   }
@@ -422,15 +422,15 @@ class AudioService {
    * FIX: Never dispose synths - reuse existing synths to avoid "Synth was already disposed" error
    */
   createContinuousGenerativeSystem() {
-    console.log('🔨 Creating continuous generative system...')
-    console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-SEND-RETURN-v12')
-    console.log('✅ PRIME RHYTHMS: 3700, 5300, 7900 (LCM=43 HOURS)')
-    console.log('✅ PATTERNS + MICROVARIATIONS: rhythm × pattern × jitter(±5%)')
-    console.log('✅ FLAT ENVELOPES: attack/release 5ms ONLY - envelope does NOT mask pattern!')
-    console.log('✅ Pattern system: 12 contrasted patterns (LONG/SHORT/MIXED/EVEN)')
-    console.log('✅ FX ARCHITECTURE: Send/Return buses for delay and reverb (global FX)')
-    console.log('✅ Send levels: bass(15%), pad(20/30%), chords(20/25%), gesture(25/30%)')
-    console.log('🎯 Duration = EXACT pattern multiplier - no envelope artifacts!')
+    // console.log('🔨 Creating continuous generative system...')
+    // console.log('🔖 AUDIOSERVICE VERSION: 2025-01-18-SEND-RETURN-v12')
+    // console.log('✅ PRIME RHYTHMS: 3700, 5300, 7900 (LCM=43 HOURS)')
+    // console.log('✅ PATTERNS + MICROVARIATIONS: rhythm × pattern × jitter(±5%)')
+    // console.log('✅ FLAT ENVELOPES: attack/release 5ms ONLY - envelope does NOT mask pattern!')
+    // console.log('✅ Pattern system: 12 contrasted patterns (LONG/SHORT/MIXED/EVEN)')
+    // console.log('✅ FX ARCHITECTURE: Send/Return buses for delay and reverb (global FX)')
+    // console.log('✅ Send levels: bass(15%), pad(20/30%), chords(20/25%), gesture(25/30%)')
+    // console.log('🎯 Duration = EXACT pattern multiplier - no envelope artifacts!')
 
     // CRITICAL FIX: Never dispose synths immediately!
     // Tone.js internal timeouts from triggerAttackRelease() may still be scheduled
@@ -439,23 +439,23 @@ class AudioService {
 
     // If synths already exist, skip creation and just reuse them
     if (this.gestureSynth && this.ambientLayers && this.masterVolume) {
-      console.log('♻️ Reusing existing synths (never dispose to avoid Tone.js timeout errors)')
+      // console.log('♻️ Reusing existing synths (never dispose to avoid Tone.js timeout errors)')
       // Ensure synths are ready to use
       if (this.gestureSynth && !this.gestureSynth.disposed) {
         this.gestureSynth.releaseAll()
-        console.log('✅ Existing synths released and ready to reuse')
+        // console.log('✅ Existing synths released and ready to reuse')
       }
 
       // Restart evolving generation (was stopped by stop())
       if (!this.evolvingGenerationActive) {
         this.startEvolvingGeneration()
-        console.log('♻️ Restarted evolving generation with existing synths')
+        // console.log('♻️ Restarted evolving generation with existing synths')
       }
 
       return // Exit early - synths already exist and are ready
     }
 
-    console.log('🆕 Creating new synths (first time initialization)...')
+    // console.log('🆕 Creating new synths (first time initialization)...')
 
     // Create master volume node for centralized control (FR-011)
     this.masterVolume = new Tone.Volume(-10).toDestination()
@@ -774,9 +774,9 @@ class AudioService {
     // Send to reverb bus
     this.gesturePan.connect(this.reverbSends.gesture)
 
-    console.log('🔌 Gesture routing: gestureSynth → filter → pan → [gestureVolume → master + sends to FX]')
-    console.log('🔊 Gesture synth volume:', this.gestureSynth.volume.value, 'dB')
-    console.log('🔊 Gesture dry volume:', this.gestureVolume.volume.value, 'dB')
+    // console.log('🔌 Gesture routing: gestureSynth → filter → pan → [gestureVolume → master + sends to FX]')
+    // console.log('🔊 Gesture synth volume:', this.gestureSynth.volume.value, 'dB')
+    // console.log('🔊 Gesture dry volume:', this.gestureVolume.volume.value, 'dB')
 
     // Polyphony management
     this.maxTotalVoices = 8 // Maximum total voices across all synths
@@ -785,7 +785,7 @@ class AudioService {
     // Now using BackgroundCompositionService which generates structured compositions
     // this.startEvolvingGeneration()
 
-    console.log('🎵 Audio system initialized - BackgroundCompositionService generates compositions from backend')
+    // console.log('🎵 Audio system initialized - BackgroundCompositionService generates compositions from backend')
   }
 
   /**
@@ -801,7 +801,7 @@ class AudioService {
     // Main composition loop - runs frequently to check layer schedules
     const compositionLoop = () => {
       if (!this.evolvingGenerationActive || !this.isInitialized) {
-        console.log('🎵 Evolving generation stopped or not initialized')
+        // console.log('🎵 Evolving generation stopped or not initialized')
         return
       }
 
@@ -836,7 +836,7 @@ class AudioService {
               } while (layer.currentPatternIndex === oldPattern && this.generativeState.rhythmPatterns.length > 1)
 
               layer.patternPosition = 0
-              console.log(`🔄 ${layerName}: pattern change ${oldPattern} → ${layer.currentPatternIndex} [${this.generativeState.rhythmPatterns[layer.currentPatternIndex].join(', ')}]`)
+              // console.log(`🔄 ${layerName}: pattern change ${oldPattern} → ${layer.currentPatternIndex} [${this.generativeState.rhythmPatterns[layer.currentPatternIndex].join(', ')}]`)
             }
 
             // PATTERN + MICROVARIATIONS for organic timing
@@ -845,7 +845,7 @@ class AudioService {
             const jitter = 1 + (Math.random() - 0.5) * 0.1  // ±5% variation
             layer.nextNoteTime = baseTime * jitter
 
-            console.log(`⏱️ ${layerName}: nextNote in ${Math.round(layer.nextNoteTime)}ms (rhythm=${layer.rhythm} × pattern=${patternMultiplier} × jitter=${jitter.toFixed(3)})`)
+            // console.log(`⏱️ ${layerName}: nextNote in ${Math.round(layer.nextNoteTime)}ms (rhythm=${layer.rhythm} × pattern=${patternMultiplier} × jitter=${jitter.toFixed(3)})`)
           }
         })
 
@@ -859,7 +859,7 @@ class AudioService {
         this.generativeState.evolutionCycle++
 
       } catch (error) {
-        console.error('🎵 Error in composition loop:', error)
+        // console.error('🎵 Error in composition loop:', error)
       }
 
       // Run loop every 100ms for responsive scheduling
@@ -868,8 +868,8 @@ class AudioService {
 
     // Start composition loop
     setTimeout(() => {
-      console.log('🎵 Starting bass + pad + chords composition system')
-      console.log('🎵 Initial layer state:', {
+      // console.log('🎵 Starting bass + pad + chords composition system')
+      // console.log('🎵 Initial layer state:', {
         bass: this.generativeState.layers.bass.octave,
         pad: this.generativeState.layers.pad.octave,
         chords: this.generativeState.layers.chords.octave,
@@ -878,7 +878,7 @@ class AudioService {
       compositionLoop()
     }, 2000)
 
-    console.log('🎵 Simplified generative system initialized (bass/pad/chords)')
+    // console.log('🎵 Simplified generative system initialized (bass/pad/chords)')
   }
 
   /**
@@ -951,7 +951,7 @@ class AudioService {
         break
     }
 
-    console.log(`🎵 Harmonic mutation: ${mutation}, new tonic: ${state.currentTonic}Hz`)
+    // console.log(`🎵 Harmonic mutation: ${mutation}, new tonic: ${state.currentTonic}Hz`)
   }
 
   // OLD FUNCTIONS REMOVED - Now using simplified playLayer() system
@@ -964,7 +964,7 @@ class AudioService {
    * @param {string} layerName - Name of layer ('bass', 'pad', 'chords')
    */
   playLayer(layerName) {
-    console.log(`🎹 playLayer CALLED for ${layerName} at ${Date.now()}`)
+    // console.log(`🎹 playLayer CALLED for ${layerName} at ${Date.now()}`)
 
     const state = this.generativeState
     const layer = state.layers[layerName]
@@ -1008,7 +1008,7 @@ class AudioService {
     const duration = baseDuration * patternMultiplier * articulationFactor
 
     // DEBUG: Log pattern usage for duration calculation
-    console.log(`🎼 ${layerName} DURATION: pattern[${currentPosition}]=${patternMultiplier} → dur=${duration.toFixed(2)}s (from pattern ${layer.currentPatternIndex}: [${currentPattern.join(', ')}])`)
+    // console.log(`🎼 ${layerName} DURATION: pattern[${currentPosition}]=${patternMultiplier} → dur=${duration.toFixed(2)}s (from pattern ${layer.currentPatternIndex}: [${currentPattern.join(', ')}])`)
 
     if (layerName === 'bass') {
       // BASS: ONLY root note - NO variation to avoid repetitive melodic pattern
@@ -1086,18 +1086,18 @@ class AudioService {
     // Trigger notes
     try {
       const triggerTime = Tone.now()
-      console.log(`🔊 TRIGGERING ${layerName} at Tone.now()=${triggerTime.toFixed(3)}`)
+      // console.log(`🔊 TRIGGERING ${layerName} at Tone.now()=${triggerTime.toFixed(3)}`)
 
       frequencies.forEach((freq, idx) => {
-        console.log(`  ↳ Trigger #${idx+1}: freq=${freq.toFixed(1)}Hz, dur=${duration.toFixed(3)}s, vel=${playVelocity.toFixed(2)}`)
+        // console.log(`  ↳ Trigger #${idx+1}: freq=${freq.toFixed(1)}Hz, dur=${duration.toFixed(3)}s, vel=${playVelocity.toFixed(2)}`)
         synth.triggerAttackRelease(freq, duration, triggerTime, playVelocity)
       })
 
       // Detailed logging for rhythm debugging
       const freqStr = frequencies.map(f => f.toFixed(1) + 'Hz').join(', ')
-      console.log(`🎵 ${layerName}: ${freqStr} dur=${duration.toFixed(2)}s vel=${playVelocity.toFixed(2)} (chord=${state.currentChord})`)
+      // console.log(`🎵 ${layerName}: ${freqStr} dur=${duration.toFixed(2)}s vel=${playVelocity.toFixed(2)} (chord=${state.currentChord})`)
     } catch (error) {
-      console.warn(`🎵 Layer ${layerName} play error:`, error.message)
+      // console.warn(`🎵 Layer ${layerName} play error:`, error.message)
     }
   }
 
@@ -1123,7 +1123,7 @@ class AudioService {
     }
 
     const currentProg = state.availableProgressions[state.currentProgressionIndex]
-    console.log(`🎵 Harmony: ${currentProg.name} chord ${state.currentChord}/${state.chordProgression.length} (root: ${state.chordProgression[state.currentChord]})`)
+    // console.log(`🎵 Harmony: ${currentProg.name} chord ${state.currentChord}/${state.chordProgression.length} (root: ${state.chordProgression[state.currentChord]})`)
 
     // Occasional key modulation
     if (state.evolutionCycle % 32 === 0 && Math.random() < 0.2) {
@@ -1163,7 +1163,7 @@ class AudioService {
       state.chordProgression = chosen.degrees
       state.currentChord = 0 // Reset to beginning of new progression
 
-      console.log(`🎼 PROGRESSION CHANGE: ${chosen.name} (${chosen.mood}) complexity=${state.complexity.toFixed(2)}`)
+      // console.log(`🎼 PROGRESSION CHANGE: ${chosen.name} (${chosen.mood}) complexity=${state.complexity.toFixed(2)}`)
     }
   }
 
@@ -1173,11 +1173,11 @@ class AudioService {
   testAudio() {
     if (!this.ambientSynth) return
 
-    console.log('🔊 Testing audio - you should hear a test tone')
+    // console.log('🔊 Testing audio - you should hear a test tone')
     this.ambientSynth.triggerAttackRelease(440, '4n', undefined, 0.5)
 
     setTimeout(() => {
-      console.log('🔊 Audio test completed')
+      // console.log('🔊 Audio test completed')
     }, 1000)
   }
 
@@ -1186,31 +1186,31 @@ class AudioService {
    */
   stop() {
     if (this.isInitialized) {
-      console.log('🛑 Stopping AudioService - immediate silence...')
+      // console.log('🛑 Stopping AudioService - immediate silence...')
 
       // STEP 0: MUTE EVERYTHING IMMEDIATELY (before anything else)
       if (this.masterVolume) {
         this.masterVolume.volume.value = -Infinity
-        console.log('🔇 Master volume set to -Infinity (immediate silence)')
+        // console.log('🔇 Master volume set to -Infinity (immediate silence)')
       }
 
       // STEP 1: Clear ALL scheduled timeouts (prevents future notes)
-      console.log(`⏱️ Clearing ${this.scheduledTimeouts.length} scheduled timeouts...`)
+      // console.log(`⏱️ Clearing ${this.scheduledTimeouts.length} scheduled timeouts...`)
       this.scheduledTimeouts.forEach(timeoutId => {
         clearTimeout(timeoutId)
       })
       this.scheduledTimeouts = []
-      console.log('✅ All timeouts cleared')
+      // console.log('✅ All timeouts cleared')
 
       // STEP 2: Stop Transport (prevents new events from scheduling)
       try {
         if (Tone.Transport) {
           Tone.Transport.stop()
           Tone.Transport.clear()  // CHANGED: clear() removes ALL events (not just cancel)
-          console.log('✅ Transport stopped and cleared')
+          // console.log('✅ Transport stopped and cleared')
         }
       } catch (error) {
-        console.warn('⚠️ Transport error:', error.message)
+        // console.warn('⚠️ Transport error:', error.message)
       }
 
       // STEP 3: Stop generation
@@ -1219,26 +1219,26 @@ class AudioService {
 
       // STEP 4: Release all active sustained notes before stopping
       if (this.activeSustainedNotes && this.activeSustainedNotes.size > 0) {
-        console.log(`🛑 Releasing ${this.activeSustainedNotes.size} active sustained notes`)
+        // console.log(`🛑 Releasing ${this.activeSustainedNotes.size} active sustained notes`)
         for (const [noteId, noteData] of this.activeSustainedNotes.entries()) {
           try {
             this.gestureSynth.triggerRelease(noteData.frequency, Tone.now())
           } catch (e) {
-            console.warn(`⚠️ Error releasing sustained note ${noteId}:`, e.message)
+            // console.warn(`⚠️ Error releasing sustained note ${noteId}:`, e.message)
           }
         }
         this.activeSustainedNotes.clear()
       }
 
       // STEP 5: Release all notes on all synths
-      console.log('🎹 Releasing all notes on all synths...')
+      // console.log('🎹 Releasing all notes on all synths...')
 
       try {
         if (this.gestureSynth && !this.gestureSynth.disposed) {
           this.gestureSynth.releaseAll()
         }
       } catch (e) {
-        console.warn('⚠️ gestureSynth releaseAll error:', e.message)
+        // console.warn('⚠️ gestureSynth releaseAll error:', e.message)
       }
 
       if (this.ambientLayers) {
@@ -1248,18 +1248,18 @@ class AudioService {
               this.ambientLayers[layer].releaseAll()
             }
           } catch (e) {
-            console.warn(`⚠️ ${layer} releaseAll error:`, e.message)
+            // console.warn(`⚠️ ${layer} releaseAll error:`, e.message)
           }
         })
       }
 
-      console.log('✅ All notes released')
+      // console.log('✅ All notes released')
 
       // Mark as uninitialized to force recreation of synths on next start()
       // This ensures old synths with scheduled events are properly disposed
       this.isInitialized = false
 
-      console.log('🔇 AudioService stopped - will recreate synths on next start')
+      // console.log('🔇 AudioService stopped - will recreate synths on next start')
     }
   }
 
@@ -1317,15 +1317,15 @@ class AudioService {
           this.applyTremolo(tremoloAmount, currentTime)
         }
 
-        console.log(`🎛️ Applied gesture filter: ${clampedFreq.toFixed(1)}Hz, Q=${clampedQ.toFixed(2)}, tremolo=${tremoloAmount.toFixed(2)}`)
+        // console.log(`🎛️ Applied gesture filter: ${clampedFreq.toFixed(1)}Hz, Q=${clampedQ.toFixed(2)}, tremolo=${tremoloAmount.toFixed(2)}`)
       } else {
-        console.warn('🔇 Gesture filter not available for modulation')
+        // console.warn('🔇 Gesture filter not available for modulation')
       }
 
       // Apply filter frequency to gesture synth with immediate effect
       if (this.gestureSynth && this.gestureSynth.filter) {
         this.gestureSynth.filter.frequency.linearRampToValueAtTime(filterFreq, Tone.now() + 0.05)
-        console.log(`🎛️ Applied gesture filter: ${filterFreq.toFixed(1)}Hz (ramp 50ms)`)
+        // console.log(`🎛️ Applied gesture filter: ${filterFreq.toFixed(1)}Hz (ramp 50ms)`)
       }
 
       // Calculate three-tier duration based on gesture velocity
@@ -1338,20 +1338,20 @@ class AudioService {
         // Higher velocity range for local gesture prominence
         const velocity = Math.max(0.5, Math.min(1.0, 0.5 + (volume * 0.5)))
 
-        console.log(`🔊 LOCAL GESTURE TRIGGER:`)
-        console.log(`  ↳ Frequency: ${frequency.toFixed(1)}Hz`)
-        console.log(`  ↳ Duration: ${tierDuration}s`)
-        console.log(`  ↳ Velocity: ${velocity.toFixed(2)}`)
-        console.log(`  ↳ Synth volume: ${this.gestureSynth.volume.value}dB`)
-        console.log(`  ↳ Active voices before: ${this.gestureSynth.activeVoices}`)
+        // console.log(`🔊 LOCAL GESTURE TRIGGER:`)
+        // console.log(`  ↳ Frequency: ${frequency.toFixed(1)}Hz`)
+        // console.log(`  ↳ Duration: ${tierDuration}s`)
+        // console.log(`  ↳ Velocity: ${velocity.toFixed(2)}`)
+        // console.log(`  ↳ Synth volume: ${this.gestureSynth.volume.value}dB`)
+        // console.log(`  ↳ Active voices before: ${this.gestureSynth.activeVoices}`)
 
         // Trigger note with full velocity (no reduction multiplier)
         this.gestureSynth.triggerAttackRelease(frequency, tierDuration, undefined, velocity)
 
-        console.log(`  ↳ Active voices after: ${this.gestureSynth.activeVoices}`)
-        console.log(`  ↳ Trigger successful!`)
+        // console.log(`  ↳ Active voices after: ${this.gestureSynth.activeVoices}`)
+        // console.log(`  ↳ Trigger successful!`)
       } else {
-        console.warn('🔇 Gesture synth not available for note triggering')
+        // console.warn('🔇 Gesture synth not available for note triggering')
       }
 
       // FIX: Update background filters with gesture modulation
@@ -1359,10 +1359,10 @@ class AudioService {
 
       // Log for performance monitoring per FR-006 (<200ms latency)
       const timestamp = performance.now()
-      console.log(`🎵 Gesture processed: ${frequency.toFixed(1)}Hz at ${timestamp.toFixed(1)}ms`)
+      // console.log(`🎵 Gesture processed: ${frequency.toFixed(1)}Hz at ${timestamp.toFixed(1)}ms`)
 
     } catch (error) {
-      console.warn('Audio playback error:', error)
+      // console.warn('Audio playback error:', error)
     }
   }
 
@@ -1373,7 +1373,7 @@ class AudioService {
    */
   updateFilterParams(filterParams) {
     if (!this.isInitialized) {
-      console.log('🔇 updateFilterParams blocked - audio not initialized')
+      // console.log('🔇 updateFilterParams blocked - audio not initialized')
       return
     }
 
@@ -1388,12 +1388,12 @@ class AudioService {
     try {
       // Reduce console log frequency to prevent spam
       if (now - (this.lastFilterUpdateTime || 0) > 500) {
-        console.log('🎛️ Applying filter params:', filterParams)
+        // console.log('🎛️ Applying filter params:', filterParams)
       }
 
       // Ensure Tone.js context is started
       if (Tone.context.state !== 'running') {
-        console.log('🎛️ Starting Tone.js context for filter modulation')
+        // console.log('🎛️ Starting Tone.js context for filter modulation')
         Tone.start()
         // Give it a moment to start
         setTimeout(() => this.applyFilterModulation(filterParams), 100)
@@ -1403,7 +1403,7 @@ class AudioService {
       this.applyFilterModulation(filterParams)
 
     } catch (error) {
-      console.warn('🔇 Error updating filter params:', error)
+      // console.warn('🔇 Error updating filter params:', error)
     }
   }
 
@@ -1429,7 +1429,7 @@ class AudioService {
         Tone.context.currentTime + 0.05 // Faster transition
       )
       this.ambientFilters.chords.Q.setValueAtTime(filterQ * 2, Tone.context.currentTime) // Stronger Q
-      console.log(`🎛️ Chords filter: ${Math.min(8000, Math.max(100, chordsFreq)).toFixed(1)}Hz, Q=${(filterQ * 2).toFixed(2)}`)
+      // console.log(`🎛️ Chords filter: ${Math.min(8000, Math.max(100, chordsFreq)).toFixed(1)}Hz, Q=${(filterQ * 2).toFixed(2)}`)
     }
 
     if (this.ambientFilters.pad) {
@@ -1440,7 +1440,7 @@ class AudioService {
         Tone.context.currentTime + 0.08 // Faster transition
       )
       this.ambientFilters.pad.Q.setValueAtTime(filterQ * 1.5, Tone.context.currentTime) // Stronger Q
-      console.log(`🎛️ Pad filter: ${Math.min(4000, Math.max(100, padFreq)).toFixed(1)}Hz, Q=${(filterQ * 1.5).toFixed(2)}`)
+      // console.log(`🎛️ Pad filter: ${Math.min(4000, Math.max(100, padFreq)).toFixed(1)}Hz, Q=${(filterQ * 1.5).toFixed(2)}`)
     }
 
     if (this.ambientFilters.bass) {
@@ -1451,7 +1451,7 @@ class AudioService {
         Tone.context.currentTime + 0.1 // Faster transition
       )
       this.ambientFilters.bass.Q.setValueAtTime(filterQ * 1.2, Tone.context.currentTime) // Stronger Q
-      console.log(`🎛️ Bass filter: ${Math.min(1000, Math.max(30, bassFreq)).toFixed(1)}Hz, Q=${(filterQ * 1.2).toFixed(2)}`)
+      // console.log(`🎛️ Bass filter: ${Math.min(1000, Math.max(30, bassFreq)).toFixed(1)}Hz, Q=${(filterQ * 1.2).toFixed(2)}`)
     }
   }
 
@@ -1485,13 +1485,13 @@ class AudioService {
    */
   triggerSustainedNoteAttack(frequency, velocity, position) {
     if (!this.gestureSynth || this.gestureSynth.disposed) {
-      console.warn('🚫 gestureSynth not available for sustained note')
+      // console.warn('🚫 gestureSynth not available for sustained note')
       return null
     }
 
     // Check audio context state
     if (Tone.context.state !== 'running') {
-      console.warn('⚠️ Audio context not running, cannot start sustained note')
+      // console.warn('⚠️ Audio context not running, cannot start sustained note')
       return null
     }
 
@@ -1527,7 +1527,7 @@ class AudioService {
       synth: this.gestureSynth
     })
 
-    console.log(`🎵 Sustained note ATTACK: ${frequency.toFixed(1)}Hz, vel=${velocity.toFixed(2)}, noteId=${noteId}`)
+    // console.log(`🎵 Sustained note ATTACK: ${frequency.toFixed(1)}Hz, vel=${velocity.toFixed(2)}, noteId=${noteId}`)
 
     return { noteId, frequency, startTime: Date.now() }
   }
@@ -1538,13 +1538,13 @@ class AudioService {
    */
   triggerSustainedNoteRelease(noteId) {
     if (!this.gestureSynth || this.gestureSynth.disposed) {
-      console.warn('🚫 gestureSynth not available for note release')
+      // console.warn('🚫 gestureSynth not available for note release')
       return
     }
 
     const noteData = this.activeSustainedNotes?.get(noteId)
     if (!noteData) {
-      console.warn(`⚠️ No active sustained note found for ${noteId}`)
+      // console.warn(`⚠️ No active sustained note found for ${noteId}`)
       return
     }
 
@@ -1557,7 +1557,7 @@ class AudioService {
     this.activeSustainedNotes.delete(noteId)
 
     const duration = Date.now() - noteData.startTime
-    console.log(`🎵 Sustained note RELEASE: ${noteData.frequency.toFixed(1)}Hz, held ${duration}ms, noteId=${noteId}`)
+    // console.log(`🎵 Sustained note RELEASE: ${noteData.frequency.toFixed(1)}Hz, held ${duration}ms, noteId=${noteId}`)
   }
 
   /**
@@ -1586,7 +1586,7 @@ class AudioService {
             voiceData.synth.releaseAll()
           }
           this.generativeState.activeVoices.delete(voiceId)
-          console.log(`🔇 Cleaned up voice ${voiceId} for polyphony management`)
+          // console.log(`🔇 Cleaned up voice ${voiceId} for polyphony management`)
         }
       }
     }
@@ -1651,7 +1651,7 @@ class AudioService {
       const cutoff = 200 + ((1 - y) * 3800) // 200Hz to 4000Hz, inverted Y axis
       const resonance = 0.5 + (x * 4.5) // 0.5 to 5.0 Q range
 
-      console.log(`🎛️ Local filter modulation: Y=${y.toFixed(2)}→cutoff=${cutoff.toFixed(1)}Hz, X=${x.toFixed(2)}→resonance=${resonance.toFixed(2)}`)
+      // console.log(`🎛️ Local filter modulation: Y=${y.toFixed(2)}→cutoff=${cutoff.toFixed(1)}Hz, X=${x.toFixed(2)}→resonance=${resonance.toFixed(2)}`)
 
       return {
         cutoffFrequency: cutoff,
@@ -1669,7 +1669,7 @@ class AudioService {
       // Y controls LFO amplitude (0% to 100% modulation depth)
       const lfoAmplitude = y // 0.0 to 1.0 (0% to 100%)
 
-      console.log(`🎛️ Remote LFO modulation: X=${x.toFixed(2)}→speed=${lfoSpeed.toFixed(2)}Hz, Y=${y.toFixed(2)}→amplitude=${(lfoAmplitude * 100).toFixed(0)}%`)
+      // console.log(`🎛️ Remote LFO modulation: X=${x.toFixed(2)}→speed=${lfoSpeed.toFixed(2)}Hz, Y=${y.toFixed(2)}→amplitude=${(lfoAmplitude * 100).toFixed(0)}%`)
 
       return {
         lfoSpeed: lfoSpeed,
@@ -1683,7 +1683,7 @@ class AudioService {
       const clampedMovement = Math.max(0, Math.min(1, validMovement))
 
       const filterFreq = 200 + (clampedMovement * 2000) // 200Hz to 2200Hz filter range
-      console.log(`🎛️ Background filter modulation: movement=${validMovement} → freq=${filterFreq.toFixed(1)}Hz`)
+      // console.log(`🎛️ Background filter modulation: movement=${validMovement} → freq=${filterFreq.toFixed(1)}Hz`)
 
       return {
         cutoffFrequency: filterFreq,
@@ -1702,21 +1702,21 @@ class AudioService {
    */
   updatePatterns(patterns) {
     if (!this.isInitialized || this.muted) {
-      console.log('🔇 updatePatterns blocked - initialized:', this.isInitialized, 'muted:', this.muted)
+      // console.log('🔇 updatePatterns blocked - initialized:', this.isInitialized, 'muted:', this.muted)
       return
     }
 
     // Rate limiting: prevent spamming collaborative patterns
     const now = Date.now()
     if (this.lastCollaborativePatternTime && (now - this.lastCollaborativePatternTime < 500)) {
-      console.log('🔇 Collaborative patterns rate limited')
+      // console.log('🔇 Collaborative patterns rate limited')
       return
     }
     this.lastCollaborativePatternTime = now
 
     // Store patterns for later processing
     this.collaborativePatterns = patterns || []
-    console.log('🎵 Updated collaborative patterns:', patterns?.length || 0)
+    // console.log('🎵 Updated collaborative patterns:', patterns?.length || 0)
 
     // EVOLUTIVE: Update generative state based on user activity
     if (this.generativeState && patterns && patterns.length > 0) {
@@ -1739,12 +1739,12 @@ class AudioService {
         }
       }
 
-      console.log(`🎵 User influence updated: ${this.generativeState.userInfluence.toFixed(2)}, complexity: ${this.generativeState.complexity.toFixed(2)}`)
+      // console.log(`🎵 User influence updated: ${this.generativeState.userInfluence.toFixed(2)}, complexity: ${this.generativeState.complexity.toFixed(2)}`)
     }
 
     // Check if patterns are the same as last time to avoid repetition
     if (this.lastCollaborativePatterns && this.arePatternsEqual(this.lastCollaborativePatterns, patterns)) {
-      console.log('🔇 Skipping duplicate collaborative patterns')
+      // console.log('🔇 Skipping duplicate collaborative patterns')
       return
     }
     this.lastCollaborativePatterns = [...(patterns || [])]
@@ -1760,7 +1760,7 @@ class AudioService {
 
       // Apply remote filter modulation to background
       this.updateBackgroundFilters(avgPosition)
-      console.log(`🎛️ Applied remote filter modulation: x=${avgPosition.x.toFixed(2)}, y=${avgPosition.y.toFixed(2)}`)
+      // console.log(`🎛️ Applied remote filter modulation: x=${avgPosition.x.toFixed(2)}, y=${avgPosition.y.toFixed(2)}`)
     }
 
     // Play audio feedback for each pattern from remote users (FR-003, FR-006)
@@ -1799,7 +1799,7 @@ class AudioService {
           // FIX: Use very short duration to prevent hanging
           const duration = 0.1 // 100ms maximum for remote notes
 
-          console.log(`🎵 Playing collaborative pattern ${index}: ${frequency.toFixed(1)}Hz, duration: ${duration}s, intensity: ${intensity.toFixed(2)}`)
+          // console.log(`🎵 Playing collaborative pattern ${index}: ${frequency.toFixed(1)}Hz, duration: ${duration}s, intensity: ${intensity.toFixed(2)}`)
 
           // Play short note with guaranteed release (FR-006: <200ms latency)
           this.gestureSynth.triggerAttackRelease(
@@ -1822,7 +1822,7 @@ class AudioService {
               try {
                 this.gestureSynth.triggerRelease(frequency)
                 this.activeNotes.delete(noteId)
-                console.log(`🔇 Auto-released remote note: ${frequency.toFixed(1)}Hz`)
+                // console.log(`🔇 Auto-released remote note: ${frequency.toFixed(1)}Hz`)
               } catch (e) {
                 // Ignore release errors
                 this.activeNotes.delete(noteId)
@@ -1831,7 +1831,7 @@ class AudioService {
           }, (delay + duration) * 1000 + 500) // Add 500ms buffer
 
         } catch (error) {
-          console.warn('🔇 Error playing collaborative pattern:', error)
+          // console.warn('🔇 Error playing collaborative pattern:', error)
         }
       })
 
@@ -1847,18 +1847,18 @@ class AudioService {
    */
   playComposition(composition, isDrone = false) {
     if (!this.isInitialized || this.muted) {
-      console.log('🔇 playComposition blocked - initialized:', this.isInitialized, 'muted:', this.muted)
+      // console.log('🔇 playComposition blocked - initialized:', this.isInitialized, 'muted:', this.muted)
       return
     }
 
     if (!composition || !composition.content) {
-      console.warn('🎼 Invalid composition data')
+      // console.warn('🎼 Invalid composition data')
       return
     }
 
     const tempo = composition.metadata?.tempo || 120
 
-    console.log(`🎼 Playing ${composition.type} composition${isDrone ? ' (DRONE)' : ''}:`, {
+    // console.log(`🎼 Playing ${composition.type} composition${isDrone ? ' (DRONE)' : ''}:`, {
       form: composition.structure?.form,
       section: composition.structure?.currentSection,
       tempo: tempo,
@@ -1867,7 +1867,7 @@ class AudioService {
 
     // If this is NOT a drone and we have a drone loop running, stop it
     if (!isDrone && this.droneLoopInterval) {
-      console.log('🛑 Stopping drone loop - real composition starting')
+      // console.log('🛑 Stopping drone loop - real composition starting')
       clearInterval(this.droneLoopInterval)
       this.droneLoopInterval = null
     }
@@ -1883,10 +1883,10 @@ class AudioService {
       } else if (type === 'ambient' && content.texture) {
         this.playAmbientComposition(content, tempo, isDrone)
       } else {
-        console.warn('🎼 Unknown composition type:', type)
+        // console.warn('🎼 Unknown composition type:', type)
       }
     } catch (error) {
-      console.error('🎼 Error playing composition:', error)
+      // console.error('🎼 Error playing composition:', error)
     }
   }
 
@@ -1904,13 +1904,13 @@ class AudioService {
     // 300 BPM → 0.2 seconds per beat (very fast)
     const beatDuration = 60 / tempo
 
-    console.log(`🎼 Playing polyphonic: ${content.voices.length} voices at ${tempo} BPM (${beatDuration.toFixed(2)}s/beat)`)
+    // console.log(`🎼 Playing polyphonic: ${content.voices.length} voices at ${tempo} BPM (${beatDuration.toFixed(2)}s/beat)`)
 
     content.voices.forEach((voice, voiceIndex) => {
       if (!voice.notes || !Array.isArray(voice.notes)) return
 
       const voiceRole = voice.voiceRole || 'harmony'
-      console.log(`🎵 Voice ${voiceIndex} - Role: ${voiceRole}, Notes: ${voice.notes.length}`)
+      // console.log(`🎵 Voice ${voiceIndex} - Role: ${voiceRole}, Notes: ${voice.notes.length}`)
 
       // Role-based configuration for TIMBRAL DISTINCTION
       const roleConfig = {
@@ -1942,7 +1942,7 @@ class AudioService {
         const duration = note.duration || 0.5
         const delay = (note.startBeat || 0) * beatDuration  // Use tempo-based beat duration
 
-        console.log(`  🎵 ${voiceRole} note ${noteIndex}: pitch=${pitch}, dur=${duration.toFixed(1)}, delay=${delay.toFixed(2)}s`)
+        // console.log(`  🎵 ${voiceRole} note ${noteIndex}: pitch=${pitch}, dur=${duration.toFixed(1)}, delay=${delay.toFixed(2)}s`)
 
         setTimeout(() => {
           if (this.ambientLayers && this.ambientLayers[roleConfig.layer]) {
@@ -1962,7 +1962,7 @@ class AudioService {
    */
   playHomophonicComposition(content, tempo = 120) {
     const beatDuration = 60 / tempo
-    console.log(`🎼 Playing homophonic composition at ${tempo} BPM`)
+    // console.log(`🎼 Playing homophonic composition at ${tempo} BPM`)
 
     if (content.melody && content.melody.notes) {
       content.melody.notes.forEach((note, index) => {
@@ -2042,10 +2042,10 @@ class AudioService {
    */
   playAmbientComposition(content, tempo = 120, isDrone = false) {
     const beatDuration = 60 / tempo
-    console.log(`🎼 Playing ambient composition at ${tempo} BPM${isDrone ? ' (DRONE - will loop)' : ''}`)
+    // console.log(`🎼 Playing ambient composition at ${tempo} BPM${isDrone ? ' (DRONE - will loop)' : ''}`)
 
     if (!content.texture || !Array.isArray(content.texture)) {
-      console.warn('🎼 No texture array in ambient composition')
+      // console.warn('🎼 No texture array in ambient composition')
       return
     }
 
@@ -2061,16 +2061,16 @@ class AudioService {
           const duration = (textureItem.duration || 8000) / 1000  // Convert ms to seconds
           const velocity = textureItem.velocity || 0.2
 
-          console.log(`🎵🎵🎵 DRONE/AMBIENT: ${textureItem.note} (MIDI=${midiNote}, ${frequency.toFixed(1)}Hz), dur=${duration.toFixed(1)}s, vel=${velocity}, isDrone=${isDrone}`)
+          // console.log(`🎵🎵🎵 DRONE/AMBIENT: ${textureItem.note} (MIDI=${midiNote}, ${frequency.toFixed(1)}Hz), dur=${duration.toFixed(1)}s, vel=${velocity}, isDrone=${isDrone}`)
 
           // Use PAD layer for drone (slow attack, long release, perfect for atmospheric sounds)
           const layer = isDrone ? this.ambientLayers.pad : this.ambientLayers.backgroundLow
 
           if (layer) {
-            console.log(`  ✅ Triggering on layer: ${isDrone ? 'pad' : 'backgroundLow'}`)
+            // console.log(`  ✅ Triggering on layer: ${isDrone ? 'pad' : 'backgroundLow'}`)
             layer.triggerAttackRelease(frequency, duration, undefined, velocity)
           } else {
-            console.warn(`  ❌ Layer not found: ${isDrone ? 'pad' : 'backgroundLow'}`)
+            // console.warn(`  ❌ Layer not found: ${isDrone ? 'pad' : 'backgroundLow'}`)
           }
 
           // If this is a drone, schedule it to loop
@@ -2081,7 +2081,7 @@ class AudioService {
             }
 
             this.droneLoopInterval = setInterval(() => {
-              console.log('🔁 Looping drone... (MIDI=' + midiNote + ', ' + frequency.toFixed(1) + 'Hz)')
+              // console.log('🔁 Looping drone... (MIDI=' + midiNote + ', ' + frequency.toFixed(1) + 'Hz)')
               if (this.ambientLayers && this.ambientLayers.pad) {
                 this.ambientLayers.pad.triggerAttackRelease(
                   frequency, duration, undefined, velocity
@@ -2161,7 +2161,7 @@ class AudioService {
         try {
           noteData.synth.triggerRelease(noteData.frequency)
           this.activeNotes.delete(noteId)
-          console.log(`🔇 Force-released hanging note: ${noteData.frequency.toFixed(1)}Hz`)
+          // console.log(`🔇 Force-released hanging note: ${noteData.frequency.toFixed(1)}Hz`)
         } catch (e) {
           this.activeNotes.delete(noteId)
         }
@@ -2175,10 +2175,10 @@ class AudioService {
    * @param {string} color - User's assigned color (hex format #rrggbb)
    */
   playDrawSound(color) {
-    console.log(`🔊 playDrawSound called - muted: ${this.muted}, volume: ${this.volume}, initialized: ${this.isInitialized}`)
+    // console.log(`🔊 playDrawSound called - muted: ${this.muted}, volume: ${this.volume}, initialized: ${this.isInitialized}`)
 
     if (!this.isInitialized || this.muted || !this.gestureSynth) {
-      console.log(`🔇 Audio blocked - muted: ${this.muted}, initialized: ${this.isInitialized}`)
+      // console.log(`🔇 Audio blocked - muted: ${this.muted}, initialized: ${this.isInitialized}`)
       return
     }
 
@@ -2187,16 +2187,16 @@ class AudioService {
       const frequency = this.mapColorToFrequency(color)
 
       if (!frequency) {
-        console.warn('AudioService: Invalid color for draw sound', color)
+        // console.warn('AudioService: Invalid color for draw sound', color)
         return
       }
 
       // Play short beep (volume controlled by masterVolume)
-      console.log(`🎵 Playing draw sound at frequency ${frequency}Hz`)
+      // console.log(`🎵 Playing draw sound at frequency ${frequency}Hz`)
       this.gestureSynth.triggerAttackRelease(frequency, '16n', undefined, 0.3)
 
     } catch (error) {
-      console.warn('AudioService: Error playing draw sound', error)
+      // console.warn('AudioService: Error playing draw sound', error)
     }
   }
 
@@ -2208,7 +2208,7 @@ class AudioService {
    */
   playMusicalEvent(musicalEvent) {
     if (!this.isInitialized || !musicalEvent || this.muted) {
-      console.log('🔇 playMusicalEvent blocked - initialized:', this.isInitialized, 'muted:', this.muted)
+      // console.log('🔇 playMusicalEvent blocked - initialized:', this.isInitialized, 'muted:', this.muted)
       return
     }
 
@@ -2227,7 +2227,7 @@ class AudioService {
 
         // TAP PITCH DEBUG: Log for tap events
         if (musicalEvent.properties.noteIndex === 0 && musicalEvent.properties.totalNotes === 1) {
-          console.log('🎯 TAP RECEIVED IN FRONTEND:', {
+          // console.log('🎯 TAP RECEIVED IN FRONTEND:', {
             userId: musicalEvent.userId?.substring(0, 8),
             pitch: musicalEvent.properties.pitch,
             frequency: frequency?.toFixed(1),
@@ -2235,7 +2235,7 @@ class AudioService {
           })
         }
 
-        console.log('🎵 Playing backend musical event:', {
+        // console.log('🎵 Playing backend musical event:', {
           frequency: frequency?.toFixed(1),
           duration,
           velocity,
@@ -2250,7 +2250,7 @@ class AudioService {
         articulation = musicalEvent.articulation
 
         if (pitch === undefined || velocity === undefined || duration === undefined) {
-          console.warn('🔇 Invalid musical event data:', { pitch, velocity, duration, articulation })
+          // console.warn('🔇 Invalid musical event data:', { pitch, velocity, duration, articulation })
           return
         }
 
@@ -2274,7 +2274,7 @@ class AudioService {
 
         normalizedDuration = durationMap[duration] || 0.125
 
-        console.log('🎵 Duration conversion:', {
+        // console.log('🎵 Duration conversion:', {
           input: duration,
           output: normalizedDuration,
           articulation: articulation
@@ -2329,7 +2329,7 @@ class AudioService {
       // Schedule attack with setTimeout
       const attackTimeoutId = setTimeout(() => {
         if (!this.gestureSynth || this.gestureSynth.disposed) {
-          console.warn('🔇 Synth disposed, skipping note')
+          // console.warn('🔇 Synth disposed, skipping note')
           return
         }
 
@@ -2398,7 +2398,7 @@ class AudioService {
             finalVelocity
           )
 
-          console.log(`🎶 Note played (${isStreamed ? 'REMOTE' : 'LOCAL'}):`, {
+          // console.log(`🎶 Note played (${isStreamed ? 'REMOTE' : 'LOCAL'}):`, {
             frequency: frequency.toFixed(1),
             duration: adjustedDuration.toFixed(3),
             velocity: finalVelocity.toFixed(3),
@@ -2406,7 +2406,7 @@ class AudioService {
             articulation: articulation
           })
         } catch (e) {
-          console.warn('Note play error:', e.message)
+          // console.warn('Note play error:', e.message)
         }
       }, delayMs)
 
@@ -2420,11 +2420,11 @@ class AudioService {
       // Track performance
       const latency = performance.now() - startTime
       if (latency > 50) {
-        console.warn(`🐌 High musical event latency: ${latency.toFixed(1)}ms`)
+        // console.warn(`🐌 High musical event latency: ${latency.toFixed(1)}ms`)
       }
 
     } catch (error) {
-      console.error('🔇 Error playing musical event:', error)
+      // console.error('🔇 Error playing musical event:', error)
     }
   }
 
@@ -2484,12 +2484,12 @@ class AudioService {
     }
 
     // Log integration for debugging
-    console.log(`🎵 Integrated user phrase: influence=${state.userInfluence.toFixed(2)}, complexity=${state.complexity.toFixed(2)}`)
+    // console.log(`🎵 Integrated user phrase: influence=${state.userInfluence.toFixed(2)}, complexity=${state.complexity.toFixed(2)}`)
 
     // Trigger immediate background evolution for ANY user influence to show response
     if (state.userInfluence > 0.2) {
       this.triggerImmediateBackgroundEvolution()
-      console.log(`🎵 Triggered background evolution due to user input (influence: ${state.userInfluence.toFixed(2)})`)
+      // console.log(`🎵 Triggered background evolution due to user input (influence: ${state.userInfluence.toFixed(2)})`)
     }
 
     // Also trigger immediate filter response to show background is reacting
@@ -2518,7 +2518,7 @@ class AudioService {
     // Apply modulation if it's meaningful
     if (closestInterval <= 7) {
       state.pendingModulation = closestInterval
-      console.log(`🎵 User input suggests modulation: ${closestInterval} semitones`)
+      // console.log(`🎵 User input suggests modulation: ${closestInterval} semitones`)
     }
   }
 
@@ -2536,7 +2536,7 @@ class AudioService {
       state.currentTonic *= frequencyRatio
       state.currentTonic = Math.max(110, Math.min(440, state.currentTonic))
       state.pendingModulation = null
-      console.log(`🎵 Applied user-driven modulation: new tonic=${state.currentTonic.toFixed(1)}Hz`)
+      // console.log(`🎵 Applied user-driven modulation: new tonic=${state.currentTonic.toFixed(1)}Hz`)
     }
 
     // Update scale based on user complexity preferences
@@ -2552,7 +2552,7 @@ class AudioService {
 
     // Background layers now evolve automatically through playLayer() composition loop
     // No need to trigger immediate regeneration
-    console.log(`🎵 User influence applied to generative state`)
+    // console.log(`🎵 User influence applied to generative state`)
   }
 
   /**
@@ -2563,7 +2563,7 @@ class AudioService {
   triggerBackgroundFilterResponse(frequency, duration) {
     if (!this.ambientFilters || !Tone.context) return
 
-    console.log(`🎛️ Triggering background filter response: ${frequency.toFixed(1)}Hz, ${duration.toFixed(3)}s`)
+    // console.log(`🎛️ Triggering background filter response: ${frequency.toFixed(1)}Hz, ${duration.toFixed(3)}s`)
 
     // Calculate filter modulation based on user input
     const normalizedFreq = Math.max(100, Math.min(8000, frequency))
@@ -2580,7 +2580,7 @@ class AudioService {
         1 + modulationIntensity * 3,
         Tone.context.currentTime + 0.2
       )
-      console.log(`🎛️ Bass filter response: ${Math.max(50, Math.min(500, bassFreq)).toFixed(1)}Hz`)
+      // console.log(`🎛️ Bass filter response: ${Math.max(50, Math.min(500, bassFreq)).toFixed(1)}Hz`)
     }
 
     if (this.ambientFilters.pad) {
@@ -2593,7 +2593,7 @@ class AudioService {
         2 + modulationIntensity * 4,
         Tone.context.currentTime + 0.15
       )
-      console.log(`🎛️ Pad filter response: ${Math.max(150, Math.min(2000, padFreq)).toFixed(1)}Hz`)
+      // console.log(`🎛️ Pad filter response: ${Math.max(150, Math.min(2000, padFreq)).toFixed(1)}Hz`)
     }
 
     if (this.ambientFilters.chords) {
@@ -2606,7 +2606,7 @@ class AudioService {
         3 + modulationIntensity * 5,
         Tone.context.currentTime + 0.1
       )
-      console.log(`🎛️ Chords filter response: ${Math.max(200, Math.min(4000, chordsFreq)).toFixed(1)}Hz`)
+      // console.log(`🎛️ Chords filter response: ${Math.max(200, Math.min(4000, chordsFreq)).toFixed(1)}Hz`)
     }
   }
 
@@ -2659,7 +2659,7 @@ class AudioService {
       this.lastUserCountUpdate = now
     }
 
-    console.log(`👥 Active remote users: ${this.activeRemoteUsers.size}`)
+    // console.log(`👥 Active remote users: ${this.activeRemoteUsers.size}`)
   }
 
   /**
@@ -2675,7 +2675,7 @@ class AudioService {
     if (this.gestureFilter && this.gestureFilter.frequency) {
       this.remoteFilterLFO.connect(this.gestureFilter.frequency)
       this.remoteLFOTargetFilters.add('gestureFilter')
-      console.log('🔗 Remote LFO connected directly to gesture filter')
+      // console.log('🔗 Remote LFO connected directly to gesture filter')
     }
 
     // Connect directly to ambient filter frequencies
@@ -2687,10 +2687,10 @@ class AudioService {
           this.remoteLFOTargetFilters.add(layerName)
         }
       })
-      console.log(`🔗 Remote LFO connected directly to ${Object.keys(this.ambientFilters).length} ambient filters`)
+      // console.log(`🔗 Remote LFO connected directly to ${Object.keys(this.ambientFilters).length} ambient filters`)
     }
 
-    console.log(`🔗 Remote LFO directly connected to ${this.remoteLFOTargetFilters.size} total filters`)
+    // console.log(`🔗 Remote LFO directly connected to ${this.remoteLFOTargetFilters.size} total filters`)
   }
 
   /**
@@ -2719,7 +2719,7 @@ class AudioService {
       })
     }
 
-    console.log(`🔗 Remote LFO connected to ${this.remoteLFOTargetFilters.size} filters`)
+    // console.log(`🔗 Remote LFO connected to ${this.remoteLFOTargetFilters.size} filters`)
   }
 
   /**
@@ -2745,11 +2745,11 @@ class AudioService {
    */
   testFilterModulation() {
     if (!this.isInitialized || !this.ambientFilters) {
-      console.warn('Cannot test filter modulation - not initialized')
+      // console.warn('Cannot test filter modulation - not initialized')
       return
     }
 
-    console.log('🧪 Starting filter modulation test...')
+    // console.log('🧪 Starting filter modulation test...')
 
     // Create a dramatic filter sweep over 2 seconds
     const startTime = Tone.now()
@@ -2765,17 +2765,17 @@ class AudioService {
       // Sweep to high frequency
       filter.frequency.linearRampToValueAtTime(5000, endTime)
 
-      console.log(`🧪 ${layerName} filter sweep: 100Hz → 5000Hz over 2 seconds`)
+      // console.log(`🧪 ${layerName} filter sweep: 100Hz → 5000Hz over 2 seconds`)
     })
 
     // Also sweep the gesture filter
     if (this.gestureFilter) {
       this.gestureFilter.frequency.setValueAtTime(100, startTime)
       this.gestureFilter.frequency.linearRampToValueAtTime(8000, endTime)
-      console.log('🧪 Gesture filter sweep: 100Hz → 8000Hz over 2 seconds')
+      // console.log('🧪 Gesture filter sweep: 100Hz → 8000Hz over 2 seconds')
     }
 
-    console.log('🧪 Filter test initiated - you should hear dramatic filter sweeps opening up')
+    // console.log('🧪 Filter test initiated - you should hear dramatic filter sweeps opening up')
   }
 
   /**
@@ -2784,17 +2784,17 @@ class AudioService {
    */
   forceStartBackground() {
     if (!this.isInitialized || !this.ambientLayers) {
-      console.log('🔇 forceStartBackground: not initialized')
+      // console.log('🔇 forceStartBackground: not initialized')
       return
     }
 
     if (this.muted) {
-      console.log('🔇 forceStartBackground: muted')
+      // console.log('🔇 forceStartBackground: muted')
       return
     }
 
     try {
-      console.log('🎵 Force starting background music...')
+      // console.log('🎵 Force starting background music...')
 
       // Force play notes on each layer to ensure audio is working
       Object.keys(this.ambientLayers).forEach(layer => {
@@ -2824,7 +2824,7 @@ class AudioService {
           setTimeout(() => {
             try {
               synth.triggerAttack(freq, undefined, 0.2)
-              console.log(`🎵 Forced background note: ${layer} ${freq.toFixed(1)}Hz`)
+              // console.log(`🎵 Forced background note: ${layer} ${freq.toFixed(1)}Hz`)
 
               // Auto-release after a reasonable time
               setTimeout(() => {
@@ -2835,7 +2835,7 @@ class AudioService {
                 }
               }, 3000)
             } catch (e) {
-              console.warn(`🔇 Error playing forced background note:`, e)
+              // console.warn(`🔇 Error playing forced background note:`, e)
             }
           }, index * 200) // Stagger notes slightly
         })
@@ -2843,13 +2843,13 @@ class AudioService {
 
       // If evolution is not active, restart it
       if (!this.evolvingGenerationActive) {
-        console.log('🎵 Restarting evolution system...')
+        // console.log('🎵 Restarting evolution system...')
         this.evolvingGenerationActive = true
         this.startEvolvingGeneration()
       }
 
     } catch (error) {
-      console.error('🔇 Error in forceStartBackground:', error)
+      // console.error('🔇 Error in forceStartBackground:', error)
     }
   }
 
@@ -2879,7 +2879,7 @@ class AudioService {
     const colorIndex = this.colorPool.findIndex(c => c.toLowerCase() === normalizedColor)
 
     if (colorIndex === -1) {
-      console.warn('AudioService: Color not in pool', color)
+      // console.warn('AudioService: Color not in pool', color)
       return null
     }
 
@@ -2941,7 +2941,7 @@ class AudioService {
    */
   processGestureAudio(gestureData) {
     if (!this.isInitialized) {
-      console.warn('AudioService not initialized')
+      // console.warn('AudioService not initialized')
       return null
     }
 
@@ -2965,7 +2965,7 @@ class AudioService {
 
       // Constitutional requirement check
       if (processingLatency > 200) {
-        console.warn(`Gesture-to-audio latency ${processingLatency}ms exceeds 200ms constitutional requirement`)
+        // console.warn(`Gesture-to-audio latency ${processingLatency}ms exceeds 200ms constitutional requirement`)
       }
 
       return {
@@ -2975,7 +2975,7 @@ class AudioService {
       }
 
     } catch (error) {
-      console.error('Error processing gesture audio:', error)
+      // console.error('Error processing gesture audio:', error)
       return null
     }
   }
@@ -3317,7 +3317,7 @@ class AudioService {
 
     requestAnimationFrame(updateLoop)
 
-    console.log('AudioService parameter update loop started at 60fps')
+    // console.log('AudioService parameter update loop started at 60fps')
   }
 
   /**
@@ -3325,7 +3325,7 @@ class AudioService {
    */
   stopUpdateLoop() {
     this.updateLoopActive = false
-    console.log('AudioService parameter update loop stopped')
+    // console.log('AudioService parameter update loop stopped')
   }
 
   /**
@@ -3335,12 +3335,12 @@ class AudioService {
     try {
       // Check if global classes are available
       if (typeof window.MusicalScheduler === 'undefined') {
-        console.warn('⚠️ MusicalScheduler not available - musical timing features disabled');
+        // console.warn('⚠️ MusicalScheduler not available - musical timing features disabled');
         return;
       }
 
       if (typeof window.LFOManager === 'undefined') {
-        console.warn('⚠️ LFOManager not available - modulation features disabled');
+        // console.warn('⚠️ LFOManager not available - modulation features disabled');
         return;
       }
 
@@ -3356,9 +3356,9 @@ class AudioService {
       // Setup event listeners for cross-service communication
       this.setupMusicalArchitectureEvents();
 
-      console.log('🎵 New musical architecture initialized - MusicalScheduler and LFOManager active');
+      // console.log('🎵 New musical architecture initialized - MusicalScheduler and LFOManager active');
     } catch (error) {
-      console.error('🔴 Failed to initialize new musical architecture:', error);
+      // console.error('🔴 Failed to initialize new musical architecture:', error);
     }
   }
 
@@ -3489,7 +3489,7 @@ class AudioService {
     // Create LFO based on hover gesture
     const lfoId = this.lfoManager.handleLocalHoverStart(gestureData, targetInstrument);
 
-    console.log(`🎛️ Hover start - LFO created: ${lfoId}`);
+    // console.log(`🎛️ Hover start - LFO created: ${lfoId}`);
     return lfoId;
   }
 
@@ -3615,7 +3615,7 @@ class AudioService {
       this.performanceMetrics.totalUpdates++
 
     } catch (error) {
-      console.error('Parameter update failed:', error)
+      // console.error('Parameter update failed:', error)
       this.performanceMetrics.droppedUpdates++
     }
     */
@@ -3678,7 +3678,7 @@ class AudioService {
         ...this.parameterMappings[parameter],
         ...mapping
       }
-      console.log(`Updated ${parameter} mapping:`, this.parameterMappings[parameter])
+      // console.log(`Updated ${parameter} mapping:`, this.parameterMappings[parameter])
     }
   }
 
@@ -3707,7 +3707,7 @@ class AudioService {
       droppedUpdates: 0,
       totalUpdates: 0
     }
-    console.log('AudioService performance metrics reset')
+    // console.log('AudioService performance metrics reset')
   }
 
 
@@ -3720,13 +3720,13 @@ class AudioService {
       // Reduce console log frequency to prevent spam
       const now = Date.now()
       if (now - (this.lastFilterLogTime || 0) > 1000) {
-        console.log('🎛️ Applying filter modulation:', filterParams)
+        // console.log('🎛️ Applying filter modulation:', filterParams)
         this.lastFilterLogTime = now
       }
 
       // Validate Tone context is ready
       if (!Tone.context || !Tone.context.currentTime) {
-        console.warn('🔇 Tone context not ready for filter modulation')
+        // console.warn('🔇 Tone context not ready for filter modulation')
         return
       }
 
@@ -3736,7 +3736,7 @@ class AudioService {
 
       // Validate we have valid parameters
       if (cutoffFrequency === null || cutoffFrequency === undefined) {
-        console.warn('🔇 Invalid cutoff frequency for filter modulation')
+        // console.warn('🔇 Invalid cutoff frequency for filter modulation')
         return
       }
 
@@ -3792,7 +3792,7 @@ class AudioService {
             }
           }
         })
-        console.log('✨ Applied filter to ambient voices')
+        // console.log('✨ Applied filter to ambient voices')
       }
 
       // Apply to gesture voices
@@ -3808,22 +3808,22 @@ class AudioService {
             }
           }
         })
-        console.log('✨ Applied filter to gesture voices')
+        // console.log('✨ Applied filter to gesture voices')
       }
 
       // Apply to main gesture synth filter
       if (this.gestureFilter && this.gestureFilter.frequency && typeof this.gestureFilter.frequency.setValueAtTime === 'function') {
         const cutoffRange = cutoffFrequency * 80 + 200 // 0-1 to 200-8000Hz
         this.gestureFilter.frequency.setValueAtTime(cutoffRange, Tone.context.currentTime)
-        console.log(`✨ Applied gesture filter cutoff: ${cutoffRange.toFixed(1)}Hz`)
+        // console.log(`✨ Applied gesture filter cutoff: ${cutoffRange.toFixed(1)}Hz`)
 
         let resonanceRange = 0
         if (this.gestureFilter.Q && resonance && typeof this.gestureFilter.Q.setValueAtTime === 'function') {
           resonanceRange = resonance * 15 // 0-1 to 0-15
           this.gestureFilter.Q.setValueAtTime(resonanceRange, Tone.context.currentTime)
-          console.log(`✨ Applied gesture filter resonance: ${resonanceRange.toFixed(2)}`)
+          // console.log(`✨ Applied gesture filter resonance: ${resonanceRange.toFixed(2)}`)
         }
-        console.log('✨ Applied filter to gesture synth:', { cutoff: cutoffRange, resonance: resonanceRange })
+        // console.log('✨ Applied filter to gesture synth:', { cutoff: cutoffRange, resonance: resonanceRange })
       }
 
       // Also apply to collaborative pattern voices if they exist
@@ -3839,11 +3839,11 @@ class AudioService {
             }
           }
         })
-        console.log('✨ Applied filter to collaborative patterns')
+        // console.log('✨ Applied filter to collaborative patterns')
       }
 
     } catch (error) {
-      console.error('❌ Filter modulation failed:', error)
+      // console.error('❌ Filter modulation failed:', error)
     }
   }
 
@@ -3860,7 +3860,7 @@ class AudioService {
     return patterns1.every((pattern1, index) => {
       const pattern2 = patterns2[index]
       // Add more detailed logging to debug pattern values
-      console.log('🔍 Comparing patterns:', {
+      // console.log('🔍 Comparing patterns:', {
         pattern1: { x: pattern1.x, y: pattern1.y, intensity: pattern1.intensity, frequency: pattern1.frequency },
         pattern2: { x: pattern2.x, y: pattern2.y, intensity: pattern2.intensity, frequency: pattern2.frequency }
       })
@@ -3883,7 +3883,7 @@ class AudioService {
 
     const tierConfig = this.threeTierConfig[tier]
     if (!tierConfig) {
-      console.warn(`Unknown tier: ${tier}, falling back to local`)
+      // console.warn(`Unknown tier: ${tier}, falling back to local`)
       return this.playNote(frequency, options)
     }
 
@@ -3892,10 +3892,10 @@ class AudioService {
     const adjustedVolume = this.calculateThreeTierVolume(tier, options.volume || 0.5)
     const adjustedDuration = this.calculateThreeTierDuration(velocity, options.duration || '8n')
 
-    console.log(`🎵 Playing ${tierConfig.waveform} note on ${tier} tier: ${adjustedFrequency}Hz, velocity: ${velocity}`)
+    // console.log(`🎵 Playing ${tierConfig.waveform} note on ${tier} tier: ${adjustedFrequency}Hz, velocity: ${velocity}`)
 
     // CRITICAL DEBUG: Stack trace to identify where this call comes from
-    console.trace('🔍 Stack trace for playThreeTierNote call:')
+    // console.trace('🔍 Stack trace for playThreeTierNote call:')
 
     // Configure synth with tier-specific waveform
     this.gestureSynth.set({
@@ -3904,14 +3904,14 @@ class AudioService {
     })
 
     // Play note with tier-specific parameters
-    console.log('🔍 About to trigger single note:', adjustedFrequency.toFixed(1) + 'Hz, tier:', tier)
+    // console.log('🔍 About to trigger single note:', adjustedFrequency.toFixed(1) + 'Hz, tier:', tier)
     this.gestureSynth.triggerAttackRelease(
       adjustedFrequency,
       adjustedDuration,
       undefined,
       adjustedVolume
     )
-    console.log('🔍 Note triggered successfully')
+    // console.log('🔍 Note triggered successfully')
   }
 
   /**
@@ -4023,7 +4023,7 @@ class AudioService {
       volume: gestureData.intensity || 0.5
     })
 
-    console.log(`🎹 Three-tier gesture: tier=${tier}, velocity=${gestureData.velocity}, freq=${baseFreq}`)
+    // console.log(`🎹 Three-tier gesture: tier=${tier}, velocity=${gestureData.velocity}, freq=${baseFreq}`)
   }
 
   /**
@@ -4037,12 +4037,12 @@ class AudioService {
 
     // Validate position and userId to prevent undefined errors
     if (!position || (position.x === null || position.y === null)) {
-      console.warn('🔇 Hover data missing or invalid position, skipping modulation')
+      // console.warn('🔇 Hover data missing or invalid position, skipping modulation')
       return
     }
 
     // Log full hover data for debugging
-    console.log('🎛️ HOVER DATA DEBUG:', {
+    // console.log('🎛️ HOVER DATA DEBUG:', {
       position,
       userId,
       intensity,
@@ -4053,7 +4053,7 @@ class AudioService {
     })
 
     // Log full hover data for debugging
-    console.log('🎛️ HOVER DATA DEBUG:', {
+    // console.log('🎛️ HOVER DATA DEBUG:', {
       position,
       userId,
       intensity,
@@ -4062,17 +4062,17 @@ class AudioService {
       source: 'handleHoverModulation call',
       isInitialized: this.isInitialized
     })
-    console.log(`🎛️ Cross-layer hover modulation: userId=${userId}, intensity=${intensity}`)
+    // console.log(`🎛️ Cross-layer hover modulation: userId=${userId}, intensity=${intensity}`)
 
     // Local user hover modulates:
     // 1. Background filters (low-mid frequency range)
     // 2. Remote gesture filters (mid-high frequency range)
     if (!userId || userId === this.currentUserId) {
-      console.log('🎛️ LOCAL HOVER: Calling modulateBackgroundFilters and modulateRemoteGestureFilters')
+      // console.log('🎛️ LOCAL HOVER: Calling modulateBackgroundFilters and modulateRemoteGestureFilters')
       this.modulateBackgroundFilters(position, intensity * 0.7)
       this.modulateRemoteGestureFilters(position, intensity * 0.5)
     } else {
-      console.log('🎛️ REMOTE HOVER: Calling modulateLocalGestureFilters')
+      // console.log('🎛️ REMOTE HOVER: Calling modulateLocalGestureFilters')
     }
 
     // Remote user hover modulates:
@@ -4158,17 +4158,17 @@ class AudioService {
    */
   handleHoverModulation(hoverData) {
     // PHASE 1 FIX: Re-enabled hover modulation (was disabled for debugging)
-    console.log('🎛️ handleHoverModulation ACTIVE', { hasData: !!hoverData, isRemote: hoverData?.isRemote })
+    // console.log('🎛️ handleHoverModulation ACTIVE', { hasData: !!hoverData, isRemote: hoverData?.isRemote })
 
     // Force initialization if needed
     if (!this.isInitialized && this.gestureSynth) {
-      console.log('🔇 Forcing initialization - setting isInitialized = true')
+      // console.log('🔇 Forcing initialization - setting isInitialized = true')
       this.isInitialized = true
     }
 
     // SIMPLIFIED HOVER MODULATION - Direct synth filter control
     if (!this.gestureSynth) {
-      console.warn('🔇 handleHoverModulation blocked - no gestureSynth')
+      // console.warn('🔇 handleHoverModulation blocked - no gestureSynth')
       return
     }
 
@@ -4186,12 +4186,12 @@ class AudioService {
                              originalX < 0 || originalX > 1 || originalY < 0 || originalY > 1
 
       if (isOutsideCanvas) {
-        console.log('🚫 Mouse left canvas with intensity=0 - resetting filters to prevent audio issues')
+        // console.log('🚫 Mouse left canvas with intensity=0 - resetting filters to prevent audio issues')
         this.stopRemoteFilterLFO()
         this.resetFiltersToSafeValues()
         return
       } else {
-        console.log('🚫 Hover intensity is 0 on canvas - skipping modulation but keeping background audio')
+        // console.log('🚫 Hover intensity is 0 on canvas - skipping modulation but keeping background audio')
         return
       }
     }
@@ -4220,7 +4220,7 @@ class AudioService {
 
       // If mouse is outside canvas, DO NOT apply any HOVER modulation
       if (isOutsideCanvas) {
-        console.log(`🚫 Mouse outside canvas detected (${originalX?.toFixed(2) || 'undefined'}, ${originalY?.toFixed(2) || 'undefined'}) - NO HOVER MODULATION APPLIED`)
+        // console.log(`🚫 Mouse outside canvas detected (${originalX?.toFixed(2) || 'undefined'}, ${originalY?.toFixed(2) || 'undefined'}) - NO HOVER MODULATION APPLIED`)
 
         // Stop only HOVER modulation, NOT background music
         this.stopRemoteFilterLFO()
@@ -4239,7 +4239,7 @@ class AudioService {
       this.lastHoverTime = Date.now()
       this.setupHoverTimeout()
 
-      console.log(`🎛️ ${isRemote ? 'REMOTE' : 'LOCAL'} hover modulation: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)}), userId=${userId}, users=${this.activeRemoteUsers.size}`)
+      // console.log(`🎛️ ${isRemote ? 'REMOTE' : 'LOCAL'} hover modulation: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)}), userId=${userId}, users=${this.activeRemoteUsers.size}`)
 
       // Create sonic parameters with tier information
       const sonicParams = {
@@ -4252,7 +4252,7 @@ class AudioService {
 
       // Use our new three-tier modulation system
       const filterParams = this.mapGestureToFilter(sonicParams)
-      console.log(`🎛️ Three-tier hover modulation: tier=${sonicParams.tier}, cutoff=${filterParams.cutoffFrequency?.toFixed(1)}Hz, resonance=${filterParams.resonance?.toFixed(2)}, tremolo=${filterParams.tremoloAmount?.toFixed(2)}`)
+      // console.log(`🎛️ Three-tier hover modulation: tier=${sonicParams.tier}, cutoff=${filterParams.cutoffFrequency?.toFixed(1)}Hz, resonance=${filterParams.resonance?.toFixed(2)}, tremolo=${filterParams.tremoloAmount?.toFixed(2)}`)
 
       // Apply filter parameters based on tier
       const currentTime = Tone.context && Tone.context.currentTime ? Tone.context.currentTime : Tone.now()
@@ -4320,19 +4320,19 @@ class AudioService {
               filter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
             }
           })
-          console.log('🎛️ Applied local filter modulation to ambient layers')
+          // console.log('🎛️ Applied local filter modulation to ambient layers')
         }
       }
 
       if (isRemote) {
-        console.log(`🌐 Remote hover modulation applied: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)})`)
+        // console.log(`🌐 Remote hover modulation applied: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)})`)
       } else {
-        console.log(`🏠 Local hover modulation applied: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)})`)
+        // console.log(`🏠 Local hover modulation applied: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)})`)
       }
 
     } catch (error) {
-      console.error('❌ Hover modulation failed:', error)
-      console.error('🐛 Error details:', {
+      // console.error('❌ Hover modulation failed:', error)
+      // console.error('🐛 Error details:', {
         message: error.message,
         stack: error.stack,
         position: position,
@@ -4359,7 +4359,7 @@ class AudioService {
     this.hoverTimeoutTimer = setTimeout(() => {
       const timeSinceLastHover = Date.now() - this.lastHoverTime
       if (timeSinceLastHover >= this.hoverTimeoutDuration) {
-        console.log('⏰ Hover timeout - stopping modulation due to inactivity')
+        // console.log('⏰ Hover timeout - stopping modulation due to inactivity')
         this.stopRemoteFilterLFO()
         this.hoverTimeoutTimer = null
       }
@@ -4377,7 +4377,7 @@ class AudioService {
     // If no more active remote users, stop remote LFO
     if (this.activeRemoteUsers.size === 0) {
       this.stopRemoteFilterLFO()
-      console.log('🛑 Stopped remote LFO - no active users')
+      // console.log('🛑 Stopped remote LFO - no active users')
     }
   }
 
@@ -4390,11 +4390,11 @@ class AudioService {
 
     const currentTime = Tone.context.currentTime
 
-    console.log('🔧 Resetting filters to safe values for audio continuation')
+    // console.log('🔧 Resetting filters to safe values for audio continuation')
 
     // CRITICAL FIX: Stop any active tremolo LFO that could cause excessive modulation
     if (this.tremoloLFO) {
-      console.log('🛑 STOPPING tremoloLFO - preventing excessive modulation')
+      // console.log('🛑 STOPPING tremoloLFO - preventing excessive modulation')
       this.tremoloLFO.stop()
       this.tremoloLFO.dispose()
       this.tremoloLFO = null
@@ -4402,7 +4402,7 @@ class AudioService {
 
     // CRITICAL FIX: Stop the main lfoSystem that runs at 30Hz - this is likely the main tremolo source
     if (this.lfoSystem) {
-      console.log('🛑 STOPPING lfoSystem - preventing excessive 30Hz tremolo')
+      // console.log('🛑 STOPPING lfoSystem - preventing excessive 30Hz tremolo')
       this.lfoSystem.stop()
     }
 
@@ -4410,37 +4410,37 @@ class AudioService {
     if (this.ambientFilters.bass) {
       this.ambientFilters.bass.frequency.linearRampToValueAtTime(150, currentTime + 0.1)
       this.ambientFilters.bass.Q.linearRampToValueAtTime(1, currentTime + 0.1)
-      console.log('🔧 Bass filter reset: 150Hz, Q=1')
+      // console.log('🔧 Bass filter reset: 150Hz, Q=1')
     }
 
     if (this.ambientFilters.pad) {
       this.ambientFilters.pad.frequency.linearRampToValueAtTime(800, currentTime + 0.1)
       this.ambientFilters.pad.Q.linearRampToValueAtTime(1.5, currentTime + 0.1)
-      console.log('🔧 Pad filter reset: 800Hz, Q=1.5')
+      // console.log('🔧 Pad filter reset: 800Hz, Q=1.5')
     }
 
     if (this.ambientFilters.chords) {
       this.ambientFilters.chords.frequency.linearRampToValueAtTime(2000, currentTime + 0.1)
       this.ambientFilters.chords.Q.linearRampToValueAtTime(2, currentTime + 0.1)
-      console.log('🔧 Chords filter reset: 2000Hz, Q=2')
+      // console.log('🔧 Chords filter reset: 2000Hz, Q=2')
     }
 
     // Reset gesture filter to open position
     if (this.gestureFilter) {
       this.gestureFilter.frequency.linearRampToValueAtTime(2000, currentTime + 0.1)
       this.gestureFilter.Q.linearRampToValueAtTime(3, currentTime + 0.1)
-      console.log('🔧 Gesture filter reset: 2000Hz, Q=3')
+      // console.log('🔧 Gesture filter reset: 2000Hz, Q=3')
     }
 
     // CRITICAL FIX: Reset gesture synth volume to prevent tremolo from persisting
     if (this.gestureSynth && this.gestureSynth.volume) {
       this.gestureSynth.volume.value = -6 // Reset to normal volume
-      console.log('🔧 Gesture synth volume reset to normal')
+      // console.log('🔧 Gesture synth volume reset to normal')
     }
 
     // Ensure background evolution continues
     if (!this.evolvingGenerationActive && this.isInitialized && !this.muted) {
-      console.log('🎵 Restarting background evolution after filter reset')
+      // console.log('🎵 Restarting background evolution after filter reset')
       this.evolvingGenerationActive = true
       this.startEvolvingGeneration()
     }
@@ -4450,7 +4450,7 @@ class AudioService {
    * Force stop ALL LFO systems (emergency cleanup)
    */
   forceStopAllLFO() {
-    console.log('🚨 FORCE STOPPING ALL LFO SYSTEMS')
+    // console.log('🚨 FORCE STOPPING ALL LFO SYSTEMS')
 
     // Stop remote filter LFO
     this.stopRemoteFilterLFO()
@@ -4460,13 +4460,13 @@ class AudioService {
       this.tremoloLFO.stop()
       this.tremoloLFO.dispose()
       this.tremoloLFO = null
-      console.log('🛑 Stopped tremoloLFO')
+      // console.log('🛑 Stopped tremoloLFO')
     }
 
     // Stop old lfoSystem
     if (this.lfoSystem && this.lfoSystem.stop) {
       this.lfoSystem.stop()
-      console.log('🛑 Stopped lfoSystem')
+      // console.log('🛑 Stopped lfoSystem')
     }
 
     // Clear hover timeout
@@ -4475,7 +4475,7 @@ class AudioService {
       this.hoverTimeoutTimer = null
     }
 
-    console.log('✅ All LFO systems force stopped')
+    // console.log('✅ All LFO systems force stopped')
   }
 
   /**
@@ -4505,7 +4505,7 @@ class AudioService {
 
     // FORCE STOP any tremolo LFO that might be causing issues
     if (this.tremoloLFO) {
-      console.log('🛑 FORCE STOPPING tremoloLFO during cleanup')
+      // console.log('🛑 FORCE STOPPING tremoloLFO during cleanup')
       this.tremoloLFO.stop()
       this.tremoloLFO.dispose()
       this.tremoloLFO = null
@@ -4513,14 +4513,14 @@ class AudioService {
 
     // Cleanup new musical architecture services
     if (this.musicalScheduler && typeof this.musicalScheduler.dispose === 'function') {
-      console.log('🛑 Stopping MusicalScheduler')
+      // console.log('🛑 Stopping MusicalScheduler')
       this.musicalScheduler.stop()
       this.musicalScheduler.dispose()
       this.musicalScheduler = null
     }
 
     if (this.lfoManager && typeof this.lfoManager.dispose === 'function') {
-      console.log('🛑 Disposing LFOManager')
+      // console.log('🛑 Disposing LFOManager')
       this.lfoManager.dispose()
       this.lfoManager = null
     }
@@ -4530,7 +4530,7 @@ class AudioService {
     this.gestureCapture = null
     this.isInitialized = false
 
-    console.log('AudioService cleanup completed - all LFO and musical timing systems stopped')
+    // console.log('AudioService cleanup completed - all LFO and musical timing systems stopped')
   }
 
   /**
@@ -4541,7 +4541,7 @@ class AudioService {
   updateCompositionalParameters(parameters) {
     if (!this.generativeState || !parameters) return
 
-    console.log('🎼 Updating generative system with collective parameters:', parameters)
+    // console.log('🎼 Updating generative system with collective parameters:', parameters)
 
     // Map scale type to actual scale
     const scales = {
@@ -4624,7 +4624,7 @@ class AudioService {
       }
     }
 
-    console.log('🎵 Updated generative state:', {
+    // console.log('🎵 Updated generative state:', {
       scale: this.generativeState.currentScale,
       tonic: this.generativeState.currentTonic.toFixed(1),
       complexity: this.generativeState.complexity.toFixed(2),

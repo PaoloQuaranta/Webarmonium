@@ -63,9 +63,9 @@ class MusicalScheduler {
       this._initializeSchedulingWorker();
 
       this.isInitialized = true;
-      console.log('[MusicalScheduler] Initialized with clock consistency priority');
+      // console.log('[MusicalScheduler] Initialized with clock consistency priority');
     } catch (error) {
-      console.error('[MusicalScheduler] Initialization failed:', error);
+      // console.error('[MusicalScheduler] Initialization failed:', error);
     }
   }
 
@@ -119,13 +119,13 @@ class MusicalScheduler {
       this.isRunning = true;
       this.nextTickTime = (window.Tone && window.Tone.Now) ? window.Tone.Now() : Date.now() / 1000 + this.lookahead;
 
-      console.log('[MusicalScheduler] Started - prioritizing clock consistency');
+      // console.log('[MusicalScheduler] Started - prioritizing clock consistency');
       this._emit('scheduler:started', {
         tempo: this.tempo,
         timeSignature: this.timeSignature
       });
     } catch (error) {
-      console.error('[MusicalScheduler] Failed to start:', error);
+      // console.error('[MusicalScheduler] Failed to start:', error);
     }
   }
 
@@ -151,10 +151,10 @@ class MusicalScheduler {
       this.localEventQueue.length = 0;
       this.remoteEventQueue.length = 0;
 
-      console.log('[MusicalScheduler] Stopped');
+      // console.log('[MusicalScheduler] Stopped');
       this._emit('scheduler:stopped');
     } catch (error) {
-      console.error('[MusicalScheduler] Failed to stop:', error);
+      // console.error('[MusicalScheduler] Failed to stop:', error);
     }
   }
 
@@ -342,7 +342,7 @@ class MusicalScheduler {
         this.scheduledEvents.delete(event.id);
       }
     } catch (error) {
-      console.error('[MusicalScheduler] Event execution failed:', error);
+      // console.error('[MusicalScheduler] Event execution failed:', error);
     }
   }
 
@@ -534,7 +534,7 @@ class MusicalScheduler {
         try {
           callback(data);
         } catch (error) {
-          console.error(`[MusicalScheduler] Event listener error for ${event}:`, error);
+          // console.error(`[MusicalScheduler] Event listener error for ${event}:`, error);
         }
       });
     }
@@ -565,7 +565,7 @@ class MusicalScheduler {
     this.eventListeners = {};
 
     this.isInitialized = false;
-    console.log('[MusicalScheduler] Disposed');
+    // console.log('[MusicalScheduler] Disposed');
   }
 }
 

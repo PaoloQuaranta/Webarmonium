@@ -51,7 +51,7 @@ app.use(express.static('../frontend'))
 // Request logging middleware
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString()
-  console.log(`[${timestamp}] ${req.method} ${req.path}`)
+  // console.log(`[${timestamp}] ${req.method} ${req.path}`)
   next()
 })
 
@@ -98,7 +98,7 @@ app.get('/api/rooms', (req, res) => {
       timestamp: Date.now()
     })
   } catch (error) {
-    console.error('Room discovery error:', error)
+    // console.error('Room discovery error:', error)
     res.status(500).json({
       success: false,
       error: 'Room discovery failed'
@@ -133,7 +133,7 @@ app.post('/api/rooms', (req, res) => {
       message: 'Room ID reserved. Join via WebSocket to activate.'
     })
   } catch (error) {
-    console.error('Room creation error:', error)
+    // console.error('Room creation error:', error)
     res.status(500).json({
       success: false,
       error: 'Room creation failed'
@@ -156,7 +156,7 @@ app.get('/api/metrics', (req, res) => {
       memory: environmentalMemoryCoordinator.getCoordinatorStats()
     })
   } catch (error) {
-    console.error('Metrics error:', error)
+    // console.error('Metrics error:', error)
     res.status(500).json({
       success: false,
       error: 'Metrics unavailable'
@@ -222,7 +222,7 @@ app.delete('/api/rooms/:id', (req, res) => {
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log(`🔌 Socket connected: ${socket.id}`)
+  // console.log(`🔌 Socket connected: ${socket.id}`)
 
   // Properly initialize socket handlers using the object structure
   socketHandlers.initializeSocket(socket, services)
@@ -245,7 +245,7 @@ setInterval(() => {
 
 // Error handling middleware
 app.use((error, req, res, next) => {
-  console.error('Server error:', error)
+  // console.error('Server error:', error)
   res.status(500).json({
     success: false,
     error: 'internal_server_error',
@@ -265,9 +265,9 @@ app.use('*', (req, res) => {
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server')
+  // console.log('SIGTERM signal received: closing HTTP server')
   server.close(() => {
-    console.log('HTTP server closed')
+    // console.log('HTTP server closed')
     // Clean up all rooms
     roomManager.rooms.clear()
     process.exit(0)
@@ -275,9 +275,9 @@ process.on('SIGTERM', () => {
 })
 
 process.on('SIGINT', () => {
-  console.log('SIGINT signal received: closing HTTP server')
+  // console.log('SIGINT signal received: closing HTTP server')
   server.close(() => {
-    console.log('HTTP server closed')
+    // console.log('HTTP server closed')
     // Clean up all rooms
     roomManager.rooms.clear()
     process.exit(0)
@@ -302,9 +302,9 @@ app.locals.roomManager = roomManager
 // Start server only if not in test environment
 if (process.env.NODE_ENV !== 'test') {
   server.listen(PORT, () => {
-    console.log(`🚀 Webarmonium server running on port ${PORT}`)
-    console.log(`📊 Health check: http://localhost:${PORT}/health`)
-    console.log(`🔌 WebSocket server ready for real-time collaboration`)
+    // console.log(`🚀 Webarmonium server running on port ${PORT}`)
+    // console.log(`📊 Health check: http://localhost:${PORT}/health`)
+    // console.log(`🔌 WebSocket server ready for real-time collaboration`)
   })
 }
 
