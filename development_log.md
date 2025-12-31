@@ -1628,3 +1628,121 @@ console.log('🔍 GESTURE CLASSIFICATION: Final action is TAP', {
 2. `FIX: Drag detection broken - unit mismatch in distance calculation` (21c07c0)
 
 ---
+
+## Entry #9 - Console Cleanup (Code-wide Debug Commenting)
+
+### Date
+
+2025-12-31
+
+### Problem
+
+Console output was "full of spam" making it impossible to understand anything during development and debugging. Debug console statements were scattered throughout the entire codebase, creating excessive noise in browser and server consoles.
+
+### Solution
+
+Commented out ALL debug console statements across the entire codebase using a three-phase approach:
+
+**Phase 1: Initial Sed-based Commenting**
+- Used `sed` with regex patterns to comment `console.log()`, `console.warn()`, and `console.error()` statements
+- Applied to all backend services, handlers, and frontend files
+
+**Phase 2: Multi-line Statement Fix**
+- Created Node.js script to handle multi-line console statements with objects/arrays
+- Detected bracket/brace nesting to find complete console statements
+- Ran script on all JS files in frontend and backend
+
+**Phase 3: Manual Syntax Error Fixes**
+- Fixed orphaned object properties that caused "Unexpected token ':'" errors
+- Manually edited `CompositionPlayer.js` and `AudioService.js` to ensure first property lines were commented
+
+### Root Cause Analysis
+
+The initial `sed` command only commented the first line of multi-line console statements, leaving orphaned object properties:
+
+```javascript
+// console.log('Connected to server:', {
+  socketId: this.socket.id,  // ← Orphaned syntax causing errors!
+  latency: 100
+})
+```
+
+### Files Modified
+
+**Backend Services (17 files):**
+- `StyleAnalyzer.js` - 5 console statements commented
+- `BackgroundCompositionService.js` - 58+ console statements commented
+- `CompositionEngine.js` - 14 console statements commented
+- `GestureToMusicService.js` - 18 console statements commented
+- `HoverOrchestrator.js` - 12 console statements commented
+- `PhraseMorphology.js` - 8 console statements commented
+- `RoomManager.js` - 6 console statements commented
+- `MaterialLibrary.js` - 3 console statements commented
+- `GestureProcessor.js` - 1 console.warn commented
+- Plus 9 additional backend service files
+
+**Backend Handlers (5 files):**
+- `GestureHandler.js` - All console statements commented
+- `MusicalHandler.js` - All console statements commented
+- `socketHandlers.js` - All console statements commented
+- Plus 2 additional handler files
+
+**Backend Root:**
+- `server.js` - All console statements commented
+- `Logger.js` - All console statements commented
+
+**Frontend Services (25+ files):**
+- `AudioService.js` - Critical file with syntax errors requiring manual fixing
+- `SocketService.js` - Multi-line console statements commented
+- `EnhancedGestureCapture.js` - Multiple console statements commented
+- `GenerativeVisualService.js` - Console statements commented
+- `GestureProcessor.js` - Console statements commented
+- `CompositionPlayer.js` - Multi-line statements manually fixed
+- Plus 19 additional frontend service files
+
+**Frontend Handlers (3 files):**
+- `DragStreamingHandler.js` - Console statements commented
+- `SocketEventCoordinator.js` - Console statements commented
+- `SustainedHoldHandler.js` - Console statements commented
+
+**Frontend Root:**
+- `main.js` - Extensive console commenting (232 line changes)
+- `index.html` - Console statements commented
+
+**Total Impact: 51 files modified, 783 insertions, 871 deletions**
+
+### Critical Manual Fixes
+
+**`frontend/src/services/audio/CompositionPlayer.js` (lines 71-76):**
+```javascript
+// Fixed orphaned first property:
+// console.log(`🎼 Playing ${composition.type} composition...`, {
+//      form: composition.structure?.form,  // ← Was uncommented, now fixed
+//      section: composition.structure?.currentSection,
+//      tempo: tempo,
+//      key: composition.metadata?.keyCenter
+//    })
+```
+
+**`frontend/src/services/AudioService.js` (lines 1861-1866):**
+```javascript
+// Same pattern as CompositionPlayer.js - fixed orphaned first property
+```
+
+### Behavior After Fix
+
+| Issue | Before | After |
+|-------|--------|-------|
+| **Console Noise** | Excessive debug spam | Clean console output |
+| **Syntax Errors** | Multiple "Unexpected token" errors | All syntax errors resolved |
+| **Readability** | Impossible to understand | Clear, actionable output |
+
+**User confirmation:** "in locale funziona" (it works locally)
+
+### Commits
+
+1. `CLEAN: Comment out all debug console statements across codebase` (b7e2cbf)
+2. `FIX: Properly comment multi-line console statements` (0796f64)
+3. `FIX: Correct syntax errors from over-aggressive console commenting` (db3fac7)
+
+---
