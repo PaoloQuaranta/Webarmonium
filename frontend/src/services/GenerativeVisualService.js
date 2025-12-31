@@ -207,10 +207,10 @@ class GenerativeVisualService {
   updateGestureData(userId, gestureData) {
     // DEBUG: Log entry
     // console.log('🎨 updateGestureData called:', {
-      userId: userId.substring(0, 8),
-      type: gestureData.type,
-      isActive: gestureData.isActive
-    })
+//      userId: userId.substring(0, 8),
+//      type: gestureData.type,
+//      isActive: gestureData.isActive
+////    })
 
     // Update the node in the spring mesh
     const node = this.springMesh.nodes.get(userId)
@@ -221,11 +221,11 @@ class GenerativeVisualService {
       node.isActive = gestureData.isActive || false
 
       // console.log('🎨 Node updated:', {
-        userId: userId.substring(0, 8),
-        gestureType: node.gestureType,
-        isActive: node.isActive,
-        color: node.color
-      })
+//        userId: userId.substring(0, 8),
+//        gestureType: node.gestureType,
+//        isActive: node.isActive,
+//        color: node.color
+////      })
 
       // Trigger visual effects based on gesture state
       if (gestureData.isActive) {

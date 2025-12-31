@@ -34,10 +34,10 @@ class PhraseMorphology {
     const phraseDurationBeats = this.quantizeGestureDuration(gestureDurationMs, tempo)
 
 // console.log('🎵 DRAG PHRASE - Gesture duration:', {
-      durationMs: gestureDurationMs,
-      tempo: tempo,
-      quantizedBeats: phraseDurationBeats
-    })
+//      durationMs: gestureDurationMs,
+//      tempo: tempo,
+//      quantizedBeats: phraseDurationBeats
+////    })
 
     // 1. Determine phrase length (note count) based on quantized duration and velocity
     const phraseLength = this.calculatePhraseLengthFromDuration(phraseDurationBeats, velocity, tempo)
@@ -64,10 +64,10 @@ class PhraseMorphology {
     const articulations = this.generateArticulations(velocity, curvature)
 
 // console.log('🎵 Generated phrase:', {
-      noteCount: phraseLength,
-      totalDurationBeats: phraseDurationBeats,
-      actualDurationBeats: rhythm.reduce((sum, dur) => sum + dur, 0).toFixed(2)
-    })
+//      noteCount: phraseLength,
+//      totalDurationBeats: phraseDurationBeats,
+//      actualDurationBeats: rhythm.reduce((sum, dur) => sum + dur, 0).toFixed(2)
+////    })
 
     return {
       notes: ornamented.map((pitch, i) => ({
@@ -140,12 +140,12 @@ class PhraseMorphology {
     const noteCount = Math.max(2, Math.min(32, idealNoteCount))
 
 // console.log('📏 Phrase length calculation:', {
-      phraseDurationBeats,
-      velocity,
-      baseDuration,
-      idealNoteCount,
-      clampedNoteCount: noteCount
-    })
+//      phraseDurationBeats,
+//      velocity,
+//      baseDuration,
+//      idealNoteCount,
+//      clampedNoteCount: noteCount
+////    })
 
     return noteCount
   }
@@ -187,11 +187,11 @@ class PhraseMorphology {
     const scaledRhythm = rhythm.map(dur => dur * scaleFactor)
 
 // console.log('🎵 Rhythm scaled:', {
-      originalTotal: totalDuration.toFixed(2),
-      targetDuration: targetDurationBeats,
-      scaleFactor: scaleFactor.toFixed(3),
-      finalTotal: scaledRhythm.reduce((sum, d) => sum + d, 0).toFixed(2)
-    })
+//      originalTotal: totalDuration.toFixed(2),
+//      targetDuration: targetDurationBeats,
+//      scaleFactor: scaleFactor.toFixed(3),
+//      finalTotal: scaledRhythm.reduce((sum, d) => sum + d, 0).toFixed(2)
+////    })
 
     return scaledRhythm
   }

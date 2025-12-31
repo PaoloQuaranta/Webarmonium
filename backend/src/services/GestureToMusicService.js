@@ -62,15 +62,15 @@ class GestureToMusicService {
 
     // DEBUG: Log what we receive to identify format issue
 // console.log('🔍 BACKEND RECEIVED gesture data:', {
-      hasGestureCoordinates: !!gesture.coordinates,
-      gestureCoordinates: gesture.coordinates,
-      coordinatesType: typeof gesture.coordinates,
-      isArray: Array.isArray(gesture.coordinates),
-      hasGesturePosition: !!gesture.position,
-      gesturePosition: gesture.position,
-      hasGestureDataPosition: !!gestureData.position,
-      gestureDataPosition: gestureData.position
-    })
+//      hasGestureCoordinates: !!gesture.coordinates,
+//      gestureCoordinates: gesture.coordinates,
+//      coordinatesType: typeof gesture.coordinates,
+//      isArray: Array.isArray(gesture.coordinates),
+//      hasGesturePosition: !!gesture.position,
+//      gesturePosition: gesture.position,
+//      hasGestureDataPosition: !!gestureData.position,
+//      gestureDataPosition: gestureData.position
+////    })
 
     // Handle different position formats
     // CRITICAL FIX: Frontend sends coordinates as object { x, y }, not array [x, y]
@@ -101,15 +101,15 @@ class GestureToMusicService {
     }
 
 // console.log('🎵 Normalized gesture data:', {
-      userId,
-      gestureAction,
-      gestureType,
-      position,
-      velocity,
-      acceleration,
-      intensity,
-      curvature
-    })
+//      userId,
+//      gestureAction,
+//      gestureType,
+//      position,
+//      velocity,
+//      acceleration,
+//      intensity,
+//      curvature
+////    })
 
     return {
       userId,
@@ -193,23 +193,23 @@ class GestureToMusicService {
     const pitch = this.harmonicEngine.constrainToScale(rawPitch, this.currentKey, this.currentMode)
 
 // console.log('🎯 TAP (HARMONIC COHERENCE):', {
-      key: this.currentKey,
-      mode: this.currentMode,
-      rawPitch,
+//      key: this.currentKey,
+//      mode: this.currentMode,
+//      rawPitch,
       constrainedPitch: pitch,
-      adjusted: rawPitch !== pitch
-    })
+//      adjusted: rawPitch !== pitch
+////    })
 
 // console.log('🎯 REMOTE TAP:', {
-      userId: gestureData.userId.substring(0, 8),
-      x: x.toFixed(2),
-      y: y.toFixed(2),
-      freq: frequency.toFixed(0) + 'Hz',
-      rawPitch: rawPitch,
+//      userId: gestureData.userId.substring(0, 8),
+//      x: x.toFixed(2),
+//      y: y.toFixed(2),
+//      freq: frequency.toFixed(0) + 'Hz',
+//      rawPitch: rawPitch,
       constrainedPitch: pitch,
-      key: this.currentKey,
-      mode: this.currentMode
-    })
+//      key: this.currentKey,
+//      mode: this.currentMode
+////    })
 
     return {
       notes: [{

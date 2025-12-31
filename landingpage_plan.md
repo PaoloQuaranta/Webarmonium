@@ -25,22 +25,38 @@ Create a landing page that generates music and animations using **real-time glob
 │  frontend/landing/                                                  │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
-│  ┌──────────────────┐    ┌──────────────────┐    ┌─────────────────┐│
-│  │ MetricsCollector │───▶│ GenerativeEngine │───▶│ AudioService    ││
-│  │ Service          │    │ Service          │    │ (Tone.js)       ││
-│  └──────────────────┘    └──────────────────┘    └─────────────────┘│
-│           │                       │                       │          │
-│           │                       ▼                       │          │
-│           │              ┌──────────────────┐             │          │
-│           │              │ CanvasRenderer   │◀────────────┘          │
-│           │              │ (60fps)          │                        │
+│  ┌──────────────────┐    ┌──────────────────┐                        │
+│  │ MetricsCollector │───▶│ MetricsToGesture │                        │
+│  │ Service          │    │ Adapter          │                        │
+│  │ (NEW)            │    │ (NEW)            │                        │
+│  └──────────────────┘    └──────────────────┘                        │
+│           │                       │                                  │
+│           │                       ▼                                  │
+│           │              ┌──────────────────┐                        │
+│           │              │  StateManager    │                        │
+│           │              │  (NEW)           │                        │
 │           │              └──────────────────┘                        │
 │           │                       │                                  │
 │           ▼                       ▼                                  │
-│  ┌──────────────────┐    ┌──────────────────┐                        │
-│  │ DashboardUI      │◀───│ StateManager     │                        │
-│  │ (Educational)    │    │                  │                        │
-│  └──────────────────┘    └──────────────────┘                        │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │              REUSED FROM ROOMS (No changes!)                 │   │
+│  ├─────────────────────────────────────────────────────────────┤   │
+│  │                                                               │   │
+│  │  ┌─────────────────────┐    ┌─────────────────────────────┐  │   │
+│  │  │ GenerativeVisual    │    │ AudioService                │  │   │
+│  │  │ Service             │    │ (Three-tier: bg/remote/local)│  │   │
+│  │  │                     │    │                             │  │   │
+│  │  │ • SpringMeshNetwork │    │ • MusicalScheduler          │  │   │
+│  │  │ • WavePacketSystem  │    │ • LFOManager                │  │   │
+│  │  │ • ParticleFlowMgr   │    │ • 6 Algorithmic Generators   │  │   │
+│  │  └─────────────────────┘    └─────────────────────────────┘  │   │
+│  │                                                               │   │
+│  └───────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│  ┌──────────────────┐                                              │
+│  │ DashboardUI      │                                              │
+│  │ (Educational)    │                                              │
+│  └──────────────────┘                                              │
 └─────────────────────────────────────────────────────────────────────┘
                            ▲
                            │ HTTP Polling
@@ -52,6 +68,20 @@ Create a landing page that generates music and animations using **real-time glob
 │ RecentChange │ Firebase     │ (REST polling)                         │
 └──────────────┴──────────────┴────────────────────────────────────────┘
 ```
+
+### Key Design Decision: **REUSE EXISTING CODE**
+
+The landing page will **reuse the existing audio and visual systems** from the rooms to ensure consistency:
+
+- **Visual**: Reuse `GenerativeVisualService.js` (SpringMeshNetwork, WavePacketSystem, ParticleFlowManager)
+- **Audio**: Reuse `AudioService.js` (Three-tier architecture, 6 algorithmic generators, LFOManager)
+- **NEW**: Only the input layer changes - `MetricsCollectorService` + `MetricsToGestureAdapter`
+
+This ensures:
+- ✅ Same visual aesthetic (spring-mesh networks with pulses and particles)
+- ✅ Same musical experience (single notes, phrases, background layers)
+- ✅ Less code to maintain
+- ✅ Consistent user experience across landing page and rooms
 
 ---
 
@@ -136,20 +166,32 @@ Webarmonium/
 │   │   ├── index.html                    # Landing page HTML
 │   │   ├── styles.css                    # Landing page styles
 │   │   └── src/
-│   │       ├── MetricsCollectorService.js    # Poll external APIs
-│   │       ├── GenerativeEngineService.js    # Map metrics → parameters
-│   │       ├── LandingAudioService.js        # Audio generation (Tone.js)
-│   │       ├── LandingCanvasRenderer.js      # Visual rendering
-│   │       ├── StateManager.js               # State management
-│   │       └── DashboardUI.js                # Educational UI components
+│   │       ├── MetricsCollectorService.js    # NEW - Poll external APIs
+│   │       ├── MetricsToGestureAdapter.js    # NEW - Convert metrics → gesture format
+│   │       ├── StateManager.js               # NEW - State management
+│   │       └── DashboardUI.js                # NEW - Educational UI components
 │   └── src/
-│       └── main.js                        # Add landing route
+│       └── services/
+│           ├── GenerativeVisualService.js  # REUSED - No changes!
+│           ├── AudioService.js             # REUSED - No changes!
+│           ├── SocketService.js            # REUSED - Not used on landing
+│           └── ...                         # Other services reused as-is
 ├── backend/
-│   └── src/
-│       └── landing/                       # NEW - Optional backend
-│           └── MetricsAggregator.js       # Cache and aggregate (future)
+│   └── (no changes needed - landing page is frontend-only)
 └── landingpage_plan.md                    # This file
 ```
+
+### New Files to Create: **Only 4 files!**
+1. `frontend/landing/index.html` - Page structure
+2. `frontend/landing/styles.css` - Styling
+3. `frontend/landing/src/MetricsCollectorService.js` - API polling
+4. `frontend/landing/src/MetricsToGestureAdapter.js` - Metrics → Gesture conversion
+5. `frontend/landing/src/StateManager.js` - State management
+6. `frontend/landing/src/DashboardUI.js` - UI updates
+
+### Reused from Rooms (No Changes):
+- `GenerativeVisualService.js` - Spring-mesh, pulses, particles
+- `AudioService.js` - Three-tier audio, algorithmic generators
 
 ---
 
@@ -504,12 +546,17 @@ export const stateManager = new StateManager();
 - [ ] Implement GitHub Events API polling
 - [ ] Handle rate limiting and errors
 - [ ] Calculate per-minute rates
+- [ ] Emit metric update events
 
 **Instructions**:
 ```javascript
 // frontend/landing/src/MetricsCollectorService.js
-import { stateManager } from './StateManager.js';
 
+/**
+ * MetricsCollectorService
+ * Polls external APIs (Wikipedia, HackerNews, GitHub) for real-time web activity metrics
+ * Emits 'metrics:updated' events with collected data
+ */
 export class MetricsCollectorService {
   constructor() {
     this.sources = {
@@ -537,6 +584,13 @@ export class MetricsCollectorService {
 
     this.isRunning = false;
     this.intervalId = null;
+
+    // Current metrics state
+    this.metrics = {
+      wikipedia: { editsPerMinute: 0, newArticles: 0, avgEditSize: 0 },
+      hackernews: { postsPerMinute: 0, avgUpvotes: 0, commentCount: 0 },
+      github: { commitsPerMinute: 0, openPRs: 0, newStars: 0 }
+    };
   }
 
   start() {
@@ -544,6 +598,7 @@ export class MetricsCollectorService {
     this.isRunning = true;
     this._poll();
     this.intervalId = setInterval(() => this._poll(), 5000);
+    console.log('📊 MetricsCollectorService started');
   }
 
   stop() {
@@ -552,6 +607,7 @@ export class MetricsCollectorService {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
+    console.log('📊 MetricsCollectorService stopped');
   }
 
   async _poll() {
@@ -573,8 +629,8 @@ export class MetricsCollectorService {
       this.sources.github.lastFetch = now;
     }
 
-    // Recalculate parameters
-    stateManager.recalculateParameters();
+    // Emit metrics update event
+    this._emitMetricsUpdate();
   }
 
   async _fetchWikipedia() {
@@ -612,11 +668,11 @@ export class MetricsCollectorService {
           ? recentEdits.reduce((sum, c) => sum + (c.newlen - c.oldlen || 0), 0) / recentEdits.length
           : 0;
 
-        stateManager.updateMetrics('wikipedia', {
+        this.metrics.wikipedia = {
           editsPerMinute: recentEdits.length,
           newArticles: recentNew.length,
           avgEditSize: Math.abs(avgSize)
-        });
+        };
       }
     } catch (error) {
       console.warn('Wikipedia fetch error:', error);
@@ -669,11 +725,11 @@ export class MetricsCollectorService {
 
         const totalComments = recentPosts.reduce((sum, s) => sum + (s.descendants || 0), 0);
 
-        stateManager.updateMetrics('hackernews', {
+        this.metrics.hackernews = {
           postsPerMinute: recentPosts.length,
           avgUpvotes: avgUpvotes,
           commentCount: totalComments
-        });
+        };
       }
 
       this.sources.hackernews.lastStoryIds = storyIds.slice(0, 100);
@@ -714,14 +770,25 @@ export class MetricsCollectorService {
       const prs = recentEvents.filter(e => e.type === 'PullRequestEvent').length;
       const stars = recentEvents.filter(e => e.type === 'WatchEvent').length;
 
-      stateManager.updateMetrics('github', {
+      this.metrics.github = {
         commitsPerMinute: commits,
         openPRs: prs,
         newStars: stars
-      });
+      };
     } catch (error) {
       console.warn('GitHub fetch error:', error);
     }
+  }
+
+  _emitMetricsUpdate() {
+    const event = new CustomEvent('metrics:updated', {
+      detail: { ...this.metrics }
+    });
+    window.dispatchEvent(event);
+  }
+
+  getMetrics() {
+    return { ...this.metrics };
   }
 }
 ```
@@ -778,480 +845,369 @@ export class MockMetricsGenerator {
 
 ---
 
-### Phase 3: Generative Engine (Priority: HIGH)
+### Phase 3: Metrics-to-Gesture Adapter (Priority: HIGH)
 **Duration**: Core logic
-**Goal**: Map metrics to audio-visual parameters
+**Goal**: Convert web metrics into gesture data format for existing services
 
-#### Task 3.1: Create GenerativeEngineService
-- [ ] Create `frontend/landing/src/GenerativeEngineService.js`
-- [ ] Implement metric-to-parameter mapping
-- [ ] Add algorithm selection logic
-- [ ] Generate audio events based on parameters
-- [ ] Emit events for audio and visual services
+#### Task 3.1: Create MetricsToGestureAdapter
+- [ ] Create `frontend/landing/src/MetricsToGestureAdapter.js`
+- [ ] Implement metric-to-gesture mapping
+- [ ] Generate synthetic cursor positions from metrics
+- [ ] Create virtual "user" for landing page
+- [ ] Emit gesture events compatible with existing services
+
+**Key Concept**: Instead of creating new audio/visual systems, we **convert web metrics into gesture data** that the existing `GenerativeVisualService` and `AudioService` already understand. This ensures perfect consistency with room experience.
 
 **Instructions**:
 ```javascript
-// frontend/landing/src/GenerativeEngineService.js
-import { stateManager } from './StateManager.js';
+// frontend/landing/src/MetricsToGestureAdapter.js
 
-export class GenerativeEngineService {
+/**
+ * MetricsToGestureAdapter
+ * Converts web activity metrics into gesture data compatible with existing Webarmonium services
+ *
+ * This adapter creates a virtual "user" representing global web activity.
+ * The virtual user's position and gestures are derived from Wikipedia, HN, and GitHub metrics.
+ */
+export class MetricsToGestureAdapter {
   constructor() {
-    this.isPlaying = false;
-    this.eventInterval = null;
-    this.lastEventTime = 0;
+    // Virtual user ID for landing page
+    this.userId = 'landing-page-global-activity';
 
-    // Subscribe to state changes
-    stateManager.subscribe(this._onStateChange.bind(this));
+    // Current metrics state
+    this.metrics = {
+      wikipedia: { editsPerMinute: 0, newArticles: 0, avgEditSize: 0 },
+      hackernews: { postsPerMinute: 0, avgUpvotes: 0, commentCount: 0 },
+      github: { commitsPerMinute: 0, openPRs: 0, newStars: 0 }
+    };
+
+    // Current gesture state
+    this.currentGesture = {
+      type: 'idle',
+      coordinates: { x: 0.5, y: 0.5 },
+      velocity: { x: 0, y: 0 },
+      intensity: 0.5,
+      isActive: false,
+      holdStart: null
+    };
+
+    // References to existing services (injected)
+    this.visualService = null;
+    this.audioService = null;
+
+    // Event timing
+    this.lastGestureTime = 0;
+    this.gestureInterval = 2000; // Base interval in ms
+    this.eventTimer = null;
+
+    // Listen for metric updates
+    window.addEventListener('metrics:updated', this._onMetricsUpdated.bind(this));
   }
 
+  /**
+   * Initialize with references to existing services
+   * @param {GenerativeVisualService} visualService
+   * @param {AudioService} audioService
+   */
+  initialize(visualService, audioService) {
+    this.visualService = visualService;
+    this.audioService = audioService;
+    console.log('🔄 MetricsToGestureAdapter initialized');
+  }
+
+  /**
+   * Start generating gestures from metrics
+   */
   start() {
-    if (this.isPlaying) return;
-    this.isPlaying = true;
-    this._scheduleNextEvent();
+    this._scheduleNextGesture();
+    console.log('🔄 MetricsToGestureAdapter started');
   }
 
+  /**
+   * Stop generating gestures
+   */
   stop() {
-    this.isPlaying = false;
-    if (this.eventInterval) {
-      clearTimeout(this.eventInterval);
-      this.eventInterval = null;
+    if (this.eventTimer) {
+      clearTimeout(this.eventTimer);
+      this.eventTimer = null;
+    }
+
+    // End active gesture
+    if (this.currentGesture.isActive) {
+      this._emitGestureEnd();
     }
   }
 
-  _onStateChange(state) {
-    if (!state.playback.isPlaying) {
-      this.stop();
-    } else {
-      if (!this.isPlaying) {
-        this.start();
-      }
+  /**
+   * Handle incoming metric updates
+   */
+  _onMetricsUpdated(event) {
+    this.metrics = event.detail;
+    this._updateCursorPosition();
+  }
+
+  /**
+   * Update virtual cursor position based on metrics
+   * Maps web activity to 2D space for visual/audio rendering
+   */
+  _updateCursorPosition() {
+    const { wikipedia, hackernews, github } = this.metrics;
+
+    // X position: Balance between Wikipedia edits and GitHub commits
+    // Left (0) = Wikipedia-dominant, Right (1) = GitHub-dominant
+    const totalActivity = wikipedia.editsPerMinute + github.commitsPerMinute + 1;
+    const x = github.commitsPerMinute / totalActivity;
+
+    // Y position: Based on HackerNews upvotes (normalized)
+    // Bottom (0) = low engagement, Top (1) = high engagement
+    const y = Math.min(hackernews.avgUpvotes / 100, 1.0);
+
+    // Calculate intensity from combined activity
+    const rawIntensity = (
+      (wikipedia.editsPerMinute / 500) +
+      (hackernews.postsPerMinute / 100) +
+      (github.commitsPerMinute / 50)
+    ) / 3;
+    const intensity = Math.min(rawIntensity, 1.0);
+
+    // Update current gesture
+    this.currentGesture.coordinates = { x, y };
+    this.currentGesture.intensity = intensity;
+
+    // Calculate velocity (for rhythm/timing)
+    const prevX = this.currentGesture.coordinates._prevX || x;
+    const prevY = this.currentGesture.coordinates._prevY || y;
+    this.currentGesture.velocity = {
+      x: (x - prevX),
+      y: (y - prevY)
+    };
+
+    // Store previous position
+    this.currentGesture.coordinates._prevX = x;
+    this.currentGesture.coordinates._prevY = y;
+
+    // Update visual service with new position
+    if (this.visualService) {
+      const color = this._getColorForActivity(intensity);
+      this.visualService.updateCursorPosition(this.userId, x, y, color);
     }
   }
 
-  _scheduleNextEvent() {
-    if (!this.isPlaying) return;
+  /**
+   * Schedule next gesture event
+   * Timing based on rhythmic preference (activity level)
+   */
+  _scheduleNextGesture() {
+    const { wikipedia, hackernews, github } = this.metrics;
 
-    const state = stateManager.getState();
-    const params = state.parameters;
+    // Calculate rhythmic preference from post rate
+    const rhythmicPreference = Math.min(hackernews.postsPerMinute / 100, 1.0);
 
-    // Calculate delay based on rhythmic preference (inverse relationship)
-    // Higher rhythmicPreference = shorter delay = faster events
+    // Calculate delay: higher activity = faster gestures
     const baseDelay = 2000; // 2 seconds max
     const minDelay = 250;   // 250ms min
-    const delay = baseDelay - (params.rhythmicPreference * (baseDelay - minDelay));
+    const delay = baseDelay - (rhythmicPreference * (baseDelay - minDelay));
 
-    this.eventInterval = setTimeout(() => {
-      this._generateEvent();
-      this._scheduleNextEvent();
+    this.eventTimer = setTimeout(() => {
+      this._generateGesture();
+      this._scheduleNextGesture();
     }, delay);
   }
 
-  _generateEvent() {
-    const state = stateManager.getState();
-    const params = state.parameters;
-    const metrics = state.metrics;
+  /**
+   * Generate a gesture event based on current metrics
+   */
+  _generateGesture() {
+    const { wikipedia, github } = this.metrics;
+    const intensity = this.currentGesture.intensity;
 
-    // Determine algorithm based on metrics
-    const algorithm = this._selectAlgorithm(metrics);
+    // Determine gesture type based on metrics
+    let gestureType;
+    if (wikipedia.editsPerMinute > 100) {
+      gestureType = 'drag'; // Continuous activity
+    } else if (github.commitsPerMinute > 20) {
+      gestureType = 'tap'; // Discrete events
+    } else {
+      gestureType = Math.random() > 0.5 ? 'tap' : 'drag';
+    }
 
-    // Generate audio parameters
-    const audioEvent = this._generateAudioEvent(params, algorithm);
+    // Emit gesture start
+    this.currentGesture.type = gestureType;
+    this.currentGesture.isActive = true;
+    this.currentGesture.holdStart = Date.now();
 
-    // Generate visual parameters
-    const visualEvent = this._generateVisualEvent(params, metrics);
+    this._emitGestureStart();
 
-    // Emit events
-    this._emitEvent('audio', audioEvent);
-    this._emitEvent('visual', visualEvent);
+    // For tap gestures, automatically end after short duration
+    if (gestureType === 'tap') {
+      setTimeout(() => {
+        if (this.currentGesture.isActive) {
+          this._emitGestureEnd();
+        }
+      }, 200);
+    }
   }
 
-  _selectAlgorithm(metrics) {
-    // Algorithm selection logic
-    const edits = metrics.wikipedia.editsPerMinute;
-    const commits = metrics.github.commitsPerMinute;
-    const posts = metrics.hackernews.postsPerMinute;
+  /**
+   * Emit gesture start event
+   * Creates audio event and visual pulse
+   */
+  _emitGestureStart() {
+    const gestureData = {
+      type: this.currentGesture.type,
+      velocity: this.currentGesture.velocity,
+      holdStart: this.currentGesture.holdStart,
+      isActive: true,
+      intensity: this.currentGesture.intensity
+    };
 
-    if (edits > 100) return 'cellular';
-    if (commits < 20) return 'fractal';
-    if (posts % 34 < 5) return 'fibonacci';
+    // Update visual service (triggers pulses/particles)
+    if (this.visualService) {
+      this.visualService.updateGestureData(this.userId, gestureData);
+    }
 
-    // Default based on diversity
-    const diversity = stateManager.getState().parameters.diversity;
-    if (diversity > 0.7) return 'chaos';
-    if (diversity > 0.4) return 'neural';
-    return 'markov';
+    // Generate audio event through AudioService
+    if (this.audioService) {
+      this._generateAudioFromGesture(gestureData);
+    }
   }
 
-  _generateAudioEvent(params, algorithm) {
-    // Calculate frequency from position
-    const baseFreq = 110 + (1 - params.position.y) * 440; // 110-550Hz
-    const harmonic = params.position.x * 660; // 0-660Hz
+  /**
+   * Emit gesture end event
+   */
+  _emitGestureEnd() {
+    this.currentGesture.isActive = false;
+    this.currentGesture.holdStart = null;
+
+    const gestureData = {
+      type: this.currentGesture.type,
+      velocity: this.currentGesture.velocity,
+      isActive: false
+    };
+
+    if (this.visualService) {
+      this.visualService.updateGestureData(this.userId, gestureData);
+    }
+  }
+
+  /**
+   * Generate audio event from gesture data
+   * This uses the existing AudioService API
+   */
+  _generateAudioFromGesture(gestureData) {
+    const { x, y } = this.currentGesture.coordinates;
+    const intensity = this.currentGesture.intensity;
+
+    // Map position to frequency (using existing AudioService logic)
+    const baseFreq = 110 + (1 - y) * 440; // 110-550Hz
+    const harmonic = x * 660; // 0-660Hz
     const frequency = baseFreq + harmonic;
 
-    // Waveform based on algorithm
-    const waveforms = {
-      cellular: 'square',
-      fractal: 'sine',
-      markov: 'triangle',
-      neural: 'sawtooth',
-      fibonacci: 'sine',
-      chaos: 'sawtooth'
-    };
-
-    // Duration based on rhythmic preference
-    const durations = ['32n', '16n', '8n', '4n'];
-    const durationIndex = Math.floor(params.rhythmicPreference * (durations.length - 1));
-    const duration = durations[durationIndex];
-
-    return {
-      algorithm,
+    // Create audio parameters compatible with AudioService
+    const audioParams = {
       frequency,
-      duration,
-      waveform: waveforms[algorithm] || 'sine',
-      velocity: 0.3 + params.intensity * 0.7,
-      attack: 0.01 + (1 - params.rhythmicPreference) * 0.1,
-      decay: 0.1 + params.complexity * 0.3,
-      sustain: params.intensity * 0.5,
-      release: 0.1 + (1 - params.complexity) * 0.5
-    };
-  }
-
-  _generateVisualEvent(params, metrics) {
-    return {
-      pulseIntensity: params.intensity,
-      nodeSize: 6 + params.complexity * 16, // 6-22px
-      springStiffness: 0.02 + params.rhythmicPreference * 0.08,
-      edgeThickness: 1 + Math.floor(params.diversity * 2), // 1-3px
-      pulseSpeed: 1 + params.rhythmicPreference * 2,
-      colorShift: params.position.x * 360 // Hue rotation
-    };
-  }
-
-  _emitEvent(type, data) {
-    // Dispatch custom event
-    const event = new CustomEvent(`generative:${type}`, { detail: data });
-    window.dispatchEvent(event);
-  }
-}
-```
-
----
-
-### Phase 4: Audio Service (Priority: HIGH)
-**Duration**: Audio implementation
-**Goal**: Generate sound from generative events
-
-#### Task 4.1: Create LandingAudioService
-- [ ] Create `frontend/landing/src/LandingAudioService.js`
-- [ ] Initialize Tone.js components
-- [ ] Listen for generative:audio events
-- [ ] Synthesize sounds based on event parameters
-- [ ] Handle volume and intensity controls
-
-**Instructions**:
-```javascript
-// frontend/landing/src/LandingAudioService.js
-import * as Tone from 'tone';
-import { stateManager } from './StateManager.js';
-
-export class LandingAudioService {
-  constructor() {
-    this.isInitialized = false;
-    this.synth = null;
-    this.filter = null;
-    this.reverb = null;
-    this.limiter = null;
-
-    this.audioHandler = this._handleAudioEvent.bind(this);
-  }
-
-  async initialize() {
-    if (this.isInitialized) return;
-
-    // Start Tone.js context (requires user interaction)
-    await Tone.start();
-
-    // Create effects chain
-    this.reverb = new Tone.Reverb({
-      decay: 2,
-      wet: 0.3
-    }).toDestination();
-
-    this.filter = new Tone.Filter({
-      frequency: 2000,
-      type: 'lowpass',
-      Q: 1
-    }).connect(this.reverb);
-
-    this.limiter = new Tone.Limiter(-6).toDestination();
-
-    // Create polyphonic synth
-    this.synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: 'sine' },
+      intensity,
+      tier: 'local',
+      velocity: Math.sqrt(gestureData.velocity.x ** 2 + gestureData.velocity.y ** 2) * 100,
       envelope: {
         attack: 0.01,
-        decay: 0.1,
-        sustain: 0.3,
-        release: 0.5
+        decay: 0.1 + intensity * 0.2,
+        sustain: intensity * 0.5,
+        release: 0.2 + intensity * 0.3
+      },
+      spatialParams: {
+        pan: (x - 0.5) * 2, // -1 to 1
+        distance: 1 - intensity,
+        reverbAmount: 0.2
       }
-    }).connect(this.filter);
+    };
 
-    this.isInitialized = true;
-
-    // Subscribe to volume changes
-    stateManager.subscribe((state) => {
-      if (this.synth) {
-        this.synth.volume.value = Tone.gainToDb(state.playback.volume);
-      }
-    });
-  }
-
-  start() {
-    window.addEventListener('generative:audio', this.audioHandler);
-  }
-
-  stop() {
-    window.removeEventListener('generative:audio', this.audioHandler);
-    if (this.synth) {
-      this.synth.releaseAll();
+    // Trigger sound through existing AudioService
+    // Note: This uses the public API of AudioService
+    if (this.audioService && this.audioService.handleGestureInput) {
+      this.audioService.handleGestureInput(audioParams);
     }
   }
 
-  _handleAudioEvent(event) {
-    if (!this.isInitialized || !this.synth) return;
-
-    const params = event.detail;
-
-    // Update synth settings based on algorithm
-    this.synth.set({
-      oscillator: { type: params.waveform },
-      envelope: {
-        attack: params.attack,
-        decay: params.decay,
-        sustain: params.sustain,
-        release: params.release
-      }
-    });
-
-    // Update filter based on complexity
-    const filterFreq = 200 + params.complexity * 5000;
-    this.filter.frequency.value = filterFreq;
-
-    // Trigger note
-    const velocity = params.velocity * stateManager.getState().playback.intensity;
-    this.synth.triggerAttackRelease(
-      Tone.Frequency(params.frequency, 'hz').toNote(),
-      params.duration,
-      undefined,
-      velocity
-    );
-  }
-
-  setVolume(value) {
-    stateManager.setVolume(value);
+  /**
+   * Get color based on activity intensity
+   * Maps to existing Webarmonium color pool
+   */
+  _getColorForActivity(intensity) {
+    const colorPool = [
+      '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00',
+      '#ffff33', '#a65628', '#f781bf', '#999999', '#66c2a5'
+    ];
+    const index = Math.floor(intensity * (colorPool.length - 1));
+    return colorPool[index];
   }
 }
 ```
 
 ---
 
-### Phase 5: Canvas Renderer (Priority: MEDIUM)
-**Duration**: Visual implementation
-**Goal**: Render generative visuals
+### Phase 4: Audio Integration (Priority: HIGH)
+**Duration**: Audio setup
+**Goal**: Reuse existing AudioService
 
-#### Task 5.1: Create LandingCanvasRenderer
-- [ ] Create `frontend/landing/src/LandingCanvasRenderer.js`
-- [ ] Set up canvas with 60fps loop
-- [ ] Implement spring-mesh network (similar to GenerativeVisualService)
-- [ ] Listen for generative:visual events
-- [ ] Render based on visual parameters
+#### Task 4.1: Integrate AudioService
+- [ ] Reuse `frontend/src/services/AudioService.js` (NO changes needed!)
+- [ ] Initialize AudioService in landing page
+- [ ] Connect MetricsToGestureAdapter to AudioService
+- [ ] Verify three-tier audio works
+- [ ] Test algorithmic generators receive gesture input
 
 **Instructions**:
+The AudioService is already complete! Just instantiate it and pass gestures from the adapter:
+
 ```javascript
-// frontend/landing/src/LandingCanvasRenderer.js
+// In landing page main.js
+import { AudioService } from '../../src/services/AudioService.js';
 
-export class LandingCanvasRenderer {
-  constructor(canvasId) {
-    this.canvas = document.getElementById(canvasId);
-    if (!this.canvas) {
-      throw new Error(`Canvas ${canvasId} not found`);
-    }
+// Initialize
+const audioService = new AudioService();
+await audioService.initialize();
 
-    this.ctx = this.canvas.getContext('2d');
-    this._resize();
-
-    this.nodes = [];
-    this.edges = [];
-    this.pulses = [];
-
-    this.config = {
-      nodeCount: 20,
-      connectionRadius: 150,
-      baseNodeSize: 6,
-      springStiffness: 0.05,
-      damping: 0.92
-    };
-
-    this.currentParams = {
-      pulseIntensity: 0.5,
-      nodeSize: 10,
-      springStiffness: 0.05,
-      edgeThickness: 1,
-      pulseSpeed: 1,
-      colorShift: 0
-    };
-
-    this.visualHandler = this._handleVisualEvent.bind(this);
-    window.addEventListener('resize', () => this._resize());
-  }
-
-  _resize() {
-    const rect = this.canvas.parentElement.getBoundingClientRect();
-    this.canvas.width = rect.width;
-    this.canvas.height = rect.height;
-  }
-
-  initialize() {
-    this._createNodes();
-    this._createEdges();
-    this._startRenderLoop();
-    window.addEventListener('generative:visual', this.visualHandler);
-  }
-
-  _createNodes() {
-    const margin = 50;
-    for (let i = 0; i < this.config.nodeCount; i++) {
-      this.nodes.push({
-        x: margin + Math.random() * (this.canvas.width - margin * 2),
-        y: margin + Math.random() * (this.canvas.height - margin * 2),
-        vx: 0,
-        vy: 0,
-        baseX: 0,
-        baseY: 0
-      });
-    }
-    // Store base positions
-    this.nodes.forEach(n => {
-      n.baseX = n.x;
-      n.baseY = n.y;
-    });
-  }
-
-  _createEdges() {
-    for (let i = 0; i < this.nodes.length; i++) {
-      for (let j = i + 1; j < this.nodes.length; j++) {
-        const dist = this._distance(this.nodes[i], this.nodes[j]);
-        if (dist < this.config.connectionRadius) {
-          this.edges.push({
-            from: i,
-            to: j,
-            length: dist
-          });
-        }
-      }
-    }
-  }
-
-  _handleVisualEvent(event) {
-    this.currentParams = { ...this.currentParams, ...event.detail };
-
-    // Add pulse at random node
-    const nodeIndex = Math.floor(Math.random() * this.nodes.length);
-    this.pulses.push({
-      nodeIndex,
-      intensity: this.currentParams.pulseIntensity,
-      age: 0
-    });
-  }
-
-  _startRenderLoop() {
-    const render = () => {
-      this._update();
-      this._draw();
-      requestAnimationFrame(render);
-    };
-    requestAnimationFrame(render);
-  }
-
-  _update() {
-    // Update node positions (spring physics)
-    this.nodes.forEach(node => {
-      // Spring force to base position
-      const dx = node.baseX - node.x;
-      const dy = node.baseY - node.y;
-      node.vx += dx * this.currentParams.springStiffness;
-      node.vy += dy * this.currentParams.springStiffness;
-
-      // Damping
-      node.vx *= this.config.damping;
-      node.vy *= this.config.damping;
-
-      // Update position
-      node.x += node.vx;
-      node.y += node.vy;
-    });
-
-    // Update pulses
-    this.pulses = this.pulses.filter(pulse => {
-      pulse.age += 0.02 * this.currentParams.pulseSpeed;
-      return pulse.age < 1;
-    });
-  }
-
-  _draw() {
-    const ctx = this.ctx;
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // Draw edges
-    ctx.strokeStyle = `rgba(99, 102, 241, ${0.2})`;
-    ctx.lineWidth = this.currentParams.edgeThickness;
-    this.edges.forEach(edge => {
-      const from = this.nodes[edge.from];
-      const to = this.nodes[edge.to];
-      ctx.beginPath();
-      ctx.moveTo(from.x, from.y);
-      ctx.lineTo(to.x, to.y);
-      ctx.stroke();
-    });
-
-    // Draw pulses
-    this.pulses.forEach(pulse => {
-      const node = this.nodes[pulse.nodeIndex];
-      const alpha = (1 - pulse.age) * 0.5;
-      const radius = pulse.age * 100 * pulse.intensity;
-
-      const gradient = ctx.createRadialGradient(
-        node.x, node.y, 0,
-        node.x, node.y, radius
-      );
-      gradient.addColorStop(0, `rgba(99, 102, 241, ${alpha})`);
-      gradient.addColorStop(1, `rgba(99, 102, 241, 0)`);
-
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    // Draw nodes
-    this.nodes.forEach(node => {
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, this.currentParams.nodeSize / 2, 0, Math.PI * 2);
-      ctx.fillStyle = `hsl(${(240 + this.currentParams.colorShift) % 360}, 70%, 60%)`;
-      ctx.fill();
-    });
-  }
-
-  _distance(a, b) {
-    return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
-  }
-
-  destroy() {
-    window.removeEventListener('resize', () => this._resize());
-    window.removeEventListener('generative:visual', this.visualHandler);
-  }
-}
+// Pass to adapter
+metricsAdapter.initialize(visualService, audioService);
 ```
+
+---
+
+### Phase 5: Visual Integration (Priority: HIGH)
+**Duration**: Visual setup
+**Goal**: Reuse existing GenerativeVisualService
+
+#### Task 5.1: Integrate GenerativeVisualService
+- [ ] Reuse `frontend/src/services/GenerativeVisualService.js` (NO changes needed!)
+- [ ] Initialize GenerativeVisualService in landing page
+- [ ] Connect MetricsToGestureAdapter to visual service
+- [ ] Verify spring-mesh network renders
+- [ ] Test pulses and particles on metric updates
+
+**Instructions**:
+The GenerativeVisualService is already complete! Just instantiate it:
+
+```javascript
+// In landing page main.js
+import { GenerativeVisualService } from '../../src/services/GenerativeVisualService.js';
+
+// Get canvas container
+const canvasContainer = document.getElementById('canvas-container');
+
+// Initialize
+const visualService = new GenerativeVisualService();
+visualService.initialize(canvasContainer);
+
+// Pass to adapter
+metricsAdapter.initialize(visualService, audioService);
+```
+
+**Note**: GenerativeVisualService includes:
+- ✅ SpringMeshNetwork for physics simulation
+- ✅ WavePacketSystem for pulse propagation
+- ✅ ParticleFlowManager for particle effects
+- ✅ 60fps rendering with performance monitoring
 
 ---
 

@@ -255,12 +255,12 @@ class BackgroundCompositionService {
       acceleration = velocityVariance * 100  // Higher variance = more dynamic = higher acceleration
 
 // console.log('🎹 Analyzed DRAG notes:', {
-        noteCount: musicalPhrase.notes.length,
-        avgVelocity: velocity.toFixed(1),
-        interOnsetInterval: interOnsetInterval ? interOnsetInterval.toFixed(1) + 'ms' : 'N/A',
-        velocityVariance: velocityVariance.toFixed(3),
-        acceleration: acceleration.toFixed(1)
-      })
+//        noteCount: musicalPhrase.notes.length,
+//        avgVelocity: velocity.toFixed(1),
+//        interOnsetInterval: interOnsetInterval ? interOnsetInterval.toFixed(1) + 'ms' : 'N/A',
+//        velocityVariance: velocityVariance.toFixed(3),
+//        acceleration: acceleration.toFixed(1)
+////      })
     }
     // FOR TAP GESTURES: Use gesture duration as proxy (fallback)
     else {
@@ -271,10 +271,10 @@ class BackgroundCompositionService {
       acceleration = rawIntensity * 50
 
 // console.log('👆 Analyzed TAP gesture:', {
-        duration: duration.toFixed(0) + 'ms',
-        velocity: velocity.toFixed(1),
-        acceleration: acceleration.toFixed(1)
-      })
+//        duration: duration.toFixed(0) + 'ms',
+//        velocity: velocity.toFixed(1),
+//        acceleration: acceleration.toFixed(1)
+////      })
     }
 
     const normalizedGesture = {
@@ -286,12 +286,12 @@ class BackgroundCompositionService {
     }
 
 // console.log('🔍 Normalized gesture for StyleAnalyzer:', {
-      type: normalizedGesture.type,
-      velocity: normalizedGesture.velocity.toFixed(1),
-      acceleration: normalizedGesture.acceleration.toFixed(1),
-      interOnsetInterval: normalizedGesture.interOnsetInterval ? normalizedGesture.interOnsetInterval.toFixed(1) + 'ms' : 'N/A',
-      timestamp: normalizedGesture.timestamp
-    })
+//      type: normalizedGesture.type,
+//      velocity: normalizedGesture.velocity.toFixed(1),
+//      acceleration: normalizedGesture.acceleration.toFixed(1),
+//      interOnsetInterval: normalizedGesture.interOnsetInterval ? normalizedGesture.interOnsetInterval.toFixed(1) + 'ms' : 'N/A',
+//      timestamp: normalizedGesture.timestamp
+////    })
 
     // ACCUMULATE gestures for tempo calculation (StyleAnalyzer needs 2+ for tempo)
     roomState.gestureHistory.push(normalizedGesture)
@@ -321,10 +321,10 @@ class BackgroundCompositionService {
     }
 
 // console.log(`🎼 Added material ${materialId} (gesture #${roomState.gestureCount}):`, {
-      notesCount: material.notes.length,
-      weight: gestureWeight.toFixed(2),
-      phraseType: musicalPhrase.type || 'unknown'
-    })
+//      notesCount: material.notes.length,
+//      weight: gestureWeight.toFixed(2),
+//      phraseType: musicalPhrase.type || 'unknown'
+////    })
 
     return materialId
   }
@@ -458,10 +458,10 @@ class BackgroundCompositionService {
 
 // console.log(`🎼 Generated ${composition.type} composition:`, {
         form: composition.structure.form,
-        section: composition.structure.currentSection,
-        tempo: composition.metadata.tempo,
-        keyCenter: composition.metadata.keyCenter
-      })
+//        section: composition.structure.currentSection,
+//        tempo: composition.metadata.tempo,
+//        keyCenter: composition.metadata.keyCenter
+////      })
 
       // Log composition details
       if (composition.content.voices) {

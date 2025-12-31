@@ -109,11 +109,11 @@ const CursorHandler = {
         socket.broadcast.to(socket.roomId).emit('cursor-position', cursorData)
 
         // console.log(`✅ Broadcasted cursor-position to room ${socket.roomId}:`, {
-          userId: cursorData.userId,
-          x: cursorData.x,
-          y: cursorData.y,
-          isDrawing: cursorData.isDrawing
-        })
+//          userId: cursorData.userId,
+//          x: cursorData.x,
+//          y: cursorData.y,
+//          isDrawing: cursorData.isDrawing
+////        })
 
         // Update room activity
         room.lastActivity = Date.now()

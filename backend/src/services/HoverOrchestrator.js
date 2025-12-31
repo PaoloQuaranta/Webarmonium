@@ -625,34 +625,34 @@ class HoverOrchestrator {
 
     // Log dettagliato con tutti gli LFO ultra-lenti
 // console.log(`🎛️ ULTRA-SLOW modulation generated (${frequencyRange}):`, {
-      roomId: this.roomId,
-      generation: this.unifiedModulation.generation,
+//      roomId: this.roomId,
+//      generation: this.unifiedModulation.generation,
       // PRIMARY LFO
-      lfo1Freq: this.unifiedModulation.lfoFrequency.toFixed(4),
-      lfo1Period: `${(1/this.unifiedModulation.lfoFrequency).toFixed(0)}s`,
-      lfo1Amp: this.unifiedModulation.lfoAmplitude.toFixed(3),
-      lfo1Shape: this.unifiedModulation.lfoShape,
+//      lfo1Freq: this.unifiedModulation.lfoFrequency.toFixed(4),
+//      lfo1Period: `${(1/this.unifiedModulation.lfoFrequency).toFixed(0)}s`,
+//      lfo1Amp: this.unifiedModulation.lfoAmplitude.toFixed(3),
+//      lfo1Shape: this.unifiedModulation.lfoShape,
       // SECONDARY LFO
-      lfo2Freq: this.unifiedModulation.lfo2Frequency?.toFixed(5) || 'N/A',
-      lfo2Period: this.unifiedModulation.lfo2Frequency ? `${(1/this.unifiedModulation.lfo2Frequency).toFixed(0)}s` : 'N/A',
-      lfo2Amp: this.unifiedModulation.lfo2Amplitude?.toFixed(4) || 'N/A',
-      lfo2Shape: this.unifiedModulation.lfo2Shape,
+//      lfo2Freq: this.unifiedModulation.lfo2Frequency?.toFixed(5) || 'N/A',
+//      lfo2Period: this.unifiedModulation.lfo2Frequency ? `${(1/this.unifiedModulation.lfo2Frequency).toFixed(0)}s` : 'N/A',
+//      lfo2Amp: this.unifiedModulation.lfo2Amplitude?.toFixed(4) || 'N/A',
+//      lfo2Shape: this.unifiedModulation.lfo2Shape,
       // TERTIARY LFO
-      lfo3Freq: this.unifiedModulation.lfo3Frequency?.toFixed(5) || 'N/A',
-      lfo3Period: this.unifiedModulation.lfo3Frequency ? `${(1/this.unifiedModulation.lfo3Frequency).toFixed(0)}s` : 'N/A',
-      lfo3Amp: this.unifiedModulation.lfo3Amplitude?.toFixed(4) || 'N/A',
-      lfo3Shape: this.unifiedModulation.lfo3Shape,
+//      lfo3Freq: this.unifiedModulation.lfo3Frequency?.toFixed(5) || 'N/A',
+//      lfo3Period: this.unifiedModulation.lfo3Frequency ? `${(1/this.unifiedModulation.lfo3Frequency).toFixed(0)}s` : 'N/A',
+//      lfo3Amp: this.unifiedModulation.lfo3Amplitude?.toFixed(4) || 'N/A',
+//      lfo3Shape: this.unifiedModulation.lfo3Shape,
       // QUATERNARY LFO
-      lfo4Freq: this.unifiedModulation.lfo4Frequency?.toFixed(5) || 'N/A',
-      lfo4Period: this.unifiedModulation.lfo4Frequency ? `${(1/this.unifiedModulation.lfo4Frequency).toFixed(0)}s` : 'N/A',
-      lfo4Amp: this.unifiedModulation.lfo4Amplitude?.toFixed(4) || 'N/A',
-      lfo4Shape: this.unifiedModulation.lfo4Shape,
+//      lfo4Freq: this.unifiedModulation.lfo4Frequency?.toFixed(5) || 'N/A',
+//      lfo4Period: this.unifiedModulation.lfo4Frequency ? `${(1/this.unifiedModulation.lfo4Frequency).toFixed(0)}s` : 'N/A',
+//      lfo4Amp: this.unifiedModulation.lfo4Amplitude?.toFixed(4) || 'N/A',
+//      lfo4Shape: this.unifiedModulation.lfo4Shape,
       // Context info
-      range: frequencyRange,
-      users: state.uniqueUsers.size,
-      density: state.density.toFixed(1),
-      smoothed: !this.isFirstModulation
-    })
+//      range: frequencyRange,
+//      users: state.uniqueUsers.size,
+//      density: state.density.toFixed(1),
+//      smoothed: !this.isFirstModulation
+////    })
   }
 
   /**
@@ -749,10 +749,10 @@ class HoverOrchestrator {
     this.performanceMetrics.modulationsGenerated++
 
 // console.log(`📡 Broadcast unified modulation to room ${this.roomId}:`, {
-      generation: this.unifiedModulation.generation,
-      lfoFreq: this.unifiedModulation.lfoFrequency.toFixed(2),
-      lfoAmp: this.unifiedModulation.lfoAmplitude.toFixed(2)
-    })
+//      generation: this.unifiedModulation.generation,
+//      lfoFreq: this.unifiedModulation.lfoFrequency.toFixed(2),
+//      lfoAmp: this.unifiedModulation.lfoAmplitude.toFixed(2)
+////    })
   }
 
   /**

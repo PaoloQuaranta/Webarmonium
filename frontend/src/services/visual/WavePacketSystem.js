@@ -282,13 +282,13 @@ class WavePacketSystem {
     // DEBUG: Log first few renders
     if (this.activePulses.size <= 3 && p.frameCount % 10 === 0) {
       // console.log('🌊 Rendering pulse:', {
-        pos: `(${Math.round(pos.x)}, ${Math.round(pos.y)})`,
-        progress: pulse.progress.toFixed(2),
-        intensity: pulse.intensity.toFixed(2),
-        size: size.toFixed(1),
-        alpha: alpha,
-        color: pulse.color
-      })
+//        pos: `(${Math.round(pos.x)}, ${Math.round(pos.y)})`,
+//        progress: pulse.progress.toFixed(2),
+//        intensity: pulse.intensity.toFixed(2),
+//        size: size.toFixed(1),
+//        alpha: alpha,
+//        color: pulse.color
+////      })
     }
 
     // Draw outer glow

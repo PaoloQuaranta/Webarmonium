@@ -333,12 +333,12 @@ class EnhancedGestureCapture {
       // Use pixelDistance (calculated above) for comparison with pixel threshold
       if (this.currentGesture.action === 'potential-tap' && pixelDistance > this.dragStreaming.minDistanceForDrag) {
         // console.log('🔍 GESTURE CLASSIFICATION: Transitioning to DRAG', {
-          totalDistance: pixelDistance.toFixed(2) + 'px',
-          minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
-          previousAction: this.currentGesture.action,
-          newAction: 'drag',
-          sustainedHoldWasActive: this.sustainedHold.wasActive
-        })
+//          totalDistance: pixelDistance.toFixed(2) + 'px',
+//          minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
+//          previousAction: this.currentGesture.action,
+//          newAction: 'drag',
+//          sustainedHoldWasActive: this.sustainedHold.wasActive
+////        })
         this.currentGesture.action = 'drag'
       }
 
@@ -374,15 +374,15 @@ class EnhancedGestureCapture {
       }
 
       // console.log('🎸 Interval calculation:', {
-        rawSpeed: speed.toFixed(3),
-        normalizedSpeed: normalizedSpeed.toFixed(3),
-        intervalMs: adjustedInterval,
-        noteValue: adjustedInterval <= 62.5 ? '32n-64n' :
-                   adjustedInterval <= 125 ? '16n' :
-                   adjustedInterval <= 250 ? '8n' :
-                   adjustedInterval <= 500 ? '4n' :
-                   adjustedInterval <= 1000 ? '2n' : '1n'
-      })
+//        rawSpeed: speed.toFixed(3),
+//        normalizedSpeed: normalizedSpeed.toFixed(3),
+//        intervalMs: adjustedInterval,
+//        noteValue: adjustedInterval <= 62.5 ? '32n-64n' :
+//                   adjustedInterval <= 125 ? '16n' :
+//                   adjustedInterval <= 250 ? '8n' :
+//                   adjustedInterval <= 500 ? '4n' :
+//                   adjustedInterval <= 1000 ? '2n' : '1n'
+////      })
 
       // Play next note if enough time has passed (only if drag streaming active)
       if (this.dragStreaming.isActive && now - this.dragStreaming.lastNoteTime >= adjustedInterval) {
@@ -467,21 +467,21 @@ class EnhancedGestureCapture {
 
     if (this.currentGesture.action === 'potential-tap') {
       // console.log('🔍 GESTURE CLASSIFICATION: Final action is TAP', {
-        totalDistance: finalPixelDistance.toFixed(2) + 'px',
-        minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
-        finalAction: 'tap',
-        sustainedHoldWasActive: this.sustainedHold.wasActive,
-        holdWasActiveFlag: this.currentGesture.holdWasActive
-      })
+//        totalDistance: finalPixelDistance.toFixed(2) + 'px',
+//        minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
+//        finalAction: 'tap',
+//        sustainedHoldWasActive: this.sustainedHold.wasActive,
+//        holdWasActiveFlag: this.currentGesture.holdWasActive
+////      })
       this.currentGesture.action = 'tap'
     } else {
       // console.log('🔍 GESTURE CLASSIFICATION: Final action', {
-        totalDistance: finalPixelDistance.toFixed(2) + 'px',
-        minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
-        finalAction: this.currentGesture.action,
-        sustainedHoldWasActive: this.sustainedHold.wasActive,
-        holdWasActiveFlag: this.currentGesture.holdWasActive
-      })
+//        totalDistance: finalPixelDistance.toFixed(2) + 'px',
+//        minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
+//        finalAction: this.currentGesture.action,
+//        sustainedHoldWasActive: this.sustainedHold.wasActive,
+//        holdWasActiveFlag: this.currentGesture.holdWasActive
+////      })
     }
 
     // STOP DRAG NOTE STREAMING (always active since mousedown)
@@ -588,12 +588,12 @@ class EnhancedGestureCapture {
 
     // DEBUG: Log gesture data before coordinate assignment
     // console.log('🔍 CLASSIFY GESTURE - Input data:', {
-      hasCurrentPosition: !!gesture.currentPosition,
-      currentPosition: gesture.currentPosition,
-      pathLength: gesture.path?.length || 0,
-      firstPathPoint: gesture.path?.[0],
-      lastPathPoint: gesture.path?.[gesture.path?.length - 1]
-    })
+//      hasCurrentPosition: !!gesture.currentPosition,
+//      currentPosition: gesture.currentPosition,
+//      pathLength: gesture.path?.length || 0,
+//      firstPathPoint: gesture.path?.[0],
+//      lastPathPoint: gesture.path?.[gesture.path?.length - 1]
+////    })
 
     // Add coordinates for compatibility with GestureToMusicMapper
     if (gesture.currentPosition) {
@@ -903,11 +903,11 @@ class EnhancedGestureCapture {
 
       // DEBUG: Log what was sent
       // console.log('📤 gesture-complete emitted:', {
-        action: gesture.action,
-        holdWasActive: gesture.holdWasActive,
-        streamedNotes: gesture.streamedNotes?.length || 0,
-        duration: gesture.duration
-      })
+//        action: gesture.action,
+//        holdWasActive: gesture.holdWasActive,
+//        streamedNotes: gesture.streamedNotes?.length || 0,
+//        duration: gesture.duration
+////      })
     }
   }
 
@@ -1101,13 +1101,13 @@ class EnhancedGestureCapture {
    */
   emitHoverUpdate() {
     // console.log('🛸 emitHoverUpdate called:', {
-      hasSocketService: !!this.socketService,
-      hasSocket: !!(this.socketService && this.socketService.socket),
-      isHovering: this.hoverState.isHovering,
-      currentRoom: this.currentRoom,
-      localUserId: this.localUserId,
-      hoverState: this.hoverState
-    })
+//      hasSocketService: !!this.socketService,
+//      hasSocket: !!(this.socketService && this.socketService.socket),
+//      isHovering: this.hoverState.isHovering,
+//      currentRoom: this.currentRoom,
+//      localUserId: this.localUserId,
+//      hoverState: this.hoverState
+////    })
 
     if (this.socketService && this.socketService.socket && this.hoverState.isHovering) {
       const hoverData = {
@@ -1137,12 +1137,12 @@ class EnhancedGestureCapture {
 
     const position = this.hoverState.position || { x: 0.5, y: 0.5 }
     // console.log('🎯 Emitting cursor position:', {
-      x: position.x,
-      y: position.y,
-      isDrawing: this.isCapturing,
-      hasHoverState: !!this.hoverState.position,
-      userId: this.localUserId
-    })
+//      x: position.x,
+//      y: position.y,
+//      isDrawing: this.isCapturing,
+//      hasHoverState: !!this.hoverState.position,
+//      userId: this.localUserId
+////    })
 
     this.socketService.socket.emit('cursor-move', {
       x: position.x,

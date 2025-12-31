@@ -48,12 +48,12 @@ const AuthHandler = {
         socket.join(roomId)
 
         // console.log(`✅ User joined room:`, {
-          userId: socket.userId,
-          socketId: socket.id,
-          roomId: socket.roomId,
-          roomsInSocket: Array.from(socket.rooms),
-          totalUsersInRoom: result.users?.length || 0
-        })
+//          userId: socket.userId,
+//          socketId: socket.id,
+//          roomId: socket.roomId,
+//          roomsInSocket: Array.from(socket.rooms),
+//          totalUsersInRoom: result.users?.length || 0
+////        })
 
         // Initialize memory state if needed
         let memoryState = socket.services.environmentalMemoryCoordinator.getMemoryState(roomId)

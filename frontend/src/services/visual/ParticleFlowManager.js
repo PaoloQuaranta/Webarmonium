@@ -98,10 +98,10 @@ class ParticleFlowManager {
     )
 
     // console.log('✨ emitParticles:', {
-      userId: sourceUserId.substring(0, 8),
-      edgesFound: sourceEdges.length,
-      countPerEdge: count
-    })
+//      userId: sourceUserId.substring(0, 8),
+//      edgesFound: sourceEdges.length,
+//      countPerEdge: count
+////    })
 
     let created = 0
     // Emit particles along each edge
@@ -301,13 +301,13 @@ class ParticleFlowManager {
     // DEBUG: Log first few renders
     if (this.particles.size <= 5 && p.frameCount % 10 === 0) {
       // console.log('✨ Rendering particle:', {
-        pos: `(${Math.round(pos.x)}, ${Math.round(pos.y)})`,
-        progress: particle.progress.toFixed(2),
-        life: particle.life.toFixed(2),
-        size: particle.size.toFixed(1),
-        alpha: alpha,
-        color: particle.color
-      })
+//        pos: `(${Math.round(pos.x)}, ${Math.round(pos.y)})`,
+//        progress: particle.progress.toFixed(2),
+//        life: particle.life.toFixed(2),
+//        size: particle.size.toFixed(1),
+//        alpha: alpha,
+//        color: particle.color
+////      })
     }
 
     // Parse color

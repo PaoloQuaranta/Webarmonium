@@ -211,10 +211,10 @@ class SocketEventCoordinator {
     // Background composition
     this.socketService.on('background-composition', (data) => {
       // console.log('🎼 Background composition received:', {
-        compositionNumber: data.compositionNumber,
-        isDrone: data.isDrone,
-        type: data.composition?.type
-      })
+//        compositionNumber: data.compositionNumber,
+//        isDrone: data.isDrone,
+//        type: data.composition?.type
+////      })
 
       if (this.isAudioStarted && data.composition && this.audioService) {
         this.audioService.playComposition(data.composition, data.isDrone)
@@ -248,9 +248,9 @@ class SocketEventCoordinator {
   registerHoldEvents() {
     this.socketService.on('hold:start', (data) => {
       // console.log('🔔 Received hold:start event:', {
-        isRemote: data.isRemote,
-        userId: data.userId?.substring(0, 8)
-      })
+//        isRemote: data.isRemote,
+//        userId: data.userId?.substring(0, 8)
+////      })
 
       if (!this.isAudioStarted) {
         // console.log('⚠️ Ignoring remote hold - audio not started')

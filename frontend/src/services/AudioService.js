@@ -394,15 +394,15 @@ class AudioService {
         // Verify components
         if (this.masterVolume && this.gestureSynth) {
           // console.log('✅ Audio components verified:', {
-            gestureSynthDisposed: this.gestureSynth.disposed,
-            masterVolumeExists: !!this.masterVolume,
-            masterVolumeValue: this.masterVolume.volume.value
-          })
+//            gestureSynthDisposed: this.gestureSynth.disposed,
+//            masterVolumeExists: !!this.masterVolume,
+//            masterVolumeValue: this.masterVolume.volume.value
+////          })
         } else {
           // console.error('❌ Missing audio components:', {
-            masterVolume: !!this.masterVolume,
-            gestureSynth: !!this.gestureSynth
-          })
+//            masterVolume: !!this.masterVolume,
+//            gestureSynth: !!this.gestureSynth
+////          })
         }
 
         return true
@@ -870,11 +870,11 @@ class AudioService {
     setTimeout(() => {
       // console.log('🎵 Starting bass + pad + chords composition system')
       // console.log('🎵 Initial layer state:', {
-        bass: this.generativeState.layers.bass.octave,
-        pad: this.generativeState.layers.pad.octave,
-        chords: this.generativeState.layers.chords.octave,
-        tonic: this.generativeState.currentTonic
-      })
+//        bass: this.generativeState.layers.bass.octave,
+//        pad: this.generativeState.layers.pad.octave,
+//        chords: this.generativeState.layers.chords.octave,
+//        tonic: this.generativeState.currentTonic
+////      })
       compositionLoop()
     }, 2000)
 
@@ -1860,10 +1860,10 @@ class AudioService {
 
     // console.log(`🎼 Playing ${composition.type} composition${isDrone ? ' (DRONE)' : ''}:`, {
       form: composition.structure?.form,
-      section: composition.structure?.currentSection,
-      tempo: tempo,
-      key: composition.metadata?.keyCenter
-    })
+//      section: composition.structure?.currentSection,
+//      tempo: tempo,
+//      key: composition.metadata?.keyCenter
+////    })
 
     // If this is NOT a drone and we have a drone loop running, stop it
     if (!isDrone && this.droneLoopInterval) {
@@ -2228,20 +2228,20 @@ class AudioService {
         // TAP PITCH DEBUG: Log for tap events
         if (musicalEvent.properties.noteIndex === 0 && musicalEvent.properties.totalNotes === 1) {
           // console.log('🎯 TAP RECEIVED IN FRONTEND:', {
-            userId: musicalEvent.userId?.substring(0, 8),
-            pitch: musicalEvent.properties.pitch,
-            frequency: frequency?.toFixed(1),
-            position: musicalEvent.position
-          })
+//            userId: musicalEvent.userId?.substring(0, 8),
+//            pitch: musicalEvent.properties.pitch,
+//            frequency: frequency?.toFixed(1),
+//            position: musicalEvent.position
+////          })
         }
 
         // console.log('🎵 Playing backend musical event:', {
-          frequency: frequency?.toFixed(1),
-          duration,
-          velocity,
-          noteIndex: musicalEvent.properties.noteIndex,
-          totalNotes: musicalEvent.properties.totalNotes
-        })
+//          frequency: frequency?.toFixed(1),
+//          duration,
+//          velocity,
+//          noteIndex: musicalEvent.properties.noteIndex,
+//          totalNotes: musicalEvent.properties.totalNotes
+////        })
       } else {
         // Frontend format
         pitch = musicalEvent.pitch
@@ -2275,10 +2275,10 @@ class AudioService {
         normalizedDuration = durationMap[duration] || 0.125
 
         // console.log('🎵 Duration conversion:', {
-          input: duration,
-          output: normalizedDuration,
-          articulation: articulation
-        })
+//          input: duration,
+//          output: normalizedDuration,
+//          articulation: articulation
+////        })
       } else if (typeof duration === 'number') {
         // Convert beats to seconds if duration is in beats
         if (duration < 10) {
@@ -2399,12 +2399,12 @@ class AudioService {
           )
 
           // console.log(`🎶 Note played (${isStreamed ? 'REMOTE' : 'LOCAL'}):`, {
-            frequency: frequency.toFixed(1),
-            duration: adjustedDuration.toFixed(3),
-            velocity: finalVelocity.toFixed(3),
-            type: isStreamed ? 'remote (×0.7)' : 'local (full)',
-            articulation: articulation
-          })
+//            frequency: frequency.toFixed(1),
+//            duration: adjustedDuration.toFixed(3),
+//            velocity: finalVelocity.toFixed(3),
+//            type: isStreamed ? 'remote (×0.7)' : 'local (full)',
+//            articulation: articulation
+////          })
         } catch (e) {
           // console.warn('Note play error:', e.message)
         }
@@ -3861,9 +3861,9 @@ class AudioService {
       const pattern2 = patterns2[index]
       // Add more detailed logging to debug pattern values
       // console.log('🔍 Comparing patterns:', {
-        pattern1: { x: pattern1.x, y: pattern1.y, intensity: pattern1.intensity, frequency: pattern1.frequency },
-        pattern2: { x: pattern2.x, y: pattern2.y, intensity: pattern2.intensity, frequency: pattern2.frequency }
-      })
+//        pattern1: { x: pattern1.x, y: pattern1.y, intensity: pattern1.intensity, frequency: pattern1.frequency },
+//        pattern2: { x: pattern2.x, y: pattern2.y, intensity: pattern2.intensity, frequency: pattern2.frequency }
+////      })
       return pattern1.x === pattern2.x &&
              pattern1.y === pattern2.y &&
              pattern1.intensity === pattern2.intensity &&
@@ -4043,25 +4043,25 @@ class AudioService {
 
     // Log full hover data for debugging
     // console.log('🎛️ HOVER DATA DEBUG:', {
-      position,
-      userId,
-      intensity,
-      hasValidPosition: !!(position.x == null || position.y == null),
-      hasValidUserId: !!userId,
-      source: 'handleHoverModulation call',
-      isInitialized: this.isInitialized
-    })
+//      position,
+//      userId,
+//      intensity,
+//      hasValidPosition: !!(position.x == null || position.y == null),
+//      hasValidUserId: !!userId,
+//      source: 'handleHoverModulation call',
+//      isInitialized: this.isInitialized
+////    })
 
     // Log full hover data for debugging
     // console.log('🎛️ HOVER DATA DEBUG:', {
-      position,
-      userId,
-      intensity,
-      hasValidPosition: !!(position.x == null || position.y == null),
-      hasValidUserId: !!userId,
-      source: 'handleHoverModulation call',
-      isInitialized: this.isInitialized
-    })
+//      position,
+//      userId,
+//      intensity,
+//      hasValidPosition: !!(position.x == null || position.y == null),
+//      hasValidUserId: !!userId,
+//      source: 'handleHoverModulation call',
+//      isInitialized: this.isInitialized
+////    })
     // console.log(`🎛️ Cross-layer hover modulation: userId=${userId}, intensity=${intensity}`)
 
     // Local user hover modulates:
@@ -4333,16 +4333,16 @@ class AudioService {
     } catch (error) {
       // console.error('❌ Hover modulation failed:', error)
       // console.error('🐛 Error details:', {
-        message: error.message,
-        stack: error.stack,
-        position: position,
-        safeX: typeof safeX !== 'undefined' ? safeX : 'undefined',
-        safeY: typeof safeY !== 'undefined' ? safeY : 'undefined',
-        isRemote: isRemote,
-        gestureSynth: !!this.gestureSynth,
-        gestureFilter: !!this.gestureFilter,
-        tremoloLFO: !!this.tremoloLFO
-      })
+//        message: error.message,
+//        stack: error.stack,
+//        position: position,
+//        safeX: typeof safeX !== 'undefined' ? safeX : 'undefined',
+//        safeY: typeof safeY !== 'undefined' ? safeY : 'undefined',
+//        isRemote: isRemote,
+//        gestureSynth: !!this.gestureSynth,
+//        gestureFilter: !!this.gestureFilter,
+//        tremoloLFO: !!this.tremoloLFO
+////      })
     }
   }
 
@@ -4625,14 +4625,14 @@ class AudioService {
     }
 
     // console.log('🎵 Updated generative state:', {
-      scale: this.generativeState.currentScale,
-      tonic: this.generativeState.currentTonic.toFixed(1),
-      complexity: this.generativeState.complexity.toFixed(2),
-      bassRhythm: this.generativeState.layers.bass.rhythm.toFixed(0),
-      activeLayers: Object.keys(this.generativeState.layers).length,
-      delayTime: this.delay ? this.delay.delayTime.value.toFixed(2) : 'N/A',
-      delayFeedback: this.delay ? this.delay.feedback.value.toFixed(2) : 'N/A'
-    })
+//      scale: this.generativeState.currentScale,
+//      tonic: this.generativeState.currentTonic.toFixed(1),
+//      complexity: this.generativeState.complexity.toFixed(2),
+//      bassRhythm: this.generativeState.layers.bass.rhythm.toFixed(0),
+//      activeLayers: Object.keys(this.generativeState.layers).length,
+//      delayTime: this.delay ? this.delay.delayTime.value.toFixed(2) : 'N/A',
+//      delayFeedback: this.delay ? this.delay.feedback.value.toFixed(2) : 'N/A'
+////    })
   }
 }
 

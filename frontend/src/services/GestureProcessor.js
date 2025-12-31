@@ -67,12 +67,12 @@ class GestureProcessor {
 
     // DEBUG: Verify position is set before sending
     // console.log('🔧 GESTURE PROCESSOR - Before sendGesture:', {
-      hasCoordinates: !!gesture.coordinates,
-      coordinates: gesture.coordinates,
-      hasPosition: !!gestureToSend.position,
-      position: gestureToSend.position,
-      gestureAction: gesture.action
-    })
+//      hasCoordinates: !!gesture.coordinates,
+//      coordinates: gesture.coordinates,
+//      hasPosition: !!gestureToSend.position,
+//      position: gestureToSend.position,
+//      gestureAction: gesture.action
+////    })
 
     // Send gesture to server with position field
     this.socketService.sendGesture(gestureToSend)
@@ -147,11 +147,11 @@ class GestureProcessor {
       // Play single note directly - BYPASS three-tier system for TAP
       // This ensures our X/Y frequency calculation is respected
       // console.log('🔍 TAP intensity check:', {
-        gestureIntensity: gesture.intensity,
-        sonicIntensity: sonicParams.intensity,
-        positionX: sonicParams.x,
-        positionY: sonicParams.y
-      })
+//        gestureIntensity: gesture.intensity,
+//        sonicIntensity: sonicParams.intensity,
+//        positionX: sonicParams.x,
+//        positionY: sonicParams.y
+////      })
       const noteVolume = 0.5 // FIXED volume - remove intensity modulation from clicks
       const noteDuration = '32n' // Very short duration for clicks
 
@@ -192,11 +192,11 @@ class GestureProcessor {
   processDragGesture(gesture, sonicParams) {
     // console.log('🎵 Processing DRAG gesture - musical phrase')
     // console.log('🎵 Drag details:', {
-      velocity: gesture.velocity,
-      dx: gesture.dx,
-      dy: gesture.dy,
-      position: gesture.coordinates
-    })
+//      velocity: gesture.velocity,
+//      dx: gesture.dx,
+//      dy: gesture.dy,
+//      position: gesture.coordinates
+////    })
 
     // CRITICAL FIX: Limit drag phrase generation to prevent polyphony overload
     const now = Date.now()
@@ -389,10 +389,10 @@ class GestureProcessor {
     const size = gesture.size || 0
 
     // console.log('🔍 Simplified gesture classification:', {
-      duration: duration,
-      size: size,
-      direction: gesture.direction
-    })
+//      duration: duration,
+//      size: size,
+//      direction: gesture.direction
+////    })
 
     // Simple tap: very short duration, minimal movement
     if (duration < 200 && size < 0.05) {

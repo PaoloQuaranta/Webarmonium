@@ -117,11 +117,11 @@ class DragStreamingHandler {
       const noteVelocity = 0.8 + noteData.velocity * 0.2
 
       // console.log('🎵🎵 PLAYING LOCAL NOTE:', {
-        frequency: frequency.toFixed(1),
-        duration: duration,
-        articulation: noteData.articulation,
-        velocity: noteVelocity.toFixed(3)
-      })
+//        frequency: frequency.toFixed(1),
+//        duration: duration,
+//        articulation: noteData.articulation,
+//        velocity: noteVelocity.toFixed(3)
+////      })
 
       this.audioService.gestureSynth.triggerAttackRelease(
         frequency,

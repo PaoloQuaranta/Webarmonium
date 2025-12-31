@@ -78,9 +78,9 @@ class SocketService {
           this.performanceMetrics.connectionLatency = performance.now() - connectionStartTime
 
           // console.log('Connected to Webarmonium server:', {
-            socketId: this.socket.id,
-            latency: this.performanceMetrics.connectionLatency
-          })
+//            socketId: this.socket.id,
+//            latency: this.performanceMetrics.connectionLatency
+////          })
 
           // Start heartbeat
           this.startHeartbeat()
@@ -195,20 +195,20 @@ class SocketService {
     // Sustained hold events for remote note synchronization
     this.socket.on('hold:start', (data) => {
       // console.log('🎵 SocketService received hold:start:', {
-        noteId: data.noteId,
-        userId: data.userId?.substring(0, 8),
-        frequency: data.frequency?.toFixed(1) + 'Hz',
-        velocity: data.velocity?.toFixed(2)
-      })
+//        noteId: data.noteId,
+//        userId: data.userId?.substring(0, 8),
+//        frequency: data.frequency?.toFixed(1) + 'Hz',
+//        velocity: data.velocity?.toFixed(2)
+////      })
       this.emit('hold:start', data)
     })
 
     this.socket.on('hold:end', (data) => {
       // console.log('🎵 SocketService received hold:end:', {
-        noteId: data.noteId,
-        userId: data.userId?.substring(0, 8),
-        duration: data.duration + 'ms'
-      })
+//        noteId: data.noteId,
+//        userId: data.userId?.substring(0, 8),
+//        duration: data.duration + 'ms'
+////      })
       this.emit('hold:end', data)
     })
 
@@ -227,10 +227,10 @@ class SocketService {
     // Background composition events from BackgroundCompositionService
     this.socket.on('background-composition', (data) => {
       // console.log('🎼🎼 SocketService received background-composition:', {
-        compositionNumber: data.compositionNumber,
-        roomId: data.roomId,
-        type: data.composition?.type
-      })
+//        compositionNumber: data.compositionNumber,
+//        roomId: data.roomId,
+//        type: data.composition?.type
+////      })
       this.emit('background-composition', data)
     })
 
@@ -282,10 +282,10 @@ class SocketService {
         this.updateLatencyMetrics(latency)
 
         // console.log('Joined room successfully:', {
-          roomId: response.room.roomId,
-          userCount: response.room.userCount,
-          latency
-        })
+//          roomId: response.room.roomId,
+//          userCount: response.room.userCount,
+//          latency
+////        })
 
         this.emit('room-joined', response)
         return response
@@ -540,9 +540,9 @@ class SocketService {
    */
   handleSonicUpdate(data) {
     // console.log('Sonic update received:', {
-      patternCount: data.patterns?.length || 0,
-      memoryInfluence: data.memoryInfluence
-    })
+//      patternCount: data.patterns?.length || 0,
+//      memoryInfluence: data.memoryInfluence
+////    })
 
     this.emit('sonic-update', data)
   }

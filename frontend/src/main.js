@@ -114,11 +114,11 @@ class WebarmoniumApp {
       gestureToMusicalEvent: (gesture) => {
         // DEBUG: Log what mapper receives
         // console.log('🎵 MAPPER RECEIVED:', {
-          hasCoordinates: !!gesture.coordinates,
-          coordinates: gesture.coordinates,
-          intensity: gesture.intensity,
-          speed: gesture.speed
-        })
+//          hasCoordinates: !!gesture.coordinates,
+//          coordinates: gesture.coordinates,
+//          intensity: gesture.intensity,
+//          speed: gesture.speed
+////        })
 
         // Basic mapping: position to pitch, intensity to velocity
         const yValue = gesture.coordinates?.y || 0.5
@@ -228,10 +228,10 @@ class WebarmoniumApp {
     // CRITICAL: Return note data for backend broadcast
     this.gestureCapture.setDragStreamingNoteCallback((noteData) => {
       // console.log('🎸🎸 DRAG STREAMING CALLBACK CALLED:', {
-        hasAudio: this.isAudioStarted,
-        hasService: !!this.audioService,
-        noteData
-      })
+//        hasAudio: this.isAudioStarted,
+//        hasService: !!this.audioService,
+//        noteData
+////      })
 
       if (!this.isAudioStarted || !this.audioService) {
         // console.warn('🎸🎸 BLOCKED - audio not ready')
@@ -414,12 +414,12 @@ class WebarmoniumApp {
         const velocity = 0.8 + noteData.velocity * 0.2 // 0.8-1.0 range (was 0.5-0.8)
 
         // console.log('🎵🎵 PLAYING LOCAL NOTE:', {
-          frequency: frequency.toFixed(1),
-          duration: duration,
-          articulation: noteData.articulation,
-          velocity: velocity.toFixed(3),
-          synthVolume: this.audioService.gestureSynth.volume.value
-        })
+//          frequency: frequency.toFixed(1),
+//          duration: duration,
+//          articulation: noteData.articulation,
+//          velocity: velocity.toFixed(3),
+//          synthVolume: this.audioService.gestureSynth.volume.value
+////        })
 
         this.audioService.gestureSynth.triggerAttackRelease(
           frequency,
@@ -479,12 +479,12 @@ class WebarmoniumApp {
           timestamp: Date.now()
         }
         // console.log('📤 EMITTING hold:start to backend:', {
-          noteId: emitData.noteId,
-          userId: emitData.userId?.substring(0, 8),
-          roomId: emitData.roomId,
-          frequency: emitData.frequency.toFixed(1) + 'Hz',
-          velocity: emitData.velocity.toFixed(2)
-        })
+//          noteId: emitData.noteId,
+//          userId: emitData.userId?.substring(0, 8),
+//          roomId: emitData.roomId,
+//          frequency: emitData.frequency.toFixed(1) + 'Hz',
+//          velocity: emitData.velocity.toFixed(2)
+////        })
         this.socketService.socket.emit('hold:start', emitData, (response) => {
           if (response && response.success) {
             // console.log(`✅ hold:start acknowledged by backend: ${response.latency}ms latency`)
@@ -495,9 +495,9 @@ class WebarmoniumApp {
         // console.log('✅ hold:start emit called successfully')
       } else {
         // console.error('❌ Cannot emit hold:start - socketService or socket not available', {
-          hasSocketService: !!this.socketService,
-          hasSocket: !!(this.socketService?.socket)
-        })
+//          hasSocketService: !!this.socketService,
+//          hasSocket: !!(this.socketService?.socket)
+////        })
       }
 
       // Store hold note data for network emission in onSustainedHoldEnd
@@ -570,10 +570,10 @@ class WebarmoniumApp {
         })
       } else {
         // console.warn('⚠️ Cannot emit hold:end - missing socket or pendingHoldNoteData', {
-          hasSocketService: !!this.socketService,
-          hasSocket: !!(this.socketService?.socket),
-          hasPendingHoldData: !!this.pendingHoldNoteData
-        })
+//          hasSocketService: !!this.socketService,
+//          hasSocket: !!(this.socketService?.socket),
+//          hasPendingHoldData: !!this.pendingHoldNoteData
+////        })
       }
 
       // LOCAL AUDIO: Only release local audio if it was started
@@ -646,9 +646,9 @@ class WebarmoniumApp {
     this.gestureCapture.onGestureEnd = (gesture, musicalEvent) => {
       // console.log('👋 Gesture end callback:', gesture.id, musicalEvent)
       // console.log('🔍 Gesture end details:', {
-        gestureAction: gesture.action,
-        willCalculate: this.gestureProcessor.determineGestureAction(gesture)
-      })
+//        gestureAction: gesture.action,
+//        willCalculate: this.gestureProcessor.determineGestureAction(gesture)
+////      })
 
       // CRITICAL FIX: Don't play automatic musical events for TAP and HOVER gestures
       // We want only our custom click logic for taps, and no auto-notes for hover
@@ -769,13 +769,13 @@ class WebarmoniumApp {
     // SUSTAINED HOLD: Handle remote user hold:start events
     this.socketService.on('hold:start', (data) => {
       // console.log('📥 RECEIVED hold:start from server:', {
-        noteId: data.noteId,
-        userId: data.userId?.substring(0, 8),
-        isRemote: data.isRemote,
-        frequency: data.frequency?.toFixed(1) + 'Hz',
-        velocity: data.velocity?.toFixed(2),
-        isAudioStarted: this.isAudioStarted
-      })
+//        noteId: data.noteId,
+//        userId: data.userId?.substring(0, 8),
+//        isRemote: data.isRemote,
+//        frequency: data.frequency?.toFixed(1) + 'Hz',
+//        velocity: data.velocity?.toFixed(2),
+//        isAudioStarted: this.isAudioStarted
+////      })
 
       // Only process if audio is started AND this is a remote hold
       if (!this.isAudioStarted) {
@@ -939,12 +939,12 @@ class WebarmoniumApp {
     // Handle hover events from backend for cross-layer modulation
     this.socketService.on('hover-update', (data) => {
       // console.log('🎛️ REMOTE HOVER UPDATE RECEIVED:', {
-        isAudioStarted: this.isAudioStarted,
-        hasAudioService: !!this.audioService,
-        hasHandleHoverModulation: !!(this.audioService && this.audioService.handleHoverModulation),
-        data: data,
-        timestamp: Date.now()
-      })
+//        isAudioStarted: this.isAudioStarted,
+//        hasAudioService: !!this.audioService,
+//        hasHandleHoverModulation: !!(this.audioService && this.audioService.handleHoverModulation),
+//        data: data,
+//        timestamp: Date.now()
+////      })
 
       if (this.isAudioStarted && this.audioService && this.audioService.handleHoverModulation) {
         // console.log('🎛️ CALLING handleHoverModulation for remote hover...')
@@ -957,10 +957,10 @@ class WebarmoniumApp {
         // console.log('✅ Remote hover modulation completed')
       } else {
         // console.warn('⚠️ Remote hover blocked - audio not ready:', {
-          isAudioStarted: this.isAudioStarted,
-          hasAudioService: !!this.audioService,
-          hasHandleHoverModulation: !!(this.audioService && this.audioService.handleHoverModulation)
-        })
+//          isAudioStarted: this.isAudioStarted,
+//          hasAudioService: !!this.audioService,
+//          hasHandleHoverModulation: !!(this.audioService && this.audioService.handleHoverModulation)
+////        })
       }
     })
 
@@ -986,14 +986,14 @@ class WebarmoniumApp {
 
       // DEBUG: Log all event properties
       // console.log('🔍 Remote musical:event:', {
-        userId: remoteUserId?.substring(0, 8),
-        isOwn: remoteUserId === this.socketService.socket.id,
-        gestureAction: event.properties?.gestureAction,
-        isStreamed: event.properties?.isStreamed,
-        totalNotes: event.properties?.totalNotes,
-        noteIndex: event.properties?.noteIndex,
-        frequency: event.properties?.frequency?.toFixed(0)
-      })
+//        userId: remoteUserId?.substring(0, 8),
+//        isOwn: remoteUserId === this.socketService.socket.id,
+//        gestureAction: event.properties?.gestureAction,
+//        isStreamed: event.properties?.isStreamed,
+//        totalNotes: event.properties?.totalNotes,
+//        noteIndex: event.properties?.noteIndex,
+//        frequency: event.properties?.frequency?.toFixed(0)
+////      })
 
       // CRITICAL FIX: Add visual feedback for remote gestures (pulses + particles)
       // Get gesture type: tap if single note, drag if streamed/phrase
@@ -1009,12 +1009,12 @@ class WebarmoniumApp {
       const gestureType = (totalNotes === 1 && !isStreamed) ? 'tap' : 'drag'
 
       // console.log('🎨 Visual trigger:', {
-        shouldTriggerVisual,
-        gestureType,
-        isStreamed,
-        totalNotes,
-        noteIndex
-      })
+//        shouldTriggerVisual,
+//        gestureType,
+//        isStreamed,
+//        totalNotes,
+//        noteIndex
+////      })
 
       // Get remote user's cursor position from cursor manager
       let remotePosition = { x: 0.5, y: 0.5 } // Default center
@@ -1031,10 +1031,10 @@ class WebarmoniumApp {
       }
 
       // console.log('🖱️ Cursor info:', {
-        cursorFound,
-        remotePosition,
-        userColor
-      })
+//        cursorFound,
+//        remotePosition,
+//        userColor
+////      })
 
       // CRITICAL: First ensure node exists in visual service, then trigger gesture
       if (this.visualService && shouldTriggerVisual) {
