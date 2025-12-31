@@ -290,8 +290,13 @@ class EnhancedGestureCapture {
       // Calculate total distance moved from start position
       this.dragStreaming.totalDistance += distance
 
+      // CRITICAL FIX: Convert normalized distance (0-1) to pixels for comparison
+      // Normalized coordinates don't directly compare to pixel threshold
+      const canvasSize = Math.max(this.canvas.width, this.canvas.height)
+      const pixelDistance = this.dragStreaming.totalDistance * canvasSize
+
       // TRANSITION: If sustained note active AND movement exceeds threshold → switch to drag
-      if (this.sustainedHold.isActive && this.dragStreaming.totalDistance > this.dragStreaming.minDistanceForDrag) {
+      if (this.sustainedHold.isActive && pixelDistance > this.dragStreaming.minDistanceForDrag) {
         console.log('🎛️ Movement exceeds threshold - transitioning from sustained note to drag')
 
         // End the sustained note
@@ -325,9 +330,10 @@ class EnhancedGestureCapture {
 
       // CRITICAL: Discriminate tap vs drag based on MOVEMENT (not time!)
       // If movement exceeds threshold, mark as 'drag'
-      if (this.currentGesture.action === 'potential-tap' && this.dragStreaming.totalDistance > this.dragStreaming.minDistanceForDrag) {
+      // Use pixelDistance (calculated above) for comparison with pixel threshold
+      if (this.currentGesture.action === 'potential-tap' && pixelDistance > this.dragStreaming.minDistanceForDrag) {
         console.log('🔍 GESTURE CLASSIFICATION: Transitioning to DRAG', {
-          totalDistance: this.dragStreaming.totalDistance.toFixed(2) + 'px',
+          totalDistance: pixelDistance.toFixed(2) + 'px',
           minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
           previousAction: this.currentGesture.action,
           newAction: 'drag',
@@ -455,9 +461,13 @@ class EnhancedGestureCapture {
 
     // CRITICAL: Finalize gesture action based on movement
     // If still 'potential-tap', no significant movement occurred → it's a tap
+    // CRITICAL FIX: Convert normalized distance to pixels for logging
+    const canvasSize = Math.max(this.canvas.width, this.canvas.height)
+    const finalPixelDistance = this.dragStreaming.totalDistance * canvasSize
+
     if (this.currentGesture.action === 'potential-tap') {
       console.log('🔍 GESTURE CLASSIFICATION: Final action is TAP', {
-        totalDistance: this.dragStreaming.totalDistance.toFixed(2) + 'px',
+        totalDistance: finalPixelDistance.toFixed(2) + 'px',
         minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
         finalAction: 'tap',
         sustainedHoldWasActive: this.sustainedHold.wasActive,
@@ -466,7 +476,7 @@ class EnhancedGestureCapture {
       this.currentGesture.action = 'tap'
     } else {
       console.log('🔍 GESTURE CLASSIFICATION: Final action', {
-        totalDistance: this.dragStreaming.totalDistance.toFixed(2) + 'px',
+        totalDistance: finalPixelDistance.toFixed(2) + 'px',
         minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
         finalAction: this.currentGesture.action,
         sustainedHoldWasActive: this.sustainedHold.wasActive,
