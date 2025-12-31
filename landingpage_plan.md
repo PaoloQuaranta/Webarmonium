@@ -32,10 +32,12 @@ Create a landing page that generates music and animations using **real-time glob
 │  └──────────────────┘    └──────────────────┘                        │
 │           │                       │                                  │
 │           │                       ▼                                  │
-│           │              ┌──────────────────┐                        │
-│           │              │  StateManager    │                        │
-│           │              │  (NEW)           │                        │
-│           │              └──────────────────┘                        │
+│           │      ┌─────────────────────────────────┐                  │
+│           │      │  3 VIRTUAL USERS (cursors)      │                  │
+│           │      │  • wikipedia-metrics (RED)      │                  │
+│           │      │  • hackernews-metrics (ORANGE)  │                  │
+│           │      │  • github-metrics (BLUE)       │                  │
+│           │      └─────────────────────────────────┘                  │
 │           │                       │                                  │
 │           ▼                       ▼                                  │
 │  ┌─────────────────────────────────────────────────────────────┐   │
@@ -49,6 +51,9 @@ Create a landing page that generates music and animations using **real-time glob
 │  │  │ • SpringMeshNetwork │    │ • MusicalScheduler          │  │   │
 │  │  │ • WavePacketSystem  │    │ • LFOManager                │  │   │
 │  │  │ • ParticleFlowMgr   │    │ • 6 Algorithmic Generators   │  │   │
+│  │  │                     │    │                             │  │   │
+│  │  │ Each cursor = Node  │    │ Each gesture = Note/Phrase   │  │   │
+│  │  │ with pulses/particles│    │ based on cursor position    │  │   │
 │  │  └─────────────────────┘    └─────────────────────────────┘  │   │
 │  │                                                               │   │
 │  └───────────────────────────────────────────────────────────────┘   │
@@ -67,9 +72,28 @@ Create a landing page that generates music and animations using **real-time glob
 │ Wikipedia    │ HackerNews   │ GitHub Events API                      │
 │ RecentChange │ Firebase     │ (REST polling)                         │
 └──────────────┴──────────────┴────────────────────────────────────────┘
+
+CANVAS VISUAL LAYOUT:
+┌─────────────────────────────────────────────────────────────────┐
+│                    SPRING-MESH NETWORK                          │
+│                                                                 │
+│  WIKIPEDIA REGION      HACKERNEWS REGION      GITHUB REGION     │
+│  (0.0 - 0.33)           (0.33 - 0.66)          (0.66 - 1.0)     │
+│                                                                 │
+│    🔴 Wikipedia        🟠 HackerNews          🔵 GitHub          │
+│    Cursor             Cursor                 Cursor               │
+│    (moves based       (moves based           (moves based        │
+│     on edit rate)       on posts/upvotes)      on commits/stars)  │
+│                                                                 │
+│  Each cursor generates:                                          │
+│  • Pulses on tap/drag (WavePacketSystem)                         │
+│  • Particles on gestures (ParticleFlowManager)                   │
+│  • Connected by spring edges                                     │
+│  • Color-coded by source                                          │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Key Design Decision: **REUSE EXISTING CODE**
+### Key Design Decision: **REUSE EXISTING CODE + 3 VIRTUAL USERS**
 
 The landing page will **reuse the existing audio and visual systems** from the rooms to ensure consistency:
 
@@ -77,11 +101,20 @@ The landing page will **reuse the existing audio and visual systems** from the r
 - **Audio**: Reuse `AudioService.js` (Three-tier architecture, 6 algorithmic generators, LFOManager)
 - **NEW**: Only the input layer changes - `MetricsCollectorService` + `MetricsToGestureAdapter`
 
+**3 Virtual Users Approach:**
+- Each metric source has its **own cursor** with a unique color
+- **Wikipedia** (Red 🔴): Left region, moves based on edit rate and size
+- **HackerNews** (Orange 🟠): Center region, moves based on posts and upvotes
+- **GitHub** (Blue 🔵): Right region, moves based on commits and stars
+- Each cursor generates **independent gestures** (tap/drag) based on its activity
+- Creates a **visual representation** of how different web activities contribute to music
+
 This ensures:
 - ✅ Same visual aesthetic (spring-mesh networks with pulses and particles)
 - ✅ Same musical experience (single notes, phrases, background layers)
 - ✅ Less code to maintain
 - ✅ Consistent user experience across landing page and rooms
+- ✅ Educational: See how each source contributes to the generative output
 
 ---
 
@@ -866,13 +899,38 @@ export class MockMetricsGenerator {
  * MetricsToGestureAdapter
  * Converts web activity metrics into gesture data compatible with existing Webarmonium services
  *
- * This adapter creates a virtual "user" representing global web activity.
- * The virtual user's position and gestures are derived from Wikipedia, HN, and GitHub metrics.
+ * This adapter creates 3 VIRTUAL USERS representing different web activity sources:
+ * - 'wikipedia-metrics': Wikipedia edits activity
+ * - 'hackernews-metrics': HackerNews posts activity
+ * - 'github-metrics': GitHub commits activity
+ *
+ * Each virtual user has its own cursor position and generates gestures independently
+ * based on its metric source. This creates a visual representation of how different
+ * web activities contribute to the generative music and visuals.
  */
 export class MetricsToGestureAdapter {
   constructor() {
-    // Virtual user ID for landing page
-    this.userId = 'landing-page-global-activity';
+    // Three virtual users, one per metric source
+    this.virtualUsers = {
+      wikipedia: {
+        userId: 'wikipedia-metrics',
+        color: '#e41a1c', // Red
+        gesture: { type: 'idle', coordinates: { x: 0.2, y: 0.5 }, velocity: { x: 0, y: 0 }, intensity: 0, isActive: false },
+        lastGestureTime: 0
+      },
+      hackernews: {
+        userId: 'hackernews-metrics',
+        color: '#ff7f00', // Orange
+        gesture: { type: 'idle', coordinates: { x: 0.5, y: 0.5 }, velocity: { x: 0, y: 0 }, intensity: 0, isActive: false },
+        lastGestureTime: 0
+      },
+      github: {
+        userId: 'github-metrics',
+        color: '#377eb8', // Blue
+        gesture: { type: 'idle', coordinates: { x: 0.8, y: 0.5 }, velocity: { x: 0, y: 0 }, intensity: 0, isActive: false },
+        lastGestureTime: 0
+      }
+    };
 
     // Current metrics state
     this.metrics = {
@@ -881,24 +939,16 @@ export class MetricsToGestureAdapter {
       github: { commitsPerMinute: 0, openPRs: 0, newStars: 0 }
     };
 
-    // Current gesture state
-    this.currentGesture = {
-      type: 'idle',
-      coordinates: { x: 0.5, y: 0.5 },
-      velocity: { x: 0, y: 0 },
-      intensity: 0.5,
-      isActive: false,
-      holdStart: null
-    };
-
     // References to existing services (injected)
     this.visualService = null;
     this.audioService = null;
 
-    // Event timing
-    this.lastGestureTime = 0;
-    this.gestureInterval = 2000; // Base interval in ms
-    this.eventTimer = null;
+    // Event timers for each user
+    this.eventTimers = {
+      wikipedia: null,
+      hackernews: null,
+      github: null
+    };
 
     // Listen for metric updates
     window.addEventListener('metrics:updated', this._onMetricsUpdated.bind(this));
@@ -917,25 +967,32 @@ export class MetricsToGestureAdapter {
 
   /**
    * Start generating gestures from metrics
+   * Starts independent gesture scheduling for each virtual user
    */
   start() {
-    this._scheduleNextGesture();
-    console.log('🔄 MetricsToGestureAdapter started');
+    this._scheduleNextGesture('wikipedia');
+    this._scheduleNextGesture('hackernews');
+    this._scheduleNextGesture('github');
+    console.log('🔄 MetricsToGestureAdapter started with 3 virtual users');
   }
 
   /**
    * Stop generating gestures
    */
   stop() {
-    if (this.eventTimer) {
-      clearTimeout(this.eventTimer);
-      this.eventTimer = null;
-    }
+    // Clear all timers
+    Object.values(this.eventTimers).forEach(timer => {
+      if (timer) clearTimeout(timer);
+    });
 
-    // End active gesture
-    if (this.currentGesture.isActive) {
-      this._emitGestureEnd();
-    }
+    // End active gestures for all users
+    Object.values(this.virtualUsers).forEach(user => {
+      if (user.gesture.isActive) {
+        this._emitGestureEnd(user);
+      }
+    });
+
+    console.log('🔄 MetricsToGestureAdapter stopped');
   }
 
   /**
@@ -943,160 +1000,248 @@ export class MetricsToGestureAdapter {
    */
   _onMetricsUpdated(event) {
     this.metrics = event.detail;
-    this._updateCursorPosition();
+    this._updateCursorPositions();
   }
 
   /**
-   * Update virtual cursor position based on metrics
-   * Maps web activity to 2D space for visual/audio rendering
+   * Update cursor positions for all virtual users based on their metrics
+   * Each user has their own region and movement pattern
    */
-  _updateCursorPosition() {
-    const { wikipedia, hackernews, github } = this.metrics;
+  _updateCursorPositions() {
+    // Update Wikipedia user (left region)
+    this._updateWikipediaCursor();
 
-    // X position: Balance between Wikipedia edits and GitHub commits
-    // Left (0) = Wikipedia-dominant, Right (1) = GitHub-dominant
-    const totalActivity = wikipedia.editsPerMinute + github.commitsPerMinute + 1;
-    const x = github.commitsPerMinute / totalActivity;
+    // Update HackerNews user (center region)
+    this._updateHackerNewsCursor();
 
-    // Y position: Based on HackerNews upvotes (normalized)
-    // Bottom (0) = low engagement, Top (1) = high engagement
-    const y = Math.min(hackernews.avgUpvotes / 100, 1.0);
+    // Update GitHub user (right region)
+    this._updateGitHubCursor();
+  }
 
-    // Calculate intensity from combined activity
-    const rawIntensity = (
-      (wikipedia.editsPerMinute / 500) +
-      (hackernews.postsPerMinute / 100) +
-      (github.commitsPerMinute / 50)
-    ) / 3;
-    const intensity = Math.min(rawIntensity, 1.0);
+  /**
+   * Update Wikipedia cursor position
+   * Region: Left side (0.0 - 0.33)
+   * X: Based on edit rate (more edits = more right within region)
+   * Y: Based on edit size (larger edits = higher)
+   */
+  _updateWikipediaCursor() {
+    const user = this.virtualUsers.wikipedia;
+    const metrics = this.metrics.wikipedia;
 
-    // Update current gesture
-    this.currentGesture.coordinates = { x, y };
-    this.currentGesture.intensity = intensity;
+    // X: Within left third, based on edit rate
+    const editRate = Math.min(metrics.editsPerMinute / 500, 1.0);
+    const x = 0.16 + (editRate * 0.17); // 0.16 to 0.33
 
-    // Calculate velocity (for rhythm/timing)
-    const prevX = this.currentGesture.coordinates._prevX || x;
-    const prevY = this.currentGesture.coordinates._prevY || y;
-    this.currentGesture.velocity = {
-      x: (x - prevX),
-      y: (y - prevY)
-    };
+    // Y: Based on edit size (logarithmic scale)
+    const y = Math.min(Math.log10(metrics.avgEditSize + 1) / 4, 1.0);
 
-    // Store previous position
-    this.currentGesture.coordinates._prevX = x;
-    this.currentGesture.coordinates._prevY = y;
+    // Intensity: Based on edit rate
+    const intensity = Math.min(metrics.editsPerMinute / 500, 1.0);
 
-    // Update visual service with new position
+    // Update gesture
+    user.gesture.coordinates = { x, y };
+    user.gesture.intensity = intensity;
+
+    // Update visual service
     if (this.visualService) {
-      const color = this._getColorForActivity(intensity);
-      this.visualService.updateCursorPosition(this.userId, x, y, color);
+      this.visualService.updateCursorPosition(user.userId, x, y, user.color);
     }
   }
 
   /**
-   * Schedule next gesture event
-   * Timing based on rhythmic preference (activity level)
+   * Update HackerNews cursor position
+   * Region: Center (0.33 - 0.66)
+   * X: Based on post rate (more posts = more right within region)
+   * Y: Based on upvotes (more upvotes = higher)
    */
-  _scheduleNextGesture() {
-    const { wikipedia, hackernews, github } = this.metrics;
+  _updateHackerNewsCursor() {
+    const user = this.virtualUsers.hackernews;
+    const metrics = this.metrics.hackernews;
 
-    // Calculate rhythmic preference from post rate
-    const rhythmicPreference = Math.min(hackernews.postsPerMinute / 100, 1.0);
+    // X: Within center third, based on post rate
+    const postRate = Math.min(metrics.postsPerMinute / 100, 1.0);
+    const x = 0.33 + (postRate * 0.33); // 0.33 to 0.66
 
-    // Calculate delay: higher activity = faster gestures
+    // Y: Based on avg upvotes
+    const y = Math.min(metrics.avgUpvotes / 100, 1.0);
+
+    // Intensity: Based on post rate
+    const intensity = Math.min(metrics.postsPerMinute / 100, 1.0);
+
+    // Update gesture
+    user.gesture.coordinates = { x, y };
+    user.gesture.intensity = intensity;
+
+    // Update visual service
+    if (this.visualService) {
+      this.visualService.updateCursorPosition(user.userId, x, y, user.color);
+    }
+  }
+
+  /**
+   * Update GitHub cursor position
+   * Region: Right side (0.66 - 1.0)
+   * X: Based on commit rate (more commits = more right within region)
+   * Y: Based on new stars (more stars = higher)
+   */
+  _updateGitHubCursor() {
+    const user = this.virtualUsers.github;
+    const metrics = this.metrics.github;
+
+    // X: Within right third, based on commit rate
+    const commitRate = Math.min(metrics.commitsPerMinute / 50, 1.0);
+    const x = 0.66 + (commitRate * 0.34); // 0.66 to 1.0
+
+    // Y: Based on new stars
+    const y = Math.min(metrics.newStars / 20, 1.0);
+
+    // Intensity: Based on commit rate
+    const intensity = Math.min(metrics.commitsPerMinute / 50, 1.0);
+
+    // Update gesture
+    user.gesture.coordinates = { x, y };
+    user.gesture.intensity = intensity;
+
+    // Update visual service
+    if (this.visualService) {
+      this.visualService.updateCursorPosition(user.userId, x, y, user.color);
+    }
+  }
+
+  /**
+   * Schedule next gesture event for a specific user
+   * @param {string} source - 'wikipedia' | 'hackernews' | 'github'
+   */
+  _scheduleNextGesture(source) {
+    const user = this.virtualUsers[source];
+    const metrics = this.metrics[source];
+
+    // Calculate gesture interval based on activity level
+    // Higher activity = faster gestures (shorter interval)
+    let activityLevel;
+    switch (source) {
+      case 'wikipedia':
+        activityLevel = metrics.editsPerMinute / 500;
+        break;
+      case 'hackernews':
+        activityLevel = metrics.postsPerMinute / 100;
+        break;
+      case 'github':
+        activityLevel = metrics.commitsPerMinute / 50;
+        break;
+    }
+
     const baseDelay = 2000; // 2 seconds max
     const minDelay = 250;   // 250ms min
-    const delay = baseDelay - (rhythmicPreference * (baseDelay - minDelay));
+    const delay = baseDelay - (Math.min(activityLevel, 1.0) * (baseDelay - minDelay));
 
-    this.eventTimer = setTimeout(() => {
-      this._generateGesture();
-      this._scheduleNextGesture();
+    this.eventTimers[source] = setTimeout(() => {
+      this._generateGesture(source);
+      this._scheduleNextGesture(source);
     }, delay);
   }
 
   /**
-   * Generate a gesture event based on current metrics
+   * Generate a gesture event for a specific user
+   * @param {string} source - 'wikipedia' | 'hackernews' | 'github'
    */
-  _generateGesture() {
-    const { wikipedia, github } = this.metrics;
-    const intensity = this.currentGesture.intensity;
+  _generateGesture(source) {
+    const user = this.virtualUsers[source];
+    const metrics = this.metrics[source];
+    const intensity = user.gesture.intensity;
 
-    // Determine gesture type based on metrics
+    // Determine gesture type based on activity level
     let gestureType;
-    if (wikipedia.editsPerMinute > 100) {
-      gestureType = 'drag'; // Continuous activity
-    } else if (github.commitsPerMinute > 20) {
-      gestureType = 'tap'; // Discrete events
-    } else {
-      gestureType = Math.random() > 0.5 ? 'tap' : 'drag';
+    let shouldGenerate = false;
+
+    switch (source) {
+      case 'wikipedia':
+        // High edit rate = drag (continuous), low = tap
+        gestureType = metrics.editsPerMinute > 100 ? 'drag' : 'tap';
+        shouldGenerate = metrics.editsPerMinute > 10 || Math.random() < 0.3;
+        break;
+      case 'hackernews':
+        // High post rate = tap (discrete events)
+        gestureType = 'tap';
+        shouldGenerate = metrics.postsPerMinute > 5;
+        break;
+      case 'github':
+        // Commits = tap, PRs = drag
+        gestureType = metrics.openPRs > 2 ? 'drag' : 'tap';
+        shouldGenerate = metrics.commitsPerMinute > 5 || metrics.newStars > 0;
+        break;
     }
 
-    // Emit gesture start
-    this.currentGesture.type = gestureType;
-    this.currentGesture.isActive = true;
-    this.currentGesture.holdStart = Date.now();
+    if (!shouldGenerate) return;
 
-    this._emitGestureStart();
+    // Emit gesture start
+    user.gesture.type = gestureType;
+    user.gesture.isActive = true;
+    user.gesture.holdStart = Date.now();
+
+    this._emitGestureStart(user);
 
     // For tap gestures, automatically end after short duration
     if (gestureType === 'tap') {
       setTimeout(() => {
-        if (this.currentGesture.isActive) {
-          this._emitGestureEnd();
+        if (user.gesture.isActive) {
+          this._emitGestureEnd(user);
         }
       }, 200);
     }
   }
 
   /**
-   * Emit gesture start event
-   * Creates audio event and visual pulse
+   * Emit gesture start event for a user
+   * @param {Object} user - Virtual user object
    */
-  _emitGestureStart() {
+  _emitGestureStart(user) {
     const gestureData = {
-      type: this.currentGesture.type,
-      velocity: this.currentGesture.velocity,
-      holdStart: this.currentGesture.holdStart,
+      type: user.gesture.type,
+      velocity: { x: 0, y: 0 }, // Simplified for metric-driven gestures
+      holdStart: user.gesture.holdStart,
       isActive: true,
-      intensity: this.currentGesture.intensity
+      intensity: user.gesture.intensity
     };
 
     // Update visual service (triggers pulses/particles)
     if (this.visualService) {
-      this.visualService.updateGestureData(this.userId, gestureData);
+      this.visualService.updateGestureData(user.userId, gestureData);
     }
 
     // Generate audio event through AudioService
     if (this.audioService) {
-      this._generateAudioFromGesture(gestureData);
+      this._generateAudioFromGesture(user, gestureData);
     }
   }
 
   /**
-   * Emit gesture end event
+   * Emit gesture end event for a user
+   * @param {Object} user - Virtual user object
    */
-  _emitGestureEnd() {
-    this.currentGesture.isActive = false;
-    this.currentGesture.holdStart = null;
+  _emitGestureEnd(user) {
+    user.gesture.isActive = false;
+    user.gesture.holdStart = null;
 
     const gestureData = {
-      type: this.currentGesture.type,
-      velocity: this.currentGesture.velocity,
+      type: user.gesture.type,
+      velocity: { x: 0, y: 0 },
       isActive: false
     };
 
     if (this.visualService) {
-      this.visualService.updateGestureData(this.userId, gestureData);
+      this.visualService.updateGestureData(user.userId, gestureData);
     }
   }
 
   /**
-   * Generate audio event from gesture data
-   * This uses the existing AudioService API
+   * Generate audio event from gesture data for a user
+   * @param {Object} user - Virtual user object
+   * @param {Object} gestureData - Gesture data
    */
-  _generateAudioFromGesture(gestureData) {
-    const { x, y } = this.currentGesture.coordinates;
-    const intensity = this.currentGesture.intensity;
+  _generateAudioFromGesture(user, gestureData) {
+    const { x, y } = user.gesture.coordinates;
+    const intensity = user.gesture.intensity;
 
     // Map position to frequency (using existing AudioService logic)
     const baseFreq = 110 + (1 - y) * 440; // 110-550Hz
@@ -1108,7 +1253,7 @@ export class MetricsToGestureAdapter {
       frequency,
       intensity,
       tier: 'local',
-      velocity: Math.sqrt(gestureData.velocity.x ** 2 + gestureData.velocity.y ** 2) * 100,
+      velocity: intensity * 200, // Simplified velocity
       envelope: {
         attack: 0.01,
         decay: 0.1 + intensity * 0.2,
@@ -1123,23 +1268,9 @@ export class MetricsToGestureAdapter {
     };
 
     // Trigger sound through existing AudioService
-    // Note: This uses the public API of AudioService
     if (this.audioService && this.audioService.handleGestureInput) {
       this.audioService.handleGestureInput(audioParams);
     }
-  }
-
-  /**
-   * Get color based on activity intensity
-   * Maps to existing Webarmonium color pool
-   */
-  _getColorForActivity(intensity) {
-    const colorPool = [
-      '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00',
-      '#ffff33', '#a65628', '#f781bf', '#999999', '#66c2a5'
-    ];
-    const index = Math.floor(intensity * (colorPool.length - 1));
-    return colorPool[index];
   }
 }
 ```

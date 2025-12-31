@@ -69,11 +69,11 @@ class CompositionPlayer {
     const tempo = composition.metadata?.tempo || 120
 
     // console.log(`🎼 Playing ${composition.type} composition${isDrone ? ' (DRONE)' : ''}:`, {
-      form: composition.structure?.form,
+//      form: composition.structure?.form,
 //      section: composition.structure?.currentSection,
 //      tempo: tempo,
 //      key: composition.metadata?.keyCenter
-////    })
+//    })
 
     // If this is NOT a drone and we have a drone loop running, stop it
     if (!isDrone && this.droneLoopInterval) {
