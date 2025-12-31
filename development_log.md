@@ -1293,3 +1293,233 @@ if (event.gestureAction === 'drag') {
 7. Add visual presets (minimal, normal, elaborate)
 
 ---
+
+## Entry #7 - Remote Tap Bug Fix (RESOLVED)
+
+**Date**: 2025-12-31
+**Time**: ~12:00-14:00 UTC
+**Author**: Claude Code (AI Assistant)
+**Status**: RESOLVED - Backend working correctly, frontend deployed for testing
+
+### Problem Statement
+
+Remote taps generated a short phrase of 2-3 notes instead of a single sustained note that matches the local tap duration.
+
+**Expected Behavior:**
+- Local tap: Single sustained note with duration = hold time (via `hold:start`/`hold:end`)
+- Remote tap: Same sustained note with same duration
+
+**Actual Behavior:**
+- Remote tap played 2-3 brief notes (strum effect)
+- `hold:start` events NOT being received by remote clients
+
+---
+
+### Root Cause Analysis
+
+Through systematic debugging with extensive logging, identified **FOUR separate issues**:
+
+#### Issue 1: Frontend Not Emitting `hold:start` (v50 → v51)
+**Location:** `frontend/src/main.js`
+**Problem:** The `onSustainedHoldStart` callback returned early when `!this.isAudioStarted`, blocking the network emit to backend.
+**Evidence:** User console showed `⚠️ Audio not ready for sustained hold`
+**Fix:** Separated network emit from local audio playback:
+```javascript
+// EMIT TO NETWORK: Always emit for remote sync, even if local audio not ready
+this.socketService.socket.emit('hold:start', emitData, ...)
+
+// LOCAL AUDIO: Only play if ready
+if (!this.isAudioStarted || !this.audioService) {
+  console.warn('⚠️ Audio not ready for local playback - hold:start still sent to network')
+  return  // Only blocks local audio, not network emit
+}
+```
+
+#### Issue 2: Undefined userId/roomId (v51 → v52)
+**Location:** `frontend/src/main.js`
+**Problem:** Used `this.socketService.userId` and `this.socketService.roomId` which were undefined.
+**Evidence:** User console showed `userId: undefined, roomId: undefined`
+**Fix:** Changed to correct socket properties:
+```javascript
+// WRONG:
+userId: this.socketService.userId,  // undefined
+roomId: this.socketService.roomId,  // undefined
+
+// CORRECT:
+userId: this.socketService.socket.id,
+roomId: this.socketService.currentRoom?.roomId,
+```
+
+#### Issue 3: SocketService Missing Listeners (v6 → v7)
+**Location:** `frontend/src/services/SocketService.js`
+**Problem:** SocketService.js had NO socket.io listeners for `hold:start` and `hold:end`, so backend broadcasts were never received by frontend.
+**Evidence:** Backend logs showed `📡 BROADCASTING hold:start to room main-room: {recipientCount: 1}` but receiver console showed NO corresponding log.
+**Fix:** Added socket.io listeners that forward events via `this.emit()`:
+```javascript
+// Sustained hold events for remote note synchronization
+this.socket.on('hold:start', (data) => {
+  console.log('🎵 SocketService received hold:start:', {...})
+  this.emit('hold:start', data)  // Forward to application
+})
+
+this.socket.on('hold:end', (data) => {
+  console.log('🎵 SocketService received hold:end:', {...})
+  this.emit('hold:end', data)
+})
+```
+
+#### Issue 4: GestureToMusicService Still Running Despite `holdWasActive`
+**Location:** `backend/src/api/handlers/GestureHandler.js`
+**Problem:** Backend logs showed "⏭️ Skipping gestureToMusicService" but then GestureToMusicService still generated notes due to:
+1. Missing `holdWasActive` check in `gesture` handler (only existed in `gesture-complete`)
+2. `updateRoomStats` error causing the skip to fail
+3. Missing `action` field causing incorrect gesture classification
+
+**Fix 1:** Added `holdWasActive` check to `gesture` handler:
+```javascript
+if (data.holdWasActive) {
+  console.log(`⏭️ [gesture handler] Skipping GestureToMusicService - hold system was active`)
+  musicalResult = null
+}
+```
+
+**Fix 2:** Fixed `updateRoomStats` error:
+```javascript
+// OLD (caused error):
+socket.services.roomManager.updateRoomStats(socket.roomId, {...})
+
+// NEW (fixed):
+const room = socket.services.roomManager.getRoom(socket.roomId)
+if (room) {
+  room.updateActivity()
+}
+```
+
+**Fix 3:** Added missing `action` field:
+```javascript
+gesture: {
+  action: gesture.action || 'tap',  // CRITICAL: Include action so GestureToMusicService knows tap vs drag
+  // ...
+}
+```
+
+#### Issue 5: Syntax Error - Duplicate DURATION_MAP
+**Location:** `frontend/src/utils/VelocityCalculator.js`
+**Problem:** Both `VelocityCalculator.js` and `MusicalConstants.js` declared `const DURATION_MAP`
+**Evidence:** User console showed `Uncaught SyntaxError: Identifier 'DURATION_MAP' has already been declared`
+**Fix:** Renamed to `VELOCITY_DURATION_MAP` in VelocityCalculator.js (3 locations)
+
+---
+
+### Files Modified
+
+**Frontend (4 files):**
+1. `frontend/src/main.js` (v50 → v53)
+   - Fixed `hold:start` emit blocked by audio check
+   - Fixed undefined userId/roomId
+   - Added comprehensive logging
+   - Separated network emit from local audio playback
+
+2. `frontend/src/services/SocketService.js` (v6 → v7)
+   - Added socket.io listeners for `hold:start` and `hold:end`
+   - Forward events to application via `this.emit()`
+
+3. `frontend/src/services/EnhancedGestureCapture.js` (v18 → v19)
+   - Added gesture classification logging
+   - Improved state tracking
+
+4. `frontend/src/utils/VelocityCalculator.js` (v1)
+   - Renamed `DURATION_MAP` to `VELOCITY_DURATION_MAP`
+   - Fixed syntax error
+
+5. `frontend/index.html`
+   - Updated script versions for cache busting (main.js v=53, SocketService.js v=7)
+
+**Backend (3 files):**
+1. `backend/src/api/handlers/GestureHandler.js`
+   - Added `holdWasActive` check to `gesture` handler
+   - Fixed `updateRoomStats` calls (2 locations)
+   - Added missing `action` field to gestureData
+
+2. `backend/src/api/handlers/MusicalHandler.js`
+   - Already correct - has proper broadcasting logic
+   - Added additional logging for debugging
+
+3. `backend/package.json`
+   - Bumped version from 1.2.0 to 1.2.1
+
+---
+
+### Backend Verification
+
+**Backend logs confirm correct behavior:**
+```
+📡 BROADCASTING hold:start to room main-room: {
+  noteId: 'hold-1767188190109-pmeb09qan',
+  userId: '27d86c71',
+  frequency: '392.0Hz',
+  velocity: '0.76',
+  isRemote: true,
+  recipientCount: 1
+}
+🎵 Hold started: hold-1767188190109-pmeb09qan by 27d86c71 (0ms)
+...
+🎵 Hold ended: hold-1767188190109-pmeb09qan (1024ms, 0ms latency)
+🎯 gesture-complete received from 27d86c71: {
+  holdWasActive: true,
+  action: 'tap'
+}
+⏭️ Skipping gestureToMusicService - hold system was active (already handled via hold:start/hold:end)
+⏭️ [gesture handler] Skipping GestureToMusicService - hold system was active
+```
+
+**Backend is correctly:**
+1. Broadcasting `hold:start` to the room
+2. Broadcasting `hold:end` to the room
+3. Receiving `gesture-complete` with `holdWasActive: true`
+4. Skipping GestureToMusicService in BOTH handlers
+
+---
+
+### Architecture Understanding
+
+The system has **TWO parallel audio systems**:
+
+1. **Hold System** (`hold:start`/`hold:end` events)
+   - For sustained notes (taps with variable duration)
+   - Gate-based synthesis: `triggerSustainedNoteAttack()` → `triggerSustainedNoteRelease()`
+   - Note duration = actual hold time
+
+2. **Gesture System** (`gesture-complete` → `gestureToMusicService`)
+   - For phrase generation (drags, algorithmic music)
+   - Generates multiple notes with musical patterns
+   - NOT used when hold system is active
+
+**The fix ensures:**
+- Hold system events are properly sent, received, and played
+- Gesture system is skipped when `holdWasActive: true`
+- No duplicate notes (strum effect)
+
+---
+
+### Testing Protocol
+
+1. Start two browser instances (local servers)
+2. Instance A: Perform a tap (hold briefly, then release)
+3. Instance B: Should hear a sustained note with same duration
+4. Verify in logs:
+   - `hold:start` emitted and received
+   - `hold:end` emitted and received
+   - `gesture-complete` with `holdWasActive: true`
+   - GestureToMusicService skipped
+
+---
+
+### Commits to be Made
+
+1. Frontend changes (main.js v=53, SocketService.js v=7, EnhancedGestureCapture.js v=19)
+2. Backend changes (GestureHandler.js fixes, MusicalHandler.js logging)
+3. Backend version bump (1.2.0 → 1.2.1)
+4. Development log update (this entry)
+
+---

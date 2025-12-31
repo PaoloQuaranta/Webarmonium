@@ -52,6 +52,15 @@ const MusicalHandler = {
           timestamp: Date.now()
         }
 
+        console.log(`📡 BROADCASTING hold:start to room ${socket.roomId}:`, {
+          noteId: broadcastData.noteId,
+          userId: broadcastData.userId?.substring(0, 8),
+          frequency: broadcastData.frequency?.toFixed(1) + 'Hz',
+          velocity: broadcastData.velocity?.toFixed(2),
+          isRemote: broadcastData.isRemote,
+          recipientCount: socket.adapter.rooms.get(socket.roomId)?.size - 1 || 0
+        })
+
         socket.to(socket.roomId).emit('hold:start', broadcastData)
 
         const latency = Date.now() - startTime

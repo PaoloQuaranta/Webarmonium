@@ -60,7 +60,12 @@ const GestureHandler = {
           gesture: data
         }
 
-        if (data.streamedNotes && Array.isArray(data.streamedNotes) && data.streamedNotes.length > 0) {
+        // CRITICAL FIX: Skip GestureToMusicService if hold system was active
+        // This prevents duplicate note generation (strum effect) when hold:start/hold:end is used
+        if (data.holdWasActive) {
+          console.log(`⏭️ [gesture handler] Skipping GestureToMusicService - hold system was active (already handled via hold:start/hold:end)`)
+          musicalResult = null
+        } else if (data.streamedNotes && Array.isArray(data.streamedNotes) && data.streamedNotes.length > 0) {
           console.log('🔍 Processing streamedNotes from frontend:', data.streamedNotes.length, 'notes')
 
           const startTime = Date.now()
@@ -328,10 +333,11 @@ const GestureHandler = {
           timestamp: Date.now()
         })
 
-        socket.services.roomManager.updateRoomStats(socket.roomId, {
-          gestureCount: 1,
-          lastActivity: Date.now()
-        })
+        // Update room activity (room.updateActivity exists and handles lastActivity)
+        const room = socket.services.roomManager.getRoom(socket.roomId)
+        if (room) {
+          room.updateActivity()
+        }
 
         ValidationHandler.sendResponse(callback, {
           success: true,
@@ -468,6 +474,7 @@ const GestureHandler = {
             userId: socket.userId,
             roomId: socket.roomId,
             gesture: {
+              action: gesture.action || 'tap', // CRITICAL: Include action so GestureToMusicService knows tap vs drag
               type: gesture.type || 'tap',
               coordinates: gesture.coordinates || gesture.position,
               position: gesture.position || gesture.coordinates,
@@ -501,11 +508,11 @@ const GestureHandler = {
           }
         }
 
-        // Update room stats
-        socket.services.roomManager.updateRoomStats(socket.roomId, {
-          gestureCount: 1,
-          lastActivity: Date.now()
-        })
+        // Update room activity (room.updateActivity exists and handles lastActivity)
+        const roomForUpdate = socket.services.roomManager.getRoom(socket.roomId)
+        if (roomForUpdate) {
+          roomForUpdate.updateActivity()
+        }
 
         const processingTime = Date.now() - startTime
         if (processingTime > 100) {

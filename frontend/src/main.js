@@ -40,6 +40,7 @@ class WebarmoniumApp {
     // SUSTAINED HOLD: State tracking
     this.activeLocalHold = null  // { noteId, audioNoteId, frequency, startTime, position }
     this.activeRemoteHolds = new Map()  // noteId -> { noteId, audioNoteId, userId, frequency, startTime }
+    this.pendingHoldNoteData = null  // { noteId, frequency, velocity, startTime } - for network sync when audio not ready
 
     // Initialize the application
     this.init()
@@ -443,12 +444,8 @@ class WebarmoniumApp {
     this.gestureCapture.onSustainedHoldStart = (holdData) => {
       console.log('🎵 Sustained hold start callback:', holdData)
 
-      if (!this.isAudioStarted || !this.audioService) {
-        console.warn('⚠️ Audio not ready for sustained hold')
-        return
-      }
-
       // Calculate frequency from position (reuse existing logic from drag streaming)
+      // CRITICAL: Calculate this regardless of audio state for network sync
       const x = holdData.position.x
       const y = holdData.position.y
 
@@ -470,6 +467,54 @@ class WebarmoniumApp {
       // Velocity based on Y position (higher = louder)
       const velocity = 0.6 + (1 - y) * 0.4 // 0.6-1.0 range
 
+      // EMIT TO NETWORK: Always emit hold:start for remote sync, even if local audio not ready
+      if (this.socketService && this.socketService.socket) {
+        const emitData = {
+          noteId: holdData.noteId,
+          userId: this.socketService.socket.id,
+          roomId: this.socketService.currentRoom?.roomId,
+          position: holdData.position,
+          frequency: frequency,
+          velocity: velocity,
+          timestamp: Date.now()
+        }
+        console.log('📤 EMITTING hold:start to backend:', {
+          noteId: emitData.noteId,
+          userId: emitData.userId?.substring(0, 8),
+          roomId: emitData.roomId,
+          frequency: emitData.frequency.toFixed(1) + 'Hz',
+          velocity: emitData.velocity.toFixed(2)
+        })
+        this.socketService.socket.emit('hold:start', emitData, (response) => {
+          if (response && response.success) {
+            console.log(`✅ hold:start acknowledged by backend: ${response.latency}ms latency`)
+          } else {
+            console.error('❌ hold:start failed:', response?.error)
+          }
+        })
+        console.log('✅ hold:start emit called successfully')
+      } else {
+        console.error('❌ Cannot emit hold:start - socketService or socket not available', {
+          hasSocketService: !!this.socketService,
+          hasSocket: !!(this.socketService?.socket)
+        })
+      }
+
+      // Store hold note data for network emission in onSustainedHoldEnd
+      // CRITICAL: This must be set regardless of audio state for proper network sync
+      this.pendingHoldNoteData = {
+        noteId: holdData.noteId,
+        frequency: frequency,
+        velocity: velocity,
+        startTime: Date.now()
+      }
+
+      // LOCAL AUDIO: Only play locally if audio is ready
+      if (!this.isAudioStarted || !this.audioService) {
+        console.warn('⚠️ Audio not ready for local playback - hold:start still sent to network')
+        return
+      }
+
       // Trigger note attack (gate opens)
       const result = this.audioService.triggerSustainedNoteAttack(frequency, velocity, holdData.position)
 
@@ -485,25 +530,6 @@ class WebarmoniumApp {
         }
 
         console.log(`✅ Sustained hold started: ${frequency.toFixed(1)}Hz`)
-
-        // Emit hold:start to server for multi-user sync
-        if (this.socketService && this.socketService.socket) {
-          this.socketService.socket.emit('hold:start', {
-            noteId: holdData.noteId,
-            userId: this.socketService.userId,
-            roomId: this.socketService.roomId,
-            position: holdData.position,
-            frequency: frequency,
-            velocity: velocity,
-            timestamp: Date.now()
-          }, (response) => {
-            if (response && response.success) {
-              console.log(`✅ Hold start acknowledged: ${response.latency}ms latency`)
-            } else {
-              console.error('❌ Hold start failed:', response?.error)
-            }
-          })
-        }
 
         // Update visual service with hold gesture
         if (this.visualService && this.socketService && this.socketService.socket) {
@@ -522,23 +548,16 @@ class WebarmoniumApp {
     }
 
     this.gestureCapture.onSustainedHoldEnd = (endData) => {
-      if (!this.isAudioStarted || !this.audioService || !this.activeLocalHold) {
-        return
-      }
-
       console.log('🎵 Sustained hold end callback:', endData)
 
-      // Trigger note release (gate closes)
-      this.audioService.triggerSustainedNoteRelease(this.activeLocalHold.audioNoteId)
-
-      console.log(`✅ Sustained hold ended: ${endData.duration}ms, reason: ${endData.reason}`)
-
-      // Emit hold:end to server for multi-user sync
-      if (this.socketService && this.socketService.socket) {
+      // EMIT TO NETWORK: Always emit hold:end for remote sync
+      // Use pendingHoldNoteData (set in onSustainedHoldStart) for network emission
+      if (this.socketService && this.socketService.socket && this.pendingHoldNoteData) {
+        const holdNoteId = this.pendingHoldNoteData.noteId
         this.socketService.socket.emit('hold:end', {
-          noteId: this.activeLocalHold.noteId,
-          userId: this.socketService.userId,
-          roomId: this.socketService.roomId,
+          noteId: holdNoteId,
+          userId: this.socketService.socket.id,
+          roomId: this.socketService.currentRoom?.roomId,
           duration: endData.duration,
           finalPosition: endData.finalPosition,
           timestamp: Date.now()
@@ -549,6 +568,21 @@ class WebarmoniumApp {
             console.error('❌ Hold end failed:', response?.error)
           }
         })
+      } else {
+        console.warn('⚠️ Cannot emit hold:end - missing socket or pendingHoldNoteData', {
+          hasSocketService: !!this.socketService,
+          hasSocket: !!(this.socketService?.socket),
+          hasPendingHoldData: !!this.pendingHoldNoteData
+        })
+      }
+
+      // LOCAL AUDIO: Only release local audio if it was started
+      if (this.isAudioStarted && this.audioService && this.activeLocalHold) {
+        // Trigger note release (gate closes)
+        this.audioService.triggerSustainedNoteRelease(this.activeLocalHold.audioNoteId)
+        console.log(`✅ Local sustained hold ended: ${endData.duration}ms, reason: ${endData.reason}`)
+      } else {
+        console.log(`📡 Network-only hold ended: ${endData.duration}ms, reason: ${endData.reason}`)
       }
 
       // Update visual service with hold end
@@ -564,6 +598,7 @@ class WebarmoniumApp {
 
       // Clear tracking
       this.activeLocalHold = null
+      this.pendingHoldNoteData = null
     }
 
     // Setup gesture handling
@@ -733,20 +768,27 @@ class WebarmoniumApp {
 
     // SUSTAINED HOLD: Handle remote user hold:start events
     this.socketService.on('hold:start', (data) => {
-      console.log('🔔 Received hold:start event:', { isRemote: data.isRemote, isAudioStarted: this.isAudioStarted, userId: data.userId?.substring(0, 8) })
+      console.log('📥 RECEIVED hold:start from server:', {
+        noteId: data.noteId,
+        userId: data.userId?.substring(0, 8),
+        isRemote: data.isRemote,
+        frequency: data.frequency?.toFixed(1) + 'Hz',
+        velocity: data.velocity?.toFixed(2),
+        isAudioStarted: this.isAudioStarted
+      })
 
       // Only process if audio is started AND this is a remote hold
       if (!this.isAudioStarted) {
-        console.log('⚠️ Ignoring remote hold - audio not started')
+        console.log('⏭️ Skipping hold:start - audio not started')
         return
       }
 
       if (!data.isRemote) {
-        console.log('⚠️ Ignoring hold:start - not marked as remote')
+        console.log('⏭️ Skipping hold:start - not marked as remote (is my own event)')
         return
       }
 
-      console.log(`🌐 Remote hold start: user ${data.userId.substring(0, 8)}, freq ${data.frequency.toFixed(1)}Hz`)
+      console.log('▶️ PLAYING remote sustained note')
 
       // Trigger remote note attack (use same method, AudioService handles synth selection)
       const result = this.audioService.triggerSustainedNoteAttack(

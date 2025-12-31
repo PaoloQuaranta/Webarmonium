@@ -24,7 +24,7 @@ const SPEED_INTERVALS = [
  * Duration mapping from Tone.js notation to seconds (at 120 BPM)
  * @type {Object<string, number>}
  */
-const DURATION_MAP = {
+const VELOCITY_DURATION_MAP = {
   '64n': 0.03125,  // 1/64 note
   '32n': 0.0625,   // 1/32 note
   '16n': 0.125,    // 1/16 note
@@ -75,7 +75,7 @@ function normalizeSpeed(rawSpeed, maxSpeed = 3) {
  * @returns {number} Duration in seconds (at 120 BPM)
  */
 function getDurationSeconds(noteValue) {
-  return DURATION_MAP[noteValue] || 0.25 // Default to 8th note
+  return VELOCITY_DURATION_MAP[noteValue] || 0.25 // Default to 8th note
 }
 
 /**
@@ -140,7 +140,7 @@ function getEnvelopeFromArticulation(articulation, duration) {
 if (typeof window !== 'undefined') {
   window.VelocityCalculator = {
     SPEED_INTERVALS,
-    DURATION_MAP,
+    VELOCITY_DURATION_MAP,
     getIntervalFromSpeed,
     calculateVelocityMagnitude,
     normalizeSpeed,
@@ -154,7 +154,7 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     SPEED_INTERVALS,
-    DURATION_MAP,
+    VELOCITY_DURATION_MAP,
     getIntervalFromSpeed,
     calculateVelocityMagnitude,
     normalizeSpeed,

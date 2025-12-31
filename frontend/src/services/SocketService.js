@@ -192,6 +192,26 @@ class SocketService {
       this.emit('musical:event', data)
     })
 
+    // Sustained hold events for remote note synchronization
+    this.socket.on('hold:start', (data) => {
+      console.log('🎵 SocketService received hold:start:', {
+        noteId: data.noteId,
+        userId: data.userId?.substring(0, 8),
+        frequency: data.frequency?.toFixed(1) + 'Hz',
+        velocity: data.velocity?.toFixed(2)
+      })
+      this.emit('hold:start', data)
+    })
+
+    this.socket.on('hold:end', (data) => {
+      console.log('🎵 SocketService received hold:end:', {
+        noteId: data.noteId,
+        userId: data.userId?.substring(0, 8),
+        duration: data.duration + 'ms'
+      })
+      this.emit('hold:end', data)
+    })
+
     // Unified modulation from HoverOrchestrator
     this.socket.on('unified-modulation', (data) => {
       console.log('🎛️ SocketService received unified-modulation:', data)

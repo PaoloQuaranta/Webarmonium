@@ -1,6 +1,6 @@
 {
   "name": "webarmonium-backend",
-  "version": "1.1.0",
+  "version": "1.2.1",
   "description": "Webarmonium backend server for real-time collaborative generative music",
   "main": "src/server.js",
   "scripts": {

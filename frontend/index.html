@@ -305,7 +305,7 @@
     <!-- Application services -->
     <!-- <script src="src/services/GestureCapture.js?v=5"></script> -->
     <!-- DISABLED - using EnhancedGestureCapture instead -->
-    <script src="src/services/SocketService.js?v=6"></script>
+    <script src="src/services/SocketService.js?v=7"></script> <!-- FIX: Added hold:start/hold:end socket.io listeners -->
     <!-- Sprint 2 refactoring: Extracted components -->
     <script src="src/services/CanvasManager.js?v=1"></script>
     <script src="src/services/UIManager.js?v=1"></script>
@@ -360,7 +360,7 @@
     <script src="src/services/gesture/DragStreamProcessor.js?v=1"></script>
 
     <!-- Enhanced generative music services -->
-    <script src="src/services/EnhancedGestureCapture.js?v=17"></script>
+    <script src="src/services/EnhancedGestureCapture.js?v=19"></script>
 
     <!-- Sprint 4: Gesture processing component -->
     <script src="src/services/GestureProcessor.js?v=1"></script>
@@ -384,7 +384,7 @@
             }
         }, 1000)
     </script>
-    <script src="src/main.js?v=49"></script> <!-- Fixed: Use nginx proxy for production WebSocket connection -->
+    <script src="src/main.js?v=53"></script> <!-- FIX: SocketService now forwards hold:start/hold:end from socket.io -->
 </body>
 
 </html>

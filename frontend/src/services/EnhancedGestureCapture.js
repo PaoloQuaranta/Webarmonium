@@ -119,8 +119,15 @@ class EnhancedGestureCapture {
    * Setup event listeners for gesture capture
    */
   setupEventListeners() {
+    // Verify canvas is valid
+    console.log('🔍 setupEventListeners: canvas element:', this.canvas?.id, 'tagName:', this.canvas?.tagName)
+
     // Mouse events
-    this.canvas.addEventListener('mousedown', (e) => this.handleGestureStart(e))
+    const mousedownHandler = (e) => {
+      console.log('🔥 Mousedown event received on canvas:', { type: e.type, button: e.button, target: e.target?.id })
+      this.handleGestureStart(e)
+    }
+    this.canvas.addEventListener('mousedown', mousedownHandler)
     this.canvas.addEventListener('mousemove', (e) => this.handleGestureMove(e))
     this.canvas.addEventListener('mouseup', (e) => this.handleGestureEnd(e))
     this.canvas.addEventListener('mouseleave', (e) => this.handleGestureEnd(e))
@@ -316,6 +323,13 @@ class EnhancedGestureCapture {
       // CRITICAL: Discriminate tap vs drag based on MOVEMENT (not time!)
       // If movement exceeds threshold, mark as 'drag'
       if (this.currentGesture.action === 'potential-tap' && this.dragStreaming.totalDistance > this.dragStreaming.minDistanceForDrag) {
+        console.log('🔍 GESTURE CLASSIFICATION: Transitioning to DRAG', {
+          totalDistance: this.dragStreaming.totalDistance.toFixed(2) + 'px',
+          minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
+          previousAction: this.currentGesture.action,
+          newAction: 'drag',
+          sustainedHoldWasActive: this.sustainedHold.wasActive
+        })
         this.currentGesture.action = 'drag'
       }
 
@@ -439,7 +453,22 @@ class EnhancedGestureCapture {
     // CRITICAL: Finalize gesture action based on movement
     // If still 'potential-tap', no significant movement occurred → it's a tap
     if (this.currentGesture.action === 'potential-tap') {
+      console.log('🔍 GESTURE CLASSIFICATION: Final action is TAP', {
+        totalDistance: this.dragStreaming.totalDistance.toFixed(2) + 'px',
+        minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
+        finalAction: 'tap',
+        sustainedHoldWasActive: this.sustainedHold.wasActive,
+        holdWasActiveFlag: this.currentGesture.holdWasActive
+      })
       this.currentGesture.action = 'tap'
+    } else {
+      console.log('🔍 GESTURE CLASSIFICATION: Final action', {
+        totalDistance: this.dragStreaming.totalDistance.toFixed(2) + 'px',
+        minDistanceForDrag: this.dragStreaming.minDistanceForDrag + 'px',
+        finalAction: this.currentGesture.action,
+        sustainedHoldWasActive: this.sustainedHold.wasActive,
+        holdWasActiveFlag: this.currentGesture.holdWasActive
+      })
     }
 
     // STOP DRAG NOTE STREAMING (always active since mousedown)
