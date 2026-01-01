@@ -367,36 +367,40 @@ const AuthHandler = {
    */
   handleDisconnection (socket, roomManager) {
     if (socket.userId && socket.roomId) {
-      try {
-        // Get user's color before cleanup
-        const room = roomManager.getRoom(socket.roomId)
-        const user = room ? room.getUser(socket.userId) : null
-        const userColor = user ? user.assignedColor : null
+      // Skip room manager for landing-room (not managed by RoomManager)
+      const isLandingRoom = socket.roomId === 'landing-room'
 
-        // Clean up any active holds from disconnected user
-        if (room?.activeHolds) {
-          let cleanedCount = 0
-          for (const [noteId, hold] of room.activeHolds.entries()) {
-            if (hold.userId === socket.userId) {
-              socket.to(socket.roomId).emit('hold:end', {
-                type: 'hold:end',
-                userId: socket.userId,
-                noteId: noteId,
-                duration: Date.now() - hold.startTime,
-                reason: 'disconnect',
-                timestamp: Date.now()
-              })
-              room.activeHolds.delete(noteId)
-              cleanedCount++
+      if (!isLandingRoom) {
+        try {
+          // Get user's color before cleanup
+          const room = roomManager.getRoom(socket.roomId)
+          const user = room ? room.getUser(socket.userId) : null
+          const userColor = user ? user.assignedColor : null
+
+          // Clean up any active holds from disconnected user
+          if (room?.activeHolds) {
+            let cleanedCount = 0
+            for (const [noteId, hold] of room.activeHolds.entries()) {
+              if (hold.userId === socket.userId) {
+                socket.to(socket.roomId).emit('hold:end', {
+                  type: 'hold:end',
+                  userId: socket.userId,
+                  noteId: noteId,
+                  duration: Date.now() - hold.startTime,
+                  reason: 'disconnect',
+                  timestamp: Date.now()
+                })
+                room.activeHolds.delete(noteId)
+                cleanedCount++
+              }
+            }
+            if (cleanedCount > 0) {
+              // console.log(`🧹 Cleaned up ${cleanedCount} active holds from disconnected user ${socket.userId}`)
             }
           }
-          if (cleanedCount > 0) {
-            // console.log(`🧹 Cleaned up ${cleanedCount} active holds from disconnected user ${socket.userId}`)
-          }
-        }
 
-        // Remove user from room
-        roomManager.leaveRoom(socket.userId)
+          // Remove user from room
+          roomManager.leaveRoom(socket.userId)
 
         // Broadcast user-left to remaining users
         socket.to(socket.roomId).emit('user-left', {
@@ -421,6 +425,7 @@ const AuthHandler = {
         // console.log(`User ${socket.userId} disconnected from room ${socket.roomId}`)
       } catch (error) {
         // console.error('Disconnection cleanup error:', error)
+      }
       }
     }
   }
