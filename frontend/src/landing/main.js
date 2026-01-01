@@ -1,164 +1,37 @@
 /**
- * Webarmonium Landing Page - Main Entry Point
+ * Webarmonium Landing Page - Main Entry Point (Backend-Driven)
  *
  * Architecture:
- * 1. StateManager - Central state for metrics, parameters, and playback
- * 2. MetricsCollectorService - Polls external APIs (Wikipedia, HN, GitHub)
- * 3. MetricsToGestureAdapter - Converts metrics to gesture format
- * 4. GenerativeVisualService (REUSED) - Renders spring-mesh visuals
- * 5. AudioService (REUSED) - Generates audio from gestures
- * 6. DashboardUI - Updates the educational dashboard
- * 7. BackgroundMusicGenerator - Generates ambient background music
+ * 1. Socket.io client - Connects to backend for compositions and metrics
+ * 2. GenerativeVisualService (REUSED) - Renders spring-mesh visuals for virtual users
+ * 3. AudioService (REUSED) - Plays compositions from backend
+ * 4. DashboardUI - Displays real-time metrics from backend
  *
- * Key Design: REUSES existing AudioService and GenerativeVisualService
- * from the main application without any modifications.
+ * Backend-driven:
+ * - WebMetricsPoller (backend) polls Wikipedia/HN/GitHub APIs
+ * - LandingCompositionService (backend) generates compositions
+ * - Frontend receives compositions + cursors + metrics via socket.io
  */
 
-import { MetricsCollectorService, MockMetricsGenerator } from './MetricsCollectorService.js'
-import { MetricsToGestureAdapter } from './MetricsToGestureAdapter.js'
 import { DashboardUI } from './DashboardUI.js'
-import { stateManager } from './StateManager.js'
-
-/**
- * BackgroundMusicGenerator
- * Generates ambient background music to match room architecture
- * Similar to backend's background-composition events
- */
-class BackgroundMusicGenerator {
-  constructor(audioService) {
-    this.audioService = audioService
-    this.isPlaying = false
-    this.compositionInterval = null
-    this.currentSection = 0
-
-    // Musical parameters for ambient generation
-    this.scales = {
-      pentatonic: [0, 2, 4, 7, 9],
-      minor: [0, 2, 3, 5, 7, 8, 10],
-      major: [0, 2, 4, 5, 7, 9, 11]
-    }
-    this.currentScale = 'pentatonic'
-    this.rootNote = 48 // C3
-  }
-
-  start() {
-    if (this.isPlaying) return
-    this.isPlaying = true
-    this._scheduleNextComposition()
-    console.log('🎵 Background music generator started')
-  }
-
-  stop() {
-    if (!this.isPlaying) return
-    this.isPlaying = false
-    if (this.compositionInterval) {
-      clearTimeout(this.compositionInterval)
-      this.compositionInterval = null
-    }
-    console.log('🎵 Background music generator stopped')
-  }
-
-  /**
-   * Schedule next ambient composition
-   * @private
-   */
-  _scheduleNextComposition() {
-    if (!this.isPlaying) return
-
-    // Generate and play composition
-    const composition = this._generateAmbientComposition()
-    if (this.audioService && typeof this.audioService.playComposition === 'function') {
-      this.audioService.playComposition(composition, true) // isDrone = true for ambient
-    }
-
-    // Schedule next composition (every 8-16 seconds for ambient feel)
-    const nextDelay = 8000 + Math.random() * 8000
-    this.compositionInterval = setTimeout(() => {
-      this._scheduleNextComposition()
-    }, nextDelay)
-  }
-
-  /**
-   * Generate ambient composition
-   * @private
-   */
-  _generateAmbientComposition() {
-    const scale = this.scales[this.currentScale]
-    const voices = []
-
-    // Generate 3-4 voices for ambient polyphony
-    const voiceCount = 3 + Math.floor(Math.random() * 2)
-
-    for (let i = 0; i < voiceCount; i++) {
-      const voice = {
-        notes: [],
-        duration: 8 + Math.random() * 8, // 8-16 seconds
-        velocity: 0.1 + Math.random() * 0.2, // Quiet for ambient (0.1-0.3)
-        pan: -0.5 + Math.random() // Random pan position
-      }
-
-      // Generate 3-5 notes per voice
-      const noteCount = 3 + Math.floor(Math.random() * 3)
-      for (let j = 0; j < noteCount; j++) {
-        const scaleDegree = scale[Math.floor(Math.random() * scale.length)]
-        const octaveOffset = Math.floor(Math.random() * 2) // 0-1 octaves up
-        const midiNote = this.rootNote + scaleDegree + (octaveOffset * 12)
-
-        voice.notes.push({
-          midi: midiNote,
-          duration: 2 + Math.random() * 4, // 2-6 seconds per note
-          startTime: j * (voice.duration / noteCount) // Spread across duration
-        })
-      }
-
-      voices.push(voice)
-    }
-
-    return {
-      type: 'polyphonic',
-      content: { voices },
-      metadata: {
-        tempo: 60, // Slow tempo for ambient
-        keyCenter: 'C'
-      },
-      structure: {
-        form: 'ambient',
-        currentSection: this.currentSection++ % 4
-      }
-    }
-  }
-
-  /**
-   * Update musical parameters based on metrics
-   * @param {Object} params - { complexity, rhythmicPreference, harmonicComplexity }
-   */
-  updateParameters(params) {
-    // Change scale based on complexity
-    if (params.complexity > 0.7) {
-      this.currentScale = 'minor'
-    } else if (params.complexity < 0.3) {
-      this.currentScale = 'pentatonic'
-    } else {
-      this.currentScale = 'major'
-    }
-  }
-}
 
 /**
  * LandingApp
  * Main application class for the landing page
+ * Socket.io client that receives compositions from backend
  */
 class LandingApp {
   constructor() {
     // Services
-    this.metricsCollector = new MetricsCollectorService()
-    this.metricsAdapter = new MetricsToGestureAdapter()
     this.dashboardUI = new DashboardUI()
 
     // Reused services (loaded via global scripts)
     this.visualService = null
     this.audioService = null
-    this.backgroundMusic = null
+
+    // Socket.io connection
+    this.socket = null
+    this.socketUrl = 'http://localhost:3001'
 
     // State
     this.isInitialized = false
@@ -167,8 +40,9 @@ class LandingApp {
     // Canvas container
     this.canvasContainer = null
 
-    // Mock mode
-    this.mockMode = false
+    // Current cursors and metrics from backend
+    this.currentCursors = {}
+    this.currentMetrics = {}
   }
 
   /**
@@ -180,7 +54,7 @@ class LandingApp {
       return
     }
 
-    console.log('🚀 Initializing Webarmonium Landing Page...')
+    console.log('🚀 Initializing Webarmonium Landing Page (Backend-Driven)...')
 
     try {
       // Cache canvas container
@@ -207,22 +81,27 @@ class LandingApp {
         onStop: () => this.stop()
       })
 
-      // Setup mock mode toggle
-      this._setupMockMode()
-
-      // Update metrics collector when state changes
-      window.addEventListener('metrics:updated', (event) => {
-        stateManager.updateMetrics('wikipedia', event.detail.wikipedia)
-        stateManager.updateMetrics('hackernews', event.detail.hackernews)
-        stateManager.updateMetrics('github', event.detail.github)
-      })
+      // Remove mock mode toggle (no longer needed - backend handles metrics)
+      this._removeMockModeToggle()
 
       this.isInitialized = true
-      console.log('✅ Landing page initialized')
+      console.log('✅ Landing page initialized (waiting for Start)')
 
     } catch (error) {
       console.error('❌ Error during initialization:', error)
       this.dashboardUI.showError(`Initialization error: ${error.message}`)
+    }
+  }
+
+  /**
+   * Remove mock mode toggle from UI (no longer needed)
+   * @private
+   */
+  _removeMockModeToggle() {
+    const mockToggle = document.getElementById('mock-mode')
+    if (mockToggle && mockToggle.parentElement) {
+      mockToggle.parentElement.remove()
+      console.log('🗑️ Mock mode toggle removed (backend handles metrics)')
     }
   }
 
@@ -244,16 +123,9 @@ class LandingApp {
           await this.audioService.initialize()
           console.log('✅ AudioService initialized')
 
-          // Create the continuous generative system (same as rooms: background + tap + phrases)
+          // Create the continuous generative system (same as rooms)
           this.audioService.createContinuousGenerativeSystem()
           console.log('✅ Continuous generative system created')
-
-          // Connect adapter to services
-          this.metricsAdapter.initialize(this.visualService, this.audioService)
-
-          // Create background music generator
-          this.backgroundMusic = new BackgroundMusicGenerator(this.audioService)
-          console.log('✅ Background music generator created')
         }
       } catch (error) {
         console.error('❌ Error initializing audio:', error)
@@ -270,24 +142,113 @@ class LandingApp {
   }
 
   /**
-   * Setup mock mode toggle
+   * Setup socket.io connection to backend
    * @private
    */
-  _setupMockMode() {
-    const mockToggle = document.getElementById('mock-mode')
-    if (!mockToggle) return
+  _setupSocketConnection() {
+    if (this.socket) {
+      console.log('Socket already connected')
+      return
+    }
 
-    mockToggle.addEventListener('change', (e) => {
-      this.mockMode = e.target.checked
+    try {
+      // Connect to backend
+      this.socket = io(this.socketUrl)
 
-      if (this.mockMode) {
-        const mockGenerator = new MockMetricsGenerator()
-        this.metricsCollector.enableMockMode(mockGenerator)
-        this.dashboardUI.showStatus('Demo mode enabled')
-      } else {
-        this.dashboardUI.showStatus('Live data enabled')
-      }
-    })
+      // Connection events
+      this.socket.on('connect', () => {
+        console.log('✅ Connected to backend')
+
+        // Join landing room
+        this.socket.emit('join-landing', (response) => {
+          if (response && response.success) {
+            console.log('✅ Joined landing room:', response.roomId)
+
+            // Initialize cursors and metrics from backend
+            if (response.cursors) {
+              this.currentCursors = response.cursors
+              this._updateVisualCursors()
+            }
+
+            if (response.metrics) {
+              this.currentMetrics = response.metrics
+              this.dashboardUI.updateMetrics(this.currentMetrics)
+            }
+          }
+        })
+      })
+
+      this.socket.on('disconnect', () => {
+        console.log('❌ Disconnected from backend')
+      })
+
+      this.socket.on('connect_error', (error) => {
+        console.error('❌ Socket connection error:', error)
+        this.dashboardUI.showError('Backend connection failed')
+      })
+
+      // Listen for landing-joined event
+      this.socket.on('landing-joined', (data) => {
+        console.log('✅ Landing joined:', data.roomId)
+      })
+
+      // Listen for background compositions from backend
+      this.socket.on('background-composition', (data) => {
+        if (!this.isRunning) return
+
+        console.log('🎵 Received composition from backend:', data.composition?.type)
+
+        // Play composition
+        if (this.audioService && data.composition) {
+          if (typeof this.audioService.playComposition === 'function') {
+            this.audioService.playComposition(data.composition, data.isDrone || false)
+          } else {
+            console.warn('⚠️ playComposition not available on AudioService')
+          }
+        }
+      })
+
+      // Listen for virtual cursor updates from backend
+      this.socket.on('virtual-cursors', (data) => {
+        if (!this.isRunning) return
+
+        if (data.cursors) {
+          this.currentCursors = data.cursors
+          this._updateVisualCursors()
+        }
+      })
+
+      // Listen for metrics updates from backend
+      this.socket.on('metrics-update', (data) => {
+        if (!this.isRunning) return
+
+        if (data.metrics) {
+          this.currentMetrics = data.metrics
+          this.dashboardUI.updateMetrics(this.currentMetrics)
+        }
+      })
+
+    } catch (error) {
+      console.error('❌ Error setting up socket connection:', error)
+      this.dashboardUI.showError('Socket setup failed')
+    }
+  }
+
+  /**
+   * Update visual cursors from backend data
+   * @private
+   */
+  _updateVisualCursors() {
+    if (!this.visualService) return
+
+    for (const [source, cursor] of Object.entries(this.currentCursors)) {
+      this.visualService.updateCursorPosition(
+        cursor.userId || `${source}-metrics`,
+        cursor.x,
+        cursor.y,
+        cursor.color
+      )
+    }
   }
 
   /**
@@ -307,27 +268,17 @@ class LandingApp {
         await Tone.start()
         this.audioService = new AudioService()
         await this.audioService.initialize()
-        this.metricsAdapter.initialize(this.visualService, this.audioService)
-        this.backgroundMusic = new BackgroundMusicGenerator(this.audioService)
+        this.audioService.createContinuousGenerativeSystem()
       }
 
-      // Start background music (ambient drone like in rooms)
-      if (this.backgroundMusic) {
-        this.backgroundMusic.start()
-      }
-
-      // Start metrics collection
-      this.metricsCollector.start()
-
-      // Start metrics to gesture adapter
-      this.metricsAdapter.start()
+      // Setup socket connection
+      this._setupSocketConnection()
 
       // Update state
-      stateManager.setPlayback(true)
       this.isRunning = true
 
-      console.log('✅ Landing page started')
-      this.dashboardUI.showStatus('Experience started')
+      console.log('✅ Landing page started (receiving from backend)')
+      this.dashboardUI.showStatus('Experience started - Connected to backend')
 
     } catch (error) {
       console.error('❌ Error starting experience:', error)
@@ -347,19 +298,13 @@ class LandingApp {
     console.log('⏸ Stopping Webarmonium Landing Page...')
 
     try {
-      // Stop background music
-      if (this.backgroundMusic) {
-        this.backgroundMusic.stop()
+      // Disconnect socket
+      if (this.socket) {
+        this.socket.disconnect()
+        this.socket = null
       }
 
-      // Stop metrics collection
-      this.metricsCollector.stop()
-
-      // Stop metrics adapter
-      this.metricsAdapter.stop()
-
       // Update state
-      stateManager.setPlayback(false)
       this.isRunning = false
 
       console.log('✅ Landing page stopped')
