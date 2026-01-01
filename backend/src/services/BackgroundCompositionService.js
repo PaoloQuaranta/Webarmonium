@@ -457,23 +457,23 @@ class BackgroundCompositionService {
       })
 
 // console.log(`🎼 Generated ${composition.type} composition:`, {
-        form: composition.structure.form,
+//        form: composition.structure.form,
 //        section: composition.structure.currentSection,
 //        tempo: composition.metadata.tempo,
 //        keyCenter: composition.metadata.keyCenter
 ////      })
 
       // Log composition details
-      if (composition.content.voices) {
-// console.log(`🎼   ${composition.content.voices.length} voices (polyphonic)`)
-      } else if (composition.content.melody) {
-// console.log(`🎼   Melody + accompaniment (homophonic)`)
-        if (composition.content.accompaniment) {
-// console.log(`🎼   Accompaniment type: ${composition.content.accompaniment.type}`)
-        }
-      } else if (composition.content.texture) {
-// console.log(`🎼   Ambient texture`)
-      }
+      // // if (composition.content.voices) {
+      // // console.log(`🎼   ${composition.content.voices.length} voices (polyphonic)`)
+      // // } else if (composition.content.melody) {
+      // // console.log(`🎼   Melody + accompaniment (homophonic)`)
+      // //   if (composition.content.accompaniment) {
+      // // console.log(`🎼   Accompaniment type: ${composition.content.accompaniment.type}`)
+      // //   }
+      // // } else if (composition.content.texture) {
+      // // console.log(`🎼   Ambient texture`)
+      // // }
 
       // Broadcast composition to room
       if (this.io) {

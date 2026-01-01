@@ -206,7 +206,7 @@ class GestureToMusicService {
 //      y: y.toFixed(2),
 //      freq: frequency.toFixed(0) + 'Hz',
 //      rawPitch: rawPitch,
-      constrainedPitch: pitch,
+//      constrainedPitch: pitch,
 //      key: this.currentKey,
 //      mode: this.currentMode
 ////    })
