@@ -8,6 +8,90 @@ const { LATENCY } = require('../../constants/MusicConstants')
 
 const AuthHandler = {
   /**
+   * Register join-landing event handler
+   * For landing page clients (web metrics driven composition)
+   * @param {Socket} socket - Socket instance
+   */
+  registerJoinLandingHandler (socket) {
+    socket.on('join-landing', async (data, callback) => {
+      const startTime = Date.now()
+
+      try {
+        // Generate anonymous user ID for landing page
+        if (!socket.userId) {
+          socket.userId = ValidationHandler.generateUserId()
+        }
+
+        const landingRoomId = 'landing-room'
+
+        // Join landing room
+        socket.roomId = landingRoomId
+        socket.join(landingRoomId)
+
+// console.log(`✅ User joined landing room:`, {
+//          userId: socket.userId,
+//          socketId: socket.id,
+//          roomId: socket.roomId,
+////        })
+
+        // Start landing composition service
+        if (socket.services.landingCompositionService) {
+          socket.services.landingCompositionService.start()
+        }
+
+        // Get initial cursor positions
+        let cursors = {}
+        if (socket.services.landingCompositionService) {
+          cursors = socket.services.landingCompositionService.getVirtualCursors()
+        }
+
+        // Get initial metrics
+        let metrics = {}
+        if (socket.services.landingCompositionService) {
+          metrics = socket.services.landingCompositionService.getMetrics()
+        }
+
+        const latency = Date.now() - startTime
+
+        // Send success response
+        const response = {
+          success: true,
+          userId: socket.userId,
+          roomId: landingRoomId,
+          cursors,
+          metrics,
+          latency,
+          timestamp: Date.now()
+        }
+
+        if (callback) {
+          callback(response)
+        }
+
+        // Emit landing-joined event
+        socket.emit('landing-joined', {
+          roomId: landingRoomId,
+          userId: socket.userId,
+          cursors,
+          metrics,
+          timestamp: Date.now()
+        })
+
+// console.log(`User ${socket.userId} joined landing room (${latency}ms)`)
+      } catch (error) {
+// console.error('Join-landing error:', error)
+        if (callback) {
+          callback({
+            success: false,
+            error: error.message,
+            timestamp: Date.now()
+          })
+        }
+      }
+    })
+  },
+
+  /**
    * Register join-room event handler
    * @param {Socket} socket - Socket instance
    */

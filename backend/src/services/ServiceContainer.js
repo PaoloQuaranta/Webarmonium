@@ -199,6 +199,17 @@ function createServiceContainer (config = {}) {
     return new BackgroundCompositionService()
   })
 
+  // Landing page services
+  container.register('webMetricsPoller', () => {
+    const WebMetricsPoller = require('./WebMetricsPoller')
+    return new WebMetricsPoller()
+  })
+
+  container.register('landingCompositionService', (backgroundCompositionService, gestureToMusicService) => {
+    const LandingCompositionService = require('./LandingCompositionService')
+    return new LandingCompositionService()
+  }, { dependencies: ['backgroundCompositionService', 'gestureToMusicService'] })
+
   return container
 }
 
@@ -219,6 +230,25 @@ function wireServices (container, config = {}) {
       if (config.io) {
         service.setSocketIO(config.io)
       }
+    },
+    landingCompositionService: (service, c) => {
+      // Link to gesture service for harmonic sync
+      const gestureToMusicService = c.get('gestureToMusicService')
+      service.setGestureToMusicService(gestureToMusicService)
+
+      // Set Socket.IO for broadcasting
+      if (config.io) {
+        service.setSocketIO(config.io)
+      }
+
+      // Link WebMetricsPoller to LandingCompositionService
+      const webMetricsPoller = c.get('webMetricsPoller')
+      webMetricsPoller.onMetricsUpdate = (metrics) => {
+        service.updateMetrics(metrics)
+      }
+
+      // Start WebMetricsPoller
+      webMetricsPoller.start()
     }
   })
 

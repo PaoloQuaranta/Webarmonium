@@ -26,6 +26,7 @@ const socketHandlers = {
     socket.lastActivity = Date.now()
 
     // Auth handlers (session management)
+    AuthHandler.registerJoinLandingHandler(socket)
     AuthHandler.registerJoinRoomHandler(socket)
     AuthHandler.registerLeaveRoomHandler(socket)
     AuthHandler.registerHeartbeatHandler(socket)

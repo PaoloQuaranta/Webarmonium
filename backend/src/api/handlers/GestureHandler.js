@@ -414,11 +414,11 @@ const GestureHandler = {
         }
 
         // // console.log(`🎯 gesture-complete received from ${socket.userId?.substring(0, 8)}:`, {
-          hasStreamedNotes: !!(gesture.streamedNotes?.length),
-          noteCount: gesture.streamedNotes?.length || 0,
-          streamingWasActive: gesture.streamingWasActive,
-          holdWasActive: gesture.holdWasActive
-        })
+        //   hasStreamedNotes: !!(gesture.streamedNotes?.length),
+        //   noteCount: gesture.streamedNotes?.length || 0,
+        //   streamingWasActive: gesture.streamingWasActive,
+        //   holdWasActive: gesture.holdWasActive
+        // })
 
         // CRITICAL: If streamedNotes present, broadcast exact notes for remote replication
         if (gesture.streamedNotes && Array.isArray(gesture.streamedNotes) && gesture.streamedNotes.length > 0) {
@@ -463,10 +463,10 @@ const GestureHandler = {
           // Do NOT generate additional notes via gestureToMusicService to avoid duplicate playback (strum effect)
           // // console.log(`⏭️ Skipping gestureToMusicService - hold system was active (already handled via hold:start/hold:end)`)
           // // console.log(`🔍 holdWasActive check:`, {
-            holdWasActive: gesture.holdWasActive,
-            action: gesture.action,
-            streamedNotes: gesture.streamedNotes?.length || 0
-          })
+          //   holdWasActive: gesture.holdWasActive,
+          //   action: gesture.action,
+          //   streamedNotes: gesture.streamedNotes?.length || 0
+          // })
         } else {
           // No streamedNotes - use legacy behavior (let gestureToMusicService generate notes)
           // This handles taps and other non-streaming gestures
