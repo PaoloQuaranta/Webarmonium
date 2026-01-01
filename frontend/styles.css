@@ -96,17 +96,17 @@ header p {
 /* Metrics Dashboard */
 #metrics-dashboard {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  padding: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  padding: 0.75rem;
   max-width: 1200px;
   margin: 0 auto;
 }
 
 .metric-card {
   background: var(--card-bg);
-  border-radius: 12px;
-  padding: 1.5rem;
+  border-radius: 8px;
+  padding: 0.75rem;
   text-align: center;
   border: 1px solid var(--border-color);
   transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
@@ -119,19 +119,19 @@ header p {
 }
 
 .metric-icon {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .metric-card h3 {
-  font-size: 1rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .metric-value {
-  font-size: clamp(2rem, 5vw, 2.5rem);
+  font-size: clamp(1.25rem, 4vw, 1.75rem);
   font-weight: 700;
   color: var(--accent);
   line-height: 1.2;

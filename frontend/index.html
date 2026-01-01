@@ -1,390 +1,153 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎵 Webarmonium - Collaborative Generative Music</title>
-    <meta name="description" content="Real-time collaborative platform for gesture-controlled generative music">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Webarmonium Landing Page - Real-time web activity transformed into generative music and art">
+  <title>Webarmonium - Global Activity → Generative Music</title>
+  <link rel="stylesheet" href="styles.css">
 
-    <!-- Preload critical resources -->
-    <link rel="preload" href="https://unpkg.com/tone@14.7.77/build/Tone.js" as="script">
-    <link rel="preload" href="https://cdn.socket.io/4.7.5/socket.io.min.js" as="script">
+  <!-- p5.js for canvas rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
 
-    <!-- Performance and SEO -->
-    <meta name="theme-color" content="#1a1a2e">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- Tone.js for audio generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
 
-    <!-- Favicon -->
-    <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
+  <!-- Existing Webarmonium visual subsystems -->
+  <script src="src/services/visual/VisualUtils.js"></script>
+  <script src="src/services/visual/TopologyGenerator.js"></script>
+  <script src="src/services/visual/SpringMeshNetwork.js"></script>
+  <script src="src/services/visual/WavePacketSystem.js"></script>
+  <script src="src/services/visual/ParticleFlowManager.js"></script>
+  <script src="src/services/GenerativeVisualService.js"></script>
 
-    <style>
-        /* Critical CSS for immediate rendering */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            color: white;
-            overflow: hidden;
-            height: 100vh;
-            width: 100vw;
-        }
-
-        #app {
-            width: 100%;
-            height: 100%;
-            position: relative;
-        }
-
-        /* Loading spinner */
-        .loading {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 18px;
-            text-align: center;
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            border-top: 4px solid #00d4ff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* Hidden until app loads */
-        .app-content {
-            display: none;
-        }
-
-        .app-content.loaded {
-            display: block;
-        }
-
-        #gestureCanvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            cursor: crosshair;
-            touch-action: none;
-            z-index: 5; /* CRITICAL: Above p5 canvas (z-index: 0) to receive mouse/touch events */
-        }
-
-        .room-interface {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 1000;
-        }
-
-        .room-status {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .room-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .user-count {
-            background: rgba(0, 212, 255, 0.2);
-            color: #00d4ff;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .room-id {
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            color: #ccc;
-        }
-
-        .audio-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .audio-toggle {
-            background: #00d4ff;
-            color: #1a1a2e;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: background 0.2s;
-        }
-
-        .audio-toggle:hover {
-            background: #00b8e6;
-        }
-
-        .audio-toggle.disabled {
-            background: #666;
-            color: #ccc;
-        }
-
-        .instructions {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            padding: 15px 25px;
-            border-radius: 25px;
-            text-align: center;
-            font-size: 14px;
-            color: #ccc;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            max-width: 90%;
-        }
-
-        /* Mobile optimizations */
-        @media (max-width: 768px) {
-            .room-interface {
-                top: 10px;
-                left: 10px;
-                right: 10px;
-                padding: 12px;
-            }
-
-            .room-status {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 8px;
-            }
-
-            .instructions {
-                bottom: 10px;
-                font-size: 12px;
-                padding: 12px 20px;
-            }
-        }
-
-        /* Error display */
-        .error-display {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255, 0, 0, 0.1);
-            border: 2px solid #ff4444;
-            border-radius: 12px;
-            padding: 20px;
-            max-width: 400px;
-            text-align: center;
-            z-index: 2000;
-        }
-
-        .error-title {
-            color: #ff4444;
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 10px;
-        }
-
-        .error-message {
-            color: #ccc;
-            font-size: 14px;
-            line-height: 1.4;
-        }
-    </style>
+  <!-- Existing Webarmonium audio subsystems -->
+  <script src="src/services/MusicalScheduler.js"></script>
+  <script src="src/services/LFOManager.js"></script>
+  <script src="src/services/VolumeController.js"></script>
+  <script src="src/services/AudioService.js"></script>
 </head>
-
 <body>
-    <div id="app">
-        <!-- Loading state -->
-        <div class="loading" id="loadingScreen">
-            <div class="spinner"></div>
-            <div>Loading Webarmonium...</div>
-            <div style="font-size: 12px; margin-top: 10px; color: #666;">
-                Initializing audio engine and connecting to collaborative space
-            </div>
+  <header>
+    <h1>WEBARMONIUM</h1>
+    <p>Real-time web activity transformed into generative music and art</p>
+  </header>
+
+  <main>
+    <!-- Controls (moved to top) -->
+    <section id="controls">
+      <button id="btn-start" class="primary-btn">▶ Start Experience</button>
+      <button id="btn-stop" class="secondary-btn" disabled>⏸ Stop</button>
+
+      <div class="slider-group">
+        <label for="intensity">Intensity</label>
+        <input type="range" id="intensity" min="0" max="100" value="50">
+      </div>
+
+      <div class="slider-group">
+        <label for="volume">Volume</label>
+        <input type="range" id="volume" min="0" max="100" value="70">
+      </div>
+
+      <div class="toggle-group">
+        <label for="mock-mode">
+          <input type="checkbox" id="mock-mode">
+          Demo Mode
+        </label>
+      </div>
+    </section>
+
+    <!-- Error/Status Messages -->
+    <div id="error-message" class="message error"></div>
+    <div id="status-message" class="message status"></div>
+
+    <!-- Metrics Dashboard -->
+    <section id="metrics-dashboard">
+      <div class="metric-card" id="wikipedia-metric">
+        <div class="metric-icon" style="color: #e41a1c;">📝</div>
+        <h3>Wikipedia</h3>
+        <p class="metric-value">0</p>
+        <p class="metric-label">edits/min</p>
+      </div>
+      <div class="metric-card" id="hackernews-metric">
+        <div class="metric-icon" style="color: #ff7f00;">🧡</div>
+        <h3>HackerNews</h3>
+        <p class="metric-value">0</p>
+        <p class="metric-label">posts/min</p>
+      </div>
+      <div class="metric-card" id="github-metric">
+        <div class="metric-icon" style="color: #377eb8;">💻</div>
+        <h3>GitHub</h3>
+        <p class="metric-value">0</p>
+        <p class="metric-label">commits/min</p>
+      </div>
+      <div class="metric-card" id="complexity-metric">
+        <div class="metric-icon" style="color: #6366f1;">🎛️</div>
+        <h3>Complexity</h3>
+        <p class="metric-value">0.00</p>
+        <p class="metric-label">algorithm parameter</p>
+      </div>
+    </section>
+
+    <!-- Canvas Container -->
+    <section id="canvas-container">
+      <!-- Virtual user cursor indicators -->
+      <div class="cursor-indicator" id="wikipedia-cursor-indicator" style="background: #e41a1c;"></div>
+      <div class="cursor-indicator" id="hackernews-cursor-indicator" style="background: #ff7f00;"></div>
+      <div class="cursor-indicator" id="github-cursor-indicator" style="background: #377eb8;"></div>
+    </section>
+
+    <!-- Mapping Explainer -->
+    <section id="mapping-explainer">
+      <h2>How It Works</h2>
+      <p class="explainer-subtitle">Real-time web metrics drive an algorithmic music and visual system</p>
+
+      <div class="mapping-grid">
+        <div class="mapping-item">
+          <div class="mapping-icon" style="color: #e41a1c;">📝</div>
+          <div class="mapping-content">
+            <h4>Wikipedia Edits</h4>
+            <p>Each edit creates a musical note and visual pulse in the <strong>left region</strong>.</p>
+            <small>Higher edit rate → More complex algorithmic patterns</small>
+          </div>
         </div>
 
-        <!-- Main application content -->
-        <div class="app-content" id="appContent">
-            <!-- Room interface -->
-            <div class="room-interface">
-                <div class="room-status">
-                    <div class="room-info">
-                        <div class="user-count" id="userCount">👥 1 user</div>
-                        <div class="room-id" id="roomId">Room: connecting...</div>
-                    </div>
-                    <div class="audio-controls">
-                        <button class="audio-toggle" id="audioToggle">🔊 Start Audio</button>
-                        <div id="audio-controls"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- p5.js generative graphics background -->
-            <div id="p5-container"
-                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;">
-            </div>
-
-            <!-- Main gesture canvas -->
-            <canvas id="gestureCanvas"></canvas>
-
-            <!-- Cursor overlay canvas for multi-user cursors -->
-            <canvas id="cursorOverlay"
-                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
-
-            <!-- Instructions -->
-            <div class="instructions">
-                <div>Move your mouse or touch to create music</div>
-                <div style="margin-top: 5px; font-size: 12px;">
-                    X-axis controls frequency • Y-axis controls amplitude • Intensity affects dynamics
-                </div>
-                <div style="margin-top: 5px; font-size: 10px;">
-                    Ver.0.0.8-alpha: cursors positions graph
-                </div>
-            </div>
+        <div class="mapping-item">
+          <div class="mapping-icon" style="color: #ff7f00;">🧡</div>
+          <div class="mapping-content">
+            <h4>HackerNews Posts</h4>
+            <p>New posts generate sounds in the <strong>center region</strong>.</p>
+            <small>More posts → Faster rhythmic patterns</small>
+          </div>
         </div>
 
-        <!-- Error display (hidden by default) -->
-        <div class="error-display" id="errorDisplay" style="display: none;">
-            <div class="error-title">Connection Error</div>
-            <div class="error-message" id="errorMessage">
-                Unable to connect to the Webarmonium server. Please check that the backend is running.
-            </div>
+        <div class="mapping-item">
+          <div class="mapping-icon" style="color: #377eb8;">💻</div>
+          <div class="mapping-content">
+            <h4>GitHub Commits</h4>
+            <p>Code pushes create harmonies in the <strong>right region</strong>.</p>
+            <small>More commits → Richer harmonic content</small>
+          </div>
         </div>
-    </div>
+      </div>
 
-    <!-- External dependencies -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="https://unpkg.com/tone@14.7.77/build/Tone.js"></script>
+      <div class="virtual-users-note">
+        <p><strong>Three Virtual Users</strong>: Each data source has its own colored cursor that moves independently, creating a visual representation of how different web activities contribute to the generative output.</p>
+      </div>
 
-    <!-- Phase 3: Constants (load first) -->
-    <script src="src/constants/MusicalConstants.js?v=1"></script>
-    <script src="src/constants/GestureConstants.js?v=1"></script>
+      <div class="cta-section">
+        <p>Ready to collaborate? <a href="rooms.html">Join a Room</a> to make music with other users.</p>
+      </div>
+    </section>
 
-    <!-- Utilities -->
-    <script src="src/utils/ErrorReporter.js?v=5"></script>
-    <script src="src/utils/MusicalScales.js?v=1"></script>
-    <script src="src/utils/VelocityCalculator.js?v=1"></script>
+    <!-- Footer -->
+    <footer>
+      <p>Powered by <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia API</a>, <a href="https://news.ycombinator.com" target="_blank" rel="noopener">HackerNews API</a>, and <a href="https://github.com" target="_blank" rel="noopener">GitHub API</a></p>
+      <p class="footer-note">Data updates every 5-60 seconds depending on source. Rate limits are respected.</p>
+    </footer>
+  </main>
 
-    <!-- Application services -->
-    <!-- <script src="src/services/GestureCapture.js?v=5"></script> -->
-    <!-- DISABLED - using EnhancedGestureCapture instead -->
-    <script src="src/services/SocketService.js?v=7"></script> <!-- FIX: Added hold:start/hold:end socket.io listeners -->
-    <!-- Sprint 2 refactoring: Extracted components -->
-    <script src="src/services/CanvasManager.js?v=1"></script>
-    <script src="src/services/UIManager.js?v=1"></script>
-    <script src="src/services/VolumeController.js?v=1"></script>
-    <!-- Enhanced generative graphics system -->
-    <script src="src/services/visual/VisualConstants.js?v=6"></script>
-    <script src="src/services/visual/VisualUtils.js?v=5"></script>
-    <script src="src/services/visual/TopologyGenerator.js?v=1"></script>
-    <script src="src/services/visual/SpringMeshNetwork.js?v=6"></script>
-    <script src="src/services/visual/WavePacketSystem.js?v=9"></script>
-    <script src="src/services/visual/ParticleFlowManager.js?v=8"></script>
-    <script src="src/services/GenerativeVisualService.js?v=7"></script>
-
-    <!-- Musical Architecture (from commit a3c12b9) - PHASE 2 FIX -->
-    <script src="src/services/MusicalScheduler.js?v=1"></script>
-    <script src="src/services/LFOManager.js?v=1"></script>
-
-    <!-- Phase 2 Refactoring: Extracted audio modules -->
-    <script src="src/services/audio/GestureAudioMapper.js?v=1"></script>
-    <script src="src/services/audio/PolyphonyManager.js?v=1"></script>
-    <script src="src/services/audio/CompositionPlayer.js?v=1"></script>
-    <script src="src/services/audio/GenerativeMusicEngine.js?v=1"></script>
-    <script src="src/services/audio/FilterModulationSystem.js?v=1"></script>
-    <script src="src/services/audio/ParameterController.js?v=1"></script>
-    <script src="src/services/audio/ThreeTierAudioSystem.js?v=1"></script>
-    <script src="src/services/audio/AudioServiceFacade.js?v=1"></script>
-
-    <script src="src/services/AudioService.js?v=18"></script>
-    <!-- PHASE 1+2: Re-enabled hover, musical architecture loaded -->
-    <script>
-        // Initialize AudioService BEFORE main.js to ensure availability
-        window.AudioServicePromise = new Promise((resolve, reject) => {
-            const checkService = () => {
-                if (window.AudioService) {
-                    // console.log('✅ AudioService available from previous load')
-                    resolve(window.AudioService)
-                } else {
-                    setTimeout(checkService, 50) // Retry every 50ms
-                }
-            }
-            checkService()
-        })
-    </script>
-    <!-- DrawingRenderer.js REMOVED - replaced by p5.js GenerativeVisualService -->
-    <script src="src/services/CursorManager.js?v=5"></script>
-
-    <!-- Phase 3: Gesture modules (decomposed from EnhancedGestureCapture) -->
-    <script src="src/services/gesture/GestureCaptureCore.js?v=1"></script>
-    <script src="src/services/gesture/GestureStateMachine.js?v=1"></script>
-    <script src="src/services/gesture/GestureClassifier.js?v=1"></script>
-    <script src="src/services/gesture/HoverProcessor.js?v=1"></script>
-    <script src="src/services/gesture/DragStreamProcessor.js?v=1"></script>
-
-    <!-- Enhanced generative music services -->
-    <script src="src/services/EnhancedGestureCapture.js?v=21"></script>
-
-    <!-- Sprint 4: Gesture processing component -->
-    <script src="src/services/GestureProcessor.js?v=1"></script>
-
-    <!-- Phase 2 Refactoring: Extracted handlers -->
-    <script src="src/handlers/DragStreamingHandler.js?v=1"></script>
-    <script src="src/handlers/SustainedHoldHandler.js?v=1"></script>
-    <script src="src/handlers/SocketEventCoordinator.js?v=1"></script>
-
-    <!-- UI components -->
-    <script src="src/components/AudioControls.js?v=5"></script>
-    <!-- CompositionVisualizer disabled for three-tier implementation -->
-
-    <!-- Main application -->
-    <script>
-        // Fallback initialization
-        setTimeout(() => {
-            if (!window.webarmoniumApp) {
-                // console.log('🚀 Fallback: Initializing WebarmoniumApp...')
-                window.webarmoniumApp = new WebarmoniumApp()
-            }
-        }, 1000)
-    </script>
-    <script src="src/main.js?v=53"></script> <!-- FIX: SocketService now forwards hold:start/hold:end from socket.io -->
+  <!-- Landing page module scripts -->
+  <script type="module" src="src/landing/main.js?v=5"></script>
 </body>
-
 </html>

@@ -33,7 +33,10 @@ export class MetricsToGestureAdapter {
           intensity: 0,
           isActive: false
         },
-        lastGestureTime: 0
+        lastGestureTime: 0,
+        // For smooth cursor interpolation
+        currentPos: { x: 0.16, y: 0.5 },
+        targetPos: { x: 0.16, y: 0.5 }
       },
       hackernews: {
         userId: 'hackernews-metrics',
@@ -46,7 +49,9 @@ export class MetricsToGestureAdapter {
           intensity: 0,
           isActive: false
         },
-        lastGestureTime: 0
+        lastGestureTime: 0,
+        currentPos: { x: 0.5, y: 0.5 },
+        targetPos: { x: 0.5, y: 0.5 }
       },
       github: {
         userId: 'github-metrics',
@@ -59,9 +64,15 @@ export class MetricsToGestureAdapter {
           intensity: 0,
           isActive: false
         },
-        lastGestureTime: 0
+        lastGestureTime: 0,
+        currentPos: { x: 0.83, y: 0.5 },
+        targetPos: { x: 0.83, y: 0.5 }
       }
     }
+
+    // Cursor interpolation
+    this.interpolationSpeed = 0.02 // Smooth interpolation factor
+    this.interpolationFrame = null
 
     // Current metrics state
     this.metrics = {
@@ -111,11 +122,14 @@ export class MetricsToGestureAdapter {
     for (const user of Object.values(this.virtualUsers)) {
       this.visualService?.updateCursorPosition(
         user.userId,
-        user.gesture.coordinates.x,
-        user.gesture.coordinates.y,
+        user.currentPos.x,
+        user.currentPos.y,
         user.color
       )
     }
+
+    // Start smooth cursor interpolation loop
+    this._startCursorInterpolation()
 
     // Start gesture scheduling for each virtual user
     this._scheduleNextGesture('wikipedia')
@@ -141,6 +155,12 @@ export class MetricsToGestureAdapter {
       if (timer) clearTimeout(timer)
     }
 
+    // Cancel interpolation loop
+    if (this.interpolationFrame) {
+      cancelAnimationFrame(this.interpolationFrame)
+      this.interpolationFrame = null
+    }
+
     // End active gestures for all users
     for (const user of Object.values(this.virtualUsers)) {
       if (user.gesture.isActive) {
@@ -160,6 +180,7 @@ export class MetricsToGestureAdapter {
    * @private
    */
   _onMetricsUpdated(event) {
+    console.log('🔄 MetricsToGestureAdapter received metrics:', event.detail)
     this.metrics = event.detail
     this._updateCursorPositions()
   }
@@ -195,12 +216,12 @@ export class MetricsToGestureAdapter {
     // Intensity: Based on edit rate
     const intensity = Math.min(metrics.editsPerMinute / 500, 1.0)
 
-    // Update gesture state
+    // Update gesture state with target position
     user.gesture.coordinates = { x, y }
     user.gesture.intensity = intensity
+    user.targetPos = { x, y }
 
-    // Update visual service
-    this.visualService?.updateCursorPosition(user.userId, x, y, user.color)
+    // Visual service will be updated by interpolation loop
   }
 
   /**
@@ -224,12 +245,12 @@ export class MetricsToGestureAdapter {
     // Intensity: Based on post rate
     const intensity = Math.min(metrics.postsPerMinute / 100, 1.0)
 
-    // Update gesture state
+    // Update gesture state with target position
     user.gesture.coordinates = { x, y }
     user.gesture.intensity = intensity
+    user.targetPos = { x, y }
 
-    // Update visual service
-    this.visualService?.updateCursorPosition(user.userId, x, y, user.color)
+    // Visual service will be updated by interpolation loop
   }
 
   /**
@@ -253,12 +274,46 @@ export class MetricsToGestureAdapter {
     // Intensity: Based on commit rate
     const intensity = Math.min(metrics.commitsPerMinute / 50, 1.0)
 
-    // Update gesture state
+    // Update gesture state with target position
     user.gesture.coordinates = { x, y }
     user.gesture.intensity = intensity
+    user.targetPos = { x, y }
 
-    // Update visual service
-    this.visualService?.updateCursorPosition(user.userId, x, y, user.color)
+    // Visual service will be updated by interpolation loop
+  }
+
+  /**
+   * Start smooth cursor interpolation loop
+   * @private
+   */
+  _startCursorInterpolation() {
+    const interpolate = () => {
+      if (!this.isGenerating) return
+
+      for (const user of Object.values(this.virtualUsers)) {
+        // Linear interpolation (lerp) towards target
+        const dx = user.targetPos.x - user.currentPos.x
+        const dy = user.targetPos.y - user.currentPos.y
+
+        // If distance is significant, interpolate
+        if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+          user.currentPos.x += dx * this.interpolationSpeed
+          user.currentPos.y += dy * this.interpolationSpeed
+
+          // Update visual service with interpolated position
+          this.visualService?.updateCursorPosition(
+            user.userId,
+            user.currentPos.x,
+            user.currentPos.y,
+            user.color
+          )
+        }
+      }
+
+      this.interpolationFrame = requestAnimationFrame(interpolate)
+    }
+
+    this.interpolationFrame = requestAnimationFrame(interpolate)
   }
 
   /**
@@ -285,8 +340,11 @@ export class MetricsToGestureAdapter {
         break
     }
 
-    const baseDelay = 2000 // 2 seconds max
-    const minDelay = 250 // 250ms min
+    // Reduce gesture frequency - use data frequency for gesture TIMING not gesture COUNT
+    // High activity = more frequent gestures (but still sparse)
+    // Low activity = very sparse gestures (ambient feel)
+    const baseDelay = 20000 // 20 seconds max (very sparse)
+    const minDelay = 8000 // 8 seconds min (when very active)
     const delay = baseDelay - (Math.min(activityLevel, 1.0) * (baseDelay - minDelay))
 
     this.eventTimers[source] = setTimeout(() => {
@@ -307,25 +365,29 @@ export class MetricsToGestureAdapter {
     const metrics = this.metrics[source]
     const intensity = user.gesture.intensity
 
-    // Determine gesture type and whether to generate
+    // Determine gesture type - PREFER drag for high activity (longer, more musical)
+    // Use tap only for low activity events (sparse, ambient notes)
     let gestureType
     let shouldGenerate = false
 
     switch (source) {
       case 'wikipedia':
-        // High edit rate = drag (continuous), low = tap
-        gestureType = metrics.editsPerMinute > 100 ? 'drag' : 'tap'
-        shouldGenerate = metrics.editsPerMinute > 10 || Math.random() < 0.3
+        // Use drag for most activity (generates sustained notes)
+        gestureType = metrics.editsPerMinute > 30 ? 'drag' : 'tap'
+        // Very restrictive - only generate with significant activity spikes
+        shouldGenerate = metrics.editsPerMinute > 80 || (metrics.editsPerMinute > 40 && Math.random() < 0.05)
         break
       case 'hackernews':
-        // High post rate = tap (discrete events)
-        gestureType = 'tap'
-        shouldGenerate = metrics.postsPerMinute > 5 || Math.random() < 0.2
+        // Prefer drag for high activity
+        gestureType = metrics.postsPerMinute > 15 ? 'drag' : 'tap'
+        // Very restrictive
+        shouldGenerate = metrics.postsPerMinute > 30 || (metrics.postsPerMinute > 15 && Math.random() < 0.03)
         break
       case 'github':
-        // Commits = tap, PRs = drag
-        gestureType = metrics.openPRs > 2 ? 'drag' : 'tap'
-        shouldGenerate = metrics.commitsPerMinute > 5 || metrics.newStars > 0
+        // Prefer drag for high activity
+        gestureType = metrics.commitsPerMinute > 10 ? 'drag' : 'tap'
+        // Very restrictive
+        shouldGenerate = metrics.commitsPerMinute > 30 || (metrics.commitsPerMinute > 15 && Math.random() < 0.05)
         break
     }
 
@@ -338,13 +400,21 @@ export class MetricsToGestureAdapter {
 
     this._emitGestureStart(user)
 
-    // For tap gestures, automatically end after short duration
+    // For tap gestures, end after moderate duration (not too short, more musical)
     if (gestureType === 'tap') {
       setTimeout(() => {
         if (user.gesture.isActive) {
           this._emitGestureEnd(user)
         }
-      }, 200)
+      }, 500) // 500ms instead of 200ms (more musical)
+    }
+    // For drag gestures, end after longer duration (sustained notes)
+    else if (gestureType === 'drag') {
+      setTimeout(() => {
+        if (user.gesture.isActive) {
+          this._emitGestureEnd(user)
+        }
+      }, 2000) // 2 second drag for sustained musical notes
     }
   }
 
@@ -394,7 +464,10 @@ export class MetricsToGestureAdapter {
    * @private
    */
   _generateAudioFromGesture(user, gestureData) {
-    if (!this.audioService) return
+    if (!this.audioService) {
+      console.warn('⚠️ No audio service available')
+      return
+    }
 
     const { x, y } = user.gesture.coordinates
     const intensity = user.gesture.intensity
@@ -423,11 +496,19 @@ export class MetricsToGestureAdapter {
       }
     }
 
+    console.log('🔊 Generating audio:', user.userId, 'freq:', frequency.toFixed(0), 'Hz', 'intensity:', intensity.toFixed(2))
+
     // Trigger sound through existing AudioService API
-    if (typeof this.audioService.processGestureInput === 'function') {
-      this.audioService.processGestureInput(audioParams)
-    } else if (typeof this.audioService.handleGestureInput === 'function') {
-      this.audioService.handleGestureInput(audioParams)
+    // Use playThreeTierNote directly as it actually generates sound
+    if (typeof this.audioService.playThreeTierNote === 'function') {
+      const velocity = intensity * 200
+      console.log('🔊 Calling playThreeTierNote:', audioParams.tier || 'remote', frequency.toFixed(0), 'Hz, velocity:', velocity)
+      this.audioService.playThreeTierNote(frequency, audioParams.tier || 'remote', velocity)
+    } else if (typeof this.audioService.processGestureAudio === 'function') {
+      console.log('🔊 Calling processGestureAudio')
+      this.audioService.processGestureAudio(audioParams)
+    } else {
+      console.warn('⚠️ No audio input method found on AudioService')
     }
   }
 

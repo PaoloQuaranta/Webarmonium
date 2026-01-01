@@ -58,6 +58,9 @@ class GenerativeVisualService {
       return
     }
 
+    // Save container reference
+    this.containerElement = containerElement
+
     try {
       // Initialize subsystems
       // console.log('🎨 Creating SpringMeshNetwork...')
@@ -93,8 +96,12 @@ class GenerativeVisualService {
    * @param {p5} p - p5.js instance
    */
   setup(p) {
-    // Create canvas matching viewport size
-    p.createCanvas(window.innerWidth, window.innerHeight)
+    // Get container dimensions
+    const containerWidth = this.containerElement.offsetWidth
+    const containerHeight = this.containerElement.offsetHeight
+
+    // Create canvas matching container size
+    p.createCanvas(containerWidth, containerHeight)
 
     // Set frame rate cap
     p.frameRate(this.targetFps)
@@ -102,9 +109,7 @@ class GenerativeVisualService {
     // Initialize frame time
     this.lastFrameTime = p.millis()
 
-    // console.log('✅ GenerativeVisualService: Canvas created', window.innerWidth, 'x', window.innerHeight)
-    // console.log('🎨 p5 canvas element:', p.canvas)
-    // console.log('🎨 p5 canvas parent:', p.canvas?.parentElement)
+    console.log('✅ GenerativeVisualService: Canvas created', containerWidth, 'x', containerHeight)
   }
 
   /**
@@ -128,9 +133,9 @@ class GenerativeVisualService {
     // Clear background (match Webarmonium background color)
     p.background(26, 26, 46)
 
-    // Debug: Log node count
+    // Debug: Log rendering every 60 frames
     if (this.springMesh && this.springMesh.nodes.size > 0 && p.frameCount % 60 === 0) {
-      // console.log('🎨 Rendering', this.springMesh.nodes.size, 'nodes,', this.springMesh.edges.length, 'edges')
+      console.log('🎨 Drawing frame', p.frameCount, '- nodes:', this.springMesh.nodes.size, 'edges:', this.springMesh.edges.length, 'canvas:', p.width, 'x', p.height)
     }
 
     // Update and render based on performance mode
