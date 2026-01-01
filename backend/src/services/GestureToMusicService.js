@@ -196,7 +196,7 @@ class GestureToMusicService {
 //      key: this.currentKey,
 //      mode: this.currentMode,
 //      rawPitch,
-      constrainedPitch: pitch,
+//      constrainedPitch: pitch,
 //      adjusted: rawPitch !== pitch
 ////    })
 
