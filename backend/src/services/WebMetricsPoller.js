@@ -53,6 +53,10 @@ class WebMetricsPoller {
       github: { commitsPerMinute: 0, openPRs: 0, newStars: 0 }
     }
 
+    // Metrics history for velocity/acceleration calculation (last 20 snapshots)
+    this.metricsHistory = []
+    this.maxHistoryLength = 20
+
     // Event callbacks
     this.onMetricsUpdate = null
   }
@@ -289,23 +293,96 @@ class WebMetricsPoller {
   }
 
   /**
-   * Emit metrics update event
+   * Emit metrics update event with velocity/acceleration
    * @private
    */
   _emitMetricsUpdate() {
     if (this.onMetricsUpdate) {
-      const metricsSnapshot = {
-        wikipedia: { ...this.metrics.wikipedia },
-        hackernews: { ...this.metrics.hackernews },
-        github: { ...this.metrics.github }
+      const now = Date.now()
+
+      // Calculate velocity and acceleration from history
+      const enrichedMetrics = this._calculateVelocityAndAcceleration(this.metrics)
+
+      // Store enriched metrics in history (velocity/acceleration are part of each source)
+      const historyEntry = {
+        timestamp: now,
+        wikipedia: { ...enrichedMetrics.wikipedia },
+        hackernews: { ...enrichedMetrics.hackernews },
+        github: { ...enrichedMetrics.github }
       }
-        console.log('📊 Metrics update:', {
-          wikipedia: `${metricsSnapshot.wikipedia.editsPerMinute} edits/min`,
-          hackernews: `${metricsSnapshot.hackernews.postsPerMinute} posts/min`,
-          github: `${metricsSnapshot.github.commitsPerMinute} commits/min`
-        })
+
+      this.metricsHistory.unshift(historyEntry)
+
+      // Keep only last maxHistoryLength entries
+      if (this.metricsHistory.length > this.maxHistoryLength) {
+        this.metricsHistory = this.metricsHistory.slice(0, this.maxHistoryLength)
+      }
+
+      const metricsSnapshot = {
+        wikipedia: { ...enrichedMetrics.wikipedia },
+        hackernews: { ...enrichedMetrics.hackernews },
+        github: { ...enrichedMetrics.github }
+      }
+
+      console.log('📊 Metrics update:', {
+        wikipedia: `${metricsSnapshot.wikipedia.editsPerMinute} edits/min (vel: ${metricsSnapshot.wikipedia.velocity?.toFixed(2)})`,
+        hackernews: `${metricsSnapshot.hackernews.postsPerMinute} posts/min (vel: ${metricsSnapshot.hackernews.velocity?.toFixed(2)})`,
+        github: `${metricsSnapshot.github.commitsPerMinute} commits/min (vel: ${metricsSnapshot.github.velocity?.toFixed(2)})`
+      })
+
       this.onMetricsUpdate(metricsSnapshot)
     }
+  }
+
+  /**
+   * Calculate velocity and acceleration for all metrics
+   * @param {Object} currentMetrics - Current metrics snapshot
+   * @returns {Object} Enriched metrics with velocity/acceleration
+   * @private
+   */
+  _calculateVelocityAndAcceleration(currentMetrics) {
+    const enriched = {
+      wikipedia: { ...currentMetrics.wikipedia },
+      hackernews: { ...currentMetrics.hackernews },
+      github: { ...currentMetrics.github }
+    }
+
+    // Calculate velocity (rate of change) from previous snapshot
+    if (this.metricsHistory.length > 0) {
+      const previous = this.metricsHistory[0]
+
+      // Wikipedia velocity
+      enriched.wikipedia.velocity = currentMetrics.wikipedia.editsPerMinute - previous.wikipedia.editsPerMinute
+
+      // HackerNews velocity
+      enriched.hackernews.velocity = currentMetrics.hackernews.postsPerMinute - previous.hackernews.postsPerMinute
+
+      // GitHub velocity
+      enriched.github.velocity = currentMetrics.github.commitsPerMinute - previous.github.commitsPerMinute
+
+      // Calculate acceleration (velocity change) if we have 2+ snapshots
+      if (this.metricsHistory.length > 1) {
+        const previousVelocity = this.metricsHistory[1]
+
+        enriched.wikipedia.acceleration = enriched.wikipedia.velocity - previousVelocity.wikipedia.velocity
+        enriched.hackernews.acceleration = enriched.hackernews.velocity - previousVelocity.hackernews.velocity
+        enriched.github.acceleration = enriched.github.velocity - previousVelocity.github.velocity
+      } else {
+        enriched.wikipedia.acceleration = 0
+        enriched.hackernews.acceleration = 0
+        enriched.github.acceleration = 0
+      }
+    } else {
+      // No history yet
+      enriched.wikipedia.velocity = 0
+      enriched.hackernews.velocity = 0
+      enriched.github.velocity = 0
+      enriched.wikipedia.acceleration = 0
+      enriched.hackernews.acceleration = 0
+      enriched.github.acceleration = 0
+    }
+
+    return enriched
   }
 
   /**
@@ -318,6 +395,40 @@ class WebMetricsPoller {
       hackernews: { ...this.metrics.hackernews },
       github: { ...this.metrics.github }
     }
+  }
+
+  /**
+   * Get metrics history for velocity/acceleration analysis
+   * @returns {Array} History entries with timestamp and enriched metrics
+   */
+  getMetricsHistory() {
+    return this.metricsHistory
+  }
+
+  /**
+   * Get velocity for a specific source
+   * @param {string} source - 'wikipedia', 'hackernews', or 'github'
+   * @returns {number} Current velocity value
+   */
+  getVelocity(source) {
+    if (this.metricsHistory.length > 0) {
+      const latest = this.metricsHistory[0]
+      return latest[source]?.velocity || 0
+    }
+    return 0
+  }
+
+  /**
+   * Get acceleration for a specific source
+   * @param {string} source - 'wikipedia', 'hackernews', or 'github'
+   * @returns {number} Current acceleration value
+   */
+  getAcceleration(source) {
+    if (this.metricsHistory.length > 0) {
+      const latest = this.metricsHistory[0]
+      return latest[source]?.acceleration || 0
+    }
+    return 0
   }
 }
 

@@ -243,6 +243,11 @@ function wireServices (container, config = {}) {
 
       // Link WebMetricsPoller to LandingCompositionService
       const webMetricsPoller = c.get('webMetricsPoller')
+
+      // CRITICAL: Set WebMetricsPoller reference for velocity/acceleration access
+      service.setWebMetricsPoller(webMetricsPoller)
+
+      // Link metrics update callback
       webMetricsPoller.onMetricsUpdate = (metrics) => {
         service.updateMetrics(metrics)
       }

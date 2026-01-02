@@ -287,13 +287,11 @@ class LandingApp {
       // Update cursor position
       this.visualService.updateCursorPosition(userId, x, y, color)
 
-      // Trigger effects on cursor movement (skip filter modulation if notes are playing!)
+      // Trigger effects on cursor movement
       if (this.isRunning) {
-        // CRITICAL: Skip filter modulation when virtual notes are playing
-        // This prevents overwriting the open filter settings for sawtooth taps
-        const shouldModulateFilter = this.virtualNotes.size === 0
-
-        if (shouldModulateFilter && this.audioService?.gestureFilter) {
+        // ALWAYS modulate filter based on cursor position
+        // Filter adds richness on top of virtual notes (not blocking them)
+        if (this.audioService?.gestureFilter) {
           const filterFreq = 200 + (x * 7800) // 200Hz - 8000Hz
           const filterQ = 0.5 + (y * 3) // 0.5 - 3.5
           this.audioService.gestureFilter.frequency.set({ value: filterFreq })
