@@ -43,6 +43,10 @@ class LandingApp {
     // Current cursors and metrics from backend
     this.currentCursors = {}
     this.currentMetrics = {}
+    this.previousCursors = {} // For detecting cursor movement
+
+    // Track active virtual notes for hold:end events
+    this.virtualNotes = new Map()
   }
 
   /**
@@ -126,6 +130,10 @@ class LandingApp {
           // Create the continuous generative system (same as rooms)
           this.audioService.createContinuousGenerativeSystem()
           console.log('✅ Continuous generative system created')
+
+          // CRITICAL: Start the audio service to activate Transport and effects
+          await this.audioService.start()
+          console.log('✅ AudioService started - Transport and effects activated')
         }
       } catch (error) {
         console.error('❌ Error initializing audio:', error)
@@ -161,6 +169,7 @@ class LandingApp {
 
         // Join landing room
         this.socket.emit('join-landing', (response) => {
+          console.log('📡 join-landing response:', response)
           if (response && response.success) {
             console.log('✅ Joined landing room:', response.roomId)
 
@@ -228,6 +237,21 @@ class LandingApp {
         }
       })
 
+      // Listen for hold:start events from virtual users (for particles/pulses)
+      this.socket.on('hold:start', (data) => {
+        if (!this.isRunning) return
+        if (!data.isRemote) return // Only handle virtual user events
+
+        this._handleVirtualHoldStart(data)
+      })
+
+      // Listen for hold:end events from virtual users
+      this.socket.on('hold:end', (data) => {
+        if (!this.isRunning) return
+
+        this._handleVirtualHoldEnd(data)
+      })
+
     } catch (error) {
       console.error('❌ Error setting up socket connection:', error)
       this.dashboardUI.showError('Socket setup failed')
@@ -236,18 +260,151 @@ class LandingApp {
 
   /**
    * Update visual cursors from backend data
+   * Also triggers particles/pulses and filter modulations on cursor movement
    * @private
    */
   _updateVisualCursors() {
     if (!this.visualService) return
 
     for (const [source, cursor] of Object.entries(this.currentCursors)) {
-      this.visualService.updateCursorPosition(
-        cursor.userId || `${source}-metrics`,
-        cursor.x,
-        cursor.y,
-        cursor.color
-      )
+      const userId = cursor.userId || `${source}-metrics`
+      const x = cursor.x
+      const y = cursor.y
+      const color = cursor.color
+
+      // Check if cursor moved significantly (to trigger effects)
+      const prevCursor = this.previousCursors?.[source]
+      let hasMoved = false
+      let movementDistance = 0
+
+      if (prevCursor) {
+        const dx = x - prevCursor.x
+        const dy = y - prevCursor.y
+        movementDistance = Math.sqrt(dx * dx + dy * dy)
+        hasMoved = movementDistance > 0.005 // Lower threshold for more responsive effects
+      }
+
+      // Update cursor position
+      this.visualService.updateCursorPosition(userId, x, y, color)
+
+      // Trigger effects on cursor movement (skip filter modulation if notes are playing!)
+      if (this.isRunning) {
+        // CRITICAL: Skip filter modulation when virtual notes are playing
+        // This prevents overwriting the open filter settings for sawtooth taps
+        const shouldModulateFilter = this.virtualNotes.size === 0
+
+        if (shouldModulateFilter && this.audioService?.gestureFilter) {
+          const filterFreq = 200 + (x * 7800) // 200Hz - 8000Hz
+          const filterQ = 0.5 + (y * 3) // 0.5 - 3.5
+          this.audioService.gestureFilter.frequency.set({ value: filterFreq })
+          this.audioService.gestureFilter.Q.set({ value: filterQ })
+        }
+
+        // Emit particles based on movement distance
+        if (hasMoved && this.visualService.particles) {
+          const particleCount = Math.min(Math.round(movementDistance * 100), 8) // Up to 8 particles
+          this.visualService.particles.emitParticles(userId, Math.max(particleCount, 1))
+        }
+
+        // Trigger pulse on larger movements
+        if (hasMoved && movementDistance > 0.02 && this.visualService.wavePackets) {
+          this.visualService.wavePackets.emitPulse(userId, color)
+        }
+      }
+    }
+
+    // Store current cursors for next comparison
+    this.previousCursors = { ...this.currentCursors }
+  }
+
+  /**
+   * Handle virtual hold:start event from backend
+   * Plays note and triggers particles/pulses
+   * @param {Object} data - hold:start data
+   * @private
+   */
+  _handleVirtualHoldStart(data) {
+    if (!this.audioService || !this.visualService) return
+
+    // CRITICAL: Verify gestureSynth exists before proceeding
+    if (!this.audioService.gestureSynth) {
+      console.warn('⚠️ gestureSynth not initialized - skipping note playback')
+      return
+    }
+
+    const { userId, noteId, frequency, velocity, position, userColor } = data
+
+    // Check if Tone.js is available
+    if (typeof window.Tone === 'undefined') {
+      console.error('❌ Tone.js not loaded')
+      return
+    }
+
+    // CRITICAL: Open filter wide for rich sawtooth harmonics
+    if (this.audioService.gestureFilter) {
+      this.audioService.gestureFilter.frequency.value = 12000 // Open filter for harmonics
+      this.audioService.gestureFilter.Q.value = 0.1 // Low resonance for open sound
+    }
+
+    // Play note using gestureSynth (sawtooth waves) with delay/reverb
+    const synth = this.audioService.gestureSynth
+    if (synth) {
+      if (typeof synth.triggerAttackRelease === 'function') {
+        // CRITICAL: Longer duration for delay/reverb tail to be audible
+        const duration = 1.0 // 1 second for delay/reverb tail
+        const now = window.Tone.now()
+
+        // Create the note with full FX chain (sawtooth → filter → delay → reverb)
+        synth.triggerAttackRelease(frequency, duration, now, velocity)
+
+        console.log(`🎵 Virtual TAP [sawtooth+FX]: ${userId} - ${frequency.toFixed(1)}Hz - vel ${velocity.toFixed(2)}`)
+      } else if (typeof synth.triggerAttack === 'function') {
+        // Fallback to triggerAttack + triggerRelease
+        synth.triggerAttack(frequency, window.Tone.now(), velocity)
+        setTimeout(() => {
+          if (synth && typeof synth.triggerRelease === 'function') {
+            synth.triggerRelease(frequency)
+          }
+        }, 1000) // Longer duration for delay/reverb
+        console.log(`🎵 Virtual TAP (fallback): ${userId} - ${frequency.toFixed(1)}Hz`)
+      } else {
+        console.warn('⚠️ gestureSynth has no trigger methods')
+      }
+    } else {
+      console.warn('⚠️ gestureSynth not available - audioService may not be initialized')
+    }
+
+    // Trigger particles based on velocity
+    if (this.visualService.particles) {
+      const particleCount = Math.round(3 + velocity * 8) // 3-11 particles
+      this.visualService.particles.emitParticles(userId, particleCount)
+    }
+
+    // Trigger pulse
+    if (this.visualService.wavePackets) {
+      this.visualService.wavePackets.emitPulse(userId, userColor)
+    }
+  }
+
+  /**
+   * Handle virtual hold:end event from backend
+   * Releases the sustained note
+   * @param {Object} data - hold:end data
+   * @private
+   */
+  _handleVirtualHoldEnd(data) {
+    if (!this.audioService) return
+
+    const { noteId } = data
+    const note = this.virtualNotes.get(noteId)
+
+    if (note) {
+      const synth = this.audioService.gestureSynth
+      if (synth && typeof synth.triggerRelease === 'function') {
+        synth.triggerRelease(note.frequency)
+        console.log(`🎵 Virtual note released: ${note.userId}`)
+      }
+      this.virtualNotes.delete(noteId)
     }
   }
 
@@ -261,6 +418,7 @@ class LandingApp {
     }
 
     console.log('▶️ Starting Webarmonium Landing Page...')
+    console.log('🔌 Connecting to backend and joining landing room...')
 
     try {
       // Ensure audio is initialized
@@ -269,6 +427,12 @@ class LandingApp {
         this.audioService = new AudioService()
         await this.audioService.initialize()
         this.audioService.createContinuousGenerativeSystem()
+      }
+
+      // CRITICAL: Start the audio service to activate Transport and restore volume
+      if (this.audioService && typeof this.audioService.start === 'function') {
+        await this.audioService.start()
+        console.log('✅ AudioService started - Transport and volume activated')
       }
 
       // Setup socket connection

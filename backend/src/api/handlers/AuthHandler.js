@@ -36,7 +36,10 @@ const AuthHandler = {
 
         // Start landing composition service
         if (socket.services.landingCompositionService) {
+          console.log('🎵 Starting LandingCompositionService...')
           socket.services.landingCompositionService.start()
+        } else {
+          console.warn('⚠️ landingCompositionService not available in socket.services')
         }
 
         // Get initial cursor positions

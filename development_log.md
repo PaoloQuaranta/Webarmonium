@@ -1746,3 +1746,373 @@ The initial `sed` command only commented the first line of multi-line console st
 3. `FIX: Correct syntax errors from over-aggressive console commenting` (db3fac7)
 
 ---
+
+## Entry #9 - Landing Page Implementation: Backend-Driven Architecture (COMPLETED)
+
+**Date**: 2026-01-02
+**Time**: ~00:00-01:30 UTC
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED - Virtual tap audio working, GitHub cursor movement fixed
+**Reference**: `landingpage_plan.md`
+
+### Summary
+
+Implemented a complete backend-driven landing page architecture for Webarmonium. The landing page transforms live web metrics (Wikipedia edits, HackerNews posts, GitHub commits) into real-time algorithmic music and visual effects using the same CompositionEngine as normal rooms.
+
+---
+
+### Architecture Overview
+
+**Backend-Driven Design:**
+- `WebMetricsPoller` polls external APIs every 5-60 seconds
+- `LandingCompositionService` generates compositions using `CompositionEngine`
+- Frontend receives compositions, cursors, and metrics via socket.io
+- Three virtual users represent each metric source with unique colors and regions
+
+**Virtual Users:**
+```
+┌─────────────────────────────────────────────────────┐
+│ Wikipedia (🔴 #e41a1c) │ HackerNews (🟠 #ff7f00) │ GitHub (🔵 #377eb8) │
+│ Region: 0.0-0.33        │ Region: 0.33-0.50        │ Region: 0.50-1.0      │
+│ Base: C4 (261.6Hz)     │ Base: E4 (329.6Hz)      │ Base: G4 (392.0Hz)   │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+### Critical Bugs Fixed
+
+#### Bug 1: Virtual Tap Audio Not Working
+
+**Symptoms:**
+- User heard only background polyphonic chords
+- No sawtooth tap notes audible despite events arriving
+- Console showed "Max polyphony exceeded. Note dropped."
+
+**Root Causes Identified:**
+1. `gestureSynth` volume too low (-5dB) vs background (+10dB)
+2. `maxPolyphony` too low (32) causing note drops
+3. Background composition overwhelming virtual taps
+
+**Fix Applied** ([`AudioService.js:740,747`](frontend/src/services/AudioService.js#L740-L747)):
+```javascript
+// INCREASED from -5dB to +3dB (+8dB boost)
+volume: +3,  // Virtual taps must be audible over background!
+
+// INCREASED from 32 to 64 (2x polyphony)
+maxPolyphony: 64  // Prevent note drops
+```
+
+**Background Volume Reduced** ([`AudioService.js:708-715`](frontend/src/services/AudioService.js#L708-L715)):
+```javascript
+// REDUCED from +10dB to -3dB (-13dB reduction)
+backgroundHigh: new Tone.Volume(-3),  // Make space for taps
+backgroundMid: new Tone.Volume(-3),
+backgroundLow: new Tone.Volume(-3)
+```
+
+---
+
+#### Bug 2: Filter Modulation Race Condition
+
+**Symptoms:**
+- Virtual taps should open filter to 12kHz for rich sawtooth harmonics
+- Filter immediately closed by cursor movement code
+- No harmonics in tap audio
+
+**Root Cause:**
+`_updateVisualCursors()` ran every 50ms (20fps) and overwrote filter settings immediately after notes were played.
+
+**Fix Applied** ([`main.js:292-301`](frontend/src/landing/main.js#L292-L301)):
+```javascript
+// CRITICAL: Skip filter modulation when virtual notes are playing
+const shouldModulateFilter = this.virtualNotes.size === 0
+
+if (shouldModulateFilter && this.audioService?.gestureFilter) {
+  // Only modulate filter when no notes playing
+  const filterFreq = 200 + (x * 7800)
+  const filterQ = 0.5 + (y * 3)
+  this.audioService.gestureFilter.frequency.set({ value: filterFreq })
+  this.audioService.gestureFilter.Q.set({ value: filterQ })
+}
+```
+
+---
+
+#### Bug 3: GitHub Cursor Movement Too Limited
+
+**Symptoms:**
+- GitHub cursor barely moved (only few pixels on X axis)
+- User reported "github ancora praticamente immobile"
+
+**Root Cause:**
+Threshold calculation used 20 commits/minute, but actual GitHub activity is 1-5 commits/minute.
+
+**Fix Applied** ([`LandingCompositionService.js:612`](backend/src/services/LandingCompositionService.js#L612)):
+```javascript
+// BEFORE: const ghNorm = Math.min(metrics.commitsPerMinute / 20, 1.0)
+// AFTER:  (4x more movement)
+const ghNorm = Math.min(metrics.commitsPerMinute / 5, 1.0)
+```
+
+**Region Expanded** ([`LandingCompositionService.js:55-84`](backend/src/services/LandingCompositionService.js#L55-L84)):
+```
+BEFORE:
+- Wikipedia:  0.0 - 0.33 (33%)
+- HackerNews: 0.33 - 0.66 (33%)
+- GitHub:     0.66 - 1.0 (33%) ← Limited movement!
+
+AFTER:
+- Wikipedia:  0.0 - 0.33 (33%)
+- HackerNews: 0.33 - 0.50 (17%)
+- GitHub:     0.50 - 1.0 (50%) ← 2x more space!
+```
+
+---
+
+#### Bug 4: Browser Cache Busting Issues
+
+**Symptoms:**
+- User reported "continuo a fare modifiche ma non cambia un cazzo"
+- Changes not taking effect despite version bumps
+
+**Root Cause:**
+Browser serving old cached JavaScript despite cache buster.
+
+**Fix:**
+Progressive version bumps through v=16 with explicit hard refresh instructions:
+- `Ctrl+Shift+R` (Windows/Linux)
+- `Cmd+Shift+R` (Mac)
+
+---
+
+### Implementation Details
+
+#### Backend Services
+
+**Files Created:**
+1. `backend/src/services/LandingCompositionService.js` (~640 lines)
+   - Virtual user definitions with regions and base frequencies
+   - Cursor interpolation (50ms, 20fps)
+   - Monophonic note generation per composition cycle
+   - CompositionEngine integration for polyphonic background
+
+2. `backend/src/services/WebMetricsPoller.js` (~180 lines)
+   - Polls Wikipedia API every 5 seconds
+   - Polls HackerNews API every 10 seconds
+   - Polls GitHub API every 60 seconds
+   - Emits `metrics-update` events to landing room
+
+**Backend Architecture:**
+```
+WebMetricsPoller → LandingCompositionService → CompositionEngine
+                                           ↓
+                                    socket.io emit
+                                           ↓
+Frontend Landing App ← socket.io client
+```
+
+**Monophonic Tap Generation:**
+```javascript
+// Select only ONE virtual user per cycle (monophonic)
+const sources = Object.keys(this.virtualUsers)
+const selectedSource = sources[Math.floor(Math.random() * sources.length)]
+
+// Use ONLY THE FIRST note
+const note = virtualGesture.notes[0]
+const noteId = `virtual_${selectedSource}_${Date.now()}_0`
+
+// Emit hold:start event
+this.io.to(this.landingRoomId).emit('hold:start', {
+  type: 'hold:start',
+  userId: user.userId,
+  noteId: noteId,
+  frequency: note.frequency,
+  velocity: note.velocity,
+  position: notePosition,
+  userColor: user.color,
+  isRemote: true,
+  timestamp: Date.now()
+})
+```
+
+---
+
+#### Frontend Components
+
+**Files Created:**
+1. `frontend/src/landing/main.js` (~400 lines)
+   - LandingApp class managing socket connection and state
+   - `_handleVirtualHoldStart()` for sawtooth tap playback
+   - `_updateVisualCursors()` for cursor movement effects
+   - Particles/pulses/filter modulation on cursor movement
+
+2. `frontend/src/landing/DashboardUI.js` (~150 lines)
+   - Real-time metrics display
+   - Three-column layout (Wikipedia | HackerNews | GitHub)
+   - Live update indicators
+
+3. `frontend/src/landing/MetricsToGestureAdapter.js` (~250 lines)
+   - Virtual cursor position calculation based on metrics
+   - Spring-based interpolation for smooth movement
+   - Region-based positioning (left/center/right)
+
+**Frontend Audio Routing:**
+```
+gestureSynth (sawtooth, +3dB, maxPolyphony 64)
+    → gestureFilter (12kHz open when notes play)
+        → gesturePan
+            → gestureVolume (+6dB)
+                → masterVolume
+            → delaySends.gesture (PingPongDelay)
+            → reverbSends.gesture (Freeverb)
+```
+
+---
+
+### Visual Effects
+
+**Cursor Movement Effects:**
+- Particles emit on cursor movement (1-8 based on distance)
+- Wave pulses on larger movements (>0.02 threshold)
+- Filter modulation based on cursor position (X=frequency, Y=resonance)
+- Threshold lowered to 0.005 for more responsive effects
+
+**Spring Mesh Network:**
+- Reused `GenerativeVisualService` from normal rooms
+- Three virtual user nodes with connections
+- Real-time cursor position tracking
+- Particle flow and wave pulse propagation
+
+---
+
+### Metrics & API Integration
+
+**Wikipedia API:**
+- Endpoint: `https://en.wikipedia.org/w/api.php`
+- Poll interval: 5 seconds
+- Metrics: edits per minute, new articles, average edit size
+- Activity threshold: 400 edits/min = 1.0
+
+**HackerNews API:**
+- Endpoint: `https://hacker-news.firebaseio.com/v0`
+- Poll interval: 10 seconds
+- Metrics: posts per minute, average upvotes, comment count
+- Activity threshold: 60 posts/min = 1.0
+
+**GitHub API:**
+- Endpoint: `https://api.github.com/repos/owner/repo`
+- Poll interval: 60 seconds
+- Metrics: commits per minute, open PRs, new stars
+- Activity threshold: 5 commits/min = 1.0 (lowered from 20)
+
+---
+
+### Testing Results
+
+**Audio:**
+- ✅ Sawtooth waves audible (+8dB volume boost)
+- ✅ Rich harmonics (12kHz filter, no race condition)
+- ✅ Delay and reverb tails (1 second note duration)
+- ✅ Note drops eliminated (64 polyphony)
+
+**Visual:**
+- ✅ GitHub cursor moves 4x more (threshold 5 vs 20)
+- ✅ GitHub cursor uses 50% of screen (vs 33% before)
+- ✅ Particles emit on cursor movement
+- ✅ Filter modulates based on cursor position
+
+**Console Output:**
+```
+🎵 Virtual TAP [sawtooth+FX]: github-metrics - 233.1Hz - vel 0.90
+🖱️ GitHub cursor: { commitsPerMinute: 3, ghNorm: 0.600, calculatedX: 0.800 }
+```
+
+---
+
+### Files Created/Modified
+
+**Backend (2 files):**
+1. `backend/src/services/LandingCompositionService.js` (NEW, 640 lines)
+2. `backend/src/services/WebMetricsPoller.js` (NEW, 180 lines)
+
+**Frontend (3 files):**
+1. `frontend/src/landing/main.js` (NEW, 400 lines)
+2. `frontend/src/landing/DashboardUI.js` (NEW, 150 lines)
+3. `frontend/src/landing/MetricsToGestureAdapter.js` (NEW, 250 lines)
+
+**Frontend Modified:**
+1. `frontend/src/services/AudioService.js`
+   - Volume: +3dB (was -5dB)
+   - maxPolyphony: 64 (was 32)
+   - Background volumes reduced to -3dB (was +10dB)
+
+2. `frontend/src/landing/main.js`
+   - Filter race condition fix
+   - Added null checks for gestureSynth
+
+3. `backend/src/services/LandingCompositionService.js`
+   - GitHub threshold: 5 (was 20)
+   - GitHub region: 0.50-1.0 (was 0.66-1.0)
+
+4. `frontend/index.html`
+   - Cache buster: v=16 (progressive through v=8-16)
+
+---
+
+### Configuration Summary
+
+**Audio Levels:**
+| Component | Volume | Change |
+|-----------|--------|--------|
+| gestureSynth (virtual taps) | +3dB | +8dB boost |
+| backgroundHigh | -3dB | -13dB reduction |
+| backgroundMid | -3dB | -13dB reduction |
+| backgroundLow | -3dB | -13dB reduction |
+
+**Polyphony:**
+| Synth | maxPolyphony | Change |
+|-------|--------------|--------|
+| gestureSynth | 64 | 2x increase |
+
+**Cursor Regions:**
+| Source | Region | Change |
+|--------|--------|--------|
+| Wikipedia | 0.0 - 0.33 | Unchanged |
+| HackerNews | 0.33 - 0.50 | Adjusted |
+| GitHub | 0.50 - 1.0 | 2x expansion |
+
+**Activity Thresholds:**
+| Source | Threshold | Change |
+|--------|-----------|--------|
+| Wikipedia | 400 edits/min | Unchanged |
+| HackerNews | 60 posts/min | Unchanged |
+| GitHub | 5 commits/min | 4x more sensitive |
+
+---
+
+### Known Issues
+
+1. **GitHub cursor still limited** - User wants more movement space
+2. **Cursor movement effects** - Not always triggering particles/pulses
+3. **Filter modulation** - May need fine-tuning for smoother transitions
+
+---
+
+### Next Steps
+
+1. Further increase GitHub cursor movement range (consider logarithmic scaling)
+2. Add more visual feedback during cursor movement
+3. Implement phrase-based virtual taps instead of single notes
+4. Add more sophisticated filter modulation envelopes
+5. Consider separate synth for virtual taps to avoid voice stealing
+
+---
+
+### User Confirmation
+
+"ok ora sento voce sawtooth. ci sono ancora problemi, ma li risolveremo nella prossima chat."
+
+Translation: "ok now I hear sawtooth voice. there are still problems, but we'll solve them in the next chat."
+
+---

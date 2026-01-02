@@ -294,11 +294,17 @@ class WebMetricsPoller {
    */
   _emitMetricsUpdate() {
     if (this.onMetricsUpdate) {
-      this.onMetricsUpdate({
+      const metricsSnapshot = {
         wikipedia: { ...this.metrics.wikipedia },
         hackernews: { ...this.metrics.hackernews },
         github: { ...this.metrics.github }
-      })
+      }
+        console.log('📊 Metrics update:', {
+          wikipedia: `${metricsSnapshot.wikipedia.editsPerMinute} edits/min`,
+          hackernews: `${metricsSnapshot.hackernews.postsPerMinute} posts/min`,
+          github: `${metricsSnapshot.github.commitsPerMinute} commits/min`
+        })
+      this.onMetricsUpdate(metricsSnapshot)
     }
   }
 

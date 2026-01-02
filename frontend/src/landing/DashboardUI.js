@@ -3,17 +3,19 @@
  * Educational dashboard showing real-time metrics and their mapping to generative art
  *
  * Responsibilities:
- * - Update metric cards with live data
+ * - Update metric cards with live data from backend
  * - Display calculated generative parameters
  * - Show virtual user cursor states
  * - Bind control buttons (Start/Stop, Volume, Intensity)
  *
- * Architecture:
- * - Subscribes to StateManager for reactive updates
+ * Architecture (Backend-Driven):
+ * - Receives metrics via socket.io from backend
+ * - updateMetrics() method called from main.js on metrics-update event
  * - Provides clear visual feedback for metric-to-art relationships
  */
 
-import { stateManager } from './StateManager.js'
+// StateManager is no longer used - backend drives metrics via socket
+// import { stateManager } from './StateManager.js'
 
 export class DashboardUI {
   constructor() {
@@ -23,12 +25,16 @@ export class DashboardUI {
     // Previous values for change detection
     this.previousValues = {}
 
-    // Unsubscribe function
-    this.unsubscribe = null
-
     // Callback references for control handlers
     this.onStart = null
     this.onStop = null
+
+    // Local state (replaces StateManager)
+    this.currentMetrics = {
+      wikipedia: { editsPerMinute: 0 },
+      hackernews: { postsPerMinute: 0 },
+      github: { commitsPerMinute: 0 }
+    }
   }
 
   /**
@@ -38,8 +44,45 @@ export class DashboardUI {
   initialize(callbacks = {}) {
     this._cacheElements()
     this._bindControls(callbacks)
-    this.unsubscribe = stateManager.subscribe(this._updateDisplay.bind(this))
-    console.log('📊 DashboardUI initialized')
+    console.log('📊 DashboardUI initialized (backend-driven mode)')
+  }
+
+  /**
+   * Update metrics from backend (new architecture)
+   * @param {Object} metrics - Metrics object from backend
+   * @param {Object} metrics.wikipedia - Wikipedia metrics
+   * @param {Object} metrics.hackernews - HackerNews metrics
+   * @param {Object} metrics.github - GitHub metrics
+   */
+  updateMetrics(metrics) {
+    // Store current metrics
+    this.currentMetrics = {
+      wikipedia: metrics.wikipedia || { editsPerMinute: 0 },
+      hackernews: metrics.hackernews || { postsPerMinute: 0 },
+      github: metrics.github || { commitsPerMinute: 0 }
+    }
+
+    // Update metric cards
+    this._updateMetricCard(
+      this.elements.wikipedia,
+      Math.round(this.currentMetrics.wikipedia.editsPerMinute),
+      'edits/min',
+      '#e41a1c'
+    )
+
+    this._updateMetricCard(
+      this.elements.hackernews,
+      Math.round(this.currentMetrics.hackernews.postsPerMinute),
+      'posts/min',
+      '#ff7f00'
+    )
+
+    this._updateMetricCard(
+      this.elements.github,
+      Math.round(this.currentMetrics.github.commitsPerMinute),
+      'commits/min',
+      '#377eb8'
+    )
   }
 
   /**
@@ -82,8 +125,9 @@ export class DashboardUI {
    * @private
    */
   _bindControls(callbacks = {}) {
-    this.onStart = callbacks.onStart || (() => stateManager.setPlayback(true))
-    this.onStop = callbacks.onStop || (() => stateManager.setPlayback(false))
+    // Use provided callbacks (main.js provides start/stop)
+    this.onStart = callbacks.onStart || (() => {})
+    this.onStop = callbacks.onStop || (() => {})
 
     const { startBtn, stopBtn, intensitySlider, volumeSlider } = this.elements
 
@@ -97,12 +141,14 @@ export class DashboardUI {
       this._updatePlaybackState(false)
     })
 
+    // Intensity and volume controls are now handled by main.js callbacks
+    // These sliders can be used for future enhancements
     intensitySlider?.addEventListener('input', (e) => {
-      stateManager.setIntensity(e.target.value / 100)
+      // Future: could emit to backend to control composition intensity
     })
 
     volumeSlider?.addEventListener('input', (e) => {
-      stateManager.setVolume(e.target.value / 100)
+      // Future: could control audio volume
     })
   }
 
@@ -116,56 +162,6 @@ export class DashboardUI {
 
     if (startBtn) startBtn.disabled = isPlaying
     if (stopBtn) stopBtn.disabled = !isPlaying
-  }
-
-  /**
-   * Update display with current state
-   * @param {Object} state - Current state from StateManager
-   * @private
-   */
-  _updateDisplay(state) {
-    const { metrics, parameters, playback } = state
-
-    // Update metric cards
-    this._updateMetricCard(
-      this.elements.wikipedia,
-      Math.round(metrics.wikipedia.editsPerMinute),
-      'edits/min',
-      '#e41a1c'
-    )
-
-    this._updateMetricCard(
-      this.elements.hackernews,
-      Math.round(metrics.hackernews.postsPerMinute),
-      'posts/min',
-      '#ff7f00'
-    )
-
-    this._updateMetricCard(
-      this.elements.github,
-      Math.round(metrics.github.commitsPerMinute),
-      'commits/min',
-      '#377eb8'
-    )
-
-    // Update complexity parameter
-    this._updateMetricCard(
-      this.elements.complexity,
-      parameters.complexity.toFixed(2),
-      'algorithm parameter',
-      '#6366f1'
-    )
-
-    // Update slider values
-    if (this.elements.intensitySlider) {
-      this.elements.intensitySlider.value = playback.intensity * 100
-    }
-    if (this.elements.volumeSlider) {
-      this.elements.volumeSlider.value = playback.volume * 100
-    }
-
-    // Update playback state
-    this._updatePlaybackState(playback.isPlaying)
   }
 
   /**
@@ -262,13 +258,10 @@ export class DashboardUI {
   }
 
   /**
-   * Cleanup: unsubscribe from state updates
+   * Cleanup
    */
   dispose() {
-    if (this.unsubscribe) {
-      this.unsubscribe()
-      this.unsubscribe = null
-    }
+    // No StateManager to unsubscribe from
     console.log('📊 DashboardUI disposed')
   }
 }

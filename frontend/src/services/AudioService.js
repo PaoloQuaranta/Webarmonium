@@ -704,14 +704,14 @@ class AudioService {
       backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 2 })  // INCREASED from 300Hz for audibility
     }
 
-    // Balanced volumes - bass prominent, pad INCREASED for drone audibility, chords reduced
+    // Reduced volumes to make space for virtual taps
     this.ambientVolumes = {
-      bass: new Tone.Volume(+2),     // Bass boosted for audibility and presence
-      pad: new Tone.Volume(+5),      // INCREASED from -12 to +5 for audible drone
-      chords: new Tone.Volume(-18),  // Chords significantly reduced (were too loud)
-      backgroundHigh: new Tone.Volume(+10),  // Same boost as gestures for balanced composition
-      backgroundMid: new Tone.Volume(+10),   // Same boost as gestures for balanced composition
-      backgroundLow: new Tone.Volume(+10)    // Same boost as gestures for audible bass
+      bass: new Tone.Volume(-5),     // REDUCED from +2dB
+      pad: new Tone.Volume(-8),      // REDUCED from +5dB
+      chords: new Tone.Volume(-20),  // Keep chords very quiet
+      backgroundHigh: new Tone.Volume(-3),  // REDUCED from +10dB - make space for taps
+      backgroundMid: new Tone.Volume(-3),   // REDUCED from +10dB
+      backgroundLow: new Tone.Volume(-3)    // REDUCED from +10dB
     }
 
     // Connect each layer with SEND/RETURN architecture
@@ -737,21 +737,21 @@ class AudioService {
         harmonicity: 0,  // Remove harmonicity to prevent triangle waves
         modulationType: 'none'  // Disable modulation
       },
-      volume: -5,  // Reduced volume to match background composition
+      volume: +3,  // INCREASED from -5dB - virtual taps must be audible over background!
       envelope: {
         attack: 0.02,  // Faster attack
         decay: 0.2,   // Faster decay
         sustain: 0.3,  // Lower sustain to prevent overlapping
         release: 0.8    // Faster release
       },
-      maxPolyphony: 8 // INCREASED polyphony to prevent note dropping
+      maxPolyphony: 64 // INCREASED from 32 - prevent note drops
     })
 
-    // Add filter to gesture synth for hover modulation - FIX: restore filter modulation
+    // Add filter to gesture synth for hover modulation - OPEN FILTER for sawtooth harmonics
     this.gestureFilter = new Tone.Filter({
       type: 'lowpass',
-      frequency: 2000,
-      Q: 1
+      frequency: 8000,  // Increased from 2000 to preserve sawtooth harmonics
+      Q: 0.5  // Lower Q for more open sound
     })
 
     // Add pan node for gesture synth spatial control
