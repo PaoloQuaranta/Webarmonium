@@ -3302,3 +3302,140 @@ phrase.notes.forEach((note, i) => {
 4. Compare musical quality to normal rooms
 
 ---
+
+## Entry #13 - Landing Page: Console Cleanup and Parameter Validation
+
+**Date**: 2026-01-03
+**Time**: ~15:00 UTC
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED - All debug statements commented, null validation added
+
+### Summary
+
+Cleaned up all debug console statements that were re-enabled during the landing page development. Added parameter validation to prevent null reference errors. Updated frontend version for cache busting.
+
+---
+
+### Changes Implemented
+
+#### 1. Backend Debug Statement Cleanup
+
+**File:** `backend/src/services/LandingCompositionService.js`
+
+**Commented out all console.log statements:**
+- Initialization logs (lines 138, 147, 164, 173)
+- Statistical tracking logs (lines 200, 217, 223, 231, 242)
+- Service lifecycle logs (lines 262, 285)
+- Gesture generation logs (lines 373, 396)
+- Composition logs (lines 596, 646, 656, 661, 694, 721, 732)
+- Phrase generation logs (line 796)
+- Cursor position logs (lines 907, 983)
+
+**Total:** 26 console.log statements commented
+
+---
+
+#### 2. Frontend Debug Statement Cleanup
+
+**File:** `frontend/src/landing/main.js`
+
+**Commented out all console.log statements:**
+- Initialization logs (lines 61, 74, 92, 108)
+- Audio setup logs (lines 128, 132, 136)
+- Socket connection logs (lines 158, 168, 172, 174, 191, 201)
+- Background composition logs (lines 208-214, 220)
+- Virtual tap logs (lines 425, 435)
+- App lifecycle logs (lines 486-487, 501, 510, 528, 540, 553, 573)
+- Modulation logs (line 268)
+
+**Total:** 23 console.log statements commented
+
+---
+
+#### 3. Parameter Validation (Already Complete)
+
+**Frontend:** `frontend/src/landing/main.js` (lines 382-400)
+
+```javascript
+// CRITICAL: Validate frequency before processing
+if (frequency === null || frequency === undefined || isNaN(frequency)) {
+  console.warn('⚠️ Invalid frequency in hold:start event:', { frequency, userId, data })
+  return
+}
+
+// CRITICAL: Validate velocity before processing
+if (velocity === null || velocity === undefined || isNaN(velocity)) {
+  console.warn('⚠️ Invalid velocity in hold:start event:', { velocity, userId, data })
+  return
+}
+```
+
+**Backend:** `backend/src/services/LandingCompositionService.js` (lines 801-816)
+
+```javascript
+// CRITICAL: Validate note.pitch before processing
+if (typeof note.pitch !== 'number' || isNaN(note.pitch)) {
+  console.warn(`⚠️ Invalid note.pitch in phrase:`, { note, index: i, source: gesture.source })
+  return  // Skip this note
+}
+
+// Validate calculated frequency
+if (isNaN(noteFreq) || !isFinite(noteFreq)) {
+  console.warn(`⚠️ Invalid calculated frequency:`, { noteFreq, notePitch: note.pitch, index: i })
+  return  // Skip this note
+}
+```
+
+---
+
+#### 4. GitHub Cursor Bounds (Already Complete)
+
+**File:** `backend/src/services/LandingCompositionService.js` (lines 89, 92, 100-101, 108)
+
+```javascript
+github: {
+  userId: 'github-metrics',
+  color: '#377eb8',
+  region: { xMin: 0.50, xMax: 0.90 }, // Reduced to 0.90 to keep cursor fully visible
+  baseFrequency: 392.00 // G4
+}
+
+github: { x: 0.70, y: 0.5 } // Adjusted (center of 0.50-0.90 region)
+```
+
+---
+
+### Files Modified
+
+**Backend (1 file):**
+1. `backend/src/services/LandingCompositionService.js`
+   - Commented 26 debug console.log statements
+   - Parameter validation already in place
+
+**Frontend (1 file):**
+1. `frontend/src/landing/main.js`
+   - Commented 23 debug console.log statements
+   - Parameter validation already in place
+
+2. `frontend/index.html`
+   - Updated version from v=32 to v=33
+
+---
+
+### Commits
+
+**Commit:** (to be created)
+- CLEAN: Comment out all debug console statements in landing page code
+
+**Pushed to:** `origin/prod`
+
+---
+
+### Testing Notes
+
+After backend restart and hard refresh:
+- Console should be clean (no spam)
+- Null parameter errors should be prevented
+- GitHub cursor should stay on-screen (region 0.50-0.90)
+
+---

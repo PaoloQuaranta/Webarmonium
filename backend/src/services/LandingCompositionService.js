@@ -135,7 +135,7 @@ class LandingCompositionService {
       densityMultiplier: 0.3  // 30% of normal room density (more active)
     }
 
-    console.log('🎵 LandingCompositionService initialized (CompositionEngine mode)')
+    // console.log('🎵 LandingCompositionService initialized (CompositionEngine mode)')
   }
 
   /**
@@ -144,7 +144,7 @@ class LandingCompositionService {
    */
   setSocketIO(io) {
     this.io = io
-    console.log('🎵 LandingCompositionService: Socket.IO connected')
+    // console.log('🎵 LandingCompositionService: Socket.IO connected')
   }
 
   /**
@@ -161,7 +161,7 @@ class LandingCompositionService {
    */
   setWebMetricsPoller(poller) {
     this.webMetricsPoller = poller
-    console.log('🎵 LandingCompositionService: WebMetricsPoller connected')
+    // console.log('🎵 LandingCompositionService: WebMetricsPoller connected')
   }
 
   /**
@@ -170,7 +170,7 @@ class LandingCompositionService {
    */
   setDensityMultiplier(multiplier) {
     this.gestureConfig.densityMultiplier = Math.max(0.1, Math.min(1.0, multiplier))
-    console.log(`🎵 Gesture density multiplier set to ${this.gestureConfig.densityMultiplier}`)
+    // console.log(`🎵 Gesture density multiplier set to ${this.gestureConfig.densityMultiplier}`)
   }
 
   /**
@@ -195,10 +195,10 @@ class LandingCompositionService {
       stats.samples.shift()
     }
 
-    // Log when range expands (for debugging)
-    if (stats.min === value || stats.max === value) {
-      console.log(`📊 ${source}.${metricName} range expanded: [${stats.min.toFixed(2)}, ${stats.max.toFixed(2)}]`)
-    }
+    // // Log when range expands (for debugging)
+    // if (stats.min === value || stats.max === value) {
+    //   console.log(`📊 ${source}.${metricName} range expanded: [${stats.min.toFixed(2)}, ${stats.max.toFixed(2)}]`)
+    // }
   }
 
   /**
@@ -214,13 +214,13 @@ class LandingCompositionService {
   normalizeMetricDynamic(source, metricName, value) {
     const stats = this.metricStatistics[source]?.[metricName]
     if (!stats) {
-      console.log(`📊 No stats for ${source}.${metricName}, returning 0.5`)
+      // console.log(`📊 No stats for ${source}.${metricName}, returning 0.5`)
       return 0.5 // Default if no stats
     }
 
     // If no range yet, return 0.5
     if (stats.min === Infinity || stats.max === 0) {
-      console.log(`📊 No range yet for ${source}.${metricName} (min=${stats.min}, max=${stats.max}), returning 0.5`)
+      // console.log(`📊 No range yet for ${source}.${metricName} (min=${stats.min}, max=${stats.max}), returning 0.5`)
       return 0.5
     }
 
@@ -228,7 +228,7 @@ class LandingCompositionService {
     // As range expands, normalization adapts
     const range = stats.max - stats.min
     if (range === 0) {
-      console.log(`📊 Zero range for ${source}.${metricName}, returning 0.5`)
+      // console.log(`📊 Zero range for ${source}.${metricName}, returning 0.5`)
       return 0.5
     }
 
@@ -237,10 +237,10 @@ class LandingCompositionService {
     // Clamp to [0, 1]
     const result = Math.max(0, Math.min(1, normalized))
 
-    // Log when result is significantly different from 0.5
-    if (result < 0.3 || result > 0.7) {
-      console.log(`📊 ${source}.${metricName}: ${value.toFixed(1)} → ${result.toFixed(2)} (range: ${stats.min.toFixed(1)}-${stats.max.toFixed(1)})`)
-    }
+    // // Log when result is significantly different from 0.5
+    // if (result < 0.3 || result > 0.7) {
+    //   console.log(`📊 ${source}.${metricName}: ${value.toFixed(1)} → ${result.toFixed(2)} (range: ${stats.min.toFixed(1)}-${stats.max.toFixed(1)})`)
+    // }
 
     return result
   }
@@ -259,7 +259,7 @@ class LandingCompositionService {
     // Start composition cycle (generates gestures + background)
     this.scheduleNextComposition()
 
-    console.log('🎵 LandingCompositionService started')
+    // console.log('🎵 LandingCompositionService started')
   }
 
   /**
@@ -282,7 +282,7 @@ class LandingCompositionService {
       this.cursorInterpolationTimer = null
     }
 
-    console.log('🎵 LandingCompositionService stopped')
+    // console.log('🎵 LandingCompositionService stopped')
   }
 
   /**
@@ -370,7 +370,7 @@ class LandingCompositionService {
     // Add material for composition engine
     this.addVirtualGestureMaterial(source)
 
-    console.log(`🎵 Gesture from ${source} (activity: ${activity.toFixed(2)}, vel: ${velocity.toFixed(1)})`)
+    // console.log(`🎵 Gesture from ${source} (activity: ${activity.toFixed(2)}, vel: ${velocity.toFixed(1)})`)
   }
 
   /**
@@ -393,7 +393,7 @@ class LandingCompositionService {
       const gesture = this.generateVirtualGesture(source, metrics, velocity, acceleration)
       gestures.push(gesture)
 
-      console.log(`🎵 Generated gesture from ${source} (activity: ${activity.toFixed(2)}, vel: ${velocity.toFixed(1)})`)
+      // console.log(`🎵 Generated gesture from ${source} (activity: ${activity.toFixed(2)}, vel: ${velocity.toFixed(1)})`)
     }
 
     return gestures
@@ -593,7 +593,7 @@ class LandingCompositionService {
     if (keyCenter !== this.compositionEngine.keyCenter || mode !== this.compositionEngine.mode) {
       this.compositionEngine.keyCenter = keyCenter
       this.compositionEngine.mode = mode
-      console.log(`🎵 Style influenced composition: ${keyCenter} ${mode}, tempo ${this.compositionEngine.tempo}`)
+      // console.log(`🎵 Style influenced composition: ${keyCenter} ${mode}, tempo ${this.compositionEngine.tempo}`)
     }
 
     // REDUCE density to avoid polyphony issues (max 0.4 instead of 0.9)
@@ -643,7 +643,7 @@ class LandingCompositionService {
       this.scheduleNextComposition()
     }, interval)
 
-    console.log(`🎵 Next composition in ${(interval / 1000).toFixed(1)}s`)
+    // console.log(`🎵 Next composition in ${(interval / 1000).toFixed(1)}s`)
   }
 
   /**
@@ -653,13 +653,13 @@ class LandingCompositionService {
    */
   async generateAndBroadcastComposition() {
     try {
-      console.log(`🎵 Generating composition cycle ${this.compositionCount} (gestures + background)`)
+      // console.log(`🎵 Generating composition cycle ${this.compositionCount} (gestures + background)`)
 
       // STEP 1: Generate metric-driven gestures for ALL sources
       const virtualGestures = this.generateMetricDrivenGestures()
 
-      console.log(`🎵 Generated ${virtualGestures.length} gestures:`,
-        virtualGestures.map(g => `${g.source}`).join(', '))
+      // console.log(`🎵 Generated ${virtualGestures.length} gestures:`,
+      //   virtualGestures.map(g => `${g.source}`).join(', '))
 
       // STEP 2: Emit gesture notes with QUANTIZED timing on the grid
       // Each gesture is scheduled at its quantized tick position
@@ -691,7 +691,7 @@ class LandingCompositionService {
           this.addVirtualGestureMaterialFromGesture(gesture)
         }, delay)
 
-        console.log(`🎵 Scheduled ${gesture.source} gesture at tick ${tick} (${delay}ms)`)
+        // console.log(`🎵 Scheduled ${gesture.source} gesture at tick ${tick} (${delay}ms)`)
       }
 
       // STEP 3: Extract modulation params from gestures
@@ -718,7 +718,7 @@ class LandingCompositionService {
         modulationParams: modulationParams
       })
 
-      console.log(`🎵 Generated ${composition.type} composition #${this.compositionCount}`)
+      // console.log(`🎵 Generated ${composition.type} composition #${this.compositionCount}`)
 
       // STEP 6: Broadcast background composition
       if (this.io) {
@@ -729,7 +729,7 @@ class LandingCompositionService {
           modulationParams: modulationParams,
           timestamp: Date.now()
         })
-        console.log(`🎵 Broadcast composition #${this.compositionCount} to landing room`)
+        // console.log(`🎵 Broadcast composition #${this.compositionCount} to landing room`)
       }
 
       // Advance clock for next cycle
@@ -793,7 +793,7 @@ class LandingCompositionService {
     // Generate phrase using PhraseMorphology (SAME LOGIC AS NORMAL ROOMS)
     const phrase = this.phraseMorphology.generatePhrase(gestureData, musicalContext)
 
-    console.log(`🎵 PHRASE from ${gesture.source}: ${phrase.notes.length} notes (vel=${absVelocity.toFixed(1)} → ${gestureVelocity.toFixed(0)}), dur=${phraseDurationMs}ms, scale=${phrase.metadata.scale}`)
+    // console.log(`🎵 PHRASE from ${gesture.source}: ${phrase.notes.length} notes (vel=${absVelocity.toFixed(1)} → ${gestureVelocity.toFixed(0)}), dur=${phraseDurationMs}ms, scale=${phrase.metadata.scale}`)
 
     // Convert beats to milliseconds
     const beatDurationMs = (60 / musicalContext.tempo) * 1000
@@ -899,13 +899,13 @@ class LandingCompositionService {
           cursors: cursors,
           timestamp: Date.now()
         })
-        // Debug: Log cursor positions every second (every 20th iteration)
-        // NO randomness - use counter-based periodic logging
-        this.cursorIterationCount = (this.cursorIterationCount || 0) + 1
-        if (this.cursorIterationCount % 20 === 0) {
-          const cursorInfo = Object.entries(cursors).map(([s, c]) => `${s}:(${c.x.toFixed(2)},${c.y.toFixed(2)})`).join(' ')
-          console.log(`🖱️ Virtual cursors: ${cursorInfo}`)
-        }
+        // // Debug: Log cursor positions every second (every 20th iteration)
+        // // NO randomness - use counter-based periodic logging
+        // this.cursorIterationCount = (this.cursorIterationCount || 0) + 1
+        // if (this.cursorIterationCount % 20 === 0) {
+        //   const cursorInfo = Object.entries(cursors).map(([s, c]) => `${s}:(${c.x.toFixed(2)},${c.y.toFixed(2)})`).join(' ')
+        //   console.log(`🖱️ Virtual cursors: ${cursorInfo}`)
+        // }
       }
     }, 50)
   }
@@ -979,13 +979,13 @@ class LandingCompositionService {
         x = Math.max(user.region.xMin, Math.min(user.region.xMax, x))
         // Y: Based on new stars (logarithmic scaling)
         y = 0.1 + Math.min(Math.log10(metrics.newStars + 1) / 2, 0.8)
-        // Debug logging - always log for monitoring
-        console.log(`🖱️ GitHub cursor:`, {
-          commitsPerMinute: metrics.commitsPerMinute,
-          ghNorm: ghNorm.toFixed(3),
-          calculatedX: x.toFixed(3),
-          region: `${user.region.xMin}-${user.region.xMax}`
-        })
+        // // Debug logging - always log for monitoring
+        // console.log(`🖱️ GitHub cursor:`, {
+        //   commitsPerMinute: metrics.commitsPerMinute,
+        //   ghNorm: ghNorm.toFixed(3),
+        //   calculatedX: x.toFixed(3),
+        //   region: `${user.region.xMin}-${user.region.xMax}`
+        // })
         break
     }
 

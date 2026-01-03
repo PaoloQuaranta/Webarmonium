@@ -58,7 +58,7 @@ class LandingApp {
       return
     }
 
-    console.log('🚀 Initializing Webarmonium Landing Page (Backend-Driven)...')
+    // console.log('🚀 Initializing Webarmonium Landing Page (Backend-Driven)...')
 
     try {
       // Cache canvas container
@@ -71,7 +71,7 @@ class LandingApp {
       if (typeof GenerativeVisualService !== 'undefined') {
         this.visualService = new GenerativeVisualService()
         this.visualService.initialize(this.canvasContainer)
-        console.log('✅ GenerativeVisualService initialized')
+        // console.log('✅ GenerativeVisualService initialized')
       } else {
         console.error('❌ GenerativeVisualService not available')
       }
@@ -89,7 +89,7 @@ class LandingApp {
       this._removeMockModeToggle()
 
       this.isInitialized = true
-      console.log('✅ Landing page initialized (waiting for Start)')
+      // console.log('✅ Landing page initialized (waiting for Start)')
 
     } catch (error) {
       console.error('❌ Error during initialization:', error)
@@ -105,7 +105,7 @@ class LandingApp {
     const mockToggle = document.getElementById('mock-mode')
     if (mockToggle && mockToggle.parentElement) {
       mockToggle.parentElement.remove()
-      console.log('🗑️ Mock mode toggle removed (backend handles metrics)')
+      // console.log('🗑️ Mock mode toggle removed (backend handles metrics)')
     }
   }
 
@@ -125,15 +125,15 @@ class LandingApp {
         if (typeof AudioService !== 'undefined') {
           this.audioService = new AudioService()
           await this.audioService.initialize()
-          console.log('✅ AudioService initialized')
+          // console.log('✅ AudioService initialized')
 
           // Create the continuous generative system (same as rooms)
           this.audioService.createContinuousGenerativeSystem()
-          console.log('✅ Continuous generative system created')
+          // console.log('✅ Continuous generative system created')
 
           // CRITICAL: Start the audio service to activate Transport and effects
           await this.audioService.start()
-          console.log('✅ AudioService started - Transport and effects activated')
+          // console.log('✅ AudioService started - Transport and effects activated')
         }
       } catch (error) {
         console.error('❌ Error initializing audio:', error)
@@ -165,13 +165,13 @@ class LandingApp {
 
       // Connection events
       this.socket.on('connect', () => {
-        console.log('✅ Connected to backend')
+        // console.log('✅ Connected to backend')
 
         // Join landing room
         this.socket.emit('join-landing', (response) => {
-          console.log('📡 join-landing response:', response)
+          // console.log('📡 join-landing response:', response)
           if (response && response.success) {
-            console.log('✅ Joined landing room:', response.roomId)
+            // console.log('✅ Joined landing room:', response.roomId)
 
             // Initialize cursors and metrics from backend
             if (response.cursors) {
@@ -188,7 +188,7 @@ class LandingApp {
       })
 
       this.socket.on('disconnect', () => {
-        console.log('❌ Disconnected from backend')
+        // console.log('❌ Disconnected from backend')
       })
 
       this.socket.on('connect_error', (error) => {
@@ -198,26 +198,26 @@ class LandingApp {
 
       // Listen for landing-joined event
       this.socket.on('landing-joined', (data) => {
-        console.log('✅ Landing joined:', data.roomId)
+        // console.log('✅ Landing joined:', data.roomId)
       })
 
       // Listen for background compositions from backend
       this.socket.on('background-composition', (data) => {
         if (!this.isRunning) return
 
-        console.log('🎵 Received background composition:', {
-          type: data.composition?.type,
-          form: data.composition?.structure?.form,
-          tempo: data.composition?.metadata?.tempo,
-          key: data.composition?.metadata?.keyCenter,
-          compositionNumber: data.compositionNumber
-        })
+        // console.log('🎵 Received background composition:', {
+        //   type: data.composition?.type,
+        //   form: data.composition?.structure?.form,
+        //   tempo: data.composition?.metadata?.tempo,
+        //   key: data.composition?.metadata?.keyCenter,
+        //   compositionNumber: data.compositionNumber
+        // })
 
         // Play composition
         if (this.audioService && data.composition) {
           if (typeof this.audioService.playComposition === 'function') {
             this.audioService.playComposition(data.composition, data.isDrone || false)
-            console.log('🎵 Background composition sent to AudioService')
+            // console.log('🎵 Background composition sent to AudioService')
           } else {
             console.warn('⚠️ playComposition not available on AudioService')
           }
@@ -265,7 +265,7 @@ class LandingApp {
       this.socket.on('unified-modulation', (modulationData) => {
         if (!this.isRunning) return
 
-        console.log('🎵 Received unified modulation:', modulationData.modulation)
+        // console.log('🎵 Received unified modulation:', modulationData.modulation)
 
         // Apply modulation to AudioService
         if (this.audioService && this.audioService.applyUnifiedModulation) {
@@ -422,7 +422,7 @@ class LandingApp {
         // Create the note with full FX chain (sawtooth → filter → delay → reverb)
         synth.triggerAttackRelease(frequency, noteDuration, now, velocity)
 
-        console.log(`🎵 Virtual TAP [sawtooth+FX]: ${userId} - ${frequency.toFixed(1)}Hz - vel ${velocity.toFixed(2)} - dur ${(noteDuration * 1000).toFixed(0)}ms`)
+        // console.log(`🎵 Virtual TAP [sawtooth+FX]: ${userId} - ${frequency.toFixed(1)}Hz - vel ${velocity.toFixed(2)} - dur ${(noteDuration * 1000).toFixed(0)}ms`)
       } else if (typeof synth.triggerAttack === 'function') {
         // Fallback to triggerAttack + triggerRelease
         synth.triggerAttack(frequency, window.Tone.now(), velocity)
@@ -432,7 +432,7 @@ class LandingApp {
             synth.triggerRelease(frequency)
           }
         }, fallbackDuration)
-        console.log(`🎵 Virtual TAP (fallback): ${userId} - ${frequency.toFixed(1)}Hz - ${fallbackDuration.toFixed(0)}ms`)
+        // console.log(`🎵 Virtual TAP (fallback): ${userId} - ${frequency.toFixed(1)}Hz - ${fallbackDuration.toFixed(0)}ms`)
       } else {
         console.warn('⚠️ gestureSynth has no trigger methods')
       }
@@ -468,7 +468,7 @@ class LandingApp {
       const synth = this.audioService.gestureSynth
       if (synth && typeof synth.triggerRelease === 'function') {
         synth.triggerRelease(note.frequency)
-        console.log(`🎵 Virtual note released: ${note.userId}`)
+        // console.log(`🎵 Virtual note released: ${note.userId}`)
       }
       this.virtualNotes.delete(noteId)
     }
@@ -483,8 +483,8 @@ class LandingApp {
       return
     }
 
-    console.log('▶️ Starting Webarmonium Landing Page...')
-    console.log('🔌 Connecting to backend and joining landing room...')
+    // console.log('▶️ Starting Webarmonium Landing Page...')
+    // console.log('🔌 Connecting to backend and joining landing room...')
 
     try {
       // Ensure audio is initialized
@@ -498,7 +498,7 @@ class LandingApp {
       // CRITICAL: Start the audio service to activate Transport and restore volume
       if (this.audioService && typeof this.audioService.start === 'function') {
         await this.audioService.start()
-        console.log('✅ AudioService started - Transport and volume activated')
+        // console.log('✅ AudioService started - Transport and volume activated')
       }
 
       // Setup socket connection
@@ -507,7 +507,7 @@ class LandingApp {
       // Update state
       this.isRunning = true
 
-      console.log('✅ Landing page started (receiving from backend)')
+      // console.log('✅ Landing page started (receiving from backend)')
       this.dashboardUI.showStatus('Experience started - Connected to backend')
 
     } catch (error) {
@@ -525,7 +525,7 @@ class LandingApp {
       return
     }
 
-    console.log('⏸ Stopping Webarmonium Landing Page...')
+    // console.log('⏸ Stopping Webarmonium Landing Page...')
 
     try {
       // Disconnect socket
@@ -537,7 +537,7 @@ class LandingApp {
       // Update state
       this.isRunning = false
 
-      console.log('✅ Landing page stopped')
+      // console.log('✅ Landing page stopped')
       this.dashboardUI.showStatus('Experience stopped')
 
     } catch (error) {
@@ -550,7 +550,7 @@ class LandingApp {
    * Cleanup and dispose
    */
   dispose() {
-    console.log('🧹 Cleaning up LandingApp...')
+    // console.log('🧹 Cleaning up LandingApp...')
 
     this.stop()
 
@@ -570,7 +570,7 @@ class LandingApp {
     }
 
     this.isInitialized = false
-    console.log('✅ LandingApp disposed')
+    // console.log('✅ LandingApp disposed')
   }
 }
 
