@@ -393,6 +393,12 @@ class LandingApp {
       return
     }
 
+    // CRITICAL: Validate velocity before processing
+    if (velocity === null || velocity === undefined || isNaN(velocity)) {
+      console.warn('⚠️ Invalid velocity in hold:start event:', { velocity, userId, data })
+      return
+    }
+
     // Check if Tone.js is available
     if (typeof window.Tone === 'undefined') {
       console.error('❌ Tone.js not loaded')
