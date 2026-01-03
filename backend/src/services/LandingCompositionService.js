@@ -48,17 +48,20 @@ class LandingCompositionService {
       wikipedia: {
         editsPerMinute: { min: Infinity, max: 0, samples: [] },
         newArticles: { min: Infinity, max: 0, samples: [] },
-        avgEditSize: { min: Infinity, max: 0, samples: [] }
+        avgEditSize: { min: Infinity, max: 0, samples: [] },
+        velocity: { min: Infinity, max: 0, samples: [] }  // Track velocity for phrase generation
       },
       hackernews: {
         postsPerMinute: { min: Infinity, max: 0, samples: [] },
         avgUpvotes: { min: Infinity, max: 0, samples: [] },
-        commentCount: { min: Infinity, max: 0, samples: [] }
+        commentCount: { min: Infinity, max: 0, samples: [] },
+        velocity: { min: Infinity, max: 0, samples: [] }
       },
       github: {
         commitsPerMinute: { min: Infinity, max: 0, samples: [] },
         openPRs: { min: Infinity, max: 0, samples: [] },
-        newStars: { min: Infinity, max: 0, samples: [] }
+        newStars: { min: Infinity, max: 0, samples: [] },
+        velocity: { min: Infinity, max: 0, samples: [] }
       }
     }
     this.maxSamples = 100 // Keep last 100 samples for dynamic range calculation
@@ -755,11 +758,10 @@ class LandingCompositionService {
     const cursor = this.targetPositions[gesture.source]
     const activity = this.calculateActivityLevel(gesture.source)
 
-    // CRITICAL: Calculate frequency DIRECTLY from cursor position (metric-based)
+    // CRITICAL: Calculate semitones from cursor position (metric-based)
     // Y position maps to semitones, which map to frequency
     // This preserves REAL correspondence: higher cursor = higher pitch
     const semitones = Math.round((cursor.y - 0.5) * 24) // -12 to +12 semitones
-    const frequency = user.baseFrequency * Math.pow(2, semitones / 12)
 
     // CRITICAL: Calculate duration DIRECTLY from metric activity
     // Higher activity = shorter, more frequent notes (real-time response)
@@ -767,16 +769,26 @@ class LandingCompositionService {
     const duration = 500 + (1 - activity) * 2500  // 500-3000ms (inverse relationship)
 
     // Velocity from gesture determines intensity
-    const velocity = Math.min(Math.abs(gesture.velocity || 0) / 10, 1.0) // Normalize to 0-1
-
-    // Generate phrase based on gesture characteristics (DETERMINISTIC, not random)
-    // Higher velocity = more notes (drag phrase)
-    // Lower velocity = single sustained note (tap)
     const absVelocity = Math.abs(gesture.velocity || 0)
-    // DETERMINISTIC: note count based on velocity, no randomness
-    const noteCount = Math.max(1, Math.min(5, Math.floor(1 + absVelocity / 5))) // 1-5 notes based on velocity
 
-    console.log(`🎵 METRIC-DRIVEN NOTE from ${gesture.source}: freq=${frequency.toFixed(1)}Hz, dur=${duration.toFixed(0)}ms, count=${noteCount}, activity=${activity.toFixed(2)}`)
+    // DYNAMIC NORMALIZATION: Normalize velocity based on HISTORICAL range
+    // This achieves MAXIMUM musical variety from metric variations
+    // NO THRESHOLDS - pure scaling based on observed data
+    const normalizedVelocity = this.normalizeMetricDynamic(gesture.source, 'velocity', absVelocity)
+
+    // SCALE velocity to noteCount (2-5) with CONTINUOUS scaling
+    // Minimum 2 notes for phrases, maximum 5 notes for high velocity
+    // Formula: 2 + (normalizedVelocity * 3) = 2.0 to 5.0
+    const noteCountFloat = 2 + normalizedVelocity * 3
+    const noteCount = Math.floor(noteCountFloat)
+
+    // SCALE velocity to inter-note delay (200-500ms) with CONTINUOUS scaling
+    // Higher velocity = faster notes (lower delay)
+    const minInterNoteDelay = 200
+    const maxInterNoteDelay = 500
+    const interNoteDelay = maxInterNoteDelay - (normalizedVelocity * (maxInterNoteDelay - minInterNoteDelay))
+
+    console.log(`🎵 PHRASE from ${gesture.source}: ${noteCount} notes (vel=${absVelocity.toFixed(1)} → norm=${normalizedVelocity.toFixed(2)}), interval=${interNoteDelay.toFixed(0)}ms`)
 
     // Emit note(s) with proper timing
     for (let i = 0; i < noteCount; i++) {
@@ -786,8 +798,8 @@ class LandingCompositionService {
       const melodyOffset = i * (gesture.acceleration > 0 ? 1 : -1)
       const noteFreq = user.baseFrequency * Math.pow(2, (semitones + melodyOffset) / 12)
 
-      // Delay for each note in phrase (staggered)
-      const noteDelay = i * (duration / noteCount)
+      // Use scaled inter-note delay for perceptible phrases
+      const noteDelay = i * interNoteDelay
 
       setTimeout(() => {
         if (!this.io || !this.isRunning) return
@@ -798,7 +810,7 @@ class LandingCompositionService {
           userId: user.userId,
           noteId: noteId,
           frequency: noteFreq,
-          velocity: 0.4 + velocity * 0.5, // 0.4-0.9
+          velocity: 0.4 + Math.min(normalizedVelocity, 1.0) * 0.5, // 0.4-0.9
           duration: (duration / noteCount) / 1000,  // Convert to seconds
           position: cursor,
           userColor: user.color,
@@ -877,7 +889,7 @@ class LandingCompositionService {
   /**
    * Update metrics from WebMetricsPoller
    * Called by WebMetricsPoller when new metrics are available
-   * @param {Object} newMetrics - New metrics from WebMetricsPoller
+   * @param {Object} newMetrics - New metrics from WebMetricsPoller (includes velocity/acceleration)
    */
   updateMetrics(newMetrics) {
     this.metrics = newMetrics
@@ -886,6 +898,7 @@ class LandingCompositionService {
     // This builds historical min/max for MAXIMUM musical variety
     for (const [source, metrics] of Object.entries(newMetrics)) {
       for (const [metricName, value] of Object.entries(metrics)) {
+        // Track ALL metrics including velocity for phrase generation
         this.updateMetricStatistics(source, metricName, value)
       }
     }
