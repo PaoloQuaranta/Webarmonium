@@ -297,10 +297,16 @@ class GestureToMusicService {
 
   formatMusicalEvents(musicalPhrase, gestureData) {
     // Convert musical phrase to the expected event format
-    // FIX: Use realistic timing based on note durations, not fixed 100ms
+    // CRITICAL: Convert beats to seconds using tempo
+    const tempo = musicalPhrase.metadata.tempo || 120
+    const beatDuration = 60 / tempo  // seconds per beat (e.g., 120 BPM = 0.5 sec/beat)
+
     let cumulativeTime = 0 // Track cumulative time in seconds
 
     return musicalPhrase.notes.map((note, index) => {
+      // Convert note duration from beats to seconds
+      const durationSeconds = (note.duration || 0.25) * beatDuration
+
       const event = {
         id: `musical_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`,
         eventType: 'note',
@@ -310,8 +316,8 @@ class GestureToMusicService {
         properties: {
           pitch: note.pitch,
           frequency: this.midiToFrequency(note.pitch),
-          duration: note.duration,
-          velocity: note.velocity || 80, // Default velocity if not provided
+          duration: durationSeconds,  // CRITICAL: Duration in SECONDS for Tone.js
+          velocity: note.velocity || 80,
           articulation: note.articulation || 'normal',
           gestureAction: gestureData.gestureAction,
           gestureType: gestureData.gestureType,
@@ -319,12 +325,12 @@ class GestureToMusicService {
           totalNotes: musicalPhrase.notes.length,
           mood: musicalPhrase.metadata.gestureMood,
           scale: musicalPhrase.metadata.scale,
-          startTime: cumulativeTime // Include start time for debugging
+          startTime: cumulativeTime
         }
       }
 
-      // Advance cumulative time by note duration * 0.9 (slight overlap for musical effect)
-      cumulativeTime += (note.duration || 0.25) * 0.9
+      // Advance cumulative time by note duration (slight overlap for musical effect)
+      cumulativeTime += durationSeconds * 0.9
 
       return event
     })

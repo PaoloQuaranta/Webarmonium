@@ -205,15 +205,24 @@ class LandingApp {
       this.socket.on('background-composition', (data) => {
         if (!this.isRunning) return
 
-        console.log('🎵 Received composition from backend:', data.composition?.type)
+        console.log('🎵 Received background composition:', {
+          type: data.composition?.type,
+          form: data.composition?.structure?.form,
+          tempo: data.composition?.metadata?.tempo,
+          key: data.composition?.metadata?.keyCenter,
+          compositionNumber: data.compositionNumber
+        })
 
         // Play composition
         if (this.audioService && data.composition) {
           if (typeof this.audioService.playComposition === 'function') {
             this.audioService.playComposition(data.composition, data.isDrone || false)
+            console.log('🎵 Background composition sent to AudioService')
           } else {
             console.warn('⚠️ playComposition not available on AudioService')
           }
+        } else {
+          console.warn('⚠️ AudioService not available or no composition data')
         }
       })
 
@@ -252,6 +261,18 @@ class LandingApp {
         this._handleVirtualHoldEnd(data)
       })
 
+      // Listen for unified modulation from HoverOrchestrator
+      this.socket.on('unified-modulation', (modulationData) => {
+        if (!this.isRunning) return
+
+        console.log('🎵 Received unified modulation:', modulationData.modulation)
+
+        // Apply modulation to AudioService
+        if (this.audioService && this.audioService.applyUnifiedModulation) {
+          this.audioService.applyUnifiedModulation(modulationData)
+        }
+      })
+
     } catch (error) {
       console.error('❌ Error setting up socket connection:', error)
       this.dashboardUI.showError('Socket setup failed')
@@ -260,7 +281,7 @@ class LandingApp {
 
   /**
    * Update visual cursors from backend data
-   * Also triggers particles/pulses and filter modulations on cursor movement
+   * Also triggers particles/pulses on cursor movement
    * @private
    */
   _updateVisualCursors() {
@@ -289,15 +310,6 @@ class LandingApp {
 
       // Trigger effects on cursor movement
       if (this.isRunning) {
-        // ALWAYS modulate filter based on cursor position
-        // Filter adds richness on top of virtual notes (not blocking them)
-        if (this.audioService?.gestureFilter) {
-          const filterFreq = 200 + (x * 7800) // 200Hz - 8000Hz
-          const filterQ = 0.5 + (y * 3) // 0.5 - 3.5
-          this.audioService.gestureFilter.frequency.set({ value: filterFreq })
-          this.audioService.gestureFilter.Q.set({ value: filterQ })
-        }
-
         // Emit particles based on movement distance
         if (hasMoved && this.visualService.particles) {
           const particleCount = Math.min(Math.round(movementDistance * 100), 8) // Up to 8 particles
@@ -311,8 +323,51 @@ class LandingApp {
       }
     }
 
+    // EMIT VIRTUAL HOVER EVENTS for HoverOrchestrator
+    this._emitVirtualHoverEvents()
+
     // Store current cursors for next comparison
     this.previousCursors = { ...this.currentCursors }
+  }
+
+  /**
+   * Emit virtual hover events to backend for HoverOrchestrator processing
+   * Sends hover events for all virtual cursors
+   * @private
+   */
+  _emitVirtualHoverEvents() {
+    if (!this.socket || !this.socket.connected) return
+
+    for (const [source, cursor] of Object.entries(this.currentCursors)) {
+      const userId = cursor.userId || `${source}-metrics`
+
+      // Calculate velocity from cursor movement
+      const prevCursor = this.previousCursors?.[source]
+      let velocity = 50  // Default velocity
+      let intensity = 0.5  // Default intensity
+
+      if (prevCursor) {
+        const dx = cursor.x - prevCursor.x
+        const dy = cursor.y - prevCursor.y
+        const distance = Math.sqrt(dx * dx + dy * dy)
+        velocity = Math.min(distance * 1000, 100)  // Scale to 0-100
+        intensity = Math.min(distance, 1.0)
+      }
+
+      // Emit hover-update event (NORMAL ROOM FORMAT)
+      // See: frontend/src/services/gesture/HoverProcessor.js:169-184
+      this.socket.emit('hover-update', {
+        userId: userId,
+        roomId: 'landing-room',
+        position: {
+          x: cursor.x,
+          y: cursor.y
+        },
+        velocity: velocity,
+        intensity: intensity,
+        timestamp: Date.now()
+      })
+    }
   }
 
   /**
@@ -330,7 +385,7 @@ class LandingApp {
       return
     }
 
-    const { userId, noteId, frequency, velocity, position, userColor } = data
+    const { userId, frequency, velocity, duration, userColor } = data
 
     // Check if Tone.js is available
     if (typeof window.Tone === 'undefined') {
@@ -348,23 +403,24 @@ class LandingApp {
     const synth = this.audioService.gestureSynth
     if (synth) {
       if (typeof synth.triggerAttackRelease === 'function') {
-        // CRITICAL: Longer duration for delay/reverb tail to be audible
-        const duration = 1.0 // 1 second for delay/reverb tail
+        // CRITICAL: Use variable duration from backend (200-2000ms based on metric intensity)
+        const noteDuration = duration || 1.0  // Fallback to 1s if not provided
         const now = window.Tone.now()
 
         // Create the note with full FX chain (sawtooth → filter → delay → reverb)
-        synth.triggerAttackRelease(frequency, duration, now, velocity)
+        synth.triggerAttackRelease(frequency, noteDuration, now, velocity)
 
-        console.log(`🎵 Virtual TAP [sawtooth+FX]: ${userId} - ${frequency.toFixed(1)}Hz - vel ${velocity.toFixed(2)}`)
+        console.log(`🎵 Virtual TAP [sawtooth+FX]: ${userId} - ${frequency.toFixed(1)}Hz - vel ${velocity.toFixed(2)} - dur ${(noteDuration * 1000).toFixed(0)}ms`)
       } else if (typeof synth.triggerAttack === 'function') {
         // Fallback to triggerAttack + triggerRelease
         synth.triggerAttack(frequency, window.Tone.now(), velocity)
+        const fallbackDuration = (duration || 1.0) * 1000  // Convert to ms
         setTimeout(() => {
           if (synth && typeof synth.triggerRelease === 'function') {
             synth.triggerRelease(frequency)
           }
-        }, 1000) // Longer duration for delay/reverb
-        console.log(`🎵 Virtual TAP (fallback): ${userId} - ${frequency.toFixed(1)}Hz`)
+        }, fallbackDuration)
+        console.log(`🎵 Virtual TAP (fallback): ${userId} - ${frequency.toFixed(1)}Hz - ${fallbackDuration.toFixed(0)}ms`)
       } else {
         console.warn('⚠️ gestureSynth has no trigger methods')
       }
