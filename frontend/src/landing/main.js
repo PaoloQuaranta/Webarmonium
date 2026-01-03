@@ -387,6 +387,12 @@ class LandingApp {
 
     const { userId, frequency, velocity, duration, userColor } = data
 
+    // CRITICAL: Validate frequency before processing
+    if (frequency === null || frequency === undefined || isNaN(frequency)) {
+      console.warn('⚠️ Invalid frequency in hold:start event:', { frequency, userId, data })
+      return
+    }
+
     // Check if Tone.js is available
     if (typeof window.Tone === 'undefined') {
       console.error('❌ Tone.js not loaded')

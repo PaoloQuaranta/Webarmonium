@@ -92,7 +92,7 @@ class LandingCompositionService {
       github: {
         userId: 'github-metrics',
         color: '#377eb8',
-        region: { xMin: 0.50, xMax: 0.95 }, // Reduced from 1.0 to keep cursor visible
+        region: { xMin: 0.50, xMax: 0.90 }, // Reduced to 0.90 to keep cursor fully visible
         baseFrequency: 392.00 // G4
       }
     }
@@ -101,14 +101,14 @@ class LandingCompositionService {
     this.currentPositions = {
       wikipedia: { x: 0.16, y: 0.5 },
       hackernews: { x: 0.41, y: 0.5 }, // Adjusted (center of 0.33-0.50 region)
-      github: { x: 0.75, y: 0.5 } // Adjusted (center of 0.50-1.0 region)
+      github: { x: 0.70, y: 0.5 } // Adjusted (center of 0.50-0.90 region)
     }
 
     // Target positions (for interpolation)
     this.targetPositions = {
       wikipedia: { x: 0.16, y: 0.5 },
       hackernews: { x: 0.41, y: 0.5 }, // Adjusted (center of 0.33-0.50 region)
-      github: { x: 0.75, y: 0.5 } // Adjusted (center of 0.50-1.0 region)
+      github: { x: 0.70, y: 0.5 } // Adjusted (center of 0.50-0.90 region)
     }
 
     // Cursor interpolation timer
@@ -800,11 +800,23 @@ class LandingCompositionService {
 
     // Emit each note with correct timing
     phrase.notes.forEach((note, i) => {
+      // CRITICAL: Validate note.pitch before processing
+      if (typeof note.pitch !== 'number' || isNaN(note.pitch)) {
+        console.warn(`⚠️ Invalid note.pitch in phrase:`, { note, index: i, source: gesture.source })
+        return  // Skip this note
+      }
+
       const noteId = `virtual_${gesture.source}_${Date.now()}_${i}`
 
       // Convert MIDI pitch to frequency
       // Formula: f = 440 * 2^((midi - 69) / 12)
       const noteFreq = 440 * Math.pow(2, (note.pitch - 69) / 12)
+
+      // Validate calculated frequency
+      if (isNaN(noteFreq) || !isFinite(noteFreq)) {
+        console.warn(`⚠️ Invalid calculated frequency:`, { noteFreq, notePitch: note.pitch, index: i })
+        return  // Skip this note
+      }
 
       // Calculate start time in milliseconds
       const startDelayMs = note.startBeat * beatDurationMs
