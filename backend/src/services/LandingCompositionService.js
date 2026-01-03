@@ -758,16 +758,6 @@ class LandingCompositionService {
     const cursor = this.targetPositions[gesture.source]
     const activity = this.calculateActivityLevel(gesture.source)
 
-    // CRITICAL: Calculate semitones from cursor position (metric-based)
-    // Y position maps to semitones, which map to frequency
-    // This preserves REAL correspondence: higher cursor = higher pitch
-    const semitones = Math.round((cursor.y - 0.5) * 24) // -12 to +12 semitones
-
-    // CRITICAL: Calculate duration DIRECTLY from metric activity
-    // Higher activity = shorter, more frequent notes (real-time response)
-    // Lower activity = longer, sustained notes (sparse events)
-    const duration = 500 + (1 - activity) * 2500  // 500-3000ms (inverse relationship)
-
     // Velocity from gesture determines intensity
     const absVelocity = Math.abs(gesture.velocity || 0)
 
@@ -776,31 +766,53 @@ class LandingCompositionService {
     // NO THRESHOLDS - pure scaling based on observed data
     const normalizedVelocity = this.normalizeMetricDynamic(gesture.source, 'velocity', absVelocity)
 
-    // SCALE velocity to noteCount (2-5) with CONTINUOUS scaling
-    // Minimum 2 notes for phrases, maximum 5 notes for high velocity
-    // Formula: 2 + (normalizedVelocity * 3) = 2.0 to 5.0
-    const noteCountFloat = 2 + normalizedVelocity * 3
-    const noteCount = Math.floor(noteCountFloat)
+    // Calculate phrase duration based on activity (inverse: higher activity = shorter phrase)
+    const phraseDurationMs = 500 + (1 - activity) * 2500  // 500-3000ms
 
-    // SCALE velocity to inter-note delay (200-500ms) with CONTINUOUS scaling
-    // Higher velocity = faster notes (lower delay)
-    const minInterNoteDelay = 200
-    const maxInterNoteDelay = 500
-    const interNoteDelay = maxInterNoteDelay - (normalizedVelocity * (maxInterNoteDelay - minInterNoteDelay))
+    // SCALE velocity to gesture velocity (0-100) for PhraseMorphology
+    // This uses DYNAMIC normalization, no thresholds
+    const gestureVelocity = normalizedVelocity * 100  // 0-100 range
 
-    console.log(`🎵 PHRASE from ${gesture.source}: ${noteCount} notes (vel=${absVelocity.toFixed(1)} → norm=${normalizedVelocity.toFixed(2)}), interval=${interNoteDelay.toFixed(0)}ms`)
+    // Get musical context from CompositionEngine
+    const musicalContext = {
+      key: this.compositionEngine.keyCenter,
+      mode: this.compositionEngine.mode,
+      tempo: this.compositionEngine.tempo
+    }
 
-    // Emit note(s) with proper timing
-    for (let i = 0; i < noteCount; i++) {
+    // Create gestureData for PhraseMorphology (same as normal rooms)
+    const gestureData = {
+      velocity: gestureVelocity,
+      trajectory: { x: cursor.x, y: cursor.y },
+      curvature: 0.5,  // Moderate curvature
+      acceleration: gesture.acceleration || 0,
+      intensity: activity,
+      duration: phraseDurationMs
+    }
+
+    // Generate phrase using PhraseMorphology (SAME LOGIC AS NORMAL ROOMS)
+    const phrase = this.phraseMorphology.generatePhrase(gestureData, musicalContext)
+
+    console.log(`🎵 PHRASE from ${gesture.source}: ${phrase.notes.length} notes (vel=${absVelocity.toFixed(1)} → ${gestureVelocity.toFixed(0)}), dur=${phraseDurationMs}ms, scale=${phrase.metadata.scale}`)
+
+    // Convert beats to milliseconds
+    const beatDurationMs = (60 / musicalContext.tempo) * 1000
+
+    // Emit each note with correct timing
+    phrase.notes.forEach((note, i) => {
       const noteId = `virtual_${gesture.source}_${Date.now()}_${i}`
 
-      // For phrase: add melodic variation (±1 semitone per note)
-      const melodyOffset = i * (gesture.acceleration > 0 ? 1 : -1)
-      const noteFreq = user.baseFrequency * Math.pow(2, (semitones + melodyOffset) / 12)
+      // Convert MIDI pitch to frequency
+      // Formula: f = 440 * 2^((midi - 69) / 12)
+      const noteFreq = 440 * Math.pow(2, (note.pitch - 69) / 12)
 
-      // Use scaled inter-note delay for perceptible phrases
-      const noteDelay = i * interNoteDelay
+      // Calculate start time in milliseconds
+      const startDelayMs = note.startBeat * beatDurationMs
 
+      // Calculate note duration in milliseconds
+      const noteDurationMs = note.duration * beatDurationMs
+
+      // Schedule note emission
       setTimeout(() => {
         if (!this.io || !this.isRunning) return
 
@@ -810,8 +822,8 @@ class LandingCompositionService {
           userId: user.userId,
           noteId: noteId,
           frequency: noteFreq,
-          velocity: 0.4 + Math.min(normalizedVelocity, 1.0) * 0.5, // 0.4-0.9
-          duration: (duration / noteCount) / 1000,  // Convert to seconds
+          velocity: note.velocity / 127,  // Convert 0-127 to 0-1
+          duration: noteDurationMs / 1000,  // Convert to seconds
           position: cursor,
           userColor: user.color,
           isRemote: true,
@@ -828,10 +840,10 @@ class LandingCompositionService {
               timestamp: Date.now()
             })
           }
-        }, (duration / noteCount))
+        }, noteDurationMs)
 
-      }, noteDelay)
-    }
+      }, startDelayMs)
+    })
   }
 
   /**
