@@ -79,24 +79,31 @@ class LandingCompositionService {
     // Virtual user definitions (for cursor display and material generation)
     // DISTRIBUTED regions for cursor coverage across the scene
     // Each source gets its own horizontal third to maximize spatial distribution
+    // DIFFERENT TESSITURAS for timbral differentiation
     this.virtualUsers = {
       wikipedia: {
         userId: 'wikipedia-metrics',
         color: '#e41a1c',
         region: { xMin: 0.05, xMax: 0.33 }, // Left third
-        baseFrequency: 261.63 // C4
+        baseFrequency: 98.00, // G2 - BASS tessitura
+        tessitura: 'bass',
+        frequencyRange: { min: 65, max: 130 } // C2-C3
       },
       hackernews: {
         userId: 'hackernews-metrics',
         color: '#ff7f00',
         region: { xMin: 0.33, xMax: 0.66 }, // Center third
-        baseFrequency: 329.63 // E4
+        baseFrequency: 293.66, // D4 - TENOR tessitura
+        tessitura: 'tenor',
+        frequencyRange: { min: 196, max: 392 } // G3-G4
       },
       github: {
         userId: 'github-metrics',
         color: '#377eb8',
         region: { xMin: 0.66, xMax: 0.95 }, // Right third
-        baseFrequency: 392.00 // G4
+        baseFrequency: 659.25, // E5 - SOPRANO tessitura
+        tessitura: 'soprano',
+        frequencyRange: { min: 523, max: 1047 } // C5-C6
       }
     }
 
@@ -444,20 +451,38 @@ class LandingCompositionService {
   /**
    * Generate virtual tap gesture (stability metric)
    * Short percussive note (0.1s)
+   * CRITICAL: Generates gesture position that will drive cursor movement
+   * Position represents WHERE the tap occurs in the scene
    * @param {string} source - Source name
    * @param {number} velocity - Current velocity
    * @returns {Object} Tap gesture data
    * @private
    */
   generateVirtualTap(source, velocity) {
-    const cursor = this.targetPositions[source]
     const activity = this.calculateActivityLevel(source)
+    const user = this.virtualUsers[source]
+
+    // Generate tap position based on metrics (where tap occurs in the scene)
+    // X position: based on activity level (distributed across source's region)
+    const x = user.region.xMin + (activity * (user.region.xMax - user.region.xMin))
+
+    // Y position: based on velocity (higher velocity = higher in scene)
+    const normalizedVelocity = this.normalizeMetricDynamic(source, 'velocity', Math.abs(velocity))
+    const y = 0.1 + (normalizedVelocity * 0.8) // Full vertical range
+
+    const gesturePosition = { x, y }
+
+    // Update target position so cursor moves to where tap occurred
+    this.targetPositions[source] = {
+      x: Math.max(user.region.xMin, Math.min(user.region.xMax, x)),
+      y: Math.max(0.05, Math.min(0.95, y))
+    }
 
     return {
       type: 'tap',
       source: source,
       velocity: velocity,
-      position: cursor,
+      position: gesturePosition,
       duration: 100,  // 0.1s percussive
       intensity: activity
     }
@@ -466,6 +491,8 @@ class LandingCompositionService {
   /**
    * Generate virtual drag/phrase gesture (density metric)
    * Continuous note streaming (2-5 notes)
+   * CRITICAL: Generates gesture trajectory that will drive cursor movement
+   * Position represents start of drag movement
    * @param {string} source - Source name
    * @param {number} velocity - Current velocity
    * @param {number} acceleration - Current acceleration
@@ -473,15 +500,32 @@ class LandingCompositionService {
    * @private
    */
   generateVirtualDrag(source, velocity, acceleration) {
-    const cursor = this.targetPositions[source]
     const activity = this.calculateActivityLevel(source)
+    const user = this.virtualUsers[source]
+
+    // Generate drag start position based on metrics
+    // X position: based on density metric (where drag starts)
+    const density = this.calculateDensityMetric(source)
+    const x = user.region.xMin + (density * (user.region.xMax - user.region.xMin))
+
+    // Y position: based on acceleration (higher acceleration = higher in scene)
+    const absAccel = Math.abs(acceleration)
+    const y = 0.1 + (absAccel * 0.8) // Full vertical range
+
+    const gesturePosition = { x, y }
+
+    // Update target position so cursor moves to drag start
+    this.targetPositions[source] = {
+      x: Math.max(user.region.xMin, Math.min(user.region.xMax, x)),
+      y: Math.max(0.05, Math.min(0.95, y))
+    }
 
     return {
       type: 'drag',
       source: source,
       velocity: velocity,
       acceleration: acceleration,
-      position: cursor,
+      position: gesturePosition,
       duration: 500 + (1 - activity) * 2500,  // 500-3000ms
       intensity: activity
     }
@@ -490,19 +534,35 @@ class LandingCompositionService {
   /**
    * Generate virtual hover gesture (periodicity metric)
    * No direct sound, only filter modulation
+   * CRITICAL: Generates hover position that will drive cursor movement
    * @param {string} source - Source name
    * @returns {Object} Hover gesture data
    * @private
    */
   generateVirtualHover(source) {
-    const cursor = this.targetPositions[source]
     const periodicity = this.calculatePeriodicityMetric(source)
+    const user = this.virtualUsers[source]
+
+    // Generate hover position based on periodicity metric
+    // X position: based on periodicity (where hover occurs)
+    const x = user.region.xMin + (periodicity * (user.region.xMax - user.region.xMin))
+
+    // Y position: hovers tend to be in middle-upper region (for filter modulation)
+    const y = 0.2 + (periodicity * 0.6) // 0.2-0.8 range
+
+    const gesturePosition = { x, y }
+
+    // Update target position so cursor moves to hover position
+    this.targetPositions[source] = {
+      x: Math.max(user.region.xMin, Math.min(user.region.xMax, x)),
+      y: Math.max(0.05, Math.min(0.95, y))
+    }
 
     // This doesn't emit sound directly, only modulation
     return {
       type: 'hover',
       source: source,
-      position: cursor,
+      position: gesturePosition,
       intensity: periodicity,
       velocity: 0  // hovers have no velocity
     }
@@ -1091,6 +1151,8 @@ class LandingCompositionService {
   /**
    * Update metrics from WebMetricsPoller
    * Called by WebMetricsPoller when new metrics are available
+   * CRITICAL: Cursor positions are now driven ONLY by gestures, not directly by metrics
+   * This ensures visual-audio coherence: cursor moves only when gesture occurs
    * @param {Object} newMetrics - New metrics from WebMetricsPoller (includes velocity/acceleration)
    */
   updateMetrics(newMetrics) {
@@ -1105,15 +1167,9 @@ class LandingCompositionService {
       }
     }
 
-    // Update target cursor positions based on new metrics with CLAMP
-    for (const [source, user] of Object.entries(this.virtualUsers)) {
-      const pos = this.calculateCursorPosition(source, user, this.metrics[source])
-      // Additional CLAMP to ensure target positions are always valid
-      this.targetPositions[source] = {
-        x: Math.max(0.05, Math.min(0.95, pos.x || 0.5)),
-        y: Math.max(0.05, Math.min(0.95, pos.y || 0.5))
-      }
-    }
+    // CRITICAL: DO NOT update cursor positions directly from metrics
+    // Cursor positions are now driven ONLY by virtual gestures
+    // This ensures coherence: cursor moves only when gesture occurs
 
     // Broadcast metrics to landing room for dashboard display
     if (this.io && this.isRunning) {
@@ -1122,66 +1178,6 @@ class LandingCompositionService {
         timestamp: Date.now()
       })
     }
-  }
-
-  /**
-   * Calculate cursor position for a virtual user
-   * Uses DYNAMIC normalization for BOTH X and Y positions
-   * EXPANDED regions (0.05-0.95) for full scene exploration
-   * LINEAR scaling (no logarithmic) for direct metric-to-position correspondence
-   * @param {string} source - Source name
-   * @param {Object} user - Virtual user definition
-   * @param {Object} metrics - Current metrics
-   * @returns {Object} Cursor position {x, y}
-   * @private
-   */
-  calculateCursorPosition(source, user, metrics) {
-    let x, y
-
-    switch (source) {
-      case 'wikipedia':
-        // X: Based on edit rate using DYNAMIC normalization
-        const wikiXNorm = this.normalizeMetricDynamic(source, 'editsPerMinute', metrics.editsPerMinute)
-        const safeWikiX = isNaN(wikiXNorm) ? 0.5 : wikiXNorm
-        x = user.region.xMin + (safeWikiX * (user.region.xMax - user.region.xMin))
-        // Y: Based on edit size using DYNAMIC normalization (LINEAR, not logarithmic)
-        const wikiYNorm = this.normalizeMetricDynamic(source, 'avgEditSize', metrics.avgEditSize)
-        const safeWikiY = isNaN(wikiYNorm) ? 0.5 : wikiYNorm
-        y = 0.05 + (safeWikiY * 0.9) // Full range 0.05-0.95
-        break
-      case 'hackernews':
-        // X: Based on post rate using DYNAMIC normalization
-        const hnXNorm = this.normalizeMetricDynamic(source, 'postsPerMinute', metrics.postsPerMinute)
-        const safeHnX = isNaN(hnXNorm) ? 0.5 : hnXNorm
-        x = user.region.xMin + (safeHnX * (user.region.xMax - user.region.xMin))
-        // Y: Based on avg upvotes using DYNAMIC normalization (LINEAR)
-        const hnYNorm = this.normalizeMetricDynamic(source, 'avgUpvotes', metrics.avgUpvotes)
-        const safeHnY = isNaN(hnYNorm) ? 0.5 : hnYNorm
-        y = 0.05 + (safeHnY * 0.9) // Full range 0.05-0.95
-        break
-      case 'github':
-        // X: Based on commit rate using DYNAMIC normalization
-        const ghXNorm = this.normalizeMetricDynamic(source, 'commitsPerMinute', metrics.commitsPerMinute)
-        const safeGhX = isNaN(ghXNorm) ? 0.5 : ghXNorm
-        x = user.region.xMin + (safeGhX * (user.region.xMax - user.region.xMin))
-        // Y: Based on new stars using DYNAMIC normalization (LINEAR)
-        const ghYNorm = this.normalizeMetricDynamic(source, 'newStars', metrics.newStars)
-        const safeGhY = isNaN(ghYNorm) ? 0.5 : ghYNorm
-        y = 0.05 + (safeGhY * 0.9) // Full range 0.05-0.95
-        break
-    }
-
-    // Clamp to expanded region bounds (0.05-0.95) with safety checks
-    x = Math.max(0.05, Math.min(0.95, x || 0.5))
-    y = Math.max(0.05, Math.min(0.95, y || 0.5))
-
-    // Final safety check
-    if (!isFinite(x) || !isFinite(y)) {
-      console.warn(`⚠️ Invalid cursor position for ${source}, using center:`, { x, y })
-      return { x: 0.5, y: 0.5 }
-    }
-
-    return { x, y }
   }
 
   /**
