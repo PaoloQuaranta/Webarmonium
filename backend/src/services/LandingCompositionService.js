@@ -668,7 +668,7 @@ class LandingCompositionService {
 
   /**
    * Apply analyzed style to composition parameters (same as BackgroundCompositionService)
-   * With tempo capping and reduced density for landing page
+   * CRITICAL: Density emerges naturally from gesture activity, NOT hardcoded
    * @private
    */
   applyStyleToComposition() {
@@ -684,9 +684,13 @@ class LandingCompositionService {
       // console.log(`🎵 Style influenced composition: ${keyCenter} ${mode}, tempo ${this.compositionEngine.tempo}`)
     }
 
-    // FURTHER REDUCE density to avoid polyphony issues (max 0.25 instead of 0.4)
-    this.compositionEngine.complexityLevel = Math.min(0.25, Math.max(0.05, style.energy * 0.4))
-    this.compositionEngine.density = Math.min(0.25, Math.max(0.05, style.energy * 0.4))
+    // CRITICAL: Use same formula as normal rooms (BackgroundCompositionService line 370)
+    // Density emerges naturally from gesture activity: energy * 1.2
+    // LOW metrics → fewer gestures → lower energy → lower density → sparse background
+    // HIGH metrics → more gestures → higher energy → higher density → denser background
+    const energy = style.energy || 0.5
+    this.compositionEngine.complexityLevel = Math.min(0.9, Math.max(0.1, energy))
+    this.compositionEngine.density = Math.min(0.9, Math.max(0.1, energy * 1.2))
   }
 
   /**
@@ -748,7 +752,14 @@ class LandingCompositionService {
       // Returns { gestures: [tap/drag], hovers: [hover] }
       const { gestures: virtualGestures, hovers: virtualHovers } = this.generateMetricDrivenGestures()
 
-      // STEP 2: Process hover events for modulation (no direct sound)
+      // STEP 2: CRITICAL - Add ALL gesture materials SYNCHRONOUSLY BEFORE generating background
+      // This ensures CompositionEngine has access to the materials when generating background
+      // Same pattern as normal rooms: gestures → materials → StyleAnalyzer → CompositionEngine → Background
+      for (const gesture of virtualGestures) {
+        this.addVirtualGestureMaterialFromGesture(gesture)
+      }
+
+      // STEP 3: Process hover events for modulation (no direct sound)
       for (const hover of virtualHovers) {
         if (this.hoverOrchestrator) {
           this.hoverOrchestrator.addHoverEvent({
@@ -760,7 +771,51 @@ class LandingCompositionService {
         }
       }
 
-      // STEP 3: Emit gesture notes with QUANTIZED timing on the grid
+      // STEP 4: Extract modulation params from gestures (only sound-producing ones)
+      const modulationParams = this.extractModulationParams(virtualGestures)
+
+      // STEP 5: CRITICAL - Apply style from gesture materials to CompositionEngine
+      // This is done AFTER adding materials, so style.energy reflects actual gesture activity
+      // Density emerges naturally from metric-driven gesture count (NO hardcoded values)
+      const style = this.styleAnalyzer.getCurrentStyle()
+      const baseTempo = style?.tempo || 120
+
+      this.compositionEngine.tempo = Math.round(baseTempo * modulationParams.tempoMultiplier)
+      this.compositionEngine.tempo = Math.max(60, Math.min(160, this.compositionEngine.tempo))
+
+      // CRITICAL: Use style.energy for density (same as normal rooms - BackgroundCompositionService line 370)
+      // Density emerges naturally: LOW metrics → fewer gestures → lower energy → lower density → sparse background
+      //                          HIGH metrics → more gestures → higher energy → higher density → denser background
+      const energy = style?.energy || 0.5
+      this.compositionEngine.density = Math.min(0.9, Math.max(0.1, energy * 1.2))
+      this.compositionEngine.complexityLevel = Math.min(0.9, Math.max(0.1, energy))
+
+      // STEP 6: Generate background composition from gesture materials
+      this.compositionCount++
+      const composition = this.compositionEngine.compose({
+        roomId: this.landingRoomId,
+        userCount: 3,
+        activeUsers: [
+          this.virtualUsers.wikipedia.userId,
+          this.virtualUsers.hackernews.userId,
+          this.virtualUsers.github.userId
+        ]
+      })
+
+      // console.log(`🎵 Generated ${composition.type} composition #${this.compositionCount} (density=${this.compositionEngine.density.toFixed(2)}, energy=${energy.toFixed(2)})`)
+
+      // STEP 7: Broadcast background composition
+      if (this.io) {
+        this.io.to(this.landingRoomId).emit('background-composition', {
+          roomId: this.landingRoomId,
+          composition,
+          compositionNumber: this.compositionCount,
+          timestamp: Date.now()
+        })
+        // console.log(`🎵 Broadcast composition #${this.compositionCount} to landing room`)
+      }
+
+      // STEP 8: Emit gesture notes with QUANTIZED timing on the grid (after background is ready)
       // Only processes sound-producing gestures (tap/drag)
       const tickDuration = 250 // 250ms per tick (120 BPM, 16th notes)
 
@@ -787,49 +842,9 @@ class LandingCompositionService {
         const delay = tick * tickDuration
         setTimeout(async () => {
           await this.emitVirtualGestureNotes(gesture)
-          this.addVirtualGestureMaterialFromGesture(gesture)
         }, delay)
 
         // console.log(`🎵 Scheduled ${gesture.type} from ${gesture.source} at tick ${tick} (${delay}ms)`)
-      }
-
-      // STEP 4: Extract modulation params from gestures (only sound-producing ones)
-      const modulationParams = this.extractModulationParams(virtualGestures)
-
-      // STEP 5: Apply modulation to CompositionEngine
-      const baseTempo = this.styleAnalyzer.getCurrentStyle()?.tempo || 120
-      this.compositionEngine.tempo = Math.round(baseTempo * modulationParams.tempoMultiplier)
-      this.compositionEngine.tempo = Math.max(60, Math.min(160, this.compositionEngine.tempo))
-
-      // FURTHER REDUCED max density to 0.25 (from 0.35) to prevent polyphony issues
-      this.compositionEngine.density = Math.max(0.05, Math.min(0.25, modulationParams.densityMultiplier))
-      this.compositionEngine.complexityLevel = Math.max(0.05, Math.min(0.25, modulationParams.densityMultiplier))
-
-      // STEP 6: Generate background composition
-      this.compositionCount++
-      const composition = this.compositionEngine.compose({
-        roomId: this.landingRoomId,
-        userCount: 3,
-        activeUsers: [
-          this.virtualUsers.wikipedia.userId,
-          this.virtualUsers.hackernews.userId,
-          this.virtualUsers.github.userId
-        ],
-        modulationParams: modulationParams
-      })
-
-      // console.log(`🎵 Generated ${composition.type} composition #${this.compositionCount}`)
-
-      // STEP 7: Broadcast background composition
-      if (this.io) {
-        this.io.to(this.landingRoomId).emit('background-composition', {
-          roomId: this.landingRoomId,
-          composition,
-          compositionNumber: this.compositionCount,
-          modulationParams: modulationParams,
-          timestamp: Date.now()
-        })
-        // console.log(`🎵 Broadcast composition #${this.compositionCount} to landing room`)
       }
 
       // Advance clock for next cycle

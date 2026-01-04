@@ -282,6 +282,7 @@ class LandingApp {
   /**
    * Update visual cursors from backend data
    * Also triggers particles/pulses on cursor movement
+   * Applies filter modulation based on cursor position
    * @private
    */
   _updateVisualCursors() {
@@ -292,6 +293,33 @@ class LandingApp {
       const x = cursor.x
       const y = cursor.y
       const color = cursor.color
+
+      // DEBUG: Log cursor positions to track bounds issues
+      console.log(`🖱️ Cursor ${source}: x=${x.toFixed(3)}, y=${y.toFixed(3)}, color=${color}, userId=${userId}`)
+
+      // Update cursor position
+      this.visualService.updateCursorPosition(userId, x, y, color)
+
+      // CRITICAL: Apply filter modulation based on cursor position
+      // X position → filter frequency (200-8000Hz range)
+      // Y position → filter resonance (0.5-10 range)
+      if (this.audioService?.gestureFilter && this.isRunning) {
+        // Calculate filter frequency from X position (normalized 0-1 → 200-8000Hz)
+        const minFreq = 200
+        const maxFreq = 8000
+        const filterFreq = minFreq + (x * (maxFreq - minFreq))
+
+        // Calculate filter resonance from Y position (normalized 0-1 → 0.5-10)
+        const minQ = 0.5
+        const maxQ = 10
+        const filterQ = minQ + (y * (maxQ - minQ))
+
+        // Apply smooth ramp to filter (0.2 second transition)
+        this.audioService.gestureFilter.frequency.rampTo(filterFreq, 0.2)
+        this.audioService.gestureFilter.Q.rampTo(filterQ, 0.2)
+
+        console.log(`🎛️ Filter from ${source}: freq=${filterFreq.toFixed(0)}Hz, Q=${filterQ.toFixed(2)}`)
+      }
 
       // Check if cursor moved significantly (to trigger effects)
       const prevCursor = this.previousCursors?.[source]
@@ -304,9 +332,6 @@ class LandingApp {
         movementDistance = Math.sqrt(dx * dx + dy * dy)
         hasMoved = movementDistance > 0.005 // Lower threshold for more responsive effects
       }
-
-      // Update cursor position
-      this.visualService.updateCursorPosition(userId, x, y, color)
 
       // Trigger effects on cursor movement
       if (this.isRunning) {
