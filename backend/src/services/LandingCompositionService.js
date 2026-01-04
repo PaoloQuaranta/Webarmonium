@@ -77,24 +77,25 @@ class LandingCompositionService {
     this.ticksPerMeasure = 16
 
     // Virtual user definitions (for cursor display and material generation)
-    // EXPANDED regions for more cursor movement and musical variety
+    // DISTRIBUTED regions for cursor coverage across the scene
+    // Each source gets its own horizontal third to maximize spatial distribution
     this.virtualUsers = {
       wikipedia: {
         userId: 'wikipedia-metrics',
         color: '#e41a1c',
-        region: { xMin: 0.05, xMax: 0.95 }, // Full width range
+        region: { xMin: 0.05, xMax: 0.33 }, // Left third
         baseFrequency: 261.63 // C4
       },
       hackernews: {
         userId: 'hackernews-metrics',
         color: '#ff7f00',
-        region: { xMin: 0.05, xMax: 0.95 }, // Full width range
+        region: { xMin: 0.33, xMax: 0.66 }, // Center third
         baseFrequency: 329.63 // E4
       },
       github: {
         userId: 'github-metrics',
         color: '#377eb8',
-        region: { xMin: 0.05, xMax: 0.95 }, // Full width range
+        region: { xMin: 0.66, xMax: 0.95 }, // Right third
         baseFrequency: 392.00 // G4
       }
     }

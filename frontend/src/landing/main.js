@@ -300,25 +300,54 @@ class LandingApp {
       // Update cursor position
       this.visualService.updateCursorPosition(userId, x, y, color)
 
-      // CRITICAL: Apply filter modulation based on cursor position
+      // CRITICAL: Apply filter modulation based on cursor position to BOTH gesture AND background
       // X position → filter frequency (200-8000Hz range)
       // Y position → filter resonance (0.5-10 range)
-      if (this.audioService?.gestureFilter && this.isRunning) {
-        // Calculate filter frequency from X position (normalized 0-1 → 200-8000Hz)
+      if (this.isRunning && this.audioService) {
+        // Calculate base filter frequency from X position (normalized 0-1 → 200-8000Hz)
         const minFreq = 200
         const maxFreq = 8000
-        const filterFreq = minFreq + (x * (maxFreq - minFreq))
+        const baseFreq = minFreq + (x * (maxFreq - minFreq))
 
         // Calculate filter resonance from Y position (normalized 0-1 → 0.5-10)
         const minQ = 0.5
         const maxQ = 10
-        const filterQ = minQ + (y * (maxQ - minQ))
+        const baseQ = minQ + (y * (maxQ - minQ))
 
-        // Apply smooth ramp to filter (0.2 second transition)
-        this.audioService.gestureFilter.frequency.rampTo(filterFreq, 0.2)
-        this.audioService.gestureFilter.Q.rampTo(filterQ, 0.2)
+        // Apply to gestureFilter (virtual gesture notes)
+        if (this.audioService.gestureFilter) {
+          this.audioService.gestureFilter.frequency.rampTo(baseFreq, 0.2)
+          this.audioService.gestureFilter.Q.rampTo(baseQ, 0.2)
+        }
 
-        console.log(`🎛️ Filter from ${source}: freq=${filterFreq.toFixed(0)}Hz, Q=${filterQ.toFixed(2)}`)
+        // CRITICAL: Also apply to ambientFilters (background composition) for AUDIBLE modulation
+        if (this.audioService.ambientFilters) {
+          // Bass: lower frequency range
+          if (this.audioService.ambientFilters.bass) {
+            const bassFreq = baseFreq * 0.15 // 30-1200Hz range for bass
+            const bassQ = baseQ * 0.8
+            this.audioService.ambientFilters.bass.frequency.rampTo(Math.max(30, Math.min(1200, bassFreq)), 0.2)
+            this.audioService.ambientFilters.bass.Q.rampTo(Math.max(0.5, Math.min(5, bassQ)), 0.2)
+          }
+
+          // Pad: mid frequency range
+          if (this.audioService.ambientFilters.pad) {
+            const padFreq = baseFreq * 0.4 // 80-3200Hz range for pad
+            const padQ = baseQ * 1.2
+            this.audioService.ambientFilters.pad.frequency.rampTo(Math.max(80, Math.min(3200, padFreq)), 0.2)
+            this.audioService.ambientFilters.pad.Q.rampTo(Math.max(0.5, Math.min(8, padQ)), 0.2)
+          }
+
+          // Chords: upper-mid frequency range
+          if (this.audioService.ambientFilters.chords) {
+            const chordsFreq = baseFreq * 0.8 // 160-6400Hz range for chords
+            const chordsQ = baseQ * 1.5
+            this.audioService.ambientFilters.chords.frequency.rampTo(Math.max(160, Math.min(6400, chordsFreq)), 0.2)
+            this.audioService.ambientFilters.chords.Q.rampTo(Math.max(0.5, Math.min(10, chordsQ)), 0.2)
+          }
+
+          console.log(`🎛️ Filter from ${source}: base=${baseFreq.toFixed(0)}Hz, Q=${baseQ.toFixed(2)} (gesture + ambient)`)
+        }
       }
 
       // Check if cursor moved significantly (to trigger effects)
