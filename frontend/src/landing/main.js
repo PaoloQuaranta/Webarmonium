@@ -261,6 +261,14 @@ class LandingApp {
         this._handleVirtualHoldEnd(data)
       })
 
+      // Listen for musical:event (tap notes) from virtual users
+      this.socket.on('musical:event', (data) => {
+        if (!this.isRunning) return
+        if (!data.isRemote) return // Only handle virtual user events
+
+        this._handleVirtualTapNote(data)
+      })
+
       // Listen for unified modulation from HoverOrchestrator
       this.socket.on('unified-modulation', (modulationData) => {
         if (!this.isRunning) return
@@ -347,32 +355,6 @@ class LandingApp {
           }
 
           console.log(`🎛️ Filter from ${source}: base=${baseFreq.toFixed(0)}Hz, Q=${baseQ.toFixed(2)} (gesture + ambient)`)
-        }
-      }
-
-      // Check if cursor moved significantly (to trigger effects)
-      const prevCursor = this.previousCursors?.[source]
-      let hasMoved = false
-      let movementDistance = 0
-
-      if (prevCursor) {
-        const dx = x - prevCursor.x
-        const dy = y - prevCursor.y
-        movementDistance = Math.sqrt(dx * dx + dy * dy)
-        hasMoved = movementDistance > 0.005 // Lower threshold for more responsive effects
-      }
-
-      // Trigger effects on cursor movement
-      if (this.isRunning) {
-        // Emit particles based on movement distance
-        if (hasMoved && this.visualService.particles) {
-          const particleCount = Math.min(Math.round(movementDistance * 100), 8) // Up to 8 particles
-          this.visualService.particles.emitParticles(userId, Math.max(particleCount, 1))
-        }
-
-        // Trigger pulse on larger movements
-        if (hasMoved && movementDistance > 0.02 && this.visualService.wavePackets) {
-          this.visualService.wavePackets.emitPulse(userId, color)
         }
       }
     }
@@ -525,6 +507,75 @@ class LandingApp {
         // console.log(`🎵 Virtual note released: ${note.userId}`)
       }
       this.virtualNotes.delete(noteId)
+    }
+  }
+
+  /**
+   * Handle virtual tap note (musical:event) from backend
+   * Plays short percussive note and triggers particles/pulses
+   * @param {Object} data - musical:event data
+   * @private
+   */
+  _handleVirtualTapNote(data) {
+    if (!this.audioService || !this.visualService) return
+
+    // CRITICAL: Verify gestureSynth exists before proceeding
+    if (!this.audioService.gestureSynth) {
+      console.warn('⚠️ gestureSynth not initialized - skipping tap note playback')
+      return
+    }
+
+    const { userId, frequency, velocity, duration, userColor } = data
+
+    // CRITICAL: Validate frequency before processing
+    if (frequency === null || frequency === undefined || isNaN(frequency)) {
+      console.warn('⚠️ Invalid frequency in musical:event:', { frequency, userId, data })
+      return
+    }
+
+    // CRITICAL: Validate velocity before processing
+    if (velocity === null || velocity === undefined || isNaN(velocity)) {
+      console.warn('⚠️ Invalid velocity in musical:event:', { velocity, userId, data })
+      return
+    }
+
+    // Check if Tone.js is available
+    if (typeof window.Tone === 'undefined') {
+      console.error('❌ Tone.js not loaded')
+      return
+    }
+
+    // Play tap note using gestureSynth (short percussive)
+    const synth = this.audioService.gestureSynth
+    const tapDuration = duration || 0.1  // Default 100ms for tap
+
+    if (synth) {
+      if (typeof synth.triggerAttackRelease === 'function') {
+        const now = window.Tone.now()
+        synth.triggerAttackRelease(frequency, tapDuration, now, velocity)
+
+        // console.log(`🎵 Virtual TAP: ${userId} - ${frequency.toFixed(1)}Hz - vel ${velocity.toFixed(2)} - dur ${(tapDuration * 1000).toFixed(0)}ms`)
+      } else if (typeof synth.triggerAttack === 'function') {
+        // Fallback
+        synth.triggerAttack(frequency, window.Tone.now(), velocity)
+        const fallbackDuration = (tapDuration || 0.1) * 1000
+        setTimeout(() => {
+          if (synth && typeof synth.triggerRelease === 'function') {
+            synth.triggerRelease(frequency)
+          }
+        }, fallbackDuration)
+      }
+    }
+
+    // CRITICAL: Trigger particles/pulses ONLY when note is actually played
+    // This fixes the issue where particles appeared without corresponding notes
+    if (this.visualService.particles) {
+      const particleCount = Math.round(2 + velocity * 5) // 2-7 particles for tap
+      this.visualService.particles.emitParticles(userId, particleCount)
+    }
+
+    if (this.visualService.wavePackets) {
+      this.visualService.wavePackets.emitPulse(userId, userColor)
     }
   }
 
