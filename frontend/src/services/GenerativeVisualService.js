@@ -96,6 +96,10 @@ class GenerativeVisualService {
    * @param {p5} p - p5.js instance
    */
   setup(p) {
+    // CRITICAL: Set pixel density to 1 for consistent coordinate mapping
+    // Prevents coordinate scaling issues on high-DPI displays
+    p.pixelDensity(1)
+
     // Get container dimensions
     const containerWidth = this.containerElement.offsetWidth
     const containerHeight = this.containerElement.offsetHeight
@@ -109,7 +113,7 @@ class GenerativeVisualService {
     // Initialize frame time
     this.lastFrameTime = p.millis()
 
-    console.log('✅ GenerativeVisualService: Canvas created', containerWidth, 'x', containerHeight)
+    console.log('✅ GenerativeVisualService: Canvas created', containerWidth, 'x', containerHeight, 'pixelDensity:', p.pixelDensity())
   }
 
   /**
