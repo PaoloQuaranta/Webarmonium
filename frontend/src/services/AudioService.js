@@ -744,7 +744,7 @@ class AudioService {
         sustain: 0.3,  // Lower sustain to prevent overlapping
         release: 0.8    // Faster release
       },
-      maxPolyphony: 64 // INCREASED from 32 - prevent note drops
+      maxPolyphony: 128 // INCREASED from 64 - prevent note drops
     })
 
     // Add filter to gesture synth for hover modulation - OPEN FILTER for sawtooth harmonics
@@ -4486,10 +4486,44 @@ class AudioService {
 
   /**
    * Apply unified modulation from HoverOrchestrator
+   * Applies filter modulation to gesture synth based on virtual hover events
    * @param {Object} modulationData - Unified modulation data from server
    */
   applyUnifiedModulation(modulationData) {
-    // DISABLED: Unified modulation functionality removed - stub for backward compatibility
+    if (!modulationData || !modulationData.modulation) return
+
+    const mod = modulationData.modulation
+
+    // Apply filter cutoff modulation
+    if (this.gestureFilter && mod.filterCutoff !== undefined) {
+      const validFreq = mod.filterCutoff && !isNaN(mod.filterCutoff) ? mod.filterCutoff : 1000
+      const clampedFreq = Math.max(200, Math.min(8000, validFreq))
+      this.gestureFilter.frequency.value = clampedFreq
+    }
+
+    // Apply filter resonance (Q) modulation
+    if (this.gestureFilter && mod.filterResonance !== undefined) {
+      const validQ = mod.filterResonance && !isNaN(mod.filterResonance) ? mod.filterResonance : 1.0
+      const clampedQ = Math.max(0.5, Math.min(10, validQ))
+      this.gestureFilter.Q.value = clampedQ
+    }
+
+    // Apply spatial pan modulation
+    if (this.gesturePan && mod.spatialPan !== undefined) {
+      const validPan = mod.spatialPan && !isNaN(mod.spatialPan) ? mod.spatialPan : 0
+      const clampedPan = Math.max(-1, Math.min(1, validPan))
+      this.gesturePan.pan.value = clampedPan
+    }
+
+    // Apply reverb mix modulation (if reverb exists)
+    if (this.reverb && mod.reverbMix !== undefined) {
+      const validMix = mod.reverbMix && !isNaN(mod.reverbMix) ? mod.reverbMix : 0.2
+      const clampedMix = Math.max(0, Math.min(0.8, validMix))
+      // Reverb send level is controlled via sends
+    }
+
+    // Store modulation parameters for reference
+    this.currentModulation = mod
   }
 
   cleanup() {

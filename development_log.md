@@ -3439,3 +3439,274 @@ After backend restart and hard refresh:
 - GitHub cursor should stay on-screen (region 0.50-0.90)
 
 ---
+---
+
+## Entry #10 - Landing Page Gesture Consistency Implementation
+
+**Date**: 2026-01-04
+**Time**: ~10:00-12:00 UTC
+**Author**: Claude Code (AI Assistant)
+**Status**: PARTIALLY RESOLVED - Gesture types implemented, cursor clamping added, density reduced, but issues remain
+**Reference**: Plan from `snoopy-wondering-shannon.md`
+
+### Problem Statement
+
+Landing page rooms had inconsistent gesture behavior compared to normal rooms:
+- All virtual gestures were hardcoded as `'drag'` type
+- Uses `hold:start`/`hold:end` events incorrectly
+- No modulation support (no `unified-modulation` events)
+- Metrics don't map to correct gesture types
+- Max polyphony exceeded errors
+- Cursor positions ending up outside scene bounds
+
+**Expected Behavior (same as normal rooms):**
+| Metric Type | Gesture Type | Musical Output |
+|-------------|-------------|----------------|
+| **Stability** (low velocity) | **Tap** | Short percussive notes (0.1s) |
+| **Density** (high activity) | **Phrase/Drag** | Continuous note streaming (2-5 notes) |
+| **Periodicity** (regular patterns) | **Modulation/Hover** | Filter modulation only |
+
+---
+
+### Implementation Summary
+
+#### 1. HoverOrchestrator Integration
+
+**File:** `backend/src/services/LandingCompositionService.js`
+
+**Changes:**
+- Imported `HoverOrchestrator` service
+- Initialized in `setSocketIO()` method (line 148)
+- Started/stopped in service lifecycle (lines 257-258, 274-275)
+- Added hover event processing in composition cycle (lines 664-673)
+
+```javascript
+// Import at top
+const HoverOrchestrator = require('./HoverOrchestrator')
+
+// Initialize
+setSocketIO(io) {
+  this.io = io
+  this.hoverOrchestrator = new HoverOrchestrator(this.landingRoomId, io)
+}
+
+// Process hover events for modulation
+for (const hover of virtualHovers) {
+  if (this.hoverOrchestrator) {
+    this.hoverOrchestrator.addHoverEvent({
+      userId: this.virtualUsers[hover.source].userId,
+      position: hover.position,
+      intensity: hover.intensity,
+      timestamp: Date.now()
+    })
+  }
+}
+```
+
+---
+
+#### 2. Three Gesture Type System
+
+**Files:** `backend/src/services/LandingCompositionService.js`
+
+**Created three separate gesture generators:**
+
+1. **Tap Generator** (lines 437-449) - Stability metric
+   ```javascript
+   generateVirtualTap(source, velocity) {
+     return {
+       type: 'tap',
+       source: source,
+       velocity: velocity,
+       position: cursor,
+       duration: 100,  // 0.1s percussive
+       intensity: activity
+     }
+   }
+   ```
+
+2. **Drag Generator** (lines 460-473) - Density metric
+   ```javascript
+   generateVirtualDrag(source, velocity, acceleration) {
+     return {
+       type: 'drag',
+       duration: 500 + (1 - activity) * 2500,  // 500-3000ms
+       // ...
+     }
+   }
+   ```
+
+3. **Hover Generator** (lines 482-494) - Periodicity metric
+   ```javascript
+   generateVirtualHover(source) {
+     return {
+       type: 'hover',
+       position: cursor,
+       intensity: periodicity,
+       velocity: 0  // hovers have no velocity
+     }
+   }
+   ```
+
+---
+
+#### 3. Gesture Classification System
+
+**File:** `backend/src/services/LandingCompositionService.js` (lines 1025-1106)
+
+**Implemented metric calculation methods:**
+- `calculateStabilityMetric(source)` - Based on velocity (lower = more stable)
+- `calculateDensityMetric(source)` - Based on avgEditSize, avgUpvotes, newStars
+- `calculatePeriodicityMetric(source)` - Based on newArticles, commentCount, openPRs
+
+**Classification logic** (lines 1089-1106):
+```javascript
+classifyGestureType(source) {
+  const stability = this.calculateStabilityMetric(source)
+  const density = this.calculateDensityMetric(source)
+  const periodicity = this.calculatePeriodicityMetric(source)
+  
+  // Relative comparison: whichever metric is highest determines gesture type
+  const maxMetric = Math.max(stability, density, periodicity)
+  
+  if (maxMetric === stability && stability > 0.15) {
+    return 'tap'
+  } else if (maxMetric === density && density > 0.15) {
+    return 'drag'
+  } else if (maxMetric === periodicity && periodicity > 0.15) {
+    return 'hover'
+  }
+  return 'drag'
+}
+```
+
+---
+
+#### 4. Cursor Clamping Fixes
+
+**Problem:** Cursors ending up outside scene bounds (0-1 range)
+
+**Fix 1:** Clamp in interpolation loop (lines 886-888)
+```javascript
+// CLAMP to valid scene bounds (0.05-0.95) - prevents cursor drift outside scene
+newX = Math.max(0.05, Math.min(0.95, newX))
+newY = Math.max(0.05, Math.min(0.95, newY))
+```
+
+**Fix 2:** Clamp when setting target positions (lines 934-937)
+```javascript
+// Additional CLAMP to ensure target positions are always valid
+this.targetPositions[source] = {
+  x: Math.max(0.05, Math.min(0.95, pos.x || 0.5)),
+  y: Math.max(0.05, Math.min(0.95, pos.y || 0.5))
+}
+```
+
+**Fix 3:** Expanded cursor regions to full scene (0.05-0.95)
+```javascript
+this.virtualUsers = {
+  wikipedia: { region: { xMin: 0.05, xMax: 0.95 } },
+  hackernews: { region: { xMin: 0.05, xMax: 0.95 } },
+  github: { region: { xMin: 0.05, xMax: 0.95 } }
+}
+```
+
+---
+
+#### 5. Density Reductions
+
+**Multiple rounds of reduction to prevent max polyphony errors:**
+
+| Parameter | Original | After Reductions |
+|-----------|----------|-------------------|
+| `densityMultiplier` | 0.3 | 0.2 |
+| Phrase duration | 500-3000ms | 500-3000ms (kept same) |
+| `modulationParams.densityMultiplier` | 0.3-0.6x | 0.2-0.4x |
+| Max `compositionEngine.density` | 0.6 | 0.25 |
+| Max `compositionEngine.density` (style) | 0.4 | 0.25 |
+
+**Note:** User explicitly requested NOT to modify phrase duration, so it was kept at 500-3000ms.
+
+---
+
+#### 6. Max Polyphony Increase
+
+**File:** `frontend/src/services/AudioService.js` (line 747)
+
+```javascript
+maxPolyphony: 128 // INCREASED from 64 - prevent note drops
+```
+
+---
+
+### Files Modified
+
+**Backend (1 file):**
+1. `backend/src/services/LandingCompositionService.js`
+   - Added HoverOrchestrator integration
+   - Created three gesture generators (tap, drag, hover)
+   - Implemented gesture classification system
+   - Added cursor position clamping (3 locations)
+   - Reduced density parameters
+   - Total changes: ~200 lines
+
+**Frontend (1 file):**
+1. `frontend/src/services/AudioService.js`
+   - Increased maxPolyphony from 64 to 128
+
+---
+
+### Unresolved Issues
+
+**Issue 1: Max Polyphony Still Exceeded**
+- Despite density reductions and maxPolyphony increase to 128
+- Error messages still appearing: "Max polyphony exceeded. Note dropped."
+- Possible causes:
+  - Background composition still generating too many notes
+  - Multiple sources generating phrases simultaneously
+  - PhraseMorphology generating up to 32 notes per phrase
+
+**Issue 2: Cursors Still Outside Scene**
+- Despite clamping in multiple locations
+- User reports cursors still ending up outside visible area
+- Possible causes:
+  - Normalization producing NaN/Infinite values before clamp
+  - Interpolation drift between updates
+  - Race condition between metric update and cursor broadcast
+
+**Issue 3: Modulation Not Audible**
+- User previously reported not hearing modulations
+- `applyUnifiedModulation` was re-enabled but may need verification
+- HoverOrchestrator may not be generating sufficient modulation events
+
+---
+
+### Next Steps (For Future Session)
+
+1. **Further investigate max polyphony issue**
+   - Add logging to count active notes
+   - Consider reducing background composition density further
+   - Investigate PhraseMorphology note count limits
+
+2. **Strengthen cursor validation**
+   - Add validation before broadcasting to frontend
+   - Consider resetting to center on invalid values
+   - Add more comprehensive NaN/infinite checks
+
+3. **Verify modulation system**
+   - Confirm HoverOrchestrator is emitting events
+   - Verify frontend is receiving and applying `unified-modulation`
+   - Test modulation strength and audibility
+
+---
+
+### Commits
+
+**To be created:**
+- FEAT: Landing page gesture consistency - three gesture types (tap/drag/hover)
+- FIX: Cursor position clamping to prevent drift outside scene
+- FIX: Reduce density and increase maxPolyphony to prevent note drops
+- FIX: Re-enable unified modulation via HoverOrchestrator
+
+---
+
