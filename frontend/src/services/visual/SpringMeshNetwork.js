@@ -505,11 +505,6 @@ class SpringMeshNetwork {
     const x = node.x * p.width
     const y = node.y * p.height
 
-    // Debug: Log node coordinates every 60 frames
-    if (p.frameCount % 60 === 0 && node.userId && node.userId.includes('-metrics')) {
-      console.log(`🎨 Rendering node ${node.userId}: normalized=(${node.x.toFixed(3)},${node.y.toFixed(3)}) → screen=(${x.toFixed(1)},${y.toFixed(1)}) canvas=(${p.width}x${p.height})`)
-    }
-
     // Calculate size based on gesture type
     let size = this.NODE_CONFIG.idleSize
 

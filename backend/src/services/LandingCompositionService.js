@@ -1190,9 +1190,6 @@ class LandingCompositionService {
   startCursorInterpolation() {
     if (this.cursorInterpolationTimer) return
 
-    // Counter for periodic debug logging (no randomness)
-    this.cursorIterationCount = 0
-
     // Update cursor positions every 50ms (20fps)
     this.cursorInterpolationTimer = setInterval(() => {
       if (!this.isRunning) return
@@ -1228,13 +1225,6 @@ class LandingCompositionService {
           cursors: cursors,
           timestamp: Date.now()
         })
-        // Debug: Log cursor positions every second (every 20th iteration)
-        // NO randomness - use counter-based periodic logging
-        this.cursorIterationCount = (this.cursorIterationCount || 0) + 1
-        if (this.cursorIterationCount % 20 === 0) {
-          const cursorInfo = Object.entries(cursors).map(([s, c]) => `${s}:(${c.x.toFixed(2)},${c.y.toFixed(2)})`).join(' ')
-          console.log(`🖱️ Virtual cursors: ${cursorInfo}`)
-        }
       }
     }, 50)
   }

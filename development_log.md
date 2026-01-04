@@ -3710,3 +3710,191 @@ maxPolyphony: 128 // INCREASED from 64 - prevent note drops
 
 ---
 
+## Entry #10 - Landing Page Architecture Alignment and Cursor Bounds Fix
+
+**Date**: 2026-01-04
+**Time**: ~10:00-12:00 UTC
+**Author**: Claude Code (AI Assistant)
+**Status**: RESOLVED - All cursors stay within bounds, pixel density fix applied
+**Reference**: User feedback session continuing from Entry #9
+
+### Problem Statement
+
+After the landing page implementation from Entry #9, the user reported that cursors and nodes were appearing outside the visible scene area:
+- Wikipedia cursor appearing in the right half instead of left third
+- HackerNews cursor exiting on the right side
+- GitHub cursor completely outside the scene to the right
+
+Expected regions:
+- Wikipedia: 0.05-0.33 (left third)
+- HackerNews: 0.33-0.66 (center third)
+- GitHub: 0.66-0.95 (right third)
+
+---
+
+### Root Cause Analysis
+
+Through systematic debugging, identified **THREE separate issues**:
+
+#### Issue 1: Initial Cursor Positions at Invalid Coordinates
+
+**Location:** `LandingCompositionService.js:110-122`
+
+**Problem:** All three sources initialized with the same position `{ x: 0.5, y: 0.5 }`, which is:
+- Outside Wikipedia's region (0.05-0.33)
+- Outside GitHub's region (0.66-0.95)
+
+**Fix:** Initialize each cursor at the center of its assigned region:
+```javascript
+this.currentPositions = {
+  wikipedia: { x: 0.19, y: 0.5 },   // Center of 0.05-0.33
+  hackernews: { x: 0.495, y: 0.5 }, // Center of 0.33-0.66
+  github: { x: 0.805, y: 0.5 }     // Center of 0.66-0.95
+}
+```
+
+---
+
+#### Issue 2: Generic Bounds Clamping Instead of Region-Specific
+
+**Location:** `LandingCompositionService.js:1211-1213`
+
+**Problem:** Cursor interpolation clamped all cursors to generic scene bounds (0.05-0.95) instead of each source's specific region bounds.
+
+**Before:**
+```javascript
+newX = Math.max(0.05, Math.min(0.95, newX))  // Generic - allows drift
+newY = Math.max(0.05, Math.min(0.95, newY))
+```
+
+**After:**
+```javascript
+newX = Math.max(user.region.xMin, Math.min(user.region.xMax, newX))  // Region-specific
+newY = Math.max(0.05, Math.min(0.95, newY))
+```
+
+This ensures Wikipedia cursors can never enter HackerNews or GitHub territory, etc.
+
+---
+
+#### Issue 3: p5.js Pixel Density Scaling on High-DPI Displays
+
+**Location:** `GenerativeVisualService.js:98-116`
+
+**Problem:** On high-DPI displays (Retina, 4K), p5.js uses `pixelDensity > 1` by default, which causes coordinate scaling mismatches between normalized coordinates (0-1) and screen coordinates.
+
+**Fix:** Set `p.pixelDensity(1)` in setup to ensure 1:1 coordinate mapping:
+```javascript
+setup(p) {
+  // CRITICAL: Set pixel density to 1 for consistent coordinate mapping
+  // Prevents coordinate scaling issues on high-DPI displays
+  p.pixelDensity(1)
+
+  // Get container dimensions
+  const containerWidth = this.containerElement.offsetWidth
+  const containerHeight = this.containerElement.offsetHeight
+
+  // Create canvas matching container size
+  p.createCanvas(containerWidth, containerHeight)
+
+  // Set frame rate cap
+  p.frameRate(this.targetFps)
+
+  // Initialize frame time
+  this.lastFrameTime = p.millis()
+
+  console.log('✅ GenerativeVisualService: Canvas created', containerWidth, 'x', containerHeight, 'pixelDensity:', p.pixelDensity())
+}
+```
+
+---
+
+### Files Modified
+
+**Frontend (2 files):**
+
+1. `frontend/src/services/GenerativeVisualService.js`
+   - Added `p.pixelDensity(1)` to prevent coordinate scaling on high-DPI displays
+   - Updated logging to show pixel density value
+
+2. `frontend/src/services/visual/SpringMeshNetwork.js`
+   - Commented out debug logging for cleaner console output
+
+3. `frontend/src/landing/main.js`
+   - Commented out debug logging for cleaner console output
+
+**Backend (1 file):**
+
+1. `backend/src/services/LandingCompositionService.js`
+   - Fixed initial cursor positions to center of each region
+   - Changed cursor interpolation to use region-specific clamping
+   - Commented out debug logging for cleaner console output
+
+**Frontend HTML:**
+
+1. `frontend/index.html`
+   - Updated cache buster from v=41 to v=42
+
+---
+
+### Verification
+
+**Expected Behavior After Fix:**
+
+| Source | X Position Range | Y Position Range | Behavior |
+|--------|-----------------|-----------------|----------|
+| **Wikipedia** | 0.05 - 0.33 | 0.05 - 0.95 | Always in left third |
+| **HackerNews** | 0.33 - 0.66 | 0.05 - 0.95 | Always in center third |
+| **GitHub** | 0.66 - 0.95 | 0.05 - 0.95 | Always in right third |
+
+**User Confirmation:** "perfetto funziona" (works perfectly)
+
+---
+
+### Commits
+
+1. `FIX: Landing page cursor bounds - region-specific clamping` (dbbdae4)
+   - Fixed initial positions at region centers
+   - Changed interpolation to use region-specific clamping
+
+2. `FIX: Landing page coordinate debugging and pixel density fix` (543a4d9)
+   - Set pixelDensity(1) for consistent coordinate mapping
+   - Added comprehensive debug logging (later commented out)
+
+3. `CLEAN: Comment out debug logs from cursor bounds fix session` (pending)
+
+---
+
+### Technical Details
+
+**Coordinate System Architecture:**
+
+1. **Backend:** Uses normalized coordinates (0.0-1.0 range)
+   - 0.0 = left/top edge
+   - 0.5 = center
+   - 1.0 = right/bottom edge
+
+2. **Frontend SpringMeshNetwork:** Converts to screen coordinates:
+   ```javascript
+   const x = node.x * p.width  // normalized → pixels
+   const y = node.y * p.height
+   ```
+
+3. **p5.js Canvas:** Renders at screen coordinates
+   - With pixelDensity(1): 1:1 mapping
+   - Without pixelDensity(1): scaled by device pixel ratio
+
+**The Fix:** Setting `pixelDensity(1)` ensures that:
+- Normalized coordinate 0.5 → Screen coordinate (width/2, height/2)
+- No scaling mismatch on high-DPI displays
+- Consistent behavior across all devices
+
+---
+
+### Related Issues
+
+This fix complements the work from Entry #9 (Landing Page Implementation):
+- Entry #9: Initial implementation with three virtual users and regions
+- Entry #10: Fixed cursor bounds enforcement and display consistency
+
+---

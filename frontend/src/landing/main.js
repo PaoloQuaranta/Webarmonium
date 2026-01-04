@@ -302,9 +302,6 @@ class LandingApp {
       const y = cursor.y
       const color = cursor.color
 
-      // DEBUG: Log cursor positions to track bounds issues
-      console.log(`🖱️ Cursor ${source}: x=${x.toFixed(3)}, y=${y.toFixed(3)}, color=${color}, userId=${userId}`)
-
       // Update cursor position
       this.visualService.updateCursorPosition(userId, x, y, color)
 
@@ -353,8 +350,6 @@ class LandingApp {
             this.audioService.ambientFilters.chords.frequency.rampTo(Math.max(160, Math.min(6400, chordsFreq)), 0.2)
             this.audioService.ambientFilters.chords.Q.rampTo(Math.max(0.5, Math.min(10, chordsQ)), 0.2)
           }
-
-          console.log(`🎛️ Filter from ${source}: base=${baseFreq.toFixed(0)}Hz, Q=${baseQ.toFixed(2)} (gesture + ambient)`)
         }
       }
     }
