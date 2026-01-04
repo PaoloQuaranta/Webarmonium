@@ -1005,12 +1005,17 @@ class LandingCompositionService {
     // Y based on frequency (higher freq = higher position)
     const targetY = 0.1 + (normalizedFreq * 0.8) // 0.1-0.9 range
 
-    const notePosition = { x: targetX, y: targetY }
+    // CRITICAL: Clamp position to region bounds BEFORE creating notePosition
+    // This prevents nodes from appearing outside the scene
+    const clampedX = Math.max(user.region.xMin, Math.min(user.region.xMax, targetX))
+    const clampedY = Math.max(0.05, Math.min(0.95, targetY))
+
+    const notePosition = { x: clampedX, y: clampedY }
 
     // CRITICAL: Update target position so cursor moves to note position
     this.targetPositions[gesture.source] = {
-      x: Math.max(user.region.xMin, Math.min(user.region.xMax, targetX)),
-      y: Math.max(0.05, Math.min(0.95, targetY))
+      x: clampedX,
+      y: clampedY
     }
 
     // Emit single short percussive note (0.1s duration, same as normal rooms)
@@ -1128,7 +1133,12 @@ class LandingCompositionService {
       const noteX = startX + (endX - startX) * noteProgress
       const noteY = startY + (endY - startY) * noteProgress
 
-      const notePosition = { x: noteX, y: noteY }
+      // CRITICAL: Clamp position to region bounds BEFORE creating notePosition
+      // This prevents nodes from appearing outside the scene
+      const clampedX = Math.max(user.region.xMin, Math.min(user.region.xMax, noteX))
+      const clampedY = Math.max(0.05, Math.min(0.95, noteY))
+
+      const notePosition = { x: clampedX, y: clampedY }
 
       // Calculate start time in milliseconds
       const startDelayMs = note.startBeat * beatDurationMs
@@ -1142,8 +1152,8 @@ class LandingCompositionService {
 
         // CRITICAL: Update target position so cursor moves to this note's position
         this.targetPositions[gesture.source] = {
-          x: Math.max(user.region.xMin, Math.min(user.region.xMax, noteX)),
-          y: Math.max(0.05, Math.min(0.95, noteY))
+          x: clampedX,
+          y: clampedY
         }
 
         // Emit hold:start with note's position along trajectory
@@ -1155,7 +1165,7 @@ class LandingCompositionService {
           frequency: noteFreq,
           velocity: Math.max(0, Math.min(1, noteVelocity / 127)),  // Convert 0-127 to 0-1, with defaults
           duration: noteDurationMs / 1000,  // Convert to seconds
-          position: notePosition,  // CRITICAL: Each note has its own position along trajectory
+          position: notePosition,  // CRITICAL: Each note has its own position along trajectory (clamped)
           userColor: user.color,
           isRemote: true,
           timestamp: Date.now()
