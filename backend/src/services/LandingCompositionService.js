@@ -139,9 +139,6 @@ class LandingCompositionService {
 
     // Gesture generation config
     this.gestureConfig = {
-      tapThreshold: 5,  // Velocity below this = tap, above = drag
-      minNoteInterval: 200,  // ms
-      maxNoteInterval: 2000,  // ms
       densityMultiplier: 0.2  // 20% of normal room density - REDUCED to prevent polyphony issues
     }
 
@@ -333,88 +330,13 @@ class LandingCompositionService {
     }
   }
 
-  /**
-   * HYBRID normalization: Logarithmic scaling with soft sigmoid cap for extreme outliers
-   * Preserves variation for normal range, prevents extreme values from dominating
-   * @param {number} value - The value to normalize
-   * @param {number} referencePoint - The "normal" value (maps to ~0.7)
-   * @param {number} maxCap - The maximum expected value (maps to ~0.95)
-   * @returns {number} Normalized value (0.0-1.0)
-   * @private
-   */
-  softNormalize(value, referencePoint, maxCap) {
-    // Logarithmic scaling for normal range (0 to referencePoint)
-    const logNorm = Math.log1p(value) / Math.log1p(referencePoint)
-
-    // Soft sigmoid cap for extreme values (> referencePoint)
-    // Maps referencePoint → 0.7, maxCap → 0.95
-    if (value <= referencePoint) {
-      return logNorm * 0.7  // 0 to 0.7 range for normal values
-    } else {
-      const excessRatio = (value - referencePoint) / (maxCap - referencePoint)
-      const sigmoidCap = 0.7 + (0.25 * (1 / (1 + Math.exp(-5 * (excessRatio - 0.5)))))
-      return Math.min(0.95, sigmoidCap)
-    }
-  }
-
-  /**
-   * Calculate overall activity level (0.0-1.0)
-   * @returns {number} Overall activity level
-   * @private
-   */
-  calculateOverallActivity() {
-    const wikiActivity = this.calculateActivityLevel('wikipedia')
-    const hnActivity = this.calculateActivityLevel('hackernews')
-    const ghActivity = this.calculateActivityLevel('github')
-    return (wikiActivity + hnActivity + ghActivity) / 3
-  }
-
-  /**
-   * Generate gesture for a SINGLE source
-   * Each source gestures independently based on its own metrics
-   * Uses classification to determine gesture type
-   * @param {string} source - Source name
-   * @private
-   */
-  async generateGestureForSource(source) {
-    if (!this.io || !this.isRunning) return
-
-    const velocity = this.webMetricsPoller?.getVelocity(source) || 0
-    const acceleration = this.webMetricsPoller?.getAcceleration(source) || 0
-
-    // Classify gesture type based on metrics
-    const gestureType = this.classifyGestureType(source)
-
-    let gesture
-    if (gestureType === 'tap') {
-      gesture = this.generateVirtualTap(source, velocity)
-    } else if (gestureType === 'drag') {
-      gesture = this.generateVirtualDrag(source, velocity, acceleration)
-    } else if (gestureType === 'hover') {
-      gesture = this.generateVirtualHover(source)
-      // Hovers go to orchestrator, not direct note emission
-      this.hoverOrchestrator?.addHoverEvent({
-        userId: this.virtualUsers[source].userId,
-        position: gesture.position,
-        intensity: gesture.intensity,
-        timestamp: Date.now()
-      })
-      return  // Don't emit notes for hovers
-    }
-
-    // Emit notes for this gesture
-    await this.emitVirtualGestureNotes(gesture)
-
-    // Add material for composition engine
-    this.addVirtualGestureMaterial(source)
-
-    // console.log(`🎵 ${gestureType} from ${source} (vel: ${velocity.toFixed(1)})`)
-  }
 
   /**
    * Generate virtual gestures based on CURRENT metrics
-   * Each source gestures based on its activity level
-   * Uses classification to determine gesture type (tap/drag/hover)
+   * CRITICAL: Sources only gesture when there's SIGNIFICANT metric activity
+   * This mimics real user behavior - users gesture sporadically, not continuously
+   * Prevents polyphony issues by not having all sources gesture every cycle
+   * Uses normalized velocity (0-1) as "gesture intent" threshold
    * @returns {Object} Object with gestures array and hovers array
    * @private
    */
@@ -426,6 +348,26 @@ class LandingCompositionService {
     for (const source of sources) {
       const velocity = this.webMetricsPoller?.getVelocity(source) || 0
       const acceleration = this.webMetricsPoller?.getAcceleration(source) || 0
+
+      // CRITICAL: Gesture generation based on BOTH velocity AND absolute activity
+      // This ensures highly active sources (like Wikipedia) still gesture even when stable
+      const normalizedVelocity = this.normalizeMetricDynamic(source, 'velocity', Math.abs(velocity))
+      const activityLevel = this.calculateActivityLevel(source)
+
+      // Gesture intent: combine velocity (change) with activity (absolute level)
+      // High activity sources gesture more frequently, even when stable
+      // Formula: effectiveGestureIntent = baseIntent * (1 - activityLevel * 0.5)
+      // - activityLevel 0 → gestureIntent = 0.1 (base threshold)
+      // - activityLevel 1 → gestureIntent = 0.05 (lower threshold = more gestures)
+      const baseGestureIntent = 0.1
+      const gestureIntent = baseGestureIntent * (1 - activityLevel * 0.5)
+
+      // Check if source should gesture this cycle
+      if (normalizedVelocity < gestureIntent) {
+        // No significant metric activity - skip this source this cycle
+        // Cursor will interpolate to last position, creating visual continuity
+        continue
+      }
 
       // Classify gesture type based on metrics
       const gestureType = this.classifyGestureType(source)
@@ -442,7 +384,7 @@ class LandingCompositionService {
         hovers.push(gesture)
       }
 
-      // console.log(`🎵 Generated ${gestureType} from ${source} (vel: ${velocity.toFixed(1)})`)
+      // console.log(`🎵 Generated ${gestureType} from ${source} (vel: ${velocity.toFixed(1)}, normVel: ${normalizedVelocity.toFixed(2)})`)
     }
 
     return { gestures, hovers }
@@ -569,22 +511,6 @@ class LandingCompositionService {
   }
 
   /**
-   * Map velocity to note interval using logarithmic scaling
-   * @param {number} velocity - Velocity value
-   * @returns {number} Note interval in milliseconds (200-2000ms)
-   * @private
-   */
-  mapVelocityToInterval(velocity) {
-    const absVelocity = Math.abs(velocity)
-    const densityMultiplier = this.gestureConfig.densityMultiplier
-
-    // Logarithmic mapping: velocity → interval
-    // High velocity = low interval (fast notes), Low velocity = high interval (slow notes)
-    const baseInterval = 200 * Math.pow(10, 1 - (1 / (1 + absVelocity * densityMultiplier)))
-    return Math.min(this.gestureConfig.maxNoteInterval, Math.max(this.gestureConfig.minNoteInterval, baseInterval))
-  }
-
-  /**
    * Extract modulation parameters from virtual gestures
    * Gestures CONTROL the background composition (like normal rooms)
    * @param {Array} gestures - Array of virtual gestures
@@ -615,8 +541,10 @@ class LandingCompositionService {
       // Drag velocity → Tempo (faster gestures = faster composition)
       tempoMultiplier: 0.8 + Math.min(avgVelocity / 10, 0.4),  // 0.8x to 1.2x
 
-      // Gesture density → Note density (FURTHER REDUCED to prevent polyphony issues)
-      densityMultiplier: 0.2 + Math.min(gestures.length * 0.05, 0.2),  // 0.2x to 0.4x
+      // Gesture density → Note density
+      // Density emerges naturally from gesture count (no artificial cap)
+      // Selective gesture generation prevents polyphony issues
+      densityMultiplier: 0.7 + Math.min(gestures.length * 0.1, 0.5),  // 0.7x to 1.2x (slightly denser for landing)
 
       // Position Y → Register (higher = higher pitch range)
       registerShift: (avgPosition - 0.5) * 2,  // -1 to +1 octave
@@ -628,19 +556,6 @@ class LandingCompositionService {
       // Velocity trend → Articulation
       articulation: avgVelocity > 5 ? 'staccato' : 'legato'
     }
-  }
-
-  /**
-   * Add virtual gesture material from metrics (same pattern as BackgroundCompositionService.addMaterial)
-   * Creates a default drag gesture for material purposes
-   * @param {string} source - Source name
-   * @private
-   */
-  addVirtualGestureMaterial(source) {
-    const velocity = this.webMetricsPoller?.getVelocity(source) || 0
-    const acceleration = this.webMetricsPoller?.getAcceleration(source) || 0
-    const gesture = this.generateVirtualDrag(source, velocity, acceleration)
-    return this.addVirtualGestureMaterialFromGesture(gesture)
   }
 
   /**
@@ -782,21 +697,33 @@ class LandingCompositionService {
 
   /**
    * Schedule next composition
-   * REDUCED interval from 8-15s to 2s for faster response to metrics
+   * Uses SAME tempo-based interval as normal rooms (BackgroundCompositionService)
+   * Generates compositions every 8-16 beats for musical naturalness
    * @private
    */
   scheduleNextComposition() {
     if (!this.isRunning) return
 
-    // FIXED INTERVAL: 2 seconds for faster metric response
-    const interval = 2000
+    // Calculate next composition interval BASED ON CURRENT TEMPO (same as normal rooms)
+    // Generate compositions at a fixed number of beats, not fixed time
+    const currentStyle = this.styleAnalyzer.getCurrentStyle()
+    const tempo = currentStyle?.tempo || 120
+
+    // Generate new composition every 6-12 beats (musically natural phrase length)
+    // Slightly more frequent than normal rooms for landing page engagement
+    const beatsPerComposition = 6 + Math.random() * 6  // 6-12 beats
+    const beatDuration = 60000 / tempo  // milliseconds per beat
+    const interval = beatsPerComposition * beatDuration
+
+    // Clamp to reasonable bounds
+    const clampedInterval = Math.max(2000, Math.min(12000, interval))  // 2-12 seconds
 
     this.compositionTimer = setTimeout(() => {
       this.generateAndBroadcastComposition()
       this.scheduleNextComposition()
-    }, interval)
+    }, clampedInterval)
 
-    // console.log(`🎵 Next composition in ${(interval / 1000).toFixed(1)}s`)
+    // console.log(`🎵 Next composition in ${(clampedInterval/1000).toFixed(1)}s (${beatsPerComposition.toFixed(0)} beats @ ${tempo} BPM)`)
   }
 
   /**
@@ -944,7 +871,7 @@ class LandingCompositionService {
 
     if (gesture.type === 'tap') {
       // TAP: Single short percussive note
-      await this.emitTapNote(gesture, user, cursor, musicalContext)
+      await this.emitTapNote(gesture, user, musicalContext)
     } else if (gesture.type === 'drag') {
       // DRAG: Phrase with multiple notes using PhraseMorphology
       await this.emitDragPhrase(gesture, user, cursor, musicalContext)
@@ -957,11 +884,10 @@ class LandingCompositionService {
    * This ensures different notes = different positions (same as normal rooms)
    * @param {Object} gesture - Tap gesture data
    * @param {Object} user - Virtual user data
-   * @param {Object} cursor - Initial cursor position (from gesture generation)
    * @param {Object} musicalContext - Musical context (key, mode, tempo)
    * @private
    */
-  async emitTapNote(gesture, user, cursor, musicalContext) {
+  async emitTapNote(gesture, user, musicalContext) {
     // CRITICAL: Generate frequency BASED ON METRIC VARIANCE (not position)
     // This ensures different metrics = different frequencies = different positions
     const velocity = gesture.velocity || 0
@@ -1349,8 +1275,8 @@ class LandingCompositionService {
 
   /**
    * Classify gesture type based on metric characteristics
-   * Uses relative comparison: whichever metric is highest determines gesture type
-   * REDUCED threshold from 0.3 to 0.15 for more frequent gesture variety
+   * Uses PURE relative comparison: whichever metric is highest determines gesture type
+   * NO thresholds - gestures emerge naturally from metric variations
    * @param {string} source - Source name
    * @returns {string} Gesture type: 'tap', 'drag', or 'hover'
    * @private
@@ -1360,18 +1286,17 @@ class LandingCompositionService {
     const density = this.calculateDensityMetric(source)
     const periodicity = this.calculatePeriodicityMetric(source)
 
-    // Relative comparison: whichever metric is highest determines gesture type
+    // Pure relative comparison: whichever metric is highest determines gesture type
+    // NO thresholds - preserves correlation between metrics and gestures
     const maxMetric = Math.max(stability, density, periodicity)
 
-    if (maxMetric === stability && stability > 0.15) {
+    if (maxMetric === stability) {
       return 'tap'
-    } else if (maxMetric === density && density > 0.15) {
+    } else if (maxMetric === density) {
       return 'drag'  // phrase
-    } else if (maxMetric === periodicity && periodicity > 0.15) {
+    } else {
       return 'hover'  // modulation (no sound, only modulation)
     }
-    // Default to drag if all metrics are low
-    return 'drag'
   }
 }
 
