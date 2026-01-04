@@ -978,7 +978,7 @@ class LandingCompositionService {
     // This preserves METRIC-TO-MUSIC correspondence
     const baseFreq = user.baseFrequency
     const freqOffset = normalizedVelocity * tessituraRange * 0.4  // Up to 40% of range (stays within tessitura)
-    const targetFreq = baseFreq + freqOffset  // Higher velocity = higher pitch
+    let targetFreq = baseFreq + freqOffset  // Higher velocity = higher pitch (use let for reassignment)
 
     // Clamp to tessitura
     targetFreq = Math.max(tessitura.min, Math.min(tessitura.max, targetFreq))
