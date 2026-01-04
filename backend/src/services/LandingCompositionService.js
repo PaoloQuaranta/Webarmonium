@@ -107,18 +107,18 @@ class LandingCompositionService {
       }
     }
 
-    // Current cursor positions for interpolation
+    // Current cursor positions for interpolation (start at center of each region)
     this.currentPositions = {
-      wikipedia: { x: 0.5, y: 0.5 },
-      hackernews: { x: 0.5, y: 0.5 },
-      github: { x: 0.5, y: 0.5 }
+      wikipedia: { x: 0.19, y: 0.5 },  // Center of left region
+      hackernews: { x: 0.495, y: 0.5 }, // Center of center region
+      github: { x: 0.805, y: 0.5 }     // Center of right region
     }
 
-    // Target positions (for interpolation)
+    // Target positions (for interpolation) (start at center of each region)
     this.targetPositions = {
-      wikipedia: { x: 0.5, y: 0.5 },
-      hackernews: { x: 0.5, y: 0.5 },
-      github: { x: 0.5, y: 0.5 }
+      wikipedia: { x: 0.19, y: 0.5 },  // Center of left region
+      hackernews: { x: 0.495, y: 0.5 }, // Center of center region
+      github: { x: 0.805, y: 0.5 }     // Center of right region
     }
 
     // Cursor interpolation timer
@@ -995,7 +995,8 @@ class LandingCompositionService {
     // We need to distribute this across x and y within the source's region
 
     // Calculate normalized position within tessitura (0-1)
-    const normalizedFreq = (constrainedFreq - tessitura.min) / tessituraRange
+    // CRITICAL: Clamp to 0-1 BEFORE calculating position to prevent out-of-bounds
+    const normalizedFreq = Math.max(0, Math.min(1, (constrainedFreq - tessitura.min) / tessituraRange))
 
     // Map to position within source's region
     // X varies across full region width, Y varies based on frequency
@@ -1005,17 +1006,12 @@ class LandingCompositionService {
     // Y based on frequency (higher freq = higher position)
     const targetY = 0.1 + (normalizedFreq * 0.8) // 0.1-0.9 range
 
-    // CRITICAL: Clamp position to region bounds BEFORE creating notePosition
-    // This prevents nodes from appearing outside the scene
-    const clampedX = Math.max(user.region.xMin, Math.min(user.region.xMax, targetX))
-    const clampedY = Math.max(0.05, Math.min(0.95, targetY))
-
-    const notePosition = { x: clampedX, y: clampedY }
+    const notePosition = { x: targetX, y: targetY }
 
     // CRITICAL: Update target position so cursor moves to note position
     this.targetPositions[gesture.source] = {
-      x: clampedX,
-      y: clampedY
+      x: targetX,  // Already clamped by normalizedFreq
+      y: targetY   // Already clamped by normalizedFreq
     }
 
     // Emit single short percussive note (0.1s duration, same as normal rooms)
@@ -1212,8 +1208,8 @@ class LandingCompositionService {
         let newX = current.x + (target.x - current.x) * easing
         let newY = current.y + (target.y - current.y) * easing
 
-        // CLAMP to valid scene bounds (0.05-0.95) - prevents cursor drift outside scene
-        newX = Math.max(0.05, Math.min(0.95, newX))
+        // CRITICAL: CLAMP to SOURCE'S REGION bounds - each source stays in its assigned area
+        newX = Math.max(user.region.xMin, Math.min(user.region.xMax, newX))
         newY = Math.max(0.05, Math.min(0.95, newY))
 
         this.currentPositions[source] = { x: newX, y: newY }
