@@ -953,25 +953,65 @@ class LandingCompositionService {
 
   /**
    * Emit a single tap note (short, percussive)
-   * Uses X+Y position to calculate frequency (same as normal rooms)
+   * CRITICAL: Generates frequency from metric variance, then derives position FROM frequency
+   * This ensures different notes = different positions (same as normal rooms)
    * @param {Object} gesture - Tap gesture data
    * @param {Object} user - Virtual user data
-   * @param {Object} cursor - Cursor position
+   * @param {Object} cursor - Initial cursor position (from gesture generation)
    * @param {Object} musicalContext - Musical context (key, mode, tempo)
    * @private
    */
   async emitTapNote(gesture, user, cursor, musicalContext) {
-    // Calculate frequency from position (same as normal rooms - see GestureToMusicService.js lines 182-187)
-    const octaveBase = 110 + (1 - cursor.y) * 440  // Y controls octave range (110-550)
-    const withinOctave = cursor.x * 660  // X controls frequency within octave (0-660)
-    const frequency = octaveBase + withinOctave  // Total range: 110-1210 Hz
+    // CRITICAL: Generate frequency BASED ON METRIC VARIANCE (not position)
+    // This ensures different metrics = different frequencies = different positions
+    const velocity = gesture.velocity || 0
+    const normalizedVelocity = this.normalizeMetricDynamic(gesture.source, 'velocity', Math.abs(velocity))
+
+    // Calculate variance within tessitura based on velocity
+    // Higher velocity = higher pitch within tessitura
+    const tessitura = user.frequencyRange // { min, max }
+    const tessituraRange = tessitura.max - tessitura.min
+
+    // CRITICAL: Use velocity to determine frequency within tessitura (NO randomness)
+    // Low velocity → lower end of tessitura
+    // High velocity → higher end of tessitura
+    // This preserves METRIC-TO-MUSIC correspondence
+    const baseFreq = user.baseFrequency
+    const freqOffset = normalizedVelocity * tessituraRange * 0.4  // Up to 40% of range (stays within tessitura)
+    const targetFreq = baseFreq + freqOffset  // Higher velocity = higher pitch
+
+    // Clamp to tessitura
+    targetFreq = Math.max(tessitura.min, Math.min(tessitura.max, targetFreq))
 
     // Constrain to scale
     const constrainedFreq = this.harmonicEngine.constrainToScale(
-      frequency,
+      targetFreq,
       musicalContext.key,
       musicalContext.mode
     )
+
+    // CRITICAL: Derive position FROM frequency (inverse of normal room formula)
+    // Formula: frequency = 550 - 440*y + 660*x
+    // We need to distribute this across x and y within the source's region
+
+    // Calculate normalized position within tessitura (0-1)
+    const normalizedFreq = (constrainedFreq - tessitura.min) / tessituraRange
+
+    // Map to position within source's region
+    // X varies across full region width, Y varies based on frequency
+    const regionWidth = user.region.xMax - user.region.xMin
+    const targetX = user.region.xMin + (normalizedFreq * regionWidth)
+
+    // Y based on frequency (higher freq = higher position)
+    const targetY = 0.1 + (normalizedFreq * 0.8) // 0.1-0.9 range
+
+    const notePosition = { x: targetX, y: targetY }
+
+    // CRITICAL: Update target position so cursor moves to note position
+    this.targetPositions[gesture.source] = {
+      x: Math.max(user.region.xMin, Math.min(user.region.xMax, targetX)),
+      y: Math.max(0.05, Math.min(0.95, targetY))
+    }
 
     // Emit single short percussive note (0.1s duration, same as normal rooms)
     this.io.to(this.landingRoomId).emit('musical:event', {
@@ -980,21 +1020,22 @@ class LandingCompositionService {
       frequency: constrainedFreq,
       velocity: 0.9,  // Strong tap (same as normal rooms)
       duration: 0.1,  // 100ms - percussive (same as normal rooms)
-      position: cursor,
+      position: notePosition,
       userColor: user.color,
       isRemote: true,
       timestamp: Date.now()
     })
 
-    // console.log(`🎵 TAP from ${gesture.source}: freq=${constrainedFreq.toFixed(1)}Hz, pos=(${cursor.x.toFixed(2)},${cursor.y.toFixed(2)})`)
+    // console.log(`🎵 TAP from ${gesture.source}: freq=${constrainedFreq.toFixed(1)}Hz, pos=(${targetX.toFixed(2)},${targetY.toFixed(2)})`)
   }
 
   /**
    * Emit a drag phrase (multi-note melody using PhraseMorphology)
-   * Uses existing PhraseMorphology logic for phrase generation
+   * CRITICAL: Each note is emitted at a different position along a trajectory
+   * This replicates normal room behavior where cursor moves during drag
    * @param {Object} gesture - Drag gesture data
    * @param {Object} user - Virtual user data
-   * @param {Object} cursor - Cursor position
+   * @param {Object} cursor - Starting cursor position
    * @param {Object} musicalContext - Musical context (key, mode, tempo)
    * @private
    */
@@ -1013,10 +1054,38 @@ class LandingCompositionService {
     // SCALE velocity to gesture velocity (0-100) for PhraseMorphology
     const gestureVelocity = normalizedVelocity * 100  // 0-100 range
 
-    // Create gestureData for PhraseMorphology (same as normal rooms)
+    // CRITICAL: Generate trajectory from gesture metrics (NO randomness)
+    // Acceleration determines direction and distance of trajectory
+    const absAccel = Math.abs(gesture.acceleration || 0)
+    const normalizedAccel = this.normalizeMetricDynamic(gesture.source, 'acceleration', absAccel)
+
+    // Trajectory based on acceleration (higher acceleration = longer trajectory)
+    const regionWidth = user.region.xMax - user.region.xMin
+    const regionHeight = 0.9  // Full height is 0.05-0.95
+
+    // Direction based on acceleration sign (positive = right/up, negative = left/down)
+    const accelDirection = gesture.acceleration >= 0 ? 1 : -1
+
+    // Trajectory length based on normalized acceleration (up to 30% of region)
+    const trajectoryLength = 0.1 + (normalizedAccel * 0.2)  // 0.1-0.3 range
+
+    // Calculate end position
+    const startX = cursor.x
+    const startY = cursor.y
+
+    // End position moves in direction based on acceleration
+    const endX = Math.max(user.region.xMin, Math.min(user.region.xMax, startX + (accelDirection * trajectoryLength * regionWidth)))
+    const endY = Math.max(0.05, Math.min(0.95, startY + (accelDirection * trajectoryLength * regionHeight * 0.5)))
+
+    // Create gestureData for PhraseMorphology with trajectory
     const gestureData = {
       velocity: gestureVelocity,
-      trajectory: { x: cursor.x, y: cursor.y },
+      trajectory: {
+        startX: startX,
+        startY: startY,
+        endX: endX,
+        endY: endY
+      },
       curvature: 0.5,  // Moderate curvature
       acceleration: gesture.acceleration || 0,
       intensity: activity,
@@ -1026,12 +1095,12 @@ class LandingCompositionService {
     // Generate phrase using PhraseMorphology (SAME LOGIC AS NORMAL ROOMS)
     const phrase = this.phraseMorphology.generatePhrase(gestureData, musicalContext)
 
-    // console.log(`🎵 PHRASE from ${gesture.source}: ${phrase.notes.length} notes (vel=${absVelocity.toFixed(1)} → ${gestureVelocity.toFixed(0)}), dur=${phraseDurationMs}ms, scale=${phrase.metadata.scale}`)
+    // console.log(`🎵 PHRASE from ${gesture.source}: ${phrase.notes.length} notes, trajectory=(${startX.toFixed(2)},${startY.toFixed(2)})→(${endX.toFixed(2)},${endY.toFixed(2)})`)
 
     // Convert beats to milliseconds
     const beatDurationMs = (60 / musicalContext.tempo) * 1000
 
-    // Emit each note with correct timing
+    // Emit each note with correct timing and position along trajectory
     phrase.notes.forEach((note, i) => {
       // CRITICAL: Validate note.pitch before processing
       if (typeof note.pitch !== 'number' || isNaN(note.pitch)) {
@@ -1051,6 +1120,16 @@ class LandingCompositionService {
         return  // Skip this note
       }
 
+      // CRITICAL: Calculate position along trajectory for this note
+      // Each note gets a position based on its index in the phrase
+      const noteProgress = i / Math.max(1, phrase.notes.length - 1)  // 0 to 1
+
+      // Linear interpolation from start to end position
+      const noteX = startX + (endX - startX) * noteProgress
+      const noteY = startY + (endY - startY) * noteProgress
+
+      const notePosition = { x: noteX, y: noteY }
+
       // Calculate start time in milliseconds
       const startDelayMs = note.startBeat * beatDurationMs
 
@@ -1061,7 +1140,13 @@ class LandingCompositionService {
       setTimeout(() => {
         if (!this.io || !this.isRunning) return
 
-        // Emit hold:start
+        // CRITICAL: Update target position so cursor moves to this note's position
+        this.targetPositions[gesture.source] = {
+          x: Math.max(user.region.xMin, Math.min(user.region.xMax, noteX)),
+          y: Math.max(0.05, Math.min(0.95, noteY))
+        }
+
+        // Emit hold:start with note's position along trajectory
         const noteVelocity = note.velocity || 80  // Default to 80 if undefined
         this.io.to(this.landingRoomId).emit('hold:start', {
           type: 'hold:start',
@@ -1070,7 +1155,7 @@ class LandingCompositionService {
           frequency: noteFreq,
           velocity: Math.max(0, Math.min(1, noteVelocity / 127)),  // Convert 0-127 to 0-1, with defaults
           duration: noteDurationMs / 1000,  // Convert to seconds
-          position: cursor,
+          position: notePosition,  // CRITICAL: Each note has its own position along trajectory
           userColor: user.color,
           isRemote: true,
           timestamp: Date.now()
