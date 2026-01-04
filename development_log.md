@@ -3898,3 +3898,125 @@ This fix complements the work from Entry #9 (Landing Page Implementation):
 - Entry #10: Fixed cursor bounds enforcement and display consistency
 
 ---
+
+---
+
+## Entry #11 - Dynamic URL Management Fix for Landing Page (RESOLVED)
+
+**Date**: 2026-01-04
+**Time**: ~14:00 UTC
+**Author**: Claude Code (AI Assistant)
+**Status**: RESOLVED - Production deployment restored
+
+### Problem Statement
+
+The landing page had a hardcoded `http://localhost:3001` URL that broke production deployment on `tripitak.it`. When accessed in production, the landing page tried to connect to localhost instead of the production backend via nginx proxy.
+
+**User Report:** "abbiamo un problema con il server di produzione. in passato avevamo implementato un sistema di gestione dinamica delle url in base al server utilizzato (locale o prod). probabilmente in uno dei refactoring recenti lo hai rotto e hai messo l'url locale hardwired nel codice."
+
+---
+
+### Root Cause Analysis
+
+**When the landing page was implemented** (Entry #9, 2026-01-02), the dynamic URL detection system used in the main app was **not applied** to the landing page code.
+
+**Evidence from git history:**
+- Commit 585ff8e (Oct 4, 2025): Initial LAN access support with `window.location.hostname`
+- Commit ad6d8c0 (Nov 7, 2025): Added production fallback using same origin
+- Commit 1c365a0 (Nov 10, 2025): Fixed 127.0.0.1 development detection
+- Commit during Entry #9: Landing page created with hardcoded URL (regression)
+
+**The Issue:**
+```javascript
+// frontend/src/landing/main.js (line 34) - HARDCODED URL
+this.socketUrl = 'http://localhost:3001'
+```
+
+**Main app had the correct pattern:**
+```javascript
+// frontend/src/main.js (lines 1192-1194) - WORKING DYNAMIC URL
+const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+const backendUrl = isDevelopment
+  ? 'http://localhost:3001'
+  : `${window.location.protocol}//${window.location.host}`
+```
+
+---
+
+### Fix Implemented
+
+**File:** `frontend/src/landing/main.js`
+
+**Change 1 - Removed hardcoded URL from constructor (line 34):**
+```javascript
+// BEFORE:
+// Socket.io connection
+this.socket = null
+this.socketUrl = 'http://localhost:3001'  // ← REMOVED
+
+// AFTER:
+// Socket.io connection
+this.socket = null
+```
+
+**Change 2 - Added dynamic URL computation in `_setupSocketConnection()` method (lines 162-171):**
+```javascript
+try {
+  // Dynamic URL: localhost dev uses port 3001, production uses same origin (nginx proxy)
+  const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+  const socketUrl = isDevelopment
+    ? 'http://localhost:3001'
+    : `${window.location.protocol}//${window.location.host}`
+
+  console.log(`🔌 Landing page connecting to: ${socketUrl}`)
+
+  // Connect to backend
+  this.socket = io(socketUrl)
+  // ... rest of connection logic
+```
+
+---
+
+### Behavior After Fix
+
+| Environment | Hostname | Connection URL |
+|-------------|----------|----------------|
+| **Development** | localhost | `http://localhost:3001` |
+| **Development** | 127.0.0.1 | `http://localhost:3001` |
+| **Development** | ::1 | `http://localhost:3001` |
+| **Production** | tripitak.it | Same origin via nginx proxy |
+
+---
+
+### Files Modified
+
+1. `frontend/src/landing/main.js`
+   - Removed hardcoded `this.socketUrl = 'http://localhost:3001'` from constructor
+   - Added dynamic URL detection in `_setupSocketConnection()` method
+   - Added console logging for connection URL debugging
+
+---
+
+### Testing Protocol
+
+1. **Local Development:** Access `http://localhost:3000` → connects to `http://localhost:3001`
+2. **Production:** Access `https://tripitak.it` → connects to same origin via nginx proxy
+3. **Verify:** Check console for `🔌 Landing page connecting to: [URL]` message
+
+---
+
+### Commits
+
+1. `FIX: Dynamic URL management for landing page - restore production support` (pending)
+
+---
+
+### Related Issues
+
+This fix restores the dynamic URL system that was:
+- Originally implemented for main app (Entry #1, #2)
+- Accidentally broken during landing page implementation (Entry #9)
+- Now properly applied to both main app and landing page
+
+---
+

@@ -31,7 +31,6 @@ class LandingApp {
 
     // Socket.io connection
     this.socket = null
-    this.socketUrl = 'http://localhost:3001'
 
     // State
     this.isInitialized = false
@@ -160,8 +159,16 @@ class LandingApp {
     }
 
     try {
+      // Dynamic URL: localhost dev uses port 3001, production uses same origin (nginx proxy)
+      const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+      const socketUrl = isDevelopment
+        ? 'http://localhost:3001'
+        : `${window.location.protocol}//${window.location.host}`
+
+      console.log(`🔌 Landing page connecting to: ${socketUrl}`)
+
       // Connect to backend
-      this.socket = io(this.socketUrl)
+      this.socket = io(socketUrl)
 
       // Connection events
       this.socket.on('connect', () => {
