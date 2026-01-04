@@ -137,11 +137,6 @@ class GenerativeVisualService {
     // Clear background (match Webarmonium background color)
     p.background(26, 26, 46)
 
-    // Debug: Log rendering every 60 frames
-    if (this.springMesh && this.springMesh.nodes.size > 0 && p.frameCount % 60 === 0) {
-      console.log('🎨 Drawing frame', p.frameCount, '- nodes:', this.springMesh.nodes.size, 'edges:', this.springMesh.edges.length, 'canvas:', p.width, 'x', p.height)
-    }
-
     // Update and render based on performance mode
     if (this.performanceMode === 'disabled') {
       // Minimal rendering - simple nodes only

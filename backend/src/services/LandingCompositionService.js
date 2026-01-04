@@ -420,12 +420,19 @@ class LandingCompositionService {
       y: Math.max(0.05, Math.min(0.95, y))
     }
 
+    // ORGANIC DURATION: Correlate tap duration to stability metric
+    // Stability already derives from velocity (1 - velocity/10)
+    // Higher stability (slower) = longer note with perceptible delay echo
+    // Lower stability (faster) = shorter percussive note
+    const stability = this.calculateStabilityMetric(source)
+    const tapDurationMs = 50 + (stability * 250)  // 50-300ms organic range
+
     return {
       type: 'tap',
       source: source,
       velocity: velocity,
       position: gesturePosition,
-      duration: 100,  // 0.1s percussive
+      duration: tapDurationMs,
       intensity: activity
     }
   }
@@ -462,13 +469,18 @@ class LandingCompositionService {
       y: Math.max(0.05, Math.min(0.95, y))
     }
 
+    // ORGANIC DURATION: Correlate phrase duration to density metric
+    // Density represents magnitude of real metrics (avgEditSize, avgUpvotes, newStars)
+    // Higher density = more content magnitude = longer phrase
+    const dragDurationMs = 300 + (density * 2700)  // 300-3000ms organic range
+
     return {
       type: 'drag',
       source: source,
       velocity: velocity,
       acceleration: acceleration,
       position: gesturePosition,
-      duration: 500 + (1 - activity) * 2500,  // 500-3000ms
+      duration: dragDurationMs,
       intensity: activity
     }
   }
@@ -940,13 +952,20 @@ class LandingCompositionService {
       y: targetY   // Already clamped by normalizedFreq
     }
 
-    // Emit single short percussive note (0.1s duration, same as normal rooms)
+    // ORGANIC DURATION: Correlate tap duration to stability metric
+    // Stability already derives from velocity (1 - velocity/10)
+    // Higher stability (slower) = longer note with perceptible delay echo
+    // Lower stability (faster) = shorter percussive note
+    const stability = this.calculateStabilityMetric(gesture.source)
+    const tapDuration = 0.05 + (stability * 0.25)  // 50-300ms in seconds (organic)
+
+    // Emit single short percussive note with organic duration
     this.io.to(this.landingRoomId).emit('musical:event', {
       type: 'tap',
       userId: user.userId,
       frequency: constrainedFreq,
       velocity: 0.9,  // Strong tap (same as normal rooms)
-      duration: 0.1,  // 100ms - percussive (same as normal rooms)
+      duration: tapDuration,
       position: notePosition,
       userColor: user.color,
       isRemote: true,
@@ -975,8 +994,11 @@ class LandingCompositionService {
     // DYNAMIC NORMALIZATION: Normalize velocity based on HISTORICAL range
     const normalizedVelocity = this.normalizeMetricDynamic(gesture.source, 'velocity', absVelocity)
 
-    // Calculate phrase duration based on activity (inverse: higher activity = shorter phrase)
-    const phraseDurationMs = 500 + (1 - activity) * 2500  // 500-3000ms
+    // ORGANIC DURATION: Correlate phrase duration to density metric
+    // Density represents magnitude of real metrics (avgEditSize, avgUpvotes, newStars)
+    // Higher density = more content magnitude = longer phrase
+    const density = this.calculateDensityMetric(gesture.source)
+    const phraseDurationMs = 300 + (density * 2700)  // 300-3000ms organic range
 
     // SCALE velocity to gesture velocity (0-100) for PhraseMorphology
     const gestureVelocity = normalizedVelocity * 100  // 0-100 range

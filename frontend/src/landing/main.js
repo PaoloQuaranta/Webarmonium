@@ -250,6 +250,9 @@ class LandingApp {
         if (data.metrics) {
           this.currentMetrics = data.metrics
           this.dashboardUI.updateMetrics(this.currentMetrics)
+
+          // Apply delay modulation based on metrics (same as normal rooms)
+          this._applyDelayModulation()
         }
       })
 
@@ -441,12 +444,6 @@ class LandingApp {
     if (typeof window.Tone === 'undefined') {
       console.error('❌ Tone.js not loaded')
       return
-    }
-
-    // CRITICAL: Open filter wide for rich sawtooth harmonics
-    if (this.audioService.gestureFilter) {
-      this.audioService.gestureFilter.frequency.value = 12000 // Open filter for harmonics
-      this.audioService.gestureFilter.Q.value = 0.1 // Low resonance for open sound
     }
 
     // Play note using gestureSynth (sawtooth waves) with delay/reverb
@@ -650,6 +647,45 @@ class LandingApp {
     } catch (error) {
       console.error('❌ Error stopping experience:', error)
       this.dashboardUI.showError(`Stop error: ${error.message}`)
+    }
+  }
+
+  /**
+   * Apply delay modulation based on metrics (same as normal rooms)
+   * Calculates rhythmicDensity and harmonicDensity from web metrics
+   * @private
+   */
+  _applyDelayModulation() {
+    if (!this.audioService || !this.currentMetrics) return
+
+    // Calculate rhythmic density from total activity across all sources
+    // Use the same primary metrics as gesture generation
+    const wikipediaActivity = this.currentMetrics.wikipedia?.editsPerMinute || 0
+    const hnActivity = this.currentMetrics.hackernews?.postsPerMinute || 0
+    const githubActivity = this.currentMetrics.github?.commitsPerMinute || 0
+
+    const totalActivity = wikipediaActivity + hnActivity + githubActivity
+
+    // Normalize to 0-1 range (typical range 0-20 for landing page)
+    const rhythmicDensity = Math.min(1.0, totalActivity / 20)
+
+    // Calculate harmonic density from variety across different metric types
+    // Measures how "spread out" the activity is across sources
+    const activities = [wikipediaActivity, hnActivity, githubActivity]
+    const meanActivity = activities.reduce((a, b) => a + b, 0) / 3
+    const variance = activities.reduce((sum, val) => sum + Math.pow(val - meanActivity, 2), 0) / 3
+    const stdDev = Math.sqrt(variance)
+
+    // Normalize to 0-1 range (typical stdDev range 0-10)
+    const harmonicDensity = Math.min(1.0, stdDev / 10)
+
+    // Apply modulation using same method as normal rooms
+    // See: AudioService.js:4646-4659
+    if (this.audioService.applyGenerative && typeof this.audioService.applyGenerative === 'function') {
+      this.audioService.applyGenerative({
+        rhythmicDensity,
+        harmonicDensity
+      })
     }
   }
 
