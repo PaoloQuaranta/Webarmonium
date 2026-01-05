@@ -6,6 +6,8 @@
  * - SpringMeshNetwork: Physics simulation and curved edges
  * - WavePacketSystem: Pulse propagation along edges
  * - ParticleFlowManager: Particle flow effects
+ * - NebulaSystem: Atmospheric nebula effects
+ * - SparkSystem: Path-following sparks
  *
  * Responsibilities:
  * - p5.js instance lifecycle (setup, draw, dispose)
@@ -23,6 +25,8 @@ class GenerativeVisualService {
     this.springMesh = null
     this.wavePackets = null
     this.particles = null
+    this.nebulas = null
+    this.sparks = null
 
     // Performance monitoring
     this.lastFrameTime = 0
@@ -51,10 +55,10 @@ class GenerativeVisualService {
    * @param {HTMLElement} containerElement - DOM element to attach p5.js canvas
    */
   initialize(containerElement) {
-    // console.log('🎨 GenerativeVisualService.initialize() called with container:', containerElement)
+    console.log('🎨 GenerativeVisualService.initialize() called with container:', containerElement)
 
     if (!containerElement) {
-      // console.error('❌ GenerativeVisualService: Container element not found')
+      console.error('❌ GenerativeVisualService: Container element not found')
       return
     }
 
@@ -63,20 +67,26 @@ class GenerativeVisualService {
 
     try {
       // Initialize subsystems
-      // console.log('🎨 Creating SpringMeshNetwork...')
+      console.log('🎨 Creating SpringMeshNetwork...')
       this.springMesh = new SpringMeshNetwork()
 
-      // console.log('🎨 Creating WavePacketSystem...')
+      console.log('🎨 Creating WavePacketSystem...')
       this.wavePackets = new WavePacketSystem(this.springMesh)
 
-      // console.log('🎨 Creating ParticleFlowManager...')
+      console.log('🎨 Creating ParticleFlowManager...')
       this.particles = new ParticleFlowManager(this.springMesh)
 
-      // console.log('🎨 Creating p5 instance...')
+      console.log('🎨 Creating NebulaSystem...')
+      this.nebulas = new NebulaSystem()
+
+      console.log('🎨 Creating SparkSystem...')
+      this.sparks = new SparkSystem(this.springMesh)
+
+      console.log('🎨 Creating p5 instance...')
       // Create p5.js instance in instance mode
       this.p5Instance = new p5((p) => {
         p.setup = () => {
-          // console.log('🎨 p5 setup() called')
+          console.log('🎨 p5 setup() called')
           this.setup(p)
         }
         p.draw = () => {
@@ -84,9 +94,9 @@ class GenerativeVisualService {
         }
       }, containerElement)
 
-      // console.log('✅ GenerativeVisualService: Enhanced p5.js initialized with subsystems')
+      console.log('✅ GenerativeVisualService: Enhanced p5.js initialized with subsystems')
     } catch (error) {
-      // console.error('❌ Error during GenerativeVisualService initialization:', error)
+      console.error('❌ Error during GenerativeVisualService initialization:', error)
       throw error
     }
   }
@@ -142,21 +152,33 @@ class GenerativeVisualService {
       // Minimal rendering - simple nodes only
       this.renderSimpleNodes(p)
     } else {
-      // Update physics
+      // Update all systems
       this.springMesh.updatePhysics(dt)
       this.wavePackets.update(dt)
       this.particles.update(dt)
+      if (this.nebulas) this.nebulas.update(dt)
+      if (this.sparks) this.sparks.update(dt)
 
       // Render layers (back to front)
+      // 0. Nebulas (background layer)
+      if (this.performanceMode === 'normal' && this.nebulas) {
+        this.nebulas.render(p)
+      }
+
       // 1. Spring mesh network (curved edges + nodes)
       this.springMesh.render(p)
 
-      // 3. Wave pulses
+      // 2. Wave pulses
       this.wavePackets.render(p)
 
-      // 4. Particles (skip in degraded mode)
+      // 3. Particles (skip in degraded mode)
       if (this.performanceMode === 'normal') {
         this.particles.render(p)
+      }
+
+      // 4. Sparks (top layer, skip in degraded mode)
+      if (this.performanceMode === 'normal' && this.sparks) {
+        this.sparks.render(p)
       }
     }
   }
@@ -363,7 +385,22 @@ class GenerativeVisualService {
     return {
       springMesh: this.springMesh,
       wavePackets: this.wavePackets,
-      particles: this.particles
+      particles: this.particles,
+      nebulas: this.nebulas,
+      sparks: this.sparks
+    }
+  }
+
+  /**
+   * Handle musical events - forward to nebulas and sparks
+   * @param {Object} event - Musical event {type, velocity, pitch}
+   */
+  onMusicalEvent(event) {
+    if (this.nebulas) {
+      this.nebulas.onMusicalEvent(event)
+    }
+    if (this.sparks) {
+      this.sparks.onMusicalEvent(event)
     }
   }
 
@@ -372,6 +409,16 @@ class GenerativeVisualService {
    */
   dispose() {
     // Dispose subsystems
+    if (this.sparks) {
+      this.sparks.dispose()
+      this.sparks = null
+    }
+
+    if (this.nebulas) {
+      this.nebulas.dispose()
+      this.nebulas = null
+    }
+
     if (this.particles) {
       this.particles.dispose()
       this.particles = null

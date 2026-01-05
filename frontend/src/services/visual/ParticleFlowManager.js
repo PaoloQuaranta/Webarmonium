@@ -73,55 +73,86 @@ class ParticleFlowManager {
   }
 
   /**
-   * Emit particles from a cursor through the trace network
-   * Particles travel along edges from the source cursor
+   * Emit particles from a cursor through the entire network using BFS flood
+   * Particles travel through ALL edge types with life decay based on hop distance
    * @param {string} sourceUserId - Source user ID
    * @param {number} count - Number of particles to emit per edge
    */
   emitParticles(sourceUserId, count = this.emitCount) {
     // Check particle count limit
     if (this.particles.size >= this.maxParticles) {
-      // console.warn('⚠️ emitParticles: Max particles reached', this.particles.size, '/', this.maxParticles)
       return
     }
 
     const sourceNode = this.springMesh.nodes.get(sourceUserId)
     if (!sourceNode) {
-      // console.warn('⚠️ emitParticles: Source node not found', sourceUserId.substring(0, 8))
       return
     }
 
-    // Find all cursor-trace edges from this cursor
-    // FIX: Also find edges where this user is the TARGET (for remote users)
-    const sourceEdges = this.springMesh.edges.filter(
-      edge => (edge.sourceId === sourceUserId || edge.targetId === sourceUserId) && edge.type === 'cursor-trace'
-    )
+    // BFS flood propagation parameters
+    const maxDepth = 8  // Max hops for particles
+    const decayFactor = 0.8  // Life decay per hop
 
-    // console.log('✨ emitParticles:', {
-//      userId: sourceUserId.substring(0, 8),
-//      edgesFound: sourceEdges.length,
-//      countPerEdge: count
-////    })
+    // Use BFS to flood the network with particles
+    this.floodPropagate(sourceUserId, sourceNode.color, count, maxDepth, decayFactor)
+  }
 
-    let created = 0
-    // Emit particles along each edge
-    for (const edge of sourceEdges) {
-      // If user is the target, start particle from the end (backwards)
-      const startFromEnd = (edge.targetId === sourceUserId)
+  /**
+   * BFS flood propagation through the network for particles
+   * @param {string} sourceNodeId - Starting node ID
+   * @param {string} color - Particle color
+   * @param {number} countPerEdge - Particles per edge
+   * @param {number} maxDepth - Maximum hop depth
+   * @param {number} decayFactor - Life decay per hop
+   */
+  floodPropagate(sourceNodeId, color, countPerEdge, maxDepth, decayFactor) {
+    // BFS queue: { nodeId, depth, life }
+    const queue = [{ nodeId: sourceNodeId, depth: 0, life: 1.0 }]
+    const visited = new Set()
+    const edgesToEmit = []
 
-      for (let i = 0; i < count; i++) {
-        // Check limit before each particle
-        if (this.particles.size >= this.maxParticles) {
-          // console.warn('⚠️ emitParticles: Max particles reached during creation', this.particles.size, '/', this.maxParticles)
-          return
-        }
+    while (queue.length > 0 && edgesToEmit.length < 50) {  // Limit edges for performance
+      const { nodeId, depth, life } = queue.shift()
 
-        const particle = this.createParticle(edge, sourceNode.color, startFromEnd ? 1 : 0)
-        if (particle) created++
+      if (depth > maxDepth || life < 0.2) continue
+      if (visited.has(nodeId)) continue
+      visited.add(nodeId)
+
+      // Find all edges from this node
+      const outgoingEdges = this.springMesh.edges.filter(
+        edge => edge.sourceId === nodeId
+      )
+
+      for (const edge of outgoingEdges) {
+        // Create particles on this edge
+        const edgeLife = life * decayFactor
+        edgesToEmit.push({
+          edge,
+          startProgress: 0,
+          life: edgeLife,
+          depth: depth + 1
+        })
+
+        // Add target node to queue for further propagation
+        queue.push({
+          nodeId: edge.targetId,
+          depth: depth + 1,
+          life: edgeLife
+        })
       }
     }
 
-    // console.log('✅ Particles created:', created, 'activeParticles:', this.particles.size)
+    // Emit particles (respect max limit)
+    for (const { edge, startProgress, life } of edgesToEmit) {
+      if (this.particles.size >= this.maxParticles) break
+
+      // Create fewer particles on deeper edges
+      const particleCount = Math.max(1, Math.floor(countPerEdge * life))
+      for (let i = 0; i < particleCount; i++) {
+        if (this.particles.size >= this.maxParticles) break
+        this.createParticleWithLife(edge, color, startProgress, life)
+      }
+    }
   }
 
   /**
@@ -162,6 +193,30 @@ class ParticleFlowManager {
     // Track in active particles
     this.particles.set(particleId, particle)
 
+    return particle
+  }
+
+  /**
+   * Create a single particle on an edge with life, and increase background node energy
+   * @param {Object} edge - Edge object
+   * @param {string} color - Particle color (hex)
+   * @param {number} startProgress - Starting progress (0-1)
+   * @param {number} life - Life value
+   * @returns {Object} The created particle or null if limit reached
+   */
+  createParticleWithLife(edge, color, startProgress = 0, life = 1.0) {
+    const particle = this.createParticle(edge, color, startProgress, life)
+    if (particle) {
+      // Increase energy level of background nodes
+      const sourceNode = this.springMesh.backgroundNodes.get(edge.sourceId)
+      const targetNode = this.springMesh.backgroundNodes.get(edge.targetId)
+      if (sourceNode && sourceNode.energyLevel !== undefined) {
+        sourceNode.energyLevel = Math.min(1, sourceNode.energyLevel + 0.15)
+      }
+      if (targetNode && targetNode.energyLevel !== undefined) {
+        targetNode.energyLevel = Math.min(1, targetNode.energyLevel + 0.15)
+      }
+    }
     return particle
   }
 

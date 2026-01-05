@@ -277,6 +277,15 @@ class LandingApp {
         if (!data.isRemote) return // Only handle virtual user events
 
         this._handleVirtualTapNote(data)
+
+        // Forward musical events to visual service for nebulas and sparks
+        if (this.visualService && this.visualService.onMusicalEvent) {
+          this.visualService.onMusicalEvent({
+            type: data.type || 'tap',
+            velocity: data.velocity || 0.5,
+            pitch: data.pitch
+          })
+        }
       })
 
       // Listen for unified modulation from HoverOrchestrator

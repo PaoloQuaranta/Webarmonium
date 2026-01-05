@@ -44,45 +44,76 @@ class WavePacketSystem {
   }
 
   /**
-   * Emit pulse from a cursor through the entire trace network
-   * Pulses travel through all edge types from the source cursor
+   * Emit pulse from a cursor through the entire network using BFS flood
+   * Pulses travel through ALL edge types with intensity decay based on hop distance
    * @param {string} sourceUserId - Source user ID
    * @param {string} color - Pulse color (hex)
    */
   emitPulse(sourceUserId, color) {
     const sourceNode = this.springMesh.nodes.get(sourceUserId)
     if (!sourceNode) {
-      // console.warn('⚠️ emitPulse: Source node not found', sourceUserId.substring(0, 8))
       return
     }
 
     // Update node's last pulse time
     sourceNode.lastPulseTime = Date.now()
 
-    // Find all edges from this cursor (cursor-trace edges)
-    // FIX: Also find edges where this user is the TARGET (for remote users)
-    // Remote users are always targets in the topology, so pulses must travel backwards
-    const sourceEdges = this.springMesh.edges.filter(
-      edge => (edge.sourceId === sourceUserId || edge.targetId === sourceUserId) && edge.type === 'cursor-trace'
-    )
+    // BFS flood propagation parameters
+    const maxDepth = 5  // Max hops
+    const decayFactor = 0.7  // Intensity multiplier per hop
 
-    // console.log('🌊 emitPulse userId:', sourceUserId)
-    // console.log('🌊 Found edges where user is source OR target:', sourceEdges.length)
+    // Use BFS to flood the network
+    this.floodPropagate(sourceUserId, color, maxDepth, decayFactor)
+  }
 
-    // Don't exceed maximum pulse count
-    if (this.activePulses.size >= this.maxPulses) {
-      // console.warn('⚠️ emitPulse: Max pulses reached', this.activePulses.size, '/', this.maxPulses)
-      return
+  /**
+   * BFS flood propagation through the network
+   * @param {string} sourceNodeId - Starting node ID
+   * @param {string} color - Pulse color
+   * @param {number} maxDepth - Maximum hop depth
+   * @param {number} decayFactor - Intensity decay per hop
+   */
+  floodPropagate(sourceNodeId, color, maxDepth, decayFactor) {
+    // BFS queue: { nodeId, depth, intensity }
+    const queue = [{ nodeId: sourceNodeId, depth: 0, intensity: this.baseIntensity }]
+    const visited = new Set()
+    const edgesToEmit = []
+
+    while (queue.length > 0) {
+      const { nodeId, depth, intensity } = queue.shift()
+
+      if (depth > maxDepth || intensity < 0.1) continue
+      if (visited.has(nodeId)) continue
+      visited.add(nodeId)
+
+      // Find all edges from this node
+      const outgoingEdges = this.springMesh.edges.filter(
+        edge => edge.sourceId === nodeId
+      )
+
+      for (const edge of outgoingEdges) {
+        // Create pulse on this edge
+        edgesToEmit.push({
+          edge,
+          startProgress: 0,
+          intensity: intensity * decayFactor,
+          depth: depth + 1
+        })
+
+        // Add target node to queue for further propagation
+        queue.push({
+          nodeId: edge.targetId,
+          depth: depth + 1,
+          intensity: intensity * decayFactor
+        })
+      }
     }
 
-    // Emit pulse along each edge
-    for (const edge of sourceEdges) {
-      // If user is the target, start pulse from the end (backwards)
-      const startFromEnd = (edge.targetId === sourceUserId)
-      const pulse = this.emitPulseOnEdge(edge, color, startFromEnd ? 1 : 0)
-      if (pulse) {
-        // console.log('✅ Pulse created:', pulse.id.substring(0, 15), 'direction:', startFromEnd ? 'BACKWARD' : 'FORWARD')
-      }
+    // Emit pulses (respect max limit)
+    for (const { edge, startProgress, intensity } of edgesToEmit) {
+      if (this.activePulses.size >= this.maxPulses) break
+
+      this.emitPulseOnEdgeWithIntensity(edge, color, startProgress, intensity)
     }
   }
 
@@ -120,6 +151,55 @@ class WavePacketSystem {
 
     // Track in active pulses
     this.activePulses.set(pulseId, pulse)
+
+    return pulse
+  }
+
+  /**
+   * Emit pulse along a specific edge with custom intensity
+   * @param {Object} edge - Edge object
+   * @param {string} color - Pulse color (hex)
+   * @param {number} startProgress - Starting progress (0-1)
+   * @param {number} intensity - Pulse intensity (default baseIntensity)
+   */
+  emitPulseOnEdgeWithIntensity(edge, color, startProgress = 0, intensity = null) {
+    // Check pulse count limit
+    if (this.activePulses.size >= this.maxPulses) {
+      return null
+    }
+
+    const pulseId = `pulse-${this.pulseCounter++}`
+
+    const pulse = {
+      id: pulseId,
+      edge: edge,
+      progress: startProgress,
+      speed: this.baseSpeed + Math.random() * this.speedVariation,
+      intensity: intensity !== null ? intensity : this.baseIntensity,
+      color: color,
+      width: this.pulseWidth,
+      reverse: startProgress === 1,
+      createdAt: Date.now()
+    }
+
+    // Add to edge's pulse array
+    if (!edge.pulses) {
+      edge.pulses = []
+    }
+    edge.pulses.push(pulse)
+
+    // Track in active pulses
+    this.activePulses.set(pulseId, pulse)
+
+    // Increase energy level of background nodes
+    const sourceNode = this.springMesh.backgroundNodes.get(edge.sourceId)
+    const targetNode = this.springMesh.backgroundNodes.get(edge.targetId)
+    if (sourceNode && sourceNode.energyLevel !== undefined) {
+      sourceNode.energyLevel = Math.min(1, sourceNode.energyLevel + 0.3)
+    }
+    if (targetNode && targetNode.energyLevel !== undefined) {
+      targetNode.energyLevel = Math.min(1, targetNode.energyLevel + 0.3)
+    }
 
     return pulse
   }

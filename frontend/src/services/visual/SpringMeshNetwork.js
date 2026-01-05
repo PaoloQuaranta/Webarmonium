@@ -60,6 +60,11 @@ class SpringMeshNetwork {
     // Node storage: userId -> Node object
     this.nodes = new Map()
 
+    // Background nodes: Static nodes distributed across canvas to fill space
+    this.backgroundNodes = new Map()
+    this.backgroundNodeCount = 30  // Number of background nodes
+    this.backgroundNodesInitialized = false
+
     // Edge storage: Array of Edge objects
     this.edges = []
 
@@ -71,6 +76,15 @@ class SpringMeshNetwork {
     // Physics state
     this.physicsEnabled = true
     this.lastUpdateTime = 0
+
+    // Edge type categorization for visual hierarchy
+    this.EDGE_TYPES = {
+      PRIMARY: 'cursor-cursor',   // Cursor to cursor (bright, thick, alpha 0.6-0.8)
+      SECONDARY: 'cursor-background',  // Cursor to background (medium, alpha 0.3-0.5)
+      TERTIARY: 'background-background',  // Background to background (faint, alpha 0.1-0.2)
+      CURSOR_TRACE: 'cursor-trace',  // Original cursor to trace
+      TRACE_TRACE: 'trace-trace'  // Original trace to trace
+    }
 
     // Topology rebuild throttling (for dynamic trace nodes)
     this.lastTopologyRebuildTime = 0
@@ -92,6 +106,58 @@ class SpringMeshNetwork {
     // Store configs for use in methods
     this.EDGE_CONFIG = edgeConfig
     this.NODE_CONFIG = nodeConfig
+  }
+
+  /**
+   * Initialize background nodes distributed across canvas
+   * Uses Poisson disk sampling for uniform distribution
+   */
+  initializeBackgroundNodes() {
+    if (this.backgroundNodesInitialized) return
+
+    this.backgroundNodes.clear()
+
+    // Simple uniform distribution with minimum spacing
+    const minSpacing = 0.15
+    const positions = []
+
+    for (let i = 0; i < this.backgroundNodeCount; i++) {
+      let attempts = 0
+      let x, y, valid
+
+      // Try to find a position with minimum spacing
+      do {
+        x = 0.1 + Math.random() * 0.8  // Keep away from edges
+        y = 0.1 + Math.random() * 0.8
+
+        valid = true
+        for (const pos of positions) {
+          const dx = x - pos.x
+          const dy = y - pos.y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          if (dist < minSpacing) {
+            valid = false
+            break
+          }
+        }
+        attempts++
+      } while (!valid && attempts < 50)
+
+      if (valid) {
+        positions.push({ x, y })
+        const nodeId = `bg-${i}`
+        this.backgroundNodes.set(nodeId, {
+          id: nodeId,
+          x,
+          y,
+          color: 'rgba(100, 100, 120, 0.1)',  // Subtle gray-blue
+          isBackground: true,
+          energyLevel: 0  // Increases when pulses/particles pass through
+        })
+      }
+    }
+
+    this.backgroundNodesInitialized = true
   }
 
   /**
@@ -294,9 +360,14 @@ class SpringMeshNetwork {
 
   /**
    * Rebuild edge list based on current nodes using topology generation
-   * Generates circuit grid topology
+   * Generates circuit grid topology with background nodes
    */
   rebuildEdges() {
+    // Initialize background nodes on first rebuild
+    if (!this.backgroundNodesInitialized) {
+      this.initializeBackgroundNodes()
+    }
+
     // Store existing pulses and particles for migration
     const edgeData = new Map()
     for (const edge of this.edges) {
@@ -307,22 +378,8 @@ class SpringMeshNetwork {
       })
     }
 
-    // DEBUG: Log before topology generation
-    // console.log('🕸️ rebuildEdges:', {
-//      cursorCount: this.nodes.size,
-//      oldEdgeCount: this.edges.length,
-//      userIds: Array.from(this.nodes.keys()).map(id => id.substring(0, 8))
-////    })
-
-    // Generate new topology using TopologyGenerator
+    // Generate new topology using TopologyGenerator (for cursor-to-cursor connections)
     const topology = this.topologyGenerator.generateTopology(this.nodes)
-
-    // DEBUG: Log generated topology
-    // console.log('🕸️ Generated topology:', {
-//      edgesCount: topology.edges.length,
-//      intermediateNodesCount: topology.intermediateNodes.length,
-//      edgeTypes: topology.edges.map(e => `${e.sourceId.substring(0, 6)}->${e.targetId.substring(0, 6)}:${e.type}`)
-////    })
 
     // Update intermediate nodes
     this.intermediateNodes.clear()
@@ -332,13 +389,15 @@ class SpringMeshNetwork {
 
     // Build edge array
     this.edges = []
+
+    // 1. Add topology edges (cursor-cursor via traces)
     for (const edgeDef of topology.edges) {
       const nodeA = this.getNodeOrIntermediate(edgeDef.sourceId)
       const nodeB = this.getNodeOrIntermediate(edgeDef.targetId)
 
       if (!nodeA || !nodeB) continue
 
-      // Calculate Bezier control point for all edges
+      // Calculate Bezier control point
       const dx = nodeB.x - nodeA.x
       const dy = nodeB.y - nodeA.y
       const midX = (nodeA.x + nodeB.x) / 2
@@ -347,9 +406,9 @@ class SpringMeshNetwork {
       // Different curve amounts for different edge types
       let offset = this.controlPointOffset
       if (edgeDef.type === 'trace-trace') {
-        offset = this.controlPointOffset * 0.2  // Subtle curves for trace-to-trace
+        offset = this.controlPointOffset * 0.2
       } else if (edgeDef.type === 'cursor-trace') {
-        offset = this.controlPointOffset * 0.5  // Medium curves for cursor-to-trace
+        offset = this.controlPointOffset * 0.5
       }
 
       const controlPoint = {
@@ -374,6 +433,78 @@ class SpringMeshNetwork {
       })
     }
 
+    // 2. Add edges connecting cursors to nearby background nodes
+    const cursorNodes = Array.from(this.nodes.values())
+    for (const cursor of cursorNodes) {
+      for (const [bgId, bgNode] of this.backgroundNodes) {
+        const dx = bgNode.x - cursor.x
+        const dy = bgNode.y - cursor.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+
+        // Connect to background nodes within range
+        if (dist < 0.4) {
+          const key = `${cursor.userId}-${bgId}`
+          if (!edgeData.has(key)) {
+            const midX = (cursor.x + bgNode.x) / 2
+            const midY = (cursor.y + bgNode.y) / 2
+            const dx = bgNode.x - cursor.x
+            const dy = bgNode.y - cursor.y
+
+            this.edges.push({
+              sourceId: cursor.userId,
+              targetId: bgId,
+              type: this.EDGE_TYPES.SECONDARY,
+              strength: 0.6,
+              controlPoint: {
+                x: midX - dy * this.controlPointOffset * 0.3,
+                y: midY + dx * this.controlPointOffset * 0.3
+              },
+              restLength: this.springRestLength * 0.6,
+              stiffness: this.springStiffness * 0.6,
+              pulses: [],
+              particles: []
+            })
+          }
+        }
+      }
+    }
+
+    // 3. Add edges between nearby background nodes
+    const bgArray = Array.from(this.backgroundNodes.values())
+    for (let i = 0; i < bgArray.length; i++) {
+      for (let j = i + 1; j < bgArray.length; j++) {
+        const nodeA = bgArray[i]
+        const nodeB = bgArray[j]
+        const dx = nodeB.x - nodeA.x
+        const dy = nodeB.y - nodeA.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+
+        // Connect background nodes that are close
+        if (dist < 0.25) {
+          const key = `${nodeA.id}-${nodeB.id}`
+          if (!edgeData.has(key)) {
+            const midX = (nodeA.x + nodeB.x) / 2
+            const midY = (nodeA.y + nodeB.y) / 2
+
+            this.edges.push({
+              sourceId: nodeA.id,
+              targetId: nodeB.id,
+              type: this.EDGE_TYPES.TERTIARY,
+              strength: 0.4,
+              controlPoint: {
+                x: midX - dy * this.controlPointOffset * 0.1,
+                y: midY + dx * this.controlPointOffset * 0.1
+              },
+              restLength: this.springRestLength * 0.4,
+              stiffness: 0,
+              pulses: [],
+              particles: []
+            })
+          }
+        }
+      }
+    }
+
     // DEBUG: Log final edge state
     const cursorTraceEdges = this.edges.filter(e => e.type === 'cursor-trace')
     // console.log('🕸️ Final edges:', {
@@ -393,13 +524,14 @@ class SpringMeshNetwork {
   }
 
   /**
-   * Get node from cursor nodes or intermediate nodes
+   * Get node from cursor nodes, intermediate nodes, or background nodes
    * @param {string} id - Node identifier
    * @returns {Object|null} Node object or null
    */
   getNodeOrIntermediate(id) {
     if (this.nodes.has(id)) return this.nodes.get(id)
     if (this.intermediateNodes.has(id)) return this.intermediateNodes.get(id)
+    if (this.backgroundNodes.has(id)) return this.backgroundNodes.get(id)
     return null
   }
 
@@ -422,6 +554,11 @@ class SpringMeshNetwork {
     // Draw edges first (behind nodes)
     for (const edge of this.edges) {
       this.renderEdge(p, edge)
+    }
+
+    // Draw background nodes (subtle)
+    for (const node of this.backgroundNodes.values()) {
+      this.renderBackgroundNode(p, node)
     }
 
     // Draw intermediate nodes (circuit and radial)
@@ -454,23 +591,57 @@ class SpringMeshNetwork {
     const x2 = nodeB.x * p.width
     const y2 = nodeB.y * p.height
 
-    // Determine thickness based on activity
-    const thickness = (nodeA.isActive || nodeB.isActive)
-      ? this.EDGE_CONFIG.activeThickness
-      : this.EDGE_CONFIG.idleThickness
+    // Determine visual properties based on edge type
+    let thickness, alphaMultiplier, baseColor
+
+    // Check if edge has energy (pulses or particles)
+    const hasEnergy = (edge.pulses && edge.pulses.length > 0) ||
+                      (edge.particles && edge.particles.length > 0) ||
+                      (nodeA.energyLevel && nodeA.energyLevel > 0) ||
+                      (nodeB.energyLevel && nodeB.energyLevel > 0)
+
+    if (edge.type === this.EDGE_TYPES.PRIMARY) {
+      // Cursor-to-cursor: bright and thick
+      thickness = this.EDGE_CONFIG.activeThickness
+      alphaMultiplier = 0.7
+    } else if (edge.type === this.EDGE_TYPES.SECONDARY) {
+      // Cursor-to-background: medium visibility, glow when energy flows
+      thickness = hasEnergy ? 2 : 1
+      alphaMultiplier = hasEnergy ? 0.5 : 0.15
+    } else if (edge.type === this.EDGE_TYPES.TERTIARY) {
+      // Background-to-background: faint, only visible when energy flows
+      thickness = hasEnergy ? 1.5 : 0.5
+      alphaMultiplier = hasEnergy ? 0.3 : 0.05
+    } else {
+      // Original edge types (cursor-trace, trace-trace)
+      thickness = (nodeA.isActive || nodeB.isActive)
+        ? this.EDGE_CONFIG.activeThickness
+        : this.EDGE_CONFIG.idleThickness
+      alphaMultiplier = 1.0
+    }
 
     p.strokeWeight(thickness)
     p.noFill()
 
-    // Always render gradient curve (wave pulses provide active visual effects)
-    this.drawGradientCurve(p, x1, y1, cx, cy, x2, y2, nodeA.color, nodeB.color)
+    // Use gray color for background edges, node colors for cursor edges
+    if (edge.type === this.EDGE_TYPES.SECONDARY || edge.type === this.EDGE_TYPES.TERTIARY) {
+      // Subtle gray-blue for background edges
+      this.drawGradientCurve(p, x1, y1, cx, cy, x2, y2, '#808090', '#808090', alphaMultiplier)
+    } else {
+      this.drawGradientCurve(p, x1, y1, cx, cy, x2, y2, nodeA.color, nodeB.color, alphaMultiplier)
+    }
   }
 
   /**
    * Draw gradient curve using segmented approach
    * @param {p5} p - p5.js instance
+   * @param {number} x1, y1 - Start point
+   * @param {number} cx, cy - Control point
+   * @param {number} x2, y2 - End point
+   * @param {string} color1, color2 - Gradient colors
+   * @param {number} alphaMultiplier - Alpha multiplier (default 1.0)
    */
-  drawGradientCurve(p, x1, y1, cx, cy, x2, y2, color1, color2) {
+  drawGradientCurve(p, x1, y1, cx, cy, x2, y2, color1, color2, alphaMultiplier = 1.0) {
     const segments = this.curveSegments
     const rgb1 = this.hexToRgbArray(color1)
     const rgb2 = this.hexToRgbArray(color2)
@@ -489,7 +660,7 @@ class SpringMeshNetwork {
       const r = Math.round(lerp(rgb1[0], rgb2[0], t1))
       const g = Math.round(lerp(rgb1[1], rgb2[1], t1))
       const b = Math.round(lerp(rgb1[2], rgb2[2], t1))
-      const alpha = Math.round(lerp(this.EDGE_CONFIG.minAlpha, this.EDGE_CONFIG.maxAlpha, t1))
+      const alpha = Math.round(lerp(this.EDGE_CONFIG.minAlpha, this.EDGE_CONFIG.maxAlpha, t1) * alphaMultiplier)
 
       p.stroke(r, g, b, alpha)
       p.line(px1, py1, px2, py2)
@@ -557,6 +728,31 @@ class SpringMeshNetwork {
     p.strokeWeight(0.5)
     p.noFill()
     p.circle(x, y, size * 2)
+  }
+
+  /**
+   * Render background node (subtle, only visible when energy flows)
+   * @param {p5} p - p5.js instance
+   * @param {Object} node - Background node object
+   */
+  renderBackgroundNode(p, node) {
+    const x = node.x * p.width
+    const y = node.y * p.height
+
+    // Decay energy level
+    if (node.energyLevel > 0) {
+      node.energyLevel *= 0.98
+      if (node.energyLevel < 0.01) node.energyLevel = 0
+    }
+
+    // Background nodes are very subtle by default
+    // Only become visible when energy (pulses/particles) pass through
+    const size = 4 + node.energyLevel * 6
+    const alpha = 20 + node.energyLevel * 150
+
+    p.noStroke()
+    p.fill(100, 100, 120, alpha)
+    p.circle(x, y, size)
   }
 
   /**

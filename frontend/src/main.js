@@ -68,8 +68,22 @@ class WebarmoniumApp {
       // Try to auto-start audio (may require user interaction)
       this.attemptAutoStartAudio()
 
-      // Hide loading screen
+      // Hide loading screen FIRST
       this.showApp()
+
+      // THEN initialize visual service (p5.js needs visible container)
+      // console.log('🎨 Initializing visual service after showApp...')
+      const p5Container = document.getElementById('p5-container')
+      if (p5Container && this.visualService) {
+        this.visualService.initialize(p5Container)
+        // Register visual service for resize notifications
+        this.canvasManager.addResizeListener({
+          setCanvasSize: (width, height) => {
+            const dpr = window.devicePixelRatio || 1
+            this.visualService.resize(width / dpr, height / dpr)
+          }
+        })
+      }
 
       // console.log('✅ Webarmonium initialized successfully')
     } catch (error) {
@@ -158,15 +172,11 @@ class WebarmoniumApp {
     // this.drawingRenderer = new DrawingRenderer(this.canvas)
     this.cursorManager = new CursorManager(this.cursorOverlayCanvas)
 
-    // Initialize generative visual service (p5.js)
-    // console.log('🎨 Initializing GenerativeVisualService...')
+    // Initialize generative visual service (p5.js) - BUT don't initialize yet!
+    // Will be initialized AFTER showApp() so container has proper dimensions
+    // console.log('🎨 Creating GenerativeVisualService instance...')
     this.visualService = new GenerativeVisualService()
-    const p5Container = document.getElementById('p5-container')
-    if (p5Container) {
-      this.visualService.initialize(p5Container)
-    } else {
-      // console.warn('⚠️ p5-container not found, visual service not initialized')
-    }
+    // NOTE: visualService.initialize(p5Container) will be called after showApp()
 
     // Sprint 2: Register services as canvas resize listeners
     // DISABLED: DrawingRenderer replaced by p5.js

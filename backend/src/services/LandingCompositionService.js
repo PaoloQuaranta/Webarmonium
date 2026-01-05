@@ -1053,6 +1053,16 @@ class LandingCompositionService {
     // Convert beats to milliseconds
     const beatDurationMs = (60 / musicalContext.tempo) * 1000
 
+    // Emit phrase event for nebulas and sparks (triggers color shift)
+    this.io.to(this.landingRoomId).emit('musical:event', {
+      type: 'phrase',
+      userId: user.userId,
+      velocity: Math.min(1, normalizedVelocity),
+      noteCount: phrase.notes.length,
+      isRemote: true,
+      timestamp: Date.now()
+    })
+
     // Emit each note with correct timing and position along trajectory
     phrase.notes.forEach((note, i) => {
       // CRITICAL: Validate note.pitch before processing
