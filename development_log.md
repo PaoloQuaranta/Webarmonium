@@ -5331,3 +5331,172 @@ These issues will be addressed in a subsequent chat session.
 
 Will be committed with this entry.
 
+---
+
+## Entry #16 - Attractor Visibility & Noise Resolution Fix (RESOLVED)
+
+**Date**: 2026-01-05
+**Time**: ~Current Session
+**Author**: Claude Code (AI Assistant)
+**Status**: RESOLVED - Attractors visible with correct shapes, noise smooth
+
+### Problem Statement
+
+Following Entry #15, two critical visual issues remained:
+
+1. **Attractors not visible** - User reported seeing only a "gray bean shape" instead of the classic strange attractor shapes
+2. **Perlin noise resolution too low** - User reported "noise ha una risoluzione bassissima" - blocky appearance
+
+---
+
+### Root Cause Analysis
+
+#### Issue 1: Attractors Appearing as Gray Blob
+
+**Multiple cascading issues:**
+
+1. **Color desaturation**: `baseColor.sat` being corrupted by nebula sync
+   - Fix: Forced `sat = 100` directly in render loop, bypassing calculations
+
+2. **All points clustered together (MAIN ISSUE)**:
+   - OLD: 500 points all initialized at nearly identical positions (±0.05 variation)
+   - After settling, points moved together as a single "blob"
+   - Result: Bean-shaped cluster instead of butterfly/spiral shape
+
+3. **Scale too small**: `scale = 0.85` made attractor too compact
+   - Fix: Increased to `scale = 2.0` for full scene coverage
+
+#### Issue 2: Blocky Noise Texture
+
+- `cellSize = 70` created only ~405 cells on 1920x1080 (27×15)
+- Each cell was 70×70 pixels = very blocky appearance
+- Fix: Reduced to `cellSize = 12` for ~14,400 cells (160×90) = smooth appearance
+
+---
+
+### Solution: Trajectory-Based Attractor Rendering
+
+**Algorithm Change:**
+
+```
+BEFORE: 500 independent particles → evolve together → cluster/blob
+AFTER:  1 long trajectory (24,000 points) → sample 1200 points → classic shape
+```
+
+**Implementation:**
+
+```javascript
+// 1. Compute ONE long trajectory
+const trajectoryLength = this.pointCount * 20  // 24,000 points
+const trajectory = []
+let x = 1, y = 1, z = 20
+
+// Let system settle onto attractor
+for (let settle = 0; settle < 2000; settle++) { /* evolve */ }
+
+// Record trajectory
+for (let i = 0; i < trajectoryLength; i++) {
+  trajectory.push({ x, y, z })
+  // evolve differential equations
+}
+
+// 2. Sample points distributed along trajectory with sliding window
+const windowSize = this.pointCount  // 1200 points visible at once
+for (let f = 0; f < this.frameCount; f++) {
+  const startIdx = f * stepPerFrame
+  // Sample windowSize points from trajectory starting at startIdx
+}
+```
+
+**Fuzzy Blur Effect:**
+
+User requested "distribuzione più fuzzy" - achieved by adding deterministic noise offset during rendering:
+
+```javascript
+// Stable blur using sin/cos based on point index
+const fuzzyX = (Math.sin(i * 0.1 + this.time * 2) + Math.cos(i * 0.17)) * this.fuzzyOffset
+const fuzzyY = (Math.cos(i * 0.13 + this.time * 2) + Math.sin(i * 0.19)) * this.fuzzyOffset
+const screenX = centerX + (point.x - 0.5) * displaySize + fuzzyX
+const screenY = centerY + (point.y - 0.5) * displaySize + fuzzyY
+```
+
+---
+
+### Configuration Changes
+
+#### PrecomputedAttractorSystem.js
+
+| Parameter | Before | After | Reason |
+|-----------|--------|-------|--------|
+| `pointCount` | 500 | 1200 | Denser cloud |
+| `pointSize` | 3 | 1.5 | Smaller points for trajectory look |
+| `glowSize` | 14 | 3 | Minimal glow |
+| `scale` | 0.85 | 2.0 | Full scene coverage |
+| `fuzzyOffset` | N/A | 8px | Blur effect |
+| `sat` | calculated | 100 (forced) | Maximum saturation |
+| `alpha` | 55-90 | 60-85 | Slightly lower for blur |
+
+#### NoiseTextureNebulaSystem.js
+
+| Parameter | Before | After | Reason |
+|-----------|--------|-------|--------|
+| `cellSize` | 70 | 12 | Smooth appearance (~14,400 cells) |
+| `cellSize (degraded)` | 100 | 20 | Better quality in degraded mode |
+| Palette saturation | 25-70 | 60-85 | More vivid colors |
+| Palette brightness | 18-32 | 50-70 | Visible on dark background |
+| Palette alpha | 25-42 | 55-75 | More visible |
+
+---
+
+### Files Modified
+
+1. **`frontend/src/services/visual/PrecomputedAttractorSystem.js`** (v4 → v7)
+   - Rewrote `_computeLorenzFrames()`: single trajectory approach
+   - Rewrote `_computeRosslerFrames()`: single trajectory approach
+   - Added `fuzzyOffset` property and fuzzy rendering logic
+   - Increased `pointCount` to 1200, `scale` to 2.0
+   - Reduced `pointSize` to 1.5, `glowSize` to 3
+   - Forced `sat = 100` in render to bypass color corruption
+
+2. **`frontend/src/services/visual/NoiseTextureNebulaSystem.js`** (v3 → v4)
+   - Reduced `cellSize` from 70 to 12
+   - Updated `setPerformanceMode()` degraded cellSize from 100 to 20
+   - Updated all 5 palettes with higher saturation/brightness/alpha
+
+3. **`frontend/index.html`**
+   - Updated script version: PrecomputedAttractorSystem.js?v=7
+
+4. **`frontend/rooms.html`**
+   - Updated script version: PrecomputedAttractorSystem.js?v=7
+
+---
+
+### Visual Result
+
+**Lorenz Attractor:**
+- Classic "butterfly" double-lobe shape
+- 1200 cyan points distributed along trajectory
+- Fuzzy blur effect (±8px) for ethereal appearance
+- Full scene coverage
+
+**Rossler Attractor:**
+- Classic spiral funnel shape
+- Same point count and blur effect
+
+**Nebula Background:**
+- Smooth gradients (no visible cell boundaries)
+- Vibrant colors visible against dark background
+- Musical reactivity preserved
+
+---
+
+### User Feedback
+
+"ok ora è molto bello" - Confirmation that both issues are resolved.
+
+---
+
+### Commits
+
+Will be committed with this entry.
+

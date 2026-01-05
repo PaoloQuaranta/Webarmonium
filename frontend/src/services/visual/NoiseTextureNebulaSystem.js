@@ -15,26 +15,28 @@
 
 class NoiseTextureNebulaSystem {
   constructor() {
-    // Configuration
+    // Configuration - CALIBRATED FOR HIGHER RESOLUTION
+    // cellSize 12 provides ~160x90 cells on 1920x1080 = 14,400 cells (smooth appearance)
+    // cellSize 70 was too coarse: only ~27x15 = 405 cells (blocky appearance)
     const config = (typeof window !== 'undefined' && window.VisualConstants?.NOISE_TEXTURE)
       ? window.VisualConstants.NOISE_TEXTURE
       : {
-          cellSize: 70,
+          cellSize: 12,  // Reduced from 70 for much finer resolution
           octaves: [
-            { scale: 0.002, amplitude: 1.0 },
-            { scale: 0.008, amplitude: 0.5 },
-            { scale: 0.02, amplitude: 0.25 }
+            { scale: 0.003, amplitude: 1.0 },   // Slightly higher scale for more variation
+            { scale: 0.012, amplitude: 0.5 },
+            { scale: 0.03, amplitude: 0.25 }
           ],
           transitionSpeed: 0.02,
           morphSpeed: 0.01,
           pulseDecay: 0.95
         }
 
-    this.cellSize = config.cellSize || 70
+    this.cellSize = config.cellSize || 12
     this.baseOctaves = config.octaves || [
-      { scale: 0.002, amplitude: 1.0 },
-      { scale: 0.008, amplitude: 0.5 },
-      { scale: 0.02, amplitude: 0.25 }
+      { scale: 0.003, amplitude: 1.0 },
+      { scale: 0.012, amplitude: 0.5 },
+      { scale: 0.03, amplitude: 0.25 }
     ]
     this.transitionSpeed = config.transitionSpeed || 0.02
     this.morphSpeed = config.morphSpeed || 0.01
@@ -51,52 +53,52 @@ class NoiseTextureNebulaSystem {
     this.targetOctaves = JSON.parse(JSON.stringify(this.baseOctaves))
 
     // Color palettes for background composition types
-    // CALIBRATED for visibility on dark background RGB(26,26,46) ≈ HSB(240,43,18)
-    // Alpha 45-60, Lightness 35-55, Saturation 30-60
+    // VIBRANT COLORS on dark background RGB(26,26,46) ≈ HSB(240,43,18)
+    // High saturation (60-85), good brightness (50-70), visible alpha (55-75)
     this.palettes = {
       ambient: {
-        // Subtle, calm - blue/cool tones (oceanic)
+        // Calm but visible - blue/cool tones (oceanic)
         colors: [
-          { hue: 210, sat: 45, light: 45, alpha: 55 },  // Deep sky blue
-          { hue: 220, sat: 50, light: 40, alpha: 50 },  // Ocean blue
-          { hue: 195, sat: 40, light: 50, alpha: 45 },  // Soft cyan
-          { hue: 230, sat: 35, light: 42, alpha: 48 }   // Twilight
+          { hue: 200, sat: 70, light: 60, alpha: 65 },  // Vivid sky blue
+          { hue: 215, sat: 75, light: 55, alpha: 60 },  // Ocean blue
+          { hue: 185, sat: 65, light: 62, alpha: 58 },  // Bright cyan
+          { hue: 225, sat: 60, light: 58, alpha: 62 }   // Twilight blue
         ]
       },
       riff: {
         // Energetic, rhythmic - warm/orange tones
         colors: [
-          { hue: 25, sat: 60, light: 55, alpha: 60 },   // Warm amber
-          { hue: 15, sat: 55, light: 50, alpha: 55 },   // Soft orange
-          { hue: 35, sat: 50, light: 52, alpha: 50 },   // Golden
-          { hue: 10, sat: 45, light: 48, alpha: 52 }    // Rust glow
+          { hue: 25, sat: 85, light: 65, alpha: 70 },   // Vivid amber
+          { hue: 15, sat: 80, light: 60, alpha: 65 },   // Bright orange
+          { hue: 35, sat: 75, light: 62, alpha: 60 },   // Golden
+          { hue: 8, sat: 70, light: 58, alpha: 65 }     // Warm red-orange
         ]
       },
       phrase: {
         // Melodic, expressive - purple/violet tones
         colors: [
-          { hue: 280, sat: 50, light: 48, alpha: 55 },  // Royal purple
-          { hue: 290, sat: 45, light: 45, alpha: 50 },  // Violet
-          { hue: 270, sat: 40, light: 50, alpha: 48 },  // Lavender
-          { hue: 300, sat: 35, light: 46, alpha: 52 }   // Magenta hint
+          { hue: 280, sat: 75, light: 60, alpha: 68 },  // Vivid purple
+          { hue: 290, sat: 70, light: 58, alpha: 62 },  // Bright violet
+          { hue: 265, sat: 65, light: 62, alpha: 60 },  // Lavender
+          { hue: 300, sat: 60, light: 56, alpha: 64 }   // Magenta
         ]
       },
       arpeggio: {
         // Bright, lively - cyan/green tones
         colors: [
-          { hue: 175, sat: 55, light: 52, alpha: 58 },  // Bright cyan
-          { hue: 185, sat: 50, light: 48, alpha: 52 },  // Teal
-          { hue: 165, sat: 45, light: 55, alpha: 50 },  // Aquamarine
-          { hue: 190, sat: 40, light: 50, alpha: 55 }   // Steel cyan
+          { hue: 170, sat: 80, light: 62, alpha: 68 },  // Vivid cyan
+          { hue: 180, sat: 75, light: 58, alpha: 62 },  // Bright teal
+          { hue: 160, sat: 70, light: 64, alpha: 58 },  // Aquamarine
+          { hue: 190, sat: 65, light: 60, alpha: 65 }   // Electric cyan
         ]
       },
       drone: {
-        // Sustained, foundational - deep blue/purple (meditation)
+        // Sustained, foundational - deep but visible blue/purple
         colors: [
-          { hue: 240, sat: 40, light: 38, alpha: 50 },  // Deep indigo
-          { hue: 250, sat: 35, light: 35, alpha: 45 },  // Night blue
-          { hue: 235, sat: 30, light: 40, alpha: 48 },  // Muted navy
-          { hue: 255, sat: 25, light: 36, alpha: 42 }   // Subtle violet
+          { hue: 240, sat: 65, light: 50, alpha: 60 },  // Deep indigo
+          { hue: 250, sat: 60, light: 48, alpha: 55 },  // Night blue
+          { hue: 235, sat: 55, light: 52, alpha: 58 },  // Rich navy
+          { hue: 260, sat: 50, light: 50, alpha: 55 }   // Deep violet
         ]
       }
     }
@@ -352,9 +354,9 @@ class NoiseTextureNebulaSystem {
 
     // Adjust cell size based on mode
     if (mode === 'degraded') {
-      this.cellSize = 100 // Larger cells = fewer draw calls
+      this.cellSize = 20 // Larger cells for performance, but still reasonable quality
     } else {
-      this.cellSize = 70
+      this.cellSize = 12 // Fine resolution for smooth appearance
     }
   }
 

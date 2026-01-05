@@ -18,8 +18,8 @@
 class PrecomputedAttractorSystem {
   constructor() {
     // Configuration
-    this.pointCount = 500
-    this.frameCount = 90  // ~1.5 seconds of animation at 60fps
+    this.pointCount = 1200    // More points for denser cloud
+    this.frameCount = 90      // ~1.5 seconds of animation at 60fps
     this.loopDuration = 8000  // ms for full loop
 
     // Attractor parameters
@@ -42,12 +42,14 @@ class PrecomputedAttractorSystem {
     this.speedMultiplier = 1.0
     this.targetSpeedMultiplier = 1.0
 
-    // Visual properties
-    this.baseColor = { hue: 210, sat: 45, light: 45, alpha: 55 }
-    this.pointSize = 3
-    this.glowSize = 8
-    this.scale = 0.8  // Scale factor for canvas fit
-    this.targetScale = 0.8
+    // Visual properties - VIVID colors, FULL SCENE coverage
+    // Using HSB: hue 0-360, sat 0-100, brightness 0-100
+    this.baseColor = { hue: 180, sat: 100, light: 80, alpha: 90 }
+    this.pointSize = 1.5      // Tiny points for dense cloud
+    this.glowSize = 3         // Minimal glow
+    this.scale = 2.0          // FULL SCENE - use most of the canvas
+    this.targetScale = 2.0
+    this.fuzzyOffset = 8      // Random offset in pixels for blur effect
 
     // Performance mode
     this.performanceMode = 'normal'
@@ -72,6 +74,8 @@ class PrecomputedAttractorSystem {
 
   /**
    * Compute Lorenz attractor frames
+   * SINGLE TRAJECTORY: Correct attractor shape, blur applied at render time
+   *
    * dx/dt = sigma * (y - x)
    * dy/dt = x * (rho - z) - y
    * dz/dt = x * y - beta * z
@@ -80,52 +84,55 @@ class PrecomputedAttractorSystem {
     const frames = []
     const { sigma, rho, beta } = this.lorenzParams
     const dt = 0.005
-    const stepsPerFrame = 50
 
-    // Initialize points with slight variations
-    let points = []
-    for (let i = 0; i < this.pointCount; i++) {
-      // Start near the attractor's basin
-      points.push({
-        x: 1 + (Math.random() - 0.5) * 0.1,
-        y: 1 + (Math.random() - 0.5) * 0.1,
-        z: 20 + (Math.random() - 0.5) * 0.1
-      })
+    // Compute ONE long trajectory
+    const trajectoryLength = this.pointCount * 20
+    const trajectory = []
+
+    let x = 1, y = 1, z = 20
+
+    // Let system settle onto the attractor
+    for (let settle = 0; settle < 2000; settle++) {
+      const dx = sigma * (y - x)
+      const dy = x * (rho - z) - y
+      const dz = x * y - beta * z
+      x += dx * dt
+      y += dy * dt
+      z += dz * dt
     }
 
-    // Let system settle
-    for (let settle = 0; settle < 500; settle++) {
-      for (let p of points) {
-        const dx = sigma * (p.y - p.x)
-        const dy = p.x * (rho - p.z) - p.y
-        const dz = p.x * p.y - beta * p.z
-        p.x += dx * dt
-        p.y += dy * dt
-        p.z += dz * dt
-      }
+    // Record trajectory
+    for (let i = 0; i < trajectoryLength; i++) {
+      trajectory.push({ x, y, z })
+
+      const dx = sigma * (y - x)
+      const dy = x * (rho - z) - y
+      const dz = x * y - beta * z
+      x += dx * dt
+      y += dy * dt
+      z += dz * dt
     }
 
-    // Record frames
+    // Sample points distributed along trajectory with sliding window
+    const windowSize = this.pointCount
+    const stepPerFrame = Math.floor((trajectoryLength - windowSize) / this.frameCount)
+
     for (let f = 0; f < this.frameCount; f++) {
-      // Evolve system
-      for (let step = 0; step < stepsPerFrame; step++) {
-        for (let p of points) {
-          const dx = sigma * (p.y - p.x)
-          const dy = p.x * (rho - p.z) - p.y
-          const dz = p.x * p.y - beta * p.z
-          p.x += dx * dt
-          p.y += dy * dt
-          p.z += dz * dt
+      const startIdx = f * stepPerFrame
+      const framePoints = []
+
+      for (let i = 0; i < windowSize; i++) {
+        const idx = startIdx + i
+        if (idx < trajectory.length) {
+          const p = trajectory[idx]
+          framePoints.push({
+            x: this._normalizeCoord(p.x, -25, 25),
+            y: this._normalizeCoord(p.y, -30, 30),
+            z: this._normalizeCoord(p.z, 0, 50)
+          })
         }
       }
-
-      // Store normalized positions
-      const frame = points.map(p => ({
-        x: this._normalizeCoord(p.x, -25, 25),
-        y: this._normalizeCoord(p.y, -30, 30),
-        z: this._normalizeCoord(p.z, 0, 50)
-      }))
-      frames.push(frame)
+      frames.push(framePoints)
     }
 
     return frames
@@ -133,6 +140,8 @@ class PrecomputedAttractorSystem {
 
   /**
    * Compute Rossler attractor frames
+   * SINGLE TRAJECTORY: Correct attractor shape, blur applied at render time
+   *
    * dx/dt = -y - z
    * dy/dt = x + a*y
    * dz/dt = b + z*(x - c)
@@ -140,51 +149,56 @@ class PrecomputedAttractorSystem {
   _computeRosslerFrames() {
     const frames = []
     const { a, b, c } = this.rosslerParams
-    const dt = 0.02
-    const stepsPerFrame = 25
+    const dt = 0.012
 
-    // Initialize points
-    let points = []
-    for (let i = 0; i < this.pointCount; i++) {
-      points.push({
-        x: 0.1 + (Math.random() - 0.5) * 0.01,
-        y: 0.1 + (Math.random() - 0.5) * 0.01,
-        z: 0.1 + (Math.random() - 0.5) * 0.01
-      })
+    // Compute ONE long trajectory
+    const trajectoryLength = this.pointCount * 20
+    const trajectory = []
+
+    let x = 0.1, y = 0.1, z = 0.1
+
+    // Let system settle onto the attractor
+    for (let settle = 0; settle < 3000; settle++) {
+      const dx = -y - z
+      const dy = x + a * y
+      const dz = b + z * (x - c)
+      x += dx * dt
+      y += dy * dt
+      z += dz * dt
     }
 
-    // Let system settle
-    for (let settle = 0; settle < 500; settle++) {
-      for (let p of points) {
-        const dx = -p.y - p.z
-        const dy = p.x + a * p.y
-        const dz = b + p.z * (p.x - c)
-        p.x += dx * dt
-        p.y += dy * dt
-        p.z += dz * dt
-      }
+    // Record trajectory
+    for (let i = 0; i < trajectoryLength; i++) {
+      trajectory.push({ x, y, z })
+
+      const dx = -y - z
+      const dy = x + a * y
+      const dz = b + z * (x - c)
+      x += dx * dt
+      y += dy * dt
+      z += dz * dt
     }
 
-    // Record frames
+    // Sample points distributed along trajectory with sliding window
+    const windowSize = this.pointCount
+    const stepPerFrame = Math.floor((trajectoryLength - windowSize) / this.frameCount)
+
     for (let f = 0; f < this.frameCount; f++) {
-      for (let step = 0; step < stepsPerFrame; step++) {
-        for (let p of points) {
-          const dx = -p.y - p.z
-          const dy = p.x + a * p.y
-          const dz = b + p.z * (p.x - c)
-          p.x += dx * dt
-          p.y += dy * dt
-          p.z += dz * dt
+      const startIdx = f * stepPerFrame
+      const framePoints = []
+
+      for (let i = 0; i < windowSize; i++) {
+        const idx = startIdx + i
+        if (idx < trajectory.length) {
+          const p = trajectory[idx]
+          framePoints.push({
+            x: this._normalizeCoord(p.x, -15, 15),
+            y: this._normalizeCoord(p.y, -15, 15),
+            z: this._normalizeCoord(p.z, 0, 30)
+          })
         }
       }
-
-      // Store normalized positions
-      const frame = points.map(p => ({
-        x: this._normalizeCoord(p.x, -15, 15),
-        y: this._normalizeCoord(p.y, -15, 15),
-        z: this._normalizeCoord(p.z, 0, 30)
-      }))
-      frames.push(frame)
+      frames.push(framePoints)
     }
 
     return frames
@@ -294,27 +308,30 @@ class PrecomputedAttractorSystem {
     for (let i = 0; i < points.length; i += step) {
       const point = points[i]
 
-      // Map normalized coords to screen
-      const screenX = centerX + (point.x - 0.5) * displaySize
-      const screenY = centerY + (point.y - 0.5) * displaySize
+      // Map normalized coords to screen with FUZZY OFFSET for blur effect
+      // Use deterministic noise based on point index for stable blur
+      const fuzzyX = (Math.sin(i * 0.1 + this.time * 2) + Math.cos(i * 0.17)) * this.fuzzyOffset
+      const fuzzyY = (Math.cos(i * 0.13 + this.time * 2) + Math.sin(i * 0.19)) * this.fuzzyOffset
+      const screenX = centerX + (point.x - 0.5) * displaySize + fuzzyX
+      const screenY = centerY + (point.y - 0.5) * displaySize + fuzzyY
 
-      // Depth-based appearance
-      const depthFactor = 0.5 + point.z * 0.5
+      // Depth-based appearance - closer points (higher z) are brighter and larger
+      const depthFactor = 0.8 + point.z * 0.2
 
-      // Color with depth influence
-      const hue = this.baseColor.hue
-      const sat = this.baseColor.sat * 0.7
-      const light = Math.min(70, this.baseColor.light * depthFactor * 1.2)
-      const alpha = 35 + point.z * 30  // 35-65 based on depth
+      // VIVID COLORS with slight variation for organic feel
+      const hue = this.baseColor.hue || 180
+      const sat = 100  // Full saturation
+      const bright = 70 + point.z * 25  // 70-95 brightness based on depth
+      const alpha = 60 + point.z * 25   // 60-85 alpha (slightly lower for blur effect)
 
-      // Glow (larger, more transparent)
+      // Glow (larger, same vivid color)
       if (this.performanceMode !== 'degraded') {
-        p.fill(hue, sat, light, alpha * 0.3)
+        p.fill(hue, sat, bright * 0.85, alpha * 0.4)
         p.ellipse(screenX, screenY, this.glowSize * depthFactor, this.glowSize * depthFactor)
       }
 
-      // Core point
-      p.fill(hue, sat, light, alpha)
+      // Core point - maximum saturation
+      p.fill(hue, sat, bright, alpha)
       p.ellipse(screenX, screenY, this.pointSize * depthFactor, this.pointSize * depthFactor)
     }
 
