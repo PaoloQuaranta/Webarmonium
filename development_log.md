@@ -5174,3 +5174,160 @@ The enhanced visual system follows the "Network Consciousness" philosophy:
 7. `FIX: Correct GenerativeVisualService.js path in rooms.html`
 8. `DOC: Add Entry #10 to development_log.md`
 
+
+---
+
+## Entry #15 - Visual System Redesign: Nebula Visibility & Precomputed Attractors
+
+**Date**: 2026-01-05
+**Time**: ~14:00-16:00 UTC
+**Author**: Claude Code (AI Assistant)
+**Status**: PARTIALLY COMPLETE - Implementation done, visual tuning needed
+
+### Problem Statement
+
+Chat recovery from corrupted session where visual system improvements were interrupted. The previous chat had attempted 3 approaches for nebulas:
+1. Strange Attractors (Lorenz/Rossler) - too heavy (72,000+ calc/frame)
+2. Gradient Mesh - returned to spheroids (unwanted)
+3. Noise Texture Field - partially implemented but INVISIBLE
+
+User reported: "ho testato e ora non vedo nessuna nebulosa o altro"
+
+### Root Cause Analysis
+
+**Nebulas Invisible:**
+The `NoiseTextureNebulaSystem.js` was fully implemented but palette values were too conservative:
+- Alpha: 25-42 (on 0-100 scale) - nearly transparent
+- Lightness: 18-32 - too dark on background RGB(26,26,46)
+- Saturation: 25-70 - desaturated colors
+
+The nebulas WERE rendering (confirmed by logs) but visually invisible.
+
+### Solution: Dual-Layer Visual Redesign
+
+**User Decision:** Redesign with algorithmic-art skill + replace Sparks with precomputed attractors
+
+#### Layer 1: Atmospheric Nebula (NoiseTextureNebulaSystem)
+- Fixed palette visibility: Alpha 45-60, Lightness 35-55, Saturation 30-60
+- 5 color palettes calibrated for dark background:
+  - ambient: oceanic blues (hue 195-230)
+  - riff: warm amber/orange (hue 10-35)
+  - phrase: royal purple/violet (hue 270-300)
+  - arpeggio: bright cyan/teal (hue 165-190)
+  - drone: deep indigo (hue 235-255)
+
+#### Layer 2: Precomputed Strange Attractors (NEW - replaces SparkSystem)
+- Lorenz + Rossler attractors alternating on musical events
+- ~500 points per attractor
+- 90 keyframes precomputed at initialization
+- Frame interpolation at runtime
+- Performance: ~72,000 calc/frame → ~500 lookups + interpolations
+
+**Musical Reactivity:**
+- `phrase:change` → switch Lorenz ↔ Rossler
+- `beat:strong` → pulse loop speed (1.5x for 200ms)
+- Color synced with current nebula palette
+
+---
+
+### Files Created
+
+1. `frontend/src/services/visual/PrecomputedAttractorSystem.js` (NEW, ~380 lines)
+   - Precomputes Lorenz and Rossler attractor frames at init
+   - Stores 90 keyframes × 500 points per attractor
+   - Runtime interpolation between keyframes
+   - Attractor morphing (smooth transition between Lorenz/Rossler)
+   - Musical event handlers
+
+2. `.claude/skills/algorithmic-art/outputs/webarmonium-visual-philosophy.md`
+   - "Ethereal Resonance" philosophy document
+   - Technical specifications for HSB color values
+   - Attractor keyframe structure design
+   - Layer interaction guidelines
+
+---
+
+### Files Modified
+
+1. `frontend/src/services/visual/NoiseTextureNebulaSystem.js` (v1 → v2)
+   - Recalibrated all 5 palettes with visible HSB values
+   - Added 4th color to each palette for richer gradients
+   - Comments documenting calibration rationale
+
+2. `frontend/src/services/GenerativeVisualService.js` (v9 → v10)
+   - Replaced SparkSystem with PrecomputedAttractorSystem
+   - Updated documentation comments
+   - Attractor color synced with nebula palette
+   - Updated render pipeline order
+
+3. `frontend/src/landing/main.js`
+   - Updated comment: "nebulas and attractors" (was "nebulas and sparks")
+
+4. `frontend/index.html`
+   - Replaced SparkSystem.js → PrecomputedAttractorSystem.js
+   - Updated script versions for cache busting
+
+5. `frontend/rooms.html`
+   - Replaced SparkSystem.js → PrecomputedAttractorSystem.js
+   - Updated script versions for cache busting
+
+---
+
+### Files Removed
+
+1. `frontend/src/services/visual/SparkSystem.js` - replaced by attractors
+2. `frontend/src/services/visual/GradientMeshNebulaSystem.js` - orphan file
+3. `frontend/src/services/visual/StrangeAttractorNebulaSystem.js` - real-time version (too heavy)
+4. `CHAT_RECOVERY.md` - no longer needed
+
+---
+
+### Architecture Change
+
+**Before:**
+```
+Render Pipeline:
+0. Nebulas (invisible)
+1. Spring mesh network
+2. Wave pulses
+3. Particles
+4. Sparks (path-following, similar to particles)
+```
+
+**After:**
+```
+Render Pipeline:
+0. Nebulas (visible atmospheric texture)
+1. Spring mesh network
+2. Wave pulses
+3. Particles
+4. Attractors (precomputed strange attractors)
+```
+
+---
+
+### Known Issues (To Fix in Next Session)
+
+1. **Attractors not visible** - User reported "non vedo gli attractors"
+2. **Noise resolution too low** - User reported "noise ha una risoluzione bassissima"
+
+These issues will be addressed in a subsequent chat session.
+
+---
+
+### Performance Comparison
+
+| System | Before | After |
+|--------|--------|-------|
+| Nebula palette alpha | 25-42 | 45-60 |
+| Nebula palette lightness | 18-32 | 35-55 |
+| Attractor calc/frame | 72,000+ (if real-time) | ~500 lookups |
+| Attractor memory | Minimal | ~135KB (90 frames × 500 points × 3 coords) |
+| SparkSystem | Active | Removed |
+
+---
+
+### Commits
+
+Will be committed with this entry.
+

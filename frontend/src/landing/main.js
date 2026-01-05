@@ -278,7 +278,7 @@ class LandingApp {
 
         this._handleVirtualTapNote(data)
 
-        // Forward musical events to visual service for nebulas and sparks
+        // Forward musical events to visual service for nebulas and attractors
         if (this.visualService && this.visualService.onMusicalEvent) {
           this.visualService.onMusicalEvent({
             type: data.type || 'tap',

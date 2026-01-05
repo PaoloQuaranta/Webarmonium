@@ -6,8 +6,8 @@
  * - SpringMeshNetwork: Physics simulation and curved edges
  * - WavePacketSystem: Pulse propagation along edges
  * - ParticleFlowManager: Particle flow effects
- * - NebulaSystem: Atmospheric nebula effects
- * - SparkSystem: Path-following sparks
+ * - NoiseTextureNebulaSystem: Atmospheric noise texture background
+ * - PrecomputedAttractorSystem: Strange attractors (Lorenz/Rossler) with precomputed keyframes
  *
  * Responsibilities:
  * - p5.js instance lifecycle (setup, draw, dispose)
@@ -26,7 +26,7 @@ class GenerativeVisualService {
     this.wavePackets = null
     this.particles = null
     this.nebulas = null
-    this.sparks = null
+    this.attractors = null
 
     // Performance monitoring
     this.lastFrameTime = 0
@@ -76,11 +76,11 @@ class GenerativeVisualService {
       console.log('🎨 Creating ParticleFlowManager...')
       this.particles = new ParticleFlowManager(this.springMesh)
 
-      console.log('🎨 Creating NebulaSystem...')
-      this.nebulas = new NebulaSystem()
+      console.log('🎨 Creating NoiseTextureNebulaSystem...')
+      this.nebulas = new NoiseTextureNebulaSystem()
 
-      console.log('🎨 Creating SparkSystem...')
-      this.sparks = new SparkSystem(this.springMesh)
+      console.log('🎨 Creating PrecomputedAttractorSystem...')
+      this.attractors = new PrecomputedAttractorSystem()
 
       console.log('🎨 Creating p5 instance...')
       // Create p5.js instance in instance mode
@@ -157,11 +157,12 @@ class GenerativeVisualService {
       this.wavePackets.update(dt)
       this.particles.update(dt)
       if (this.nebulas) this.nebulas.update(dt)
-      if (this.sparks) this.sparks.update(dt)
+      if (this.attractors) this.attractors.update(dt)
 
       // Render layers (back to front)
-      // 0. Nebulas (background layer)
-      if (this.performanceMode === 'normal' && this.nebulas) {
+      // 0. Nebulas (background layer) - render in both normal and degraded modes
+      if (this.nebulas) {
+        this.nebulas.setPerformanceMode(this.performanceMode)
         this.nebulas.render(p)
       }
 
@@ -176,9 +177,15 @@ class GenerativeVisualService {
         this.particles.render(p)
       }
 
-      // 4. Sparks (top layer, skip in degraded mode)
-      if (this.performanceMode === 'normal' && this.sparks) {
-        this.sparks.render(p)
+      // 4. Attractors (top layer)
+      if (this.attractors) {
+        this.attractors.setPerformanceMode(this.performanceMode)
+        // Sync color with current nebula palette
+        if (this.nebulas && this.nebulas.currentPalette) {
+          const nebulaColor = this.nebulas.currentPalette.colors[0]
+          this.attractors.setBaseColor(nebulaColor)
+        }
+        this.attractors.render(p)
       }
     }
   }
@@ -387,20 +394,30 @@ class GenerativeVisualService {
       wavePackets: this.wavePackets,
       particles: this.particles,
       nebulas: this.nebulas,
-      sparks: this.sparks
+      attractors: this.attractors
     }
   }
 
   /**
-   * Handle musical events - forward to nebulas and sparks
+   * Handle musical events - forward to nebulas and attractors
    * @param {Object} event - Musical event {type, velocity, pitch}
    */
   onMusicalEvent(event) {
-    if (this.nebulas) {
+    if (this.nebulas && this.nebulas.onMusicalEvent) {
       this.nebulas.onMusicalEvent(event)
     }
-    if (this.sparks) {
-      this.sparks.onMusicalEvent(event)
+    if (this.attractors) {
+      this.attractors.onMusicalEvent(event)
+    }
+  }
+
+  /**
+   * Handle background composition events - forward to nebulas
+   * @param {Object} composition - Background composition from backend
+   */
+  onBackgroundComposition(composition) {
+    if (this.nebulas && this.nebulas.onBackgroundComposition) {
+      this.nebulas.onBackgroundComposition(composition)
     }
   }
 
@@ -409,9 +426,9 @@ class GenerativeVisualService {
    */
   dispose() {
     // Dispose subsystems
-    if (this.sparks) {
-      this.sparks.dispose()
-      this.sparks = null
+    if (this.attractors) {
+      this.attractors.dispose()
+      this.attractors = null
     }
 
     if (this.nebulas) {
