@@ -161,6 +161,24 @@
             color: #ccc;
         }
 
+        .back-link {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ccc;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .back-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
         .instructions {
             position: fixed;
             bottom: 20px;
@@ -249,6 +267,7 @@
                         <div class="room-id" id="roomId">Room: connecting...</div>
                     </div>
                     <div class="audio-controls">
+                        <a href="index.html" class="back-link">← Back to main page</a>
                         <button class="audio-toggle" id="audioToggle">🔊 Start Audio</button>
                         <div id="audio-controls"></div>
                     </div>
@@ -269,13 +288,9 @@
 
             <!-- Instructions -->
             <div class="instructions">
-                <div>Move your mouse or touch to create music</div>
-                <div style="margin-top: 5px; font-size: 12px;">
-                    X-axis controls frequency • Y-axis controls amplitude • Intensity affects dynamics
-                </div>
-                <div style="margin-top: 5px; font-size: 10px;">
-                    Ver.0.0.8-alpha: cursors positions graph
-                </div>
+                <div><strong>Tap</strong> for notes (hold longer for sustained tones)</div>
+                <div style="margin-top: 4px;"><strong>Drag</strong> to create melodic phrases</div>
+                <div style="margin-top: 4px;"><strong>Hover</strong> to modulate filters and effects</div>
             </div>
         </div>
 

@@ -5662,3 +5662,180 @@ CreateEvent and DeleteEvent provide meaningful activity visualization while bein
 ### Commits
 
 Will be committed with this entry.
+
+---
+
+## Entry #18 - Landing Page Audio Fixes & UI Updates
+
+**Date**: 2026-01-05
+**Time**: ~21:00 UTC
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed multiple audio issues on the landing page (invalid frequency warnings, max polyphony exceeded) and updated UI content for both landing page and normal rooms.
+
+---
+
+### Issues Fixed
+
+#### Issue 1: Invalid Frequency Warnings
+
+**Symptoms:**
+```
+⚠️ Invalid frequency in musical:event: Object
+```
+
+**Root Cause:**
+The `musical:event` handler in `main.js` was calling `_handleVirtualTapNote()` for ALL event types, but only `tap` events have a `frequency` field. `phrase` events don't have frequency - they're just visual triggers for nebulas and attractors.
+
+**Fix Applied** (`frontend/src/landing/main.js:276-294`):
+```javascript
+// CRITICAL: Only handle 'tap' events in _handleVirtualTapNote
+// 'phrase' events don't have frequency - they're just visual triggers
+if (data.type === 'tap') {
+  this._handleVirtualTapNote(data)
+}
+
+// Forward ALL musical events to visual service for nebulas and attractors
+if (this.visualService && this.visualService.onMusicalEvent) {
+  this.visualService.onMusicalEvent({...})
+}
+```
+
+---
+
+#### Issue 2: Max Polyphony Exceeded (Audio Stuttering)
+
+**Symptoms:**
+```
+Debug.ts:62 Max polyphony exceeded. Note dropped.
+```
+Audio was choppy/stuttering due to dropped notes.
+
+**Root Cause:**
+The `releaseAll()` calls in `playLayer()` were starting the envelope release phase, but with the pad's 4-second release time, voices remained "in use" and couldn't be reused for new notes. Tone.js PolySynth counts voices as "in use" during the entire release envelope.
+
+**Fix Applied** (`frontend/src/services/AudioService.js:1021-1065`):
+```javascript
+// BEFORE: synth.releaseAll()  // Starts 4-second release, voice still "in use"
+
+// AFTER: Explicit short release times to immediately free voices
+// Bass:
+synth.releaseAll(0.05)  // 50ms release
+
+// Pad:
+synth.releaseAll(0.1)   // 100ms release (slightly longer for smooth transition)
+
+// Chords:
+synth.releaseAll(0.05)  // 50ms release
+```
+
+---
+
+#### Issue 3: Background Music Volume Too Low
+
+**Symptoms:**
+User reported background music was too quiet compared to gesture sounds.
+
+**Fix Applied** (`frontend/src/services/AudioService.js:707-715`):
+
+| Layer | Before | After | Change |
+|-------|--------|-------|--------|
+| bass | -5dB | 0dB | +5dB |
+| pad | -8dB | -3dB | +5dB |
+| chords | -20dB | -12dB | +8dB |
+| backgroundHigh | -3dB | +3dB | +6dB |
+| backgroundMid | -3dB | +3dB | +6dB |
+| backgroundLow | -3dB | +3dB | +6dB |
+
+---
+
+### UI Updates
+
+#### Landing Page: "How It Works" Section Rewritten
+
+**Problem:** Previous content was inaccurate and didn't explain the actual system architecture.
+
+**Solution:** Replaced with technical but accessible content explaining:
+1. Data sources and polling intervals (Wikipedia 5s, HackerNews 10s, GitHub 60s)
+2. Dynamic normalization using historical min/max (no fixed thresholds)
+3. Monitored parameters (edit rate, velocity, edit size, etc.)
+4. Virtual gestures feeding into CompositionEngine with 6 algorithms
+5. Velocity-based triggering (only significant changes trigger events)
+6. Spatial and timbral mapping:
+   - Wikipedia → left region, bass (65-130Hz)
+   - HackerNews → center, tenor (196-392Hz)
+   - GitHub → right region, soprano (523-1047Hz)
+
+**Files Modified:**
+- `frontend/index.html` - New "How It Works" content
+- `frontend/styles.css` - New `.explainer-intro` and `.explainer-detail` classes
+
+---
+
+#### Normal Rooms: Instructions Updated
+
+**Problem:** Old instructions were incorrect and included obsolete version number.
+
+**Before:**
+```
+Move your mouse or touch to create music
+X-axis controls frequency • Y-axis controls amplitude • Intensity affects dynamics
+Ver.0.0.8-alpha: cursors positions graph
+```
+
+**After:**
+```
+Tap for notes (hold longer for sustained tones)
+Drag to create melodic phrases
+Hover to modulate filters and effects
+```
+
+**File Modified:** `frontend/rooms.html:270-275`
+
+---
+
+#### Normal Rooms: Back Button Added
+
+Added "← Back to main page" button to return to landing page from rooms.
+
+**Files Modified:**
+- `frontend/rooms.html` - Added `.back-link` CSS and `<a>` element
+
+---
+
+### Files Modified
+
+**Frontend (4 files):**
+1. `frontend/src/landing/main.js`
+   - Added type check for `tap` events before processing frequency
+
+2. `frontend/src/services/AudioService.js`
+   - Changed `releaseAll()` to `releaseAll(0.05)` or `releaseAll(0.1)`
+   - Increased ambient volumes (+5dB to +8dB per layer)
+
+3. `frontend/index.html`
+   - Replaced "How It Works" section with accurate technical content
+
+4. `frontend/styles.css`
+   - Added `.explainer-intro` and `.explainer-detail` classes
+
+5. `frontend/rooms.html`
+   - Updated instructions (tap/drag/hover)
+   - Added back button to landing page
+
+---
+
+### Testing Results
+
+- ✅ No more "Invalid frequency" warnings
+- ✅ No more "Max polyphony exceeded" warnings
+- ✅ Audio no longer stuttering
+- ✅ Background music more audible
+- ✅ "How It Works" content accurate
+- ✅ Room instructions correct
+- ✅ Back button functional
+
+---

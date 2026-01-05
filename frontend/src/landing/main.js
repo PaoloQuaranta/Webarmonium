@@ -277,9 +277,13 @@ class LandingApp {
         if (!this.isRunning) return
         if (!data.isRemote) return // Only handle virtual user events
 
-        this._handleVirtualTapNote(data)
+        // CRITICAL: Only handle 'tap' events in _handleVirtualTapNote
+        // 'phrase' events don't have frequency - they're just visual triggers
+        if (data.type === 'tap') {
+          this._handleVirtualTapNote(data)
+        }
 
-        // Forward musical events to visual service for nebulas and attractors
+        // Forward ALL musical events to visual service for nebulas and attractors
         if (this.visualService && this.visualService.onMusicalEvent) {
           this.visualService.onMusicalEvent({
             type: data.type || 'tap',

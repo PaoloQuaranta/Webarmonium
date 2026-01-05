@@ -704,14 +704,14 @@ class AudioService {
       backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 2 })  // INCREASED from 300Hz for audibility
     }
 
-    // Reduced volumes to make space for virtual taps
+    // Background volumes - balanced with gestures
     this.ambientVolumes = {
-      bass: new Tone.Volume(-5),     // REDUCED from +2dB
-      pad: new Tone.Volume(-8),      // REDUCED from +5dB
-      chords: new Tone.Volume(-20),  // Keep chords very quiet
-      backgroundHigh: new Tone.Volume(-3),  // REDUCED from +10dB - make space for taps
-      backgroundMid: new Tone.Volume(-3),   // REDUCED from +10dB
-      backgroundLow: new Tone.Volume(-3)    // REDUCED from +10dB
+      bass: new Tone.Volume(0),       // INCREASED for fuller low-end
+      pad: new Tone.Volume(-3),       // INCREASED for more presence
+      chords: new Tone.Volume(-12),   // INCREASED but still subtle
+      backgroundHigh: new Tone.Volume(+3),  // INCREASED for audible composition
+      backgroundMid: new Tone.Volume(+3),   // INCREASED for audible composition
+      backgroundLow: new Tone.Volume(+3)    // INCREASED for audible composition
     }
 
     // Connect each layer with SEND/RETURN architecture
@@ -1018,9 +1018,9 @@ class AudioService {
       const frequency = state.currentTonic * Math.pow(2, (scaleNote / 12) + layer.octave)
       frequencies = [frequency]
 
-      // CRITICAL: Always release all previous notes to prevent polyphony overflow
+      // CRITICAL: Release with short time to immediately free voices
       try {
-        synth.releaseAll()
+        synth.releaseAll(0.05)  // 50ms release to prevent polyphony overflow
       } catch (e) {
         // Ignore release errors
       }
@@ -1036,9 +1036,9 @@ class AudioService {
       const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
       frequencies = [freq3, freq5]
 
-      // CRITICAL: Always release all previous notes to prevent polyphony overflow
+      // CRITICAL: Release with short time to immediately free voices
       try {
-        synth.releaseAll()
+        synth.releaseAll(0.1)  // 100ms release for pad (slightly longer for smooth transition)
       } catch (e) {
         // Ignore release errors
       }
@@ -1056,9 +1056,9 @@ class AudioService {
       const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
       frequencies = [freqR, freq3, freq5]
 
-      // CRITICAL: Always release all previous notes to prevent polyphony overflow
+      // CRITICAL: Release with short time to immediately free voices
       try {
-        synth.releaseAll()
+        synth.releaseAll(0.05)  // 50ms release for chords
       } catch (e) {
         // Ignore release errors
       }
