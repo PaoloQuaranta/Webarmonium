@@ -710,7 +710,7 @@ class LandingCompositionService {
   /**
    * Schedule next composition
    * Uses SAME tempo-based interval as normal rooms (BackgroundCompositionService)
-   * Generates compositions every 8-16 beats for musical naturalness
+   * Composition frequency emerges from metric activity (not random)
    * @private
    */
   scheduleNextComposition() {
@@ -721,9 +721,18 @@ class LandingCompositionService {
     const currentStyle = this.styleAnalyzer.getCurrentStyle()
     const tempo = currentStyle?.tempo || 120
 
-    // Generate new composition every 6-12 beats (musically natural phrase length)
-    // Slightly more frequent than normal rooms for landing page engagement
-    const beatsPerComposition = 6 + Math.random() * 6  // 6-12 beats
+    // UNIFIED: Composition frequency emerges from TOTAL metric activity (no random)
+    // High activity = more frequent compositions (fewer beats between)
+    // Low activity = less frequent compositions (more beats between)
+    const wikipediaActivity = this.calculateActivityLevel('wikipedia')
+    const hackernewsActivity = this.calculateActivityLevel('hackernews')
+    const githubActivity = this.calculateActivityLevel('github')
+    const totalActivity = (wikipediaActivity + hackernewsActivity + githubActivity) / 3  // Average 0-1
+
+    // Map activity to beats: activity 0 → 12 beats, activity 1 → 6 beats
+    // High activity = frequent compositions (6 beats), Low activity = sparse (12 beats)
+    const beatsPerComposition = 12 - (totalActivity * 6)  // 6-12 beats, emerges from activity
+
     const beatDuration = 60000 / tempo  // milliseconds per beat
     const interval = beatsPerComposition * beatDuration
 
@@ -735,7 +744,7 @@ class LandingCompositionService {
       this.scheduleNextComposition()
     }, clampedInterval)
 
-    // console.log(`🎵 Next composition in ${(clampedInterval/1000).toFixed(1)}s (${beatsPerComposition.toFixed(0)} beats @ ${tempo} BPM)`)
+    // console.log(`🎵 Next composition in ${(clampedInterval/1000).toFixed(1)}s (${beatsPerComposition.toFixed(0)} beats @ ${tempo} BPM, activity=${totalActivity.toFixed(2)})`)
   }
 
   /**
@@ -900,66 +909,48 @@ class LandingCompositionService {
    * @private
    */
   async emitTapNote(gesture, user, musicalContext) {
-    // CRITICAL: Generate frequency BASED ON METRIC VARIANCE (not position)
-    // This ensures different metrics = different frequencies = different positions
-    const velocity = gesture.velocity || 0
-    const normalizedVelocity = this.normalizeMetricDynamic(gesture.source, 'velocity', Math.abs(velocity))
+    // UNIFIED: Use SAME position-to-frequency formula as normal rooms (GestureToMusicService.js:179-193)
+    // Position emerges from metrics → frequency calculated from position (same as normal rooms)
+    const position = gesture.position || { x: 0.5, y: 0.5 }
+    const x = position.x
+    const y = position.y
 
-    // Calculate variance within tessitura based on velocity
-    // Higher velocity = higher pitch within tessitura
-    const tessitura = user.frequencyRange // { min, max }
-    const tessituraRange = tessitura.max - tessitura.min
+    // SAME FORMULA as normal rooms:
+    // Y controls octave range (110-550Hz), X controls frequency within octave (0-660Hz)
+    const octaveBase = 110 + (1 - y) * 440  // 110-550Hz
+    const withinOctave = x * 660             // 0-660Hz variation
+    const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
 
-    // CRITICAL: Use velocity to determine frequency within tessitura (NO randomness)
-    // Low velocity → lower end of tessitura
-    // High velocity → higher end of tessitura
-    // This preserves METRIC-TO-MUSIC correspondence
-    const baseFreq = user.baseFrequency
-    const freqOffset = normalizedVelocity * tessituraRange * 0.4  // Up to 40% of range (stays within tessitura)
-    let targetFreq = baseFreq + freqOffset  // Higher velocity = higher pitch (use let for reassignment)
+    // Convert frequency to MIDI pitch for scale constraint
+    const rawPitch = Math.round(12 * Math.log2(frequency / 440) + 69)
 
-    // Clamp to tessitura
-    targetFreq = Math.max(tessitura.min, Math.min(tessitura.max, targetFreq))
+    // HARMONIC COHERENCE: Constrain pitch to current scale (same as normal rooms)
+    const pitch = this.harmonicEngine.constrainToScale(rawPitch, musicalContext.key, musicalContext.mode)
 
-    // Constrain to scale
-    const constrainedFreq = this.harmonicEngine.constrainToScale(
-      targetFreq,
-      musicalContext.key,
-      musicalContext.mode
-    )
+    // Convert constrained pitch back to frequency
+    const constrainedFreq = 440 * Math.pow(2, (pitch - 69) / 12)
 
-    // CRITICAL: Derive position FROM frequency (inverse of normal room formula)
-    // Formula: frequency = 550 - 440*y + 660*x
-    // We need to distribute this across x and y within the source's region
-
-    // Calculate normalized position within tessitura (0-1)
-    // CRITICAL: Clamp to 0-1 BEFORE calculating position to prevent out-of-bounds
-    const normalizedFreq = Math.max(0, Math.min(1, (constrainedFreq - tessitura.min) / tessituraRange))
-
-    // Map to position within source's region
-    // X varies across full region width, Y varies based on frequency
-    const regionWidth = user.region.xMax - user.region.xMin
-    const targetX = user.region.xMin + (normalizedFreq * regionWidth)
-
-    // Y based on frequency (higher freq = higher position)
-    const targetY = 0.1 + (normalizedFreq * 0.8) // 0.1-0.9 range
-
+    // Clamp position to user's region bounds
+    const targetX = Math.max(user.region.xMin, Math.min(user.region.xMax, x))
+    const targetY = Math.max(0.05, Math.min(0.95, y))
     const notePosition = { x: targetX, y: targetY }
 
-    // CRITICAL: Update target position so cursor moves to note position
+    // Update target position so cursor moves to note position
     this.targetPositions[gesture.source] = {
-      x: targetX,  // Already clamped by normalizedFreq
-      y: targetY   // Already clamped by normalizedFreq
+      x: targetX,
+      y: targetY
     }
 
-    // ORGANIC DURATION: Correlate tap duration to stability metric
-    // Stability already derives from velocity (1 - velocity/10)
-    // Higher stability (slower) = longer note with perceptible delay echo
-    // Lower stability (faster) = shorter percussive note
+    // UNIFIED: Use beat-quantized duration (same as normal rooms)
+    // Gesture duration emerges from stability metric, then quantized to beat grid
     const stability = this.calculateStabilityMetric(gesture.source)
-    const tapDuration = 0.05 + (stability * 0.25)  // 50-300ms in seconds (organic)
+    const tapDurationMs = 50 + (stability * 250)  // 50-300ms emerges from stability
+    const tempo = musicalContext.tempo || 120
+    const quantizedBeats = this.phraseMorphology.quantizeGestureDuration(tapDurationMs, tempo)
+    const beatDuration = 60 / tempo  // seconds per beat
+    const tapDuration = quantizedBeats * beatDuration  // Convert beats to seconds
 
-    // Emit single short percussive note with organic duration
+    // Emit single short percussive note with quantized duration
     this.io.to(this.landingRoomId).emit('musical:event', {
       type: 'tap',
       userId: user.userId,
@@ -994,11 +985,11 @@ class LandingCompositionService {
     // DYNAMIC NORMALIZATION: Normalize velocity based on HISTORICAL range
     const normalizedVelocity = this.normalizeMetricDynamic(gesture.source, 'velocity', absVelocity)
 
-    // ORGANIC DURATION: Correlate phrase duration to density metric
-    // Density represents magnitude of real metrics (avgEditSize, avgUpvotes, newStars)
-    // Higher density = more content magnitude = longer phrase
+    // UNIFIED: Use beat-quantized duration (same as normal rooms)
+    // Gesture duration emerges from density metric, then quantized to beat grid
     const density = this.calculateDensityMetric(gesture.source)
-    const phraseDurationMs = 300 + (density * 2700)  // 300-3000ms organic range
+    const phraseDurationMs = 300 + (density * 2700)  // 300-3000ms emerges from density
+    // Note: PhraseMorphology.generatePhrase() will internally call quantizeGestureDuration() using musicalContext.tempo
 
     // SCALE velocity to gesture velocity (0-100) for PhraseMorphology
     const gestureVelocity = normalizedVelocity * 100  // 0-100 range
@@ -1007,6 +998,19 @@ class LandingCompositionService {
     // Acceleration determines direction and distance of trajectory
     const absAccel = Math.abs(gesture.acceleration || 0)
     const normalizedAccel = this.normalizeMetricDynamic(gesture.source, 'acceleration', absAccel)
+
+    // UNIFIED: Calculate curvature from metric variance (not hardcoded)
+    // Curvature emerges from relationship between velocity and acceleration
+    // High acceleration with low velocity = high curvature (sharp changes)
+    // Low acceleration with high velocity = low curvature (smooth motion)
+    const velocityVariance = normalizedVelocity  // 0-1
+    const accelerationVariance = normalizedAccel  // 0-1
+
+    // Calculate curvature: 0.0 (linear) to 1.0 (highly curved)
+    // Formula: curvature = |acceleration| / (|velocity| + |acceleration| + small_constant)
+    // This preserves metric-to-music correspondence
+    const curvature = accelerationVariance / (velocityVariance + accelerationVariance + 0.1)
+    const clampedCurvature = Math.max(0, Math.min(1, curvature))
 
     // Trajectory based on acceleration (higher acceleration = longer trajectory)
     const regionWidth = user.region.xMax - user.region.xMin
@@ -1026,7 +1030,7 @@ class LandingCompositionService {
     const endX = Math.max(user.region.xMin, Math.min(user.region.xMax, startX + (accelDirection * trajectoryLength * regionWidth)))
     const endY = Math.max(0.05, Math.min(0.95, startY + (accelDirection * trajectoryLength * regionHeight * 0.5)))
 
-    // Create gestureData for PhraseMorphology with trajectory
+    // Create gestureData for PhraseMorphology with trajectory and DYNAMIC curvature
     const gestureData = {
       velocity: gestureVelocity,
       trajectory: {
@@ -1035,7 +1039,7 @@ class LandingCompositionService {
         endX: endX,
         endY: endY
       },
-      curvature: 0.5,  // Moderate curvature
+      curvature: clampedCurvature,  // EMERGES from velocity/acceleration relationship
       acceleration: gesture.acceleration || 0,
       intensity: activity,
       duration: phraseDurationMs
