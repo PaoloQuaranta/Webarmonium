@@ -1197,7 +1197,7 @@ class WebarmoniumApp {
   async connectToServer() {
     try {
       // Determine backend URL based on environment
-      // In production (tripitak.it), use the same origin (nginx proxy)
+      // In production (webarmonium.net), use the same origin (nginx proxy)
       // In development (localhost/127.0.0.1), use port 3001 directly
       const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
       const backendUrl = isDevelopment

@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # Production deployment script for Webarmonium Backend
-# Server: tripitak.it (IP: 164.92.147.74)
+# Server: webarmonium.net (IP: 68.183.6.245)
 
 set -e
 
 echo "🚀 Starting Webarmonium Backend Production Deployment"
 
 # Configuration
-SERVER_IP="164.92.147.74"
+SERVER_IP="68.183.6.245"
 SERVER_USER="root"  # Change if needed
 REMOTE_DIR="/var/www/webarmonium/backend"
 PORT="3001"
