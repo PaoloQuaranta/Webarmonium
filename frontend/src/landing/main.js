@@ -81,7 +81,8 @@ class LandingApp {
       // Initialize dashboard UI
       this.dashboardUI.initialize({
         onStart: () => this.start(),
-        onStop: () => this.stop()
+        onStop: () => this.stop(),
+        onVolumeChange: (volume) => this.handleVolumeChange(volume)
       })
 
       // Remove mock mode toggle (no longer needed - backend handles metrics)
@@ -494,6 +495,12 @@ class LandingApp {
     if (this.visualService.wavePackets) {
       this.visualService.wavePackets.emitPulse(userId, userColor)
     }
+
+    // Flash the corresponding meter
+    const source = this._extractSourceFromUserId(userId)
+    if (source) {
+      this.dashboardUI.flashSource(source, 'velocity')
+    }
   }
 
   /**
@@ -585,6 +592,26 @@ class LandingApp {
     if (this.visualService.wavePackets) {
       this.visualService.wavePackets.emitPulse(userId, userColor)
     }
+
+    // Flash the corresponding meter
+    const source = this._extractSourceFromUserId(userId)
+    if (source) {
+      this.dashboardUI.flashSource(source, 'velocity')
+    }
+  }
+
+  /**
+   * Extract source name from userId
+   * @param {string} userId - e.g., 'wikipedia-metrics'
+   * @returns {string|null} Source name (wikipedia, hackernews, github) or null
+   * @private
+   */
+  _extractSourceFromUserId(userId) {
+    if (!userId) return null
+    if (userId.includes('wikipedia')) return 'wikipedia'
+    if (userId.includes('hackernews')) return 'hackernews'
+    if (userId.includes('github')) return 'github'
+    return null
   }
 
   /**
@@ -656,6 +683,17 @@ class LandingApp {
     } catch (error) {
       console.error('❌ Error stopping experience:', error)
       this.dashboardUI.showError(`Stop error: ${error.message}`)
+    }
+  }
+
+  /**
+   * Handle volume change from UI slider
+   * Controls master volume via AudioService
+   * @param {number} volume - Volume level (0-1)
+   */
+  handleVolumeChange(volume) {
+    if (this.audioService && typeof this.audioService.setVolume === 'function') {
+      this.audioService.setVolume(volume)
     }
   }
 

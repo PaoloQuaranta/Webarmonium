@@ -35,7 +35,7 @@ class WebMetricsPoller {
         history: []
       },
       github: {
-        url: 'https://api.github.com/events?per_page=30',
+        url: 'https://api.github.com/events?per_page=100',
         interval: 60000, // 60 seconds (respects rate limit)
         lastFetch: 0,
         history: []
@@ -50,7 +50,7 @@ class WebMetricsPoller {
     this.metrics = {
       wikipedia: { editsPerMinute: 0, newArticles: 0, avgEditSize: 0 },
       hackernews: { postsPerMinute: 0, avgUpvotes: 0, commentCount: 0 },
-      github: { commitsPerMinute: 0, openPRs: 0, newStars: 0 }
+      github: { commitsPerMinute: 0, createsPerMinute: 0, deletesPerMinute: 0 }
     }
 
     // Metrics history for velocity/acceleration calculation (last 20 snapshots)
@@ -279,13 +279,13 @@ class WebMetricsPoller {
       )
 
       const commits = recentEvents.filter(e => e.type === 'PushEvent').length
-      const prs = recentEvents.filter(e => e.type === 'PullRequestEvent').length
-      const stars = recentEvents.filter(e => e.type === 'WatchEvent').length
+      const creates = recentEvents.filter(e => e.type === 'CreateEvent').length
+      const deletes = recentEvents.filter(e => e.type === 'DeleteEvent').length
 
       this.metrics.github = {
         commitsPerMinute: commits,
-        openPRs: prs,
-        newStars: stars
+        createsPerMinute: creates,
+        deletesPerMinute: deletes
       }
     } catch (error) {
       console.warn('GitHub fetch error:', error.message)

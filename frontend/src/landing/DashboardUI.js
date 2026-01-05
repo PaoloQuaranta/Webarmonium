@@ -1,88 +1,134 @@
 /**
  * DashboardUI
- * Educational dashboard showing real-time metrics and their mapping to generative art
+ * Educational dashboard showing real-time metrics with vertical meter visualizations
  *
  * Responsibilities:
- * - Update metric cards with live data from backend
- * - Display calculated generative parameters
- * - Show virtual user cursor states
- * - Bind control buttons (Start/Stop, Volume, Intensity)
+ * - Update vertical meters with live data from backend
+ * - Flash meters when gestures are triggered
+ * - Bind control button (toggle Start/Stop) and Volume slider
  *
  * Architecture (Backend-Driven):
  * - Receives metrics via socket.io from backend
  * - updateMetrics() method called from main.js on metrics-update event
- * - Provides clear visual feedback for metric-to-art relationships
+ * - flashSource() method called when a gesture is triggered
  */
-
-// StateManager is no longer used - backend drives metrics via socket
-// import { stateManager } from './StateManager.js'
 
 export class DashboardUI {
   constructor() {
     // DOM element references (cached on initialize)
     this.elements = {}
 
-    // Previous values for change detection
-    this.previousValues = {}
+    // Playback state
+    this.isPlaying = false
 
     // Callback references for control handlers
     this.onStart = null
     this.onStop = null
 
-    // Local state (replaces StateManager)
+    // Normalization ranges for dynamic meter scaling
+    // These adapt over time based on observed values
+    this.normRanges = {
+      wikipedia: {
+        editsPerMinute: { min: 0, max: 100 },
+        velocity: { min: -10, max: 10 },
+        avgEditSize: { min: 0, max: 5000 },
+        newArticles: { min: 0, max: 10 }
+      },
+      hackernews: {
+        postsPerMinute: { min: 0, max: 20 },
+        velocity: { min: -5, max: 5 },
+        avgUpvotes: { min: 0, max: 500 },
+        commentCount: { min: 0, max: 100 }
+      },
+      github: {
+        commitsPerMinute: { min: 0, max: 50 },
+        velocity: { min: -10, max: 10 },
+        createsPerMinute: { min: 0, max: 30 },
+        deletesPerMinute: { min: 0, max: 20 }
+      }
+    }
+
+    // Store current metrics for reference
     this.currentMetrics = {
-      wikipedia: { editsPerMinute: 0 },
-      hackernews: { postsPerMinute: 0 },
-      github: { commitsPerMinute: 0 }
+      wikipedia: {},
+      hackernews: {},
+      github: {}
     }
   }
 
   /**
    * Initialize dashboard UI
-   * @param {Object} callbacks - Optional callbacks for controls: { onStart, onStop }
+   * @param {Object} callbacks - Optional callbacks for controls: { onStart, onStop, onVolumeChange }
    */
   initialize(callbacks = {}) {
     this._cacheElements()
     this._bindControls(callbacks)
-    console.log('📊 DashboardUI initialized (backend-driven mode)')
+    console.log('📊 DashboardUI initialized (meter-based mode)')
   }
 
   /**
-   * Update metrics from backend (new architecture)
+   * Update metrics from backend
    * @param {Object} metrics - Metrics object from backend
-   * @param {Object} metrics.wikipedia - Wikipedia metrics
-   * @param {Object} metrics.hackernews - HackerNews metrics
-   * @param {Object} metrics.github - GitHub metrics
    */
   updateMetrics(metrics) {
     // Store current metrics
     this.currentMetrics = {
-      wikipedia: metrics.wikipedia || { editsPerMinute: 0 },
-      hackernews: metrics.hackernews || { postsPerMinute: 0 },
-      github: metrics.github || { commitsPerMinute: 0 }
+      wikipedia: metrics.wikipedia || {},
+      hackernews: metrics.hackernews || {},
+      github: metrics.github || {}
     }
 
-    // Update metric cards
-    this._updateMetricCard(
-      this.elements.wikipedia,
-      Math.round(this.currentMetrics.wikipedia.editsPerMinute),
-      'edits/min',
-      '#e41a1c'
-    )
+    // Update each source's meters
+    this._updateSourceMeters('wikipedia', {
+      editsPerMinute: metrics.wikipedia?.editsPerMinute || 0,
+      velocity: metrics.wikipedia?.velocity || 0,
+      avgEditSize: metrics.wikipedia?.avgEditSize || 0,
+      newArticles: metrics.wikipedia?.newArticles || 0
+    })
 
-    this._updateMetricCard(
-      this.elements.hackernews,
-      Math.round(this.currentMetrics.hackernews.postsPerMinute),
-      'posts/min',
-      '#ff7f00'
-    )
+    this._updateSourceMeters('hackernews', {
+      postsPerMinute: metrics.hackernews?.postsPerMinute || 0,
+      velocity: metrics.hackernews?.velocity || 0,
+      avgUpvotes: metrics.hackernews?.avgUpvotes || 0,
+      commentCount: metrics.hackernews?.commentCount || 0
+    })
 
-    this._updateMetricCard(
-      this.elements.github,
-      Math.round(this.currentMetrics.github.commitsPerMinute),
-      'commits/min',
-      '#377eb8'
-    )
+    this._updateSourceMeters('github', {
+      commitsPerMinute: metrics.github?.commitsPerMinute || 0,
+      velocity: metrics.github?.velocity || 0,
+      createsPerMinute: metrics.github?.createsPerMinute || 0,
+      deletesPerMinute: metrics.github?.deletesPerMinute || 0
+    })
+  }
+
+  /**
+   * Flash a source's meters when a gesture is triggered
+   * @param {string} source - Source name (wikipedia, hackernews, github)
+   * @param {string} triggerMetric - Which metric triggered the gesture (optional)
+   */
+  flashSource(source, triggerMetric = null) {
+    const card = this.elements.cards[source]
+    if (!card) return
+
+    // Flash the entire card
+    card.classList.add('flash')
+    setTimeout(() => card.classList.remove('flash'), 300)
+
+    // If a specific metric triggered, flash that meter
+    if (triggerMetric) {
+      const meter = card.querySelector(`[data-metric="${triggerMetric}"]`)
+      if (meter) {
+        meter.classList.add('flash')
+        setTimeout(() => meter.classList.remove('flash'), 300)
+      }
+    } else {
+      // Flash the velocity meter (usually the trigger)
+      const velocityMeter = card.querySelector('[data-metric="velocity"]')
+      if (velocityMeter) {
+        velocityMeter.classList.add('flash')
+        setTimeout(() => velocityMeter.classList.remove('flash'), 300)
+      }
+    }
   }
 
   /**
@@ -91,65 +137,127 @@ export class DashboardUI {
    */
   _cacheElements() {
     this.elements = {
-      wikipedia: {
-        value: document.querySelector('#wikipedia-metric .metric-value'),
-        label: document.querySelector('#wikipedia-metric .metric-label')
-      },
-      hackernews: {
-        value: document.querySelector('#hackernews-metric .metric-value'),
-        label: document.querySelector('#hackernews-metric .metric-label')
-      },
-      github: {
-        value: document.querySelector('#github-metric .metric-value'),
-        label: document.querySelector('#github-metric .metric-label')
-      },
-      complexity: {
-        value: document.querySelector('#complexity-metric .metric-value'),
-        label: document.querySelector('#complexity-metric .metric-label')
+      // Metric cards
+      cards: {
+        wikipedia: document.getElementById('wikipedia-metric'),
+        hackernews: document.getElementById('hackernews-metric'),
+        github: document.getElementById('github-metric')
       },
       // Control elements
-      startBtn: document.getElementById('btn-start'),
-      stopBtn: document.getElementById('btn-stop'),
-      intensitySlider: document.getElementById('intensity'),
-      volumeSlider: document.getElementById('volume'),
-      // Virtual user indicators
-      wikipediaCursor: document.getElementById('wikipedia-cursor-indicator'),
-      hackernewsCursor: document.getElementById('hackernews-cursor-indicator'),
-      githubCursor: document.getElementById('github-cursor-indicator')
+      toggleBtn: document.getElementById('btn-toggle'),
+      volumeSlider: document.getElementById('volume')
     }
   }
 
   /**
+   * Update meters for a single source
+   * @param {string} source - Source name
+   * @param {Object} values - Metric values
+   * @private
+   */
+  _updateSourceMeters(source, values) {
+    const card = this.elements.cards[source]
+    if (!card) return
+
+    const ranges = this.normRanges[source]
+
+    Object.entries(values).forEach(([metric, value]) => {
+      const meter = card.querySelector(`[data-metric="${metric}"]`)
+      if (!meter) return
+
+      // Update normalization range dynamically
+      const range = ranges[metric]
+      if (range) {
+        // Expand range if value exceeds current bounds
+        if (value > range.max) range.max = value * 1.2
+        if (value < range.min && metric !== 'velocity') range.min = Math.max(0, value * 0.8)
+      }
+
+      // Calculate normalized value (0-100%)
+      const normalized = this._normalizeValue(value, range)
+
+      // Update meter fill
+      const fill = meter.querySelector('.meter-fill')
+      if (fill) {
+        fill.style.height = `${normalized}%`
+      }
+
+      // Update meter value display
+      const valueEl = meter.querySelector('.meter-value')
+      if (valueEl) {
+        // Format based on metric type
+        if (metric === 'velocity') {
+          const sign = value > 0 ? '+' : ''
+          valueEl.textContent = `${sign}${value.toFixed(1)}`
+        } else if (metric === 'avgEditSize' || metric === 'avgUpvotes') {
+          valueEl.textContent = value >= 1000 ? `${(value / 1000).toFixed(1)}k` : Math.round(value)
+        } else {
+          valueEl.textContent = Math.round(value)
+        }
+      }
+    })
+  }
+
+  /**
+   * Normalize a value to 0-100 range
+   * @param {number} value - Raw value
+   * @param {Object} range - {min, max} range
+   * @returns {number} Normalized value (0-100)
+   * @private
+   */
+  _normalizeValue(value, range) {
+    if (!range) return 50
+
+    // Handle velocity specially (can be negative)
+    if (range.min < 0) {
+      // Map negative-to-positive range to 0-100
+      const absMax = Math.max(Math.abs(range.min), Math.abs(range.max))
+      const normalized = ((value + absMax) / (absMax * 2)) * 100
+      return Math.max(0, Math.min(100, normalized))
+    }
+
+    // Normal 0-max normalization
+    const span = range.max - range.min
+    if (span === 0) return 50
+
+    const normalized = ((value - range.min) / span) * 100
+    return Math.max(0, Math.min(100, normalized))
+  }
+
+  /**
    * Bind control elements
-   * @param {Object} callbacks - Optional callbacks: { onStart, onStop }
+   * @param {Object} callbacks - Optional callbacks: { onStart, onStop, onVolumeChange }
    * @private
    */
   _bindControls(callbacks = {}) {
-    // Use provided callbacks (main.js provides start/stop)
     this.onStart = callbacks.onStart || (() => {})
     this.onStop = callbacks.onStop || (() => {})
+    this.onVolumeChange = callbacks.onVolumeChange || (() => {})
 
-    const { startBtn, stopBtn, intensitySlider, volumeSlider } = this.elements
+    const { toggleBtn, volumeSlider } = this.elements
 
-    startBtn?.addEventListener('click', () => {
-      this.onStart()
-      this._updatePlaybackState(true)
+    // Toggle button: Start/Stop experience
+    toggleBtn?.addEventListener('click', () => {
+      if (this.isPlaying) {
+        this.onStop()
+        this._updatePlaybackState(false)
+      } else {
+        this.onStart()
+        this._updatePlaybackState(true)
+      }
     })
 
-    stopBtn?.addEventListener('click', () => {
-      this.onStop()
-      this._updatePlaybackState(false)
-    })
-
-    // Intensity and volume controls are now handled by main.js callbacks
-    // These sliders can be used for future enhancements
-    intensitySlider?.addEventListener('input', (e) => {
-      // Future: could emit to backend to control composition intensity
-    })
-
+    // Volume slider controls master audio volume
     volumeSlider?.addEventListener('input', (e) => {
-      // Future: could control audio volume
+      const volume = parseInt(e.target.value, 10) / 100
+      this.onVolumeChange(volume)
     })
+
+    // Apply initial volume on load
+    if (volumeSlider) {
+      const initialVolume = parseInt(volumeSlider.value, 10) / 100
+      this.onVolumeChange(initialVolume)
+    }
   }
 
   /**
@@ -158,73 +266,13 @@ export class DashboardUI {
    * @private
    */
   _updatePlaybackState(isPlaying) {
-    const { startBtn, stopBtn } = this.elements
+    this.isPlaying = isPlaying
+    const { toggleBtn } = this.elements
 
-    if (startBtn) startBtn.disabled = isPlaying
-    if (stopBtn) stopBtn.disabled = !isPlaying
-  }
-
-  /**
-   * Update a single metric card
-   * @param {Object} element - Element object with value and label
-   * @param {string|number} value - New value
-   * @param {string} label - Metric label
-   * @param {string} color - Accent color for value
-   * @private
-   */
-  _updateMetricCard(element, value, label, color = '#6366f1') {
-    if (!element.value) return
-
-    const valueKey = `${element.value.textContent}-${label}`
-    const oldValue = this.previousValues[valueKey]
-    this.previousValues[valueKey] = value
-
-    element.value.textContent = value
-    element.label.textContent = label
-    element.value.style.color = color
-
-    // Add animation class if value changed significantly
-    if (oldValue !== undefined && Math.abs(parseFloat(value) - parseFloat(oldValue)) > 0.01) {
-      element.value.classList.remove('value-changed')
-      // Force reflow
-      void element.value.offsetWidth
-      element.value.classList.add('value-changed')
+    if (toggleBtn) {
+      toggleBtn.textContent = isPlaying ? '⏸ Stop' : '▶ Start Experience'
+      toggleBtn.classList.toggle('playing', isPlaying)
     }
-  }
-
-  /**
-   * Update virtual user cursor indicators
-   * @param {Object} virtualUsers - Virtual user states from MetricsToGestureAdapter
-   */
-  updateVirtualUsers(virtualUsers) {
-    const { wikipediaCursor, hackernewsCursor, githubCursor } = this.elements
-
-    this._updateCursorIndicator(wikipediaCursor, virtualUsers.wikipedia)
-    this._updateCursorIndicator(hackernewsCursor, virtualUsers.hackernews)
-    this._updateCursorIndicator(githubCursor, virtualUsers.github)
-  }
-
-  /**
-   * Update a single cursor indicator
-   * @param {HTMLElement} element - Cursor indicator element
-   * @param {Object} user - Virtual user state
-   * @private
-   */
-  _updateCursorIndicator(element, user) {
-    if (!element) return
-
-    const { coordinates, intensity, isActive } = user
-
-    // Update position (percentage)
-    element.style.left = `${coordinates.x * 100}%`
-    element.style.top = `${coordinates.y * 100}%`
-
-    // Update appearance based on activity
-    element.style.opacity = 0.3 + (intensity * 0.7)
-    element.style.transform = `scale(${isActive ? 1.5 : 1})`
-    element.style.boxShadow = isActive
-      ? `0 0 ${10 + intensity * 20}px ${user.color}`
-      : 'none'
   }
 
   /**
@@ -261,7 +309,6 @@ export class DashboardUI {
    * Cleanup
    */
   dispose() {
-    // No StateManager to unsubscribe from
     console.log('📊 DashboardUI disposed')
   }
 }

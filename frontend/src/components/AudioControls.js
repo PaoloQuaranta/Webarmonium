@@ -38,9 +38,13 @@ class AudioControls {
     // Render UI
     this.render()
 
-    // Apply initial state
+    // Apply initial state to UI
     this.applyMuteState()
     this.applyVolumeState()
+
+    // Apply initial state to audio (important: apply saved settings on startup)
+    this.onMuteChange(this.muted)
+    this.onVolumeChange(this.volume)
   }
 
   /**

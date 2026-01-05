@@ -96,63 +96,117 @@ header p {
 /* Metrics Dashboard */
 #metrics-dashboard {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 0.75rem;
-  padding: 0.75rem;
-  max-width: 1200px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+  max-width: 900px;
   margin: 0 auto;
 }
 
 .metric-card {
   background: var(--card-bg);
-  border-radius: 8px;
-  padding: 0.75rem;
-  text-align: center;
+  border-radius: 12px;
+  padding: 1rem;
   border: 1px solid var(--border-color);
-  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.3s ease;
 }
 
 .metric-card:hover {
-  transform: translateY(-2px);
   border-color: var(--accent);
-  background: var(--card-bg-hover);
 }
 
-.metric-icon {
-  font-size: 1.5rem;
-  margin-bottom: 0.25rem;
+.metric-card.flash {
+  box-shadow: 0 0 20px var(--flash-color, var(--accent));
 }
 
-.metric-card h3 {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 0.25rem;
-}
-
-.metric-value {
-  font-size: clamp(1.25rem, 4vw, 1.75rem);
+.source-title {
+  font-size: 0.9rem;
   font-weight: 700;
-  color: var(--accent);
-  line-height: 1.2;
-  transition: transform 0.3s ease;
-}
-
-.metric-value.value-changed {
-  animation: valueHighlight 0.3s ease-out;
-}
-
-@keyframes valueHighlight {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
-.metric-label {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  margin-top: 0.25rem;
+  margin-bottom: 0.75rem;
+  text-align: center;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.meters-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  height: 100px;
+}
+
+.meter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.meter-bar {
+  width: 100%;
+  max-width: 24px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.meter-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0%;
+  background: linear-gradient(to top, var(--meter-color, var(--accent)), var(--meter-color-light, #818cf8));
+  border-radius: 3px;
+  transition: height 0.3s ease-out;
+}
+
+.meter.flash .meter-fill {
+  animation: meter-flash 0.3s ease-out;
+}
+
+@keyframes meter-flash {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(2); box-shadow: 0 0 10px var(--meter-color, var(--accent)); }
+  100% { filter: brightness(1); }
+}
+
+.meter-value {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.meter-label {
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Source-specific colors */
+#wikipedia-metric {
+  --meter-color: #e41a1c;
+  --meter-color-light: #ff6b6b;
+  --flash-color: rgba(228, 26, 28, 0.5);
+}
+
+#hackernews-metric {
+  --meter-color: #ff7f00;
+  --meter-color-light: #ffa94d;
+  --flash-color: rgba(255, 127, 0, 0.5);
+}
+
+#github-metric {
+  --meter-color: #377eb8;
+  --meter-color-light: #74c0fc;
+  --flash-color: rgba(55, 126, 184, 0.5);
 }
 
 /* Canvas Container */
@@ -231,6 +285,25 @@ button:disabled {
 .secondary-btn {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
+}
+
+.primary-btn.playing {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.room-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  transition: all 0.2s ease;
+}
+
+.room-link:hover {
+  background: var(--accent);
+  color: var(--bg-primary);
 }
 
 .slider-group {

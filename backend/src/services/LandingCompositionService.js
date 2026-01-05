@@ -40,7 +40,7 @@ class LandingCompositionService {
     this.metrics = {
       wikipedia: { editsPerMinute: 0, newArticles: 0, avgEditSize: 0 },
       hackernews: { postsPerMinute: 0, avgUpvotes: 0, commentCount: 0 },
-      github: { commitsPerMinute: 0, openPRs: 0, newStars: 0 }
+      github: { commitsPerMinute: 0, createsPerMinute: 0, deletesPerMinute: 0 }
     }
 
     // Statistical tracking for DYNAMIC NORMALIZATION
@@ -60,8 +60,8 @@ class LandingCompositionService {
       },
       github: {
         commitsPerMinute: { min: Infinity, max: 0, samples: [] },
-        openPRs: { min: Infinity, max: 0, samples: [] },
-        newStars: { min: Infinity, max: 0, samples: [] },
+        createsPerMinute: { min: Infinity, max: 0, samples: [] },
+        deletesPerMinute: { min: Infinity, max: 0, samples: [] },
         velocity: { min: Infinity, max: 0, samples: [] }
       }
     }
@@ -1282,7 +1282,7 @@ class LandingCompositionService {
       case 'hackernews':
         return this.normalizeMetricDynamic(source, 'avgUpvotes', metrics.avgUpvotes)
       case 'github':
-        return this.normalizeMetricDynamic(source, 'newStars', metrics.newStars)
+        return this.normalizeMetricDynamic(source, 'createsPerMinute', metrics.createsPerMinute)
       default:
         return 0
     }
@@ -1303,7 +1303,7 @@ class LandingCompositionService {
       case 'hackernews':
         return this.normalizeMetricDynamic(source, 'commentCount', metrics.commentCount)
       case 'github':
-        return this.normalizeMetricDynamic(source, 'openPRs', metrics.openPRs)
+        return this.normalizeMetricDynamic(source, 'deletesPerMinute', metrics.deletesPerMinute)
       default:
         return 0
     }

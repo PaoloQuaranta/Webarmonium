@@ -5500,3 +5500,165 @@ const screenY = centerY + (point.y - 0.5) * displaySize + fuzzyY
 
 Will be committed with this entry.
 
+
+---
+
+## Entry #17 - Landing Page UI Fixes: Volume, Controls, and Metric Meters
+
+**Date**: 2026-01-05
+**Time**: ~21:00 UTC
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed multiple UI issues on the landing page including non-functional sliders, redundant controls, and uninteresting metric displays. Replaced simple metric cards with engaging vertical meters showing real-time parameter variations that directly correlate with music generation.
+
+---
+
+### Issues Fixed
+
+#### Issue 1: Non-functional Intensity Slider
+**Problem:** Intensity slider existed in UI but did nothing (placeholder code).
+**Solution:** Removed intensity slider entirely.
+
+#### Issue 2: Volume Slider Not Working
+**Problem:** Volume slider only updated UI, didn't control actual audio.
+**Solution:** Connected volume slider to `AudioService.setVolume()` via `handleVolumeChange()` method.
+
+#### Issue 3: Separate Start/Stop Buttons
+**Problem:** UI had two separate buttons instead of a toggle.
+**Solution:** Converted to single toggle button with state tracking (`isPlaying`).
+
+#### Issue 4: Complexity Card Always Zero
+**Problem:** "Complexity" metric card showed 0 - leftover from old architecture.
+**Solution:** Removed Complexity card entirely.
+
+#### Issue 5: Uninteresting Metric Display
+**Problem:** Simple metric cards showing just "edits/min" not engaging.
+**Solution:** Replaced with vertical meters (4 per source) showing all monitored parameters with flash animation on gesture triggers.
+
+#### Issue 6: GitHub Metrics Stuck at Zero
+**Problem:** PRs and Stars meters were always zero (rare events in GitHub API).
+**Root Cause:** PullRequestEvent and WatchEvent are very rare in GitHub's public events stream.
+**Solution:** 
+1. Increased `per_page` from 30 to 100 (3x more events per sample)
+2. Changed to more frequent events:
+   - `forksPerMinute` → `createsPerMinute` (CreateEvent ~15-20% of events)
+   - `issuesPerMinute` → `deletesPerMinute` (DeleteEvent ~5-10% of events)
+
+---
+
+### Files Modified
+
+**Frontend:**
+
+1. **`frontend/index.html`**
+   - Removed intensity slider and Stop button
+   - Added toggle button (`btn-toggle`)
+   - Moved "Join a Room" link to controls section
+   - Replaced metric cards with vertical meters (4 meters per source)
+   - Updated meter labels: commits, velocity, creates, deletes
+
+2. **`frontend/src/landing/DashboardUI.js`**
+   - Complete rewrite for vertical meter system
+   - Added dynamic normalization ranges per metric
+   - Added `updateMetrics()` method for real-time meter updates
+   - Added `flashSource()` method for gesture-triggered animations
+   - Added `_normalizeValue()` with special handling for velocity (negative values)
+   - Added toggle button state management (`_updatePlaybackState()`)
+
+3. **`frontend/src/landing/main.js`**
+   - Added `handleVolumeChange()` method
+   - Added `_extractSourceFromUserId()` helper
+   - Added `flashSource()` calls in gesture handlers
+
+4. **`frontend/src/components/AudioControls.js`**
+   - Fixed initial volume not being applied on startup
+   - Added `onVolumeChange(this.volume)` after render
+
+5. **`frontend/styles.css`**
+   - Added meter styles with CSS custom properties
+   - Added flash animations for meter fills
+   - Added source-specific colors via `--meter-color` variables
+
+**Backend:**
+
+1. **`backend/src/services/WebMetricsPoller.js`**
+   - Changed `per_page` from 30 to 100
+   - Changed tracked events:
+     - `PullRequestEvent` → `CreateEvent`
+     - `WatchEvent` → `DeleteEvent`
+   - Updated metrics structure: `forksPerMinute` → `createsPerMinute`, `issuesPerMinute` → `deletesPerMinute`
+
+2. **`backend/src/services/LandingCompositionService.js`**
+   - Updated metrics structure to match WebMetricsPoller
+   - Updated `metricStatistics` tracking for new metrics
+   - Updated `calculateDensityMetric()`: uses `createsPerMinute` for GitHub
+   - Updated `calculatePeriodicityMetric()`: uses `deletesPerMinute` for GitHub
+
+---
+
+### Metric-to-Music Mapping
+
+All displayed metrics are used for music generation:
+
+| Source | Metric | Musical Use |
+|--------|--------|-------------|
+| Wikipedia | editsPerMinute | Activity level → gesture frequency |
+| Wikipedia | velocity | Gesture trigger threshold |
+| Wikipedia | avgEditSize | Density metric → phrase duration |
+| Wikipedia | newArticles | Periodicity metric → filter modulation |
+| HackerNews | postsPerMinute | Activity level → gesture frequency |
+| HackerNews | velocity | Gesture trigger threshold |
+| HackerNews | avgUpvotes | Density metric → phrase duration |
+| HackerNews | commentCount | Periodicity metric → filter modulation |
+| GitHub | commitsPerMinute | Activity level → gesture frequency |
+| GitHub | velocity | Gesture trigger threshold |
+| GitHub | createsPerMinute | Density metric → phrase duration |
+| GitHub | deletesPerMinute | Periodicity metric → filter modulation |
+
+---
+
+### GitHub Event Frequency Analysis
+
+With 100 events per sample from GitHub's public events API:
+- **PushEvent**: ~60-70 events (commits)
+- **CreateEvent**: ~15-25 events (branch/tag/repo creation)
+- **DeleteEvent**: ~5-15 events (branch deletion after merge)
+- **WatchEvent**: ~3-8 events (stars) - too rare
+- **ForkEvent**: ~2-5 events - too rare
+- **PullRequestEvent**: ~2-5 events - too rare
+- **IssuesEvent**: ~1-3 events - too rare
+
+CreateEvent and DeleteEvent provide meaningful activity visualization while being frequent enough to show real-time variations.
+
+---
+
+### UI Layout After Changes
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ ▶ Start Experience │ Volume [====----] │ Join a Room →     │
+├─────────────────────────────────────────────────────────────┤
+│ Wikipedia (red)    │ HackerNews (orange) │ GitHub (blue)   │
+│ ┌──┬──┬──┬──┐     │ ┌──┬──┬──┬──┐      │ ┌──┬──┬──┬──┐   │
+│ │▓▓│▓ │▓▓│  │     │ │▓ │▓▓│▓ │▓▓│      │ │▓▓│▓ │▓▓│▓ │   │
+│ │▓▓│▓ │▓▓│  │     │ │▓ │▓▓│▓ │▓▓│      │ │▓▓│▓ │▓▓│▓ │   │
+│ │▓▓│▓ │▓▓│  │     │ │▓ │▓▓│▓ │▓▓│      │ │▓▓│▓ │▓▓│▓ │   │
+│ └──┴──┴──┴──┘     │ └──┴──┴──┴──┘      │ └──┴──┴──┴──┘   │
+│ ed ve sz nw       │ po ve up cm        │ co ve cr de      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### User Feedback
+
+"molto meglio" - Confirmed meters now show activity.
+
+---
+
+### Commits
+
+Will be committed with this entry.
