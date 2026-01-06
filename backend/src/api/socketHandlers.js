@@ -31,6 +31,7 @@ const socketHandlers = {
     AuthHandler.registerLeaveRoomHandler(socket)
     AuthHandler.registerHeartbeatHandler(socket)
     AuthHandler.registerDisconnectionHandler(socket)
+    AuthHandler.registerRequestDroneHandler(socket)  // Entry #27: drone restart support
 
     // Gesture handlers
     GestureHandler.registerGestureHandler(socket)

@@ -1984,3 +1984,172 @@ if (this.audioService.ambientFilters.pad && !this.audioService.droneFilterLFO) {
 | Modulation cycles | N/A | 20-50 seconds per cycle |
 
 ---
+
+## Entry #27 - Drone Volume & Restart Fix
+
+**Date**: 2026-01-06
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed two issues with the drone system:
+1. Drone volume was too loud after Entry #26 boost
+2. Drone did not restart after stop/start or when returning to landing page from a room
+
+---
+
+### Problem 1: Drone Too Loud
+
+**User Report**: "dobbiamo abbassare il volume del drone"
+
+**Root Cause**: Entry #26 increased pad volume from -3dB to +6dB, which combined with velocity 0.8 was too loud.
+
+**Fix** (`frontend/src/services/AudioService.js`):
+```javascript
+// BEFORE
+pad: new Tone.Volume(+6)  // Entry #26 boost
+
+// AFTER
+pad: new Tone.Volume(-3)  // Entry #27: Reduced - was too loud
+```
+
+---
+
+### Problem 2: Drone Not Restarting After Stop/Start
+
+**User Report**: "se faccio stop e poi start il drone non riparte. il drone non riparte anche se torno in landing page da una room normale"
+
+**Root Cause Analysis**:
+
+1. Drone is sent when user first joins (before audio started)
+2. Saved as `pendingDrone` in frontend
+3. User clicks Start → `pendingDrone` is played and set to `null`
+4. User clicks Stop → `Transport.cancel()` stops the drone
+5. User clicks Start again → **no `pendingDrone`** (already consumed) and backend doesn't know to re-send
+
+For the "return to landing" case:
+- `LandingCompositionService.start()` has guard `if (this.isRunning) return`
+- Service is already running → no drone broadcast
+
+**Solution**: Two-pronged approach:
+
+#### A) Backend: Always emit drone to joining socket
+
+Added `emitDroneToSocket(socket)` method to both services and call it when client joins:
+
+```javascript
+// AuthHandler.js - join-landing
+socket.services.landingCompositionService.start()
+setTimeout(() => {
+  socket.services.landingCompositionService.emitDroneToSocket(socket)
+}, 600)
+
+// AuthHandler.js - join-room
+socket.services.backgroundCompositionService.startComposition(...)
+setTimeout(() => {
+  socket.services.backgroundCompositionService.emitDroneToSocket(socket, actualRoomId)
+}, 600)
+```
+
+#### B) Frontend: Request drone when audio starts without pendingDrone
+
+```javascript
+// When audio starts and no pendingDrone available
+if (this.pendingDrone) {
+  this.audioService.playComposition(this.pendingDrone, true)
+  this.pendingDrone = null
+} else if (this.socket?.connected) {
+  // Entry #27: Request drone from backend
+  this.socket.emit('request-drone')
+}
+```
+
+#### C) Backend: New `request-drone` event handler
+
+```javascript
+// AuthHandler.js
+registerRequestDroneHandler(socket) {
+  socket.on('request-drone', (data, callback) => {
+    if (roomId === 'landing-room') {
+      landingCompositionService.emitDroneToSocket(socket)
+    } else {
+      backgroundCompositionService.emitDroneToSocket(socket, roomId)
+    }
+  })
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Reduced pad volume from +6dB to -3dB |
+| `backend/src/api/handlers/AuthHandler.js` | Added `registerRequestDroneHandler`, emit drone to joining sockets |
+| `backend/src/api/socketHandlers.js` | Register new request-drone handler |
+| `backend/src/services/LandingCompositionService.js` | Added `emitDroneToSocket(socket)` method |
+| `backend/src/services/BackgroundCompositionService.js` | Added `emitDroneToSocket(socket, roomId)` method |
+| `frontend/src/landing/main.js` | Request drone when audio starts without pendingDrone |
+| `frontend/src/main.js` | Request drone in toggleAudio and attemptAutoStartAudio |
+
+---
+
+### Behavioral Changes
+
+| Scenario | Before | After |
+|----------|--------|-------|
+| Drone volume | +6dB (too loud) | -3dB (balanced) |
+| First join | Drone broadcast to room | Drone sent directly to socket |
+| Stop/Start audio | Drone lost | Drone requested from backend |
+| Return to landing | No drone (service already running) | Drone sent to joining socket |
+
+---
+
+### Additional Fixes (Post-Testing)
+
+#### Fix 1: Landing Page stop() Missing audioService.stop()
+
+**Problem**: Landing page `stop()` didn't call `audioService.stop()`, leaving drone repeat event running.
+
+**Fix** (`frontend/src/landing/main.js:905-910`):
+```javascript
+stop() {
+  // Entry #27: Stop audio service to clear drone and release voices
+  if (this.audioService && typeof this.audioService.stop === 'function') {
+    this.audioService.stop()
+  }
+  this.isAudioReady = false  // Reset audio state for proper restart
+  // ... rest of stop logic
+}
+```
+
+#### Fix 2: Max Polyphony Exceeded on Restart
+
+**Problem**: When reusing synths, only `gestureSynth.releaseAll()` was called, not `ambientLayers`. Pad's 4-second release kept voices occupied.
+
+**Fix** (`frontend/src/services/AudioService.js:453-462`):
+```javascript
+// Entry #27: Release ALL synths including ambientLayers to free voices for drone
+if (this.ambientLayers) {
+  Object.keys(this.ambientLayers).forEach(layer => {
+    try {
+      if (this.ambientLayers[layer] && !this.ambientLayers[layer].disposed) {
+        this.ambientLayers[layer].releaseAll(0.05)  // Fast release to immediately free voices
+      }
+    } catch (e) { /* Ignore */ }
+  })
+}
+```
+
+#### Fix 3: Pad maxPolyphony Too Low
+
+**Problem**: Pad had `maxPolyphony: 4`, but with 8-second drone duration and 4-second release, voices could overlap.
+
+**Fix** (`frontend/src/services/AudioService.js:646`):
+```javascript
+maxPolyphony: 8  // Entry #27: Increased from 4 to handle drone overlap during release
+```
+
+---

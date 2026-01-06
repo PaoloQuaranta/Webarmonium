@@ -300,6 +300,10 @@ class LandingApp {
             // console.log('🎵 Playing pending drone')
             this.audioService.playComposition(this.pendingDrone, true)
             this.pendingDrone = null
+          } else if (this.socket?.connected) {
+            // Entry #27: No pending drone (consumed or never received), request from backend
+            console.log('🎵 Requesting drone from backend (no pendingDrone)')
+            this.socket.emit('request-drone')
           }
         }
       } catch (error) {
@@ -899,6 +903,12 @@ class LandingApp {
     // console.log('⏸ Stopping Webarmonium Landing Page...')
 
     try {
+      // Entry #27: Stop audio service to clear drone and release voices
+      if (this.audioService && typeof this.audioService.stop === 'function') {
+        this.audioService.stop()
+      }
+      this.isAudioReady = false  // Reset audio state for proper restart
+
       // Disconnect socket
       if (this.socket) {
         this.socket.disconnect()

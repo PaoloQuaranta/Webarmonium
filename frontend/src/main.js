@@ -1401,8 +1401,10 @@ class WebarmoniumApp {
             console.log('🎵 Playing pending drone:', this.pendingDrone.type)
             this.audioService.playComposition(this.pendingDrone, true)
             this.pendingDrone = null
-          } else {
-            console.log('⚠️ No pending drone to play')
+          } else if (this.socketService?.socket?.connected) {
+            // Entry #27: No pending drone (consumed or never received), request from backend
+            console.log('🎵 Requesting drone from backend (no pendingDrone)')
+            this.socketService.socket.emit('request-drone')
           }
         } else {
           // console.warn('⚠️ AudioService.start() returned false')
@@ -1449,6 +1451,10 @@ class WebarmoniumApp {
             // console.log('🎵 Playing pending drone (auto-start)...')
             this.audioService.playComposition(this.pendingDrone, true)
             this.pendingDrone = null
+          } else if (this.socketService?.socket?.connected) {
+            // Entry #27: No pending drone, request from backend
+            console.log('🎵 Requesting drone from backend (auto-start, no pendingDrone)')
+            this.socketService.socket.emit('request-drone')
           }
 
           // console.log('🔊 Audio auto-started successfully')

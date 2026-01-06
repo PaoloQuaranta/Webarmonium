@@ -192,6 +192,40 @@ class BackgroundCompositionService {
   }
 
   /**
+   * Emit drone to a specific socket (Entry #27: for audio restart)
+   * @param {Socket} socket - Target socket
+   * @param {string} roomId - Room ID
+   */
+  emitDroneToSocket(socket, roomId) {
+    const keyCenter = this.compositionEngine.keyCenter || 'C'
+    const mode = this.compositionEngine.mode || 'ionian'
+    const droneNote = `${keyCenter}3`
+    const fifthMap = { 'C': 'G', 'D': 'A', 'E': 'B', 'F': 'C', 'G': 'D', 'A': 'E', 'B': 'F#' }
+    const fifthNote = `${fifthMap[keyCenter] || 'G'}3`
+
+    const droneComposition = {
+      type: 'ambient',
+      metadata: { tempo: 60, keyCenter, mode, timeSignature: '4/4' },
+      structure: { form: 'drone', currentSection: 'ambient' },
+      content: {
+        texture: [
+          { type: 'drone', note: droneNote, duration: 8000, velocity: 0.8, articulation: 'legato' },
+          { type: 'drone', note: fifthNote, duration: 8000, velocity: 0.5, articulation: 'legato' }
+        ]
+      }
+    }
+
+    socket.emit('background-composition', {
+      roomId,
+      composition: droneComposition,
+      compositionNumber: 0,
+      isDrone: true,
+      timestamp: Date.now()
+    })
+    console.log(`🎵 Drone emitted to socket for room ${roomId} (request-drone)`)
+  }
+
+  /**
    * Stop composition for a room
    * @param {string} roomId - Room ID
    */

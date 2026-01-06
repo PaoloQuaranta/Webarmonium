@@ -38,6 +38,12 @@ const AuthHandler = {
         if (socket.services.landingCompositionService) {
           console.log('🎵 Starting LandingCompositionService...')
           socket.services.landingCompositionService.start()
+
+          // Entry #27: Always emit drone to joining socket (fixes drone not playing after stop/start)
+          // Delayed to ensure socket is fully joined
+          setTimeout(() => {
+            socket.services.landingCompositionService.emitDroneToSocket(socket)
+          }, 600)
         } else {
           console.warn('⚠️ landingCompositionService not available in socket.services')
         }
@@ -90,6 +96,46 @@ const AuthHandler = {
             timestamp: Date.now()
           })
         }
+      }
+    })
+  },
+
+  /**
+   * Register request-drone event handler
+   * Entry #27: Allows frontend to request drone after audio restart
+   * @param {Socket} socket - Socket instance
+   */
+  registerRequestDroneHandler (socket) {
+    socket.on('request-drone', (data, callback) => {
+      try {
+        const roomId = socket.roomId
+
+        if (!roomId) {
+          if (callback) callback({ success: false, error: 'Not in a room' })
+          return
+        }
+
+        // Landing room: use LandingCompositionService
+        if (roomId === 'landing-room') {
+          if (socket.services.landingCompositionService) {
+            socket.services.landingCompositionService.emitDroneToSocket(socket)
+            if (callback) callback({ success: true })
+          } else {
+            if (callback) callback({ success: false, error: 'Landing service unavailable' })
+          }
+          return
+        }
+
+        // Normal room: use BackgroundCompositionService
+        if (socket.services.backgroundCompositionService) {
+          socket.services.backgroundCompositionService.emitDroneToSocket(socket, roomId)
+          if (callback) callback({ success: true })
+        } else {
+          if (callback) callback({ success: false, error: 'Background service unavailable' })
+        }
+      } catch (error) {
+        console.error('request-drone error:', error)
+        if (callback) callback({ success: false, error: error.message })
       }
     })
   },
@@ -267,6 +313,12 @@ const AuthHandler = {
             userCount: result.room.userCount,
             activeUsers: result.users.map(u => u.id)
           })
+
+          // Entry #27: Always emit drone to joining socket (fixes drone not playing after stop/start)
+          // Delayed to ensure socket is fully joined and composition is initialized
+          setTimeout(() => {
+            socket.services.backgroundCompositionService.emitDroneToSocket(socket, actualRoomId)
+          }, 600)
         }
 
         // console.log(`User ${socket.userId} joined room ${roomId} (${latency}ms)`)

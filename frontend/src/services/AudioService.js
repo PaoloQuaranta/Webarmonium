@@ -444,11 +444,24 @@ class AudioService {
     // If synths already exist, skip creation and just reuse them
     if (this.gestureSynth && this.ambientLayers && this.masterVolume) {
       // console.log('♻️ Reusing existing synths (never dispose to avoid Tone.js timeout errors)')
-      // Ensure synths are ready to use
+
+      // Entry #27: Release ALL synths including ambientLayers to free voices for drone
+      // Without this, pad's 4-second release keeps voices occupied = max polyphony exceeded
       if (this.gestureSynth && !this.gestureSynth.disposed) {
         this.gestureSynth.releaseAll()
-        // console.log('✅ Existing synths released and ready to reuse')
       }
+      if (this.ambientLayers) {
+        Object.keys(this.ambientLayers).forEach(layer => {
+          try {
+            if (this.ambientLayers[layer] && !this.ambientLayers[layer].disposed) {
+              this.ambientLayers[layer].releaseAll(0.05)  // Fast release to immediately free voices
+            }
+          } catch (e) {
+            // Ignore errors
+          }
+        })
+      }
+      // console.log('✅ All synths released and ready to reuse')
 
       // Restart evolving generation (was stopped by stop())
       if (!this.evolvingGenerationActive) {
@@ -630,7 +643,7 @@ class AudioService {
           sustain: 0.7,
           release: 4.0   // VERY LONG release - pad lingers
         },
-        maxPolyphony: 4  // 4 voices as requested
+        maxPolyphony: 8  // Entry #27: Increased from 4 to handle drone overlap during release
       }),
 
       // CHORDS: Bright, articulate chords (4 voices)
@@ -712,7 +725,7 @@ class AudioService {
     // Background volumes - balanced with gestures
     this.ambientVolumes = {
       bass: new Tone.Volume(0),       // INCREASED for fuller low-end
-      pad: new Tone.Volume(+6),       // DRONE FIX: Increased from -3dB - drone must be audible!
+      pad: new Tone.Volume(-3),       // Entry #27: Reduced from +6dB - was too loud
       chords: new Tone.Volume(-12),   // INCREASED but still subtle
       backgroundHigh: new Tone.Volume(+3),  // INCREASED for audible composition
       backgroundMid: new Tone.Volume(+3),   // INCREASED for audible composition
