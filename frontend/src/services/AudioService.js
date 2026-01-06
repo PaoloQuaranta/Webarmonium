@@ -2189,10 +2189,6 @@ class AudioService {
     }
 
     console.log(`🎵 playAmbientComposition called - isDrone: ${isDrone}, texture items: ${content.texture.length}, pad exists: ${!!this.ambientLayers?.pad}`)
-    console.log(`🔊 Audio state: Transport=${Tone.Transport.state}, masterVolume=${this.masterVolume?.volume?.value?.toFixed(1)}dB, padVolume=${this.ambientVolumes?.pad?.volume?.value?.toFixed(1)}dB`)
-
-    const now = Tone.now()
-    const lookahead = 0.1
 
     // Ensure Transport is running
     if (Tone.Transport.state !== 'started') {
@@ -2222,30 +2218,36 @@ class AudioService {
       const duration = (textureItem.duration || 8000) / 1000
       const velocity = textureItem.velocity || 0.2
       const delay = index * 0.5
-      const scheduleTime = now + lookahead + delay
       const layerName = isDrone ? 'pad' : 'backgroundLow'
 
-      // Schedule initial texture trigger
-      console.log(`🎹 Scheduling drone note: freq=${frequency.toFixed(1)}Hz, duration=${duration}s, scheduleTime=${scheduleTime.toFixed(2)}s, now=${now.toFixed(2)}s`)
-      const eventId = Tone.Transport.schedule((audioTime) => {
+      if (isDrone) {
+        // Entry #27 FIX: For drones, trigger IMMEDIATELY using Tone.now() (AudioContext time)
+        // Don't use Transport.schedule() which uses Transport time (can be out of sync after stop/start)
         const layer = this.ambientLayers && this.ambientLayers[layerName]
-        console.log(`🎹 DRONE CALLBACK FIRED: layer=${layerName}, exists=${!!layer}, audioTime=${audioTime.toFixed(2)}`)
         if (layer) {
+          const audioTime = Tone.now() + 0.05 + delay
+          console.log(`🎹 DRONE IMMEDIATE: freq=${frequency.toFixed(1)}Hz, time=${audioTime.toFixed(2)}s`)
           layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
         }
-      }, scheduleTime)
-      this.scheduledTransportEvents.push(eventId)
 
-      // REAL-TIME FIX: For drones, use Transport.scheduleRepeat instead of setInterval
-      if (isDrone) {
-        // Schedule repeating drone on audio thread
+        // Schedule repeating drone using RELATIVE time syntax ("+8" means 8 seconds from now)
+        const repeatStartTime = `+${duration + delay}`
         this.droneRepeatEventId = Tone.Transport.scheduleRepeat((audioTime) => {
           if (this.ambientLayers && this.ambientLayers.pad) {
-            console.log(`🔁 DRONE REPEAT: freq=${frequency.toFixed(1)}Hz, audioTime=${audioTime.toFixed(2)}`)
             this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
           }
-        }, duration, scheduleTime + duration) // Start repeating after first note ends
+        }, duration, repeatStartTime)
         this.scheduledTransportEvents.push(this.droneRepeatEventId)
+      } else {
+        // For non-drone textures, use relative time scheduling
+        const relativeTime = `+${0.1 + delay}`
+        const eventId = Tone.Transport.schedule((audioTime) => {
+          const layer = this.ambientLayers && this.ambientLayers[layerName]
+          if (layer) {
+            layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
+          }
+        }, relativeTime)
+        this.scheduledTransportEvents.push(eventId)
       }
     }
   }
