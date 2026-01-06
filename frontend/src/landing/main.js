@@ -577,8 +577,9 @@ class LandingApp {
             this.audioService.ambientFilters.bass.Q.rampTo(Math.max(0.5, Math.min(5, bassQ)), 0.2)
           }
 
-          // Pad: mid frequency range
-          if (this.audioService.ambientFilters.pad) {
+          // Pad: SKIP frequency modulation - drone LFO already modulates it
+          // Only modulate Q if no drone filter LFO is connected
+          if (this.audioService.ambientFilters.pad && !this.audioService.droneFilterLFO) {
             const padFreq = baseFreq * 0.4 // 80-3200Hz range for pad
             const padQ = baseQ * 1.2
             this.audioService.ambientFilters.pad.frequency.rampTo(Math.max(80, Math.min(3200, padFreq)), 0.2)
