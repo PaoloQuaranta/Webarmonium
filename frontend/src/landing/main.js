@@ -356,11 +356,12 @@ class LandingApp {
 
       // Connection events
       this.socket.on('connect', () => {
-        // console.log('✅ Connected to backend')
+        console.log('✅ Socket connected to backend')
 
         // Join landing room
+        console.log('📡 Emitting join-landing...')
         this.socket.emit('join-landing', (response) => {
-          // console.log('📡 join-landing response:', response)
+          console.log('📡 join-landing response received:', response?.success, 'roomId:', response?.roomId)
           if (response && response.success) {
             // console.log('✅ Joined landing room:', response.roomId)
 
@@ -378,10 +379,9 @@ class LandingApp {
             // Entry #27: Request drone after joining (backup for stop/start case)
             // Wait 800ms to let backend's automatic drone emit arrive first
             setTimeout(() => {
-              if (this.isAudioReady && !this.pendingDrone) {
-                console.log('🎵 Requesting drone after join-landing')
-                this.socket.emit('request-drone')
-              }
+              // Always request - if audio not ready, drone will be saved as pendingDrone
+              console.log('🎵 Requesting drone after join-landing (isAudioReady:', this.isAudioReady, ')')
+              this.socket.emit('request-drone')
             }, 800)
           }
         })
@@ -859,12 +859,12 @@ class LandingApp {
       return
     }
 
-    // console.log('▶️ Starting Webarmonium Landing Page...')
-    // console.log('🔌 Connecting to backend and joining landing room...')
+    console.log('▶️ Starting Webarmonium Landing Page...')
 
     try {
       // Ensure audio is initialized
       if (!this.audioService && typeof AudioService !== 'undefined') {
+        console.log('🔊 Initializing audio service...')
         await Tone.start()
         this.audioService = new AudioService()
         await this.audioService.initialize()
@@ -874,18 +874,20 @@ class LandingApp {
       // CRITICAL: Start the audio service to activate Transport and restore volume
       if (this.audioService && typeof this.audioService.start === 'function') {
         await this.audioService.start()
-        // console.log('✅ AudioService started - Transport and volume activated')
+        console.log('✅ AudioService started')
 
         // DRONE FIX: Mark audio as ready and play pending drone
         this.isAudioReady = true
+        console.log('🎵 isAudioReady =', this.isAudioReady, 'pendingDrone:', !!this.pendingDrone)
         if (this.pendingDrone) {
-          // console.log('🎵 Playing pending drone')
+          console.log('🎵 Playing pending drone')
           this.audioService.playComposition(this.pendingDrone, true)
           this.pendingDrone = null
         }
       }
 
       // Setup socket connection
+      console.log('🔌 Setting up socket connection...')
       this._setupSocketConnection()
 
       // Update state
@@ -909,17 +911,21 @@ class LandingApp {
       return
     }
 
-    // console.log('⏸ Stopping Webarmonium Landing Page...')
+    console.log('⏸ Stopping Webarmonium Landing Page...')
 
     try {
       // Entry #27: Stop audio service to clear drone and release voices
       if (this.audioService && typeof this.audioService.stop === 'function') {
+        console.log('🔇 Stopping audio service...')
         this.audioService.stop()
       }
       this.isAudioReady = false  // Reset audio state for proper restart
+      this.pendingDrone = null   // Clear pending drone on stop
+      console.log('🎵 Reset: isAudioReady = false, pendingDrone = null')
 
       // Disconnect socket
       if (this.socket) {
+        console.log('🔌 Disconnecting socket...')
         this.socket.disconnect()
         this.socket = null
       }
@@ -927,7 +933,7 @@ class LandingApp {
       // Update state
       this.isRunning = false
 
-      // console.log('✅ Landing page stopped')
+      console.log('✅ Landing page stopped')
       this.dashboardUI.showStatus('Experience stopped')
 
     } catch (error) {
