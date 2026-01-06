@@ -107,10 +107,12 @@ const AuthHandler = {
    */
   registerRequestDroneHandler (socket) {
     socket.on('request-drone', (data, callback) => {
+      console.log('📡 request-drone received from socket:', socket.id, 'roomId:', socket.roomId)
       try {
         const roomId = socket.roomId
 
         if (!roomId) {
+          console.warn('⚠️ request-drone: socket not in a room')
           if (callback) callback({ success: false, error: 'Not in a room' })
           return
         }
@@ -118,9 +120,11 @@ const AuthHandler = {
         // Landing room: use LandingCompositionService
         if (roomId === 'landing-room') {
           if (socket.services.landingCompositionService) {
+            console.log('🎵 Emitting drone to landing socket')
             socket.services.landingCompositionService.emitDroneToSocket(socket)
             if (callback) callback({ success: true })
           } else {
+            console.error('❌ Landing service unavailable')
             if (callback) callback({ success: false, error: 'Landing service unavailable' })
           }
           return
@@ -128,9 +132,11 @@ const AuthHandler = {
 
         // Normal room: use BackgroundCompositionService
         if (socket.services.backgroundCompositionService) {
+          console.log('🎵 Emitting drone to room socket:', roomId)
           socket.services.backgroundCompositionService.emitDroneToSocket(socket, roomId)
           if (callback) callback({ success: true })
         } else {
+          console.error('❌ Background service unavailable')
           if (callback) callback({ success: false, error: 'Background service unavailable' })
         }
       } catch (error) {

@@ -374,6 +374,15 @@ class LandingApp {
               this.currentMetrics = response.metrics
               this.dashboardUI.updateMetrics(this.currentMetrics)
             }
+
+            // Entry #27: Request drone after joining (backup for stop/start case)
+            // Wait 800ms to let backend's automatic drone emit arrive first
+            setTimeout(() => {
+              if (this.isAudioReady && !this.pendingDrone) {
+                console.log('🎵 Requesting drone after join-landing')
+                this.socket.emit('request-drone')
+              }
+            }, 800)
           }
         })
       })
