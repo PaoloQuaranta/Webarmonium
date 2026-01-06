@@ -513,6 +513,12 @@ class WebarmoniumApp {
 ////        })
       }
 
+      // Entry #28: Register activity for drone void detection
+      if (this.audioService) {
+        this.audioService.registerDroneActivity()
+        this.audioService.registerDroneNoteStart(holdData.noteId)
+      }
+
       // Store hold note data for network emission in onSustainedHoldEnd
       // CRITICAL: This must be set regardless of audio state for proper network sync
       this.pendingHoldNoteData = {
@@ -587,6 +593,11 @@ class WebarmoniumApp {
 //          hasSocket: !!(this.socketService?.socket),
 //          hasPendingHoldData: !!this.pendingHoldNoteData
 ////        })
+      }
+
+      // Entry #28: Register note end for drone void detection
+      if (this.audioService && this.pendingHoldNoteData?.noteId) {
+        this.audioService.registerDroneNoteEnd(this.pendingHoldNoteData.noteId)
       }
 
       // LOCAL AUDIO: Only release local audio if it was started
@@ -790,6 +801,12 @@ class WebarmoniumApp {
         return
       }
 
+      // Entry #28: Register activity for drone void detection (remote users/virtual users)
+      if (this.audioService) {
+        this.audioService.registerDroneActivity()
+        this.audioService.registerDroneNoteStart(data.noteId)
+      }
+
       // VIRTUAL USERS: Use triggerAttackRelease with duration (like landing page)
       // This provides natural envelope instead of aggressive sustained note envelope
       if (data.isVirtual) {
@@ -856,6 +873,11 @@ class WebarmoniumApp {
 
     // SUSTAINED HOLD: Handle remote user hold:end events
     this.socketService.on('hold:end', (data) => {
+      // Entry #28: Register note end for drone void detection (remote users/virtual users)
+      if (this.audioService && data.noteId) {
+        this.audioService.registerDroneNoteEnd(data.noteId)
+      }
+
       // VIRTUAL USERS: Just update visual state (audio handled by triggerAttackRelease)
       if (data.isVirtual) {
         if (this.visualService) {

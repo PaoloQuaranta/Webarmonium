@@ -2235,3 +2235,182 @@ this.audioService.setMuted(false)  // Entry #27: Ensure unmuted on start
 ```
 
 ---
+
+## Entry #28 - Drone Emergence from Activity Voids
+
+**Date**: 2026-01-06
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Transformed drones from constant/omnipresent to activity-responsive elements that emerge during interaction voids and fade during high activity. Drones now fill musical silence instead of playing constantly.
+
+---
+
+### Problem Statement
+
+User reported: "non voglio che i droni siano onnipresenti nelle composizioni, perchè le renderebbe tutte uguali. voglio che i droni rimangano come espressione musicale, ma che diventino un elemento del background che emerga dalle metriche di interazione"
+
+The drone was constant and played regardless of activity, making all compositions sound similar. The desired behavior:
+- Drone emerges when there are **voids** (low interaction for 5-10 seconds)
+- Drone disappears when there is **activity** (gestures, notes playing)
+- Fade in: 2 seconds (quick to fill voids)
+- Fade out: 5 seconds (gradual, imperceptible)
+- Same behavior in landing page and normal rooms
+
+---
+
+### Solution: DroneVoidController Service
+
+Created a new frontend service that monitors activity and controls drone volume based on a "void score":
+
+**Void Score Calculation:**
+```javascript
+// voidScore: 0 = full activity, 1 = complete void
+
+// Time-based: 0 at 5s, 1 at 10s since last activity
+const timeScore = clamp((timeSinceLastActivity - 5000) / 5000, 0, 1)
+
+// Influence-based: high userInfluence = low void
+const influenceVoidScore = 1 - userInfluence
+
+// Active notes completely suppress void
+const noteVoidScore = activeNotes.size > 0 ? 0 : 1
+
+// Combined: all factors must be void-like
+const voidScore = timeScore * influenceVoidScore * noteVoidScore
+```
+
+**Volume Control:**
+- Uses `droneAmplitudeGain.gain` (linear 0-1) to control drone presence
+- Coexists with existing `droneAmplitudeLFO` modulation (organic breathing)
+- Fade in: 2 seconds (quick response to voids)
+- Fade out: 5 seconds (gradual, natural)
+
+---
+
+### Architecture Decision: Frontend-Controlled
+
+**Why frontend?**
+- Latency: Drone volume changes must be immediate (<100ms)
+- Frontend already has activity tracking (`generativeState.lastUserActivity`)
+- Frontend receives ALL gesture events from all sources (local, remote, virtual)
+- Existing pattern: `rampTo()` for smooth volume transitions
+
+---
+
+### Files Created
+
+- **`frontend/src/services/DroneVoidController.js`** (NEW)
+  - Configuration constants (void timeout, fade times)
+  - Activity registration methods (registerActivity, registerNoteStart/End)
+  - Void score calculation with 100ms update interval
+  - Volume control via `droneAmplitudeGain.gain.linearRampTo()`
+
+---
+
+### Files Modified
+
+**Frontend:**
+
+1. **`frontend/src/services/AudioService.js`**
+   - Added `droneVoidController` property in constructor
+   - Initialize DroneVoidController after `setupDroneModulation()`
+   - Stop controller in `stop()` method
+   - Added helper methods: `registerDroneActivity()`, `registerDroneNoteStart()`, `registerDroneNoteEnd()`, `updateDroneUserInfluence()`
+
+2. **`frontend/src/main.js`** (normal rooms)
+   - Register activity on local gesture start (hold:start emission)
+   - Register note start/end for local holds
+   - Register activity on remote/virtual user hold:start
+   - Register note end on remote/virtual user hold:end
+
+3. **`frontend/src/landing/main.js`**
+   - Register activity on hold:start from virtual users
+   - Register note end on hold:end
+   - Register activity on musical:event (tap events)
+
+4. **`frontend/index.html`**
+   - Added `DroneVoidController.js` script
+
+5. **`frontend/rooms.html`**
+   - Added `DroneVoidController.js?v=1` script
+
+---
+
+### Configuration
+
+```javascript
+const DRONE_CONFIG = {
+  voidTimeoutMin: 5000,     // 5 seconds minimum quiet before drone emerges
+  voidTimeoutMax: 10000,    // 10 seconds for full emergence (voidScore = 1.0)
+  fadeInTime: 2.0,          // 2 seconds fade in (quick to fill voids)
+  fadeOutTime: 5.0,         // 5 seconds fade out (gradual)
+  droneNominalDb: -3,       // Full drone level
+  droneSilentDb: -60,       // Effectively silent
+  updateInterval: 100       // Check every 100ms
+}
+```
+
+---
+
+### Activity Sources
+
+| Source | Event | Effect |
+|--------|-------|--------|
+| Local user tap/hold | hold:start/end | registerActivity + Note start/end |
+| Remote real user | hold:start socket | registerActivity + Note start/end |
+| Virtual user (room) | hold:start socket | registerActivity + Note start/end |
+| Virtual user (landing) | hold:start socket | registerActivity + Note start/end |
+| Musical event | musical:event tap | registerActivity |
+
+---
+
+### Behavioral Changes
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Drone on startup | Plays immediately | Starts SILENT, emerges after 5-10s if no activity |
+| During activity | Constant volume | Fades OUT to complete silence (5s) |
+| During voids | Same as active | Fades IN to fill silence (2s) |
+| Volume control | None | Dynamic based on void score |
+| Coexistence with LFO | N/A | Works alongside organic breathing modulation |
+
+---
+
+### Technical Notes
+
+**LFO Coexistence:**
+The existing `droneAmplitudeLFO` modulates `ambientVolumes.pad.volume` (subtle -6dB to 0dB breathing). The DroneVoidController uses `droneAmplitudeGain.gain` (the gain node inserted before the volume node). This allows both to work together:
+- DroneVoidController: overall presence (0-1 gain)
+- droneAmplitudeLFO: subtle organic breathing
+
+**Volume Conversion:**
+```javascript
+// dB to linear gain: -60dB = 0, -3dB = 0.708, 0dB = 1.0
+_dbToGain(db) {
+  if (db <= -60) return 0
+  return Math.pow(10, db / 20)
+}
+```
+
+---
+
+### Code Review Fixes (Post-Implementation)
+
+After initial implementation, a comprehensive code review identified 5 critical issues that were fixed:
+
+| # | Issue | Fix Applied |
+|---|-------|-------------|
+| 1 | Race condition in `droneAmplitudeGain` access | Added explicit `const gainNode = this.audioService.droneAmplitudeGain` check before accessing `.gain` |
+| 2 | Silent error handling (empty catch blocks) | Added `console.warn()` logging before all fallback paths |
+| 3 | Initialization order dependency not verified | Added warning in AudioService if `droneAmplitudeGain` not initialized before controller start |
+| 4 | Memory leak risk in setInterval | Wrapped in try/catch, only sets `isRunning = true` after successful timer creation |
+| 5 | Missing input validation in constructor | Added validation: throws Error if `audioService` is not provided |
+
+**Additional improvements:**
+- `stop()` method now wrapped in try/catch/finally for robust cleanup
+- All error paths now log warnings instead of failing silently
+
+---

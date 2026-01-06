@@ -484,12 +484,23 @@ class LandingApp {
           return
         }
 
+        // Entry #28: Register activity for drone void detection
+        if (this.audioService) {
+          this.audioService.registerDroneActivity()
+          this.audioService.registerDroneNoteStart(data.noteId || data.userId)
+        }
+
         this._handleVirtualHoldStart(data)
       })
 
       // Listen for hold:end events from virtual users
       this.socket.on('hold:end', (data) => {
         if (!this.isRunning) return
+
+        // Entry #28: Register note end for drone void detection
+        if (this.audioService && (data.noteId || data.userId)) {
+          this.audioService.registerDroneNoteEnd(data.noteId || data.userId)
+        }
 
         this._handleVirtualHoldEnd(data)
       })
@@ -503,6 +514,11 @@ class LandingApp {
         if (!SocketDataValidator.validateMusicalEvent(data)) {
           console.warn('⚠️ Invalid musical:event data received:', data)
           return
+        }
+
+        // Entry #28: Register activity for drone void detection (tap events)
+        if (this.audioService && data.type === 'tap') {
+          this.audioService.registerDroneActivity()
         }
 
         // CRITICAL: Only handle 'tap' events in _handleVirtualTapNote

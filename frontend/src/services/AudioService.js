@@ -26,6 +26,9 @@ class AudioService {
     // Volume control (extracted component - Sprint 2 refactoring)
     this.volumeController = new VolumeController()
 
+    // Entry #28: Drone void controller - makes drone emerge during activity voids
+    this.droneVoidController = null
+
     // Mute and volume controls (DEPRECATED: use volumeController instead)
     this.muted = false
     this.volume = 1.0 // 0-1 range
@@ -469,6 +472,12 @@ class AudioService {
         // console.log('♻️ Restarted evolving generation with existing synths')
       }
 
+      // Entry #28: Reset and restart DroneVoidController on synth reuse
+      if (this.droneVoidController) {
+        this.droneVoidController.reset()
+        this.droneVoidController.start()
+      }
+
       return // Exit early - synths already exist and are ready
     }
 
@@ -750,6 +759,18 @@ class AudioService {
 
     // Setup drone modulations (amplitude, filter, pitch drift)
     this.setupDroneModulation()
+
+    // Entry #28: Initialize and start DroneVoidController
+    // Must be after setupDroneModulation() to have access to droneAmplitudeGain
+    if (typeof DroneVoidController !== 'undefined') {
+      // Critical #3: Verify initialization dependencies before starting
+      if (!this.droneAmplitudeGain) {
+        console.warn('DroneVoidController: droneAmplitudeGain not initialized - controller will use fallback volume control')
+      }
+      this.droneVoidController = new DroneVoidController(this)
+      this.droneVoidController.start()
+      console.log('DroneVoidController: Initialized - drone starts silent until activity void')
+    }
 
     // Create gesture-responsive synth with INCREASED polyphony and cleaner sound
     this.gestureSynth = new Tone.PolySynth({
@@ -1321,6 +1342,11 @@ class AudioService {
         }
       } catch (error) {
         // console.warn('⚠️ Transport error:', error.message)
+      }
+
+      // Entry #28: Stop DroneVoidController
+      if (this.droneVoidController) {
+        this.droneVoidController.stop()
       }
 
       // STEP 3: Stop generation
@@ -4835,6 +4861,50 @@ class AudioService {
 //      delayTime: this.delay ? this.delay.delayTime.value.toFixed(2) : 'N/A',
 //      delayFeedback: this.delay ? this.delay.feedback.value.toFixed(2) : 'N/A'
 ////    })
+  }
+
+  // ==================== Entry #28: Drone Activity Registration ====================
+
+  /**
+   * Register activity for drone void detection
+   * Call this when any musical activity occurs (gesture start, note play, etc.)
+   */
+  registerDroneActivity() {
+    if (this.droneVoidController) {
+      this.droneVoidController.registerActivity()
+    }
+  }
+
+  /**
+   * Register a note starting for drone void detection
+   * Call this when a note/sound starts playing
+   * @param {string} noteId - Unique identifier for the note
+   */
+  registerDroneNoteStart(noteId) {
+    if (this.droneVoidController) {
+      this.droneVoidController.registerNoteStart(noteId)
+    }
+  }
+
+  /**
+   * Register a note ending for drone void detection
+   * Call this when a note/sound stops playing
+   * @param {string} noteId - Unique identifier for the note
+   */
+  registerDroneNoteEnd(noteId) {
+    if (this.droneVoidController) {
+      this.droneVoidController.registerNoteEnd(noteId)
+    }
+  }
+
+  /**
+   * Update user influence for drone void detection
+   * @param {number} influence - 0-1 value representing activity level
+   */
+  updateDroneUserInfluence(influence) {
+    if (this.droneVoidController) {
+      this.droneVoidController.updateUserInfluence(influence)
+    }
   }
 }
 
