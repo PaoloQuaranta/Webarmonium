@@ -210,6 +210,12 @@ function createServiceContainer (config = {}) {
     return new LandingCompositionService()
   }, { dependencies: ['backgroundCompositionService', 'gestureToMusicService'] })
 
+  // Virtual user service for solo mode in normal rooms
+  container.register('virtualUserService', () => {
+    const VirtualUserService = require('./VirtualUserService')
+    return new VirtualUserService()
+  })
+
   return container
 }
 
@@ -254,6 +260,26 @@ function wireServices (container, config = {}) {
 
       // Start WebMetricsPoller
       webMetricsPoller.start()
+    },
+    virtualUserService: (service, c) => {
+      // Link WebMetricsPoller for activity tracking and metrics
+      const webMetricsPoller = c.get('webMetricsPoller')
+      service.setWebMetricsPoller(webMetricsPoller)
+
+      // Set Socket.IO for broadcasting
+      if (config.io) {
+        service.setSocketIO(config.io)
+      }
+    },
+    roomManager: (service, c) => {
+      // Link VirtualUserService for solo mode support
+      const virtualUserService = c.get('virtualUserService')
+      service.setVirtualUserService(virtualUserService)
+
+      // Set Socket.IO for mode transition notifications
+      if (config.io) {
+        service.setSocketIO(config.io)
+      }
     }
   })
 

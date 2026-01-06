@@ -8,7 +8,7 @@ const CollectiveMetricsAnalyzer = require('./CollectiveMetricsAnalyzer')
 /**
  * RoomManager Service
  * Manages room lifecycle, user coordination, and capacity management
- * Constitutional requirement: 5-10 users max, memory lifecycle management
+ * Supports solo mode (1 real user + 2 virtual users) and multi mode (2-4 real users)
  * Extended: Multi-user canvas support (color assignment, drawing sync)
  */
 class RoomManager {
@@ -27,8 +27,30 @@ class RoomManager {
     // Collective metrics analyzers (per-room)
     this.metricsAnalyzers = new Map() // roomId -> CollectiveMetricsAnalyzer
 
+    // Virtual user service reference (set externally)
+    this.virtualUserService = null
+
+    // Socket.IO reference for mode transition events (set externally)
+    this.io = null
+
     this.startPeriodicCleanup()
     this.startMetricsBroadcast()
+  }
+
+  /**
+   * Set VirtualUserService reference
+   * @param {VirtualUserService} service
+   */
+  setVirtualUserService(service) {
+    this.virtualUserService = service
+  }
+
+  /**
+   * Set Socket.IO reference for broadcasting
+   * @param {SocketIO} io
+   */
+  setSocketIO(io) {
+    this.io = io
   }
 
   /**
@@ -75,9 +97,11 @@ class RoomManager {
       this.metricsAnalyzers.set(roomId, metricsAnalyzer)
     }
 
-    // Check room capacity (max 3 users for better musical control)
+    // Check room capacity - if full, create overflow room
     if (room.isFull()) {
-      throw new Error('ROOM_FULL')
+      const overflowRoomId = this.createOverflowRoom(roomId)
+      // Recursively join the overflow room
+      return this.joinRoom(userId, overflowRoomId, { ...userData, redirectedFrom: roomId })
     }
 
     // Create user instance
@@ -101,6 +125,42 @@ class RoomManager {
       color: u.assignedColor
     }))
 
+    // Handle virtual user mode transitions
+    const modeChange = room.updateMode()
+    let modeTransitionInfo = null
+
+    console.log(`🔄 RoomManager.joinRoom: roomId=${roomId}, userCount=${room.getUserCount()}, modeChange=${JSON.stringify(modeChange)}, hasVirtualUserService=${!!this.virtualUserService}`)
+
+    if (room.getUserCount() === 1 && this.virtualUserService) {
+      // First user joined: activate virtual users
+      const activeSources = this.virtualUserService.getMostActiveSources()
+      console.log(`🎭 Activating virtual users for room ${roomId}: ${activeSources.join(', ')}`)
+      this.virtualUserService.activateForRoom(roomId, activeSources, {
+        key: 'C',
+        mode: 'ionian',
+        tempo: 120
+      })
+      room.addVirtualUser(activeSources[0] + '-metrics', this.virtualUserService.virtualUserConfigs[activeSources[0]])
+      room.addVirtualUser(activeSources[1] + '-metrics', this.virtualUserService.virtualUserConfigs[activeSources[1]])
+    } else if (modeChange.changed && modeChange.to === 'multi' && this.virtualUserService) {
+      // Transition from solo to multi: deactivate virtual users
+      console.log(`🎭 Deactivating virtual users for room ${roomId} (mode: solo→multi)`)
+      this.virtualUserService.deactivateForRoom(roomId, true)
+      room.clearVirtualUsers()
+
+      // Emit mode transition notification
+      if (this.io) {
+        this.io.to(roomId).emit('mode-transition', {
+          from: 'solo',
+          to: 'multi',
+          message: 'Un altro utente si \u00e8 unito - le voci virtuali vengono sostituite',
+          duration: 3000,
+          timestamp: Date.now()
+        })
+      }
+      modeTransitionInfo = { from: 'solo', to: 'multi' }
+    }
+
     return {
       success: true,
       userId: user.id,
@@ -111,7 +171,9 @@ class RoomManager {
       memoryInfluence,
       otherUsers: room.getUsers()
         .filter(u => u.id !== userId)
-        .map(u => u.toUserProfile())
+        .map(u => u.toUserProfile()),
+      redirectedFrom: userData.redirectedFrom || null,
+      modeTransition: modeTransitionInfo
     }
   }
 
@@ -160,10 +222,32 @@ class RoomManager {
       remainingUsers: room.getUserCount()
     }
 
-    // Start memory expiration if room becomes empty
+    // Handle mode transitions
+    const modeChange = room.updateMode()
+
+    console.log(`🔄 RoomManager.leaveRoom: roomId=${roomId}, userCount=${room.getUserCount()}, isEmpty=${room.isEmpty()}, modeChange=${JSON.stringify(modeChange)}, hasVirtualUserService=${!!this.virtualUserService}`)
+
     if (room.isEmpty()) {
+      // Room is now empty: deactivate virtual users and start memory expiration
+      console.log(`🎭 Deactivating virtual users for empty room ${roomId}`)
+      if (this.virtualUserService) {
+        this.virtualUserService.deactivateForRoom(roomId, false)
+      }
+      room.clearVirtualUsers()
       room.startMemoryExpiration()
       result.memoryExpirationStarted = true
+    } else if (modeChange.changed && modeChange.to === 'solo' && this.virtualUserService) {
+      // Transition from multi to solo: activate virtual users
+      const activeSources = this.virtualUserService.getMostActiveSources()
+      console.log(`🎭 Reactivating virtual users for room ${roomId} (mode: multi→solo): ${activeSources.join(', ')}`)
+      this.virtualUserService.activateForRoom(roomId, activeSources, {
+        key: 'C',
+        mode: 'ionian',
+        tempo: 120
+      })
+      room.addVirtualUser(activeSources[0] + '-metrics', this.virtualUserService.virtualUserConfigs[activeSources[0]])
+      room.addVirtualUser(activeSources[1] + '-metrics', this.virtualUserService.virtualUserConfigs[activeSources[1]])
+      result.modeTransition = { from: 'multi', to: 'solo' }
     }
 
     return result
@@ -534,6 +618,36 @@ class RoomManager {
   }
 
   /**
+   * Create overflow room when original room is full
+   * Uses incremental naming: room-2, room-3, etc.
+   * @param {string} originalRoomId - Original room ID
+   * @returns {string} New overflow room ID
+   */
+  createOverflowRoom(originalRoomId) {
+    // Extract base name (remove any existing suffix like -2, -3)
+    const baseMatch = originalRoomId.match(/^(.+?)(-\d+)?$/)
+    const baseName = baseMatch ? baseMatch[1] : originalRoomId
+
+    // Find next available suffix
+    let suffix = 2
+    let newRoomId = `${baseName}-${suffix}`
+
+    // Check if rooms with this suffix exist and are full
+    while (this.rooms.has(newRoomId)) {
+      const existingRoom = this.rooms.get(newRoomId)
+      if (!existingRoom.isFull()) {
+        // Found a room with space
+        return newRoomId
+      }
+      suffix++
+      newRoomId = `${baseName}-${suffix}`
+    }
+
+    console.log(`🏠 Created overflow room: ${newRoomId} (from ${originalRoomId})`)
+    return newRoomId
+  }
+
+  /**
    * Force disconnect user from room (admin function)
    * @param {string} userId - User ID to disconnect
    * @param {string} reason - Disconnect reason
@@ -664,6 +778,11 @@ class RoomManager {
         // console.warn(`Error stopping CollectiveMetricsAnalyzer for room ${roomId}:`, error.message)
       }
     })
+
+    // Shutdown VirtualUserService for all rooms
+    if (this.virtualUserService) {
+      this.virtualUserService.shutdown()
+    }
 
     // Clear all data structures
     this.rooms.clear()

@@ -778,29 +778,35 @@ class WebarmoniumApp {
 
     // SUSTAINED HOLD: Handle remote user hold:start events
     this.socketService.on('hold:start', (data) => {
-      // console.log('📥 RECEIVED hold:start from server:', {
-//        noteId: data.noteId,
-//        userId: data.userId?.substring(0, 8),
-//        isRemote: data.isRemote,
-//        frequency: data.frequency?.toFixed(1) + 'Hz',
-//        velocity: data.velocity?.toFixed(2),
-//        isAudioStarted: this.isAudioStarted
-////      })
-
       // Only process if audio is started AND this is a remote hold
       if (!this.isAudioStarted) {
-        // console.log('⏭️ Skipping hold:start - audio not started')
         return
       }
 
       if (!data.isRemote) {
-        // console.log('⏭️ Skipping hold:start - not marked as remote (is my own event)')
         return
       }
 
-      // console.log('▶️ PLAYING remote sustained note')
+      // VIRTUAL USERS: Use triggerAttackRelease with duration (like landing page)
+      // This provides natural envelope instead of aggressive sustained note envelope
+      if (data.isVirtual && this.audioService?.gestureSynth) {
+        const synth = this.audioService.gestureSynth
+        if (synth && typeof synth.triggerAttackRelease === 'function') {
+          // Use the duration from backend (already in seconds, min 300ms)
+          const noteDuration = data.duration || 0.5
+          const velocity = data.velocity * 0.6 // Quieter for virtual users
+          synth.triggerAttackRelease(data.frequency, noteDuration, Tone.now(), velocity)
 
-      // Trigger remote note attack (use same method, AudioService handles synth selection)
+          // Update visual service
+          if (this.visualService) {
+            const color = data.userColor || '#ff6b6b'
+            this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
+          }
+        }
+        return // Don't use sustained note mechanism for virtual users
+      }
+
+      // REAL REMOTE USERS: Use sustained note mechanism (gate open/close)
       const result = this.audioService.triggerSustainedNoteAttack(
         data.frequency,
         data.velocity * 0.7, // Quieter for remote users
@@ -1131,6 +1137,88 @@ class WebarmoniumApp {
       // console.error('❌ Room is full:', data.error)
       this.showError(`Unable to join room: ${data.error}. The room has reached maximum capacity (10 users). Please try again later.`)
     })
+
+    // Virtual user events for solo mode
+    this.socketService.on('virtual-users-activated', (data) => {
+      console.log('🎭 Virtual users activated:', data.sources)
+
+      if (this.cursorManager && data.virtualUsers) {
+        data.virtualUsers.forEach(user => {
+          this.cursorManager.addVirtualCursor(user.userId, user.color, true) // fadeIn
+        })
+      }
+
+      if (this.visualService && data.virtualUsers) {
+        data.virtualUsers.forEach(user => {
+          this.visualService.addVirtualUser?.(user.userId, user.color)
+        })
+      }
+
+      // Update UI to show web sources count
+      console.log('🎭 Updating UI with web sources:', data.sources?.length, 'uiManager:', !!this.uiManager)
+      if (this.uiManager && data.sources) {
+        this.uiManager.setVirtualSourceCount(data.sources.length)
+      }
+
+      // Show notification
+      if (window.NotificationService) {
+        window.NotificationService.showVirtualUsersActivated(data.sources)
+      }
+    })
+
+    this.socketService.on('virtual-users-deactivated', (data) => {
+      console.log('🎭 Virtual users deactivated:', data.sources)
+
+      if (this.cursorManager) {
+        this.cursorManager.removeAllVirtualCursors(true) // fadeOut
+      }
+
+      if (this.visualService && data.sources) {
+        data.sources.forEach(source => {
+          const userId = `${source}-metrics`
+          this.visualService.removeVirtualUser?.(userId)
+        })
+      }
+
+      // Update UI to hide web sources count
+      if (this.uiManager) {
+        this.uiManager.setVirtualSourceCount(0)
+      }
+    })
+
+    // Virtual cursor position updates
+    this.socketService.on('virtual-cursors', (data) => {
+      if (!this.cursorManager || !data.cursors) return
+
+      for (const [source, cursor] of Object.entries(data.cursors)) {
+        // Fallback: add cursor if it doesn't exist yet (handles race condition with virtual-users-activated)
+        if (!this.cursorManager.isVirtualCursor(cursor.userId)) {
+          this.cursorManager.addVirtualCursor(cursor.userId, cursor.color, true) // fadeIn
+        }
+
+        // Update cursor position
+        this.cursorManager.updateVirtualCursor(cursor.userId, cursor.x, cursor.y)
+
+        // Also update visual service
+        if (this.visualService) {
+          this.visualService.updateCursorPosition?.(
+            cursor.userId,
+            cursor.x,
+            cursor.y,
+            cursor.color
+          )
+        }
+      }
+    })
+
+    // Mode transition notification
+    this.socketService.on('mode-transition', (data) => {
+      console.log('🔄 Mode transition:', data.from, '→', data.to)
+
+      if (window.NotificationService) {
+        window.NotificationService.showModeTransition(data.message, data.duration || 3000)
+      }
+    })
   }
 
   setupDrawingEvents() {
@@ -1223,6 +1311,27 @@ class WebarmoniumApp {
       if (joinResponse && joinResponse.assignedColor) {
         this.currentUserColor = joinResponse.assignedColor
         // console.log('✅ User color assigned:', this.currentUserColor)
+      }
+
+      // Handle redirect notification (overflow room)
+      if (joinResponse && joinResponse.redirectedFrom) {
+        console.log(`🏠 Redirected from full room: ${joinResponse.redirectedFrom} → ${joinResponse.room?.roomId}`)
+        if (window.NotificationService) {
+          window.NotificationService.showModeTransition(joinResponse.redirectMessage, 5000)
+        }
+      }
+
+      // Handle virtual users from join response (backup for socket event timing)
+      if (joinResponse && joinResponse.virtualUsers && joinResponse.virtualUsers.length > 0) {
+        console.log('🎭 Virtual users from join response:', joinResponse.virtualUsers.map(v => v.source))
+        if (this.cursorManager) {
+          joinResponse.virtualUsers.forEach(user => {
+            this.cursorManager.addVirtualCursor(user.userId, user.color, true)
+          })
+        }
+        if (this.uiManager) {
+          this.uiManager.setVirtualSourceCount(joinResponse.virtualUsers.length)
+        }
       }
 
     } catch (error) {

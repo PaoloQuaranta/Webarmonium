@@ -320,10 +320,10 @@
     <!-- Application services -->
     <!-- <script src="src/services/GestureCapture.js?v=5"></script> -->
     <!-- DISABLED - using EnhancedGestureCapture instead -->
-    <script src="src/services/SocketService.js?v=7"></script> <!-- FIX: Added hold:start/hold:end socket.io listeners -->
+    <script src="src/services/SocketService.js?v=8"></script> <!-- FIX: Added virtual user socket.io listeners -->
     <!-- Sprint 2 refactoring: Extracted components -->
     <script src="src/services/CanvasManager.js?v=1"></script>
-    <script src="src/services/UIManager.js?v=1"></script>
+    <script src="src/services/UIManager.js?v=2"></script> <!-- FIX: Added virtual source count display -->
     <script src="src/services/VolumeController.js?v=1"></script>
     <!-- Enhanced generative graphics system -->
     <script src="src/services/visual/VisualConstants.js?v=7"></script>
@@ -367,7 +367,8 @@
         })
     </script>
     <!-- DrawingRenderer.js REMOVED - replaced by p5.js GenerativeVisualService -->
-    <script src="src/services/CursorManager.js?v=5"></script>
+    <script src="src/services/CursorManager.js?v=9"></script> <!-- FIX: Halved cursor sizes (10px base) -->
+    <script src="src/services/NotificationService.js?v=1"></script>
 
     <!-- Phase 3: Gesture modules (decomposed from EnhancedGestureCapture) -->
     <script src="src/services/gesture/GestureCaptureCore.js?v=1"></script>
@@ -401,7 +402,7 @@
             }
         }, 1000)
     </script>
-    <script src="src/main.js?v=54"></script> <!-- FIX: visualService.initialize moved after showApp() -->
+    <script src="src/main.js?v=60"></script> <!-- Handle redirect and virtualUsers from joinResponse -->
 </body>
 
 </html>

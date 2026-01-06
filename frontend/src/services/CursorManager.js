@@ -15,14 +15,23 @@ class CursorManager {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
 
-    // Map of userId -> cursor data {x, y, color, isDrawing, timestamp}
+    // Map of userId -> cursor data {x, y, color, isDrawing, timestamp, isVirtual, alpha}
     this.cursors = new Map()
 
-    // Rendering settings
-    this.cursorSize = 12 // Cursor circle radius
-    this.cursorLineWidth = 2
-    this.drawingCursorSize = 8 // Smaller when drawing
+    // Virtual cursor tracking
+    this.virtualCursors = new Set() // Set of virtual cursor userIds
+
+    // Rendering settings - account for devicePixelRatio
+    const dpr = window.devicePixelRatio || 1
+    this.cursorSize = 10 * dpr // Cursor circle radius
+    this.cursorLineWidth = 2 * dpr
+    this.drawingCursorSize = 8 * dpr // Smaller when drawing
     this.cursorAlpha = 0.8
+    this.virtualCursorAlpha = 0.7 // Slightly more transparent for virtual
+
+    // Fade animation settings
+    this.fadeAnimations = new Map() // userId -> { direction: 'in'|'out', startTime, duration, onComplete }
+    this.fadeDuration = 500 // 500ms fade animation
 
     // Performance tracking
     this.lastRenderTime = 0
@@ -116,6 +125,142 @@ class CursorManager {
    */
   clearAll () {
     this.cursors.clear()
+    this.virtualCursors.clear()
+    this.fadeAnimations.clear()
+  }
+
+  /**
+   * Add a virtual cursor with optional fade-in animation
+   * @param {string} userId - Virtual user ID
+   * @param {string} color - Cursor color
+   * @param {boolean} fadeIn - Whether to fade in
+   */
+  addVirtualCursor (userId, color, fadeIn = true) {
+    const cursor = {
+      x: 0.5,
+      y: 0.5,
+      color,
+      isDrawing: false,
+      isVirtual: true,
+      alpha: fadeIn ? 0 : this.virtualCursorAlpha,
+      timestamp: Date.now()
+    }
+
+    this.cursors.set(userId, cursor)
+    this.virtualCursors.add(userId)
+
+    if (fadeIn) {
+      this.fadeAnimations.set(userId, {
+        direction: 'in',
+        startTime: performance.now(),
+        duration: this.fadeDuration,
+        targetAlpha: this.virtualCursorAlpha,
+        onComplete: null
+      })
+    }
+  }
+
+  /**
+   * Remove a virtual cursor with optional fade-out animation
+   * @param {string} userId - Virtual user ID
+   * @param {boolean} fadeOut - Whether to fade out
+   */
+  removeVirtualCursor (userId, fadeOut = true) {
+    if (!this.virtualCursors.has(userId)) return
+
+    if (fadeOut) {
+      const cursor = this.cursors.get(userId)
+      if (cursor) {
+        this.fadeAnimations.set(userId, {
+          direction: 'out',
+          startTime: performance.now(),
+          duration: this.fadeDuration,
+          startAlpha: cursor.alpha,
+          onComplete: () => {
+            this.cursors.delete(userId)
+            this.virtualCursors.delete(userId)
+          }
+        })
+      }
+    } else {
+      this.cursors.delete(userId)
+      this.virtualCursors.delete(userId)
+    }
+  }
+
+  /**
+   * Remove all virtual cursors with optional fade-out
+   * @param {boolean} fadeOut - Whether to fade out
+   */
+  removeAllVirtualCursors (fadeOut = true) {
+    for (const userId of this.virtualCursors) {
+      this.removeVirtualCursor(userId, fadeOut)
+    }
+  }
+
+  /**
+   * Update virtual cursor position
+   * @param {string} userId - Virtual user ID
+   * @param {number} x - X coordinate (0-1)
+   * @param {number} y - Y coordinate (0-1)
+   */
+  updateVirtualCursor (userId, x, y) {
+    const cursor = this.cursors.get(userId)
+    if (cursor && cursor.isVirtual) {
+      cursor.x = x
+      cursor.y = y
+      cursor.timestamp = Date.now()
+    }
+  }
+
+  /**
+   * Check if a cursor is virtual
+   * @param {string} userId - User ID
+   * @returns {boolean}
+   */
+  isVirtualCursor (userId) {
+    return this.virtualCursors.has(userId)
+  }
+
+  /**
+   * Get count of virtual cursors
+   * @returns {number}
+   */
+  getVirtualCursorCount () {
+    return this.virtualCursors.size
+  }
+
+  /**
+   * Process fade animations
+   * Called during render loop
+   * @private
+   */
+  _processFadeAnimations () {
+    const now = performance.now()
+
+    for (const [userId, anim] of this.fadeAnimations) {
+      const cursor = this.cursors.get(userId)
+      if (!cursor) {
+        this.fadeAnimations.delete(userId)
+        continue
+      }
+
+      const elapsed = now - anim.startTime
+      const progress = Math.min(1, elapsed / anim.duration)
+
+      if (anim.direction === 'in') {
+        cursor.alpha = progress * anim.targetAlpha
+      } else {
+        cursor.alpha = anim.startAlpha * (1 - progress)
+      }
+
+      if (progress >= 1) {
+        this.fadeAnimations.delete(userId)
+        if (anim.onComplete) {
+          anim.onComplete()
+        }
+      }
+    }
   }
 
   /**
@@ -140,6 +285,9 @@ class CursorManager {
 
     this.lastRenderTime = now
 
+    // Process fade animations
+    this._processFadeAnimations()
+
     // Clear canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
@@ -156,29 +304,46 @@ class CursorManager {
 
   /**
    * Render a single cursor
-   * @param {Object} cursor - Cursor data {x, y, color, isDrawing}
+   * @param {Object} cursor - Cursor data {x, y, color, isDrawing, isVirtual, alpha}
    * @param {string} userId - User ID (for label)
    */
   renderSingleCursor (cursor, userId) {
-    const { x, y, color, isDrawing } = cursor
+    const { x, y, color, isDrawing, isVirtual, alpha } = cursor
 
     // Convert normalized coordinates (0-1) to canvas pixel coordinates
     // Account for devicePixelRatio since canvas.width includes it
     const pixelX = x * this.canvas.width
     const pixelY = y * this.canvas.height
 
-    // Set alpha transparency
-    this.ctx.globalAlpha = this.cursorAlpha
+    // Set alpha transparency - use cursor's alpha for virtual cursors (for fade animations)
+    const cursorAlphaValue = isVirtual && alpha !== undefined ? alpha : this.cursorAlpha
+    this.ctx.globalAlpha = cursorAlphaValue
 
-    // Determine cursor size based on drawing state
-    const size = isDrawing ? this.drawingCursorSize : this.cursorSize
+    // Skip rendering if fully transparent
+    if (cursorAlphaValue <= 0) return
 
-    // Draw cursor circle
+    // Determine cursor size based on state (virtual and remote use same size)
+    let size
+    if (isDrawing) {
+      size = this.drawingCursorSize
+    } else {
+      size = this.cursorSize // Same size for real and virtual cursors
+    }
+
+    // Draw cursor circle - dashed for virtual cursors
     this.ctx.beginPath()
     this.ctx.arc(pixelX, pixelY, size, 0, Math.PI * 2)
     this.ctx.strokeStyle = color
     this.ctx.lineWidth = this.cursorLineWidth
+
+    const dpr = window.devicePixelRatio || 1
+    if (isVirtual) {
+      this.ctx.setLineDash([6 * dpr, 4 * dpr]) // Dashed line for virtual, scaled
+    } else {
+      this.ctx.setLineDash([]) // Solid line for real users
+    }
     this.ctx.stroke()
+    this.ctx.setLineDash([]) // Reset to solid
 
     // Fill if drawing
     if (isDrawing) {
@@ -187,10 +352,13 @@ class CursorManager {
     }
 
     // Draw crosshair
-    this.drawCrosshair(pixelX, pixelY, color, size + 4)
+    this.drawCrosshair(pixelX, pixelY, color, size + 6 * dpr)
 
-    // Draw user label (first 8 chars of userId)
-    this.drawUserLabel(pixelX, pixelY + size + 15, userId.substring(0, 8), color)
+    // Draw user label - show source name for virtual cursors
+    const label = isVirtual
+      ? userId.replace('-metrics', '') // e.g., 'wikipedia', 'hackernews'
+      : userId.substring(0, 8)
+    this.drawUserLabel(pixelX, pixelY + size + 20 * dpr, label, color)
 
     // Reset alpha
     this.ctx.globalAlpha = 1.0

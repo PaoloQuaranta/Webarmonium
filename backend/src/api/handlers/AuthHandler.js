@@ -123,16 +123,43 @@ const AuthHandler = {
         // Validate user data
         const validatedUserData = ValidationHandler.validateUserData(userData)
 
-        // Attempt to join room
+        // CRITICAL: Join socket room BEFORE roomManager.joinRoom()
+        // This ensures the socket receives virtual-users-activated event
+        socket.roomId = roomId
+        socket.join(roomId)
+
+        // Attempt to join room (this may emit virtual-users-activated)
         const result = await socket.services.roomManager.joinRoom(
           socket.userId,
           roomId,
           validatedUserData
         )
 
-        // Store room association
-        socket.roomId = roomId
-        socket.join(roomId)
+        // Handle redirect case - move socket to correct room
+        const actualRoomId = result.room?.roomId || roomId
+        if (actualRoomId !== roomId) {
+          socket.leave(roomId)
+          socket.join(actualRoomId)
+          socket.roomId = actualRoomId
+
+          // Re-emit virtual-users-activated to this socket since it missed the event
+          // (the event was emitted while socket was still in the original room)
+          const overflowRoom = socket.services.roomManager.getRoom(actualRoomId)
+          if (overflowRoom && overflowRoom.hasVirtualUsers()) {
+            const virtualUsers = Array.from(overflowRoom.getVirtualUsers().entries()).map(([userId, config]) => ({
+              userId,
+              color: config.color,
+              source: userId.replace('-metrics', '')
+            }))
+            socket.emit('virtual-users-activated', {
+              roomId: actualRoomId,
+              sources: virtualUsers.map(v => v.source),
+              virtualUsers,
+              timestamp: Date.now()
+            })
+            console.log(`🎭 Re-emitted virtual-users-activated to redirected socket for room ${actualRoomId}`)
+          }
+        }
 
         // console.log(`✅ User joined room:`, {
 //          userId: socket.userId,
@@ -142,14 +169,17 @@ const AuthHandler = {
 //          totalUsersInRoom: result.users?.length || 0
 ////        })
 
-        // Initialize memory state if needed
-        let memoryState = socket.services.environmentalMemoryCoordinator.getMemoryState(roomId)
+        // Initialize memory state if needed (use actualRoomId in case of redirect)
+        let memoryState = socket.services.environmentalMemoryCoordinator.getMemoryState(actualRoomId)
         if (!memoryState) {
-          memoryState = socket.services.environmentalMemoryCoordinator.initializeMemoryState(roomId)
+          memoryState = socket.services.environmentalMemoryCoordinator.initializeMemoryState(actualRoomId)
         }
 
         // Calculate processing latency
         const latency = Date.now() - startTime
+
+        // Check if user was redirected from a full room
+        const wasRedirected = result.redirectedFrom != null
 
         // Send success response with multi-user canvas data
         const response = {
@@ -165,19 +195,38 @@ const AuthHandler = {
           timestamp: Date.now()
         }
 
+        // Include redirect info if applicable
+        if (wasRedirected) {
+          response.redirectedFrom = result.redirectedFrom
+          response.redirectMessage = `La stanza ${result.redirectedFrom} era piena. Sei stato reindirizzato a ${actualRoomId}`
+        }
+
+        // Include virtual users info if in solo mode
+        const currentRoom = socket.services.roomManager.getRoom(actualRoomId)
+        if (currentRoom && currentRoom.hasVirtualUsers()) {
+          response.virtualUsers = Array.from(currentRoom.getVirtualUsers().entries()).map(([userId, config]) => ({
+            userId,
+            color: config.color,
+            source: userId.replace('-metrics', '')
+          }))
+          response.roomMode = 'solo'
+        } else {
+          response.roomMode = 'multi'
+        }
+
         ValidationHandler.sendResponse(callback, response)
 
-        // Emit room-joined event for test compatibility
+        // Emit room-joined event for test compatibility (use actualRoomId for overflow rooms)
         socket.emit('room-joined', {
-          roomId: roomId,
+          roomId: actualRoomId,
           userId: socket.userId,
           users: result.users,
           room: result.room,
           timestamp: Date.now()
         })
 
-        // Broadcast user-joined to other users in room
-        socket.to(roomId).emit('user-joined', {
+        // Broadcast user-joined to other users in room (use actualRoomId for overflow rooms)
+        socket.to(actualRoomId).emit('user-joined', {
           userId: socket.userId,
           color: result.assignedColor,
           user: result.user,
@@ -197,16 +246,16 @@ const AuthHandler = {
           })
         })
 
-        // Send drawing history to new user
-        const drawingHistory = socket.services.roomManager.getDrawingHistory(roomId)
+        // Send drawing history to new user (use actualRoomId for overflow rooms)
+        const drawingHistory = socket.services.roomManager.getDrawingHistory(actualRoomId)
         socket.emit('drawing-history', {
           strokes: drawingHistory
         })
 
         // Start background composition for the room
         if (socket.services.backgroundCompositionService) {
-          socket.services.backgroundCompositionService.startComposition(roomId, {
-            roomId: roomId,
+          socket.services.backgroundCompositionService.startComposition(actualRoomId, {
+            roomId: actualRoomId,
             userCount: result.room.userCount,
             activeUsers: result.users.map(u => u.id)
           })
@@ -405,15 +454,19 @@ const AuthHandler = {
           // Remove user from room
           roomManager.leaveRoom(socket.userId)
 
+        // Get room after leave to determine user count
+        const roomAfterLeave = roomManager.getRoom(socket.roomId)
+        const userCount = roomAfterLeave ? roomAfterLeave.users.size : 0
+
         // Broadcast user-left to remaining users
         socket.to(socket.roomId).emit('user-left', {
           userId: socket.userId,
           color: userColor,
+          userCount,
           timestamp: Date.now()
         })
 
         // Stop background composition if room is now empty
-        const roomAfterLeave = roomManager.getRoom(socket.roomId)
         if (socket.services.backgroundCompositionService) {
           if (!roomAfterLeave || roomAfterLeave.users.size === 0) {
             socket.services.backgroundCompositionService.stopComposition(socket.roomId)

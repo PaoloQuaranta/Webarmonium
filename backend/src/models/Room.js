@@ -1,7 +1,8 @@
 /**
  * Room Model
  * Virtual collaborative space with unique sonic personality
- * Constitutional requirement: 3 users max, 24-hour memory retention
+ * Supports solo mode (1 real user + 2 virtual users) and multi mode (2-4 real users)
+ * Constitutional requirement: 4 users max, 24-hour memory retention
  */
 class Room {
   constructor (id) {
@@ -11,7 +12,11 @@ class Room {
     this.users = new Map() // userId -> User object
     this.memoryState = null
     this.isActive = false
-    this.maxUsers = 3 // Limited for better musical control
+    this.maxUsers = 4 // Increased from 3 to allow more collaboration
+
+    // Room mode: 'solo' (1 real user + virtual users) or 'multi' (2+ real users)
+    this.mode = 'solo'
+    this.virtualUsers = new Map() // virtualUserId -> { source, color, region }
 
     // Multi-user canvas state
     this.drawingStrokes = [] // Array of completed DrawingStroke objects
@@ -112,6 +117,68 @@ class Room {
    */
   isEmpty () {
     return this.users.size === 0
+  }
+
+  /**
+   * Get current room mode based on real user count
+   * @returns {string} 'solo' if 1 user, 'multi' if 2+ users
+   */
+  getMode () {
+    return this.users.size === 1 ? 'solo' : 'multi'
+  }
+
+  /**
+   * Update room mode and detect transitions
+   * @returns {Object} { changed: boolean, from?: string, to?: string }
+   */
+  updateMode () {
+    const newMode = this.getMode()
+    if (newMode !== this.mode) {
+      const previousMode = this.mode
+      this.mode = newMode
+      return { changed: true, from: previousMode, to: newMode }
+    }
+    return { changed: false }
+  }
+
+  /**
+   * Add virtual user to room
+   * @param {string} virtualUserId - Virtual user ID (e.g., 'wikipedia-metrics')
+   * @param {Object} config - Virtual user configuration
+   */
+  addVirtualUser (virtualUserId, config) {
+    this.virtualUsers.set(virtualUserId, config)
+  }
+
+  /**
+   * Remove virtual user from room
+   * @param {string} virtualUserId - Virtual user ID
+   */
+  removeVirtualUser (virtualUserId) {
+    this.virtualUsers.delete(virtualUserId)
+  }
+
+  /**
+   * Clear all virtual users from room
+   */
+  clearVirtualUsers () {
+    this.virtualUsers.clear()
+  }
+
+  /**
+   * Get all virtual users
+   * @returns {Map} Virtual users map
+   */
+  getVirtualUsers () {
+    return this.virtualUsers
+  }
+
+  /**
+   * Check if room has virtual users active
+   * @returns {boolean}
+   */
+  hasVirtualUsers () {
+    return this.virtualUsers.size > 0
   }
 
   /**

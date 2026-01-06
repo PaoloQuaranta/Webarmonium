@@ -234,6 +234,26 @@ class SocketService {
       this.emit('background-composition', data)
     })
 
+    // Virtual user events for solo mode
+    this.socket.on('virtual-users-activated', (data) => {
+      console.log('🎭 SocketService received virtual-users-activated:', data)
+      this.emit('virtual-users-activated', data)
+    })
+
+    this.socket.on('virtual-users-deactivated', (data) => {
+      console.log('🎭 SocketService received virtual-users-deactivated:', data)
+      this.emit('virtual-users-deactivated', data)
+    })
+
+    this.socket.on('virtual-cursors', (data) => {
+      this.emit('virtual-cursors', data)
+    })
+
+    this.socket.on('mode-transition', (data) => {
+      console.log('🔄 SocketService received mode-transition:', data)
+      this.emit('mode-transition', data)
+    })
+
     // Debug: raw hover events (development only)
     this.socket.on('hover-update-raw', (data) => {
       if (process.env.NODE_ENV === 'development') {

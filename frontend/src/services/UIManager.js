@@ -28,6 +28,7 @@ class UIManager {
     // Current state
     this.currentRoom = null
     this.userCount = 1
+    this.virtualSourceCount = 0 // Number of active web sources (virtual users)
   }
 
   /**
@@ -48,7 +49,15 @@ class UIManager {
     const userCountEl = document.getElementById(this.elementIds.userCount)
     if (userCountEl) {
       const userText = this.userCount === 1 ? 'user' : 'users'
-      userCountEl.textContent = `👥 ${this.userCount} ${userText}`
+      let displayText = `👥 ${this.userCount} ${userText}`
+
+      // Add web sources info when virtual users are active
+      if (this.virtualSourceCount > 0) {
+        const sourceText = this.virtualSourceCount === 1 ? 'web source' : 'web sources'
+        displayText += ` + ${this.virtualSourceCount} ${sourceText}`
+      }
+
+      userCountEl.textContent = displayText
     }
 
     // Update room ID display
@@ -152,6 +161,15 @@ class UIManager {
    */
   setUserCount(count) {
     this.userCount = count
+    this.updateRoomDisplay()
+  }
+
+  /**
+   * Set virtual source count (web sources like Wikipedia, HackerNews)
+   * @param {number} count - Number of active web sources
+   */
+  setVirtualSourceCount(count) {
+    this.virtualSourceCount = count
     this.updateRoomDisplay()
   }
 

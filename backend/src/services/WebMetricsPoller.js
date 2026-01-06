@@ -57,6 +57,16 @@ class WebMetricsPoller {
     this.metricsHistory = []
     this.maxHistoryLength = 20
 
+    // Activity history for source ranking (timestamps of significant activity)
+    // Used by VirtualUserService to select the 2 most active sources
+    this.activityHistory = {
+      wikipedia: [],
+      hackernews: [],
+      github: []
+    }
+    this.activityWindowMs = 5 * 60 * 1000 // 5 minutes
+    this.activityThreshold = 0.1 // Minimum normalized velocity to count as activity
+
     // Event callbacks
     this.onMetricsUpdate = null
   }
@@ -318,6 +328,9 @@ class WebMetricsPoller {
         this.metricsHistory = this.metricsHistory.slice(0, this.maxHistoryLength)
       }
 
+      // Track activity for source ranking
+      this._trackActivity(enrichedMetrics, now)
+
       const metricsSnapshot = {
         wikipedia: { ...enrichedMetrics.wikipedia },
         hackernews: { ...enrichedMetrics.hackernews },
@@ -331,6 +344,33 @@ class WebMetricsPoller {
       })
 
       this.onMetricsUpdate(metricsSnapshot)
+    }
+  }
+
+  /**
+   * Track activity events for source ranking
+   * Records timestamps when sources show significant activity
+   * @param {Object} enrichedMetrics - Metrics with velocity
+   * @param {number} now - Current timestamp
+   * @private
+   */
+  _trackActivity(enrichedMetrics, now) {
+    // Prune old activity records (older than 10 minutes for safety margin)
+    const pruneTime = now - 10 * 60 * 1000
+    for (const source of Object.keys(this.activityHistory)) {
+      this.activityHistory[source] = this.activityHistory[source].filter(t => t > pruneTime)
+    }
+
+    // Record activity based on velocity (any non-zero activity counts)
+    // We use raw metrics values since velocity can be negative
+    if (this.metrics.wikipedia.editsPerMinute > 0) {
+      this.activityHistory.wikipedia.push(now)
+    }
+    if (this.metrics.hackernews.postsPerMinute > 0) {
+      this.activityHistory.hackernews.push(now)
+    }
+    if (this.metrics.github.commitsPerMinute > 0) {
+      this.activityHistory.github.push(now)
     }
   }
 
@@ -429,6 +469,45 @@ class WebMetricsPoller {
       return latest[source]?.acceleration || 0
     }
     return 0
+  }
+
+  /**
+   * Get activity history for source ranking
+   * @returns {Object} Activity history with timestamps per source
+   */
+  getActivityHistory() {
+    return {
+      wikipedia: [...this.activityHistory.wikipedia],
+      hackernews: [...this.activityHistory.hackernews],
+      github: [...this.activityHistory.github]
+    }
+  }
+
+  /**
+   * Get the 2 most active sources in the last 5 minutes
+   * Used by VirtualUserService to select which virtual users to activate
+   * @returns {string[]} Array of 2 source names, sorted by activity (most active first)
+   */
+  getMostActiveSources() {
+    const now = Date.now()
+    const windowStart = now - this.activityWindowMs
+
+    // Count activity events in the window for each source
+    const sourceScores = Object.entries(this.activityHistory).map(([source, history]) => {
+      const recentActivity = history.filter(t => t > windowStart).length
+      return { source, score: recentActivity }
+    })
+
+    // Sort by score descending and return top 2
+    sourceScores.sort((a, b) => b.score - a.score)
+
+    // If scores are tied or zero, use a default order based on typical activity
+    if (sourceScores[0].score === 0) {
+      // No activity recorded yet, use default order
+      return ['wikipedia', 'hackernews']
+    }
+
+    return sourceScores.slice(0, 2).map(s => s.source)
   }
 }
 

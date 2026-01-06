@@ -141,6 +141,82 @@ class SocketEventCoordinator {
         this.onUserCountChange(this.userCount)
       }
     })
+
+    // Virtual user events for solo mode
+    this.registerVirtualUserEvents()
+  }
+
+  /**
+   * Register virtual user events for solo mode
+   */
+  registerVirtualUserEvents() {
+    // Virtual users activated (when room enters solo mode)
+    this.socketService.on('virtual-users-activated', (data) => {
+      console.log('🎭 Virtual users activated:', data.sources)
+
+      if (this.cursorManager && data.virtualUsers) {
+        data.virtualUsers.forEach(user => {
+          this.cursorManager.addVirtualCursor(user.userId, user.color, true) // fadeIn
+        })
+      }
+
+      if (this.visualService && data.virtualUsers) {
+        data.virtualUsers.forEach(user => {
+          this.visualService.addVirtualUser?.(user.userId, user.color)
+        })
+      }
+
+      // Optional: Show notification
+      if (window.NotificationService) {
+        window.NotificationService.showVirtualUsersActivated(data.sources)
+      }
+    })
+
+    // Virtual users deactivated (when room enters multi mode)
+    this.socketService.on('virtual-users-deactivated', (data) => {
+      console.log('🎭 Virtual users deactivated:', data.sources)
+
+      if (this.cursorManager) {
+        this.cursorManager.removeAllVirtualCursors(true) // fadeOut
+      }
+
+      if (this.visualService && data.sources) {
+        data.sources.forEach(source => {
+          const userId = `${source}-metrics`
+          this.visualService.removeVirtualUser?.(userId)
+        })
+      }
+    })
+
+    // Virtual cursor position updates
+    this.socketService.on('virtual-cursors', (data) => {
+      if (!this.cursorManager || !data.cursors) return
+
+      for (const [source, cursor] of Object.entries(data.cursors)) {
+        if (this.cursorManager.isVirtualCursor(cursor.userId)) {
+          this.cursorManager.updateVirtualCursor(cursor.userId, cursor.x, cursor.y)
+        }
+
+        // Also update visual service
+        if (this.visualService) {
+          this.visualService.updateCursorPosition?.(
+            cursor.userId,
+            cursor.x,
+            cursor.y,
+            cursor.color
+          )
+        }
+      }
+    })
+
+    // Mode transition notification
+    this.socketService.on('mode-transition', (data) => {
+      console.log('🔄 Mode transition:', data.from, '→', data.to)
+
+      if (window.NotificationService) {
+        window.NotificationService.showModeTransition(data.message, data.duration || 3000)
+      }
+    })
   }
 
   /**
