@@ -1762,3 +1762,225 @@ if (!this.isInitialized || !this.ambientLayers) {
 This ensures synths are created even if `isInitialized` was prematurely set.
 
 ---
+
+## Entry #26 - Drone System Overhaul: Audibility, Dynamic Key, Modulation
+
+**Date**: 2026-01-06
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Major overhaul of the drone system across both landing page and normal rooms:
+1. Fixed drone audibility (was too quiet)
+2. Made drone dynamic (follows keyCenter instead of hardcoded C3)
+3. Added drone to landing page (was missing)
+4. Added slow LFO modulations for organic, evolving sound
+
+---
+
+### Problem 1: Drone Too Quiet
+
+**User Report**: "continuo a non sentire il drone"
+
+**Root Cause**: Multiple volume issues in the pad synth chain:
+- Pad synth had no volume boost (0dB default) while other layers had +5dB
+- ambientVolumes.pad was -3dB (reduction!)
+- Attack time 1.5s was too slow
+- Drone velocity 0.5 was too low
+
+**Solution** (`frontend/src/services/AudioService.js`):
+```javascript
+// Pad synth: added volume boost and reduced attack
+pad: new Tone.PolySynth({
+  volume: +5,  // ADDED - match backgroundHigh/Mid/Low
+  envelope: {
+    attack: 0.8,  // REDUCED from 1.5s
+    // ...
+  }
+})
+
+// Volume node: increased from -3dB to +6dB
+ambientVolumes: {
+  pad: new Tone.Volume(+6),  // WAS -3dB
+}
+```
+
+**Solution** (`backend/src/services/BackgroundCompositionService.js`):
+```javascript
+velocity: 0.8,  // INCREASED from 0.5
+```
+
+**Total boost**: ~+14dB compared to previous configuration.
+
+---
+
+### Problem 2: Drone Static (Always C3)
+
+**User Report**: "suona sempre la stessa nota e non si adegua alla composizione"
+
+**Root Cause**: Drone note was hardcoded to 'C3'.
+
+**Solution** (`backend/src/services/BackgroundCompositionService.js`):
+```javascript
+generateAndBroadcastDrone(roomId) {
+  const keyCenter = this.compositionEngine.keyCenter || 'C'
+  const droneNote = `${keyCenter}3`  // Dynamic root note
+  
+  // Added fifth for richer texture
+  const fifthMap = { 'C': 'G', 'D': 'A', 'E': 'B', 'F': 'C', 'G': 'D', 'A': 'E', 'B': 'F#' }
+  const fifthNote = `${fifthMap[keyCenter] || 'G'}3`
+  
+  content: {
+    texture: [
+      { note: droneNote, velocity: 0.8 },   // Root
+      { note: fifthNote, velocity: 0.5 }    // Fifth (quieter)
+    ]
+  }
+}
+```
+
+---
+
+### Problem 3: No Drone in Landing Page
+
+**User Report**: "non lo sento nella landing page"
+
+**Root Cause**: `LandingCompositionService` had no drone generation. Only `BackgroundCompositionService` (normal rooms) had it.
+
+**Solution** (`backend/src/services/LandingCompositionService.js`):
+
+1. Added `generateAndBroadcastDrone()` method (same as BackgroundCompositionService)
+2. Called from `start()` with 500ms delay:
+```javascript
+start() {
+  // ...existing code...
+  
+  // Broadcast initial drone (fills silence while metrics load)
+  setTimeout(() => {
+    this.generateAndBroadcastDrone()
+  }, 500)
+}
+```
+
+3. Added `pendingDrone` pattern to `frontend/src/landing/main.js`:
+```javascript
+constructor() {
+  this.isAudioReady = false
+  this.pendingDrone = null
+}
+
+// In background-composition handler:
+if (!this.isAudioReady && data.isDrone && data.composition) {
+  this.pendingDrone = data.composition
+  return
+}
+
+// In initAudio after audio starts:
+this.isAudioReady = true
+if (this.pendingDrone) {
+  this.audioService.playComposition(this.pendingDrone, true)
+  this.pendingDrone = null
+}
+```
+
+---
+
+### Feature: Drone Modulation (Organic Evolution)
+
+**User Request**: "modulare molto lentamente ampiezza per farlo entrare ed uscire moolto lentamente"
+
+**Implementation** (`frontend/src/services/AudioService.js`):
+
+Added `setupDroneModulation()` method with three LFOs:
+
+1. **Amplitude LFO** (0.03 Hz = 33 second cycle):
+   - Volume sweeps between -6dB and 0dB
+   - Creates slow breathing effect
+
+2. **Filter LFO** (0.02 Hz = 50 second cycle):
+   - Cutoff sweeps between 400Hz and 2000Hz
+   - Slow timbral evolution (dark to bright)
+
+3. **Pitch Drift LFO** (0.05 Hz = 20 second cycle):
+   - Detune sweeps ±8 cents
+   - Subtle organic detuning
+
+```javascript
+setupDroneModulation() {
+  // Guard: ensure ambient layers exist
+  if (!this.ambientFilters?.pad || !this.ambientVolumes?.pad || !this.ambientLayers?.pad) {
+    return
+  }
+
+  try {
+    // Amplitude LFO
+    this.droneAmplitudeLFO = new Tone.LFO({ frequency: 0.03, min: -6, max: 0 })
+    this.droneAmplitudeLFO.connect(this.ambientVolumes.pad.volume)
+    this.droneAmplitudeLFO.start()
+
+    // Filter LFO
+    this.droneFilterLFO = new Tone.LFO({ frequency: 0.02, min: 400, max: 2000 })
+    this.droneFilterLFO.connect(this.ambientFilters.pad.frequency)
+    this.droneFilterLFO.start()
+  } catch (e) {
+    console.warn('Drone modulation setup failed:', e.message)
+  }
+
+  // Pitch drift LFO (may not connect on PolySynth)
+  try {
+    this.dronePitchLFO = new Tone.LFO({ frequency: 0.05, min: -8, max: 8 })
+    if (this.ambientLayers.pad?.detune) {
+      this.dronePitchLFO.connect(this.ambientLayers.pad.detune)
+      this.dronePitchLFO.start()
+    }
+  } catch (e) { /* Skip gracefully */ }
+
+  // Randomize phases to prevent sync
+  this.droneAmplitudeLFO.phase = Math.random() * 360
+  this.droneFilterLFO.phase = Math.random() * 360
+}
+```
+
+---
+
+### Bug Fix: Landing Page Filter Conflict
+
+**Error**: `RangeError: Value must be within [0, 0], got: 1e-7`
+
+**Root Cause**: The drone filter LFO was connected to `ambientFilters.pad.frequency`. Then `_updateVisualCursors` tried to call `rampTo()` on the same parameter, causing a conflict.
+
+**Solution** (`frontend/src/landing/main.js`):
+```javascript
+// Skip pad filter modulation when drone LFO is active
+if (this.audioService.ambientFilters.pad && !this.audioService.droneFilterLFO) {
+  // Only modulate if no drone LFO connected
+  this.audioService.ambientFilters.pad.frequency.rampTo(...)
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/BackgroundCompositionService.js` | Dynamic keyCenter, added fifth note, velocity 0.8 |
+| `backend/src/services/LandingCompositionService.js` | Added `generateAndBroadcastDrone()` method |
+| `frontend/src/services/AudioService.js` | Pad volume boost, `setupDroneModulation()` with 3 LFOs |
+| `frontend/src/landing/main.js` | pendingDrone pattern, skip pad filter when LFO active |
+
+---
+
+### Behavioral Changes
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Drone audibility | Barely audible | ~+14dB louder |
+| Drone note | Always C3 | Follows keyCenter |
+| Drone texture | Single note | Root + fifth |
+| Landing page drone | None | Same as normal rooms |
+| Drone evolution | Static | Slow amplitude/filter/pitch modulation |
+| Modulation cycles | N/A | 20-50 seconds per cycle |
+
+---
