@@ -16,6 +16,104 @@
 import { DashboardUI } from './DashboardUI.js'
 
 /**
+ * Landing Page Configuration Constants
+ * Centralized configuration for easy maintenance
+ */
+const LANDING_CONFIG = {
+  // Visual initialization
+  VISUAL_INIT_RETRY_MS: 100,
+
+  // Socket connection
+  SOCKET_MAX_RETRIES: 3,
+  SOCKET_RETRY_DELAY_BASE_MS: 2000,
+
+  // Error display
+  ERROR_DISPLAY_MS: 5000,
+  STATUS_DISPLAY_MS: 3000,
+
+  // Audio
+  AUDIO_FADE_IN_MS: 100,
+
+  // Filter modulation ranges
+  FILTER_FREQ_MIN: 200,
+  FILTER_FREQ_MAX: 8000,
+  FILTER_Q_MIN: 0.5,
+  FILTER_Q_MAX: 10
+}
+
+/**
+ * Socket data validators
+ * Validates incoming WebSocket data to prevent crashes from malformed messages
+ */
+const SocketDataValidator = {
+  /**
+   * Validate hold:start event data
+   */
+  validateHoldStart(data) {
+    return (
+      data &&
+      typeof data.userId === 'string' &&
+      typeof data.frequency === 'number' &&
+      !isNaN(data.frequency) &&
+      data.frequency > 0 &&
+      data.frequency < 20000 &&
+      typeof data.velocity === 'number' &&
+      data.velocity >= 0 &&
+      data.velocity <= 1
+    )
+  },
+
+  /**
+   * Validate musical:event data
+   */
+  validateMusicalEvent(data) {
+    return (
+      data &&
+      typeof data.type === 'string' &&
+      ['tap', 'phrase'].includes(data.type) &&
+      typeof data.userId === 'string'
+    )
+  },
+
+  /**
+   * Validate cursor data
+   */
+  validateCursor(cursor) {
+    return (
+      cursor &&
+      typeof cursor.x === 'number' &&
+      !isNaN(cursor.x) &&
+      typeof cursor.y === 'number' &&
+      !isNaN(cursor.y)
+    )
+  },
+
+  /**
+   * Validate metrics data
+   */
+  validateMetrics(metrics) {
+    return (
+      metrics &&
+      typeof metrics === 'object' &&
+      (metrics.wikipedia || metrics.hackernews || metrics.github)
+    )
+  }
+}
+
+/**
+ * User-friendly error messages
+ */
+const ERROR_MESSAGES = {
+  INIT_FAILED: 'Unable to initialize the experience. Please refresh the page.',
+  AUDIO_INIT_FAILED: 'Audio system initialization failed. Check browser permissions.',
+  SOCKET_FAILED: 'Connection to server failed. Please check your internet connection.',
+  SOCKET_RETRY: (attempt, max, delay) => `Connection failed, retrying in ${delay}s... (${attempt}/${max})`,
+  SOCKET_EXHAUSTED: 'Connection failed after multiple attempts. Please refresh the page.',
+  START_FAILED: 'Unable to start the experience. Please try again.',
+  STOP_FAILED: 'Unable to stop the experience. Please try again.'
+}
+
+/**
  * LandingApp
  * Main application class for the landing page
  * Socket.io client that receives compositions from backend
@@ -49,6 +147,30 @@ class LandingApp {
   }
 
   /**
+   * Check critical dependencies and return missing ones
+   * @returns {string[]} Array of missing dependency names
+   * @private
+   */
+  _checkDependencies() {
+    const missing = []
+
+    if (typeof GenerativeVisualService === 'undefined') {
+      missing.push('Visual Service')
+    }
+    if (typeof AudioService === 'undefined') {
+      missing.push('Audio Service')
+    }
+    if (typeof Tone === 'undefined') {
+      missing.push('Tone.js Library')
+    }
+    if (typeof io === 'undefined') {
+      missing.push('Socket.IO Library')
+    }
+
+    return missing
+  }
+
+  /**
    * Initialize the landing page
    */
   async initialize() {
@@ -60,6 +182,15 @@ class LandingApp {
     // console.log('🚀 Initializing Webarmonium Landing Page (Backend-Driven)...')
 
     try {
+      // Check critical dependencies first
+      const missingDeps = this._checkDependencies()
+      if (missingDeps.length > 0) {
+        const message = `Critical dependencies failed to load: ${missingDeps.join(', ')}. Please refresh the page.`
+        console.error('❌ Missing dependencies:', missingDeps)
+        this.dashboardUI.showError(message)
+        // Continue with degraded functionality instead of throwing
+      }
+
       // Cache canvas container
       this.canvasContainer = document.getElementById('canvas-container')
       if (!this.canvasContainer) {
@@ -71,7 +202,7 @@ class LandingApp {
         this.visualService = new GenerativeVisualService()
         // DON'T initialize here - defer to after dashboard UI is ready
       } else {
-        console.error('❌ GenerativeVisualService not available')
+        console.warn('⚠️ GenerativeVisualService not available - visuals disabled')
       }
 
       // Wait for user interaction to initialize audio (browser policy)
@@ -101,7 +232,7 @@ class LandingApp {
               if (this.visualService && !this.visualService.p5Instance) {
                 this.visualService.initialize(this.canvasContainer)
               }
-            }, 100)
+            }, LANDING_CONFIG.VISUAL_INIT_RETRY_MS)
           }
         }
       })
@@ -111,7 +242,7 @@ class LandingApp {
 
     } catch (error) {
       console.error('❌ Error during initialization:', error)
-      this.dashboardUI.showError(`Initialization error: ${error.message}`)
+      this.dashboardUI.showError(ERROR_MESSAGES.INIT_FAILED)
     }
   }
 
@@ -129,11 +260,17 @@ class LandingApp {
 
   /**
    * Setup audio initialization on user interaction
+   * Uses mutex flag to prevent race conditions from rapid clicks/keystrokes
    * @private
    */
   _setupAudioInitialization() {
+    let isInitializing = false // Mutex to prevent race conditions
+
     const initAudio = async () => {
-      if (this.audioService) return
+      // CRITICAL: Check both audioService AND isInitializing to prevent race conditions
+      if (this.audioService || isInitializing) return
+
+      isInitializing = true
 
       try {
         // Start Tone.js context
@@ -155,10 +292,12 @@ class LandingApp {
         }
       } catch (error) {
         console.error('❌ Error initializing audio:', error)
-        this.dashboardUI.showError('Audio initialization failed')
+        this.dashboardUI.showError(ERROR_MESSAGES.AUDIO_INIT_FAILED)
+        isInitializing = false // Reset on error to allow retry
+        return
       }
 
-      // Remove listeners
+      // Remove listeners only on success
       document.removeEventListener('click', initAudio)
       document.removeEventListener('keydown', initAudio)
     }
@@ -168,13 +307,23 @@ class LandingApp {
   }
 
   /**
-   * Setup socket.io connection to backend
+   * Setup socket.io connection to backend with retry logic
+   * @param {number} retryCount - Current retry attempt (default 0)
    * @private
    */
-  _setupSocketConnection() {
-    if (this.socket) {
+  _setupSocketConnection(retryCount = 0) {
+    const { SOCKET_MAX_RETRIES, SOCKET_RETRY_DELAY_BASE_MS } = LANDING_CONFIG
+
+    if (this.socket?.connected) {
       console.log('Socket already connected')
       return
+    }
+
+    // Clean up existing socket if retrying
+    if (this.socket) {
+      this.socket.removeAllListeners()
+      this.socket.disconnect()
+      this.socket = null
     }
 
     try {
@@ -184,7 +333,7 @@ class LandingApp {
         ? 'http://localhost:3001'
         : `${window.location.protocol}//${window.location.host}`
 
-      console.log(`🔌 Landing page connecting to: ${socketUrl}`)
+      console.log(`🔌 Landing page connecting to: ${socketUrl}${retryCount > 0 ? ` (retry ${retryCount}/${SOCKET_MAX_RETRIES})` : ''}`)
 
       // Connect to backend
       this.socket = io(socketUrl)
@@ -219,7 +368,20 @@ class LandingApp {
 
       this.socket.on('connect_error', (error) => {
         console.error('❌ Socket connection error:', error)
-        this.dashboardUI.showError('Backend connection failed')
+
+        // Retry logic with exponential backoff
+        if (retryCount < SOCKET_MAX_RETRIES) {
+          const delay = SOCKET_RETRY_DELAY_BASE_MS * Math.pow(2, retryCount)
+          this.dashboardUI.showError(ERROR_MESSAGES.SOCKET_RETRY(retryCount + 1, SOCKET_MAX_RETRIES, delay / 1000))
+
+          setTimeout(() => {
+            if (this.isRunning) {
+              this._setupSocketConnection(retryCount + 1)
+            }
+          }, delay)
+        } else {
+          this.dashboardUI.showError(ERROR_MESSAGES.SOCKET_EXHAUSTED)
+        }
       })
 
       // Listen for landing-joined event
@@ -280,6 +442,12 @@ class LandingApp {
         if (!this.isRunning) return
         if (!data.isRemote) return // Only handle virtual user events
 
+        // Validate incoming data
+        if (!SocketDataValidator.validateHoldStart(data)) {
+          console.warn('⚠️ Invalid hold:start data received:', data)
+          return
+        }
+
         this._handleVirtualHoldStart(data)
       })
 
@@ -294,6 +462,12 @@ class LandingApp {
       this.socket.on('musical:event', (data) => {
         if (!this.isRunning) return
         if (!data.isRemote) return // Only handle virtual user events
+
+        // Validate incoming data
+        if (!SocketDataValidator.validateMusicalEvent(data)) {
+          console.warn('⚠️ Invalid musical:event data received:', data)
+          return
+        }
 
         // CRITICAL: Only handle 'tap' events in _handleVirtualTapNote
         // 'phrase' events don't have frequency - they're just visual triggers
@@ -339,27 +513,31 @@ class LandingApp {
     if (!this.visualService) return
 
     for (const [source, cursor] of Object.entries(this.currentCursors)) {
+      // CRITICAL: Null safety - validate cursor data before processing
+      if (!cursor || typeof cursor.x !== 'number' || typeof cursor.y !== 'number') {
+        console.warn(`⚠️ Invalid cursor data for ${source}:`, cursor)
+        continue
+      }
+
       const userId = cursor.userId || `${source}-metrics`
-      const x = cursor.x
-      const y = cursor.y
-      const color = cursor.color
+      // Clamp coordinates to valid range [0, 1]
+      const x = Math.max(0, Math.min(1, cursor.x))
+      const y = Math.max(0, Math.min(1, cursor.y))
+      const color = cursor.color || '#888888' // Fallback color
 
       // Update cursor position
       this.visualService.updateCursorPosition(userId, x, y, color)
 
       // CRITICAL: Apply filter modulation based on cursor position to BOTH gesture AND background
-      // X position → filter frequency (200-8000Hz range)
-      // Y position → filter resonance (0.5-10 range)
+      // X position → filter frequency, Y position → filter resonance
       if (this.isRunning && this.audioService) {
-        // Calculate base filter frequency from X position (normalized 0-1 → 200-8000Hz)
-        const minFreq = 200
-        const maxFreq = 8000
-        const baseFreq = minFreq + (x * (maxFreq - minFreq))
+        const { FILTER_FREQ_MIN, FILTER_FREQ_MAX, FILTER_Q_MIN, FILTER_Q_MAX } = LANDING_CONFIG
 
-        // Calculate filter resonance from Y position (normalized 0-1 → 0.5-10)
-        const minQ = 0.5
-        const maxQ = 10
-        const baseQ = minQ + (y * (maxQ - minQ))
+        // Calculate base filter frequency from X position
+        const baseFreq = FILTER_FREQ_MIN + (x * (FILTER_FREQ_MAX - FILTER_FREQ_MIN))
+
+        // Calculate filter resonance from Y position
+        const baseQ = FILTER_Q_MIN + (y * (FILTER_Q_MAX - FILTER_Q_MIN))
 
         // Apply to gestureFilter (virtual gesture notes)
         if (this.audioService.gestureFilter) {
@@ -674,7 +852,7 @@ class LandingApp {
 
     } catch (error) {
       console.error('❌ Error starting experience:', error)
-      this.dashboardUI.showError(`Start error: ${error.message}`)
+      this.dashboardUI.showError(ERROR_MESSAGES.START_FAILED)
     }
   }
 
@@ -704,7 +882,7 @@ class LandingApp {
 
     } catch (error) {
       console.error('❌ Error stopping experience:', error)
-      this.dashboardUI.showError(`Stop error: ${error.message}`)
+      this.dashboardUI.showError(ERROR_MESSAGES.STOP_FAILED)
     }
   }
 

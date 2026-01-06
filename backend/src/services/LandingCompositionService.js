@@ -142,6 +142,9 @@ class LandingCompositionService {
       densityMultiplier: 0.2  // 20% of normal room density - REDUCED to prevent polyphony issues
     }
 
+    // Track pending timeouts for cleanup (prevents memory leaks)
+    this.pendingTimeouts = new Set()
+
     // console.log('🎵 LandingCompositionService initialized (CompositionEngine mode)')
   }
 
@@ -200,8 +203,9 @@ class LandingCompositionService {
 
     // Add to samples array (keep last N samples)
     stats.samples.push(value)
+    // CRITICAL: Use slice to guarantee size bounds (prevents memory leak from rapid calls)
     if (stats.samples.length > this.maxSamples) {
-      stats.samples.shift()
+      stats.samples = stats.samples.slice(-this.maxSamples)
     }
 
     // // Log when range expands (for debugging)
@@ -211,9 +215,9 @@ class LandingCompositionService {
   }
 
   /**
-   * DYNAMIC NORMALIZATION based on HISTORICAL RANGE
-   * Maps metric values to [0, 1] using ACTUAL observed min/max
-   * This ensures MAXIMUM musical variety from metric variations
+   * DYNAMIC NORMALIZATION based on HISTORICAL RANGE with PERCENTILE STABILIZATION
+   * Maps metric values to [0, 1] using observed percentiles (P10-P90)
+   * This ensures MAXIMUM musical variety while preventing outlier skewing
    * @param {string} source - Source name
    * @param {string} metricName - Metric name
    * @param {number} value - Current metric value
@@ -227,28 +231,42 @@ class LandingCompositionService {
       return 0.5 // Default if no stats
     }
 
+    // Wait for warm-up period before normalizing (need enough samples)
+    const MIN_SAMPLES_FOR_PERCENTILE = 10
+    if (stats.samples.length < MIN_SAMPLES_FOR_PERCENTILE) {
+      // console.log(`📊 Warm-up period for ${source}.${metricName} (${stats.samples.length}/${MIN_SAMPLES_FOR_PERCENTILE}), returning 0.5`)
+      return 0.5
+    }
+
     // If no range yet, return 0.5
     if (stats.min === Infinity || stats.max === 0) {
       // console.log(`📊 No range yet for ${source}.${metricName} (min=${stats.min}, max=${stats.max}), returning 0.5`)
       return 0.5
     }
 
-    // DYNAMIC normalization: (value - min) / (max - min)
-    // As range expands, normalization adapts
-    const range = stats.max - stats.min
-    if (range === 0) {
-      // console.log(`📊 Zero range for ${source}.${metricName}, returning 0.5`)
+    // PERCENTILE-BASED normalization for stability
+    // Uses P10-P90 range to prevent outliers from skewing normalization
+    const sortedSamples = [...stats.samples].sort((a, b) => a - b)
+    const p10Index = Math.floor(sortedSamples.length * 0.1)
+    const p90Index = Math.floor(sortedSamples.length * 0.9)
+    const p10 = sortedSamples[p10Index]
+    const p90 = sortedSamples[p90Index]
+
+    const stabilizedRange = p90 - p10
+    if (stabilizedRange === 0) {
+      // console.log(`📊 Zero stabilized range for ${source}.${metricName}, returning 0.5`)
       return 0.5
     }
 
-    const normalized = (value - stats.min) / range
+    // Normalize using percentile range
+    const normalized = (value - p10) / stabilizedRange
 
     // Clamp to [0, 1]
     const result = Math.max(0, Math.min(1, normalized))
 
     // // Log when result is significantly different from 0.5
     // if (result < 0.3 || result > 0.7) {
-    //   console.log(`📊 ${source}.${metricName}: ${value.toFixed(1)} → ${result.toFixed(2)} (range: ${stats.min.toFixed(1)}-${stats.max.toFixed(1)})`)
+    //   console.log(`📊 ${source}.${metricName}: ${value.toFixed(1)} → ${result.toFixed(2)} (P10-P90: ${p10.toFixed(1)}-${p90.toFixed(1)})`)
     // }
 
     return result
@@ -300,6 +318,12 @@ class LandingCompositionService {
       clearInterval(this.cursorInterpolationTimer)
       this.cursorInterpolationTimer = null
     }
+
+    // CRITICAL: Clear all pending timeouts to prevent memory leaks
+    for (const timeoutId of this.pendingTimeouts) {
+      clearTimeout(timeoutId)
+    }
+    this.pendingTimeouts.clear()
 
     // console.log('🎵 LandingCompositionService stopped')
   }
@@ -1048,7 +1072,37 @@ class LandingCompositionService {
     // Generate phrase using PhraseMorphology (SAME LOGIC AS NORMAL ROOMS)
     const phrase = this.phraseMorphology.generatePhrase(gestureData, musicalContext)
 
-    // console.log(`🎵 PHRASE from ${gesture.source}: ${phrase.notes.length} notes, trajectory=(${startX.toFixed(2)},${startY.toFixed(2)})→(${endX.toFixed(2)},${endY.toFixed(2)})`)
+    // CRITICAL: Validate phrase structure BEFORE processing
+    if (!phrase?.notes || !Array.isArray(phrase.notes)) {
+      console.error(`❌ Invalid phrase structure from ${gesture.source}:`, phrase)
+      return
+    }
+
+    // Filter out invalid notes upfront for cleaner processing
+    const validNotes = phrase.notes.filter((note, i) => {
+      const isValid = (
+        note &&
+        typeof note.pitch === 'number' &&
+        !isNaN(note.pitch) &&
+        note.pitch >= 0 &&
+        note.pitch <= 127 &&
+        typeof note.duration === 'number' &&
+        note.duration > 0
+      )
+
+      if (!isValid) {
+        console.warn(`⚠️ Invalid note in phrase: index ${i}, source ${gesture.source}`, note)
+      }
+
+      return isValid
+    })
+
+    if (validNotes.length === 0) {
+      console.warn(`⚠️ No valid notes in phrase from ${gesture.source}`)
+      return
+    }
+
+    // console.log(`🎵 PHRASE from ${gesture.source}: ${validNotes.length} notes, trajectory=(${startX.toFixed(2)},${startY.toFixed(2)})→(${endX.toFixed(2)},${endY.toFixed(2)})`)
 
     // Convert beats to milliseconds
     const beatDurationMs = (60 / musicalContext.tempo) * 1000
@@ -1058,34 +1112,21 @@ class LandingCompositionService {
       type: 'phrase',
       userId: user.userId,
       velocity: Math.min(1, normalizedVelocity),
-      noteCount: phrase.notes.length,
+      noteCount: validNotes.length,
       isRemote: true,
       timestamp: Date.now()
     })
 
-    // Emit each note with correct timing and position along trajectory
-    phrase.notes.forEach((note, i) => {
-      // CRITICAL: Validate note.pitch before processing
-      if (typeof note.pitch !== 'number' || isNaN(note.pitch)) {
-        console.warn(`⚠️ Invalid note.pitch in phrase:`, { note, index: i, source: gesture.source })
-        return  // Skip this note
-      }
-
+    // Emit each validated note with correct timing and position along trajectory
+    validNotes.forEach((note, i) => {
       const noteId = `virtual_${gesture.source}_${Date.now()}_${i}`
 
-      // Convert MIDI pitch to frequency
-      // Formula: f = 440 * 2^((midi - 69) / 12)
+      // Convert MIDI pitch to frequency (already validated in filter)
       const noteFreq = 440 * Math.pow(2, (note.pitch - 69) / 12)
-
-      // Validate calculated frequency
-      if (isNaN(noteFreq) || !isFinite(noteFreq)) {
-        console.warn(`⚠️ Invalid calculated frequency:`, { noteFreq, notePitch: note.pitch, index: i })
-        return  // Skip this note
-      }
 
       // CRITICAL: Calculate position along trajectory for this note
       // Each note gets a position based on its index in the phrase
-      const noteProgress = i / Math.max(1, phrase.notes.length - 1)  // 0 to 1
+      const noteProgress = i / Math.max(1, validNotes.length - 1)  // 0 to 1
 
       // Linear interpolation from start to end position
       const noteX = startX + (endX - startX) * noteProgress
@@ -1104,8 +1145,9 @@ class LandingCompositionService {
       // Calculate note duration in milliseconds
       const noteDurationMs = note.duration * beatDurationMs
 
-      // Schedule note emission
-      setTimeout(() => {
+      // Schedule note emission (with timeout tracking for cleanup)
+      const noteTimeoutId = setTimeout(() => {
+        this.pendingTimeouts.delete(noteTimeoutId)
         if (!this.io || !this.isRunning) return
 
         // CRITICAL: Update target position so cursor moves to this note's position
@@ -1129,8 +1171,9 @@ class LandingCompositionService {
           timestamp: Date.now()
         })
 
-        // Schedule hold:end
-        setTimeout(() => {
+        // Schedule hold:end (with timeout tracking)
+        const holdEndTimeoutId = setTimeout(() => {
+          this.pendingTimeouts.delete(holdEndTimeoutId)
           if (this.io && this.isRunning) {
             this.io.to(this.landingRoomId).emit('hold:end', {
               type: 'hold:end',
@@ -1140,8 +1183,10 @@ class LandingCompositionService {
             })
           }
         }, noteDurationMs)
+        this.pendingTimeouts.add(holdEndTimeoutId)
 
       }, startDelayMs)
+      this.pendingTimeouts.add(noteTimeoutId)
     })
   }
 
