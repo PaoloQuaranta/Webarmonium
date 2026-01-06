@@ -958,21 +958,22 @@ class WebarmoniumApp {
 
     // console.log('📡 Registering background-composition event listener...')
     this.socketService.on('background-composition', (data) => {
-      // console.log('🎼🎼🎼 BACKGROUND COMPOSITION EVENT RECEIVED 🎼🎼🎼')
-      // console.log('  ↳ Composition number:', data.compositionNumber)
-      // console.log('  ↳ isDrone:', data.isDrone)
-      // console.log('  ↳ isAudioStarted:', this.isAudioStarted)
-      // console.log('  ↳ Has composition:', !!data.composition)
-      // console.log('  ↳ Composition type:', data.composition?.type)
-      // console.log('  ↳ Full data:', data)
+      console.log('🎼 BACKGROUND COMPOSITION RECEIVED:', {
+        compositionNumber: data.compositionNumber,
+        isDrone: data.isDrone,
+        isAudioStarted: this.isAudioStarted,
+        type: data.composition?.type
+      })
 
       if (this.isAudioStarted && data.composition) {
-        // console.log('✅ Playing composition...')
+        console.log('✅ Playing composition (audio started)...')
         this.audioService.playComposition(data.composition, data.isDrone)
       } else if (data.isDrone && data.composition) {
         // Save drone for later - will be played when audio starts
         this.pendingDrone = data.composition
-        // console.log('💾 Saved pending drone - will play when audio starts')
+        console.log('💾 Saved pending drone - will play when audio starts')
+      } else {
+        console.log('⏭️ Composition not played - isAudioStarted:', this.isAudioStarted, 'isDrone:', data.isDrone)
       }
     })
     // console.log('✅ background-composition listener registered')
@@ -1397,9 +1398,11 @@ class WebarmoniumApp {
 
           // Play pending drone if saved
           if (this.pendingDrone) {
-            // console.log('🎵 Playing pending drone...')
+            console.log('🎵 Playing pending drone:', this.pendingDrone.type)
             this.audioService.playComposition(this.pendingDrone, true)
             this.pendingDrone = null
+          } else {
+            console.log('⚠️ No pending drone to play')
           }
         } else {
           // console.warn('⚠️ AudioService.start() returned false')
