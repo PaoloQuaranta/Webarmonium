@@ -2152,4 +2152,86 @@ if (this.ambientLayers) {
 maxPolyphony: 8  // Entry #27: Increased from 4 to handle drone overlap during release
 ```
 
+#### Fix 4: Drone Timing Issue - Transport vs AudioContext Time
+
+**Problem**: After stop/start, drone was received and `playAmbientComposition()` was called, but the sound appeared ~30+ seconds later instead of immediately.
+
+**Root Cause**: Critical timing mismatch between Tone.js Transport and AudioContext:
+
+```
+AudioContext.currentTime: Always growing (e.g., 36.5s after page load)
+Transport.seconds: Resets to 0 when Transport is stopped/started
+
+BEFORE:
+scheduleTime = Tone.now() + delay  // e.g., 36.64s (AudioContext time)
+Transport.schedule(callback, scheduleTime)  // Transport at 0s after restart
+
+Result: Event scheduled for Transport time 36.64s, but Transport just started at 0s
+        → Callback fires 36+ seconds later!
+```
+
+User log showed:
+```
+scheduleTime=36.64s, now=36.54s
+...
+DRONE CALLBACK FIRED: audioTime=73.07  // 36 seconds later!
+```
+
+**Solution** (`frontend/src/services/AudioService.js` in `playAmbientComposition()`):
+
+For drone playback, bypass Transport scheduling entirely for the initial trigger:
+
+```javascript
+if (isDrone) {
+  // Entry #27 FIX: For drones, trigger IMMEDIATELY using Tone.now() (AudioContext time)
+  // Don't use Transport.schedule() which uses Transport time (can be out of sync after stop/start)
+  const layer = this.ambientLayers && this.ambientLayers[layerName]
+  if (layer) {
+    const audioTime = Tone.now() + 0.05 + delay
+    layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
+  }
+
+  // Schedule repeating drone using RELATIVE time syntax ("+8" means 8 seconds from now)
+  const repeatStartTime = `+${duration + delay}`
+  this.droneRepeatEventId = Tone.Transport.scheduleRepeat((audioTime) => {
+    if (this.ambientLayers && this.ambientLayers.pad) {
+      this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
+    }
+  }, duration, repeatStartTime)
+  this.scheduledTransportEvents.push(this.droneRepeatEventId)
+}
+```
+
+**Key insight**:
+- `Tone.now()` returns AudioContext time - safe for direct synth methods
+- `Transport.schedule(callback, time)` expects Transport time
+- Relative time syntax like `"+8"` means "8 seconds from NOW" and works correctly regardless of Transport position
+
+#### Fix 5: localStorage Muted State Persistence
+
+**Problem**: When user had muted audio in a previous session, returning to the page kept audio muted even after clicking "Start Audio".
+
+**Root Cause**: `AudioControls` component loads muted state from localStorage on construction and applies it immediately. If user previously muted and closed the tab, the muted state persisted.
+
+**Solution**: Added explicit `setMuted(false)` calls when audio starts:
+
+```javascript
+// main.js - toggleAudio()
+if (startResult) {
+  this.isAudioStarted = true
+  this.audioService.setMuted(false)  // Entry #27: Ensure unmuted on start
+  // ...
+}
+
+// main.js - attemptAutoStartAudio()
+if (autoStartResult) {
+  this.isAudioStarted = true
+  this.audioService.setMuted(false)  // Entry #27: Ensure unmuted on auto-start
+  // ...
+}
+
+// landing/main.js - start()
+this.audioService.setMuted(false)  // Entry #27: Ensure unmuted on start
+```
+
 ---

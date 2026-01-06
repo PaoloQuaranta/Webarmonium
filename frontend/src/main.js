@@ -958,24 +958,16 @@ class WebarmoniumApp {
 
     // console.log('📡 Registering background-composition event listener...')
     this.socketService.on('background-composition', (data) => {
-      console.log('🎼 BACKGROUND COMPOSITION RECEIVED:', {
-        compositionNumber: data.compositionNumber,
-        isDrone: data.isDrone,
-        isAudioStarted: this.isAudioStarted,
-        hasComposition: !!data.composition,
-        type: data.composition?.type
-      })
+      // console.log('🎼 BACKGROUND COMPOSITION RECEIVED:', { isDrone: data.isDrone, isAudioStarted: this.isAudioStarted, type: data.composition?.type })
 
       if (this.isAudioStarted && data.composition) {
-        console.log('✅ Playing composition - calling audioService.playComposition()...')
         this.audioService.playComposition(data.composition, data.isDrone)
-        console.log('✅ playComposition returned')
       } else if (data.isDrone && data.composition) {
         // Save drone for later - will be played when audio starts
         this.pendingDrone = data.composition
-        console.log('💾 Saved pending drone - will play when audio starts')
+        // console.log('💾 Saved pending drone - will play when audio starts')
       } else {
-        console.log('⏭️ Composition not played - isAudioStarted:', this.isAudioStarted, 'isDrone:', data.isDrone, 'hasComposition:', !!data.composition)
+        // console.log('⏭️ Composition not played - isAudioStarted:', this.isAudioStarted, 'isDrone:', data.isDrone)
       }
     })
     // console.log('✅ background-composition listener registered')
@@ -1402,16 +1394,15 @@ class WebarmoniumApp {
           if (this.audioControls) {
             this.audioControls.setMuted(false)
           }
-          console.log('🔊 Audio started and unmuted')
+          // console.log('🔊 Audio started and unmuted')
 
           // Play pending drone if saved
           if (this.pendingDrone) {
-            console.log('🎵 Playing pending drone:', this.pendingDrone.type)
+            // console.log('🎵 Playing pending drone:', this.pendingDrone.type)
             this.audioService.playComposition(this.pendingDrone, true)
             this.pendingDrone = null
           } else if (this.socketService?.socket?.connected) {
             // Entry #27: No pending drone (consumed or never received), request from backend
-            console.log('🎵 Requesting drone from backend (no pendingDrone)')
             this.socketService.socket.emit('request-drone')
           }
         } else {

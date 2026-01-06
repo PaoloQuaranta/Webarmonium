@@ -2188,17 +2188,17 @@ class AudioService {
       return
     }
 
-    console.log(`🎵 playAmbientComposition called - isDrone: ${isDrone}, texture items: ${content.texture.length}, pad exists: ${!!this.ambientLayers?.pad}`)
+    // console.log(`🎵 playAmbientComposition called - isDrone: ${isDrone}, texture items: ${content.texture.length}, pad exists: ${!!this.ambientLayers?.pad}`)
 
     // Ensure Transport is running
     if (Tone.Transport.state !== 'started') {
-      console.log('🚀 Starting Transport (was stopped)')
+      // console.log('🚀 Starting Transport (was stopped)')
       Tone.Transport.start()
     }
 
     // CRITICAL: Ensure masterVolume is not muted (could happen after stop/start)
     if (this.masterVolume && this.masterVolume.volume.value === -Infinity) {
-      console.log('🔊 Restoring masterVolume from -Infinity to -10dB')
+      // console.log('🔊 Restoring masterVolume from -Infinity to -10dB')
       this.masterVolume.volume.value = -10
     }
 
@@ -2226,7 +2226,7 @@ class AudioService {
         const layer = this.ambientLayers && this.ambientLayers[layerName]
         if (layer) {
           const audioTime = Tone.now() + 0.05 + delay
-          console.log(`🎹 DRONE IMMEDIATE: freq=${frequency.toFixed(1)}Hz, time=${audioTime.toFixed(2)}s`)
+          // console.log(`🎹 DRONE IMMEDIATE: freq=${frequency.toFixed(1)}Hz, time=${audioTime.toFixed(2)}s`)
           layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
         }
 
