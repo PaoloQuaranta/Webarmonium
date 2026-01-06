@@ -150,7 +150,7 @@ class SpringMeshNetwork {
           id: nodeId,
           x,
           y,
-          color: 'rgba(100, 100, 120, 0.1)',  // Subtle gray-blue
+          color: 'rgba(100, 100, 120, 0.25)',  // More visible gray-blue
           isBackground: true,
           energyLevel: 0  // Increases when pulses/particles pass through
         })
@@ -434,43 +434,52 @@ class SpringMeshNetwork {
     }
 
     // 2. Add edges connecting cursors to nearby background nodes
+    // Use hysteresis to prevent flickering: add at 0.35, keep until 0.5
     const cursorNodes = Array.from(this.nodes.values())
+    const addThreshold = 0.35    // Distance to ADD new edge
+    const keepThreshold = 0.5   // Distance to KEEP existing edge
+
     for (const cursor of cursorNodes) {
       for (const [bgId, bgNode] of this.backgroundNodes) {
         const dx = bgNode.x - cursor.x
         const dy = bgNode.y - cursor.y
         const dist = Math.sqrt(dx * dx + dy * dy)
 
-        // Connect to background nodes within range
-        if (dist < 0.4) {
-          const key = `${cursor.userId}-${bgId}`
-          if (!edgeData.has(key)) {
-            const midX = (cursor.x + bgNode.x) / 2
-            const midY = (cursor.y + bgNode.y) / 2
-            const dx = bgNode.x - cursor.x
-            const dy = bgNode.y - cursor.y
+        const key = `${cursor.userId}-${bgId}`
+        const existingData = edgeData.get(key)
 
-            this.edges.push({
-              sourceId: cursor.userId,
-              targetId: bgId,
-              type: this.EDGE_TYPES.SECONDARY,
-              strength: 0.6,
-              controlPoint: {
-                x: midX - dy * this.controlPointOffset * 0.3,
-                y: midY + dx * this.controlPointOffset * 0.3
-              },
-              restLength: this.springRestLength * 0.6,
-              stiffness: this.springStiffness * 0.6,
-              pulses: [],
-              particles: []
-            })
-          }
+        // Hysteresis: use different thresholds for adding vs keeping edges
+        const shouldHaveEdge = existingData
+          ? dist < keepThreshold   // Existing edge: keep until farther away
+          : dist < addThreshold    // New edge: only add if very close
+
+        if (shouldHaveEdge) {
+          const midX = (cursor.x + bgNode.x) / 2
+          const midY = (cursor.y + bgNode.y) / 2
+
+          this.edges.push({
+            sourceId: cursor.userId,
+            targetId: bgId,
+            type: this.EDGE_TYPES.SECONDARY,
+            strength: 0.6,
+            controlPoint: {
+              x: midX - dy * this.controlPointOffset * 0.3,
+              y: midY + dx * this.controlPointOffset * 0.3
+            },
+            restLength: this.springRestLength * 0.6,
+            stiffness: this.springStiffness * 0.6,
+            pulses: existingData?.pulses || [],
+            particles: existingData?.particles || []
+          })
         }
       }
     }
 
-    // 3. Add edges between nearby background nodes
+    // 3. Add edges between nearby background nodes (with hysteresis)
     const bgArray = Array.from(this.backgroundNodes.values())
+    const tertiaryAddThreshold = 0.2     // Distance to ADD new TERTIARY edge
+    const tertiaryKeepThreshold = 0.3    // Distance to KEEP existing TERTIARY edge
+
     for (let i = 0; i < bgArray.length; i++) {
       for (let j = i + 1; j < bgArray.length; j++) {
         const nodeA = bgArray[i]
@@ -479,28 +488,32 @@ class SpringMeshNetwork {
         const dy = nodeB.y - nodeA.y
         const dist = Math.sqrt(dx * dx + dy * dy)
 
-        // Connect background nodes that are close
-        if (dist < 0.25) {
-          const key = `${nodeA.id}-${nodeB.id}`
-          if (!edgeData.has(key)) {
-            const midX = (nodeA.x + nodeB.x) / 2
-            const midY = (nodeA.y + nodeB.y) / 2
+        const key = `${nodeA.id}-${nodeB.id}`
+        const existingData = edgeData.get(key)
 
-            this.edges.push({
-              sourceId: nodeA.id,
-              targetId: nodeB.id,
-              type: this.EDGE_TYPES.TERTIARY,
-              strength: 0.4,
-              controlPoint: {
-                x: midX - dy * this.controlPointOffset * 0.1,
-                y: midY + dx * this.controlPointOffset * 0.1
-              },
-              restLength: this.springRestLength * 0.4,
-              stiffness: 0,
-              pulses: [],
-              particles: []
-            })
-          }
+        // Hysteresis: use different thresholds for adding vs keeping TERTIARY edges
+        const shouldHaveEdge = existingData
+          ? dist < tertiaryKeepThreshold   // Existing edge: keep until farther away
+          : dist < tertiaryAddThreshold    // New edge: only add if very close
+
+        if (shouldHaveEdge) {
+          const midX = (nodeA.x + nodeB.x) / 2
+          const midY = (nodeA.y + nodeB.y) / 2
+
+          this.edges.push({
+            sourceId: nodeA.id,
+            targetId: nodeB.id,
+            type: this.EDGE_TYPES.TERTIARY,
+            strength: 0.4,
+            controlPoint: {
+              x: midX - dy * this.controlPointOffset * 0.1,
+              y: midY + dx * this.controlPointOffset * 0.1
+            },
+            restLength: this.springRestLength * 0.4,
+            stiffness: 0,
+            pulses: existingData?.pulses || [],
+            particles: existingData?.particles || []
+          })
         }
       }
     }
@@ -606,12 +619,12 @@ class SpringMeshNetwork {
       alphaMultiplier = 0.7
     } else if (edge.type === this.EDGE_TYPES.SECONDARY) {
       // Cursor-to-background: medium visibility, glow when energy flows
-      thickness = hasEnergy ? 2 : 1
-      alphaMultiplier = hasEnergy ? 0.5 : 0.15
+      thickness = hasEnergy ? 2.5 : 1.5
+      alphaMultiplier = hasEnergy ? 0.6 : 0.3
     } else if (edge.type === this.EDGE_TYPES.TERTIARY) {
-      // Background-to-background: faint, only visible when energy flows
-      thickness = hasEnergy ? 1.5 : 0.5
-      alphaMultiplier = hasEnergy ? 0.3 : 0.05
+      // Background-to-background: subtle but visible, brighter with energy
+      thickness = hasEnergy ? 2 : 1
+      alphaMultiplier = hasEnergy ? 0.4 : 0.12
     } else {
       // Original edge types (cursor-trace, trace-trace)
       thickness = (nodeA.isActive || nodeB.isActive)
@@ -716,18 +729,18 @@ class SpringMeshNetwork {
     const x = node.x * p.width
     const y = node.y * p.height
 
-    // Trace nodes: small circles with pad effect
-    const size = this.topologyGenerator.traceTopology?.nodeSize || 5
+    // Trace nodes: small circles with pad effect (more visible)
+    const size = this.topologyGenerator.traceTopology?.nodeSize || 6
 
     p.noStroke()
     p.fill(node.color)
     p.circle(x, y, size)
 
-    // Pad ring
+    // Pad ring - more visible
     p.stroke(node.color)
-    p.strokeWeight(0.5)
+    p.strokeWeight(1)
     p.noFill()
-    p.circle(x, y, size * 2)
+    p.circle(x, y, size * 2.5)
   }
 
   /**
@@ -745,10 +758,9 @@ class SpringMeshNetwork {
       if (node.energyLevel < 0.01) node.energyLevel = 0
     }
 
-    // Background nodes are very subtle by default
-    // Only become visible when energy (pulses/particles) pass through
-    const size = 4 + node.energyLevel * 6
-    const alpha = 20 + node.energyLevel * 150
+    // Background nodes visible by default, brighter with energy
+    const size = 5 + node.energyLevel * 8
+    const alpha = 40 + node.energyLevel * 180
 
     p.noStroke()
     p.fill(100, 100, 120, alpha)

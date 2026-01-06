@@ -5839,3 +5839,140 @@ Added "← Back to main page" button to return to landing page from rooms.
 - ✅ Back button functional
 
 ---
+
+## Entry #19 - Bidirectional Cascade Propagation Fix (RESOLVED)
+**Date:** 2026-01-06
+**Status:** ✅ RESOLVED
+**User Feedback:** "perfetto" (perfect)
+
+---
+
+### Problem Statement
+
+After implementing arrival-based cascade propagation for pulses and particles (replacing time-based depth emission), the wave propagation worked correctly in the landing room but NOT in normal rooms. In normal rooms, particles were still being triggered simultaneously from all nodes instead of propagating sequentially like convoys from the cursor through the network.
+
+**User Report:** "nella landing room propagazione è ok, nelle room normali ci sono ancora particles triggerate contemporaneamente da tutti i nodi"
+
+---
+
+### Root Cause Analysis
+
+The issue was in how TERTIARY edges (background-to-background connections) are created in `SpringMeshNetwork.js`:
+
+```javascript
+// Lines 293-304 - Edge creation loop
+for (let i = 0; i < bgArray.length; i++) {
+  for (let j = i + 1; j < bgArray.length; j++) {
+    // Creates edge: sourceId = nodeA.id (from i), targetId = nodeB.id (from j)
+  }
+}
+```
+
+This creates edges only in ONE direction: node[i] → node[j] where i < j.
+
+**Impact on cascade:** When `onPulseArrival()` or `onParticleArrival()` looked for outgoing edges with `edge.sourceId === arrivalNodeId`, it only found edges for nodes with lower indices. Nodes with higher indices (always TARGET, never SOURCE) had no outgoing edges, so the cascade died at those nodes.
+
+**Why landing page worked:** Landing page likely has fewer background nodes or different topology where this wasn't as noticeable.
+
+---
+
+### Solution: Bidirectional Cascade
+
+Made cascade propagation **bidirectional** - when a pulse/particle arrives at a node, it now looks for ALL connected edges (where node is SOURCE **or** TARGET) and spawns children traveling in the appropriate direction.
+
+#### Key Changes
+
+**1. WaveContext Class** (simplified from WaveState):
+```javascript
+class WaveContext {
+  constructor(id, sourceNodeId, color) {
+    this.id = id
+    this.sourceNodeId = sourceNodeId
+    this.color = color
+    this.visitedNodes = new Set([sourceNodeId])
+    this.activePulseCount = 0
+  }
+}
+```
+
+**2. Bidirectional Edge Discovery** (`onPulseArrival`):
+```javascript
+// Find ALL connected edges (bidirectional traversal)
+const connectedEdges = this.springMesh.edges.filter(
+  edge => edge.sourceId === arrivalNodeId || edge.targetId === arrivalNodeId
+)
+
+for (const edge of connectedEdges) {
+  const otherNodeId = edge.sourceId === arrivalNodeId ? edge.targetId : edge.sourceId
+  if (waveContext.visitedNodes.has(otherNodeId)) continue
+  
+  const isForward = edge.sourceId === arrivalNodeId
+  const cascadePulse = this.createCascadePulseBidirectional(
+    edge, pulse.color, cascadeIntensity, waveContext, nextHop, isForward, otherNodeId
+  )
+}
+```
+
+**3. Reverse Direction Support**:
+- Added `isReverse` flag to pulse/particle objects
+- Added `destinationNodeId` to track actual destination (since edge direction may be reversed)
+- Updated `update()` to handle reverse travel (progress 1→0 instead of 0→1)
+
+```javascript
+// In update() method
+if (pulse.isReverse) {
+  pulse.progress -= pulse.speed * dt  // Travel backwards
+} else {
+  pulse.progress += pulse.speed * dt  // Travel forwards
+}
+
+const hasArrived = pulse.isReverse ? (pulse.progress <= 0) : (pulse.progress >= 1)
+```
+
+---
+
+### Additional Fix: TERTIARY Edge Hysteresis
+
+Also added hysteresis to TERTIARY edge creation to prevent remaining flickering:
+
+```javascript
+// SpringMeshNetwork.js lines ~293-320
+const tertiaryAddThreshold = 0.2     // Distance to ADD new TERTIARY edge
+const tertiaryKeepThreshold = 0.3    // Distance to KEEP existing TERTIARY edge
+
+const shouldHaveEdge = existingData
+  ? dist < tertiaryKeepThreshold   // Existing: keep until farther away
+  : dist < tertiaryAddThreshold    // New: only add if very close
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/visual/WavePacketSystem.js` | Bidirectional cascade for pulses, WaveContext class, reverse direction support |
+| `frontend/src/services/visual/ParticleFlowManager.js` | Bidirectional cascade for particles, ParticleWaveContext class, reverse direction support |
+| `frontend/src/services/visual/SpringMeshNetwork.js` | Added hysteresis to TERTIARY edges (tertiaryAddThreshold/tertiaryKeepThreshold) |
+
+---
+
+### Algorithmic Philosophy
+
+This implementation follows the "Cascading Network Consciousness" philosophy documented in `.claude/skills/algorithmic-art/output/cascading-network-consciousness.md`:
+
+> *"Arrival-based cascade propagation: the fundamental principle that energy must travel before it can spread. A pulse emitted from the source cursor begins its journey along the first edge. Only when it arrives at the destination node does that node awaken and spawn new pulses along its own outgoing edges."*
+
+---
+
+### Testing Results
+
+- ✅ Flickering resolved (hysteresis working)
+- ✅ Landing room propagation correct
+- ✅ Normal room propagation correct (previously broken)
+- ✅ Pulses travel as convoys through network topology
+- ✅ Particles follow same cascading pattern
+- ✅ No cycle explosions (visited node tracking working)
+- ✅ Intensity decay working (0.65x per hop)
+
+---

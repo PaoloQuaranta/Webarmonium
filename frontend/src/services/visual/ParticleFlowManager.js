@@ -3,11 +3,28 @@
  * Manages particle emission and flow along curved network edges
  *
  * Behavior:
- * - Particles emit from source node on drag gestures
+ * - Particles emit from source node and ARRIVE at destination before spawning new particles
+ * - ARRIVAL-BASED CASCADE: when a particle completes its edge, it triggers new particles from arrival node
+ * - Creates organic, convoy-like particle flow - particles travel along paths, not flood simultaneously
  * - Flow along Bezier curve paths
- * - Life decay over time
+ * - Life decay with each hop
  * - Max particle count for performance
  */
+
+/**
+ * ParticleWaveContext - Tracks visited nodes for a single particle wave to prevent cycles
+ * Shared across all particles that belong to the same wave origin
+ */
+class ParticleWaveContext {
+  constructor(id, sourceNodeId, color, countPerEdge) {
+    this.id = id
+    this.sourceNodeId = sourceNodeId
+    this.color = color
+    this.countPerEdge = countPerEdge
+    this.visitedNodes = new Set([sourceNodeId])
+    this.activeParticleCount = 0  // Track how many particles are still traveling
+  }
+}
 
 class ParticleFlowManager {
   /**
@@ -50,6 +67,15 @@ class ParticleFlowManager {
     // Auto-cleanup interval
     this.cleanupIntervalMs = particleConfig.cleanupInterval
     this.setupAutoCleanup()
+
+    // Wave context tracking for arrival-based cascade propagation
+    this.waveContexts = new Map()  // waveId -> ParticleWaveContext
+    this.waveCounter = 0
+
+    // Cascade propagation parameters
+    this.lifeDecayPerHop = 0.7  // Life multiplier per hop
+    this.minLifeThreshold = 0.15  // Stop propagating below this life
+    this.maxHops = 8  // Maximum propagation depth
   }
 
   /**
@@ -73,8 +99,9 @@ class ParticleFlowManager {
   }
 
   /**
-   * Emit particles from a cursor through the entire network using BFS flood
-   * Particles travel through ALL edge types with life decay based on hop distance
+   * Emit particles from a cursor using ARRIVAL-BASED CASCADE propagation
+   * Particles travel along edges; when they ARRIVE at a node, they spawn new particles
+   * This creates convoy-like particle flow through the network
    * @param {string} sourceUserId - Source user ID
    * @param {number} count - Number of particles to emit per edge
    */
@@ -89,70 +116,204 @@ class ParticleFlowManager {
       return
     }
 
-    // BFS flood propagation parameters
-    const maxDepth = 8  // Max hops for particles
-    const decayFactor = 0.8  // Life decay per hop
+    // Create wave context for tracking this cascade
+    const waveId = `pwave-${this.waveCounter++}`
+    const waveContext = new ParticleWaveContext(waveId, sourceUserId, sourceNode.color, count)
+    this.waveContexts.set(waveId, waveContext)
 
-    // Use BFS to flood the network with particles
-    this.floodPropagate(sourceUserId, sourceNode.color, count, maxDepth, decayFactor)
+    // Find all edges from the source cursor
+    const outgoingEdges = this.springMesh.edges.filter(
+      edge => edge.sourceId === sourceUserId
+    )
+
+    // Emit initial particles ONLY on edges from the source cursor
+    // These particles will CASCADE on arrival at their destinations
+    for (const edge of outgoingEdges) {
+      // Create multiple particles per edge for visual density
+      const particleCount = Math.min(count, 3)  // Cap initial burst
+      for (let i = 0; i < particleCount; i++) {
+        if (this.particles.size >= this.maxParticles) break
+
+        const particle = this.createCascadeParticle(edge, sourceNode.color, 1.0, waveContext, 0)
+        if (particle) {
+          waveContext.activeParticleCount++
+        }
+      }
+    }
   }
 
   /**
-   * BFS flood propagation through the network for particles
-   * @param {string} sourceNodeId - Starting node ID
+   * Create a particle that will CASCADE on arrival
+   * @param {Object} edge - Edge to travel along
    * @param {string} color - Particle color
-   * @param {number} countPerEdge - Particles per edge
-   * @param {number} maxDepth - Maximum hop depth
-   * @param {number} decayFactor - Life decay per hop
+   * @param {number} life - Particle life (affects visual and cascade)
+   * @param {ParticleWaveContext} waveContext - Wave context for cycle prevention
+   * @param {number} hopCount - Current hop depth
+   * @returns {Object} Created particle or null
    */
-  floodPropagate(sourceNodeId, color, countPerEdge, maxDepth, decayFactor) {
-    // BFS queue: { nodeId, depth, life }
-    const queue = [{ nodeId: sourceNodeId, depth: 0, life: 1.0 }]
-    const visited = new Set()
-    const edgesToEmit = []
+  createCascadeParticle(edge, color, life, waveContext, hopCount) {
+    if (this.particles.size >= this.maxParticles) return null
+    if (life < this.minLifeThreshold) return null
+    if (hopCount > this.maxHops) return null
 
-    while (queue.length > 0 && edgesToEmit.length < 50) {  // Limit edges for performance
-      const { nodeId, depth, life } = queue.shift()
+    const particleId = `particle-${this.particleCounter++}`
 
-      if (depth > maxDepth || life < 0.2) continue
-      if (visited.has(nodeId)) continue
-      visited.add(nodeId)
-
-      // Find all edges from this node
-      const outgoingEdges = this.springMesh.edges.filter(
-        edge => edge.sourceId === nodeId
-      )
-
-      for (const edge of outgoingEdges) {
-        // Create particles on this edge
-        const edgeLife = life * decayFactor
-        edgesToEmit.push({
-          edge,
-          startProgress: 0,
-          life: edgeLife,
-          depth: depth + 1
-        })
-
-        // Add target node to queue for further propagation
-        queue.push({
-          nodeId: edge.targetId,
-          depth: depth + 1,
-          life: edgeLife
-        })
-      }
+    const particle = {
+      id: particleId,
+      edge: edge,
+      progress: Math.random() * 0.1,  // Slight stagger in starting position
+      speed: this.baseSpeed + Math.random() * this.speedVariation,
+      size: (this.minSize + Math.random() * (this.maxSize - this.minSize)) * Math.sqrt(life),
+      color: color,
+      life: life,
+      createdAt: Date.now(),
+      // CASCADE PROPAGATION properties
+      waveContext: waveContext,
+      hopCount: hopCount,
+      shouldCascade: true  // Flag for arrival-based propagation
     }
 
-    // Emit particles (respect max limit)
-    for (const { edge, startProgress, life } of edgesToEmit) {
+    // Add to edge's particle array
+    if (!edge.particles) {
+      edge.particles = []
+    }
+    edge.particles.push(particle)
+
+    // Track in active particles
+    this.particles.set(particleId, particle)
+
+    // Increase energy level of nodes
+    const sourceNode = this.springMesh.backgroundNodes.get(edge.sourceId)
+    const targetNode = this.springMesh.backgroundNodes.get(edge.targetId)
+    if (sourceNode && sourceNode.energyLevel !== undefined) {
+      sourceNode.energyLevel = Math.min(1, sourceNode.energyLevel + 0.15 * life)
+    }
+    if (targetNode && targetNode.energyLevel !== undefined) {
+      targetNode.energyLevel = Math.min(1, targetNode.energyLevel + 0.1 * life)
+    }
+
+    return particle
+  }
+
+  /**
+   * Handle particle arrival - CASCADE to connected edges (BIDIRECTIONAL)
+   * Called when a particle completes its edge traversal (progress >= 1)
+   * Looks for edges where arrival node is SOURCE or TARGET (for undirected graph traversal)
+   * @param {Object} particle - The particle that just arrived
+   */
+  onParticleArrival(particle) {
+    if (!particle.shouldCascade || !particle.waveContext) return
+
+    const waveContext = particle.waveContext
+    // For bidirectional particles, use destinationNodeId; otherwise use edge.targetId
+    const arrivalNodeId = particle.destinationNodeId || particle.edge.targetId
+
+    // Mark arrival node as visited
+    waveContext.visitedNodes.add(arrivalNodeId)
+
+    // Calculate cascaded life
+    const cascadeLife = particle.life * this.lifeDecayPerHop
+    if (cascadeLife < this.minLifeThreshold) return
+
+    const nextHop = particle.hopCount + 1
+    if (nextHop > this.maxHops) return
+
+    // Find ALL connected edges (bidirectional traversal)
+    // This is critical because TERTIARY edges are created only in one direction
+    const connectedEdges = this.springMesh.edges.filter(
+      edge => edge.sourceId === arrivalNodeId || edge.targetId === arrivalNodeId
+    )
+
+    // Spawn cascade particles to unvisited nodes
+    // Fewer particles per edge on deeper hops
+    const particlesPerEdge = Math.max(1, Math.floor(waveContext.countPerEdge * cascadeLife))
+
+    for (const edge of connectedEdges) {
+      // Determine the "other" node - the one we'd travel TO
+      const otherNodeId = edge.sourceId === arrivalNodeId ? edge.targetId : edge.sourceId
+
+      // Skip if other node already visited (prevents cycles)
+      if (waveContext.visitedNodes.has(otherNodeId)) continue
       if (this.particles.size >= this.maxParticles) break
 
-      // Create fewer particles on deeper edges
-      const particleCount = Math.max(1, Math.floor(countPerEdge * life))
-      for (let i = 0; i < particleCount; i++) {
+      for (let i = 0; i < particlesPerEdge; i++) {
         if (this.particles.size >= this.maxParticles) break
-        this.createParticleWithLife(edge, color, startProgress, life)
+
+        // Create particle that travels TO the other node
+        // We need to handle edge direction - if we're traveling "backwards", start at progress=1
+        const isForward = edge.sourceId === arrivalNodeId
+        const cascadeParticle = this.createCascadeParticleBidirectional(
+          edge,
+          particle.color,
+          cascadeLife,
+          waveContext,
+          nextHop,
+          isForward,
+          otherNodeId
+        )
+        if (cascadeParticle) {
+          waveContext.activeParticleCount++
+        }
       }
     }
+  }
+
+  /**
+   * Create a cascade particle that can travel in either direction
+   * @param {Object} edge - Edge to travel along
+   * @param {string} color - Particle color
+   * @param {number} life - Particle life
+   * @param {ParticleWaveContext} waveContext - Wave context
+   * @param {number} hopCount - Current hop depth
+   * @param {boolean} isForward - True if traveling source→target, false if target→source
+   * @param {string} destinationNodeId - The node we're traveling TO
+   * @returns {Object} Created particle or null
+   */
+  createCascadeParticleBidirectional(edge, color, life, waveContext, hopCount, isForward, destinationNodeId) {
+    if (this.particles.size >= this.maxParticles) return null
+    if (life < this.minLifeThreshold) return null
+    if (hopCount > this.maxHops) return null
+
+    const particleId = `particle-${this.particleCounter++}`
+
+    const particle = {
+      id: particleId,
+      edge: edge,
+      progress: isForward ? (Math.random() * 0.1) : (1 - Math.random() * 0.1),
+      speed: this.baseSpeed + Math.random() * this.speedVariation,
+      size: (this.minSize + Math.random() * (this.maxSize - this.minSize)) * Math.sqrt(life),
+      color: color,
+      life: life,
+      createdAt: Date.now(),
+      // CASCADE PROPAGATION properties
+      waveContext: waveContext,
+      hopCount: hopCount,
+      shouldCascade: true,
+      // BIDIRECTIONAL properties
+      isReverse: !isForward,  // True if traveling target→source
+      destinationNodeId: destinationNodeId
+    }
+
+    // Add to edge's particle array
+    if (!edge.particles) {
+      edge.particles = []
+    }
+    edge.particles.push(particle)
+
+    // Track in active particles
+    this.particles.set(particleId, particle)
+
+    // Increase energy level of nodes
+    const sourceNode = this.springMesh.backgroundNodes.get(edge.sourceId)
+    const targetNode = this.springMesh.backgroundNodes.get(edge.targetId)
+    if (sourceNode && sourceNode.energyLevel !== undefined) {
+      sourceNode.energyLevel = Math.min(1, sourceNode.energyLevel + 0.15 * life)
+    }
+    if (targetNode && targetNode.energyLevel !== undefined) {
+      targetNode.energyLevel = Math.min(1, targetNode.energyLevel + 0.1 * life)
+    }
+
+    return particle
   }
 
   /**
@@ -221,7 +382,9 @@ class ParticleFlowManager {
   }
 
   /**
-   * Update all active particles
+   * Update all active particles - ARRIVAL-BASED CASCADE (BIDIRECTIONAL)
+   * When particles complete their edge, they trigger cascade propagation
+   * Handles both forward (progress 0→1) and reverse (progress 1→0) particles
    * @param {number} dt - Delta time in seconds
    */
   update(dt) {
@@ -229,36 +392,55 @@ class ParticleFlowManager {
     dt = Math.min(dt, 0.1)
 
     const particlesToRemove = []
-    const particlesToPropagate = []
+    const arrivingParticles = []
 
+    // Update existing particles
     for (const [particleId, particle] of this.particles) {
-      // Update progress along the edge (forward or backward)
-      if (particle.reverse) {
-        particle.progress -= particle.speed * dt
+      // Update progress along the edge (direction depends on isReverse)
+      if (particle.isReverse) {
+        particle.progress -= particle.speed * dt  // Travel backwards along edge
       } else {
-        particle.progress += particle.speed * dt
+        particle.progress += particle.speed * dt  // Travel forwards along edge
       }
 
-      // Decay life
-      particle.life -= this.lifeDecay * dt
+      // Gentle life decay over time
+      particle.life -= this.lifeDecay * dt * 0.5  // Slower decay for cascade particles
 
-      // Check if particle completed its current edge
-      const completed = particle.reverse ? (particle.progress <= 0) : (particle.progress >= 1)
-      if (completed) {
+      // Check if particle ARRIVED at destination (completed edge traversal)
+      // For reverse particles, arrival is at progress <= 0
+      // For forward particles, arrival is at progress >= 1
+      const hasArrived = particle.isReverse ? (particle.progress <= 0) : (particle.progress >= 1)
+
+      if (hasArrived) {
+        // Particle has ARRIVED - queue for cascade propagation
+        arrivingParticles.push(particle)
         particlesToRemove.push(particleId)
       } else if (particle.life <= 0) {
         particlesToRemove.push(particleId)
       }
     }
 
-    // Remove dead particles
+    // CRITICAL: Handle arrivals BEFORE removing particles
+    // This triggers the cascade propagation
+    for (const particle of arrivingParticles) {
+      this.onParticleArrival(particle)
+
+      // Decrement active particle count in wave context
+      if (particle.waveContext) {
+        particle.waveContext.activeParticleCount--
+      }
+    }
+
+    // Remove completed particles
     for (const particleId of particlesToRemove) {
       this.removeParticle(particleId)
     }
 
-    // Propagate particles to connected edges (cascade effect)
-    for (const propagate of particlesToPropagate) {
-      this.propagateParticle(propagate.edge, propagate.life, propagate.color, propagate.size)
+    // Clean up wave contexts with no active particles
+    for (const [waveId, context] of this.waveContexts) {
+      if (context.activeParticleCount <= 0) {
+        this.waveContexts.delete(waveId)
+      }
     }
   }
 
@@ -393,7 +575,7 @@ class ParticleFlowManager {
   }
 
   /**
-   * Clear all particles
+   * Clear all particles and wave contexts
    */
   clear() {
     // Clear all edge particle arrays
@@ -409,6 +591,9 @@ class ParticleFlowManager {
 
     // Clear active particles map
     this.particles.clear()
+
+    // Clear wave contexts
+    this.waveContexts.clear()
   }
 
   /**

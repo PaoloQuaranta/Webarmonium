@@ -66,11 +66,10 @@ class LandingApp {
         throw new Error('Canvas container not found')
       }
 
-      // Initialize reused visual service
+      // Create visual service instance (but don't initialize yet - defer until container visible)
       if (typeof GenerativeVisualService !== 'undefined') {
         this.visualService = new GenerativeVisualService()
-        this.visualService.initialize(this.canvasContainer)
-        // console.log('✅ GenerativeVisualService initialized')
+        // DON'T initialize here - defer to after dashboard UI is ready
       } else {
         console.error('❌ GenerativeVisualService not available')
       }
@@ -87,6 +86,25 @@ class LandingApp {
 
       // Remove mock mode toggle (no longer needed - backend handles metrics)
       this._removeMockModeToggle()
+
+      // Defer visual service initialization until container has computed dimensions
+      // This prevents flickering caused by p5.js initializing with zero dimensions
+      requestAnimationFrame(() => {
+        if (this.visualService && this.canvasContainer) {
+          const rect = this.canvasContainer.getBoundingClientRect()
+          if (rect.width > 0 && rect.height > 0) {
+            this.visualService.initialize(this.canvasContainer)
+            // console.log('✅ GenerativeVisualService initialized with dimensions:', rect.width, rect.height)
+          } else {
+            // Retry if dimensions still not available
+            setTimeout(() => {
+              if (this.visualService && !this.visualService.p5Instance) {
+                this.visualService.initialize(this.canvasContainer)
+              }
+            }, 100)
+          }
+        }
+      })
 
       this.isInitialized = true
       // console.log('✅ Landing page initialized (waiting for Start)')

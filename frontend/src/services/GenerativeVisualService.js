@@ -114,6 +114,13 @@ class GenerativeVisualService {
     const containerWidth = this.containerElement.offsetWidth
     const containerHeight = this.containerElement.offsetHeight
 
+    // Verify dimensions before creating canvas (prevents flickering)
+    if (containerWidth === 0 || containerHeight === 0) {
+      console.warn('GenerativeVisualService: Container has zero dimensions, deferring setup')
+      setTimeout(() => this.setup(p), 100)
+      return
+    }
+
     // Create canvas matching container size
     p.createCanvas(containerWidth, containerHeight)
 
@@ -122,6 +129,11 @@ class GenerativeVisualService {
 
     // Initialize frame time
     this.lastFrameTime = p.millis()
+
+    // Initialize background nodes explicitly (prevents flickering on first frame)
+    if (this.springMesh && !this.springMesh.backgroundNodesInitialized) {
+      this.springMesh.initializeBackgroundNodes()
+    }
 
     console.log('✅ GenerativeVisualService: Canvas created', containerWidth, 'x', containerHeight, 'pixelDensity:', p.pixelDensity())
   }

@@ -3,11 +3,27 @@
  * Manages wave pulse emission and propagation along curved network edges
  *
  * Behavior:
- * - Pulses emit from source node to all connected nodes on gestures
+ * - Pulses emit from source node and ARRIVE at destination before spawning new pulses
+ * - ARRIVAL-BASED CASCADE: when a pulse completes its edge, it triggers new pulses from arrival node
+ * - Creates organic, convoy-like wave propagation - pulses travel along paths, not flood simultaneously
  * - Propagate along Bezier curve paths
- * - Fade intensity over time
- * - Remove when complete or faded
+ * - Fade intensity with each hop
+ * - Remove when complete or intensity faded
  */
+
+/**
+ * WaveContext - Tracks visited nodes for a single wave to prevent cycles
+ * Shared across all pulses that belong to the same wave origin
+ */
+class WaveContext {
+  constructor(id, sourceNodeId, color) {
+    this.id = id
+    this.sourceNodeId = sourceNodeId
+    this.color = color
+    this.visitedNodes = new Set([sourceNodeId])
+    this.activePulseCount = 0  // Track how many pulses are still traveling
+  }
+}
 
 class WavePacketSystem {
   /**
@@ -41,11 +57,21 @@ class WavePacketSystem {
     this.decayRate = pulseConfig.decayRate
     this.pulseWidth = pulseConfig.width
     this.maxPulses = pulseConfig.maxPulses
+
+    // Wave context tracking for arrival-based cascade propagation
+    this.waveContexts = new Map()  // waveId -> WaveContext
+    this.waveCounter = 0
+
+    // Cascade propagation parameters
+    this.intensityDecayPerHop = 0.65  // Intensity multiplier per hop
+    this.minIntensityThreshold = 0.08  // Stop propagating below this intensity
+    this.maxHops = 6  // Maximum propagation depth
   }
 
   /**
-   * Emit pulse from a cursor through the entire network using BFS flood
-   * Pulses travel through ALL edge types with intensity decay based on hop distance
+   * Emit pulse from a cursor using ARRIVAL-BASED CASCADE propagation
+   * Pulses travel along edges; when they ARRIVE at a node, they spawn new pulses
+   * This creates convoy-like wave propagation through the network
    * @param {string} sourceUserId - Source user ID
    * @param {string} color - Pulse color (hex)
    */
@@ -58,63 +84,192 @@ class WavePacketSystem {
     // Update node's last pulse time
     sourceNode.lastPulseTime = Date.now()
 
-    // BFS flood propagation parameters
-    const maxDepth = 5  // Max hops
-    const decayFactor = 0.7  // Intensity multiplier per hop
+    // Create wave context for tracking this cascade
+    const waveId = `wave-${this.waveCounter++}`
+    const waveContext = new WaveContext(waveId, sourceUserId, color)
+    this.waveContexts.set(waveId, waveContext)
 
-    // Use BFS to flood the network
-    this.floodPropagate(sourceUserId, color, maxDepth, decayFactor)
+    // Find all edges from the source cursor
+    const outgoingEdges = this.springMesh.edges.filter(
+      edge => edge.sourceId === sourceUserId
+    )
+
+    // Emit initial pulses ONLY on edges from the source cursor
+    // These pulses will CASCADE on arrival at their destinations
+    for (const edge of outgoingEdges) {
+      if (this.activePulses.size >= this.maxPulses) break
+
+      const pulse = this.createCascadePulse(edge, color, this.baseIntensity, waveContext, 0)
+      if (pulse) {
+        waveContext.activePulseCount++
+      }
+    }
   }
 
   /**
-   * BFS flood propagation through the network
-   * @param {string} sourceNodeId - Starting node ID
+   * Create a pulse that will CASCADE on arrival
+   * @param {Object} edge - Edge to travel along
    * @param {string} color - Pulse color
-   * @param {number} maxDepth - Maximum hop depth
-   * @param {number} decayFactor - Intensity decay per hop
+   * @param {number} intensity - Pulse intensity
+   * @param {WaveContext} waveContext - Wave context for cycle prevention
+   * @param {number} hopCount - Current hop depth
+   * @returns {Object} Created pulse or null
    */
-  floodPropagate(sourceNodeId, color, maxDepth, decayFactor) {
-    // BFS queue: { nodeId, depth, intensity }
-    const queue = [{ nodeId: sourceNodeId, depth: 0, intensity: this.baseIntensity }]
-    const visited = new Set()
-    const edgesToEmit = []
+  createCascadePulse(edge, color, intensity, waveContext, hopCount) {
+    if (this.activePulses.size >= this.maxPulses) return null
+    if (intensity < this.minIntensityThreshold) return null
+    if (hopCount > this.maxHops) return null
 
-    while (queue.length > 0) {
-      const { nodeId, depth, intensity } = queue.shift()
+    const pulseId = `pulse-${this.pulseCounter++}`
 
-      if (depth > maxDepth || intensity < 0.1) continue
-      if (visited.has(nodeId)) continue
-      visited.add(nodeId)
-
-      // Find all edges from this node
-      const outgoingEdges = this.springMesh.edges.filter(
-        edge => edge.sourceId === nodeId
-      )
-
-      for (const edge of outgoingEdges) {
-        // Create pulse on this edge
-        edgesToEmit.push({
-          edge,
-          startProgress: 0,
-          intensity: intensity * decayFactor,
-          depth: depth + 1
-        })
-
-        // Add target node to queue for further propagation
-        queue.push({
-          nodeId: edge.targetId,
-          depth: depth + 1,
-          intensity: intensity * decayFactor
-        })
-      }
+    const pulse = {
+      id: pulseId,
+      edge: edge,
+      progress: 0,
+      speed: this.baseSpeed + Math.random() * this.speedVariation,
+      intensity: intensity,
+      color: color,
+      width: this.pulseWidth * Math.sqrt(intensity),  // Width scales with intensity
+      createdAt: Date.now(),
+      // CASCADE PROPAGATION properties
+      waveContext: waveContext,
+      hopCount: hopCount,
+      shouldCascade: true  // Flag for arrival-based propagation
     }
 
-    // Emit pulses (respect max limit)
-    for (const { edge, startProgress, intensity } of edgesToEmit) {
+    // Add to edge's pulse array
+    if (!edge.pulses) {
+      edge.pulses = []
+    }
+    edge.pulses.push(pulse)
+
+    // Track in active pulses
+    this.activePulses.set(pulseId, pulse)
+
+    // Increase energy level of nodes
+    const sourceNode = this.springMesh.backgroundNodes.get(edge.sourceId)
+    const targetNode = this.springMesh.backgroundNodes.get(edge.targetId)
+    if (sourceNode && sourceNode.energyLevel !== undefined) {
+      sourceNode.energyLevel = Math.min(1, sourceNode.energyLevel + 0.3 * intensity)
+    }
+    if (targetNode && targetNode.energyLevel !== undefined) {
+      targetNode.energyLevel = Math.min(1, targetNode.energyLevel + 0.2 * intensity)
+    }
+
+    return pulse
+  }
+
+  /**
+   * Handle pulse arrival - CASCADE to connected edges (BIDIRECTIONAL)
+   * Called when a pulse completes its edge traversal
+   * Looks for edges where arrival node is SOURCE or TARGET (for undirected graph traversal)
+   * @param {Object} pulse - The pulse that just arrived
+   */
+  onPulseArrival(pulse) {
+    if (!pulse.shouldCascade || !pulse.waveContext) return
+
+    const waveContext = pulse.waveContext
+    // For bidirectional pulses, use destinationNodeId; otherwise use edge.targetId
+    const arrivalNodeId = pulse.destinationNodeId || pulse.edge.targetId
+
+    // Mark arrival node as visited
+    waveContext.visitedNodes.add(arrivalNodeId)
+
+    // Calculate cascaded intensity
+    const cascadeIntensity = pulse.intensity * this.intensityDecayPerHop
+    if (cascadeIntensity < this.minIntensityThreshold) return
+
+    const nextHop = pulse.hopCount + 1
+    if (nextHop > this.maxHops) return
+
+    // Find ALL connected edges (bidirectional traversal)
+    // This is critical because TERTIARY edges are created only in one direction
+    const connectedEdges = this.springMesh.edges.filter(
+      edge => edge.sourceId === arrivalNodeId || edge.targetId === arrivalNodeId
+    )
+
+    // Spawn cascade pulses to unvisited nodes
+    for (const edge of connectedEdges) {
+      // Determine the "other" node - the one we'd travel TO
+      const otherNodeId = edge.sourceId === arrivalNodeId ? edge.targetId : edge.sourceId
+
+      // Skip if other node already visited (prevents cycles)
+      if (waveContext.visitedNodes.has(otherNodeId)) continue
       if (this.activePulses.size >= this.maxPulses) break
 
-      this.emitPulseOnEdgeWithIntensity(edge, color, startProgress, intensity)
+      // Create pulse that travels TO the other node
+      const isForward = edge.sourceId === arrivalNodeId
+      const cascadePulse = this.createCascadePulseBidirectional(
+        edge,
+        pulse.color,
+        cascadeIntensity,
+        waveContext,
+        nextHop,
+        isForward,
+        otherNodeId
+      )
+      if (cascadePulse) {
+        waveContext.activePulseCount++
+      }
     }
+  }
+
+  /**
+   * Create a cascade pulse that can travel in either direction
+   * @param {Object} edge - Edge to travel along
+   * @param {string} color - Pulse color
+   * @param {number} intensity - Pulse intensity
+   * @param {WaveContext} waveContext - Wave context
+   * @param {number} hopCount - Current hop depth
+   * @param {boolean} isForward - True if traveling source→target, false if target→source
+   * @param {string} destinationNodeId - The node we're traveling TO
+   * @returns {Object} Created pulse or null
+   */
+  createCascadePulseBidirectional(edge, color, intensity, waveContext, hopCount, isForward, destinationNodeId) {
+    if (this.activePulses.size >= this.maxPulses) return null
+    if (intensity < this.minIntensityThreshold) return null
+    if (hopCount > this.maxHops) return null
+
+    const pulseId = `pulse-${this.pulseCounter++}`
+
+    const pulse = {
+      id: pulseId,
+      edge: edge,
+      progress: isForward ? 0 : 1,  // Start at beginning or end depending on direction
+      speed: this.baseSpeed + Math.random() * this.speedVariation,
+      intensity: intensity,
+      color: color,
+      width: this.pulseWidth * Math.sqrt(intensity),
+      createdAt: Date.now(),
+      // CASCADE PROPAGATION properties
+      waveContext: waveContext,
+      hopCount: hopCount,
+      shouldCascade: true,
+      // BIDIRECTIONAL properties
+      isReverse: !isForward,  // True if traveling target→source
+      destinationNodeId: destinationNodeId
+    }
+
+    // Add to edge's pulse array
+    if (!edge.pulses) {
+      edge.pulses = []
+    }
+    edge.pulses.push(pulse)
+
+    // Track in active pulses
+    this.activePulses.set(pulseId, pulse)
+
+    // Increase energy level of nodes
+    const sourceNode = this.springMesh.backgroundNodes.get(edge.sourceId)
+    const targetNode = this.springMesh.backgroundNodes.get(edge.targetId)
+    if (sourceNode && sourceNode.energyLevel !== undefined) {
+      sourceNode.energyLevel = Math.min(1, sourceNode.energyLevel + 0.3 * intensity)
+    }
+    if (targetNode && targetNode.energyLevel !== undefined) {
+      targetNode.energyLevel = Math.min(1, targetNode.energyLevel + 0.2 * intensity)
+    }
+
+    return pulse
   }
 
   /**
@@ -205,46 +360,68 @@ class WavePacketSystem {
   }
 
   /**
-   * Update all active pulses
+   * Update all active pulses - ARRIVAL-BASED CASCADE (BIDIRECTIONAL)
+   * When pulses complete their edge, they trigger cascade propagation
+   * Handles both forward (progress 0→1) and reverse (progress 1→0) pulses
    * @param {number} dt - Delta time in seconds
    */
   update(dt) {
     const now = Date.now()
     const pulsesToRemove = []
-    const pulsesToPropagate = []
+    const arrivingPulses = []
 
     // Cap dt to prevent huge jumps
     dt = Math.min(dt, 0.1)
 
+    // Update existing pulses
     for (const [pulseId, pulse] of this.activePulses) {
-      // Update progress along the edge (forward or backward)
-      if (pulse.reverse) {
-        pulse.progress -= pulse.speed * dt
+      // Update progress along the edge (direction depends on isReverse)
+      if (pulse.isReverse) {
+        pulse.progress -= pulse.speed * dt  // Travel backwards along edge
       } else {
-        pulse.progress += pulse.speed * dt
+        pulse.progress += pulse.speed * dt  // Travel forwards along edge
       }
 
-      // Calculate age-based intensity decay
-      const age = (now - pulse.createdAt) / 1000 // seconds
-      pulse.intensity = Math.max(0, this.baseIntensity - age * this.decayRate)
+      // Gentle intensity fade over time (but cascade determines main decay)
+      const age = (now - pulse.createdAt) / 1000
+      const ageFade = Math.max(0, 1 - age * 0.3)  // Gentle fade over ~3 seconds
+      const displayIntensity = pulse.intensity * ageFade
 
-      // Check if pulse completed its current edge
-      const completed = pulse.reverse ? (pulse.progress <= 0) : (pulse.progress >= 1)
-      if (completed) {
+      // Check if pulse ARRIVED at destination (completed edge traversal)
+      // For reverse pulses, arrival is at progress <= 0
+      // For forward pulses, arrival is at progress >= 1
+      const hasArrived = pulse.isReverse ? (pulse.progress <= 0) : (pulse.progress >= 1)
+
+      if (hasArrived) {
+        // Pulse has ARRIVED - queue for cascade propagation
+        arrivingPulses.push(pulse)
         pulsesToRemove.push(pulseId)
-      } else if (pulse.intensity <= 0) {
+      } else if (displayIntensity <= 0.01) {
         pulsesToRemove.push(pulseId)
       }
     }
 
-    // Remove completed/faded pulses
+    // CRITICAL: Handle arrivals BEFORE removing pulses
+    // This triggers the cascade propagation
+    for (const pulse of arrivingPulses) {
+      this.onPulseArrival(pulse)
+
+      // Decrement active pulse count in wave context
+      if (pulse.waveContext) {
+        pulse.waveContext.activePulseCount--
+      }
+    }
+
+    // Remove completed pulses
     for (const pulseId of pulsesToRemove) {
       this.removePulse(pulseId)
     }
 
-    // Propagate pulses to connected edges (cascade effect)
-    for (const propagate of pulsesToPropagate) {
-      this.propagatePulse(propagate.edge, propagate.intensity, propagate.color)
+    // Clean up wave contexts with no active pulses
+    for (const [waveId, context] of this.waveContexts) {
+      if (context.activePulseCount <= 0) {
+        this.waveContexts.delete(waveId)
+      }
     }
   }
 
@@ -411,7 +588,7 @@ class WavePacketSystem {
   }
 
   /**
-   * Clear all pulses
+   * Clear all pulses and wave contexts
    */
   clear() {
     // Clear all edge pulse arrays
@@ -427,6 +604,9 @@ class WavePacketSystem {
 
     // Clear active pulses map
     this.activePulses.clear()
+
+    // Clear wave contexts
+    this.waveContexts.clear()
   }
 
   /**
