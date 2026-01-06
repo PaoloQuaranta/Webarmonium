@@ -2226,8 +2226,10 @@ class AudioService {
       const layerName = isDrone ? 'pad' : 'backgroundLow'
 
       // Schedule initial texture trigger
+      console.log(`🎹 Scheduling drone note: freq=${frequency.toFixed(1)}Hz, duration=${duration}s, scheduleTime=${scheduleTime.toFixed(2)}s, now=${now.toFixed(2)}s`)
       const eventId = Tone.Transport.schedule((audioTime) => {
         const layer = this.ambientLayers && this.ambientLayers[layerName]
+        console.log(`🎹 DRONE CALLBACK FIRED: layer=${layerName}, exists=${!!layer}, audioTime=${audioTime.toFixed(2)}`)
         if (layer) {
           layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
         }
@@ -2239,6 +2241,7 @@ class AudioService {
         // Schedule repeating drone on audio thread
         this.droneRepeatEventId = Tone.Transport.scheduleRepeat((audioTime) => {
           if (this.ambientLayers && this.ambientLayers.pad) {
+            console.log(`🔁 DRONE REPEAT: freq=${frequency.toFixed(1)}Hz, audioTime=${audioTime.toFixed(2)}`)
             this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
           }
         }, duration, scheduleTime + duration) // Start repeating after first note ends
