@@ -803,44 +803,49 @@ class AudioService {
    * - Pitch drift: Subtle detuning for organic feel
    */
   setupDroneModulation() {
-    // AMPLITUDE MODULATION: Very slow tremolo effect
-    // Frequency 0.03 Hz = ~33 second cycle (very slow breathing)
-    this.droneAmplitudeLFO = new Tone.LFO({
-      frequency: 0.03,  // 33 second cycle
-      min: -6,          // -6dB minimum (quieter)
-      max: 0,           // 0dB maximum (full volume)
-      type: 'sine'
-    })
+    // Guard: ensure ambient layers exist before setting up modulation
+    if (!this.ambientFilters?.pad || !this.ambientVolumes?.pad || !this.ambientLayers?.pad) {
+      // console.warn('Drone modulation skipped: ambient layers not ready')
+      return
+    }
 
-    // Create a Gain node for amplitude modulation
-    this.droneAmplitudeGain = new Tone.Gain(1)
+    try {
+      // AMPLITUDE MODULATION: Very slow tremolo effect
+      // Frequency 0.03 Hz = ~33 second cycle (very slow breathing)
+      this.droneAmplitudeLFO = new Tone.LFO({
+        frequency: 0.03,  // 33 second cycle
+        min: -6,          // -6dB minimum (quieter)
+        max: 0,           // 0dB maximum (full volume)
+        type: 'sine'
+      })
 
-    // Re-route pad: disconnect from filter, insert gain
-    // New chain: pad -> filter -> amplitudeGain -> volume -> master
-    if (this.ambientFilters.pad && this.ambientVolumes.pad) {
+      // Create a Gain node for amplitude modulation
+      this.droneAmplitudeGain = new Tone.Gain(1)
+
+      // Re-route pad: disconnect from filter, insert gain
+      // New chain: pad -> filter -> amplitudeGain -> volume -> master
       this.ambientFilters.pad.disconnect(this.ambientVolumes.pad)
       this.ambientFilters.pad.connect(this.droneAmplitudeGain)
       this.droneAmplitudeGain.connect(this.ambientVolumes.pad)
-    }
 
-    // Connect LFO to gain (scaled to 0.25-1.0 range for amplitude)
-    // Using a different approach: modulate the volume node directly
-    this.droneAmplitudeLFO.connect(this.ambientVolumes.pad.volume)
-    this.droneAmplitudeLFO.start()
+      // Connect LFO to volume node
+      this.droneAmplitudeLFO.connect(this.ambientVolumes.pad.volume)
+      this.droneAmplitudeLFO.start()
 
-    // FILTER MODULATION: Slow timbral evolution
-    // Frequency 0.02 Hz = 50 second cycle
-    this.droneFilterLFO = new Tone.LFO({
-      frequency: 0.02,   // 50 second cycle
-      min: 400,          // Dark: 400 Hz cutoff
-      max: 2000,         // Bright: 2000 Hz cutoff
-      type: 'sine'
-    })
+      // FILTER MODULATION: Slow timbral evolution
+      // Frequency 0.02 Hz = 50 second cycle
+      this.droneFilterLFO = new Tone.LFO({
+        frequency: 0.02,   // 50 second cycle
+        min: 400,          // Dark: 400 Hz cutoff
+        max: 2000,         // Bright: 2000 Hz cutoff
+        type: 'sine'
+      })
 
-    // Connect to pad filter frequency
-    if (this.ambientFilters.pad) {
+      // Connect to pad filter frequency
       this.droneFilterLFO.connect(this.ambientFilters.pad.frequency)
       this.droneFilterLFO.start()
+    } catch (e) {
+      console.warn('Drone amplitude/filter modulation setup failed:', e.message)
     }
 
     // PITCH DRIFT: Subtle organic detuning
@@ -852,16 +857,23 @@ class AudioService {
       type: 'sine'
     })
 
-    // Connect to pad detune
-    if (this.ambientLayers.pad) {
-      this.dronePitchLFO.connect(this.ambientLayers.pad.detune)
-      this.dronePitchLFO.start()
+    // Connect to pad detune (PolySynth.detune may not be connectable in all Tone.js versions)
+    try {
+      if (this.ambientLayers.pad && this.ambientLayers.pad.detune) {
+        this.dronePitchLFO.connect(this.ambientLayers.pad.detune)
+        this.dronePitchLFO.start()
+      }
+    } catch (e) {
+      // Pitch drift not available for PolySynth - skip gracefully
+      // console.warn('Pitch drift LFO not connected:', e.message)
     }
 
     // Randomize LFO phases so they don't all sync up
     this.droneAmplitudeLFO.phase = Math.random() * 360
     this.droneFilterLFO.phase = Math.random() * 360
-    this.dronePitchLFO.phase = Math.random() * 360
+    if (this.dronePitchLFO.state === 'started') {
+      this.dronePitchLFO.phase = Math.random() * 360
+    }
 
     // console.log('🎵 Drone modulation setup complete: amplitude (33s), filter (50s), pitch (20s)')
   }
