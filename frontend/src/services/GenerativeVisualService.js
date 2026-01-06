@@ -250,16 +250,12 @@ class GenerativeVisualService {
    * @param {Object} gestureData - {type, velocity, holdStart, isActive}
    */
   updateGestureData(userId, gestureData) {
-    // DEBUG: Log entry
-    // console.log('🎨 updateGestureData called:', {
-//      userId: userId.substring(0, 8),
-//      type: gestureData.type,
-//      isActive: gestureData.isActive
-////    })
+    if (!this.springMesh) {
+      return
+    }
 
     // Update the node in the spring mesh
     const node = this.springMesh.nodes.get(userId)
-    // console.log('🎨 Node exists?', !!node, 'Total nodes:', this.springMesh.nodes.size)
 
     if (node) {
       node.gestureType = gestureData.type || 'idle'
@@ -274,40 +270,17 @@ class GenerativeVisualService {
 
       // Trigger visual effects based on gesture state
       if (gestureData.isActive) {
-        // Emit wave pulse on tap or drag start
-        if (gestureData.type === 'tap' || gestureData.type === 'drag') {
-          // console.log('✨ Emitting pulse for', gestureData, 'userId:', userId.substring(0, 8))
-          // console.log('🔍 wavePackets type:', typeof this.wavePackets, 'is truthy:', !!this.wavePackets)
-          // console.log('🔍 wavePackets keys:', this.wavePackets ? Object.keys(this.wavePackets).slice(0, 5) : 'N/A')
-
-          // DEBUG: Check if wavePackets exists
-          if (!this.wavePackets) {
-            // console.error('❌ this.wavePackets is NULL or UNDEFINED!')
-            // console.log('🔍 Available subsystems:', Object.keys(this))
-          } else {
-            try {
-              this.wavePackets.emitPulse(userId, node.color)
-            } catch (error) {
-              // console.error('❌ ERROR calling emitPulse:', error)
-              // console.error('Stack trace:', error.stack)
-            }
+        // Emit wave pulse on tap, drag, or hold start
+        if (gestureData.type === 'tap' || gestureData.type === 'drag' || gestureData.type === 'hold') {
+          // Emit pulse
+          if (this.wavePackets) {
+            this.wavePackets.emitPulse(userId, node.color)
           }
 
-          // Also emit particles on tap for better visual feedback
-          const particleCount = gestureData.type === 'tap' ? 5 : 2
-          // console.log('✨ Emitting', particleCount, 'particles for', gestureData.type, 'userId:', userId.substring(0, 8))
-          // console.log('🔍 particles type:', typeof this.particles, 'is truthy:', !!this.particles)
-
-          // DEBUG: Check if particles exists
-          if (!this.particles) {
-            // console.error('❌ this.particles is NULL or UNDEFINED!')
-          } else {
-            try {
-              this.particles.emitParticles(userId, particleCount)
-            } catch (error) {
-              // console.error('❌ ERROR calling emitParticles:', error)
-              // console.error('Stack trace:', error.stack)
-            }
+          // Also emit particles on tap/hold for better visual feedback
+          const particleCount = (gestureData.type === 'tap' || gestureData.type === 'hold') ? 5 : 2
+          if (this.particles) {
+            this.particles.emitParticles(userId, particleCount)
           }
         }
       }

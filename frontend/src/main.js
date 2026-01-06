@@ -789,20 +789,31 @@ class WebarmoniumApp {
 
       // VIRTUAL USERS: Use triggerAttackRelease with duration (like landing page)
       // This provides natural envelope instead of aggressive sustained note envelope
-      if (data.isVirtual && this.audioService?.gestureSynth) {
-        const synth = this.audioService.gestureSynth
-        if (synth && typeof synth.triggerAttackRelease === 'function') {
-          // Use the duration from backend (already in seconds, min 300ms)
-          const noteDuration = data.duration || 0.5
-          const velocity = data.velocity * 0.6 // Quieter for virtual users
-          synth.triggerAttackRelease(data.frequency, noteDuration, Tone.now(), velocity)
-
-          // Update visual service
-          if (this.visualService) {
-            const color = data.userColor || '#ff6b6b'
-            this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
+      if (data.isVirtual) {
+        // AUDIO: Play the note if synth is available
+        if (this.audioService?.gestureSynth) {
+          const synth = this.audioService.gestureSynth
+          if (synth && typeof synth.triggerAttackRelease === 'function') {
+            const noteDuration = data.duration || 0.5
+            const velocity = data.velocity * 0.6 // Quieter for virtual users
+            synth.triggerAttackRelease(data.frequency, noteDuration, Tone.now(), velocity)
           }
         }
+
+        // VISUAL: Always update visual service (triggers particles/pulses)
+        // This is separate from audio to ensure visual feedback even if audio fails
+        if (this.visualService) {
+          const color = data.userColor || '#ff6b6b'
+          this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
+          // CRITICAL: Must call updateGestureData to trigger particles and pulses
+          this.visualService.updateGestureData(data.userId, {
+            type: 'hold',
+            velocity: data.velocity || 0.7,
+            holdStart: Date.now(),
+            isActive: true
+          })
+        }
+
         return // Don't use sustained note mechanism for virtual users
       }
 
@@ -842,6 +853,19 @@ class WebarmoniumApp {
 
     // SUSTAINED HOLD: Handle remote user hold:end events
     this.socketService.on('hold:end', (data) => {
+      // VIRTUAL USERS: Just update visual state (audio handled by triggerAttackRelease)
+      if (data.isVirtual) {
+        if (this.visualService) {
+          this.visualService.updateGestureData(data.userId, {
+            type: 'idle',
+            velocity: 0,
+            isActive: false
+          })
+        }
+        return
+      }
+
+      // REAL REMOTE USERS: Use sustained note mechanism
       if (!this.activeRemoteHolds) {
         return
       }

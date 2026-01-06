@@ -1345,3 +1345,255 @@ if (Tone.Transport.state !== 'started') {
 "ho testato e audio funziona" - Confirmed audio stability improved.
 
 ---
+
+## Entry #24 - Virtual Users Unified with Landing Page Behavior
+
+**Date**: 2026-01-06
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Unified the musical and visual output of virtual users in normal rooms to match the landing page room behavior. User reported that virtual users in normal rooms produced "accordi o cluster di note, gesti più rarefatti e meno musicali" compared to the landing page. This entry documents the comprehensive unification of both systems.
+
+---
+
+### Problem Statement
+
+Virtual users in normal rooms behaved differently from landing page:
+
+| Aspect | Landing Page | Normal Rooms (Before) |
+|--------|--------------|----------------------|
+| Gesture frequency | 2-12s (activity-based) | 3-6s (fixed random) |
+| Velocity threshold | Percentile-based (P10-P90) | Hardcoded `velocity < 3` |
+| Gesture intent | Dynamic (0.05-0.1 based on activity) | Fixed (0.1) |
+| Normalization | P10-P90 percentile (100 samples) | Min/Max (50 samples) |
+| Tap duration | Organic (50-300ms from stability) | Fixed (500ms) |
+| Phrase duration | 300-3000ms (density metric) | 300-2000ms (velocity only) |
+| Curvature | Emerges from velocity/acceleration | Fixed formula |
+| Particles/Pulses | Working | Not triggered |
+
+---
+
+### Root Cause Analysis
+
+#### Issue 1: Chord/Cluster Sound Instead of Melodic Notes
+The backend was generating gestures correctly, but the **event format** was wrong:
+- VirtualUserService emitted `musical:event` with flat format
+- Frontend expected wrapped format `{ event: {...}, userId: "..." }`
+- Result: Events not processed, no visual feedback
+
+#### Issue 2: Sparse/Rarefied Gestures
+Multiple hardcoded values violated the core concept of dynamic normalization:
+- Fixed gesture interval (3-6s random) instead of activity-based
+- Hardcoded velocity threshold (`< 3`) instead of percentile
+- Fixed gesture intent (0.1) instead of activity-scaled
+
+#### Issue 3: Particles/Pulses Not Triggered
+- `hold:start` handler only called `updateCursorPosition`, not `updateGestureData`
+- `GenerativeVisualService` only triggered pulses for `tap`/`drag`, not `hold`
+
+---
+
+### Solution: Comprehensive Unification
+
+#### 1. Backend: Dynamic Normalization (P10-P90)
+
+Replaced min/max normalization with percentile-based:
+
+```javascript
+// BEFORE: Simple min/max
+return (value - stats.min) / (stats.max - stats.min)
+
+// AFTER: P10-P90 percentile (same as Landing)
+const sortedSamples = [...stats.samples].sort((a, b) => a - b)
+const p10 = sortedSamples[Math.floor(sortedSamples.length * 0.1)]
+const p90 = sortedSamples[Math.floor(sortedSamples.length * 0.9)]
+return (value - p10) / (p90 - p10)
+```
+
+Also increased `maxSamples` from 50 to 100.
+
+#### 2. Backend: Activity-Based Gesture Interval
+
+Replaced fixed 3-6s interval with tempo/activity-based:
+
+```javascript
+// BEFORE: Fixed random
+const interval = 4000 + Math.random() * 2000  // 3-6s
+
+// AFTER: Activity-based (same as Landing)
+const beatsPerComposition = 12 - (avgActivity * 6)  // 6-12 beats
+const interval = beatsPerComposition * (60000 / tempo)  // 2-12s
+```
+
+#### 3. Backend: Dynamic Gesture Intent
+
+Added activity-scaled gesture intent threshold:
+
+```javascript
+// BEFORE: Fixed threshold
+if (normalizedVelocity < 0.1) continue
+
+// AFTER: Dynamic threshold (same as Landing)
+const gestureIntent = 0.1 * (1 - activityLevel * 0.5)  // 0.05-0.1
+if (normalizedVelocity < gestureIntent) continue
+```
+
+#### 4. Backend: Relative Gesture Classification
+
+Replaced hardcoded velocity threshold with metric comparison:
+
+```javascript
+// BEFORE: Hardcoded threshold
+return velocity < 3 ? 'tap' : 'drag'
+
+// AFTER: Pure relative comparison (same as Landing)
+const stability = this._calculateStabilityMetric(source)
+const density = this._calculateDensityMetric(source)
+return stability >= density ? 'tap' : 'drag'
+```
+
+#### 5. Backend: Organic Durations from Metrics
+
+Tap and phrase durations now emerge from metrics:
+
+```javascript
+// TAP: Duration from stability metric
+const tapDurationMs = 50 + (stability * 250)  // 50-300ms
+
+// PHRASE: Duration from density metric
+const phraseDurationMs = 300 + (density * 2700)  // 300-3000ms
+```
+
+#### 6. Backend: Dynamic Curvature
+
+Curvature emerges from velocity/acceleration relationship:
+
+```javascript
+// BEFORE: Fixed formula
+const curvature = normalizedVelocity * 0.5
+
+// AFTER: Emerges from metric relationship
+const curvature = normalizedAccel / (normalizedVelocity + normalizedAccel + 0.1)
+```
+
+#### 7. Backend: Changed Tap Emission to hold:start/hold:end
+
+Changed tap gestures from `musical:event` to `hold:start`/`hold:end`:
+
+```javascript
+// BEFORE: musical:event (flat format, not processed)
+this.io.to(roomId).emit('musical:event', { type: 'tap', ... })
+
+// AFTER: hold:start + hold:end (triggers audio AND visual)
+this.io.to(roomId).emit('hold:start', { ... })
+setTimeout(() => {
+  this.io.to(roomId).emit('hold:end', { ... })
+}, tapDurationMs)
+```
+
+#### 8. Frontend: Visual Feedback for Virtual Users
+
+Separated audio from visual in `hold:start` handler:
+
+```javascript
+// AUDIO (if synth available)
+if (this.audioService?.gestureSynth) {
+  synth.triggerAttackRelease(data.frequency, noteDuration, Tone.now(), velocity)
+}
+
+// VISUAL (always, triggers particles/pulses)
+if (this.visualService) {
+  this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
+  this.visualService.updateGestureData(data.userId, {
+    type: 'hold',
+    velocity: data.velocity || 0.7,
+    holdStart: Date.now(),
+    isActive: true
+  })
+}
+```
+
+#### 9. Frontend: Added 'hold' to Gesture Type Triggers
+
+Updated `GenerativeVisualService` to trigger pulses/particles for `hold`:
+
+```javascript
+// BEFORE: Only tap/drag
+if (gestureData.type === 'tap' || gestureData.type === 'drag')
+
+// AFTER: Include hold
+if (gestureData.type === 'tap' || gestureData.type === 'drag' || gestureData.type === 'hold')
+```
+
+#### 10. Backend: Faster Warm-up Period
+
+Reduced warm-up delay and added fallback normalization:
+
+```javascript
+// BEFORE: Wait for 10 samples, return 0.5 during warm-up
+const MIN_SAMPLES_FOR_PERCENTILE = 10
+if (stats.samples.length < MIN_SAMPLES_FOR_PERCENTILE) return 0.5
+
+// AFTER: 5 samples, use min/max during warm-up
+const MIN_SAMPLES_FOR_PERCENTILE = 5
+if (stats.samples.length < MIN_SAMPLES_FOR_PERCENTILE) {
+  const range = stats.max - stats.min
+  if (range > 0) return (value - stats.min) / range
+  return 0.5
+}
+```
+
+---
+
+### New Metric Functions Added
+
+| Function | Purpose |
+|----------|---------|
+| `_calculateActivityLevel(source)` | editsPerMinute/postsPerMinute/commitsPerMinute |
+| `_calculateStabilityMetric(source)` | Inverse of normalized velocity |
+| `_calculateDensityMetric(source)` | avgEditSize/avgUpvotes/createsPerMinute |
+| `_calculatePeriodicityMetric(source)` | newArticles/commentCount/deletesPerMinute |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/VirtualUserService.js` | +200 lines: P10-P90 normalization, dynamic interval, metric functions, hold:start emission, organic durations |
+| `frontend/src/main.js` | +20 lines: Visual feedback for virtual users, hold:end handler |
+| `frontend/src/services/GenerativeVisualService.js` | +2 lines: Added 'hold' to gesture triggers |
+| `backend/tests/unit/VirtualUserService.test.js` | Updated tests for new behavior |
+
+---
+
+### Test Results
+
+All 34 VirtualUserService tests pass:
+- `_normalizeValue()` tests updated for P10-P90 and warm-up fallback
+- `_classifyGestureType()` tests updated for relative comparison
+- `maxSamples` test updated for 100 samples
+
+---
+
+### Behavioral Changes
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Gesture activation | After ~2 minutes (10 samples) | Immediate (min/max fallback) |
+| Gesture frequency | Fixed 3-6s random | Dynamic 2-12s from activity |
+| Tap/Drag ratio | Hardcoded velocity threshold | Emerges from stability vs density |
+| Particles/Pulses | Not triggered | Triggered on every hold:start |
+| Note durations | Fixed values | Organic from metrics |
+
+---
+
+### User Feedback
+
+"adesso si sono messi a funzionare anche particles e pulses, dopo molto che room era aperta" - Initial confirmation that visual effects work (before warm-up fix).
+
+After warm-up fix: Particles and pulses now trigger immediately when virtual users are activated.
+
+---

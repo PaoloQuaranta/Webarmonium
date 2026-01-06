@@ -55,13 +55,29 @@ class VirtualUserService {
       }
     }
 
-    // Statistical tracking for dynamic normalization (per source)
+    // Statistical tracking for DYNAMIC NORMALIZATION (per source)
+    // Same as LandingCompositionService: tracks historical min/max for percentile normalization
     this.metricStatistics = {
-      wikipedia: { velocity: { min: Infinity, max: 0, samples: [] } },
-      hackernews: { velocity: { min: Infinity, max: 0, samples: [] } },
-      github: { velocity: { min: Infinity, max: 0, samples: [] } }
+      wikipedia: {
+        velocity: { min: Infinity, max: 0, samples: [] },
+        editsPerMinute: { min: Infinity, max: 0, samples: [] },
+        avgEditSize: { min: Infinity, max: 0, samples: [] },
+        newArticles: { min: Infinity, max: 0, samples: [] }
+      },
+      hackernews: {
+        velocity: { min: Infinity, max: 0, samples: [] },
+        postsPerMinute: { min: Infinity, max: 0, samples: [] },
+        avgUpvotes: { min: Infinity, max: 0, samples: [] },
+        commentCount: { min: Infinity, max: 0, samples: [] }
+      },
+      github: {
+        velocity: { min: Infinity, max: 0, samples: [] },
+        commitsPerMinute: { min: Infinity, max: 0, samples: [] },
+        createsPerMinute: { min: Infinity, max: 0, samples: [] },
+        deletesPerMinute: { min: Infinity, max: 0, samples: [] }
+      }
     }
-    this.maxSamples = 50
+    this.maxSamples = 100 // Keep last 100 samples for percentile calculation (same as Landing)
 
     // Clock for gesture timing
     this.clockTick = 0
@@ -351,6 +367,8 @@ class VirtualUserService {
 
   /**
    * Schedule next gesture generation cycle
+   * UNIFIED: Uses SAME tempo-based interval as LandingCompositionService
+   * Composition frequency emerges from metric activity (not random)
    * @param {string} roomId
    * @private
    */
@@ -358,10 +376,29 @@ class VirtualUserService {
     const roomState = this.activeRooms.get(roomId)
     if (!roomState || !roomState.isActive) return
 
-    // Generate every 3-6 seconds based on activity
-    const baseInterval = 4000
-    const variance = 2000
-    const interval = baseInterval + Math.random() * variance
+    // Get tempo from musical context
+    const tempo = roomState.musicalContext?.tempo || 120
+
+    // Calculate activity level for each active source
+    // Same formula as LandingCompositionService
+    let totalActivity = 0
+    let sourceCount = 0
+    for (const source of roomState.sources) {
+      const activity = this._calculateActivityLevel(source)
+      totalActivity += activity
+      sourceCount++
+    }
+    const avgActivity = sourceCount > 0 ? totalActivity / sourceCount : 0.5
+
+    // UNIFIED: Map activity to beats (same as Landing)
+    // High activity = frequent compositions (6 beats), Low activity = sparse (12 beats)
+    const beatsPerComposition = 12 - (avgActivity * 6)  // 6-12 beats, emerges from activity
+
+    const beatDuration = 60000 / tempo  // milliseconds per beat
+    const interval = beatsPerComposition * beatDuration
+
+    // Clamp to reasonable bounds (2-12 seconds)
+    const clampedInterval = Math.max(2000, Math.min(12000, interval))
 
     roomState.gestureGenerationTimer = setTimeout(() => {
       // Defensive check: if room was deleted without proper deactivation, don't reschedule
@@ -381,11 +418,13 @@ class VirtualUserService {
       if (this.activeRooms.has(roomId)) {
         this._scheduleNextGestureGeneration(roomId)
       }
-    }, interval)
+    }, clampedInterval)
   }
 
   /**
    * Generate and emit virtual gestures for a room
+   * UNIFIED: Same gesture generation logic as LandingCompositionService
+   * Uses dynamic gesture intent based on activity level
    * @param {string} roomId
    * @private
    */
@@ -418,17 +457,38 @@ class VirtualUserService {
         const velocity = this.webMetricsPoller?.getVelocity(source) || 0
         const absVelocity = Math.abs(velocity)
 
-        // Update statistics for normalization
+        // Update statistics for ALL metrics (same as Landing)
         this._updateStatistics(source, 'velocity', absVelocity)
+        if (metrics[source]) {
+          for (const [metricName, value] of Object.entries(metrics[source])) {
+            if (typeof value === 'number') {
+              this._updateStatistics(source, metricName, value)
+            }
+          }
+        }
 
-        // Normalize velocity
+        // Normalize velocity using P10-P90 percentile
         const normalizedVelocity = this._normalizeValue(source, 'velocity', absVelocity)
 
-        // Only generate gesture if there's activity
-        if (normalizedVelocity < 0.1) continue
+        // UNIFIED: Dynamic gesture intent based on activity level (same as Landing)
+        // High activity sources gesture more frequently, even when stable
+        const activityLevel = this._calculateActivityLevel(source)
 
-        // Classify gesture type
-        const gestureType = this._classifyGestureType(source, metrics)
+        // Gesture intent: combine velocity (change) with activity (absolute level)
+        // Formula: effectiveGestureIntent = baseIntent * (1 - activityLevel * 0.5)
+        // - activityLevel 0 → gestureIntent = 0.1 (base threshold)
+        // - activityLevel 1 → gestureIntent = 0.05 (lower threshold = more gestures)
+        const baseGestureIntent = 0.1
+        const gestureIntent = baseGestureIntent * (1 - activityLevel * 0.5)
+
+        // Check if source should gesture this cycle
+        if (normalizedVelocity < gestureIntent) {
+          // No significant metric activity - skip this source this cycle
+          continue
+        }
+
+        // Classify gesture type using relative metrics (no hardcoded thresholds)
+        const gestureType = this._classifyGestureType(source)
 
         if (gestureType === 'tap') {
           this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
@@ -444,81 +504,131 @@ class VirtualUserService {
 
   /**
    * Emit a tap gesture (single short note)
+   * UNIFIED: Same emission format as LandingCompositionService
+   * Position and duration emerge from metrics
    * @private
    */
   _emitTapGesture(roomId, source, config, roomState, normalizedVelocity) {
-    const x = config.region.xMin + Math.random() * (config.region.xMax - config.region.xMin)
-    const y = 0.2 + normalizedVelocity * 0.6
+    // Position emerges from activity level (same as Landing)
+    const activityLevel = this._calculateActivityLevel(source)
+    const x = config.region.xMin + (activityLevel * (config.region.xMax - config.region.xMin))
+    const y = 0.1 + (normalizedVelocity * 0.8) // Full vertical range
 
     // Update target position
     roomState.targetPositions[source] = { x, y }
 
-    // Calculate frequency from position (same formula as normal rooms)
+    // Calculate frequency from position (same formula as normal rooms and Landing)
     const octaveBase = 110 + (1 - y) * 440
     const withinOctave = x * 660
     const rawFreq = octaveBase + withinOctave
 
-    // Constrain to scale
+    // Constrain to scale for harmonic coherence
     const rawPitch = Math.round(12 * Math.log2(rawFreq / 440) + 69)
     const pitch = this.harmonicEngine.constrainToScale(rawPitch, roomState.musicalContext.key, roomState.musicalContext.mode)
     const frequency = 440 * Math.pow(2, (pitch - 69) / 12)
 
-    // Emit tap note - use wrapper format expected by main.js
-    this.io.to(roomId).emit('musical:event', {
-      event: {
-        type: 'tap',
-        properties: {
-          frequency,
-          velocity: 80, // 0-100 scale for backend format
-          duration: 0.5, // Longer duration for audible tap (500ms)
-          gestureAction: 'tap',
-          articulation: 'marcato', // Use marcato for proper musical envelope
-          isStreamed: false,
-          totalNotes: 1,
-          noteIndex: 0
-        },
-        position: { x, y },
-        userColor: config.color,
-        isRemote: true,
+    // ORGANIC DURATION: Correlate tap duration to stability metric (same as Landing)
+    // Higher stability (slower) = longer note
+    // Lower stability (faster) = shorter percussive note
+    const stability = this._calculateStabilityMetric(source)
+    const tapDurationMs = 50 + (stability * 250)  // 50-300ms organic range
+
+    // Quantize to beat grid
+    const tempo = roomState.musicalContext?.tempo || 120
+    const quantizedBeats = this.phraseMorphology.quantizeGestureDuration(tapDurationMs, tempo)
+    const beatDuration = 60 / tempo  // seconds per beat
+    const tapDuration = quantizedBeats * beatDuration  // Convert beats to seconds
+
+    // Generate unique note ID
+    const noteId = `virtual_${source}_tap_${Date.now()}`
+
+    // Emit hold:start (triggers audio AND visual feedback in frontend)
+    this.io.to(roomId).emit('hold:start', {
+      type: 'hold:start',
+      userId: config.userId,
+      noteId: noteId,
+      frequency: frequency,
+      velocity: 0.9,  // Strong tap (same as Landing)
+      duration: tapDuration,
+      position: { x, y },
+      userColor: config.color,
+      isRemote: true,
+      isVirtual: true,
+      timestamp: Date.now()
+    })
+
+    // Emit hold:end after duration (resets visual state)
+    const tapDurationMs2 = tapDuration * 1000
+    setTimeout(() => {
+      if (!this.activeRooms.has(roomId)) return
+      this.io.to(roomId).emit('hold:end', {
+        type: 'hold:end',
+        userId: config.userId,
+        noteId: noteId,
         isVirtual: true,
         timestamp: Date.now()
-      },
-      userId: config.userId
-    })
+      })
+    }, tapDurationMs2)
   }
 
   /**
    * Emit a drag gesture (multi-note phrase using PhraseMorphology)
-   * Same approach as LandingCompositionService - uses PhraseMorphology to generate
-   * proper phrases with timing that emerges from the gesture data.
+   * UNIFIED: Same approach as LandingCompositionService
+   * Position, trajectory, duration and curvature all emerge from metrics
    * @private
    */
   _emitDragGesture(roomId, source, config, roomState, normalizedVelocity, rawVelocity) {
-    // Starting position
-    const startX = config.region.xMin + Math.random() * (config.region.xMax - config.region.xMin)
-    const startY = 0.2 + normalizedVelocity * 0.6
+    // UNIFIED: Position emerges from density metric (same as Landing)
+    const density = this._calculateDensityMetric(source)
+    const startX = config.region.xMin + (density * (config.region.xMax - config.region.xMin))
 
-    // Trajectory end position based on velocity direction
+    // Y position: based on acceleration (higher acceleration = higher in scene)
+    const acceleration = this.webMetricsPoller?.getAcceleration(source) || 0
+    const absAccel = Math.abs(acceleration)
+    const normalizedAccel = this._normalizeValue(source, 'velocity', absAccel) // Use velocity stats for now
+    const startY = 0.1 + (normalizedAccel * 0.8) // Full vertical range
+
+    // UNIFIED: Calculate curvature from metric variance (not hardcoded)
+    // Curvature emerges from relationship between velocity and acceleration
+    // High acceleration with low velocity = high curvature (sharp changes)
+    // Low acceleration with high velocity = low curvature (smooth motion)
+    const velocityVariance = normalizedVelocity  // 0-1
+    const accelerationVariance = normalizedAccel  // 0-1
+
+    // Formula: curvature = |acceleration| / (|velocity| + |acceleration| + small_constant)
+    const curvature = accelerationVariance / (velocityVariance + accelerationVariance + 0.1)
+    const clampedCurvature = Math.max(0, Math.min(1, curvature))
+
+    // Trajectory based on acceleration direction and magnitude
+    const regionWidth = config.region.xMax - config.region.xMin
+    const regionHeight = 0.9  // Full height is 0.05-0.95
+
+    // Direction based on velocity sign
     const direction = rawVelocity >= 0 ? 1 : -1
-    const trajectoryLength = 0.1 + normalizedVelocity * 0.2
+
+    // Trajectory length based on normalized acceleration (0.1-0.3 range)
+    const trajectoryLength = 0.1 + (normalizedAccel * 0.2)
+
+    // Calculate end position
     const endX = Math.max(config.region.xMin, Math.min(config.region.xMax,
-      startX + direction * trajectoryLength * (config.region.xMax - config.region.xMin)))
-    const endY = Math.max(0.05, Math.min(0.95, startY + direction * trajectoryLength * 0.3))
+      startX + (direction * trajectoryLength * regionWidth)))
+    const endY = Math.max(0.05, Math.min(0.95,
+      startY + (direction * trajectoryLength * regionHeight * 0.5)))
 
     // Update target position for cursor interpolation
     roomState.targetPositions[source] = { x: startX, y: startY }
 
-    // Phrase duration emerges from velocity (300-2000ms)
-    const phraseDurationMs = 300 + normalizedVelocity * 1700
+    // ORGANIC DURATION: Correlate phrase duration to density metric (same as Landing)
+    // Higher density = more content magnitude = longer phrase
+    const phraseDurationMs = 300 + (density * 2700)  // 300-3000ms organic range
 
-    // Calculate curvature from velocity variance
-    const curvature = Math.min(0.8, normalizedVelocity * 0.5)
-
-    // Create gestureData for PhraseMorphology (same format as LandingCompositionService)
+    // Create gestureData for PhraseMorphology with trajectory and DYNAMIC curvature
     const gestureData = {
       velocity: normalizedVelocity * 100,  // 0-100 range
       trajectory: { startX, startY, endX, endY },
-      curvature,
+      curvature: clampedCurvature,  // EMERGES from velocity/acceleration relationship
+      acceleration: acceleration,
+      intensity: this._calculateActivityLevel(source),
       duration: phraseDurationMs
     }
 
@@ -533,22 +643,15 @@ class VirtualUserService {
 
     const beatDurationMs = (60 / (roomState.musicalContext.tempo || 120)) * 1000
 
-    // Emit phrase event (for visual system)
+    // Emit phrase event (for visual system) - direct format like Landing
     this.io.to(roomId).emit('musical:event', {
-      event: {
-        type: 'phrase',
-        properties: {
-          velocity: normalizedVelocity,
-          noteCount: phrase.notes.length,
-          gestureAction: 'phrase',
-          isStreamed: true,
-          totalNotes: phrase.notes.length
-        },
-        isRemote: true,
-        isVirtual: true,
-        timestamp: Date.now()
-      },
-      userId: config.userId
+      type: 'phrase',
+      userId: config.userId,
+      velocity: Math.min(1, normalizedVelocity),
+      noteCount: phrase.notes.length,
+      isRemote: true,
+      isVirtual: true,
+      timestamp: Date.now()
     })
 
     // Emit each note with timing from PhraseMorphology (same as LandingCompositionService)
@@ -606,18 +709,119 @@ class VirtualUserService {
   }
 
   /**
-   * Classify gesture type based on metrics
+   * Calculate activity level for a source (0.0-1.0)
+   * Uses DYNAMIC NORMALIZATION based on HISTORICAL min/max
+   * Same as LandingCompositionService
+   * @param {string} source - Source name
+   * @returns {number} Activity level (0.0-1.0)
    * @private
    */
-  _classifyGestureType(source, metrics) {
+  _calculateActivityLevel(source) {
+    const metrics = this.webMetricsPoller?.getMetrics()
+    if (!metrics || !metrics[source]) return 0.5
+
+    switch (source) {
+      case 'wikipedia':
+        return this._normalizeValue(source, 'editsPerMinute', metrics[source].editsPerMinute || 0)
+      case 'hackernews':
+        return this._normalizeValue(source, 'postsPerMinute', metrics[source].postsPerMinute || 0)
+      case 'github':
+        return this._normalizeValue(source, 'commitsPerMinute', metrics[source].commitsPerMinute || 0)
+      default:
+        return 0.5
+    }
+  }
+
+  /**
+   * Calculate stability metric for gesture classification
+   * Lower velocity = higher stability = tap gesture
+   * Same as LandingCompositionService
+   * @param {string} source - Source name
+   * @returns {number} Stability value (0.0-1.0)
+   * @private
+   */
+  _calculateStabilityMetric(source) {
     const velocity = Math.abs(this.webMetricsPoller?.getVelocity(source) || 0)
-    // Lower velocity = more stable = tap
-    // Higher velocity = more dynamic = drag
-    return velocity < 3 ? 'tap' : 'drag'
+    // Normalize velocity dynamically, then invert for stability
+    const normalizedVelocity = this._normalizeValue(source, 'velocity', velocity)
+    // Higher velocity = lower stability
+    return Math.max(0, 1 - normalizedVelocity)
+  }
+
+  /**
+   * Calculate density metric for gesture classification
+   * Higher metric values = higher density = phrase gesture
+   * Same as LandingCompositionService
+   * @param {string} source - Source name
+   * @returns {number} Density value (0.0-1.0)
+   * @private
+   */
+  _calculateDensityMetric(source) {
+    const metrics = this.webMetricsPoller?.getMetrics()
+    if (!metrics || !metrics[source]) return 0.5
+
+    switch (source) {
+      case 'wikipedia':
+        return this._normalizeValue(source, 'avgEditSize', metrics[source].avgEditSize || 0)
+      case 'hackernews':
+        return this._normalizeValue(source, 'avgUpvotes', metrics[source].avgUpvotes || 0)
+      case 'github':
+        return this._normalizeValue(source, 'createsPerMinute', metrics[source].createsPerMinute || 0)
+      default:
+        return 0.5
+    }
+  }
+
+  /**
+   * Calculate periodicity metric for gesture classification
+   * Higher periodic values = more periodic = hover/modulation gesture
+   * Same as LandingCompositionService
+   * @param {string} source - Source name
+   * @returns {number} Periodicity value (0.0-1.0)
+   * @private
+   */
+  _calculatePeriodicityMetric(source) {
+    const metrics = this.webMetricsPoller?.getMetrics()
+    if (!metrics || !metrics[source]) return 0.5
+
+    switch (source) {
+      case 'wikipedia':
+        return this._normalizeValue(source, 'newArticles', metrics[source].newArticles || 0)
+      case 'hackernews':
+        return this._normalizeValue(source, 'commentCount', metrics[source].commentCount || 0)
+      case 'github':
+        return this._normalizeValue(source, 'deletesPerMinute', metrics[source].deletesPerMinute || 0)
+      default:
+        return 0.5
+    }
+  }
+
+  /**
+   * Classify gesture type based on metric characteristics
+   * Uses PURE relative comparison: whichever metric is highest determines gesture type
+   * NO thresholds - gestures emerge naturally from metric variations
+   * Same as LandingCompositionService
+   * @param {string} source - Source name
+   * @returns {string} Gesture type: 'tap' or 'drag'
+   * @private
+   */
+  _classifyGestureType(source) {
+    const stability = this._calculateStabilityMetric(source)
+    const density = this._calculateDensityMetric(source)
+
+    // Pure relative comparison: whichever metric is highest determines gesture type
+    // NO thresholds - preserves correlation between metrics and gestures
+    // Note: We only use tap/drag for normal rooms (no hover modulation like landing)
+    if (stability >= density) {
+      return 'tap'
+    } else {
+      return 'drag'  // phrase
+    }
   }
 
   /**
    * Update statistics for dynamic normalization
+   * Same as LandingCompositionService - builds historical data for percentile calculation
    * @private
    */
   _updateStatistics(source, metricName, value) {
@@ -628,23 +832,59 @@ class VirtualUserService {
     stats.max = Math.max(stats.max, value)
 
     stats.samples.push(value)
+    // CRITICAL: Use slice to guarantee size bounds (prevents memory leak)
     if (stats.samples.length > this.maxSamples) {
-      stats.samples.shift()
+      stats.samples = stats.samples.slice(-this.maxSamples)
     }
   }
 
   /**
-   * Normalize value using historical min/max
+   * DYNAMIC NORMALIZATION based on HISTORICAL RANGE with PERCENTILE STABILIZATION
+   * Same as LandingCompositionService - uses P10-P90 to prevent outlier skewing
+   * Maps metric values to [0, 1] using observed percentiles
+   * NO hardcoded thresholds - adapts to actual data range
    * @private
    */
   _normalizeValue(source, metricName, value) {
     const stats = this.metricStatistics[source]?.[metricName]
-    if (!stats || stats.min === Infinity || stats.max === 0) return 0.5
+    if (!stats) return 0.5
 
-    const range = stats.max - stats.min
-    if (range === 0) return 0.5
+    // Wait for warm-up period (need enough samples for percentile)
+    // Reduced from 10 to 5 for faster gesture activation
+    const MIN_SAMPLES_FOR_PERCENTILE = 5
+    if (stats.samples.length < MIN_SAMPLES_FOR_PERCENTILE) {
+      // During warm-up, use simple min/max normalization instead of returning 0.5
+      // This allows gestures to be generated immediately
+      const range = stats.max - stats.min
+      if (range > 0) {
+        return Math.max(0, Math.min(1, (value - stats.min) / range))
+      }
+      return 0.5
+    }
 
-    return Math.max(0, Math.min(1, (value - stats.min) / range))
+    // If no range yet, return 0.5
+    if (stats.min === Infinity || stats.max === 0) {
+      return 0.5
+    }
+
+    // PERCENTILE-BASED normalization for stability (same as Landing)
+    // Uses P10-P90 range to prevent outliers from skewing normalization
+    const sortedSamples = [...stats.samples].sort((a, b) => a - b)
+    const p10Index = Math.floor(sortedSamples.length * 0.1)
+    const p90Index = Math.floor(sortedSamples.length * 0.9)
+    const p10 = sortedSamples[p10Index]
+    const p90 = sortedSamples[p90Index]
+
+    const stabilizedRange = p90 - p10
+    if (stabilizedRange === 0) {
+      return 0.5
+    }
+
+    // Normalize using percentile range
+    const normalized = (value - p10) / stabilizedRange
+
+    // Clamp to [0, 1]
+    return Math.max(0, Math.min(1, normalized))
   }
 
   /**

@@ -322,7 +322,8 @@ describe('VirtualUserService', () => {
       })
 
       test('should maintain sample buffer up to maxSamples', () => {
-        for (let i = 0; i < 60; i++) {
+        // Add more samples than maxSamples (100) to test buffer limiting
+        for (let i = 0; i < 120; i++) {
           service._updateStatistics('wikipedia', 'velocity', i)
         }
 
@@ -337,36 +338,73 @@ describe('VirtualUserService', () => {
         expect(normalized).toBe(0.5)
       })
 
-      test('should normalize within 0-1 range', () => {
+      test('should use min/max normalization during warm-up (< 5 samples)', () => {
+        // Add only 3 samples (below MIN_SAMPLES_FOR_PERCENTILE = 5)
         service._updateStatistics('wikipedia', 'velocity', 0)
         service._updateStatistics('wikipedia', 'velocity', 10)
+        service._updateStatistics('wikipedia', 'velocity', 5)
 
-        expect(service._normalizeValue('wikipedia', 'velocity', 0)).toBe(0)
+        // During warm-up, should use simple min/max normalization
+        // min=0, max=10, value=5 → (5-0)/(10-0) = 0.5
         expect(service._normalizeValue('wikipedia', 'velocity', 5)).toBe(0.5)
-        expect(service._normalizeValue('wikipedia', 'velocity', 10)).toBe(1)
+        // value=2.5 → (2.5-0)/(10-0) = 0.25
+        expect(service._normalizeValue('wikipedia', 'velocity', 2.5)).toBe(0.25)
       })
 
-      test('should clamp values outside range', () => {
-        service._updateStatistics('wikipedia', 'velocity', 0)
-        service._updateStatistics('wikipedia', 'velocity', 10)
+      test('should normalize using P10-P90 percentile with enough samples', () => {
+        // Add 20 samples from 0 to 19 to have enough for percentile calculation
+        for (let i = 0; i < 20; i++) {
+          service._updateStatistics('wikipedia', 'velocity', i)
+        }
 
-        expect(service._normalizeValue('wikipedia', 'velocity', -5)).toBe(0)
-        expect(service._normalizeValue('wikipedia', 'velocity', 15)).toBe(1)
+        // P10 = 2, P90 = 18, range = 16
+        // Value 2 should normalize to ~0, value 10 to ~0.5, value 18 to ~1
+        const normalized10 = service._normalizeValue('wikipedia', 'velocity', 10)
+        expect(normalized10).toBeGreaterThan(0.4)
+        expect(normalized10).toBeLessThan(0.6)
+      })
+
+      test('should clamp values outside percentile range', () => {
+        // Add 20 samples from 0 to 19
+        for (let i = 0; i < 20; i++) {
+          service._updateStatistics('wikipedia', 'velocity', i)
+        }
+
+        // Values outside P10-P90 range should be clamped to 0 or 1
+        expect(service._normalizeValue('wikipedia', 'velocity', -10)).toBe(0)
+        expect(service._normalizeValue('wikipedia', 'velocity', 100)).toBe(1)
       })
     })
 
     describe('_classifyGestureType()', () => {
-      test('should return "tap" for low velocity', () => {
-        mockWebMetricsPoller.getVelocity = jest.fn(() => 1)
+      test('should return "tap" when stability metric is higher than density', () => {
+        // Low velocity = high stability = tap
+        mockWebMetricsPoller.getVelocity = jest.fn(() => 0.5)
+        // Low density metric values
+        mockWebMetricsPoller.getMetrics = jest.fn(() => ({
+          wikipedia: { editsPerMinute: 0, avgEditSize: 0, newArticles: 0 }
+        }))
 
-        const type = service._classifyGestureType('wikipedia', {})
+        const type = service._classifyGestureType('wikipedia')
         expect(type).toBe('tap')
       })
 
-      test('should return "drag" for high velocity', () => {
-        mockWebMetricsPoller.getVelocity = jest.fn(() => 5)
+      test('should return "drag" when density metric is higher than stability', () => {
+        // High velocity = low stability
+        mockWebMetricsPoller.getVelocity = jest.fn(() => 10)
 
-        const type = service._classifyGestureType('wikipedia', {})
+        // First populate enough samples for both metrics
+        for (let i = 0; i < 20; i++) {
+          service._updateStatistics('wikipedia', 'velocity', i)
+          service._updateStatistics('wikipedia', 'avgEditSize', i * 100)
+        }
+
+        // High density metric value (avgEditSize) relative to stability
+        mockWebMetricsPoller.getMetrics = jest.fn(() => ({
+          wikipedia: { editsPerMinute: 100, avgEditSize: 2000, newArticles: 50 }
+        }))
+
+        const type = service._classifyGestureType('wikipedia')
         expect(type).toBe('drag')
       })
     })
