@@ -624,7 +624,7 @@ class AudioService {
           spread: 60  // Wide spread for spacious sound
         },
         envelope: {
-          attack: 3.0,   // VERY SLOW attack - pad swells in slowly
+          attack: 1.5,   // REDUCED from 3.0 - still soft swell but audible sooner
           decay: 1.5,    // Longer decay
           sustain: 0.7,
           release: 4.0   // VERY LONG release - pad lingers
@@ -1857,13 +1857,15 @@ class AudioService {
    * @param {Object} composition - Composition from BackgroundCompositionService
    */
   playComposition(composition, isDrone = false) {
+    console.log(`🎼 playComposition called - isDrone: ${isDrone}, isInitialized: ${this.isInitialized}, muted: ${this.muted}, type: ${composition?.type}`)
+
     if (!this.isInitialized || this.muted) {
-      // console.log('🔇 playComposition blocked - initialized:', this.isInitialized, 'muted:', this.muted)
+      console.log('🔇 playComposition blocked - initialized:', this.isInitialized, 'muted:', this.muted)
       return
     }
 
     if (!composition || !composition.content) {
-      // console.warn('🎼 Invalid composition data')
+      console.warn('🎼 Invalid composition data')
       return
     }
 
@@ -2086,6 +2088,8 @@ class AudioService {
     if (!content.texture || !Array.isArray(content.texture)) {
       return
     }
+
+    console.log(`🎵 playAmbientComposition called - isDrone: ${isDrone}, texture items: ${content.texture.length}, pad exists: ${!!this.ambientLayers?.pad}`)
 
     const now = Tone.now()
     const lookahead = 0.1
