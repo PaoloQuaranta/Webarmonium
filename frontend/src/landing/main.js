@@ -137,6 +137,7 @@ class LandingApp {
 
     // Canvas container
     this.canvasContainer = null
+    this._resizeHandlerAttached = false
 
     // Current cursors and metrics from backend
     this.currentCursors = {}
@@ -229,12 +230,14 @@ class LandingApp {
           const rect = this.canvasContainer.getBoundingClientRect()
           if (rect.width > 0 && rect.height > 0) {
             this.visualService.initialize(this.canvasContainer)
+            this._setupResizeHandler()
             // console.log('✅ GenerativeVisualService initialized with dimensions:', rect.width, rect.height)
           } else {
             // Retry if dimensions still not available
             setTimeout(() => {
               if (this.visualService && !this.visualService.p5Instance) {
                 this.visualService.initialize(this.canvasContainer)
+                this._setupResizeHandler()
               }
             }, LANDING_CONFIG.VISUAL_INIT_RETRY_MS)
           }
@@ -260,6 +263,24 @@ class LandingApp {
       mockToggle.parentElement.remove()
       // console.log('🗑️ Mock mode toggle removed (backend handles metrics)')
     }
+  }
+
+  /**
+   * Setup window resize handler to resize canvas with container
+   * @private
+   */
+  _setupResizeHandler() {
+    if (this._resizeHandlerAttached) return
+    this._resizeHandlerAttached = true
+
+    window.addEventListener('resize', () => {
+      if (this.visualService && this.canvasContainer) {
+        const rect = this.canvasContainer.getBoundingClientRect()
+        if (rect.width > 0 && rect.height > 0) {
+          this.visualService.resize(rect.width, rect.height)
+        }
+      }
+    })
   }
 
   /**

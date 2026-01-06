@@ -2414,3 +2414,52 @@ After initial implementation, a comprehensive code review identified 5 critical 
 - All error paths now log warnings instead of failing silently
 
 ---
+
+## Entry #29 - Landing Page Canvas Resize Fix
+
+**Date**: 2026-01-06
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Problem
+
+The landing page canvas did not resize when the browser window was resized, appearing cut off. Normal rooms worked correctly because they use `CanvasManager` which handles window resize events.
+
+### Root Cause
+
+The landing page directly initializes `GenerativeVisualService` without using `CanvasManager`. While `GenerativeVisualService` has a `resize(width, height)` method, no window resize event listener was set up to call it.
+
+### Solution
+
+Added window resize handler to landing page:
+
+1. Added `_resizeHandlerAttached` flag in constructor to prevent duplicate listeners
+2. Added `_setupResizeHandler()` method that listens to window resize and calls `visualService.resize()`
+3. Called `_setupResizeHandler()` after visual service initialization (both normal path and retry path)
+
+**Files Modified:**
+- `frontend/src/landing/main.js` - Added resize handler (~15 lines)
+
+### Code Changes
+
+```javascript
+// Constructor
+this._resizeHandlerAttached = false
+
+// New method
+_setupResizeHandler() {
+  if (this._resizeHandlerAttached) return
+  this._resizeHandlerAttached = true
+
+  window.addEventListener('resize', () => {
+    if (this.visualService && this.canvasContainer) {
+      const rect = this.canvasContainer.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        this.visualService.resize(rect.width, rect.height)
+      }
+    }
+  })
+}
+```
+
+---
