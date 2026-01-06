@@ -962,18 +962,20 @@ class WebarmoniumApp {
         compositionNumber: data.compositionNumber,
         isDrone: data.isDrone,
         isAudioStarted: this.isAudioStarted,
+        hasComposition: !!data.composition,
         type: data.composition?.type
       })
 
       if (this.isAudioStarted && data.composition) {
-        console.log('✅ Playing composition (audio started)...')
+        console.log('✅ Playing composition - calling audioService.playComposition()...')
         this.audioService.playComposition(data.composition, data.isDrone)
+        console.log('✅ playComposition returned')
       } else if (data.isDrone && data.composition) {
         // Save drone for later - will be played when audio starts
         this.pendingDrone = data.composition
         console.log('💾 Saved pending drone - will play when audio starts')
       } else {
-        console.log('⏭️ Composition not played - isAudioStarted:', this.isAudioStarted, 'isDrone:', data.isDrone)
+        console.log('⏭️ Composition not played - isAudioStarted:', this.isAudioStarted, 'isDrone:', data.isDrone, 'hasComposition:', !!data.composition)
       }
     })
     // console.log('✅ background-composition listener registered')
