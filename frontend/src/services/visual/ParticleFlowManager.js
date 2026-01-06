@@ -73,9 +73,9 @@ class ParticleFlowManager {
     this.waveCounter = 0
 
     // Cascade propagation parameters
-    this.lifeDecayPerHop = 0.7  // Life multiplier per hop
-    this.minLifeThreshold = 0.15  // Stop propagating below this life
-    this.maxHops = 8  // Maximum propagation depth
+    this.lifeDecayPerHop = 0.6  // Life multiplier per hop - faster decay to reduce spread
+    this.minLifeThreshold = 0.2  // Stop propagating below this life - higher threshold
+    this.maxHops = 5  // Maximum propagation depth - reduced to prevent storms
   }
 
   /**

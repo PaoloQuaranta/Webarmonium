@@ -2463,3 +2463,60 @@ _setupResizeHandler() {
 ```
 
 ---
+
+## Entry #30 - Particle and Pulse Density Reduction
+
+**Date**: 2026-01-06
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Problem
+
+User reported visual storms from virtual users - excessive particles and pulses overwhelming both graphics and audio generation. This happened in both landing page and normal rooms (more frequently in normal rooms).
+
+### Solution
+
+Reduced the **population density** of particles and pulses by adjusting configuration parameters. Importantly, timing remains tied to gestures (no hardcoded rate limiting) to preserve the core concept that events emerge from metrics.
+
+### Changes
+
+#### VisualConstants.js - Global Config
+
+| Parameter | Before | After |
+|-----------|--------|-------|
+| `maxPulses` | 80 | 40 |
+| `emitCount` | 5 | 3 |
+| `maxParticles` | 300 | 120 |
+
+#### WavePacketSystem.js - Cascade Parameters
+
+| Parameter | Before | After |
+|-----------|--------|-------|
+| `intensityDecayPerHop` | 0.65 | 0.55 |
+| `minIntensityThreshold` | 0.08 | 0.12 |
+| `maxHops` | 6 | 4 |
+
+#### ParticleFlowManager.js - Cascade Parameters
+
+| Parameter | Before | After |
+|-----------|--------|-------|
+| `lifeDecayPerHop` | 0.7 | 0.6 |
+| `minLifeThreshold` | 0.15 | 0.2 |
+| `maxHops` | 8 | 5 |
+
+### Effect
+
+- Events still emerge from gestures (timing unchanged)
+- Each gesture generates fewer particles
+- Cascade exhausts faster (fewer hops, faster decay)
+- Lower total population cap prevents accumulation storms
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/visual/VisualConstants.js` | Reduced maxPulses, emitCount, maxParticles |
+| `frontend/src/services/visual/WavePacketSystem.js` | Faster intensity decay, higher threshold, fewer hops |
+| `frontend/src/services/visual/ParticleFlowManager.js` | Faster life decay, higher threshold, fewer hops |
+
+---

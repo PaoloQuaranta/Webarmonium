@@ -63,9 +63,9 @@ class WavePacketSystem {
     this.waveCounter = 0
 
     // Cascade propagation parameters
-    this.intensityDecayPerHop = 0.65  // Intensity multiplier per hop
-    this.minIntensityThreshold = 0.08  // Stop propagating below this intensity
-    this.maxHops = 6  // Maximum propagation depth
+    this.intensityDecayPerHop = 0.55  // Intensity multiplier per hop - faster decay to reduce spread
+    this.minIntensityThreshold = 0.12  // Stop propagating below this intensity - higher threshold
+    this.maxHops = 4  // Maximum propagation depth - reduced to prevent storms
   }
 
   /**
