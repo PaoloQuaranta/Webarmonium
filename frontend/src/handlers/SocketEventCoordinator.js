@@ -190,9 +190,15 @@ class SocketEventCoordinator {
 
     // Virtual cursor position updates
     this.socketService.on('virtual-cursors', (data) => {
-      if (!this.cursorManager || !data.cursors) return
+      if (!this.cursorManager || !data || !data.cursors) return
 
       for (const [source, cursor] of Object.entries(data.cursors)) {
+        // Validate cursor data structure
+        if (!cursor || !cursor.userId || typeof cursor.x !== 'number' || typeof cursor.y !== 'number') {
+          console.warn('Invalid virtual cursor data for source:', source, cursor)
+          continue
+        }
+
         if (this.cursorManager.isVirtualCursor(cursor.userId)) {
           this.cursorManager.updateVirtualCursor(cursor.userId, cursor.x, cursor.y)
         }
@@ -203,7 +209,7 @@ class SocketEventCoordinator {
             cursor.userId,
             cursor.x,
             cursor.y,
-            cursor.color
+            cursor.color || '#888888'
           )
         }
       }

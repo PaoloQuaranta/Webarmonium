@@ -355,10 +355,18 @@ class WebMetricsPoller {
    * @private
    */
   _trackActivity(enrichedMetrics, now) {
+    // Memory limit: max entries per source (prevents unbounded growth)
+    const MAX_ACTIVITY_ENTRIES = 200
+
     // Prune old activity records (older than 10 minutes for safety margin)
     const pruneTime = now - 10 * 60 * 1000
     for (const source of Object.keys(this.activityHistory)) {
       this.activityHistory[source] = this.activityHistory[source].filter(t => t > pruneTime)
+
+      // Hard limit: if still over limit after time-based pruning, remove oldest entries
+      while (this.activityHistory[source].length > MAX_ACTIVITY_ENTRIES) {
+        this.activityHistory[source].shift()
+      }
     }
 
     // Record activity based on velocity (any non-zero activity counts)

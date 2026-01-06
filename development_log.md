@@ -842,3 +842,215 @@ All 19 integration tests pass:
 "ok funziona" - Confirmed virtual users working in both main room and overflow rooms.
 
 ---
+
+## Entry #21 - Virtual Users Code Review: Critical & High Priority Fixes
+
+**Date**: 2026-01-06
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Comprehensive code review of the virtual users integration (Entry #20) identified 5 critical issues and 5 high priority issues. All 10 issues have been fixed with full test coverage maintained (72 tests passing).
+
+---
+
+### Critical Issues Fixed
+
+#### Issue 1: Race Condition in Overflow Rooms
+**File**: `backend/src/api/handlers/AuthHandler.js:147-169`
+
+**Problem**: When user redirected to overflow room, the re-emit logic for `virtual-users-activated` could fail silently if room methods were undefined.
+
+**Fix**: Added try-catch wrapper, method existence checks (`typeof overflowRoom.hasVirtualUsers === 'function'`), null checks for virtualUsersMap, and fallback color.
+
+---
+
+#### Issue 2: Stale User Count on Disconnect
+**File**: `backend/src/api/handlers/AuthHandler.js:454-469`
+
+**Problem**: After `leaveRoom()`, code was re-querying room state to get user count, which could return stale data if room was cleaned up.
+
+**Fix**: Use `leaveResult.remainingUsers` directly from the leaveRoom() return value instead of querying room again.
+
+```javascript
+// BEFORE (broken):
+roomManager.leaveRoom(socket.userId)
+const roomAfterLeave = roomManager.getRoom(socket.roomId)
+const userCount = roomAfterLeave ? roomAfterLeave.users.size : 0
+
+// AFTER (fixed):
+const leaveResult = roomManager.leaveRoom(socket.userId)
+const userCount = leaveResult?.remainingUsers ?? 0
+```
+
+---
+
+#### Issue 3: Memory Leak - Timer Cleanup
+**File**: `backend/src/services/VirtualUserService.js:226-238, 291-309`
+
+**Problem**: If room was deleted from `activeRooms` Map without calling `deactivateForRoom()`, timers would continue running indefinitely.
+
+**Fix**: Added self-cleanup in timer callbacks:
+
+```javascript
+const cursorTimer = setInterval(() => {
+  if (!this.activeRooms.has(roomId)) {
+    clearInterval(cursorTimer)
+    console.warn(`🧹 Orphan cursor timer cleaned up for deleted room ${roomId}`)
+    return
+  }
+  // ... rest of logic
+}, 50)
+```
+
+Same pattern applied to gesture generation setTimeout.
+
+---
+
+#### Issue 4: No Error Handling in Gesture Generation
+**File**: `backend/src/services/VirtualUserService.js:317-368`
+
+**Problem**: `_generateAndEmitGestures()` had no validation or error handling. Invalid metrics or socket failures would crash silently.
+
+**Fix**: Added comprehensive validation:
+- Check metrics availability
+- Validate sources array
+- Validate source config exists
+- Try-catch per source with continue on error
+
+---
+
+#### Issue 5: Division by Zero Risk
+**File**: `backend/src/services/VirtualUserService.js:416-420`
+
+**Problem**: If `PhraseMorphology.generatePhrase()` returned empty notes array, subsequent code would fail.
+
+**Fix**: Added guard before processing:
+
+```javascript
+if (!phrase || !phrase.notes || !Array.isArray(phrase.notes) || phrase.notes.length === 0) {
+  console.warn(`⚠️ VirtualUserService: Empty phrase generated...`)
+  return
+}
+```
+
+---
+
+### High Priority Issues Fixed
+
+#### Issue 6: Missing Mode-Transition Event for multi→solo
+**File**: `backend/src/services/RoomManager.js:252-261`
+
+**Problem**: `mode-transition` event was only emitted for solo→multi, not multi→solo. Inconsistent UX.
+
+**Fix**: Added matching event emission:
+
+```javascript
+if (this.io) {
+  this.io.to(roomId).emit('mode-transition', {
+    from: 'multi',
+    to: 'solo',
+    message: 'Virtual voices are joining you',
+    duration: 3000,
+    timestamp: Date.now()
+  })
+}
+```
+
+---
+
+#### Issue 7: No Validation of Virtual User Configurations
+**File**: `backend/src/services/VirtualUserService.js:73-131`
+
+**Problem**: Hardcoded configurations weren't validated at startup. Malformed configs could cause runtime failures.
+
+**Fix**: Added `_validateConfigurations()` method called in constructor:
+- Validates userId (string)
+- Validates color format (#RRGGBB regex)
+- Validates region bounds (0-1 range, xMin < xMax)
+- Validates frequency range (positive, min < max)
+- Warns on region overlaps
+
+---
+
+#### Issue 8: WebMetricsPoller Activity Tracking Unbounded Growth
+**File**: `backend/src/services/WebMetricsPoller.js:358-370`
+
+**Problem**: `activityHistory` arrays could grow unbounded if time-based pruning wasn't sufficient.
+
+**Fix**: Added hard limit:
+
+```javascript
+const MAX_ACTIVITY_ENTRIES = 200
+
+// After time-based pruning, enforce hard limit
+while (this.activityHistory[source].length > MAX_ACTIVITY_ENTRIES) {
+  this.activityHistory[source].shift()
+}
+```
+
+---
+
+#### Issue 9: Missing Null Checks in Frontend Virtual Cursor Handling
+**File**: `frontend/src/handlers/SocketEventCoordinator.js:196-200`
+
+**Problem**: `virtual-cursors` handler assumed cursor objects had valid userId, x, y properties.
+
+**Fix**: Added validation:
+
+```javascript
+if (!cursor || !cursor.userId || typeof cursor.x !== 'number' || typeof cursor.y !== 'number') {
+  console.warn('Invalid virtual cursor data for source:', source, cursor)
+  continue
+}
+```
+
+---
+
+#### Issue 10: Room Mode Not in toRoomJoinedResponse()
+**File**: `backend/src/models/Room.js:326`
+
+**Problem**: `toRoomJoinedResponse()` didn't include room mode, forcing clients to infer from user count.
+
+**Fix**: Added `mode: this.mode` to response object.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/api/handlers/AuthHandler.js` | Issues #1, #2: Error handling, stale count fix |
+| `backend/src/services/VirtualUserService.js` | Issues #3, #4, #5, #7: Timer cleanup, error handling, validation |
+| `backend/src/services/RoomManager.js` | Issue #6: mode-transition event for multi→solo |
+| `backend/src/services/WebMetricsPoller.js` | Issue #8: Activity history memory limit |
+| `backend/src/models/Room.js` | Issue #10: mode in toRoomJoinedResponse() |
+| `frontend/src/handlers/SocketEventCoordinator.js` | Issue #9: Cursor data validation |
+
+---
+
+### Test Results
+
+All tests continue to pass after fixes:
+
+```
+✅ Integration tests: 19/19 passed (virtual-user-lifecycle.test.js)
+✅ Unit tests: 53/53 passed (VirtualUserService.test.js + Room.mode.test.js)
+Total: 72/72 tests passing
+```
+
+---
+
+### Code Review Positive Observations
+
+The original implementation was architecturally sound:
+- Clean separation of concerns (VirtualUserService isolated from RoomManager)
+- Event-driven architecture with consistent naming
+- Comprehensive test coverage
+- Musical coherence using HarmonicEngine and PhraseMorphology
+- Smooth fade animations for virtual cursors
+- Region-based spatial separation (bass/tenor/soprano)
+- Dynamic source selection from WebMetricsPoller
+
+---

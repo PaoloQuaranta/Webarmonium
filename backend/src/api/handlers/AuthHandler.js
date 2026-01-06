@@ -144,20 +144,28 @@ const AuthHandler = {
 
           // Re-emit virtual-users-activated to this socket since it missed the event
           // (the event was emitted while socket was still in the original room)
-          const overflowRoom = socket.services.roomManager.getRoom(actualRoomId)
-          if (overflowRoom && overflowRoom.hasVirtualUsers()) {
-            const virtualUsers = Array.from(overflowRoom.getVirtualUsers().entries()).map(([userId, config]) => ({
-              userId,
-              color: config.color,
-              source: userId.replace('-metrics', '')
-            }))
-            socket.emit('virtual-users-activated', {
-              roomId: actualRoomId,
-              sources: virtualUsers.map(v => v.source),
-              virtualUsers,
-              timestamp: Date.now()
-            })
-            console.log(`🎭 Re-emitted virtual-users-activated to redirected socket for room ${actualRoomId}`)
+          try {
+            const overflowRoom = socket.services.roomManager.getRoom(actualRoomId)
+            if (overflowRoom && typeof overflowRoom.hasVirtualUsers === 'function' && overflowRoom.hasVirtualUsers()) {
+              const virtualUsersMap = overflowRoom.getVirtualUsers()
+              if (virtualUsersMap && virtualUsersMap.size > 0) {
+                const virtualUsers = Array.from(virtualUsersMap.entries()).map(([userId, config]) => ({
+                  userId,
+                  color: config?.color || '#888888',
+                  source: userId.replace('-metrics', '')
+                }))
+                socket.emit('virtual-users-activated', {
+                  roomId: actualRoomId,
+                  sources: virtualUsers.map(v => v.source),
+                  virtualUsers,
+                  timestamp: Date.now()
+                })
+                console.log(`🎭 Re-emitted virtual-users-activated to redirected socket for room ${actualRoomId}`)
+              }
+            }
+          } catch (reEmitError) {
+            console.error(`⚠️ Failed to re-emit virtual-users-activated for overflow room ${actualRoomId}:`, reEmitError.message)
+            // Non-fatal: user will still be in room, just without virtual cursor display initially
           }
         }
 
@@ -451,20 +459,22 @@ const AuthHandler = {
             }
           }
 
-          // Remove user from room
-          roomManager.leaveRoom(socket.userId)
+          // Remove user from room and capture result
+          const leaveResult = roomManager.leaveRoom(socket.userId)
 
-        // Get room after leave to determine user count
-        const roomAfterLeave = roomManager.getRoom(socket.roomId)
-        const userCount = roomAfterLeave ? roomAfterLeave.users.size : 0
+          // Use remainingUsers from result (avoids stale room state query)
+          const userCount = leaveResult?.remainingUsers ?? 0
 
-        // Broadcast user-left to remaining users
-        socket.to(socket.roomId).emit('user-left', {
-          userId: socket.userId,
-          color: userColor,
-          userCount,
-          timestamp: Date.now()
-        })
+          // Broadcast user-left to remaining users
+          socket.to(socket.roomId).emit('user-left', {
+            userId: socket.userId,
+            color: userColor,
+            userCount,
+            timestamp: Date.now()
+          })
+
+          // Get room reference for subsequent operations
+          const roomAfterLeave = roomManager.getRoom(socket.roomId)
 
         // Stop background composition if room is now empty
         if (socket.services.backgroundCompositionService) {

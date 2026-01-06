@@ -323,6 +323,7 @@ class Room {
     return {
       roomId: this.id,
       userCount: this.getUserCount(),
+      mode: this.mode,
       memoryInfluence: this.getMemoryInfluence(),
       createdAt: this.createdAt.toISOString(),
       isActive: this.isActive

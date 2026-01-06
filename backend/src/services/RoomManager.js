@@ -248,6 +248,17 @@ class RoomManager {
       room.addVirtualUser(activeSources[0] + '-metrics', this.virtualUserService.virtualUserConfigs[activeSources[0]])
       room.addVirtualUser(activeSources[1] + '-metrics', this.virtualUserService.virtualUserConfigs[activeSources[1]])
       result.modeTransition = { from: 'multi', to: 'solo' }
+
+      // Emit mode-transition event for multi→solo (consistent with solo→multi in joinRoom)
+      if (this.io) {
+        this.io.to(roomId).emit('mode-transition', {
+          from: 'multi',
+          to: 'solo',
+          message: 'Virtual voices are joining you',
+          duration: 3000,
+          timestamp: Date.now()
+        })
+      }
     }
 
     return result

@@ -65,6 +65,69 @@ class VirtualUserService {
 
     // Clock for gesture timing
     this.clockTick = 0
+
+    // Validate configurations at startup (fail-fast)
+    this._validateConfigurations()
+  }
+
+  /**
+   * Validate virtual user configurations at startup
+   * @throws {Error} If configurations are invalid
+   * @private
+   */
+  _validateConfigurations() {
+    const sources = Object.keys(this.virtualUserConfigs)
+
+    if (sources.length < 2) {
+      throw new Error('VirtualUserService: At least 2 virtual user configurations required')
+    }
+
+    for (const source of sources) {
+      const config = this.virtualUserConfigs[source]
+
+      // Validate required fields
+      if (!config.userId || typeof config.userId !== 'string') {
+        throw new Error(`VirtualUserService: Invalid userId for source "${source}"`)
+      }
+
+      // Validate color format (hex)
+      if (!config.color || !/^#[0-9a-fA-F]{6}$/.test(config.color)) {
+        throw new Error(`VirtualUserService: Invalid color "${config.color}" for source "${source}" (must be #RRGGBB)`)
+      }
+
+      // Validate region bounds
+      if (!config.region ||
+          typeof config.region.xMin !== 'number' ||
+          typeof config.region.xMax !== 'number' ||
+          config.region.xMin < 0 || config.region.xMin > 1 ||
+          config.region.xMax < 0 || config.region.xMax > 1 ||
+          config.region.xMin >= config.region.xMax) {
+        throw new Error(`VirtualUserService: Invalid region for source "${source}" (must be 0-1 range with xMin < xMax)`)
+      }
+
+      // Validate frequency range
+      if (!config.frequencyRange ||
+          typeof config.frequencyRange.min !== 'number' ||
+          typeof config.frequencyRange.max !== 'number' ||
+          config.frequencyRange.min <= 0 ||
+          config.frequencyRange.min >= config.frequencyRange.max) {
+        throw new Error(`VirtualUserService: Invalid frequencyRange for source "${source}"`)
+      }
+    }
+
+    // Check for region overlaps
+    const sortedSources = sources.sort((a, b) =>
+      this.virtualUserConfigs[a].region.xMin - this.virtualUserConfigs[b].region.xMin
+    )
+    for (let i = 0; i < sortedSources.length - 1; i++) {
+      const current = this.virtualUserConfigs[sortedSources[i]].region
+      const next = this.virtualUserConfigs[sortedSources[i + 1]].region
+      if (current.xMax > next.xMin) {
+        console.warn(`⚠️ VirtualUserService: Region overlap detected between "${sortedSources[i]}" and "${sortedSources[i + 1]}"`)
+      }
+    }
+
+    console.log(`✅ VirtualUserService: ${sources.length} configurations validated`)
   }
 
   /**
@@ -222,9 +285,21 @@ class VirtualUserService {
     if (!roomState) return
 
     // Cursor interpolation at 20fps (50ms)
-    roomState.cursorInterpolationTimer = setInterval(() => {
-      this._interpolateCursors(roomId)
+    // Store timer ID in closure for self-cleanup if room is deleted
+    const cursorTimer = setInterval(() => {
+      // Defensive check: if room was deleted without proper deactivation, self-cleanup
+      if (!this.activeRooms.has(roomId)) {
+        clearInterval(cursorTimer)
+        console.warn(`🧹 Orphan cursor timer cleaned up for deleted room ${roomId}`)
+        return
+      }
+      try {
+        this._interpolateCursors(roomId)
+      } catch (error) {
+        console.error(`⚠️ Cursor interpolation error for room ${roomId}:`, error.message)
+      }
     }, 50)
+    roomState.cursorInterpolationTimer = cursorTimer
 
     // Gesture generation cycle (schedule first)
     this._scheduleNextGestureGeneration(roomId)
@@ -289,8 +364,23 @@ class VirtualUserService {
     const interval = baseInterval + Math.random() * variance
 
     roomState.gestureGenerationTimer = setTimeout(() => {
-      this._generateAndEmitGestures(roomId)
-      this._scheduleNextGestureGeneration(roomId)
+      // Defensive check: if room was deleted without proper deactivation, don't reschedule
+      if (!this.activeRooms.has(roomId)) {
+        console.warn(`🧹 Orphan gesture timer stopped for deleted room ${roomId}`)
+        return
+      }
+
+      try {
+        this._generateAndEmitGestures(roomId)
+      } catch (error) {
+        console.error(`⚠️ Gesture generation error for room ${roomId}:`, error.message)
+        // Continue scheduling despite error to maintain service
+      }
+
+      // Only reschedule if room still exists and is active
+      if (this.activeRooms.has(roomId)) {
+        this._scheduleNextGestureGeneration(roomId)
+      }
     }, interval)
   }
 
@@ -303,29 +393,51 @@ class VirtualUserService {
     const roomState = this.activeRooms.get(roomId)
     if (!roomState || !roomState.isActive || !this.io) return
 
-    const metrics = this.webMetricsPoller?.getMetrics() || {}
+    // Validate metrics availability
+    const metrics = this.webMetricsPoller?.getMetrics()
+    if (!metrics) {
+      // No metrics available - skip this cycle silently (will retry on next schedule)
+      return
+    }
+
+    // Validate sources array
+    if (!roomState.sources || !Array.isArray(roomState.sources) || roomState.sources.length === 0) {
+      console.warn(`⚠️ VirtualUserService: No sources configured for room ${roomId}`)
+      return
+    }
 
     for (const source of roomState.sources) {
-      const velocity = this.webMetricsPoller?.getVelocity(source) || 0
-      const absVelocity = Math.abs(velocity)
+      try {
+        // Validate source config exists
+        const config = this.virtualUserConfigs[source]
+        if (!config) {
+          console.warn(`⚠️ VirtualUserService: Unknown source "${source}" for room ${roomId}`)
+          continue
+        }
 
-      // Update statistics for normalization
-      this._updateStatistics(source, 'velocity', absVelocity)
+        const velocity = this.webMetricsPoller?.getVelocity(source) || 0
+        const absVelocity = Math.abs(velocity)
 
-      // Normalize velocity
-      const normalizedVelocity = this._normalizeValue(source, 'velocity', absVelocity)
+        // Update statistics for normalization
+        this._updateStatistics(source, 'velocity', absVelocity)
 
-      // Only generate gesture if there's activity
-      if (normalizedVelocity < 0.1) continue
+        // Normalize velocity
+        const normalizedVelocity = this._normalizeValue(source, 'velocity', absVelocity)
 
-      // Classify gesture type
-      const gestureType = this._classifyGestureType(source, metrics)
-      const config = this.virtualUserConfigs[source]
+        // Only generate gesture if there's activity
+        if (normalizedVelocity < 0.1) continue
 
-      if (gestureType === 'tap') {
-        this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
-      } else if (gestureType === 'drag') {
-        this._emitDragGesture(roomId, source, config, roomState, normalizedVelocity, velocity)
+        // Classify gesture type
+        const gestureType = this._classifyGestureType(source, metrics)
+
+        if (gestureType === 'tap') {
+          this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
+        } else if (gestureType === 'drag') {
+          this._emitDragGesture(roomId, source, config, roomState, normalizedVelocity, velocity)
+        }
+      } catch (sourceError) {
+        console.error(`⚠️ VirtualUserService: Error generating gesture for source "${source}" in room ${roomId}:`, sourceError.message)
+        // Continue with other sources
       }
     }
   }
@@ -412,7 +524,14 @@ class VirtualUserService {
 
     // Generate phrase using PhraseMorphology
     const phrase = this.phraseMorphology.generatePhrase(gestureData, roomState.musicalContext)
-    const beatDurationMs = (60 / roomState.musicalContext.tempo) * 1000
+
+    // Guard against empty or invalid phrase
+    if (!phrase || !phrase.notes || !Array.isArray(phrase.notes) || phrase.notes.length === 0) {
+      console.warn(`⚠️ VirtualUserService: Empty phrase generated for source "${source}" in room ${roomId}`)
+      return
+    }
+
+    const beatDurationMs = (60 / (roomState.musicalContext.tempo || 120)) * 1000
 
     // Emit phrase event (for visual system)
     this.io.to(roomId).emit('musical:event', {
