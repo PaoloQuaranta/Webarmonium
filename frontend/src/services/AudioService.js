@@ -735,6 +735,9 @@ class AudioService {
       this.ambientVolumes[layer].connect(this.reverbSends[layer])
     })
 
+    // Setup drone modulations (amplitude, filter, pitch drift)
+    this.setupDroneModulation()
+
     // Create gesture-responsive synth with INCREASED polyphony and cleaner sound
     this.gestureSynth = new Tone.PolySynth({
       oscillator: {
@@ -791,6 +794,76 @@ class AudioService {
     // this.startEvolvingGeneration()
 
     // console.log('🎵 Audio system initialized - BackgroundCompositionService generates compositions from backend')
+  }
+
+  /**
+   * Setup drone modulations for organic, evolving pad sound
+   * - Amplitude LFO: Very slow breathing (20-50 second cycles)
+   * - Filter LFO: Slow timbral evolution
+   * - Pitch drift: Subtle detuning for organic feel
+   */
+  setupDroneModulation() {
+    // AMPLITUDE MODULATION: Very slow tremolo effect
+    // Frequency 0.03 Hz = ~33 second cycle (very slow breathing)
+    this.droneAmplitudeLFO = new Tone.LFO({
+      frequency: 0.03,  // 33 second cycle
+      min: -6,          // -6dB minimum (quieter)
+      max: 0,           // 0dB maximum (full volume)
+      type: 'sine'
+    })
+
+    // Create a Gain node for amplitude modulation
+    this.droneAmplitudeGain = new Tone.Gain(1)
+
+    // Re-route pad: disconnect from filter, insert gain
+    // New chain: pad -> filter -> amplitudeGain -> volume -> master
+    if (this.ambientFilters.pad && this.ambientVolumes.pad) {
+      this.ambientFilters.pad.disconnect(this.ambientVolumes.pad)
+      this.ambientFilters.pad.connect(this.droneAmplitudeGain)
+      this.droneAmplitudeGain.connect(this.ambientVolumes.pad)
+    }
+
+    // Connect LFO to gain (scaled to 0.25-1.0 range for amplitude)
+    // Using a different approach: modulate the volume node directly
+    this.droneAmplitudeLFO.connect(this.ambientVolumes.pad.volume)
+    this.droneAmplitudeLFO.start()
+
+    // FILTER MODULATION: Slow timbral evolution
+    // Frequency 0.02 Hz = 50 second cycle
+    this.droneFilterLFO = new Tone.LFO({
+      frequency: 0.02,   // 50 second cycle
+      min: 400,          // Dark: 400 Hz cutoff
+      max: 2000,         // Bright: 2000 Hz cutoff
+      type: 'sine'
+    })
+
+    // Connect to pad filter frequency
+    if (this.ambientFilters.pad) {
+      this.droneFilterLFO.connect(this.ambientFilters.pad.frequency)
+      this.droneFilterLFO.start()
+    }
+
+    // PITCH DRIFT: Subtle organic detuning
+    // Frequency 0.05 Hz = 20 second cycle, very subtle range
+    this.dronePitchLFO = new Tone.LFO({
+      frequency: 0.05,   // 20 second cycle
+      min: -8,           // -8 cents
+      max: 8,            // +8 cents
+      type: 'sine'
+    })
+
+    // Connect to pad detune
+    if (this.ambientLayers.pad) {
+      this.dronePitchLFO.connect(this.ambientLayers.pad.detune)
+      this.dronePitchLFO.start()
+    }
+
+    // Randomize LFO phases so they don't all sync up
+    this.droneAmplitudeLFO.phase = Math.random() * 360
+    this.droneFilterLFO.phase = Math.random() * 360
+    this.dronePitchLFO.phase = Math.random() * 360
+
+    // console.log('🎵 Drone modulation setup complete: amplitude (33s), filter (50s), pitch (20s)')
   }
 
   /**
