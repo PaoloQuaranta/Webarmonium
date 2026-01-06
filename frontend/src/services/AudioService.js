@@ -2189,13 +2189,21 @@ class AudioService {
     }
 
     console.log(`🎵 playAmbientComposition called - isDrone: ${isDrone}, texture items: ${content.texture.length}, pad exists: ${!!this.ambientLayers?.pad}`)
+    console.log(`🔊 Audio state: Transport=${Tone.Transport.state}, masterVolume=${this.masterVolume?.volume?.value?.toFixed(1)}dB, padVolume=${this.ambientVolumes?.pad?.volume?.value?.toFixed(1)}dB`)
 
     const now = Tone.now()
     const lookahead = 0.1
 
     // Ensure Transport is running
     if (Tone.Transport.state !== 'started') {
+      console.log('🚀 Starting Transport (was stopped)')
       Tone.Transport.start()
+    }
+
+    // CRITICAL: Ensure masterVolume is not muted (could happen after stop/start)
+    if (this.masterVolume && this.masterVolume.volume.value === -Infinity) {
+      console.log('🔊 Restoring masterVolume from -Infinity to -10dB')
+      this.masterVolume.volume.value = -10
     }
 
     // Clear any existing drone repeat event
