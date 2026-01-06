@@ -623,8 +623,9 @@ class AudioService {
           count: 5,  // More voices for lush pad texture
           spread: 60  // Wide spread for spacious sound
         },
+        volume: +5,  // DRONE FIX: Match backgroundHigh/Mid/Low for audibility
         envelope: {
-          attack: 1.5,   // REDUCED from 3.0 - still soft swell but audible sooner
+          attack: 0.8,   // DRONE FIX: Reduced from 1.5s - must be audible within first second
           decay: 1.5,    // Longer decay
           sustain: 0.7,
           release: 4.0   // VERY LONG release - pad lingers
@@ -711,7 +712,7 @@ class AudioService {
     // Background volumes - balanced with gestures
     this.ambientVolumes = {
       bass: new Tone.Volume(0),       // INCREASED for fuller low-end
-      pad: new Tone.Volume(-3),       // INCREASED for more presence
+      pad: new Tone.Volume(+6),       // DRONE FIX: Increased from -3dB - drone must be audible!
       chords: new Tone.Volume(-12),   // INCREASED but still subtle
       backgroundHigh: new Tone.Volume(+3),  // INCREASED for audible composition
       backgroundMid: new Tone.Volume(+3),   // INCREASED for audible composition

@@ -145,7 +145,7 @@ class BackgroundCompositionService {
           type: 'drone',
           note: 'C3',  // Root note
           duration: 8000,  // 8 seconds
-          velocity: 0.5,  // INCREASED from 0.2 - must be audible with pad's slow attack
+          velocity: 0.8,  // DRONE FIX: High velocity for audibility
           articulation: 'legato'
         }]
       }
