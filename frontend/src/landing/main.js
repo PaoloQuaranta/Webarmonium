@@ -133,6 +133,7 @@ class LandingApp {
     // State
     this.isInitialized = false
     this.isRunning = false
+    this.isAudioReady = false  // DRONE FIX: Track if audio is ready
 
     // Canvas container
     this.canvasContainer = null
@@ -144,6 +145,9 @@ class LandingApp {
 
     // Track active virtual notes for hold:end events
     this.virtualNotes = new Map()
+
+    // DRONE FIX: Pending drone composition (arrives before audio ready)
+    this.pendingDrone = null
   }
 
   /**
@@ -289,6 +293,14 @@ class LandingApp {
           // CRITICAL: Start the audio service to activate Transport and effects
           await this.audioService.start()
           // console.log('✅ AudioService started - Transport and effects activated')
+
+          // DRONE FIX: Mark audio as ready and play pending drone
+          this.isAudioReady = true
+          if (this.pendingDrone) {
+            // console.log('🎵 Playing pending drone')
+            this.audioService.playComposition(this.pendingDrone, true)
+            this.pendingDrone = null
+          }
         }
       } catch (error) {
         console.error('❌ Error initializing audio:', error)
@@ -398,17 +410,27 @@ class LandingApp {
         //   form: data.composition?.structure?.form,
         //   tempo: data.composition?.metadata?.tempo,
         //   key: data.composition?.metadata?.keyCenter,
-        //   compositionNumber: data.compositionNumber
+        //   compositionNumber: data.compositionNumber,
+        //   isDrone: data.isDrone
         // })
 
+        // DRONE FIX: Save drone if audio not ready yet
+        if (!this.isAudioReady && data.isDrone && data.composition) {
+          this.pendingDrone = data.composition
+          // console.log('💾 Saved pending drone - will play when audio ready')
+          return
+        }
+
         // Play composition
-        if (this.audioService && data.composition) {
+        if (this.audioService && data.composition && this.isAudioReady) {
           if (typeof this.audioService.playComposition === 'function') {
             this.audioService.playComposition(data.composition, data.isDrone || false)
             // console.log('🎵 Background composition sent to AudioService')
           } else {
             console.warn('⚠️ playComposition not available on AudioService')
           }
+        } else if (!this.isAudioReady) {
+          // console.log('⏳ Audio not ready, composition discarded')
         } else {
           console.warn('⚠️ AudioService not available or no composition data')
         }
@@ -839,6 +861,14 @@ class LandingApp {
       if (this.audioService && typeof this.audioService.start === 'function') {
         await this.audioService.start()
         // console.log('✅ AudioService started - Transport and volume activated')
+
+        // DRONE FIX: Mark audio as ready and play pending drone
+        this.isAudioReady = true
+        if (this.pendingDrone) {
+          // console.log('🎵 Playing pending drone')
+          this.audioService.playComposition(this.pendingDrone, true)
+          this.pendingDrone = null
+        }
       }
 
       // Setup socket connection

@@ -121,19 +121,28 @@ class BackgroundCompositionService {
   }
 
   /**
-   * Generate and broadcast DRONE (atmospheric pad) for initial state
+   * Generate and broadcast DRONE (atmospheric pad)
+   * Called initially and updated as composition evolves
    * @param {string} roomId - Room ID
    */
   generateAndBroadcastDrone(roomId) {
-// console.log(`🎵 Generating initial DRONE for room ${roomId}`)
+    // Get current harmonic context from composition engine
+    const keyCenter = this.compositionEngine.keyCenter || 'C'
+    const mode = this.compositionEngine.mode || 'ionian'
 
-    // Simple drone: single sustained note in root key
+    // Drone note follows the current key center (bass register)
+    const droneNote = `${keyCenter}3`
+
+    // Add fifth for richer drone texture
+    const fifthMap = { 'C': 'G', 'D': 'A', 'E': 'B', 'F': 'C', 'G': 'D', 'A': 'E', 'B': 'F#' }
+    const fifthNote = `${fifthMap[keyCenter] || 'G'}3`
+
     const droneComposition = {
       type: 'ambient',
       metadata: {
         tempo: 60,
-        keyCenter: this.compositionEngine.keyCenter,
-        mode: this.compositionEngine.mode,
+        keyCenter: keyCenter,
+        mode: mode,
         timeSignature: '4/4'
       },
       structure: {
@@ -141,13 +150,22 @@ class BackgroundCompositionService {
         currentSection: 'ambient'
       },
       content: {
-        texture: [{
-          type: 'drone',
-          note: 'C3',  // Root note
-          duration: 8000,  // 8 seconds
-          velocity: 0.8,  // DRONE FIX: High velocity for audibility
-          articulation: 'legato'
-        }]
+        texture: [
+          {
+            type: 'drone',
+            note: droneNote,  // Root note - follows key center
+            duration: 8000,
+            velocity: 0.8,
+            articulation: 'legato'
+          },
+          {
+            type: 'drone',
+            note: fifthNote,  // Fifth for richness
+            duration: 8000,
+            velocity: 0.5,  // Quieter than root
+            articulation: 'legato'
+          }
+        ]
       }
     }
 

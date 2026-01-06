@@ -288,10 +288,75 @@ class LandingCompositionService {
     // Start cursor interpolation
     this.startCursorInterpolation()
 
+    // Broadcast initial drone (fills silence while metrics load)
+    setTimeout(() => {
+      this.generateAndBroadcastDrone()
+    }, 500)
+
     // Start composition cycle (generates gestures + background)
     this.scheduleNextComposition()
 
     // console.log('🎵 LandingCompositionService started')
+  }
+
+  /**
+   * Generate and broadcast DRONE (atmospheric pad) for landing page
+   * Same functionality as BackgroundCompositionService
+   */
+  generateAndBroadcastDrone() {
+    // Get current harmonic context from composition engine
+    const keyCenter = this.compositionEngine.keyCenter || 'C'
+    const mode = this.compositionEngine.mode || 'ionian'
+
+    // Drone note follows the current key center (bass register)
+    const droneNote = `${keyCenter}3`
+
+    // Add fifth for richer drone texture
+    const fifthMap = { 'C': 'G', 'D': 'A', 'E': 'B', 'F': 'C', 'G': 'D', 'A': 'E', 'B': 'F#' }
+    const fifthNote = `${fifthMap[keyCenter] || 'G'}3`
+
+    const droneComposition = {
+      type: 'ambient',
+      metadata: {
+        tempo: 60,
+        keyCenter: keyCenter,
+        mode: mode,
+        timeSignature: '4/4'
+      },
+      structure: {
+        form: 'drone',
+        currentSection: 'ambient'
+      },
+      content: {
+        texture: [
+          {
+            type: 'drone',
+            note: droneNote,
+            duration: 8000,
+            velocity: 0.8,
+            articulation: 'legato'
+          },
+          {
+            type: 'drone',
+            note: fifthNote,
+            duration: 8000,
+            velocity: 0.5,
+            articulation: 'legato'
+          }
+        ]
+      }
+    }
+
+    // Broadcast drone to landing room
+    if (this.io) {
+      this.io.to(this.landingRoomId).emit('background-composition', {
+        roomId: this.landingRoomId,
+        composition: droneComposition,
+        compositionNumber: 0,
+        isDrone: true,
+        timestamp: Date.now()
+      })
+    }
   }
 
   /**
