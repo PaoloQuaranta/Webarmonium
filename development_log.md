@@ -1743,3 +1743,22 @@ if (startResult) {
 | Drone on join | Lost if audio not started | Saved and played when audio starts |
 
 ---
+
+### Additional Fix: Synth Creation Race Condition
+
+**Problem**: After implementing the pending drone fix, drone still wasn't playing.
+
+**Root Cause**: `initialize()` sets `isInitialized = true` but does NOT create synths. Later, `start()` checks `if (!this.isInitialized)` and skips `createContinuousGenerativeSystem()` because `isInitialized` is already true. Result: `ambientLayers.pad` is undefined when drone tries to play.
+
+**Fix** (`frontend/src/services/AudioService.js:374`):
+```javascript
+// BEFORE:
+if (!this.isInitialized) {
+
+// AFTER:
+if (!this.isInitialized || !this.ambientLayers) {
+```
+
+This ensures synths are created even if `isInitialized` was prematurely set.
+
+---

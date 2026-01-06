@@ -370,7 +370,8 @@ class AudioService {
 
         // Create continuous generative music system if not already created
         // This will create new synths on first call, or reuse existing synths on subsequent calls
-        if (!this.isInitialized) {
+        // CRITICAL: Also check ambientLayers - initialize() may set isInitialized without creating synths
+        if (!this.isInitialized || !this.ambientLayers) {
           // console.log('🔨 Starting audio system (will create or reuse synths)...')
 
           // This either creates new synths or reuses existing ones
