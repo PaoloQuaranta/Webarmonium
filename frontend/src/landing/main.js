@@ -294,6 +294,9 @@ class LandingApp {
           await this.audioService.start()
           // console.log('✅ AudioService started - Transport and effects activated')
 
+          // Entry #27: CRITICAL - Unmute audio when starting (localStorage may have saved muted=true)
+          this.audioService.setMuted(false)
+
           // DRONE FIX: Mark audio as ready and play pending drone
           this.isAudioReady = true
           if (this.pendingDrone) {
@@ -875,6 +878,9 @@ class LandingApp {
       if (this.audioService && typeof this.audioService.start === 'function') {
         await this.audioService.start()
         console.log('✅ AudioService started')
+
+        // Entry #27: CRITICAL - Unmute audio when starting (localStorage may have saved muted=true)
+        this.audioService.setMuted(false)
 
         // DRONE FIX: Mark audio as ready and play pending drone
         this.isAudioReady = true

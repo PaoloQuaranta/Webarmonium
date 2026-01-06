@@ -1394,7 +1394,13 @@ class WebarmoniumApp {
           this.isAudioStarted = true
           button.textContent = '🔇 Stop Audio'
           button.classList.remove('disabled')
-          // console.log('🔊 Audio started successfully')
+
+          // Entry #27: CRITICAL - Unmute audio when starting (localStorage may have saved muted=true)
+          this.audioService.setMuted(false)
+          if (this.audioControls) {
+            this.audioControls.setMuted(false)
+          }
+          console.log('🔊 Audio started and unmuted')
 
           // Play pending drone if saved
           if (this.pendingDrone) {
@@ -1438,6 +1444,12 @@ class WebarmoniumApp {
 
         if (startResult) {
           this.isAudioStarted = true
+
+          // Entry #27: CRITICAL - Unmute audio when starting (localStorage may have saved muted=true)
+          this.audioService.setMuted(false)
+          if (this.audioControls) {
+            this.audioControls.setMuted(false)
+          }
 
           // Update button state
           const button = document.getElementById('audioToggle')
