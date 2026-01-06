@@ -16,6 +16,9 @@ class AudioService {
     // CRITICAL: Track all scheduled timeouts for cleanup on stop
     this.scheduledTimeouts = []
 
+    // REAL-TIME AUDIO FIX: Track Transport-scheduled events for proper cleanup
+    this.scheduledTransportEvents = []
+
     // New musical architecture services
     this.musicalScheduler = null; // Will be initialized after scripts are loaded
     this.lfoManager = null; // Will be initialized after audio context
@@ -790,6 +793,7 @@ class AudioService {
 
   /**
    * Start evolving generative music system with independent voices
+   * REAL-TIME FIX: Uses Transport.scheduleRepeat for rock-solid timing
    * MUSICAL COMPOSITION: Multi-voice counterpoint with voice leading
    */
   startEvolvingGeneration() {
@@ -798,10 +802,17 @@ class AudioService {
     this.evolvingGenerationActive = true
     this.lastVoiceUpdateTime = Date.now()
 
-    // Main composition loop - runs frequently to check layer schedules
-    const compositionLoop = () => {
+    // Ensure Transport is running
+    if (Tone.Transport.state !== 'started') {
+      Tone.Transport.start()
+    }
+
+    // REAL-TIME FIX: Pre-cache layer names to avoid Object.keys allocation in loop
+    const layerNames = Object.keys(this.generativeState.layers)
+
+    // Composition tick function - called precisely by Transport
+    const compositionTick = () => {
       if (!this.evolvingGenerationActive || !this.isInitialized) {
-        // console.log('🎵 Evolving generation stopped or not initialized')
         return
       }
 
@@ -810,8 +821,9 @@ class AudioService {
         const deltaTime = now - this.lastVoiceUpdateTime
         this.lastVoiceUpdateTime = now
 
-        // Update each layer independently
-        Object.keys(this.generativeState.layers).forEach(layerName => {
+        // Update each layer independently using for loop (no allocation)
+        for (let i = 0; i < layerNames.length; i++) {
+          const layerName = layerNames[i]
           const layer = this.generativeState.layers[layerName]
 
           // Check if it's time for this layer to play
@@ -820,7 +832,6 @@ class AudioService {
             this.playLayer(layerName)
 
             // PATTERN-BASED RHYTHM SYSTEM
-            // Get the current rhythmic pattern for this layer
             const currentPattern = this.generativeState.rhythmPatterns[layer.currentPatternIndex]
             const patternMultiplier = currentPattern[layer.patternPosition]
 
@@ -830,26 +841,21 @@ class AudioService {
             // If pattern is complete, choose a new random pattern
             if (layer.patternPosition >= currentPattern.length) {
               const oldPattern = layer.currentPatternIndex
-              // Choose different pattern than current one
               do {
                 layer.currentPatternIndex = Math.floor(Math.random() * this.generativeState.rhythmPatterns.length)
               } while (layer.currentPatternIndex === oldPattern && this.generativeState.rhythmPatterns.length > 1)
 
               layer.patternPosition = 0
-              // console.log(`🔄 ${layerName}: pattern change ${oldPattern} → ${layer.currentPatternIndex} [${this.generativeState.rhythmPatterns[layer.currentPatternIndex].join(', ')}]`)
             }
 
             // PATTERN + MICROVARIATIONS for organic timing
-            // Base timing from pattern, with subtle jitter (±5%) for human feel
             const baseTime = layer.rhythm * patternMultiplier
-            const jitter = 1 + (Math.random() - 0.5) * 0.1  // ±5% variation
+            const jitter = 1 + (Math.random() - 0.5) * 0.1
             layer.nextNoteTime = baseTime * jitter
-
-            // console.log(`⏱️ ${layerName}: nextNote in ${Math.round(layer.nextNoteTime)}ms (rhythm=${layer.rhythm} × pattern=${patternMultiplier} × jitter=${jitter.toFixed(3)})`)
           }
-        })
+        }
 
-        // Harmonic progression change based on actual time (chordDuration)
+        // Harmonic progression change based on actual time
         const timeSinceChordChange = now - this.generativeState.lastChordChange
         if (timeSinceChordChange >= this.generativeState.chordDuration) {
           this.advanceHarmony()
@@ -859,26 +865,23 @@ class AudioService {
         this.generativeState.evolutionCycle++
 
       } catch (error) {
-        // console.error('🎵 Error in composition loop:', error)
+        // Silently handle errors to prevent loop disruption
       }
-
-      // Run loop every 100ms for responsive scheduling
-      setTimeout(compositionLoop, 100)
     }
 
-    // Start composition loop
-    setTimeout(() => {
-      // console.log('🎵 Starting bass + pad + chords composition system')
-      // console.log('🎵 Initial layer state:', {
-//        bass: this.generativeState.layers.bass.octave,
-//        pad: this.generativeState.layers.pad.octave,
-//        chords: this.generativeState.layers.chords.octave,
-//        tonic: this.generativeState.currentTonic
-////      })
-      compositionLoop()
-    }, 2000)
+    // REAL-TIME FIX: Use Transport.scheduleRepeat instead of recursive setTimeout
+    // This schedules on the audio thread, immune to main thread congestion
+    // 100ms interval (0.1 seconds) for responsive scheduling
+    const startTime = Tone.now() + 2 // 2 second delay like original
 
-    // console.log('🎵 Simplified generative system initialized (bass/pad/chords)')
+    this.compositionLoopEventId = Tone.Transport.scheduleRepeat((audioTime) => {
+      // The callback timing is precise, but we do the work synchronously
+      // This is still better than setTimeout because the *timing* is audio-accurate
+      compositionTick()
+    }, 0.1, startTime) // 100ms interval
+
+    // Track for cleanup
+    this.scheduledTransportEvents.push(this.compositionLoopEventId)
   }
 
   /**
@@ -1084,20 +1087,15 @@ class AudioService {
     const playVelocity = layer.velocity * velocityVariation * dynamicFactor
 
     // Trigger notes
+    // REAL-TIME FIX: Use for loop instead of forEach to avoid closure allocation
     try {
       const triggerTime = Tone.now()
-      // console.log(`🔊 TRIGGERING ${layerName} at Tone.now()=${triggerTime.toFixed(3)}`)
 
-      frequencies.forEach((freq, idx) => {
-        // console.log(`  ↳ Trigger #${idx+1}: freq=${freq.toFixed(1)}Hz, dur=${duration.toFixed(3)}s, vel=${playVelocity.toFixed(2)}`)
-        synth.triggerAttackRelease(freq, duration, triggerTime, playVelocity)
-      })
-
-      // Detailed logging for rhythm debugging
-      const freqStr = frequencies.map(f => f.toFixed(1) + 'Hz').join(', ')
-      // console.log(`🎵 ${layerName}: ${freqStr} dur=${duration.toFixed(2)}s vel=${playVelocity.toFixed(2)} (chord=${state.currentChord})`)
+      for (let i = 0; i < frequencies.length; i++) {
+        synth.triggerAttackRelease(frequencies[i], duration, triggerTime, playVelocity)
+      }
     } catch (error) {
-      // console.warn(`🎵 Layer ${layerName} play error:`, error.message)
+      // Silently handle errors
     }
   }
 
@@ -1202,12 +1200,24 @@ class AudioService {
       this.scheduledTimeouts = []
       // console.log('✅ All timeouts cleared')
 
-      // STEP 2: Stop Transport (prevents new events from scheduling)
+      // STEP 2: Clear scheduled Transport events and stop Transport
       try {
+        // Clear individual scheduled events first
+        if (this.scheduledTransportEvents && this.scheduledTransportEvents.length > 0) {
+          this.scheduledTransportEvents.forEach(eventId => {
+            try {
+              Tone.Transport.clear(eventId)
+            } catch (e) {
+              // Event may already be cleared
+            }
+          })
+          this.scheduledTransportEvents = []
+        }
+
         if (Tone.Transport) {
           Tone.Transport.stop()
-          Tone.Transport.clear()  // CHANGED: clear() removes ALL events (not just cancel)
-          // console.log('✅ Transport stopped and cleared')
+          Tone.Transport.cancel()  // Cancel all future events
+          // console.log('✅ Transport stopped and all events cancelled')
         }
       } catch (error) {
         // console.warn('⚠️ Transport error:', error.message)
@@ -1892,6 +1902,7 @@ class AudioService {
 
   /**
    * Play polyphonic composition (multiple voices)
+   * REAL-TIME FIX: Uses Tone.Transport.schedule instead of setTimeout for rock-solid timing
    * @param {Object} content - Composition content with voices
    * @param {number} tempo - Tempo in BPM (30-300)
    */
@@ -1899,87 +1910,97 @@ class AudioService {
     if (!content.voices || !Array.isArray(content.voices)) return
 
     // Calculate beat duration from tempo: beatDuration = 60 / BPM
-    // 30 BPM → 2.0 seconds per beat (very slow)
-    // 120 BPM → 0.5 seconds per beat (standard)
-    // 300 BPM → 0.2 seconds per beat (very fast)
     const beatDuration = 60 / tempo
 
-    // console.log(`🎼 Playing polyphonic: ${content.voices.length} voices at ${tempo} BPM (${beatDuration.toFixed(2)}s/beat)`)
+    // REAL-TIME FIX: Use audio context time with lookahead for precise scheduling
+    const now = Tone.now()
+    const lookahead = 0.1 // 100ms lookahead for stable scheduling
 
-    content.voices.forEach((voice, voiceIndex) => {
-      if (!voice.notes || !Array.isArray(voice.notes)) return
+    // Ensure Transport is running for scheduled events
+    if (Tone.Transport.state !== 'started') {
+      Tone.Transport.start()
+    }
+
+    // Role-based configuration (pre-allocated, no allocation during playback)
+    const roleConfigs = {
+      'melody': { layer: 'backgroundHigh', velocity: 0.10 },
+      'harmony': { layer: 'backgroundMid', velocity: 0.06 },
+      'bass': { layer: 'backgroundLow', velocity: 0.08 },
+      'pad': { layer: 'backgroundLow', velocity: 0.04 }
+    }
+    const defaultConfig = { layer: 'backgroundMid', velocity: 0.06 }
+
+    // REAL-TIME FIX: Use for loops instead of forEach to avoid closure allocation
+    const voices = content.voices
+    for (let voiceIndex = 0; voiceIndex < voices.length; voiceIndex++) {
+      const voice = voices[voiceIndex]
+      if (!voice.notes || !Array.isArray(voice.notes)) continue
 
       const voiceRole = voice.voiceRole || 'harmony'
-      // console.log(`🎵 Voice ${voiceIndex} - Role: ${voiceRole}, Notes: ${voice.notes.length}`)
+      const roleConfig = roleConfigs[voiceRole] || defaultConfig
+      const layerName = roleConfig.layer
+      const velocity = roleConfig.velocity
 
-      // Role-based configuration for TIMBRAL DISTINCTION
-      const roleConfig = {
-        'melody': {
-          layer: 'backgroundHigh',
-          velocity: 0.10,  // Reduced from 0.12 - brighter but subtle
-          articulation: 'staccato'
-        },
-        'harmony': {
-          layer: 'backgroundMid',
-          velocity: 0.06,   // Reduced from 0.08 - medium presence
-          articulation: 'normal'
-        },
-        'bass': {
-          layer: 'backgroundLow',
-          velocity: 0.08,   // Reduced from 0.10 - punchy but controlled
-          articulation: 'legato'
-        },
-        'pad': {
-          layer: 'backgroundLow',
-          velocity: 0.04,   // Reduced from 0.06 - very soft, ethereal
-          articulation: 'legato'
-        }
-      }[voiceRole] || { layer: 'backgroundMid', velocity: 0.06, articulation: 'normal' }
-
-      voice.notes.forEach((note, noteIndex) => {
+      const notes = voice.notes
+      for (let noteIndex = 0; noteIndex < notes.length; noteIndex++) {
+        const note = notes[noteIndex]
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
-        const delay = (note.startBeat || 0) * beatDuration  // Use tempo-based beat duration
+        const delay = (note.startBeat || 0) * beatDuration
+        const scheduleTime = now + lookahead + delay
 
-        // console.log(`  🎵 ${voiceRole} note ${noteIndex}: pitch=${pitch}, dur=${duration.toFixed(1)}, delay=${delay.toFixed(2)}s`)
-
-        setTimeout(() => {
-          if (this.ambientLayers && this.ambientLayers[roleConfig.layer]) {
-            this.ambientLayers[roleConfig.layer].triggerAttackRelease(
-              frequency, duration, undefined, roleConfig.velocity
-            )
+        // REAL-TIME FIX: Schedule on audio thread via Transport
+        // This runs on the Web Audio thread, immune to main thread congestion
+        const eventId = Tone.Transport.schedule((audioTime) => {
+          const layer = this.ambientLayers && this.ambientLayers[layerName]
+          if (layer) {
+            layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
           }
-        }, delay * 1000)
-      })
-    })
+        }, scheduleTime)
+
+        // Track for cleanup
+        this.scheduledTransportEvents.push(eventId)
+      }
+    }
   }
 
   /**
    * Play homophonic composition (melody + accompaniment)
+   * REAL-TIME FIX: Uses Tone.Transport.schedule instead of setTimeout
    * @param {Object} content - Composition content
    * @param {number} tempo - Tempo in BPM
    */
   playHomophonicComposition(content, tempo = 120) {
     const beatDuration = 60 / tempo
-    // console.log(`🎼 Playing homophonic composition at ${tempo} BPM`)
+    const now = Tone.now()
+    const lookahead = 0.1
+
+    // Ensure Transport is running
+    if (Tone.Transport.state !== 'started') {
+      Tone.Transport.start()
+    }
 
     if (content.melody && content.melody.notes) {
-      content.melody.notes.forEach((note, index) => {
+      const notes = content.melody.notes
+      for (let i = 0; i < notes.length; i++) {
+        const note = notes[i]
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
-        const velocity = 0.12  // Very subtle melody (reduced from 0.2)
-        const delay = (note.startBeat || index * 0.5) * beatDuration
+        const velocity = 0.12
+        const delay = (note.startBeat || i * 0.5) * beatDuration
+        const scheduleTime = now + lookahead + delay
 
-        setTimeout(() => {
+        const eventId = Tone.Transport.schedule((audioTime) => {
           if (this.ambientLayers && this.ambientLayers.backgroundHigh) {
             this.ambientLayers.backgroundHigh.triggerAttackRelease(
-              frequency, duration, undefined, velocity
+              frequency, duration, audioTime, velocity
             )
           }
-        }, delay * 1000)
-      })
+        }, scheduleTime)
+        this.scheduledTransportEvents.push(eventId)
+      }
     }
 
     if (content.accompaniment) {
@@ -1989,109 +2010,129 @@ class AudioService {
 
   /**
    * Play accompaniment (arpeggios, chord pads)
+   * REAL-TIME FIX: Uses Tone.Transport.schedule instead of setTimeout
    * @param {Object} accompaniment - Accompaniment data
    * @param {number} tempo - Tempo in BPM
    */
   playAccompaniment(accompaniment, tempo = 120) {
     const beatDuration = 60 / tempo
     const type = accompaniment.type
+    const now = Tone.now()
+    const lookahead = 0.1
+
+    // Ensure Transport is running
+    if (Tone.Transport.state !== 'started') {
+      Tone.Transport.start()
+    }
 
     if (type === 'arpeggio' && accompaniment.pattern) {
-      accompaniment.pattern.forEach((chord, chordIndex) => {
-        if (!chord.notes || !Array.isArray(chord.notes)) return
+      const pattern = accompaniment.pattern
+      for (let chordIndex = 0; chordIndex < pattern.length; chordIndex++) {
+        const chord = pattern[chordIndex]
+        if (!chord.notes || !Array.isArray(chord.notes)) continue
 
-        chord.notes.forEach((pitch, noteIndex) => {
+        const chordNotes = chord.notes
+        for (let noteIndex = 0; noteIndex < chordNotes.length; noteIndex++) {
+          const pitch = chordNotes[noteIndex]
           const frequency = this.midiToFrequency(pitch)
           const duration = chord.rhythm || 0.25
           const delay = (chordIndex * 2 + noteIndex * 0.25) * beatDuration
+          const scheduleTime = now + lookahead + delay
 
-          setTimeout(() => {
+          const eventId = Tone.Transport.schedule((audioTime) => {
             if (this.ambientLayers && this.ambientLayers.backgroundMid) {
               this.ambientLayers.backgroundMid.triggerAttackRelease(
-                frequency, duration, undefined, 0.06  // Very subtle arpeggio (reduced from 0.12)
+                frequency, duration, audioTime, 0.06
               )
             }
-          }, delay * 1000)
-        })
-      })
+          }, scheduleTime)
+          this.scheduledTransportEvents.push(eventId)
+        }
+      }
     } else if (type === 'chord_pads' && accompaniment.chords) {
-      accompaniment.chords.forEach((chord, index) => {
+      const chords = accompaniment.chords
+      for (let index = 0; index < chords.length; index++) {
+        const chord = chords[index]
         const chordNotes = this.buildChordFromName(chord.chord || 'C')
-        const delay = index * 4 * beatDuration
+        const baseDelay = index * 4 * beatDuration
 
-        chordNotes.forEach(pitch => {
+        for (let j = 0; j < chordNotes.length; j++) {
+          const pitch = chordNotes[j]
           const frequency = this.midiToFrequency(pitch)
           const duration = chord.duration || 4
+          const scheduleTime = now + lookahead + baseDelay
 
-          setTimeout(() => {
+          const eventId = Tone.Transport.schedule((audioTime) => {
             if (this.ambientLayers && this.ambientLayers.backgroundLow) {
               this.ambientLayers.backgroundLow.triggerAttackRelease(
-                frequency, duration, undefined, 0.05  // Very subtle pad (reduced from 0.1)
+                frequency, duration, audioTime, 0.05
               )
             }
-          }, delay * 1000)
-        })
-      })
+          }, scheduleTime)
+          this.scheduledTransportEvents.push(eventId)
+        }
+      }
     }
   }
 
   /**
    * Play ambient composition (textural)
+   * REAL-TIME FIX: Uses Tone.Transport.schedule/scheduleRepeat instead of setTimeout/setInterval
    * @param {Object} content - Composition content
    * @param {number} tempo - Tempo in BPM
    */
   playAmbientComposition(content, tempo = 120, isDrone = false) {
-    const beatDuration = 60 / tempo
-    // console.log(`🎼 Playing ambient composition at ${tempo} BPM${isDrone ? ' (DRONE - will loop)' : ''}`)
-
     if (!content.texture || !Array.isArray(content.texture)) {
-      // console.warn('🎼 No texture array in ambient composition')
       return
     }
 
-    // Play each texture element from the composition
-    content.texture.forEach((textureItem, index) => {
-      const delay = index * 0.5  // Small delay between texture layers
+    const now = Tone.now()
+    const lookahead = 0.1
 
-      setTimeout(() => {
-        if (textureItem.note) {
-          // Convert note name to MIDI then to frequency
-          const midiNote = this.noteNameToMidi(textureItem.note)
-          const frequency = this.midiToFrequency(midiNote)
-          const duration = (textureItem.duration || 8000) / 1000  // Convert ms to seconds
-          const velocity = textureItem.velocity || 0.2
+    // Ensure Transport is running
+    if (Tone.Transport.state !== 'started') {
+      Tone.Transport.start()
+    }
 
-          // console.log(`🎵🎵🎵 DRONE/AMBIENT: ${textureItem.note} (MIDI=${midiNote}, ${frequency.toFixed(1)}Hz), dur=${duration.toFixed(1)}s, vel=${velocity}, isDrone=${isDrone}`)
+    // Clear any existing drone repeat event
+    if (this.droneRepeatEventId) {
+      Tone.Transport.clear(this.droneRepeatEventId)
+      this.droneRepeatEventId = null
+    }
 
-          // Use PAD layer for drone (slow attack, long release, perfect for atmospheric sounds)
-          const layer = isDrone ? this.ambientLayers.pad : this.ambientLayers.backgroundLow
+    const texture = content.texture
+    for (let index = 0; index < texture.length; index++) {
+      const textureItem = texture[index]
+      if (!textureItem.note) continue
 
-          if (layer) {
-            // console.log(`  ✅ Triggering on layer: ${isDrone ? 'pad' : 'backgroundLow'}`)
-            layer.triggerAttackRelease(frequency, duration, undefined, velocity)
-          } else {
-            // console.warn(`  ❌ Layer not found: ${isDrone ? 'pad' : 'backgroundLow'}`)
-          }
+      const midiNote = this.noteNameToMidi(textureItem.note)
+      const frequency = this.midiToFrequency(midiNote)
+      const duration = (textureItem.duration || 8000) / 1000
+      const velocity = textureItem.velocity || 0.2
+      const delay = index * 0.5
+      const scheduleTime = now + lookahead + delay
+      const layerName = isDrone ? 'pad' : 'backgroundLow'
 
-          // If this is a drone, schedule it to loop
-          if (isDrone) {
-            // Set up interval to repeat the drone every 'duration' seconds
-            if (this.droneLoopInterval) {
-              clearInterval(this.droneLoopInterval)
-            }
-
-            this.droneLoopInterval = setInterval(() => {
-              // console.log('🔁 Looping drone... (MIDI=' + midiNote + ', ' + frequency.toFixed(1) + 'Hz)')
-              if (this.ambientLayers && this.ambientLayers.pad) {
-                this.ambientLayers.pad.triggerAttackRelease(
-                  frequency, duration, undefined, velocity
-                )
-              }
-            }, duration * 1000)
-          }
+      // Schedule initial texture trigger
+      const eventId = Tone.Transport.schedule((audioTime) => {
+        const layer = this.ambientLayers && this.ambientLayers[layerName]
+        if (layer) {
+          layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
         }
-      }, delay * 1000)
-    })
+      }, scheduleTime)
+      this.scheduledTransportEvents.push(eventId)
+
+      // REAL-TIME FIX: For drones, use Transport.scheduleRepeat instead of setInterval
+      if (isDrone) {
+        // Schedule repeating drone on audio thread
+        this.droneRepeatEventId = Tone.Transport.scheduleRepeat((audioTime) => {
+          if (this.ambientLayers && this.ambientLayers.pad) {
+            this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
+          }
+        }, duration, scheduleTime + duration) // Start repeating after first note ends
+        this.scheduledTransportEvents.push(this.droneRepeatEventId)
+      }
+    }
   }
 
   /**
@@ -2780,76 +2821,86 @@ class AudioService {
 
   /**
    * Force start background music if it's not playing
-   * FIX: Ensures background always starts
+   * REAL-TIME FIX: Uses Transport.schedule for proper audio timing
    */
   forceStartBackground() {
     if (!this.isInitialized || !this.ambientLayers) {
-      // console.log('🔇 forceStartBackground: not initialized')
       return
     }
 
     if (this.muted) {
-      // console.log('🔇 forceStartBackground: muted')
       return
     }
 
     try {
-      // console.log('🎵 Force starting background music...')
+      // Ensure Transport is running
+      if (Tone.Transport.state !== 'started') {
+        Tone.Transport.start()
+      }
 
-      // Force play notes on each layer to ensure audio is working
-      Object.keys(this.ambientLayers).forEach(layer => {
+      const now = Tone.now()
+      const lookahead = 0.1
+      const layerNames = Object.keys(this.ambientLayers)
+
+      // Force play notes on each layer using for loops (no allocation)
+      for (let layerIdx = 0; layerIdx < layerNames.length; layerIdx++) {
+        const layer = layerNames[layerIdx]
         const synth = this.ambientLayers[layer]
-        if (!synth) return
+        if (!synth) continue
 
-        // Generate a simple chord for this layer
         const state = this.generativeState
-        if (!state) return
+        if (!state) continue
 
         // Select notes based on layer type
         let notes = []
         switch (layer) {
           case 'bass':
-            notes = [state.currentTonic, state.currentTonic * 0.75] // Root and fifth below
+            notes = [state.currentTonic, state.currentTonic * 0.75]
             break
           case 'pad':
-            notes = [state.currentTonic * 1.25, state.currentTonic * 1.5] // Third and fifth above
+            notes = [state.currentTonic * 1.25, state.currentTonic * 1.5]
             break
           case 'chords':
-            notes = [state.currentTonic * 2, state.currentTonic * 2.5] // Octave above
+            notes = [state.currentTonic * 2, state.currentTonic * 2.5]
             break
         }
 
-        // Play the notes with simple parameters
-        notes.forEach((freq, index) => {
-          setTimeout(() => {
-            try {
-              synth.triggerAttack(freq, undefined, 0.2)
-              // console.log(`🎵 Forced background note: ${layer} ${freq.toFixed(1)}Hz`)
+        // REAL-TIME FIX: Schedule notes with Transport for precise timing
+        for (let i = 0; i < notes.length; i++) {
+          const freq = notes[i]
+          const staggerDelay = i * 0.2 // 200ms stagger
+          const scheduleTime = now + lookahead + staggerDelay
 
-              // Auto-release after a reasonable time
-              setTimeout(() => {
-                try {
-                  synth.triggerRelease(freq)
-                } catch (e) {
-                  // Ignore release errors
-                }
-              }, 3000)
+          // Schedule attack
+          const attackEventId = Tone.Transport.schedule((audioTime) => {
+            try {
+              synth.triggerAttack(freq, audioTime, 0.2)
             } catch (e) {
-              // console.warn(`🔇 Error playing forced background note:`, e)
+              // Ignore errors
             }
-          }, index * 200) // Stagger notes slightly
-        })
-      })
+          }, scheduleTime)
+          this.scheduledTransportEvents.push(attackEventId)
+
+          // Schedule release 3 seconds after attack
+          const releaseEventId = Tone.Transport.schedule((audioTime) => {
+            try {
+              synth.triggerRelease(freq, audioTime)
+            } catch (e) {
+              // Ignore errors
+            }
+          }, scheduleTime + 3)
+          this.scheduledTransportEvents.push(releaseEventId)
+        }
+      }
 
       // If evolution is not active, restart it
       if (!this.evolvingGenerationActive) {
-        // console.log('🎵 Restarting evolution system...')
         this.evolvingGenerationActive = true
         this.startEvolvingGeneration()
       }
 
     } catch (error) {
-      // console.error('🔇 Error in forceStartBackground:', error)
+      // Silently handle errors
     }
   }
 
@@ -3283,41 +3334,32 @@ class AudioService {
   }
 
   /**
-   * Start 60fps parameter update loop
+   * Start parameter update loop
+   * REAL-TIME FIX: Uses Transport.scheduleRepeat instead of requestAnimationFrame
+   * This ensures parameter updates are immune to main thread congestion
    */
   startUpdateLoop() {
     if (this.updateLoopActive) return
 
     this.updateLoopActive = true
-    let lastFrameTime = 0
-    let frameCount = 0
 
-    const updateLoop = (currentTime) => {
-      if (!this.updateLoopActive) return
-
-      // Calculate frame timing
-      const deltaTime = currentTime - lastFrameTime
-
-      if (deltaTime >= this.updateTimeSlice) {
-        // Update audio parameters at 60fps
-        this.performParameterUpdate()
-
-        frameCount++
-        lastFrameTime = currentTime
-
-        // Calculate updates per second every second
-        if (frameCount % 60 === 0) {
-          this.performanceMetrics.parameterUpdatesPerSecond = 60
-        }
-      }
-
-      // Schedule next frame
-      requestAnimationFrame(updateLoop)
+    // Ensure Transport is running
+    if (Tone.Transport.state !== 'started') {
+      Tone.Transport.start()
     }
 
-    requestAnimationFrame(updateLoop)
+    // REAL-TIME FIX: Use Transport.scheduleRepeat at 30Hz (sufficient for audio params)
+    // rAF runs at display refresh rate and competes with rendering workloads
+    // Transport scheduling is on the audio thread and immune to main thread congestion
+    const updateInterval = 1 / 30 // 30Hz is sufficient for smooth audio parameter updates
 
-    // console.log('AudioService parameter update loop started at 60fps')
+    this.parameterUpdateEventId = Tone.Transport.scheduleRepeat(() => {
+      if (!this.updateLoopActive) return
+      this.performParameterUpdate()
+    }, updateInterval)
+
+    // Track for cleanup
+    this.scheduledTransportEvents.push(this.parameterUpdateEventId)
   }
 
   /**
@@ -3325,7 +3367,16 @@ class AudioService {
    */
   stopUpdateLoop() {
     this.updateLoopActive = false
-    // console.log('AudioService parameter update loop stopped')
+
+    // Clear the scheduled repeat event
+    if (this.parameterUpdateEventId) {
+      try {
+        Tone.Transport.clear(this.parameterUpdateEventId)
+      } catch (e) {
+        // Event may already be cleared
+      }
+      this.parameterUpdateEventId = null
+    }
   }
 
   /**
