@@ -266,6 +266,11 @@ function wireServices (container, config = {}) {
       const webMetricsPoller = c.get('webMetricsPoller')
       service.setWebMetricsPoller(webMetricsPoller)
 
+      // CRITICAL: Link BackgroundCompositionService
+      // Virtual user gestures must contribute to background composition
+      const backgroundCompositionService = c.get('backgroundCompositionService')
+      service.setBackgroundCompositionService(backgroundCompositionService)
+
       // Set Socket.IO for broadcasting
       if (config.io) {
         service.setSocketIO(config.io)

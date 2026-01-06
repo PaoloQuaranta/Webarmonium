@@ -14,6 +14,9 @@ class WebarmoniumApp {
     this.currentRoom = null
     this.userCount = 1
 
+    // Pending drone composition (saved when audio not started yet)
+    this.pendingDrone = null
+
     // Sprint 2: Extracted components
     this.canvasManager = new CanvasManager()
     this.uiManager = new UIManager()
@@ -966,8 +969,10 @@ class WebarmoniumApp {
       if (this.isAudioStarted && data.composition) {
         // console.log('✅ Playing composition...')
         this.audioService.playComposition(data.composition, data.isDrone)
-      } else {
-        // console.warn('❌ Not playing - isAudioStarted:', this.isAudioStarted, 'composition:', !!data.composition)
+      } else if (data.isDrone && data.composition) {
+        // Save drone for later - will be played when audio starts
+        this.pendingDrone = data.composition
+        // console.log('💾 Saved pending drone - will play when audio starts')
       }
     })
     // console.log('✅ background-composition listener registered')
@@ -1389,6 +1394,13 @@ class WebarmoniumApp {
           button.textContent = '🔇 Stop Audio'
           button.classList.remove('disabled')
           // console.log('🔊 Audio started successfully')
+
+          // Play pending drone if saved
+          if (this.pendingDrone) {
+            // console.log('🎵 Playing pending drone...')
+            this.audioService.playComposition(this.pendingDrone, true)
+            this.pendingDrone = null
+          }
         } else {
           // console.warn('⚠️ AudioService.start() returned false')
         }
@@ -1427,6 +1439,13 @@ class WebarmoniumApp {
           if (button) {
             button.textContent = '🔇 Stop Audio'
             button.classList.remove('disabled')
+          }
+
+          // Play pending drone if saved
+          if (this.pendingDrone) {
+            // console.log('🎵 Playing pending drone (auto-start)...')
+            this.audioService.playComposition(this.pendingDrone, true)
+            this.pendingDrone = null
           }
 
           // console.log('🔊 Audio auto-started successfully')

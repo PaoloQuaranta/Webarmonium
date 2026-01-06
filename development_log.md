@@ -1597,3 +1597,149 @@ All 34 VirtualUserService tests pass:
 After warm-up fix: Particles and pulses now trigger immediately when virtual users are activated.
 
 ---
+
+## Entry #25 - Virtual Users Background Contribution & Drone Playback Fix
+
+**Date**: 2026-01-06
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed two issues: (1) Virtual users in normal rooms were not contributing to background composition, and (2) the drone was not playing when audio started because it arrived before user clicked "Start Audio".
+
+---
+
+### Problem 1: Virtual Users Not Contributing to Background
+
+**User Report**: "i gesti dei virtual users nelle room normali non stanno influenzando il background"
+
+**Root Cause**: `VirtualUserService` was emitting `hold:start` events directly to the frontend but never called `backgroundCompositionService.addMaterial()`. The gestures played audio but didn't feed into the composition engine.
+
+**Solution**: Added `backgroundCompositionService` reference to `VirtualUserService` and call `addMaterial()` in both gesture methods.
+
+#### Changes in VirtualUserService.js
+
+1. Added property in constructor:
+```javascript
+// BackgroundCompositionService reference (set by ServiceContainer)
+this.backgroundCompositionService = null
+```
+
+2. Added setter method:
+```javascript
+setBackgroundCompositionService(service) {
+  this.backgroundCompositionService = service
+}
+```
+
+3. In `_emitTapGesture()` - added after hold:start emission:
+```javascript
+if (this.backgroundCompositionService) {
+  const gestureData = {
+    userId: config.userId,
+    gesture: { type: 'tap', duration: tapDurationMs, intensity: normalizedVelocity, startTime: Date.now() }
+  }
+  const musicalPhrase = {
+    notes: [{ pitch, duration: tapDurationMs, velocity: 0.9, timestamp: Date.now() }],
+    duration: tapDurationMs, type: 'tap'
+  }
+  this.backgroundCompositionService.addMaterial(roomId, gestureData, musicalPhrase)
+}
+```
+
+4. In `_emitDragGesture()` - added after phrase generation:
+```javascript
+if (this.backgroundCompositionService) {
+  const dragGestureData = {
+    userId: config.userId,
+    gesture: { type: 'drag', duration: phraseDurationMs, intensity: normalizedVelocity, startTime: Date.now() }
+  }
+  const musicalPhrase = {
+    notes: phrase.notes.map(note => ({
+      pitch: note.pitch, duration: note.duration * beatDurationMs,
+      velocity: (note.velocity || 80) / 127, timestamp: Date.now()
+    })),
+    duration: phraseDurationMs, type: 'drag'
+  }
+  this.backgroundCompositionService.addMaterial(roomId, dragGestureData, musicalPhrase)
+}
+```
+
+#### Changes in ServiceContainer.js
+
+Linked the service in wiring:
+```javascript
+virtualUserService: (service, c) => {
+  // ...existing code...
+
+  // CRITICAL: Link BackgroundCompositionService
+  const backgroundCompositionService = c.get('backgroundCompositionService')
+  service.setBackgroundCompositionService(backgroundCompositionService)
+}
+```
+
+---
+
+### Problem 2: Drone Not Playing
+
+**User Report**: "non sento il drone anche se avvio audio"
+
+**Root Cause**: The drone is emitted via `background-composition` socket event immediately after user joins room. However, the frontend checks `isAudioStarted` before playing - which is `false` until user clicks "Start Audio". The drone was received but silently discarded.
+
+**Solution**: Save pending drone composition and play it when audio starts.
+
+#### Changes in main.js
+
+1. Added property in constructor:
+```javascript
+this.pendingDrone = null
+```
+
+2. Modified `background-composition` handler:
+```javascript
+if (this.isAudioStarted && data.composition) {
+  this.audioService.playComposition(data.composition, data.isDrone)
+} else if (data.isDrone && data.composition) {
+  // Save drone for later - will be played when audio starts
+  this.pendingDrone = data.composition
+}
+```
+
+3. Modified `toggleAudio()` - play pending drone after audio starts:
+```javascript
+if (startResult) {
+  this.isAudioStarted = true
+  // ...button update...
+
+  // Play pending drone if saved
+  if (this.pendingDrone) {
+    this.audioService.playComposition(this.pendingDrone, true)
+    this.pendingDrone = null
+  }
+}
+```
+
+4. Same logic added to `attemptAutoStartAudio()`.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/VirtualUserService.js` | Added `backgroundCompositionService` property, setter, and `addMaterial()` calls in tap/drag methods |
+| `backend/src/services/ServiceContainer.js` | Linked `backgroundCompositionService` to `virtualUserService` in wiring |
+| `frontend/src/main.js` | Added `pendingDrone` property, save drone when audio not started, play on audio start |
+
+---
+
+### Behavioral Changes
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Virtual user gestures | Play audio only | Play audio AND feed BackgroundCompositionService |
+| Background evolution | Only real user gestures | Real + virtual user gestures |
+| Drone on join | Lost if audio not started | Saved and played when audio starts |
+
+---

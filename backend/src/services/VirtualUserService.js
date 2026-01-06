@@ -23,6 +23,10 @@ class VirtualUserService {
     // Socket.io instance (set by ServiceContainer)
     this.io = null
 
+    // BackgroundCompositionService reference (set by ServiceContainer)
+    // CRITICAL: Virtual user gestures must contribute to background composition
+    this.backgroundCompositionService = null
+
     // Active rooms with virtual users: roomId -> RoomVirtualState
     this.activeRooms = new Map()
 
@@ -160,6 +164,15 @@ class VirtualUserService {
    */
   setSocketIO(io) {
     this.io = io
+  }
+
+  /**
+   * Set BackgroundCompositionService reference
+   * Virtual user gestures must contribute to background composition
+   * @param {BackgroundCompositionService} service
+   */
+  setBackgroundCompositionService(service) {
+    this.backgroundCompositionService = service
   }
 
   /**
@@ -557,6 +570,31 @@ class VirtualUserService {
       timestamp: Date.now()
     })
 
+    // CRITICAL: Add material to BackgroundCompositionService
+    // Virtual user gestures must contribute to background composition
+    if (this.backgroundCompositionService) {
+      const gestureData = {
+        userId: config.userId,
+        gesture: {
+          type: 'tap',
+          duration: tapDurationMs,
+          intensity: normalizedVelocity,
+          startTime: Date.now()
+        }
+      }
+      const musicalPhrase = {
+        notes: [{
+          pitch: pitch,
+          duration: tapDurationMs,
+          velocity: 0.9,
+          timestamp: Date.now()
+        }],
+        duration: tapDurationMs,
+        type: 'tap'
+      }
+      this.backgroundCompositionService.addMaterial(roomId, gestureData, musicalPhrase)
+    }
+
     // Emit hold:end after duration (resets visual state)
     const tapDurationMs2 = tapDuration * 1000
     setTimeout(() => {
@@ -642,6 +680,31 @@ class VirtualUserService {
     }
 
     const beatDurationMs = (60 / (roomState.musicalContext.tempo || 120)) * 1000
+
+    // CRITICAL: Add material to BackgroundCompositionService
+    // Virtual user gestures must contribute to background composition
+    if (this.backgroundCompositionService) {
+      const dragGestureData = {
+        userId: config.userId,
+        gesture: {
+          type: 'drag',
+          duration: phraseDurationMs,
+          intensity: normalizedVelocity,
+          startTime: Date.now()
+        }
+      }
+      const musicalPhrase = {
+        notes: phrase.notes.map(note => ({
+          pitch: note.pitch,
+          duration: note.duration * beatDurationMs,
+          velocity: (note.velocity || 80) / 127,
+          timestamp: Date.now()
+        })),
+        duration: phraseDurationMs,
+        type: 'drag'
+      }
+      this.backgroundCompositionService.addMaterial(roomId, dragGestureData, musicalPhrase)
+    }
 
     // Emit phrase event (for visual system) - direct format like Landing
     this.io.to(roomId).emit('musical:event', {
