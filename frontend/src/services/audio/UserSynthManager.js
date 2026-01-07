@@ -20,10 +20,6 @@ class UserSynthManager {
     // Map<userId, { synth, filter, volume, pan, delaySend, reverbSend }>
     this.userSynths = new Map()
 
-    // Map<userId, slotNumber> for real users (0-3)
-    // Slots are assigned dynamically based on availability (see getUserSlot)
-    this.userSlots = new Map()
-
     // Track active notes per user for cleanup
     this.activeNotes = new Map()  // Map<noteId, userId>
 
@@ -45,45 +41,26 @@ class UserSynthManager {
   }
 
   /**
-   * Get or assign a slot for a real user
-   * Slots are assigned uniquely - finds the first available slot (0-3)
+   * Get slot for a real user - hardwired from userId hash
+   * Each userId deterministically maps to one of 4 patches (0-3)
    * @param {string} userId - The user ID
-   * @returns {number} Slot number (0-3)
+   * @returns {number} Slot number (0-3), or -1 for virtual users
    */
   getUserSlot(userId) {
     if (!this.patchDefinitions) return 0
 
-    // Virtual users don't need slots
+    // Virtual users don't need slots - they have dedicated patches
     if (this.patchDefinitions.isVirtualUser(userId)) {
       return -1
     }
 
-    // If user already has a slot, return it
-    if (this.userSlots.has(userId)) {
-      return this.userSlots.get(userId)
+    // Simple hash from userId string to get consistent slot
+    let hash = 0
+    for (let i = 0; i < userId.length; i++) {
+      hash = ((hash << 5) - hash) + userId.charCodeAt(i)
+      hash = hash & hash // Convert to 32-bit integer
     }
-
-    // Find which slots are currently in use
-    const usedSlots = new Set(this.userSlots.values())
-
-    // Find the first available slot (0-3)
-    let assignedSlot = -1
-    for (let slot = 0; slot < 4; slot++) {
-      if (!usedSlots.has(slot)) {
-        assignedSlot = slot
-        break
-      }
-    }
-
-    // If all slots are taken, use modulo of user count (fallback)
-    if (assignedSlot === -1) {
-      assignedSlot = this.userSlots.size % 4
-      console.warn(`⚠️ All 4 synth slots in use, reusing slot ${assignedSlot} for ${userId}`)
-    }
-
-    this.userSlots.set(userId, assignedSlot)
-    console.log(`🎹 Assigned slot ${assignedSlot} to user ${userId.substring(0, 8)}`)
-    return assignedSlot
+    return Math.abs(hash) % 4
   }
 
   /**
@@ -448,7 +425,6 @@ class UserSynthManager {
       this.userSynths.delete(userId)
 
       // Wait for release envelopes to complete, THEN dispose audio nodes
-      // Only free slot after full disposal to prevent premature reuse
       setTimeout(() => {
         try {
           if (synthData.delaySend) synthData.delaySend.dispose()
@@ -458,14 +434,9 @@ class UserSynthManager {
           if (synthData.filter) synthData.filter.dispose()
           if (synthData.synth) synthData.synth.dispose()
 
-          // Only free slot AFTER full disposal
-          this.userSlots.delete(userId)
-
           console.log(`Fully disposed synth for ${userId}`)
         } catch (e) {
           console.warn(`Error during synth disposal for ${userId}:`, e.message)
-          // Still free slot even on error
-          this.userSlots.delete(userId)
         }
       }, 1000)
 
@@ -473,9 +444,7 @@ class UserSynthManager {
 
     } catch (error) {
       console.error(`Error cleaning up synth for ${userId}:`, error)
-      // Ensure cleanup even on error
       this.userSynths.delete(userId)
-      this.userSlots.delete(userId)
     }
   }
 
@@ -487,7 +456,6 @@ class UserSynthManager {
       this.cleanupUserSynth(userId)
     }
     this.activeNotes.clear()
-    // userSlots is cleared by cleanupUserSynth for each user
   }
 
   /**
@@ -498,7 +466,6 @@ class UserSynthManager {
     return {
       totalSynths: this.userSynths.size,
       activeNotes: this.activeNotes.size,
-      userSlots: Object.fromEntries(this.userSlots),
       users: Array.from(this.userSynths.keys())
     }
   }
