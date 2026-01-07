@@ -21,8 +21,8 @@ class UserSynthManager {
     this.userSynths = new Map()
 
     // Map<userId, slotNumber> for real users (0-3)
+    // Slots are assigned dynamically based on availability (see getUserSlot)
     this.userSlots = new Map()
-    this.nextSlot = 0
 
     // Track active notes per user for cleanup
     this.activeNotes = new Map()  // Map<noteId, userId>
@@ -46,6 +46,7 @@ class UserSynthManager {
 
   /**
    * Get or assign a slot for a real user
+   * Slots are assigned uniquely - finds the first available slot (0-3)
    * @param {string} userId - The user ID
    * @returns {number} Slot number (0-3)
    */
@@ -57,11 +58,32 @@ class UserSynthManager {
       return -1
     }
 
-    if (!this.userSlots.has(userId)) {
-      this.userSlots.set(userId, this.nextSlot % 4)
-      this.nextSlot++
+    // If user already has a slot, return it
+    if (this.userSlots.has(userId)) {
+      return this.userSlots.get(userId)
     }
-    return this.userSlots.get(userId)
+
+    // Find which slots are currently in use
+    const usedSlots = new Set(this.userSlots.values())
+
+    // Find the first available slot (0-3)
+    let assignedSlot = -1
+    for (let slot = 0; slot < 4; slot++) {
+      if (!usedSlots.has(slot)) {
+        assignedSlot = slot
+        break
+      }
+    }
+
+    // If all slots are taken, use modulo of user count (fallback)
+    if (assignedSlot === -1) {
+      assignedSlot = this.userSlots.size % 4
+      console.warn(`⚠️ All 4 synth slots in use, reusing slot ${assignedSlot} for ${userId}`)
+    }
+
+    this.userSlots.set(userId, assignedSlot)
+    console.log(`🎹 Assigned slot ${assignedSlot} to user ${userId.substring(0, 8)}`)
+    return assignedSlot
   }
 
   /**
@@ -465,7 +487,7 @@ class UserSynthManager {
       this.cleanupUserSynth(userId)
     }
     this.activeNotes.clear()
-    this.nextSlot = 0
+    // userSlots is cleared by cleanupUserSynth for each user
   }
 
   /**
