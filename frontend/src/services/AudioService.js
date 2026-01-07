@@ -1680,8 +1680,8 @@ class AudioService {
     const noteId = `sustained-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const now = Tone.now()
 
-    // Apply volume reduction for remote users
-    const actualVelocity = isRemote ? velocity * 0.7 : velocity
+    // Apply volume reduction for remote users (0.9 = slight reduction, was 0.7)
+    const actualVelocity = isRemote ? velocity * 0.9 : velocity
 
     // CRITICAL: Use triggerAttack (NOT triggerAttackRelease)
     // This opens the gate without closing it
@@ -2026,6 +2026,12 @@ class AudioService {
    * @param {Object} composition - Composition from BackgroundCompositionService
    */
   playComposition(composition, isDrone = false) {
+    // TESTING: Temporarily silence all background/drone compositions
+    // TODO: Remove this block after testing remote gesture volume
+    console.log(`🔇 playComposition SILENCED for testing - isDrone: ${isDrone}, type: ${composition?.type}`)
+    return
+    // END TESTING BLOCK
+
     console.log(`🎼 playComposition called - isDrone: ${isDrone}, isInitialized: ${this.isInitialized}, muted: ${this.muted}, type: ${composition?.type}`)
 
     if (!this.isInitialized || this.muted) {
@@ -2634,8 +2640,8 @@ class AudioService {
             })
           }
 
-          // Volume hierarchy: local (×1.0) > remote (×0.7)
-          const finalVelocity = isStreamed ? adjustedVelocity * 0.7 : adjustedVelocity
+          // Volume hierarchy: local (×1.0) > remote (×0.9) - was 0.7
+          const finalVelocity = isStreamed ? adjustedVelocity * 0.9 : adjustedVelocity
 
           synth.triggerAttackRelease(
             actualFrequency,
