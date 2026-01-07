@@ -30,7 +30,10 @@
   <script src="src/services/MusicalScheduler.js"></script>
   <script src="src/services/LFOManager.js"></script>
   <script src="src/services/VolumeController.js"></script>
-  <script src="src/services/AudioService.js"></script>
+  <!-- Per-user synth patches -->
+  <script src="src/services/audio/PatchDefinitions.js?v=2"></script>
+  <script src="src/services/audio/UserSynthManager.js?v=2"></script>
+  <script src="src/services/AudioService.js?v=20"></script>
   <script src="src/services/DroneVoidController.js"></script>
 </head>
 <body>
@@ -182,6 +185,6 @@
   </main>
 
   <!-- Landing page module scripts -->
-  <script type="module" src="src/landing/main.js?v=42"></script>
+  <script type="module" src="src/landing/main.js?v=43"></script>
 </body>
 </html>

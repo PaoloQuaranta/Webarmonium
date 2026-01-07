@@ -85,9 +85,9 @@ class LandingCompositionService {
         userId: 'wikipedia-metrics',
         color: '#e41a1c',
         region: { xMin: 0.05, xMax: 0.33 }, // Left third
-        baseFrequency: 98.00, // G2 - BASS tessitura
+        baseFrequency: 82.41, // E2 - BASS tessitura (within 55-110 range)
         tessitura: 'bass',
-        frequencyRange: { min: 65, max: 130 } // C2-C3
+        frequencyRange: { min: 55, max: 110 } // A1-A2 (deeper sub-bass)
       },
       hackernews: {
         userId: 'hackernews-metrics',
@@ -1050,7 +1050,29 @@ class LandingCompositionService {
     const pitch = this.harmonicEngine.constrainToScale(rawPitch, musicalContext.key, musicalContext.mode)
 
     // Convert constrained pitch back to frequency
-    const constrainedFreq = 440 * Math.pow(2, (pitch - 69) / 12)
+    let constrainedFreq = 440 * Math.pow(2, (pitch - 69) / 12)
+
+    // TESSITURA ENFORCEMENT: Clamp frequency to virtual user's range using octave wrapping
+    // This ensures Wikipedia stays bass, HackerNews stays tenor, GitHub stays soprano
+    const { min: freqMin, max: freqMax } = user.frequencyRange
+
+    // CRITICAL: Validate frequency to prevent infinite loops (0, NaN, Infinity)
+    if (!isFinite(constrainedFreq) || constrainedFreq <= 0) {
+      constrainedFreq = freqMin  // Fallback to tessitura minimum
+    } else {
+      const MAX_ITERATIONS = 20  // Safety limit
+      let iterations = 0
+      while (constrainedFreq < freqMin && iterations < MAX_ITERATIONS) {
+        constrainedFreq *= 2  // Up an octave
+        iterations++
+      }
+      iterations = 0
+      while (constrainedFreq > freqMax && iterations < MAX_ITERATIONS) {
+        constrainedFreq /= 2  // Down an octave
+        iterations++
+      }
+      constrainedFreq = Math.max(freqMin, Math.min(freqMax, constrainedFreq))  // Final clamp
+    }
 
     // Clamp position to user's region bounds
     const targetX = Math.max(user.region.xMin, Math.min(user.region.xMax, x))
@@ -1216,11 +1238,31 @@ class LandingCompositionService {
     })
 
     // Emit each validated note with correct timing and position along trajectory
+    // Get frequency range for tessitura enforcement
+    const { min: freqMin, max: freqMax } = user.frequencyRange
+
     validNotes.forEach((note, i) => {
       const noteId = `virtual_${gesture.source}_${Date.now()}_${i}`
 
       // Convert MIDI pitch to frequency (already validated in filter)
-      const noteFreq = 440 * Math.pow(2, (note.pitch - 69) / 12)
+      let noteFreq = 440 * Math.pow(2, (note.pitch - 69) / 12)
+
+      // Skip invalid frequencies to prevent infinite loops
+      if (!isFinite(noteFreq) || noteFreq <= 0) return
+
+      // TESSITURA ENFORCEMENT: Clamp frequency to virtual user's range using octave wrapping
+      const MAX_ITERATIONS = 20  // Safety limit
+      let iterations = 0
+      while (noteFreq < freqMin && iterations < MAX_ITERATIONS) {
+        noteFreq *= 2  // Up an octave
+        iterations++
+      }
+      iterations = 0
+      while (noteFreq > freqMax && iterations < MAX_ITERATIONS) {
+        noteFreq /= 2  // Down an octave
+        iterations++
+      }
+      noteFreq = Math.max(freqMin, Math.min(freqMax, noteFreq))  // Final clamp
 
       // CRITICAL: Calculate position along trajectory for this note
       // Each note gets a position based on its index in the phrase

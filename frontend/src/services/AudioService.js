@@ -823,6 +823,17 @@ class AudioService {
     // Polyphony management
     this.maxTotalVoices = 8 // Maximum total voices across all synths
 
+    // Initialize UserSynthManager for per-user unique timbres
+    // Each user (real or virtual) gets their own synth with unique patch
+    if (typeof UserSynthManager !== 'undefined') {
+      this.userSynthManager = new UserSynthManager({
+        masterVolume: this.masterVolume,
+        delay: this.delay,
+        reverb: this.reverb
+      })
+      console.log('UserSynthManager: Initialized for per-user timbres')
+    }
+
     // DISABLED: Old single-event generative system
     // Now using BackgroundCompositionService which generates structured compositions
     // this.startEvolvingGeneration()
@@ -1617,37 +1628,61 @@ class AudioService {
    * @param {number} frequency - Note frequency in Hz
    * @param {number} velocity - Note velocity (0-1)
    * @param {Object} position - Canvas position {x, y}
+   * @param {string} userId - Optional user ID for per-user timbre routing
+   * @param {boolean} isRemote - Whether this is a remote user's note (reduces volume)
    * @returns {Object|null} Note tracking data { noteId, frequency, startTime } or null if failed
    */
-  triggerSustainedNoteAttack(frequency, velocity, position) {
-    if (!this.gestureSynth || this.gestureSynth.disposed) {
-      // console.warn('🚫 gestureSynth not available for sustained note')
-      return null
-    }
-
+  triggerSustainedNoteAttack(frequency, velocity, position, userId = null, isRemote = false) {
     // Check audio context state
     if (Tone.context.state !== 'running') {
       // console.warn('⚠️ Audio context not running, cannot start sustained note')
       return null
     }
 
-    // Configure envelope for sustained hold
-    // CRITICAL: Long sustain, minimal attack/release
-    this.gestureSynth.set({
-      envelope: {
-        attack: 0.005,      // 5ms - instant response
-        decay: 0.01,        // 10ms - quick to sustain level
-        sustain: 1.0,       // Full sustain - note held at max level
-        release: 0.05       // 50ms - smooth release when gate closes (prevents clicks)
+    // Determine which synth to use based on userId
+    let synth = this.gestureSynth
+    let actualFrequency = frequency
+    let useUserSynth = false
+
+    // If userId provided and UserSynthManager available, use per-user synth
+    if (userId && this.userSynthManager) {
+      const synthData = this.userSynthManager.getSynthForUser(userId)
+      if (synthData && synthData.synth) {
+        synth = synthData.synth
+        useUserSynth = true
+        // Apply tessitura constraint for this user
+        actualFrequency = this.userSynthManager.constrainFrequencyToTessitura(frequency, userId)
       }
-    })
+    }
+
+    if (!synth || synth.disposed) {
+      // console.warn('🚫 Synth not available for sustained note')
+      return null
+    }
+
+    // Configure envelope for sustained hold (only for default gestureSynth)
+    // User synths have their own envelope defined in patch
+    if (!useUserSynth) {
+      this.gestureSynth.set({
+        envelope: {
+          attack: 0.005,      // 5ms - instant response
+          decay: 0.01,        // 10ms - quick to sustain level
+          sustain: 1.0,       // Full sustain - note held at max level
+          release: 0.05       // 50ms - smooth release when gate closes (prevents clicks)
+        }
+      })
+    }
 
     const noteId = `sustained-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const now = Tone.now()
 
+    // Apply volume reduction for remote users
+    const actualVelocity = isRemote ? velocity * 0.7 : velocity
+
     // CRITICAL: Use triggerAttack (NOT triggerAttackRelease)
     // This opens the gate without closing it
-    this.gestureSynth.triggerAttack(frequency, now, velocity)
+    console.log(`🎹 triggerSustainedNoteAttack: userId=${userId}, useUserSynth=${useUserSynth}, freq=${actualFrequency.toFixed(1)}Hz`)
+    synth.triggerAttack(actualFrequency, now, actualVelocity)
 
     // Track active sustained note for later release
     if (!this.activeSustainedNotes) {
@@ -1656,16 +1691,18 @@ class AudioService {
 
     this.activeSustainedNotes.set(noteId, {
       noteId,
-      frequency,
+      frequency: actualFrequency,
       startTime: Date.now(),
       position,
-      velocity,
-      synth: this.gestureSynth
+      velocity: actualVelocity,
+      synth: synth,
+      userId: userId,
+      useUserSynth: useUserSynth
     })
 
-    // console.log(`🎵 Sustained note ATTACK: ${frequency.toFixed(1)}Hz, vel=${velocity.toFixed(2)}, noteId=${noteId}`)
+    // console.log(`🎵 Sustained note ATTACK: ${actualFrequency.toFixed(1)}Hz, vel=${actualVelocity.toFixed(2)}, noteId=${noteId}, user=${userId || 'local'}`)
 
-    return { noteId, frequency, startTime: Date.now() }
+    return { noteId, frequency: actualFrequency, startTime: Date.now() }
   }
 
   /**
@@ -1673,27 +1710,30 @@ class AudioService {
    * @param {string} noteId - Note ID from triggerSustainedNoteAttack
    */
   triggerSustainedNoteRelease(noteId) {
-    if (!this.gestureSynth || this.gestureSynth.disposed) {
-      // console.warn('🚫 gestureSynth not available for note release')
-      return
-    }
-
     const noteData = this.activeSustainedNotes?.get(noteId)
     if (!noteData) {
       // console.warn(`⚠️ No active sustained note found for ${noteId}`)
       return
     }
 
+    // Use the synth that was stored when the note was triggered
+    const synth = noteData.synth
+    if (!synth || synth.disposed) {
+      // console.warn('🚫 Synth not available for note release')
+      this.activeSustainedNotes.delete(noteId)
+      return
+    }
+
     // CRITICAL: Trigger release on specific frequency
     // Tone.js synth can play multiple notes simultaneously (polyphony)
     const now = Tone.now()
-    this.gestureSynth.triggerRelease(noteData.frequency, now)
+    synth.triggerRelease(noteData.frequency, now)
 
     // Remove from tracking
     this.activeSustainedNotes.delete(noteId)
 
     const duration = Date.now() - noteData.startTime
-    // console.log(`🎵 Sustained note RELEASE: ${noteData.frequency.toFixed(1)}Hz, held ${duration}ms, noteId=${noteId}`)
+    // console.log(`🎵 Sustained note RELEASE: ${noteData.frequency.toFixed(1)}Hz, held ${duration}ms, noteId=${noteId}, user=${noteData.userId || 'local'}`)
   }
 
   /**
@@ -2563,21 +2603,35 @@ class AudioService {
               }
           }
 
-          // FIX: Use sawtooth wave for both local and remote notes (square wave was inaudible)
-          this.gestureSynth.set({
-            oscillator: {
-              type: 'sawtooth' // Sawtooth for all notes
-            },
-            envelope
-          })
+          // CRITICAL: Use per-user synth if available for unique timbres
+          const userId = musicalEvent.userId
+          let synth = null
+          let actualFrequency = frequency
 
-          // Use triggerAttackRelease for accurate duration control
-          // Volume hierarchy: local (×1.0) > remote (×0.7) > background (×0.5)
+          if (userId && this.userSynthManager) {
+            const synthData = this.userSynthManager.getSynthForUser(userId)
+            if (synthData && synthData.synth && !synthData.synth.disposed) {
+              synth = synthData.synth
+              actualFrequency = this.userSynthManager.constrainFrequencyToTessitura(frequency, userId)
+              console.log(`🎵 playMusicalEvent: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz`)
+            }
+          }
+
+          // Fallback to gestureSynth if no user synth available
+          if (!synth) {
+            synth = this.gestureSynth
+            this.gestureSynth.set({
+              oscillator: { type: 'sawtooth' },
+              envelope
+            })
+          }
+
+          // Volume hierarchy: local (×1.0) > remote (×0.7)
           const finalVelocity = isStreamed ? adjustedVelocity * 0.7 : adjustedVelocity
 
-          this.gestureSynth.triggerAttackRelease(
-            frequency,
-            adjustedDuration,  // Tone.js handles duration in seconds
+          synth.triggerAttackRelease(
+            actualFrequency,
+            adjustedDuration,
             Tone.now(),
             finalVelocity
           )
@@ -4751,6 +4805,13 @@ class AudioService {
       // console.log('🛑 Disposing LFOManager')
       this.lfoManager.dispose()
       this.lfoManager = null
+    }
+
+    // Cleanup UserSynthManager - dispose all per-user synths
+    if (this.userSynthManager && typeof this.userSynthManager.cleanupAll === 'function') {
+      // console.log('🛑 Cleaning up UserSynthManager')
+      this.userSynthManager.cleanupAll()
+      this.userSynthManager = null
     }
 
     this.gestureBuffer = []

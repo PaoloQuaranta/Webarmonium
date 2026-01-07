@@ -41,7 +41,7 @@ class VirtualUserService {
         color: '#e41a1c',
         region: { xMin: 0.05, xMax: 0.33 },
         tessitura: 'bass',
-        frequencyRange: { min: 65, max: 130 }
+        frequencyRange: { min: 55, max: 110 }  // A1-A2 (deeper sub-bass)
       },
       hackernews: {
         userId: 'hackernews-metrics',
@@ -538,7 +538,29 @@ class VirtualUserService {
     // Constrain to scale for harmonic coherence
     const rawPitch = Math.round(12 * Math.log2(rawFreq / 440) + 69)
     const pitch = this.harmonicEngine.constrainToScale(rawPitch, roomState.musicalContext.key, roomState.musicalContext.mode)
-    const frequency = 440 * Math.pow(2, (pitch - 69) / 12)
+    let frequency = 440 * Math.pow(2, (pitch - 69) / 12)
+
+    // TESSITURA ENFORCEMENT: Clamp frequency to virtual user's range using octave wrapping
+    // This ensures Wikipedia stays bass, HackerNews stays tenor, GitHub stays soprano
+    const { min, max } = config.frequencyRange
+
+    // CRITICAL: Validate frequency to prevent infinite loops (0, NaN, Infinity)
+    if (!isFinite(frequency) || frequency <= 0) {
+      frequency = min  // Fallback to tessitura minimum
+    } else {
+      const MAX_ITERATIONS = 20  // Safety limit
+      let iterations = 0
+      while (frequency < min && iterations < MAX_ITERATIONS) {
+        frequency *= 2  // Up an octave
+        iterations++
+      }
+      iterations = 0
+      while (frequency > max && iterations < MAX_ITERATIONS) {
+        frequency /= 2  // Down an octave
+        iterations++
+      }
+      frequency = Math.max(min, Math.min(max, frequency))  // Final clamp
+    }
 
     // ORGANIC DURATION: Correlate tap duration to stability metric (same as Landing)
     // Higher stability (slower) = longer note
@@ -718,12 +740,28 @@ class VirtualUserService {
     })
 
     // Emit each note with timing from PhraseMorphology (same as LandingCompositionService)
+    const { min: freqMin, max: freqMax } = config.frequencyRange
+
     phrase.notes.forEach((note, i) => {
       if (typeof note.pitch !== 'number' || isNaN(note.pitch)) return
 
       const noteId = `virtual_${source}_${Date.now()}_${i}`
-      const noteFreq = 440 * Math.pow(2, (note.pitch - 69) / 12)
-      if (isNaN(noteFreq) || !isFinite(noteFreq)) return
+      let noteFreq = 440 * Math.pow(2, (note.pitch - 69) / 12)
+      if (isNaN(noteFreq) || !isFinite(noteFreq) || noteFreq <= 0) return
+
+      // TESSITURA ENFORCEMENT: Clamp frequency to virtual user's range using octave wrapping
+      const MAX_ITERATIONS = 20  // Safety limit
+      let iterations = 0
+      while (noteFreq < freqMin && iterations < MAX_ITERATIONS) {
+        noteFreq *= 2  // Up an octave
+        iterations++
+      }
+      iterations = 0
+      while (noteFreq > freqMax && iterations < MAX_ITERATIONS) {
+        noteFreq /= 2  // Down an octave
+        iterations++
+      }
+      noteFreq = Math.max(freqMin, Math.min(freqMax, noteFreq))  // Final clamp
 
       // Position along trajectory
       const noteProgress = i / Math.max(1, phrase.notes.length - 1)

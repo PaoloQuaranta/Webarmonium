@@ -137,6 +137,12 @@ class SocketEventCoordinator {
         this.cursorManager.removeCursor(data.userId)
       }
 
+      // CRITICAL: Cleanup user's synth on disconnect to prevent memory leak
+      // Each user has a dedicated synth that must be disposed when they leave
+      if (data.userId && this.audioService?.userSynthManager) {
+        this.audioService.userSynthManager.cleanupUserSynth(data.userId)
+      }
+
       if (this.onUserCountChange) {
         this.onUserCountChange(this.userCount)
       }
@@ -372,11 +378,15 @@ class SocketEventCoordinator {
       }
 
       const event = musicalEventWrapper.event
+      const remoteUserId = musicalEventWrapper.userId
 
       // Minimal logging
       if (event.properties?.noteIndex === 0 || !event.properties?.noteIndex) {
         // console.log(`🎵 Remote: ${event.properties?.gestureAction || 'unknown'} - freq=${event.properties?.frequency?.toFixed(0)}Hz`)
       }
+
+      // CRITICAL: Include userId in event for per-user synth routing
+      const eventWithUserId = { ...event, userId: remoteUserId }
 
       // Schedule note playback based on timestamp
       const now = Date.now()
@@ -386,12 +396,12 @@ class SocketEventCoordinator {
       if (delay > 0) {
         setTimeout(() => {
           if (this.isAudioStarted && this.audioService) {
-            this.audioService.playMusicalEvent(event)
+            this.audioService.playMusicalEvent(eventWithUserId)
           }
         }, delay)
       } else {
         if (this.audioService) {
-          this.audioService.playMusicalEvent(event)
+          this.audioService.playMusicalEvent(eventWithUserId)
         }
       }
     })

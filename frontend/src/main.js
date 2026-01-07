@@ -1145,16 +1145,19 @@ class WebarmoniumApp {
         delay = Math.max(0, eventTime - now)
       }
 
+      // CRITICAL: Include userId in event for per-user synth routing
+      const eventWithUserId = { ...event, userId: remoteUserId }
+
       if (delay > 0) {
         // Schedule note for future playback
         setTimeout(() => {
           if (this.isAudioStarted && this.audioService) {
-            this.audioService.playMusicalEvent(event)
+            this.audioService.playMusicalEvent(eventWithUserId)
           }
         }, delay)
       } else {
         // Play immediately if timestamp is in the past
-        this.audioService.playMusicalEvent(event)
+        this.audioService.playMusicalEvent(eventWithUserId)
       }
     })
 

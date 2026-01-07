@@ -100,8 +100,11 @@ class SustainedHoldHandler {
 
     const { frequency, velocity } = this.calculateFrequencyFromPosition(holdData.position)
 
-    // Trigger note attack (gate opens)
-    const result = this.audioService.triggerSustainedNoteAttack(frequency, velocity, holdData.position)
+    // Get local user ID for per-user timbre routing
+    const localUserId = this.socketService?.userId || null
+
+    // Trigger note attack (gate opens) - local user, not remote
+    const result = this.audioService.triggerSustainedNoteAttack(frequency, velocity, holdData.position, localUserId, false)
 
     if (result) {
       // Store note data
@@ -166,11 +169,14 @@ class SustainedHoldHandler {
 
     // console.log(`🌐 Remote hold start: user ${data.userId.substring(0, 8)}, freq ${data.frequency.toFixed(1)}Hz`)
 
-    // Trigger remote note attack (quieter for remote users)
+    // Trigger remote note attack with per-user timbre routing
+    // Volume reduction (0.7) is now handled internally by AudioService based on isRemote flag
     const result = this.audioService.triggerSustainedNoteAttack(
       data.frequency,
-      data.velocity * 0.7,
-      data.position
+      data.velocity,  // Pass full velocity, AudioService applies remote reduction
+      data.position,
+      data.userId,    // User ID for per-user synth routing
+      true            // isRemote = true for volume reduction
     )
 
     if (result) {

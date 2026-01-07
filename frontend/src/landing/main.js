@@ -834,23 +834,36 @@ class LandingApp {
       return
     }
 
-    // Play tap note using gestureSynth (short percussive)
-    const synth = this.audioService.gestureSynth
+    // CRITICAL: Use per-user synth if available for unique timbres
+    let synth = null
+    let actualFrequency = frequency
     const tapDuration = duration || 0.1  // Default 100ms for tap
+
+    if (userId && this.audioService.userSynthManager) {
+      const synthData = this.audioService.userSynthManager.getSynthForUser(userId)
+      if (synthData && synthData.synth && !synthData.synth.disposed) {
+        synth = synthData.synth
+        actualFrequency = this.audioService.userSynthManager.constrainFrequencyToTessitura(frequency, userId)
+        console.log(`🎵 Virtual TAP: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz`)
+      }
+    }
+
+    // Fallback to gestureSynth if no user synth available
+    if (!synth) {
+      synth = this.audioService.gestureSynth
+    }
 
     if (synth) {
       if (typeof synth.triggerAttackRelease === 'function') {
         const now = window.Tone.now()
-        synth.triggerAttackRelease(frequency, tapDuration, now, velocity)
-
-        // console.log(`🎵 Virtual TAP: ${userId} - ${frequency.toFixed(1)}Hz - vel ${velocity.toFixed(2)} - dur ${(tapDuration * 1000).toFixed(0)}ms`)
+        synth.triggerAttackRelease(actualFrequency, tapDuration, now, velocity)
       } else if (typeof synth.triggerAttack === 'function') {
         // Fallback
-        synth.triggerAttack(frequency, window.Tone.now(), velocity)
+        synth.triggerAttack(actualFrequency, window.Tone.now(), velocity)
         const fallbackDuration = (tapDuration || 0.1) * 1000
         setTimeout(() => {
           if (synth && typeof synth.triggerRelease === 'function') {
-            synth.triggerRelease(frequency)
+            synth.triggerRelease(actualFrequency)
           }
         }, fallbackDuration)
       }
