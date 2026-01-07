@@ -729,16 +729,21 @@ class SpringMeshNetwork {
     const x = node.x * p.width
     const y = node.y * p.height
 
-    // Trace nodes: small circles with pad effect (more visible)
-    const size = this.topologyGenerator.traceTopology?.nodeSize || 6
+    // Trace nodes: subtle, smaller with reduced opacity
+    const baseSize = this.topologyGenerator.traceTopology?.nodeSize || 6
+    const size = baseSize * 0.5  // Halved size
+
+    // Parse hex color and apply half opacity
+    const rgb = this.hexToRgbArray(node.color)
+    const alpha = 127  // Half opacity (255 / 2)
 
     p.noStroke()
-    p.fill(node.color)
+    p.fill(rgb[0], rgb[1], rgb[2], alpha)
     p.circle(x, y, size)
 
-    // Pad ring - more visible
-    p.stroke(node.color)
-    p.strokeWeight(1)
+    // Pad ring - subtle
+    p.stroke(rgb[0], rgb[1], rgb[2], alpha * 0.6)
+    p.strokeWeight(0.5)
     p.noFill()
     p.circle(x, y, size * 2.5)
   }

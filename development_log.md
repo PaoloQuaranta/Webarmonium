@@ -3074,3 +3074,35 @@ fadeOutTime: 20.0,  // 20 seconds (gradual, extended)
 | feedback | 0.65 (fixed) | 0.65 (fixed) | 0.65 (fixed) |
 
 ---
+
+## Entry #34 - Trace Node Visual Subtlety
+
+**Date**: 2026-01-08
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Made trace nodes (yellow/cyan intermediate nodes with concentric circles) more subtle to reduce visual clutter while keeping edge colors unchanged.
+
+---
+
+### Changes
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Node size | 6px | 3px (halved) |
+| Node opacity | 100% (solid) | 50% (alpha 127) |
+| Ring strokeWeight | 1px | 0.5px |
+| Ring opacity | 100% | 30% (alpha ~76) |
+| Colors | Cyan #06b6d4, Gold #fbbf24 | Unchanged |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/visual/SpringMeshNetwork.js` | `renderIntermediateNode()`: halved size, added RGBA with alpha, reduced ring stroke |
+
+---
