@@ -704,12 +704,6 @@ class LandingApp {
   _handleVirtualHoldStart(data) {
     if (!this.audioService || !this.visualService) return
 
-    // CRITICAL: Verify gestureSynth exists before proceeding
-    if (!this.audioService.gestureSynth) {
-      console.warn('⚠️ gestureSynth not initialized - skipping note playback')
-      return
-    }
-
     const { userId, frequency, velocity, duration, userColor } = data
 
     // CRITICAL: Validate frequency before processing
@@ -730,33 +724,47 @@ class LandingApp {
       return
     }
 
-    // Play note using gestureSynth (sawtooth waves) with delay/reverb
-    const synth = this.audioService.gestureSynth
+    // CRITICAL: Use per-user synth for consistent timbre (same as _handleVirtualTapNote)
+    let synth = null
+    let actualFrequency = frequency
+
+    if (userId && this.audioService.userSynthManager) {
+      const synthData = this.audioService.userSynthManager.getSynthForUser(userId)
+      if (synthData && synthData.synth && !synthData.synth.disposed) {
+        synth = synthData.synth
+        actualFrequency = this.audioService.userSynthManager.constrainFrequencyToTessitura(frequency, userId)
+        // console.log(`🎵 Virtual HOLD: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
+      }
+    }
+
+    // Fallback to gestureSynth if no user synth available
+    if (!synth) {
+      if (!this.audioService.gestureSynth) {
+        console.warn('⚠️ No synth available - skipping note playback')
+        return
+      }
+      synth = this.audioService.gestureSynth
+    }
+
     if (synth) {
       if (typeof synth.triggerAttackRelease === 'function') {
         // CRITICAL: Use variable duration from backend (200-2000ms based on metric intensity)
         const noteDuration = duration || 1.0  // Fallback to 1s if not provided
         const now = window.Tone.now()
 
-        // Create the note with full FX chain (sawtooth → filter → delay → reverb)
-        synth.triggerAttackRelease(frequency, noteDuration, now, velocity)
-
-        // console.log(`🎵 Virtual TAP [sawtooth+FX]: ${userId} - ${frequency.toFixed(1)}Hz - vel ${velocity.toFixed(2)} - dur ${(noteDuration * 1000).toFixed(0)}ms`)
+        synth.triggerAttackRelease(actualFrequency, noteDuration, now, velocity)
       } else if (typeof synth.triggerAttack === 'function') {
         // Fallback to triggerAttack + triggerRelease
-        synth.triggerAttack(frequency, window.Tone.now(), velocity)
+        synth.triggerAttack(actualFrequency, window.Tone.now(), velocity)
         const fallbackDuration = (duration || 1.0) * 1000  // Convert to ms
         setTimeout(() => {
           if (synth && typeof synth.triggerRelease === 'function') {
-            synth.triggerRelease(frequency)
+            synth.triggerRelease(actualFrequency)
           }
         }, fallbackDuration)
-        // console.log(`🎵 Virtual TAP (fallback): ${userId} - ${frequency.toFixed(1)}Hz - ${fallbackDuration.toFixed(0)}ms`)
       } else {
-        console.warn('⚠️ gestureSynth has no trigger methods')
+        console.warn('⚠️ synth has no trigger methods')
       }
-    } else {
-      console.warn('⚠️ gestureSynth not available - audioService may not be initialized')
     }
 
     // Trigger particles based on velocity

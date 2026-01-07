@@ -1974,7 +1974,8 @@ class AudioService {
             // Add some randomness if no intensity provided
             intensity = 0.3 + Math.random() * 0.4 // 0.3-0.7 range
           }
-          const velocity = 0.1 + (intensity * 0.3) // 0.1-0.4 range for subtle collaborative audio
+          // FIXED: Increased from 0.1-0.4 to 0.5-0.9 for audible remote patterns
+          const velocity = 0.5 + (intensity * 0.4) // 0.5-0.9 range for audible collaborative audio
 
           // FIX: Use very short duration to prevent hanging
           const duration = 0.1 // 100ms maximum for remote notes

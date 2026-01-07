@@ -131,56 +131,40 @@ class GestureProcessor {
    */
   processClickGesture(gesture, sonicParams) {
     // console.log('🎵 Processing TAP gesture - single note')
-    // console.log('🎵 TAP gesture ID:', gesture.id, 'call count:', (this.tapCallCount = (this.tapCallCount || 0) + 1))
 
-    if (this.audioService && this.audioService.playThreeTierNote) {
-      // Calculate frequency using BOTH X and Y for maximum variation
-      // Y controls octave range, X controls frequency within octave
-      const octaveBase = 110 + (1 - sonicParams.y) * 440 // 110-550Hz (A2 to C#5)
-      const withinOctave = sonicParams.x * 660 // 0-660Hz variation within octave
-      const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
+    // Calculate frequency using BOTH X and Y for maximum variation
+    // Y controls octave range, X controls frequency within octave
+    const octaveBase = 110 + (1 - sonicParams.y) * 440 // 110-550Hz (A2 to C#5)
+    const withinOctave = sonicParams.x * 660 // 0-660Hz variation within octave
+    const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
 
-      const tier = sonicParams.x < 0.33 ? 'background' : sonicParams.x < 0.67 ? 'remote' : 'local'
+    const noteVolume = 0.5 // FIXED volume for clicks
+    const noteDuration = 0.1 // 100ms for short percussive notes
 
-      // console.log(`🎵 Playing CLICK note: ${frequency.toFixed(1)}Hz (y=${sonicParams.y.toFixed(2)}, x=${sonicParams.x.toFixed(2)}), tier: ${tier}`)
+    // CRITICAL: Use per-user synth for consistent timbre (same as phrases)
+    // Get local user ID for per-user synth routing
+    const localUserId = this.socketService?.socket?.id || null
 
-      // Play single note directly - BYPASS three-tier system for TAP
-      // This ensures our X/Y frequency calculation is respected
-      // console.log('🔍 TAP intensity check:', {
-//        gestureIntensity: gesture.intensity,
-//        sonicIntensity: sonicParams.intensity,
-//        positionX: sonicParams.x,
-//        positionY: sonicParams.y
-////      })
-      const noteVolume = 0.5 // FIXED volume - remove intensity modulation from clicks
-      const noteDuration = '32n' // Very short duration for clicks
-
-      // Direct synth access to bypass three-tier frequency mapping
-      if (this.audioService.gestureSynth) {
-        // Configure synth directly for short, percussive notes
-        this.audioService.gestureSynth.set({
-          oscillator: {
-            type: tier === 'background' ? 'triangle' :
-                   tier === 'remote' ? 'square' : 'sawtooth'
-          },
-          envelope: {
-            attack: 0.01,    // Very fast attack (10ms)
-            decay: 0.05,     // Quick decay (50ms)
-            sustain: 0.1,    // Low sustain level (10%)
-            release: 0.1     // Short release (100ms)
-          }
-        })
-
-        // Trigger note directly with our calculated frequency
-        this.audioService.gestureSynth.triggerAttackRelease(
-          frequency,
-          noteDuration,
-          Tone.now(),
-          noteVolume
-        )
-
-        // console.log(`🎵 DIRECT TAP note: ${frequency.toFixed(1)}Hz (y=${sonicParams.y.toFixed(2)}, x=${sonicParams.x.toFixed(2)}), tier: ${tier}`)
+    // Create musical event and route through playMusicalEvent for unified timbre handling
+    const musicalEvent = {
+      pitch: 60, // Not used when frequency is provided
+      velocity: noteVolume * 100,
+      duration: noteDuration,
+      articulation: 'staccato', // Short, percussive
+      eventType: 'tap',
+      userId: localUserId,
+      properties: {
+        frequency: frequency,
+        duration: noteDuration,
+        velocity: noteVolume * 100,
+        articulation: 'staccato'
       }
+    }
+
+    // Route through playMusicalEvent which uses userSynthManager
+    if (this.audioService && this.audioService.playMusicalEvent) {
+      this.audioService.playMusicalEvent(musicalEvent)
+      // console.log(`🎵 TAP via playMusicalEvent: ${frequency.toFixed(1)}Hz, userId=${localUserId?.substring(0,8)}`)
     }
   }
 
