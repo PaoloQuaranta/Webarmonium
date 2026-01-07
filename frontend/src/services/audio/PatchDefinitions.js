@@ -114,7 +114,7 @@ const REAL_USER_PATCHES = {
       frequency: 2500,
       Q: 1.2
     },
-    volume: -1,             // Square is loud
+    volume: 3,              // Square is loud - boosted
     effects: {
       delaySend: 0.15,
       reverbSend: 0.2
@@ -138,7 +138,7 @@ const REAL_USER_PATCHES = {
       frequency: 1000,
       Q: 2
     },
-    volume: 1,
+    volume: 5,              // Boosted
     effects: {
       delaySend: 0.1,
       reverbSend: 0.2
@@ -163,7 +163,7 @@ const REAL_USER_PATCHES = {
       frequency: 1800,
       Q: 0.8
     },
-    volume: 0,
+    volume: 4,              // Boosted
     effects: {
       delaySend: 0.2,
       reverbSend: 0.4
@@ -188,7 +188,7 @@ const REAL_USER_PATCHES = {
       frequency: 250,
       Q: 0.7
     },
-    volume: 2,
+    volume: 6,              // Boosted
     effects: {
       delaySend: 0.25,
       reverbSend: 0.35
