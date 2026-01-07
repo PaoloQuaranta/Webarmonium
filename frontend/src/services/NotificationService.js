@@ -56,7 +56,7 @@ class NotificationService {
         color: #fff;
         padding: 12px 24px;
         border-radius: 8px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-family: 'Archivo', -apple-system, BlinkMacSystemFont, sans-serif;
         font-size: 14px;
         line-height: 1.4;
         max-width: 400px;

@@ -105,7 +105,7 @@ class AudioControls {
       background: rgba(0, 0, 0, 0.7);
       border-radius: 8px;
       color: white;
-      font-family: sans-serif;
+      font-family: 'Archivo', sans-serif;
       font-size: 14px;
     `
 

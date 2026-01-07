@@ -3106,3 +3106,42 @@ Made trace nodes (yellow/cyan intermediate nodes with concentric circles) more s
 | `frontend/src/services/visual/SpringMeshNetwork.js` | `renderIntermediateNode()`: halved size, added RGBA with alpha, reduced ring stroke |
 
 ---
+
+## Entry #35 - Typography Update: Archivo Font
+
+**Date**: 2026-01-08
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Replaced the default Inter font with Archivo for a more minimalist, angular, techno aesthetic.
+
+---
+
+### Changes
+
+Updated all font-family declarations from Inter/system fonts to Archivo (Google Fonts).
+
+**Files Modified:**
+
+| File | Change |
+|------|--------|
+| `frontend/index.html` | Added Google Fonts import for Archivo |
+| `frontend/rooms.html` | Added Google Fonts import, updated body font |
+| `frontend/styles.css` | Updated body font-family |
+| `frontend/src/services/NotificationService.js` | Updated notification font |
+| `frontend/src/components/AudioControls.js` | Updated controls font |
+
+---
+
+### Font Characteristics
+
+**Archivo** (Google Fonts):
+- Grotesque sans-serif
+- Squared, angular letterforms
+- Minimal, functional aesthetic
+- Good readability at all sizes
+- Fits the techno/electronic music context
+
+---
