@@ -2612,17 +2612,21 @@ class AudioService {
           let synth = null
           let actualFrequency = frequency
 
+          console.log(`🔍 playMusicalEvent check: userId=${userId}, hasUserSynthManager=${!!this.userSynthManager}`)
+
           if (userId && this.userSynthManager) {
             const synthData = this.userSynthManager.getSynthForUser(userId)
+            console.log(`🔍 getSynthForUser(${userId}):`, synthData ? `patch=${synthData.patch?.name}` : 'null')
             if (synthData && synthData.synth && !synthData.synth.disposed) {
               synth = synthData.synth
               actualFrequency = this.userSynthManager.constrainFrequencyToTessitura(frequency, userId)
-              console.log(`🎵 playMusicalEvent: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz`)
+              console.log(`🎵 playMusicalEvent: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
             }
           }
 
           // Fallback to gestureSynth if no user synth available
           if (!synth) {
+            console.warn(`⚠️ FALLBACK to gestureSynth (sawtooth) - userId=${userId}, userSynthManager=${!!this.userSynthManager}`)
             synth = this.gestureSynth
             this.gestureSynth.set({
               oscillator: { type: 'sawtooth' },
