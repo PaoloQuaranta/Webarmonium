@@ -231,13 +231,17 @@ class GestureProcessor {
       // Create musical phrase locally based on gesture characteristics
       const phrase = this.createLocalPhrase(gesture, sonicParams)
 
-      // console.log(`🎵 Generated local phrase with ${phrase.length} notes`)
-
       // Get local user ID for per-user synth routing
       const localUserId = this.socketService?.socket?.id || null
 
+      console.log(`🎵 Local phrase: ${phrase.length} notes, userId=${localUserId?.substring(0,8)}`)
+      phrase.forEach((note, i) => {
+        console.log(`  Note ${i}: pitch=${note.pitch}, startTime=${note.startTime.toFixed(3)}s, duration=${note.duration.toFixed(3)}s`)
+      })
+
       // Play each note in the phrase
       phrase.forEach((note, index) => {
+        const delayMs = note.startTime * 1000
         setTimeout(() => {
           try {
             const musicalEvent = {
@@ -249,11 +253,12 @@ class GestureProcessor {
               userId: localUserId  // CRITICAL: Include userId for per-user synth routing
             }
 
+            console.log(`🎶 Playing note ${index} at ${Date.now() % 10000}ms: pitch=${note.pitch}`)
             this.audioService.playMusicalEvent(musicalEvent)
           } catch (e) {
-            // console.warn(`🔇 Error playing phrase note ${index}:`, e)
+            console.warn(`🔇 Error playing phrase note ${index}:`, e)
           }
-        }, note.startTime * 1000) // Convert seconds to milliseconds
+        }, delayMs)
       })
 
     } catch (error) {

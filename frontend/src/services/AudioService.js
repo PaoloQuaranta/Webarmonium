@@ -2515,13 +2515,10 @@ class AudioService {
 //          articulation: articulation
 ////        })
       } else if (typeof duration === 'number') {
-        // Convert beats to seconds if duration is in beats
-        if (duration < 10) {
-          normalizedDuration = duration * 0.25 // Assume quarter note = 0.25s at 60 BPM
-        }
-
-        // Clamp to reasonable range
-        normalizedDuration = Math.max(0.05, Math.min(4.0, normalizedDuration))
+        // Frontend format: duration is ALREADY in seconds (0.25-1.2s from createLocalPhrase)
+        // Don't multiply by 0.25 - that was wrong!
+        // Just clamp to reasonable range
+        normalizedDuration = Math.max(0.05, Math.min(4.0, duration))
       }
 
       // Apply velocity normalization (articulation affects only envelope, not duration)

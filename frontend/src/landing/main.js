@@ -728,17 +728,23 @@ class LandingApp {
     let synth = null
     let actualFrequency = frequency
 
+    console.log(`🔍 _handleVirtualHoldStart: userId=${userId}, userSynthManager=${!!this.audioService.userSynthManager}`)
+
     if (userId && this.audioService.userSynthManager) {
       const synthData = this.audioService.userSynthManager.getSynthForUser(userId)
+      console.log(`🔍 getSynthForUser(HOLD):`, synthData ? `patch=${synthData.patch?.name}, disposed=${synthData.synth?.disposed}` : 'null')
       if (synthData && synthData.synth && !synthData.synth.disposed) {
         synth = synthData.synth
         actualFrequency = this.audioService.userSynthManager.constrainFrequencyToTessitura(frequency, userId)
-        // console.log(`🎵 Virtual HOLD: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
+        console.log(`🎵 Virtual HOLD: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
       }
+    } else {
+      console.warn(`⚠️ No userSynthManager or userId in HOLD - falling back`)
     }
 
     // Fallback to gestureSynth if no user synth available
     if (!synth) {
+      console.warn(`⚠️ HOLD using gestureSynth fallback for userId=${userId}`)
       if (!this.audioService.gestureSynth) {
         console.warn('⚠️ No synth available - skipping note playback')
         return
