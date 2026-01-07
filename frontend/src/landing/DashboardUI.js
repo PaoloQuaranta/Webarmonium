@@ -270,7 +270,7 @@ export class DashboardUI {
     const { toggleBtn } = this.elements
 
     if (toggleBtn) {
-      toggleBtn.textContent = isPlaying ? '⏸ Stop' : '▶ Start Experience'
+      toggleBtn.textContent = isPlaying ? '⏸ Stop' : '▶ Start'
       toggleBtn.classList.toggle('playing', isPlaying)
     }
   }

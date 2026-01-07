@@ -244,6 +244,10 @@ class LandingApp {
         }
       })
 
+      // Setup socket connection immediately for metrics updates
+      // (audio/visuals only start when user presses Start)
+      this._setupSocketConnection()
+
       this.isInitialized = true
       // console.log('✅ Landing page initialized (waiting for Start)')
 
@@ -482,15 +486,16 @@ class LandingApp {
       })
 
       // Listen for metrics updates from backend
+      // NOTE: Metrics update even before Start is pressed (dashboard always shows live data)
       this.socket.on('metrics-update', (data) => {
-        if (!this.isRunning) return
-
         if (data.metrics) {
           this.currentMetrics = data.metrics
           this.dashboardUI.updateMetrics(this.currentMetrics)
 
-          // Apply delay modulation based on metrics (same as normal rooms)
-          this._applyDelayModulation()
+          // Apply delay modulation only when running
+          if (this.isRunning) {
+            this._applyDelayModulation()
+          }
         }
       })
 
@@ -956,8 +961,14 @@ class LandingApp {
         }
       }
 
-      // Setup socket connection
-      this._setupSocketConnection()
+      // Socket is already connected from initialize() - just request drone if needed
+      if (this.socket?.connected) {
+        // Request drone for audio playback
+        this.socket.emit('request-drone')
+      } else {
+        // Fallback: reconnect if socket was disconnected
+        this._setupSocketConnection()
+      }
 
       // Update state
       this.isRunning = true
@@ -990,11 +1001,8 @@ class LandingApp {
       this.isAudioReady = false  // Reset audio state for proper restart
       this.pendingDrone = null   // Clear pending drone on stop
 
-      // Disconnect socket
-      if (this.socket) {
-        this.socket.disconnect()
-        this.socket = null
-      }
+      // Keep socket connected for metrics updates (don't disconnect)
+      // Only audio/visuals stop, metrics dashboard continues updating
 
       // Update state
       this.isRunning = false

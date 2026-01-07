@@ -3107,6 +3107,44 @@ Made trace nodes (yellow/cyan intermediate nodes with concentric circles) more s
 
 ---
 
+## Entry #36 - Landing Page: Immediate Metrics & Simplified Button
+
+**Date**: 2026-01-08
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Two UI improvements to the landing page:
+1. Button text simplified from "▶ Start Experience" to "▶ Start"
+2. Metrics sliders now update from page load (not just after pressing Start)
+
+---
+
+### Changes
+
+**Button Text:**
+- `index.html`: "▶ Start Experience" → "▶ Start"
+- `DashboardUI.js`: Toggle state text updated to match
+
+**Immediate Metrics:**
+- Socket connection moved from `start()` to `initialize()`
+- Metrics update handler no longer blocked by `isRunning` check
+- `stop()` keeps socket connected (only stops audio/visuals)
+- Metrics dashboard shows live data as soon as page loads
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/index.html` | Button text, version bump (v=47) |
+| `frontend/src/landing/DashboardUI.js` | Toggle button text |
+| `frontend/src/landing/main.js` | Socket in initialize(), metrics-update handler fix, stop() preserves socket |
+
+---
+
 ## Entry #35 - Typography Update: Archivo Font
 
 **Date**: 2026-01-08
