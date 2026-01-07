@@ -476,6 +476,14 @@ footer a:hover {
   font-size: 0.8rem;
 }
 
+.version-tag {
+  margin-top: 1rem;
+  font-size: 0.7rem;
+  color: var(--accent);
+  font-family: monospace;
+  opacity: 0.8;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   #metrics-dashboard {

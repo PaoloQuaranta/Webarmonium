@@ -825,13 +825,17 @@ class AudioService {
 
     // Initialize UserSynthManager for per-user unique timbres
     // Each user (real or virtual) gets their own synth with unique patch
+    console.log('🔍 Checking UserSynthManager availability:', typeof UserSynthManager)
+    console.log('🔍 Checking PatchDefinitions availability:', typeof window.PatchDefinitions)
     if (typeof UserSynthManager !== 'undefined') {
       this.userSynthManager = new UserSynthManager({
         masterVolume: this.masterVolume,
         delay: this.delay,
         reverb: this.reverb
       })
-      console.log('UserSynthManager: Initialized for per-user timbres')
+      console.log('✅ UserSynthManager: Initialized for per-user timbres')
+    } else {
+      console.error('❌ UserSynthManager NOT AVAILABLE - all users will have same timbre!')
     }
 
     // DISABLED: Old single-event generative system

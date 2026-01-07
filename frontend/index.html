@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Webarmonium Landing Page - Real-time web activity transformed into generative music and art">
   <title>Webarmonium - Global Activity → Generative Music</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2">
 
   <!-- p5.js for canvas rendering -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
@@ -33,7 +33,7 @@
   <!-- Per-user synth patches -->
   <script src="src/services/audio/PatchDefinitions.js?v=2"></script>
   <script src="src/services/audio/UserSynthManager.js?v=2"></script>
-  <script src="src/services/AudioService.js?v=20"></script>
+  <script src="src/services/AudioService.js?v=21"></script>
   <script src="src/services/DroneVoidController.js"></script>
 </head>
 <body>
@@ -181,10 +181,11 @@
     <footer>
       <p>Powered by <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia API</a>, <a href="https://news.ycombinator.com" target="_blank" rel="noopener">HackerNews API</a>, and <a href="https://github.com" target="_blank" rel="noopener">GitHub API</a></p>
       <p class="footer-note">Data updates every 5-60 seconds depending on source. Rate limits are respected.</p>
+      <p class="version-tag">v1.0.1</p>
     </footer>
   </main>
 
   <!-- Landing page module scripts -->
-  <script type="module" src="src/landing/main.js?v=43"></script>
+  <script type="module" src="src/landing/main.js?v=44"></script>
 </body>
 </html>
