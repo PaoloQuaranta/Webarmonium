@@ -502,7 +502,7 @@ class AudioService {
     this.delay = new Tone.FeedbackDelay({
       delayTime: 0.2,    // 200ms delay time
       maxDelay: 1,       // 1 second max
-      feedback: 0.4,     // Multiple repetitions
+      feedback: 0.65,    // INCREASED from 0.55 - more echoes for landing page
       wet: 1.0           // 100% wet - this is a FX bus, not insert
     }).connect(this.masterVolume)
 
@@ -2062,16 +2062,10 @@ class AudioService {
    * @param {Object} composition - Composition from BackgroundCompositionService
    */
   playComposition(composition, isDrone = false) {
-    // TESTING: Temporarily silence all background/drone compositions
-    // TODO: Remove this block after testing remote gesture volume
-    console.log(`🔇 playComposition SILENCED for testing - isDrone: ${isDrone}, type: ${composition?.type}`)
-    return
-    // END TESTING BLOCK
-
-    console.log(`🎼 playComposition called - isDrone: ${isDrone}, isInitialized: ${this.isInitialized}, muted: ${this.muted}, type: ${composition?.type}`)
+    // console.log(`🎼 playComposition called - isDrone: ${isDrone}, isInitialized: ${this.isInitialized}, muted: ${this.muted}, type: ${composition?.type}`)
 
     if (!this.isInitialized || this.muted) {
-      console.log('🔇 playComposition blocked - initialized:', this.isInitialized, 'muted:', this.muted)
+      // console.log('🔇 playComposition blocked - initialized:', this.isInitialized, 'muted:', this.muted)
       return
     }
 
@@ -2478,10 +2472,10 @@ class AudioService {
    */
   playMusicalEvent(musicalEvent) {
     // DEBUG: PROMINENT log to verify this function is being called
-    console.log(`📣 playMusicalEvent CALLED - userId=${musicalEvent?.userId?.substring(0,8)}, eventType=${musicalEvent?.eventType}, gestureAction=${musicalEvent?.properties?.gestureAction}`)
+    // console.log(`📣 playMusicalEvent CALLED - userId=${musicalEvent?.userId?.substring(0,8)}, eventType=${musicalEvent?.eventType}, gestureAction=${musicalEvent?.properties?.gestureAction}`)
 
     if (!this.isInitialized || !musicalEvent || this.muted) {
-      console.log('🔇 playMusicalEvent blocked - initialized:', this.isInitialized, 'muted:', this.muted)
+      // console.log('🔇 playMusicalEvent blocked - initialized:', this.isInitialized, 'muted:', this.muted)
       return
     }
 
@@ -4983,19 +4977,15 @@ class AudioService {
       this.generativeState.mode = parameters.mode
     }
 
-    // DELAY MODULATION: Speed and feedback based on interaction metrics
+    // DELAY MODULATION: Only modulate delay time, keep feedback fixed at 0.55 (like normal rooms)
     if (this.delay) {
-      // Delay time: faster with higher rhythmic density (100ms - 400ms range)
+      // Delay time: faster with higher rhythmic density (100ms - 200ms range)
+      // Matches normal rooms baseline of 0.2s at low density
       if (parameters.rhythmicDensity !== undefined) {
-        const delayTime = 0.4 - (parameters.rhythmicDensity * 0.15)  // More dense = faster delay
+        const delayTime = 0.2 - (parameters.rhythmicDensity * 0.1)  // At density=0: 0.2s, at density=1: 0.1s
         this.delay.delayTime.rampTo(Math.max(0.1, delayTime), 2)  // Smooth 2s transition
       }
-
-      // Feedback: more repetitions with higher harmonic density (0.2 - 0.6 range)
-      if (parameters.harmonicDensity !== undefined) {
-        const feedback = 0.2 + (parameters.harmonicDensity * 0.1)  // More complex = more echoes
-        this.delay.feedback.rampTo(Math.min(0.6, feedback), 2)  // Smooth 2s transition
-      }
+      // Feedback: FIXED at 0.55 (same as normal rooms, no modulation)
     }
 
     // console.log('🎵 Updated generative state:', {

@@ -10,7 +10,7 @@
  * Behavior:
  * - Drone starts SILENT on startup
  * - After 5-10 seconds of inactivity, drone fades IN (2 seconds)
- * - During activity, drone fades OUT (5 seconds) to complete silence
+ * - During activity, drone fades OUT (20 seconds) to complete silence
  * - Identical behavior in landing page and normal rooms
  */
 class DroneVoidController {
@@ -30,7 +30,7 @@ class DroneVoidController {
       voidTimeoutMin: 5000,     // 5 seconds minimum quiet before drone emerges
       voidTimeoutMax: 10000,    // 10 seconds for full emergence (voidScore = 1.0)
       fadeInTime: 2.0,          // 2 seconds fade in (quick to fill voids)
-      fadeOutTime: 5.0,         // 5 seconds fade out (gradual)
+      fadeOutTime: 20.0,        // 20 seconds fade out (gradual, extended from 5s)
       droneNominalDb: -3,       // Full drone level (same as Entry #27)
       droneSilentDb: -60,       // Effectively silent
       updateInterval: 100       // Check every 100ms for smooth transitions

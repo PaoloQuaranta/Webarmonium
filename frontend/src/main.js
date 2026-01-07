@@ -812,14 +812,33 @@ class WebarmoniumApp {
       // VIRTUAL USERS: Use triggerAttackRelease with duration (like landing page)
       // This provides natural envelope instead of aggressive sustained note envelope
       if (data.isVirtual) {
-        // AUDIO: Play the note if synth is available
-        if (this.audioService?.gestureSynth) {
-          const synth = this.audioService.gestureSynth
-          if (synth && typeof synth.triggerAttackRelease === 'function') {
-            const noteDuration = data.duration || 0.5
-            const velocity = data.velocity * 0.6 // Quieter for virtual users
-            synth.triggerAttackRelease(data.frequency, noteDuration, Tone.now(), velocity)
+        // AUDIO: Use per-user synth via UserSynthManager for unique timbres
+        // FIXED: Was using gestureSynth directly (all same timbre) - now uses UserSynthManager
+        let synth = null
+        let actualFrequency = data.frequency
+        const noteDuration = data.duration || 0.5
+        const velocity = data.velocity * 0.6 // Quieter for virtual users
+
+        // Try to get per-user synth from UserSynthManager
+        if (data.userId && this.audioService?.userSynthManager) {
+          const synthData = this.audioService.userSynthManager.getSynthForUser(data.userId)
+          if (synthData && synthData.synth && !synthData.synth.disposed) {
+            synth = synthData.synth
+            // Constrain frequency to virtual user's tessitura
+            actualFrequency = this.audioService.userSynthManager.constrainFrequencyToTessitura(data.frequency, data.userId)
+            console.log(`🎵 Virtual HOLD: userId=${data.userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
           }
+        }
+
+        // Fallback to gestureSynth only if UserSynthManager failed
+        if (!synth && this.audioService?.gestureSynth) {
+          console.warn(`⚠️ HOLD using gestureSynth fallback for virtual user ${data.userId}`)
+          synth = this.audioService.gestureSynth
+          actualFrequency = data.frequency
+        }
+
+        if (synth && typeof synth.triggerAttackRelease === 'function') {
+          synth.triggerAttackRelease(actualFrequency, noteDuration, Tone.now(), velocity)
         }
 
         // VISUAL: Always update visual service (triggers particles/pulses)

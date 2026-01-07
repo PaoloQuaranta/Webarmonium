@@ -85,9 +85,9 @@ class LandingCompositionService {
         userId: 'wikipedia-metrics',
         color: '#e41a1c',
         region: { xMin: 0.05, xMax: 0.33 }, // Left third
-        baseFrequency: 82.41, // E2 - BASS tessitura (within 55-110 range)
+        baseFrequency: 130.81, // C3 - BASS tessitura (within 110-220 range)
         tessitura: 'bass',
-        frequencyRange: { min: 55, max: 110 } // A1-A2 (deeper sub-bass)
+        frequencyRange: { min: 110, max: 220 } // A2-A3 (FIXED: was 55-110, too low for speakers)
       },
       hackernews: {
         userId: 'hackernews-metrics',

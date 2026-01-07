@@ -8,83 +8,83 @@ console.log('📦 PatchDefinitions.js LOADING...')
 /**
  * Virtual User Patches - Analogico/Caldo Style
  * EACH USES A UNIQUE OSCILLATOR TYPE for maximum differentiation:
- * - Wikipedia: SINE (pure fundamental, you feel it)
- * - HackerNews: SAWTOOTH (rich harmonics, aggressive)
+ * - Wikipedia: SAWTOOTH (rich harmonics for audible bass)
+ * - HackerNews: SINE (pure, mellow tenor)
  * - GitHub: TRIANGLE (hollow, flute-like)
  */
 const VIRTUAL_USER_PATCHES = {
   'wikipedia-metrics': {
-    name: 'Deep Sine Drone',
+    name: 'Rich Saw Bass',
     tessitura: 'bass',
-    frequencyRange: { min: 55, max: 110 },   // A1-A2 (sub-bass)
+    frequencyRange: { min: 110, max: 220 },   // A2-A3
     oscillator: {
-      type: 'sine'          // PURE SINE - clean fundamental
+      type: 'sawtooth'      // SAWTOOTH - rich harmonics make bass audible on all speakers
     },
     envelope: {
-      attack: 0.3,          // Slow swell
-      decay: 0.1,
-      sustain: 1.0,         // Full drone
-      release: 0.8
+      attack: 0.1,          // Medium attack
+      decay: 0.2,
+      sustain: 0.8,         // Full body
+      release: 0.5
     },
     filter: {
       type: 'lowpass',
-      frequency: 150,       // Very low - only fundamentals
-      Q: 0.5
+      frequency: 600,       // Let harmonics through for audibility
+      Q: 1.2
     },
-    volume: 5,
+    volume: 6,              // Saw is naturally louder
     effects: {
-      delaySend: 0.0,       // No delay on bass
-      reverbSend: 0.1
+      delaySend: 0.2,       // ADDED delay send for bass echoes
+      reverbSend: 0.2
     }
   },
 
   'hackernews-metrics': {
-    name: 'Buzzy Saw',
+    name: 'Pure Sine Tenor',
     tessitura: 'tenor',
     frequencyRange: { min: 196, max: 392 },  // G3-G4
     oscillator: {
-      type: 'sawtooth'      // SAWTOOTH - bright, rich harmonics
+      type: 'sine'          // SINE - pure, mellow tone
     },
     envelope: {
       attack: 0.05,
       decay: 0.3,
-      sustain: 0.6,
+      sustain: 0.7,
       release: 0.4
     },
     filter: {
       type: 'lowpass',
-      frequency: 1800,      // Warm but present
-      Q: 1.5
+      frequency: 2000,      // Let the sine through cleanly
+      Q: 0.7
     },
-    volume: 0,
+    volume: 5,
     effects: {
-      delaySend: 0.2,
-      reverbSend: 0.25
+      delaySend: 0.4,       // INCREASED from 0.2 - more echoes
+      reverbSend: 0.3
     }
   },
 
   'github-metrics': {
-    name: 'Hollow Flute',
+    name: 'Mellow Flute',
     tessitura: 'soprano',
     frequencyRange: { min: 523, max: 1047 },  // C5-C6
     oscillator: {
-      type: 'triangle'      // TRIANGLE - hollow, flute-like
+      type: 'triangle'      // TRIANGLE - hollow, soft
     },
     envelope: {
-      attack: 0.02,
-      decay: 0.4,
-      sustain: 0.5,
-      release: 0.5
+      attack: 0.08,         // Softer attack (different from HackerNews)
+      decay: 0.5,           // Longer decay
+      sustain: 0.4,
+      release: 0.7          // Longer release - airy
     },
     filter: {
-      type: 'highpass',
-      frequency: 400,
-      Q: 0.7
+      type: 'bandpass',     // CHANGED from highpass - more flute-like resonance
+      frequency: 800,       // Center frequency
+      Q: 1.5                // Moderate resonance
     },
-    volume: 3,
+    volume: 5,
     effects: {
-      delaySend: 0.3,
-      reverbSend: 0.4
+      delaySend: 0.5,       // INCREASED from 0.35 - more echoes
+      reverbSend: 0.5       // More reverb - ethereal
     }
   }
 }
@@ -179,8 +179,8 @@ const REAL_USER_PATCHES = {
     },
     envelope: {
       attack: 0.002,
-      decay: 0.4,
-      sustain: 0.1,
+      decay: 0.3,           // Faster decay but higher sustain
+      sustain: 0.5,         // FIXED: Was 0.1 (too quiet), now 0.5
       release: 0.5
     },
     filter: {
@@ -188,7 +188,7 @@ const REAL_USER_PATCHES = {
       frequency: 250,
       Q: 0.7
     },
-    volume: 6,              // Boosted
+    volume: 8,              // BOOSTED: Was 6, now 8 for bell clarity
     effects: {
       delaySend: 0.25,
       reverbSend: 0.35

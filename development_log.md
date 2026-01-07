@@ -2773,7 +2773,304 @@ const userSlot = data.slot ?? data.user?.slot
 - ✅ Slots correctly released when user disconnects
 - ✅ User count updates correctly on disconnect (was showing 0, now correct)
 - ✅ Remote user phrases play with correct timbre
-- ⚠️ Remote user taps need verification
+- ✅ Remote user taps work (verified by user)
 - ⚠️ Virtual user timbres need verification
+
+---
+
+## Entry #32 - Timbre Fixes: Bell-Chime, Virtual Users, Wikipedia Audio
+
+**Date**: 2026-01-07
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed multiple audio timbre issues:
+1. Bell-chime patch (slot 3) too quiet due to low sustain
+2. Virtual users in normal rooms all using same fallback synth
+3. Wikipedia no audio in landing page due to sub-bass frequency range
+4. HackerNews and GitHub sounding too similar
+
+---
+
+### Issue 1: Bell-Chime Patch Too Quiet (Slot 3)
+
+**User Report**: "la patch bell-chime è a un volume molto più basso delle altre"
+
+**Root Cause**: The bell-chime patch had `sustain: 0.1` which made the sound decay quickly after the initial attack, appearing much quieter than other patches despite having a high volume setting.
+
+**Fix** (`frontend/src/services/audio/PatchDefinitions.js`):
+```javascript
+// BEFORE
+envelope: {
+  attack: 0.002,
+  decay: 0.4,
+  sustain: 0.1,  // Too low!
+  release: 0.5
+},
+volume: 6
+
+// AFTER
+envelope: {
+  attack: 0.002,
+  decay: 0.3,           // Faster decay
+  sustain: 0.5,         // RAISED from 0.1
+  release: 0.5
+},
+volume: 8              // RAISED from 6
+```
+
+---
+
+### Issue 2: Virtual Users in Normal Rooms Using Fallback Synth
+
+**User Report**: "nelle room normali mi sembra che abbiano tutti lo stesso timbro di fallback"
+
+**Root Cause**: The `hold:start` handler for virtual users in `main.js` was using `gestureSynth` directly instead of routing through `UserSynthManager`:
+
+```javascript
+// BEFORE (broken - all same timbre)
+if (data.isVirtual) {
+  if (this.audioService?.gestureSynth) {
+    const synth = this.audioService.gestureSynth
+    synth.triggerAttackRelease(data.frequency, ...)
+  }
+}
+```
+
+**Fix** (`frontend/src/main.js`): Use `UserSynthManager` for virtual users:
+```javascript
+// AFTER (each virtual user gets unique timbre)
+if (data.isVirtual) {
+  let synth = null
+  let actualFrequency = data.frequency
+
+  // Try per-user synth from UserSynthManager
+  if (data.userId && this.audioService?.userSynthManager) {
+    const synthData = this.audioService.userSynthManager.getSynthForUser(data.userId)
+    if (synthData && synthData.synth && !synthData.synth.disposed) {
+      synth = synthData.synth
+      actualFrequency = this.audioService.userSynthManager.constrainFrequencyToTessitura(data.frequency, data.userId)
+    }
+  }
+
+  // Fallback only if UserSynthManager failed
+  if (!synth && this.audioService?.gestureSynth) {
+    synth = this.audioService.gestureSynth
+  }
+
+  if (synth) {
+    synth.triggerAttackRelease(actualFrequency, noteDuration, Tone.now(), velocity)
+  }
+}
+```
+
+---
+
+### Issue 3: Wikipedia No Audio in Landing Page
+
+**User Report**: "nella landing page, vedo particles e gesti di wikipedia ma non sento audio"
+
+**Root Cause**: Wikipedia's frequency range was 55-110Hz (A1-A2) which is sub-bass territory. Most speakers and headphones cannot reproduce these frequencies well, making them inaudible.
+
+**Fix**: Raised frequency range while keeping bass tessitura:
+
+| Parameter | Before | After |
+|-----------|--------|-------|
+| `frequencyRange.min` | 55 Hz | 110 Hz |
+| `frequencyRange.max` | 110 Hz | 220 Hz |
+| `baseFrequency` | 82.41 Hz (E2) | 130.81 Hz (C3) |
+| `filter.frequency` | 150 Hz | 400 Hz |
+| `volume` | 5 | 8 |
+
+**Files Modified**:
+- `frontend/src/services/audio/PatchDefinitions.js` - Wikipedia patch
+- `backend/src/services/VirtualUserService.js` - Wikipedia config
+- `backend/src/services/LandingCompositionService.js` - Wikipedia config
+
+---
+
+### Issue 4: HackerNews and GitHub Sounding Too Similar
+
+**User Report**: "le altre due voci mi sembrano molto simili"
+
+**Root Cause**: Both patches had similar filter characteristics and envelope shapes, making them hard to distinguish.
+
+**Fix**: Differentiated the patches more dramatically:
+
+#### HackerNews (Bright Saw Lead)
+| Parameter | Before | After |
+|-----------|--------|-------|
+| `envelope.attack` | 0.05 | 0.02 (punchy) |
+| `filter.frequency` | 1800 Hz | 3500 Hz (brighter) |
+| `filter.Q` | 1.5 | 2.0 (resonant edge) |
+| `volume` | 0 | 3 |
+
+#### GitHub (Mellow Flute)
+| Parameter | Before | After |
+|-----------|--------|-------|
+| `envelope.attack` | 0.02 | 0.08 (softer) |
+| `envelope.decay` | 0.4 | 0.5 (longer) |
+| `envelope.release` | 0.5 | 0.7 (airy) |
+| `filter.type` | highpass | bandpass (flute-like) |
+| `filter.frequency` | 400 Hz | 800 Hz |
+| `filter.Q` | 0.7 | 1.5 (resonant) |
+| `effects.delaySend` | 0.3 | 0.35 (spacious) |
+| `effects.reverbSend` | 0.4 | 0.5 (ethereal) |
+| `volume` | 3 | 5 |
+
+---
+
+### Timbre Summary After Changes
+
+#### Virtual Users (Web Sources)
+| Source | Oscillator | Range | Character |
+|--------|------------|-------|-----------|
+| Wikipedia | Sine | 110-220Hz (A2-A3) | Deep, pure bass |
+| HackerNews | Sawtooth | 196-392Hz (G3-G4) | Bright, punchy lead |
+| GitHub | Triangle | 523-1047Hz (C5-C6) | Mellow, airy flute |
+
+#### Real Users (Slots 0-3)
+| Slot | Name | Oscillator | Character |
+|------|------|------------|-----------|
+| 0 | Retro Square | Square | Digital, 8-bit |
+| 1 | Nasal Reed | Pulse | Nasal, woodwind |
+| 2 | Warm Chorus | Fat Sawtooth | Thick, chorused |
+| 3 | Bell Chime | FM Sine | Metallic, bell-like |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/audio/PatchDefinitions.js` | Bell-chime sustain/volume, all virtual user patches |
+| `frontend/src/main.js` | Virtual user audio routing via UserSynthManager |
+| `backend/src/services/VirtualUserService.js` | Wikipedia frequency range 110-220Hz |
+| `backend/src/services/LandingCompositionService.js` | Wikipedia frequency range 110-220Hz |
+
+---
+
+## Entry #33 - Audio Tuning: Delay, Virtual User Patches, Background/Drone Restoration
+
+**Date**: 2026-01-08
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Multiple audio tuning fixes based on user feedback:
+1. Fixed delay parameters mismatch between landing page and normal rooms
+2. Added delay sends to all virtual user patches
+3. Swapped Wikipedia/HackerNews oscillators for better bass audibility
+4. Restored background/drone audio (was muted for testing)
+5. Extended drone fade out duration
+
+---
+
+### Issue 1: Landing Page Delay Sounds Different from Normal Rooms
+
+**User Report**: "in room normali sento molto più delay e lo preferisco"
+
+**Root Cause**: Normal rooms do NOT call `applyGenerative()` so delay stays at initial values:
+- delayTime: 0.2s
+- feedback: 0.55
+
+Landing page called `applyGenerative()` on every metrics update, which modulated delay to:
+- delayTime: 0.3-0.4s (slower echoes at low activity)
+- feedback: 0.4-0.6 (fewer repetitions)
+
+**Fix** (`frontend/src/services/AudioService.js`):
+- Changed delay modulation to only modulate delayTime (not feedback)
+- Base delayTime now 0.2s (matches normal rooms at low activity)
+- Feedback kept fixed at 0.65 (increased from 0.55 for more echoes)
+
+```javascript
+// BEFORE: Both modulated, wrong baselines
+const delayTime = 0.4 - (rhythmicDensity * 0.15)  // 0.25-0.4s
+const feedback = 0.4 + (harmonicDensity * 0.2)    // 0.4-0.6
+
+// AFTER: Only delayTime modulated, feedback fixed
+const delayTime = 0.2 - (rhythmicDensity * 0.1)   // 0.1-0.2s (matches normal rooms)
+// Feedback: FIXED at 0.65 (no modulation)
+```
+
+---
+
+### Issue 2: Virtual Users No Delay Echo
+
+**User Report**: "sei sicuro che le voci dei virtual users abbiano una mandata al delay? non lo sento"
+
+**Root Cause**: `UserSynthManager` only creates delay send nodes if `patch.effects?.delaySend > 0`. Wikipedia had `delaySend: 0` (no delay by design for bass), but user wanted delay on all voices.
+
+**Fix** (`frontend/src/services/audio/PatchDefinitions.js`):
+| Source | delaySend Before | delaySend After |
+|--------|-----------------|-----------------|
+| Wikipedia | 0.0 | 0.2 |
+| HackerNews | 0.2 | 0.4 |
+| GitHub | 0.35 | 0.5 |
+
+---
+
+### Issue 3: Wikipedia/HackerNews Oscillator Swap
+
+**User Request**: "inverti i timbri di wikipedia e hackernews. voglio più armonici nelle note basse per renderle più usibili"
+
+**Fix**: Swapped oscillator types for better bass audibility:
+
+| Source | Oscillator Before | Oscillator After | Reason |
+|--------|-------------------|------------------|--------|
+| Wikipedia | sine | sawtooth | Rich harmonics make bass audible on all speakers |
+| HackerNews | sawtooth | sine | Pure, mellow tenor tone |
+
+---
+
+### Issue 4: Background/Drone Audio Muted
+
+**User Report**: Background and drone compositions were silenced.
+
+**Root Cause**: Testing block in `playComposition()` was returning early:
+```javascript
+// TESTING: Temporarily silence all background/drone compositions
+console.log(`🔇 playComposition SILENCED for testing`)
+return  // <-- This blocked all background audio!
+```
+
+**Fix**: Removed the testing block entirely.
+
+---
+
+### Issue 5: Drone Fade Out Too Short
+
+**User Request**: "il fade out dei droni a 5 secondi è troppo corto, allungalo a 20"
+
+**Fix** (`frontend/src/services/DroneVoidController.js`):
+```javascript
+// BEFORE
+fadeOutTime: 5.0,   // 5 seconds
+
+// AFTER
+fadeOutTime: 20.0,  // 20 seconds (gradual, extended)
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Delay modulation fix, increased base feedback to 0.65, removed testing block, commented debug logs |
+| `frontend/src/services/DroneVoidController.js` | Drone fade out 5s → 20s |
+| `frontend/src/services/audio/PatchDefinitions.js` | Oscillator swap (Wikipedia/HackerNews), increased delay sends |
+
+---
+
+### Delay Parameters Summary
+
+| Parameter | Normal Rooms | Landing (Low Activity) | Landing (High Activity) |
+|-----------|--------------|------------------------|------------------------|
+| delayTime | 0.2s (fixed) | 0.2s | 0.1s |
+| feedback | 0.65 (fixed) | 0.65 (fixed) | 0.65 (fixed) |
 
 ---
