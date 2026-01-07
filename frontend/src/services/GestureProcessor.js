@@ -249,6 +249,9 @@ class GestureProcessor {
 
       // console.log(`🎵 Generated local phrase with ${phrase.length} notes`)
 
+      // Get local user ID for per-user synth routing
+      const localUserId = this.socketService?.socket?.id || null
+
       // Play each note in the phrase
       phrase.forEach((note, index) => {
         setTimeout(() => {
@@ -258,7 +261,8 @@ class GestureProcessor {
               velocity: note.velocity,
               duration: note.duration,
               articulation: note.articulation,
-              eventType: 'melodic'
+              eventType: 'melodic',
+              userId: localUserId  // CRITICAL: Include userId for per-user synth routing
             }
 
             this.audioService.playMusicalEvent(musicalEvent)

@@ -534,8 +534,9 @@ class WebarmoniumApp {
         return
       }
 
-      // Trigger note attack (gate opens)
-      const result = this.audioService.triggerSustainedNoteAttack(frequency, velocity, holdData.position)
+      // Trigger note attack (gate opens) - include local userId for per-user synth routing
+      const localUserId = this.socketService?.socket?.id || null
+      const result = this.audioService.triggerSustainedNoteAttack(frequency, velocity, holdData.position, localUserId, false)
 
       if (result) {
         // Store note data for updates and cleanup
@@ -838,10 +839,13 @@ class WebarmoniumApp {
       }
 
       // REAL REMOTE USERS: Use sustained note mechanism (gate open/close)
+      // Include userId for per-user synth routing, isRemote=true for volume reduction
       const result = this.audioService.triggerSustainedNoteAttack(
         data.frequency,
-        data.velocity * 0.7, // Quieter for remote users
-        data.position
+        data.velocity,  // Pass full velocity - AudioService applies remote reduction
+        data.position,
+        data.userId,    // User ID for per-user synth routing
+        true            // isRemote = true
       )
 
       if (result) {

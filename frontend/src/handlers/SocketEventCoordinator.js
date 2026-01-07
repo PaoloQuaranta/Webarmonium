@@ -433,10 +433,13 @@ class SocketEventCoordinator {
   handleRemoteHoldStartFallback(data) {
     // console.log(`🌐 Remote hold start (fallback): user ${data.userId.substring(0, 8)}, freq ${data.frequency.toFixed(1)}Hz`)
 
+    // Include userId for per-user synth routing, isRemote=true for volume reduction
     const result = this.audioService.triggerSustainedNoteAttack(
       data.frequency,
-      data.velocity * 0.7,
-      data.position
+      data.velocity,  // Pass full velocity - AudioService applies remote reduction
+      data.position,
+      data.userId,    // User ID for per-user synth routing
+      true            // isRemote = true
     )
 
     if (result && this.visualService) {
