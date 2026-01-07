@@ -161,7 +161,15 @@ const MusicalHandler = {
           processingLatency: Date.now() - startTime
         }
 
-        socket.to(socket.roomId).emit('musical:event', enhancedEvent)
+        // CRITICAL FIX: Wrap in same format as GestureHandler broadcasts
+        // Frontend expects { userId, event, timestamp } wrapper
+        const musicalEventBroadcast = {
+          userId: socket.userId,
+          event: enhancedEvent,
+          timestamp: data.timestamp || Date.now()
+        }
+
+        socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
 
         if (socket.services.patternRecognitionService) {
           socket.services.patternRecognitionService.processEvent(socket.roomId, enhancedEvent)

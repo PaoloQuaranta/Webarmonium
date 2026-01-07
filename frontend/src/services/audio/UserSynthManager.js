@@ -29,6 +29,24 @@ class UserSynthManager {
 
     // Get patch definitions
     this.patchDefinitions = window.PatchDefinitions || null
+    if (this.patchDefinitions) {
+      console.log('✅ UserSynthManager: PatchDefinitions available')
+    } else {
+      console.error('❌ UserSynthManager: PatchDefinitions NOT available - synths cannot be created!')
+    }
+
+    // Slot lookup function - will be set by AudioService to use backend-assigned slots
+    // Falls back to hash if not set
+    this.slotLookupFn = null
+  }
+
+  /**
+   * Set the slot lookup function (called by AudioService)
+   * @param {Function} fn - Function that takes userId and returns slot (0-3) or null
+   */
+  setSlotLookup(fn) {
+    this.slotLookupFn = fn
+    console.log('✅ UserSynthManager: slotLookupFn set')
   }
 
   /**
@@ -41,8 +59,7 @@ class UserSynthManager {
   }
 
   /**
-   * Get slot for a real user - hardwired from userId hash
-   * Each userId deterministically maps to one of 4 patches (0-3)
+   * Get slot for a real user - uses backend-assigned slot if available, falls back to hash
    * @param {string} userId - The user ID
    * @returns {number} Slot number (0-3), or -1 for virtual users
    */
@@ -54,13 +71,28 @@ class UserSynthManager {
       return -1
     }
 
-    // Simple hash from userId string to get consistent slot
+    // Use backend-assigned slot if lookup function is available
+    if (this.slotLookupFn) {
+      const backendSlot = this.slotLookupFn(userId)
+      console.log(`🔍 SLOT LOOKUP: userId=${userId?.substring(0, 8)}, backendSlot=${backendSlot}, hasLookupFn=true`)
+      if (backendSlot !== null && backendSlot !== undefined) {
+        return backendSlot
+      }
+      // Fall through to hash if lookup returned null (user not in room yet)
+      console.warn(`⚠️ No backend slot for ${userId?.substring(0, 8)}, falling back to hash`)
+    } else {
+      console.warn(`⚠️ No slotLookupFn set! userId=${userId?.substring(0, 8)} will use hash`)
+    }
+
+    // Fallback: Simple hash from userId string to get consistent slot
     let hash = 0
     for (let i = 0; i < userId.length; i++) {
       hash = ((hash << 5) - hash) + userId.charCodeAt(i)
       hash = hash & hash // Convert to 32-bit integer
     }
-    return Math.abs(hash) % 4
+    const hashSlot = Math.abs(hash) % 4
+    console.log(`🔍 HASH FALLBACK: userId=${userId?.substring(0, 8)}, hashSlot=${hashSlot}`)
+    return hashSlot
   }
 
   /**
@@ -114,60 +146,58 @@ class UserSynthManager {
 
     try {
       // Create synth based on patch oscillator type
+      // FIX: Tone.js PolySynth expects voice options at top level, NOT nested in 'options'
       let synth
       const oscillatorConfig = patch.oscillator
 
+      // DEBUG: Show all current synth assignments
+      const existingAssignments = Array.from(this.userSynths.entries()).map(([uid, data]) =>
+        `${uid.substring(0,8)}→${data.patch?.name || '?'}`
+      ).join(', ')
+      console.log(`🎹 NEW SYNTH: user=${userId.substring(0,8)}, patch="${patch.name}", slot=${slot}, osc=${oscillatorConfig.type}`)
+      console.log(`   Current synths: [${existingAssignments || 'none'}]`)
+
       if (oscillatorConfig.type === 'fmsine') {
-        // FM Synthesis
+        // FM Synthesis - FMSynth has different options structure
         synth = new Tone.PolySynth(Tone.FMSynth, {
           maxPolyphony: this.maxPolyphonyPerUser,
-          voice: Tone.FMSynth,
-          options: {
-            modulationIndex: oscillatorConfig.modulationIndex || 3,
-            modulationType: oscillatorConfig.modulationType || 'sine',
-            envelope: patch.envelope
-          }
+          modulationIndex: oscillatorConfig.modulationIndex || 3,
+          modulationType: oscillatorConfig.modulationType || 'sine',
+          envelope: patch.envelope
         })
       } else if (oscillatorConfig.type === 'pulse') {
         // Pulse wave
         synth = new Tone.PolySynth(Tone.Synth, {
           maxPolyphony: this.maxPolyphonyPerUser,
-          voice: Tone.Synth,
-          options: {
-            oscillator: {
-              type: 'pulse',
-              width: oscillatorConfig.width || 0.5
-            },
-            envelope: patch.envelope
-          }
+          oscillator: {
+            type: 'pulse',
+            width: oscillatorConfig.width || 0.5
+          },
+          envelope: patch.envelope
         })
       } else if (oscillatorConfig.type.startsWith('fat')) {
         // Fat oscillators (fatsine, fatsawtooth, fattriangle)
         synth = new Tone.PolySynth(Tone.Synth, {
           maxPolyphony: this.maxPolyphonyPerUser,
-          voice: Tone.Synth,
-          options: {
-            oscillator: {
-              type: oscillatorConfig.type,
-              count: oscillatorConfig.count || 3,
-              spread: oscillatorConfig.spread || 20
-            },
-            envelope: patch.envelope
-          }
+          oscillator: {
+            type: oscillatorConfig.type,
+            count: oscillatorConfig.count || 3,
+            spread: oscillatorConfig.spread || 20
+          },
+          envelope: patch.envelope
         })
       } else {
         // Basic oscillator types (sine, sawtooth, triangle, square)
         synth = new Tone.PolySynth(Tone.Synth, {
           maxPolyphony: this.maxPolyphonyPerUser,
-          voice: Tone.Synth,
-          options: {
-            oscillator: {
-              type: oscillatorConfig.type
-            },
-            envelope: patch.envelope
-          }
+          oscillator: {
+            type: oscillatorConfig.type
+          },
+          envelope: patch.envelope
         })
       }
+
+      console.log(`✅ Synth created for ${userId}: oscillator type should be ${oscillatorConfig.type}`)
 
       // Create filter based on patch
       const filterConfig = patch.filter

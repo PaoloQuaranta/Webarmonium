@@ -246,6 +246,7 @@ const AuthHandler = {
           success: true,
           userId: socket.userId,
           assignedColor: result.assignedColor,
+          assignedSlot: result.assignedSlot,  // Backend-assigned exclusive synth slot (0-3)
           users: result.users,
           room: result.room,
           user: result.user,
@@ -289,6 +290,7 @@ const AuthHandler = {
         socket.to(actualRoomId).emit('user-joined', {
           userId: socket.userId,
           color: result.assignedColor,
+          slot: result.assignedSlot,
           user: result.user,
           userCount: result.room.userCount,
           timestamp: Date.now()
@@ -300,6 +302,7 @@ const AuthHandler = {
           socket.emit('user-joined', {
             userId: existingUser.id,
             color: existingUser.color,
+            slot: existingUser.slot,
             user: existingUser,
             userCount: result.room.userCount,
             timestamp: Date.now()
@@ -483,7 +486,7 @@ const AuthHandler = {
    * @param {Socket} socket - Socket instance
    * @param {RoomManager} roomManager - Room manager service
    */
-  handleDisconnection (socket, roomManager) {
+  async handleDisconnection (socket, roomManager) {
     if (socket.userId && socket.roomId) {
       // Skip room manager for landing-room (not managed by RoomManager)
       const isLandingRoom = socket.roomId === 'landing-room'
@@ -518,7 +521,7 @@ const AuthHandler = {
           }
 
           // Remove user from room and capture result
-          const leaveResult = roomManager.leaveRoom(socket.userId)
+          const leaveResult = await roomManager.leaveRoom(socket.userId)
 
           // Use remainingUsers from result (avoids stale room state query)
           const userCount = leaveResult?.remainingUsers ?? 0

@@ -8,6 +8,7 @@ class User {
     this.id = userId
     this.roomId = null
     this.assignedColor = null // Hex color from 10-color pool (multi-user canvas)
+    this.assignedSlot = null  // Synth timbre slot (0-7) - exclusive per room
     this.isActive = false
     this.joinedAt = new Date()
     this.lastActivity = new Date()
@@ -47,7 +48,20 @@ class User {
   leaveRoom () {
     this.roomId = null
     this.assignedColor = null // Release color back to pool
+    this.assignedSlot = null  // Release slot back to pool
     this.isActive = false
+  }
+
+  /**
+   * Assign synth timbre slot (0-3 for real users)
+   * @param {number} slot - Slot number (0-3)
+   * @throws {Error} If slot is invalid
+   */
+  assignSlot (slot) {
+    if (typeof slot !== 'number' || slot < 0 || slot > 3) {
+      throw new Error(`Invalid slot: ${slot}. Must be 0-3`)
+    }
+    this.assignedSlot = slot
   }
 
   /**
@@ -146,6 +160,7 @@ class User {
     return {
       userId: this.id,
       assignedColor: this.assignedColor,
+      assignedSlot: this.assignedSlot,
       deviceType: this.deviceType,
       joinedAt: this.joinedAt.toISOString()
     }
@@ -159,6 +174,7 @@ class User {
     return {
       userId: this.id,
       color: this.assignedColor,
+      slot: this.assignedSlot,
       deviceType: this.deviceType
     }
   }

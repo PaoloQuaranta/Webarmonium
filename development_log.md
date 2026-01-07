@@ -2520,3 +2520,260 @@ Reduced the **population density** of particles and pulses by adjusting configur
 | `frontend/src/services/visual/ParticleFlowManager.js` | Faster life decay, higher threshold, fewer hops |
 
 ---
+
+## Entry #31 - Per-User Exclusive Synth Timbre Slots
+
+**Date**: 2026-01-07
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED (partial - remote taps and virtual user timbres need verification)
+
+### Summary
+
+Implemented backend-assigned exclusive synth timbre slots for real users. Each user joining a room gets a unique slot (0-3) ensuring no two users share the same timbre. Virtual users have hardwired dedicated timbres separate from the slot pool.
+
+---
+
+### Problem Statement
+
+Users in the same room could end up with the same synth timbre due to hash collisions in the original slot assignment algorithm. The hash-based approach (derived from userId string) didn't guarantee uniqueness within a room.
+
+**User Request**: "gli slot devono essere univoci e hardwired a 1 timbro. se uno user occupa uno slot, nessun altro user in quella room deve poterlo occupare"
+
+---
+
+### Architecture
+
+**Backend-Controlled Slot Pool:**
+- Room maintains `availableSlots = Set([0, 1, 2, 3])`
+- On user join: lowest available slot is assigned and removed from pool
+- On user leave/disconnect: slot is returned to pool
+- Virtual users (Wikipedia, HackerNews, GitHub) have separate hardwired timbres
+
+**Frontend Slot Lookup:**
+- `SocketService` tracks `currentSlot` (self) and `userSlots` Map (all users)
+- `UserSynthManager` uses `slotLookupFn` callback to get backend-assigned slots
+- Falls back to hash only if backend slot unavailable (should never happen in normal operation)
+
+---
+
+### Implementation Details
+
+#### Backend Changes
+
+**Room.js:**
+```javascript
+this.availableSlots = new Set([0, 1, 2, 3])
+
+assignSlotToUser(user) {
+  if (!this.availableSlots) {
+    this.availableSlots = new Set([0, 1, 2, 3])  // Defensive init
+  }
+  const sortedSlots = Array.from(this.availableSlots).sort((a, b) => a - b)
+  const slot = sortedSlots[0]  // Lowest available
+  this.availableSlots.delete(slot)
+  user.assignSlot(slot)
+  return slot
+}
+
+releaseUserSlot(user) {
+  if (user.assignedSlot !== null) {
+    this.availableSlots.add(user.assignedSlot)
+  }
+}
+```
+
+**User.js:**
+```javascript
+this.assignedSlot = null
+
+assignSlot(slot) {
+  if (typeof slot !== 'number' || slot < 0 || slot > 3) {
+    throw new Error(`Invalid slot: ${slot}. Must be 0-3`)
+  }
+  this.assignedSlot = slot
+}
+
+toUserNotification() {
+  return {
+    userId: this.id,
+    color: this.assignedColor,
+    slot: this.assignedSlot,  // ADDED
+    deviceType: this.deviceType
+  }
+}
+```
+
+**RoomManager.js:**
+- Calls `room.assignSlotToUser(user)` after adding user
+- Calls `room.releaseUserSlot(user)` on leave
+- Returns `assignedSlot` in joinRoom result
+
+**AuthHandler.js:**
+- Added `assignedSlot: result.assignedSlot` to join-room response
+- Added `slot: result.assignedSlot` to `user-joined` broadcast
+- Added `slot: existingUser.slot` when sending existing users to new user
+- Fixed `handleDisconnection` to be `async` and `await` the `leaveRoom` call
+
+#### Frontend Changes
+
+**SocketService.js:**
+```javascript
+this.currentSlot = null
+this.userSlots = new Map()
+
+// On joinRoom response:
+this.currentSlot = response.assignedSlot
+response.users.forEach(u => {
+  if (u.slot !== undefined) {
+    this.userSlots.set(u.id, u.slot)
+  }
+})
+
+// On user-joined event:
+const userSlot = data.slot ?? data.user?.slot
+if (userSlot !== undefined) {
+  this.userSlots.set(data.userId || data.user?.id, userSlot)
+}
+
+getSlotForUser(userId) {
+  if (userId === this.currentUserId) return this.currentSlot
+  return this.userSlots.get(userId) ?? null
+}
+```
+
+**UserSynthManager.js:**
+```javascript
+setSlotLookup(fn) {
+  this.slotLookupFn = fn
+}
+
+getUserSlot(userId) {
+  if (this.patchDefinitions.isVirtualUser(userId)) return -1  // Virtual users bypass slots
+
+  if (this.slotLookupFn) {
+    const backendSlot = this.slotLookupFn(userId)
+    if (backendSlot !== null && backendSlot !== undefined) {
+      return backendSlot
+    }
+  }
+  // Fallback to hash (should never reach here in normal operation)
+  return Math.abs(hash(userId)) % 4
+}
+```
+
+**AudioService.js:**
+```javascript
+setSocketService(socketService) {
+  this.socketService = socketService
+  if (this.userSynthManager) {
+    this.userSynthManager.setSlotLookup((userId) => {
+      return this.socketService.getSlotForUser(userId)
+    })
+  }
+}
+```
+
+---
+
+### Bug Fixes During Implementation
+
+#### Issue 1: Missing `await` on Disconnect
+
+**Problem**: `handleDisconnection` called `roomManager.leaveRoom()` (async) without `await`, causing `userCount` to always be 0.
+
+**Fix**: Made `handleDisconnection` async and added `await`:
+```javascript
+async handleDisconnection(socket, roomManager) {
+  const leaveResult = await roomManager.leaveRoom(socket.userId)
+  const userCount = leaveResult?.remainingUsers ?? 0
+}
+```
+
+#### Issue 2: `user-joined` Missing Slot Field
+
+**Problem**: When broadcasting `user-joined` to other users, slot was not included. Remote clients couldn't look up other users' slots.
+
+**Fix**: Added `slot` field to both broadcasts:
+```javascript
+// Broadcast to others when new user joins
+socket.to(roomId).emit('user-joined', {
+  userId: socket.userId,
+  color: result.assignedColor,
+  slot: result.assignedSlot,  // ADDED
+  user: result.user,
+  ...
+})
+
+// Send existing users to new user
+socket.emit('user-joined', {
+  userId: existingUser.id,
+  color: existingUser.color,
+  slot: existingUser.slot,  // ADDED
+  ...
+})
+```
+
+#### Issue 3: Frontend Reading Wrong Property
+
+**Problem**: Frontend checked `data.user?.slot` but slot was sent as `data.slot`.
+
+**Fix**: Check both:
+```javascript
+const userSlot = data.slot ?? data.user?.slot
+```
+
+---
+
+### Real User Patches (Slot 0-3)
+
+| Slot | Name | Oscillator | Character |
+|------|------|------------|-----------|
+| 0 | Digital Pulse | Square (pulse) | Bright, digital |
+| 1 | Nasal Reed | Sawtooth | Nasal, woodwind-like |
+| 2 | Warm Chorus | Fat Triangle | Warm, thick |
+| 3 | Bell Chime | FM Sine | Metallic, bell-like |
+
+---
+
+### Virtual User Patches (Hardwired)
+
+| Source | Oscillator | Register |
+|--------|------------|----------|
+| Wikipedia | Sine | Bass (65-130Hz) |
+| HackerNews | Sawtooth | Tenor (196-392Hz) |
+| GitHub | Triangle | Soprano (523-1047Hz) |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/models/Room.js` | Added `availableSlots`, `assignSlotToUser()`, `releaseUserSlot()` |
+| `backend/src/models/User.js` | Added `assignedSlot`, `assignSlot()`, slot in `toUserNotification()` |
+| `backend/src/services/RoomManager.js` | Slot assignment on join, release on leave |
+| `backend/src/api/handlers/AuthHandler.js` | Slot in responses, async disconnect handler, await leaveRoom |
+| `frontend/src/services/SocketService.js` | `currentSlot`, `userSlots` Map, `getSlotForUser()` |
+| `frontend/src/services/audio/UserSynthManager.js` | `slotLookupFn`, `setSlotLookup()` |
+| `frontend/src/services/AudioService.js` | `setSocketService()` method |
+| `frontend/src/main.js` | Call `setSocketService()` at init |
+
+---
+
+### Known Issues (To Be Fixed)
+
+1. **Remote taps not heard** - Remote user tap events may not be playing audio (slot lookup works but audio routing needs verification)
+2. **Virtual user timbres** - Need verification that virtual users correctly use their dedicated patches
+
+---
+
+### Test Results
+
+- ✅ Local user gets unique slot (0 for first, 1 for second, etc.)
+- ✅ Slots correctly released when user disconnects
+- ✅ User count updates correctly on disconnect (was showing 0, now correct)
+- ✅ Remote user phrases play with correct timbre
+- ⚠️ Remote user taps need verification
+- ⚠️ Virtual user timbres need verification
+
+---

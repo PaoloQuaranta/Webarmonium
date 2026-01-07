@@ -25,6 +25,7 @@ class Room {
       '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00',
       '#ffff33', '#a65628', '#f781bf', '#999999', '#66c2a5'
     ]) // 10-color pool for user assignment
+    this.availableSlots = new Set([0, 1, 2, 3]) // 4-slot pool for real user timbres (virtual users have hardwired timbres)
     this.maxStrokes = 10000 // Soft limit for memory management
 
     // SUSTAINED HOLD: Track active sustained holds for disconnect cleanup
@@ -207,6 +208,45 @@ class Room {
   releaseUserColor (user) {
     if (user.assignedColor) {
       this.availableColors.add(user.assignedColor)
+    }
+  }
+
+  /**
+   * Assign synth timbre slot to user from available pool
+   * @param {User} user - User to assign slot to
+   * @returns {number} Assigned slot number (0-7)
+   * @throws {Error} If no slots available
+   */
+  assignSlotToUser (user) {
+    // Initialize slots if not present (for rooms created before slot system)
+    if (!this.availableSlots) {
+      this.availableSlots = new Set([0, 1, 2, 3])
+    }
+
+    if (this.availableSlots.size === 0) {
+      throw new Error('No slots available in pool')
+    }
+
+    // Get first available slot (lowest number for predictability)
+    const sortedSlots = Array.from(this.availableSlots).sort((a, b) => a - b)
+    const slot = sortedSlots[0]
+    this.availableSlots.delete(slot)
+    user.assignSlot(slot)
+
+    return slot
+  }
+
+  /**
+   * Release user slot back to available pool
+   * @param {User} user - User whose slot to release
+   */
+  releaseUserSlot (user) {
+    if (user.assignedSlot !== null) {
+      // Initialize slots if not present (for rooms created before slot system)
+      if (!this.availableSlots) {
+        this.availableSlots = new Set([0, 1, 2, 3])
+      }
+      this.availableSlots.add(user.assignedSlot)
     }
   }
 

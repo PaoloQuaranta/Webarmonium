@@ -462,11 +462,10 @@ const GestureHandler = {
           // CRITICAL: hold:start/hold:end system was used for this gesture
           // Do NOT generate additional notes via gestureToMusicService to avoid duplicate playback (strum effect)
           // // console.log(`⏭️ Skipping gestureToMusicService - hold system was active (already handled via hold:start/hold:end)`)
-          // // console.log(`🔍 holdWasActive check:`, {
-          //   holdWasActive: gesture.holdWasActive,
-          //   action: gesture.action,
-          //   streamedNotes: gesture.streamedNotes?.length || 0
-          // })
+        } else if (gesture.localPhraseGenerated) {
+          // CRITICAL: Frontend already generated and played the phrase locally
+          // Do NOT generate additional notes via gestureToMusicService to avoid double playback
+          // // console.log(`⏭️ Skipping gestureToMusicService - frontend already generated phrase locally`)
         } else {
           // No streamedNotes - use legacy behavior (let gestureToMusicService generate notes)
           // This handles taps and other non-streaming gestures

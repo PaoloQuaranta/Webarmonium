@@ -6,6 +6,9 @@
  * Enhanced with MusicalScheduler for clock-consistent timing and LFOManager for advanced modulation
  */
 
+// DEBUG: Verify file is loaded
+console.log('🔴🔴🔴 AudioService.js v30 LOADING 🔴🔴🔴')
+
 // Note: MusicalScheduler and LFOManager will be loaded via global scripts
 class AudioService {
   constructor() {
@@ -834,6 +837,14 @@ class AudioService {
         reverb: this.reverb
       })
       console.log('✅ UserSynthManager: Initialized for per-user timbres')
+
+      // Apply slot lookup if socketService was already set (from main.js init)
+      if (this.socketService) {
+        this.userSynthManager.setSlotLookup((userId) => {
+          return this.socketService.getSlotForUser(userId)
+        })
+        console.log('🎹 UserSynthManager: Slot lookup applied from existing socketService')
+      }
     } else {
       console.error('❌ UserSynthManager NOT AVAILABLE - all users will have same timbre!')
     }
@@ -843,6 +854,23 @@ class AudioService {
     // this.startEvolvingGeneration()
 
     // console.log('🎵 Audio system initialized - BackgroundCompositionService generates compositions from backend')
+  }
+
+  /**
+   * Set socket service for slot lookup (called from main.js after room join)
+   * This enables backend-assigned exclusive slots for each user
+   * @param {SocketService} socketService - The socket service instance
+   */
+  setSocketService(socketService) {
+    this.socketService = socketService
+
+    // Configure UserSynthManager to use backend-assigned slots
+    if (this.userSynthManager && socketService) {
+      this.userSynthManager.setSlotLookup((userId) => {
+        return socketService.getSlotForUser(userId)
+      })
+      console.log('🎹 AudioService: Slot lookup configured via SocketService')
+    }
   }
 
   /**
@@ -1685,7 +1713,14 @@ class AudioService {
 
     // CRITICAL: Use triggerAttack (NOT triggerAttackRelease)
     // This opens the gate without closing it
-    console.log(`🎹 triggerSustainedNoteAttack: userId=${userId}, useUserSynth=${useUserSynth}, freq=${actualFrequency.toFixed(1)}Hz`)
+    // DEBUG: Show patch info to verify correct timbre
+    let patchInfo = 'gestureSynth (fallback)'
+    if (useUserSynth && this.userSynthManager) {
+      const slot = this.userSynthManager.getUserSlot(userId)
+      const patch = this.userSynthManager.getPatchForUser(userId)
+      patchInfo = `${patch?.name || 'unknown'} (slot=${slot}, osc=${patch?.oscillator?.type || 'unknown'})`
+    }
+    console.log(`🎹 triggerSustainedNoteAttack: userId=${userId?.substring(0,8)}, patch=${patchInfo}, freq=${actualFrequency.toFixed(1)}Hz`)
     synth.triggerAttack(actualFrequency, now, actualVelocity)
 
     // Track active sustained note for later release
@@ -2442,8 +2477,11 @@ class AudioService {
    * @param {Object} musicalEvent - Musical event data
    */
   playMusicalEvent(musicalEvent) {
+    // DEBUG: PROMINENT log to verify this function is being called
+    console.log(`📣 playMusicalEvent CALLED - userId=${musicalEvent?.userId?.substring(0,8)}, eventType=${musicalEvent?.eventType}, gestureAction=${musicalEvent?.properties?.gestureAction}`)
+
     if (!this.isInitialized || !musicalEvent || this.muted) {
-      // console.log('🔇 playMusicalEvent blocked - initialized:', this.isInitialized, 'muted:', this.muted)
+      console.log('🔇 playMusicalEvent blocked - initialized:', this.isInitialized, 'muted:', this.muted)
       return
     }
 
@@ -2560,8 +2598,11 @@ class AudioService {
 
       // Schedule attack with setTimeout
       const attackTimeoutId = setTimeout(() => {
+        // DEBUG: Log inside setTimeout to verify callback fires
+        console.log(`📣 playMusicalEvent setTimeout FIRED - userId=${musicalEvent?.userId?.substring(0,8)}`)
+
         if (!this.gestureSynth || this.gestureSynth.disposed) {
-          // console.warn('🔇 Synth disposed, skipping note')
+          console.warn('🔇 Synth disposed, skipping note - gestureSynth:', !!this.gestureSynth, 'disposed:', this.gestureSynth?.disposed)
           return
         }
 
@@ -2615,23 +2656,55 @@ class AudioService {
           const userId = musicalEvent.userId
           let synth = null
           let actualFrequency = frequency
+          let oscillatorType = 'unknown'
 
-          console.log(`🔍 playMusicalEvent check: userId=${userId}, hasUserSynthManager=${!!this.userSynthManager}`)
+          console.log(`🔍 playMusicalEvent check: userId=${userId?.substring(0,8)}, hasUserSynthManager=${!!this.userSynthManager}, eventType=${musicalEvent.eventType}`)
 
           if (userId && this.userSynthManager) {
             const synthData = this.userSynthManager.getSynthForUser(userId)
-            console.log(`🔍 getSynthForUser(${userId}):`, synthData ? `patch=${synthData.patch?.name}` : 'null')
+            if (synthData) {
+              oscillatorType = synthData.patch?.oscillator?.type || 'no-type'
+              console.log(`🔍 getSynthForUser: patch=${synthData.patch?.name}, osc=${oscillatorType}, disposed=${synthData.synth?.disposed}`)
+            } else {
+              console.log(`🔍 getSynthForUser: returned null for userId=${userId?.substring(0,8)}`)
+            }
             if (synthData && synthData.synth && !synthData.synth.disposed) {
               synth = synthData.synth
               actualFrequency = this.userSynthManager.constrainFrequencyToTessitura(frequency, userId)
-              console.log(`🎵 playMusicalEvent: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
+
+              // CRITICAL FIX: Force-apply oscillator config to each PolySynth voice
+              // PolySynth.set() may not properly propagate to voices
+              const patchOsc = synthData.patch?.oscillator
+              if (patchOsc && patchOsc.type !== 'fmsine') {
+                try {
+                  // Method 1: Try set on the PolySynth
+                  synth.set({ oscillator: patchOsc })
+
+                  // Method 2: Try setting on each voice directly
+                  if (synth.voices && synth.voices.length > 0) {
+                    synth.voices.forEach(voice => {
+                      if (voice && voice.oscillator) {
+                        voice.oscillator.type = patchOsc.type
+                        if (patchOsc.count) voice.oscillator.count = patchOsc.count
+                        if (patchOsc.spread) voice.oscillator.spread = patchOsc.spread
+                        if (patchOsc.width !== undefined) voice.oscillator.width = patchOsc.width
+                      }
+                    })
+                  }
+                } catch (e) {
+                  console.warn(`Could not set oscillator: ${e.message}`)
+                }
+              }
+
+              console.log(`🎵 USING USER SYNTH: ${synthData.patch?.name} (${oscillatorType}) for ${userId?.substring(0,8)}, freq=${actualFrequency.toFixed(1)}Hz`)
             }
           }
 
           // Fallback to gestureSynth if no user synth available
           if (!synth) {
-            console.warn(`⚠️ FALLBACK to gestureSynth (sawtooth) - userId=${userId}, userSynthManager=${!!this.userSynthManager}`)
+            console.warn(`⚠️ FALLBACK to gestureSynth (sawtooth) - userId=${userId?.substring(0,8)}, userSynthManager=${!!this.userSynthManager}`)
             synth = this.gestureSynth
+            oscillatorType = 'sawtooth (fallback)'
             this.gestureSynth.set({
               oscillator: { type: 'sawtooth' },
               envelope

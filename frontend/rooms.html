@@ -320,7 +320,7 @@
     <!-- Application services -->
     <!-- <script src="src/services/GestureCapture.js?v=5"></script> -->
     <!-- DISABLED - using EnhancedGestureCapture instead -->
-    <script src="src/services/SocketService.js?v=8"></script> <!-- FIX: Added virtual user socket.io listeners -->
+    <script src="src/services/SocketService.js?v=11"></script> <!-- DEBUG: Added slot lookup logging -->
     <!-- Sprint 2 refactoring: Extracted components -->
     <script src="src/services/CanvasManager.js?v=1"></script>
     <script src="src/services/UIManager.js?v=2"></script> <!-- FIX: Added virtual source count display -->
@@ -350,9 +350,9 @@
     <script src="src/services/audio/ThreeTierAudioSystem.js?v=1"></script>
     <script src="src/services/audio/AudioServiceFacade.js?v=1"></script>
     <script src="src/services/audio/PatchDefinitions.js?v=3"></script>
-    <script src="src/services/audio/UserSynthManager.js?v=4"></script>
+    <script src="src/services/audio/UserSynthManager.js?v=9"></script>
 
-    <script src="src/services/AudioService.js?v=25"></script>
+    <script src="src/services/AudioService.js?v=33"></script>
     <script src="src/services/DroneVoidController.js?v=1"></script>
     <!-- PHASE 1+2: Re-enabled hover, musical architecture loaded -->
     <script>
@@ -384,7 +384,7 @@
     <script src="src/services/EnhancedGestureCapture.js?v=21"></script>
 
     <!-- Sprint 4: Gesture processing component -->
-    <script src="src/services/GestureProcessor.js?v=2"></script>
+    <script src="src/services/GestureProcessor.js?v=4"></script>
 
     <!-- Phase 2 Refactoring: Extracted handlers -->
     <script src="src/handlers/DragStreamingHandler.js?v=1"></script>
@@ -405,7 +405,7 @@
             }
         }, 1000)
     </script>
-    <script src="src/main.js?v=62"></script> <!-- Handle redirect and virtualUsers from joinResponse -->
+    <script src="src/main.js?v=68"></script> <!-- FIX: Connect slot lookup at init time -->
 </body>
 
 </html>

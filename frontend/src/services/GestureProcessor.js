@@ -58,11 +58,21 @@ class GestureProcessor {
       return // Exit early - no local audio processing needed
     }
 
+    // Determine gesture action FIRST (needed to set flags before sending)
+    const gestureAction = gesture.action || this.determineGestureAction(gesture)
+    // console.log('🔍 Determined gesture action:', gestureAction, 'from gesture.action:', gesture.action)
+
     // CRITICAL FIX: Backend expects gesture.position { x, y } for pitch calculation
     // Frontend has gesture.coordinates but backend looks for gesture.position
     const gestureToSend = {
       ...gesture,
       position: gesture.coordinates || gesture.position || { x: 0.5, y: 0.5 }
+    }
+
+    // CRITICAL FIX: Mark gesture so backend knows not to generate additional notes
+    // This prevents double playback: frontend phrase + backend gestureToMusicService phrase
+    if (gestureAction === 'drag' && isAudioStarted) {
+      gestureToSend.localPhraseGenerated = true
     }
 
     // DEBUG: Verify position is set before sending
@@ -85,10 +95,6 @@ class GestureProcessor {
       }
       return
     }
-
-    // CRITICAL FIX: Use timer to distinguish click from drag
-    const gestureAction = gesture.action || this.determineGestureAction(gesture)
-    // console.log('🔍 Determined gesture action:', gestureAction, 'from gesture.action:', gesture.action)
 
     // Clear any existing timer
     if (this.gestureTimer) {
@@ -143,7 +149,8 @@ class GestureProcessor {
 
     // CRITICAL: Use per-user synth for consistent timbre (same as phrases)
     // Get local user ID for per-user synth routing
-    const localUserId = this.socketService?.socket?.id || null
+    // FIX: Use backend-assigned userId, NOT socket.id (they are different!)
+    const localUserId = this.socketService?.getUserId?.() || this.socketService?.socket?.id || null
 
     // Create musical event and route through playMusicalEvent for unified timbre handling
     const musicalEvent = {
@@ -232,29 +239,54 @@ class GestureProcessor {
       const phrase = this.createLocalPhrase(gesture, sonicParams)
 
       // Get local user ID for per-user synth routing
-      const localUserId = this.socketService?.socket?.id || null
+      // FIX: Use backend-assigned userId, NOT socket.id (they are different!)
+      const localUserId = this.socketService?.getUserId?.() || this.socketService?.socket?.id || null
 
       console.log(`🎵 Local phrase: ${phrase.length} notes, userId=${localUserId?.substring(0,8)}`)
       phrase.forEach((note, i) => {
         console.log(`  Note ${i}: pitch=${note.pitch}, startTime=${note.startTime.toFixed(3)}s, duration=${note.duration.toFixed(3)}s`)
       })
 
-      // Play each note in the phrase
+      // Play each note in the phrase AND broadcast to remote users
+      const broadcastTime = Date.now()
       phrase.forEach((note, index) => {
         const delayMs = note.startTime * 1000
         setTimeout(() => {
           try {
+            // Convert MIDI pitch to frequency (same formula as AudioService)
+            const frequency = 440 * Math.pow(2, (note.pitch - 69) / 12)
+
+            // FIX: Use same format as TAP (with properties.frequency)
+            // This ensures same code path through playMusicalEvent
             const musicalEvent = {
               pitch: note.pitch,
               velocity: note.velocity,
               duration: note.duration,
               articulation: note.articulation,
               eventType: 'melodic',
-              userId: localUserId  // CRITICAL: Include userId for per-user synth routing
+              userId: localUserId,
+              properties: {
+                frequency: frequency,
+                duration: note.duration,
+                velocity: note.velocity,
+                articulation: note.articulation,
+                noteIndex: index,
+                totalNotes: phrase.length,
+                gestureAction: 'drag'
+              }
             }
 
-            console.log(`🎶 Playing note ${index} at ${Date.now() % 10000}ms: pitch=${note.pitch}`)
+            console.log(`🎶 Playing note ${index} at ${Date.now() % 10000}ms: pitch=${note.pitch}, freq=${frequency.toFixed(1)}Hz`)
             this.audioService.playMusicalEvent(musicalEvent)
+
+            // CRITICAL: Also broadcast to remote users for synchronization
+            // The backend will relay this to other clients in the room
+            if (this.socketService?.socket) {
+              this.socketService.socket.emit('musical:event', {
+                event: musicalEvent,
+                timestamp: broadcastTime + delayMs
+              })
+            }
           } catch (e) {
             console.warn(`🔇 Error playing phrase note ${index}:`, e)
           }

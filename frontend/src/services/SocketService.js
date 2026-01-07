@@ -29,7 +29,10 @@ class SocketService {
     // Room state
     this.currentRoom = null
     this.currentUser = null
+    this.currentUserId = null  // Backend-assigned userId (different from socket.id!)
+    this.currentSlot = null    // Backend-assigned synth slot (0-3)
     this.roomUsers = []
+    this.userSlots = new Map() // userId → slot mapping for all users in room
 
     // Heartbeat management
     this.heartbeatInterval = null
@@ -297,6 +300,29 @@ class SocketService {
         this.currentUser = response.user
         this.roomUsers = response.otherUsers || []
 
+        // CRITICAL FIX: Save backend-assigned userId for per-user synth routing
+        if (response.userId) {
+          this.currentUserId = response.userId
+          console.log(`🆔 Backend userId saved from joinRoom: ${response.userId.substring(0, 8)}... (socket.id=${this.socket?.id?.substring(0, 8)}...)`)
+        }
+
+        // Save backend-assigned slot for exclusive timbre per room
+        if (response.assignedSlot !== undefined) {
+          this.currentSlot = response.assignedSlot
+          console.log(`🎹 Backend slot saved from joinRoom: slot=${response.assignedSlot}`)
+        }
+
+        // Populate userSlots map from all users in room
+        this.userSlots.clear()
+        if (response.users) {
+          response.users.forEach(u => {
+            if (u.slot !== undefined) {
+              this.userSlots.set(u.id, u.slot)
+            }
+          })
+          console.log(`🎹 UserSlots populated: ${this.userSlots.size} users`)
+        }
+
         // Track latency
         const latency = performance.now() - startTime
         this.updateLatencyMetrics(latency)
@@ -492,7 +518,48 @@ class SocketService {
    */
   handleRoomJoined(data) {
     // console.log('Room joined event received:', data)
+
+    // CRITICAL FIX: Save backend-assigned userId for per-user synth routing
+    // This is different from socket.id and must be used for synth lookup
+    if (data.userId) {
+      this.currentUserId = data.userId
+      console.log(`🆔 Backend userId saved: ${data.userId.substring(0, 8)}... (socket.id=${this.socket?.id?.substring(0, 8)}...)`)
+    }
+
     this.emit('room-joined-update', data)
+  }
+
+  /**
+   * Get the backend-assigned userId (NOT socket.id)
+   * @returns {string|null} The user's backend-assigned ID
+   */
+  getUserId() {
+    return this.currentUserId || this.socket?.id || null
+  }
+
+  /**
+   * Get the current user's assigned synth slot
+   * @returns {number|null} The user's backend-assigned slot (0-3) or null
+   */
+  getSlot() {
+    return this.currentSlot !== undefined ? this.currentSlot : null
+  }
+
+  /**
+   * Get the slot for any user in the room (including self)
+   * @param {string} userId - The user ID to look up
+   * @returns {number|null} The user's slot (0-3) or null if not found
+   */
+  getSlotForUser(userId) {
+    // Check if it's the current user
+    if (userId === this.currentUserId) {
+      console.log(`🔍 getSlotForUser: ${userId?.substring(0,8)} is CURRENT user, slot=${this.currentSlot}`)
+      return this.currentSlot
+    }
+    // Look up in the userSlots map
+    const mapSlot = this.userSlots.get(userId)
+    console.log(`🔍 getSlotForUser: ${userId?.substring(0,8)} lookup in userSlots map, found=${mapSlot !== undefined}, slot=${mapSlot}, mapSize=${this.userSlots.size}`)
+    return mapSlot !== undefined ? mapSlot : null
   }
 
   /**
@@ -504,6 +571,13 @@ class SocketService {
     // Add user to room users list
     if (!this.roomUsers.find(u => u.id === data.userId)) {
       this.roomUsers.push(data.user)
+    }
+
+    // Track user's slot for synth timbre (check both data.slot and data.user.slot)
+    const userSlot = data.slot ?? data.user?.slot
+    if (userSlot !== undefined) {
+      this.userSlots.set(data.userId || data.user?.id, userSlot)
+      console.log(`🎹 User joined with slot ${userSlot}: ${(data.userId || data.user?.id).substring(0, 8)}`)
     }
 
     this.emit('user-joined', {
@@ -520,6 +594,12 @@ class SocketService {
 
     // Remove user from room users list
     this.roomUsers = this.roomUsers.filter(u => u.id !== data.userId)
+
+    // Remove user's slot from tracking
+    if (data.userId) {
+      this.userSlots.delete(data.userId)
+      console.log(`🎹 User left, slot released: ${data.userId.substring(0, 8)}`)
+    }
 
     this.emit('user-left', {
       userId: data.userId,

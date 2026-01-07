@@ -126,6 +126,12 @@ class WebarmoniumApp {
     this.socketService = new SocketService()
     this.socketServicePromise = Promise.resolve(this.socketService.socket);
 
+    // Connect AudioService to SocketService for slot lookup
+    if (this.audioService && this.socketService) {
+      this.audioService.setSocketService(this.socketService)
+      console.log('🔗 AudioService connected to SocketService for slot lookup')
+    }
+
     // Create basic gesture to music mapper for EnhancedGestureCapture
     const basicGestureToMusicMapper = {
       gestureToMusicalEvent: (gesture) => {
@@ -420,27 +426,37 @@ class WebarmoniumApp {
           }
       }
 
-      if (this.audioService.gestureSynth) {
-        this.audioService.gestureSynth.set({ envelope })
+      // FIX: Use per-user synth via playMusicalEvent instead of gestureSynth directly
+      // This ensures consistent timbre between sustained hold start and drag streaming
+      const localUserId = this.socketService?.getUserId?.() || this.socketService?.socket?.id || null
+      const eventVelocity = 0.8 + noteData.velocity * 0.2 // 0.8-1.0 range
 
-        // Higher velocity for local gesture prominence
-        const velocity = 0.8 + noteData.velocity * 0.2 // 0.8-1.0 range (was 0.5-0.8)
-
-        // console.log('🎵🎵 PLAYING LOCAL NOTE:', {
-//          frequency: frequency.toFixed(1),
-//          duration: duration,
-//          articulation: noteData.articulation,
-//          velocity: velocity.toFixed(3),
-//          synthVolume: this.audioService.gestureSynth.volume.value
-////        })
-
-        this.audioService.gestureSynth.triggerAttackRelease(
-          frequency,
-          duration,
-          Tone.now(),
-          velocity
-        )
+      // Create musical event with userId for per-user synth routing
+      const musicalEvent = {
+        pitch: midiNote,
+        velocity: eventVelocity * 100, // Convert to 0-100 range
+        duration: duration,
+        articulation: noteData.articulation,
+        eventType: 'melodic',
+        userId: localUserId,
+        properties: {
+          frequency: frequency,
+          duration: duration,
+          velocity: eventVelocity * 100,
+          articulation: noteData.articulation,
+          noteIndex: noteData.noteIndex,
+          totalNotes: noteData.totalNotes || 1,
+          gestureAction: 'drag-streaming'
+        }
       }
+
+      // console.log('🎵🎵 PLAYING LOCAL NOTE via playMusicalEvent:', {
+      //   frequency: frequency.toFixed(1),
+      //   userId: localUserId?.substring(0, 8),
+      //   articulation: noteData.articulation
+      // })
+
+      this.audioService.playMusicalEvent(musicalEvent)
 
       // CRITICAL: Return note data for collection in streamedNotes array
       return {
@@ -535,7 +551,8 @@ class WebarmoniumApp {
       }
 
       // Trigger note attack (gate opens) - include local userId for per-user synth routing
-      const localUserId = this.socketService?.socket?.id || null
+      // FIX: Use backend-assigned userId, NOT socket.id (they are different!)
+      const localUserId = this.socketService?.getUserId?.() || this.socketService?.socket?.id || null
       const result = this.audioService.triggerSustainedNoteAttack(frequency, velocity, holdData.position, localUserId, false)
 
       if (result) {
@@ -688,29 +705,11 @@ class WebarmoniumApp {
         // Continue to musical event emission below
       }
 
-      // Process drag gestures - check if timer is still pending
+      // Process drag gestures - SKIP: already handled by onGesture → processGesture
+      // The phrase was already generated and played during the drag gesture
+      // Calling processDragGesture again here would create a duplicate "slow arpeggio"
       if (gestureAction === 'drag') {
-        // console.log('🎵 DRAG gesture in onGestureEnd - checking timer status')
-
-        // Sprint 4: Check GestureProcessor's pending gesture state
-        // If timer is still pending, let it handle the phrase
-        if (this.gestureProcessor.pendingGesture && this.gestureProcessor.pendingGesture.id === gesture.id) {
-          // console.log('🎵 DRAG timer will handle phrase - skipping musicalEvent')
-          return
-        }
-
-        // If timer already fired or gesture is very quick, process immediately via GestureProcessor
-        // console.log('🎵 DRAG timer already fired - processing immediately')
-        const sonicParams = {
-          x: gesture.coordinates?.x || 0.5,
-          y: gesture.coordinates?.y || 0.5,
-          intensity: gesture.intensity || 0.5,
-          timestamp: gesture.timestamp || Date.now(),
-          action: 'drag',
-          device: gesture.device || 'mouse'
-        }
-        // Sprint 4: Delegate to GestureProcessor
-        this.gestureProcessor.processDragGesture(gesture, sonicParams)
+        // console.log('🎵 DRAG gesture in onGestureEnd - SKIPPING (already processed during onGesture)')
         return
       }
 
@@ -756,6 +755,8 @@ class WebarmoniumApp {
         this.gestureCapture.setRoomContext(data.room.roomId)
         // console.log('🎯 Set gesture capture room context to:', data.room.roomId)
       }
+
+      // Note: setSocketService already called at init time (line 131)
     })
 
     this.socketService.on('user-joined', (data) => {

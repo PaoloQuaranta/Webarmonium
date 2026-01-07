@@ -116,13 +116,24 @@ class RoomManager {
     const assignedColor = colorService.assignColor(userId)
     user.assignColor(assignedColor)
 
+    // Assign synth timbre slot from room's slot pool (exclusive per room)
+    let assignedSlot = null
+    try {
+      assignedSlot = room.assignSlotToUser(user)
+      console.log(`🎹 Assigned slot ${assignedSlot} to user ${userId.substring(0, 8)} in room ${roomId}`)
+    } catch (slotError) {
+      console.error(`⚠️ Slot assignment failed for ${userId.substring(0, 8)}: ${slotError.message}`)
+      // Continue without slot - will fall back to hash on frontend
+    }
+
     // Get memory influence for new user
     const memoryInfluence = room.getMemoryInfluence()
 
-    // Get all users with their colors for multi-user canvas
+    // Get all users with their colors and slots for multi-user canvas
     const allUsers = room.getUsers().map(u => ({
       id: u.id,
-      color: u.assignedColor
+      color: u.assignedColor,
+      slot: u.assignedSlot
     }))
 
     // Handle virtual user mode transitions
@@ -165,6 +176,7 @@ class RoomManager {
       success: true,
       userId: user.id,
       assignedColor,
+      assignedSlot,
       users: allUsers,
       room: room.toRoomJoinedResponse(),
       user: user.toUserProfile(),
@@ -205,6 +217,10 @@ class RoomManager {
     if (colorService) {
       colorService.releaseColor(userId)
     }
+
+    // Release user's synth slot back to room pool
+    room.releaseUserSlot(user)
+    console.log(`🎹 Released slot from user ${userId.substring(0, 8)} in room ${roomId}`)
 
     // Cancel any active drawing stroke
     const drawingService = this.drawingServices.get(roomId)
