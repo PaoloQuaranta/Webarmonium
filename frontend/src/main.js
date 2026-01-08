@@ -275,9 +275,15 @@ class WebarmoniumApp {
 //        noteData
 ////      })
 
-      if (!this.isAudioStarted || !this.audioService) {
+      // Check audio readiness - also check Tone.context directly in case flag hasn't updated yet
+      const audioReady = this.isAudioStarted || (window.Tone && Tone.context?.state === 'running')
+      if (!audioReady || !this.audioService) {
         // console.warn('🎸🎸 BLOCKED - audio not ready')
         return null // No note played
+      }
+      // Update flag if context is running but flag wasn't set
+      if (!this.isAudioStarted && audioReady) {
+        this.isAudioStarted = true
       }
 
       // CRITICAL: Use SAME pitch calculation as tap gestures for consistency
@@ -493,8 +499,30 @@ class WebarmoniumApp {
     })
 
     // SUSTAINED HOLD: Setup sustained hold callbacks for gate-based audio
-    this.gestureCapture.onSustainedHoldStart = (holdData) => {
+    this.gestureCapture.onSustainedHoldStart = async (holdData) => {
       // console.log('🎵 Sustained hold start callback:', holdData)
+
+      // AUTO-START AUDIO: First gesture is a valid user gesture for browser audio policy
+      if (!this.isAudioStarted && this.audioService) {
+        try {
+          const started = await this.audioService.start()
+          if (started) {
+            this.isAudioStarted = true
+            this.audioService.setMuted(false)
+            const button = document.getElementById('audioToggle')
+            if (button) {
+              button.textContent = '🔇 Stop Audio'
+              button.classList.remove('disabled')
+            }
+            // Request drone if needed
+            if (this.socketService?.socket?.connected) {
+              this.socketService.socket.emit('request-drone')
+            }
+          }
+        } catch (e) {
+          console.warn('Could not auto-start audio on gesture:', e)
+        }
+      }
 
       // Calculate frequency from position (reuse existing logic from drag streaming)
       // CRITICAL: Calculate this regardless of audio state for network sync
@@ -568,9 +596,14 @@ class WebarmoniumApp {
       }
 
       // LOCAL AUDIO: Only play locally if audio is ready
-      if (!this.isAudioStarted || !this.audioService) {
+      // Also check Tone.context directly for robustness
+      const audioReady = this.isAudioStarted || (window.Tone && Tone.context?.state === 'running')
+      if (!audioReady || !this.audioService) {
         // console.warn('⚠️ Audio not ready for local playback - hold:start still sent to network')
         return
+      }
+      if (!this.isAudioStarted && audioReady) {
+        this.isAudioStarted = true
       }
 
       // Trigger note attack (gate opens) - include local userId for per-user synth routing
