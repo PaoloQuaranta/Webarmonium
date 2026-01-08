@@ -471,9 +471,6 @@ class GenerativeVisualService {
   renderCursors(p) {
     if (!this.cursorManager?.cursors) return
 
-    // Scale cursor size by devicePixelRatio to match CursorManager behavior
-    const dpr = window.devicePixelRatio || 1
-
     this.cursorManager.cursors.forEach((cursor, userId) => {
       const { x, y, color, isDrawing, isVirtual, alpha } = cursor
       const pixelX = x * p.width
@@ -486,17 +483,17 @@ class GenerativeVisualService {
         p.drawingContext.globalAlpha = alpha
       }
 
-      // Cursor circle - scale by DPR for consistent size across displays
+      // Cursor circle - larger base size to match landing page visibility
       // Virtual cursors use dashed line style (handled below)
-      const baseSize = isDrawing ? 8 : 10
-      const size = baseSize * dpr
+      const baseSize = isDrawing ? 16 : 20
+      const size = baseSize
       p.noFill()
       p.stroke(color)
-      p.strokeWeight((isVirtual ? 1 : 2) * dpr)
+      p.strokeWeight(isVirtual ? 1.5 : 2.5)
 
       // Set dash pattern for virtual cursors
       if (isVirtual) {
-        p.drawingContext.setLineDash([6 * dpr, 4 * dpr])
+        p.drawingContext.setLineDash([8, 5])
       }
 
       p.circle(pixelX, pixelY, size * 2)
@@ -507,8 +504,8 @@ class GenerativeVisualService {
       }
 
       // Crosshair lines
-      const crosshairExtend = 6 * dpr
-      p.strokeWeight(1 * dpr)
+      const crosshairExtend = 8
+      p.strokeWeight(1.5)
       p.line(pixelX - size - crosshairExtend, pixelY, pixelX + size + crosshairExtend, pixelY)
       p.line(pixelX, pixelY - size - crosshairExtend, pixelX, pixelY + size + crosshairExtend)
 
@@ -517,8 +514,8 @@ class GenerativeVisualService {
       p.fill(color)
       p.noStroke()
       p.textAlign(p.CENTER, p.TOP)
-      p.textSize(12 * dpr)
-      p.text(label, pixelX, pixelY + size + 6 * dpr)
+      p.textSize(12)
+      p.text(label, pixelX, pixelY + size + 8)
 
       p.pop()
     })
