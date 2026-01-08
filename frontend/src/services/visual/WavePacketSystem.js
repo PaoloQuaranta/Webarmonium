@@ -94,10 +94,14 @@ class WavePacketSystem {
       edge => edge.sourceId === sourceUserId
     )
 
+    // PERF: Apply stress factor to max pulses for graceful degradation
+    const stressFactor = window.visualService?.stressFactor ?? 1.0
+    const adjustedMaxPulses = Math.ceil(this.maxPulses * stressFactor)
+
     // Emit initial pulses ONLY on edges from the source cursor
     // These pulses will CASCADE on arrival at their destinations
     for (const edge of outgoingEdges) {
-      if (this.activePulses.size >= this.maxPulses) break
+      if (this.activePulses.size >= adjustedMaxPulses) break
 
       const pulse = this.createCascadePulse(edge, color, this.baseIntensity, waveContext, 0)
       if (pulse) {
@@ -116,7 +120,11 @@ class WavePacketSystem {
    * @returns {Object} Created pulse or null
    */
   createCascadePulse(edge, color, intensity, waveContext, hopCount) {
-    if (this.activePulses.size >= this.maxPulses) return null
+    // PERF: Apply stress factor to max pulses
+    const stressFactor = window.visualService?.stressFactor ?? 1.0
+    const adjustedMaxPulses = Math.ceil(this.maxPulses * stressFactor)
+
+    if (this.activePulses.size >= adjustedMaxPulses) return null
     if (intensity < this.minIntensityThreshold) return null
     if (hopCount > this.maxHops) return null
 
@@ -188,6 +196,10 @@ class WavePacketSystem {
       edge => edge.sourceId === arrivalNodeId || edge.targetId === arrivalNodeId
     )
 
+    // PERF: Apply stress factor to max pulses
+    const stressFactor = window.visualService?.stressFactor ?? 1.0
+    const adjustedMaxPulses = Math.ceil(this.maxPulses * stressFactor)
+
     // Spawn cascade pulses to unvisited nodes
     for (const edge of connectedEdges) {
       // Determine the "other" node - the one we'd travel TO
@@ -195,7 +207,7 @@ class WavePacketSystem {
 
       // Skip if other node already visited (prevents cycles)
       if (waveContext.visitedNodes.has(otherNodeId)) continue
-      if (this.activePulses.size >= this.maxPulses) break
+      if (this.activePulses.size >= adjustedMaxPulses) break
 
       // Create pulse that travels TO the other node
       const isForward = edge.sourceId === arrivalNodeId
@@ -226,7 +238,11 @@ class WavePacketSystem {
    * @returns {Object} Created pulse or null
    */
   createCascadePulseBidirectional(edge, color, intensity, waveContext, hopCount, isForward, destinationNodeId) {
-    if (this.activePulses.size >= this.maxPulses) return null
+    // PERF: Apply stress factor to max pulses
+    const stressFactor = window.visualService?.stressFactor ?? 1.0
+    const adjustedMaxPulses = Math.ceil(this.maxPulses * stressFactor)
+
+    if (this.activePulses.size >= adjustedMaxPulses) return null
     if (intensity < this.minIntensityThreshold) return null
     if (hopCount > this.maxHops) return null
 

@@ -34,6 +34,10 @@ class GenerativeVisualService {
     this.performanceMode = 'normal' // 'normal', 'degraded', 'disabled'
     this.frameCount = 0
 
+    // PERF: Stress factor for graceful degradation (0.3-1.0)
+    // Exposed for subsystems to reduce particle/pulse counts under stress
+    this.stressFactor = 1.0
+
     // Idle detection
     this.lastActivityTime = Date.now()
     this.idleThreshold = 10000 // 10 seconds
@@ -48,6 +52,11 @@ class GenerativeVisualService {
 
     // Background color (matching Webarmonium theme)
     this.bgColor = [26, 26, 46]
+
+    // PERF: Consolidated cursor rendering (eliminates CursorManager rAF loop)
+    this.cursorManager = null
+    this.getActiveLocalHold = null  // Function to get local hold state
+    this.getActiveRemoteHolds = null  // Function to get remote holds Map
   }
 
   /**
@@ -93,6 +102,9 @@ class GenerativeVisualService {
           this.draw(p)
         }
       }, containerElement)
+
+      // PERF: Expose instance on window for subsystem stress factor access
+      window.visualService = this
 
       console.log('✅ GenerativeVisualService: Enhanced p5.js initialized with subsystems')
     } catch (error) {
@@ -206,6 +218,16 @@ class GenerativeVisualService {
         }
         this.attractors.render(p)
       }
+
+      // 5. PERF: Consolidated cursor rendering (on top of everything)
+      // Eliminates separate CursorManager rAF loop
+      if (this.cursorManager) {
+        this.renderCursors(p)
+      }
+
+      // 6. Hold indicators (pulsing circles)
+      // Eliminates separate startRenderLoop() rAF in main.js
+      this.renderHoldIndicators(p)
     }
   }
 
@@ -285,7 +307,9 @@ class GenerativeVisualService {
           }
 
           // Also emit particles on tap/hold for better visual feedback
-          const particleCount = (gestureData.type === 'tap' || gestureData.type === 'hold') ? 5 : 2
+          // PERF: Reduce particle emission under stress
+          const baseCount = (gestureData.type === 'tap' || gestureData.type === 'hold') ? 5 : 2
+          const particleCount = Math.max(1, Math.floor(baseCount * this.stressFactor))
           if (this.particles) {
             this.particles.emitParticles(userId, particleCount)
           }
@@ -334,6 +358,9 @@ class GenerativeVisualService {
       // Performance mode based on FPS only - audio stress should NOT affect graphics
       // The user experience is more important than "protecting" audio
       const graphicsBudget = Math.min(1.0, Math.max(0.3, this.fps / this.targetFps))
+
+      // PERF: Expose stress factor for subsystems (particle/pulse limiting)
+      this.stressFactor = graphicsBudget
 
       let targetMode = this.performanceMode
 
@@ -408,6 +435,127 @@ class GenerativeVisualService {
   onBackgroundComposition(composition) {
     if (this.nebulas && this.nebulas.onBackgroundComposition) {
       this.nebulas.onBackgroundComposition(composition)
+    }
+  }
+
+  // =========================================================================
+  // CONSOLIDATED CURSOR RENDERING (Fase 9 - Performance Optimization)
+  // Eliminates separate CursorManager rAF loop by rendering cursors in p5.js
+  // =========================================================================
+
+  /**
+   * Set cursor manager reference for consolidated rendering
+   * @param {CursorManager} cursorManager - Reference to cursor manager
+   */
+  setCursorManager(cursorManager) {
+    this.cursorManager = cursorManager
+  }
+
+  /**
+   * Set hold state accessor functions
+   * @param {Function} getLocalHold - Function that returns activeLocalHold
+   * @param {Function} getRemoteHolds - Function that returns activeRemoteHolds Map
+   */
+  setHoldReferences(getLocalHold, getRemoteHolds) {
+    this.getActiveLocalHold = getLocalHold
+    this.getActiveRemoteHolds = getRemoteHolds
+  }
+
+  /**
+   * Render all cursors from CursorManager
+   * PERF: Called from p5.js draw() loop instead of separate rAF loop
+   * @param {p5} p - p5.js instance
+   */
+  renderCursors(p) {
+    if (!this.cursorManager?.cursors) return
+
+    this.cursorManager.cursors.forEach((cursor, userId) => {
+      const { x, y, color, isDrawing, isVirtual, alpha } = cursor
+      const pixelX = x * p.width
+      const pixelY = y * p.height
+
+      p.push()
+
+      // Apply alpha for virtual cursor fade animations
+      if (alpha !== undefined && alpha < 1) {
+        p.drawingContext.globalAlpha = alpha
+      }
+
+      // Cursor circle - virtual cursors use thinner stroke
+      const size = isDrawing ? 8 : 10
+      p.noFill()
+      p.stroke(color)
+      p.strokeWeight(isVirtual ? 1 : 2)
+      p.circle(pixelX, pixelY, size * 2)
+
+      // Crosshair lines
+      p.line(pixelX - size - 6, pixelY, pixelX + size + 6, pixelY)
+      p.line(pixelX, pixelY - size - 6, pixelX, pixelY + size + 6)
+
+      // User label
+      const label = isVirtual ? userId.split('-').pop() : userId.substring(0, 8)
+      p.fill(color)
+      p.noStroke()
+      p.textAlign(p.CENTER, p.TOP)
+      p.textSize(10)
+      p.text(label, pixelX, pixelY + size + 6)
+
+      p.pop()
+    })
+  }
+
+  /**
+   * Render hold indicators (pulsing circles for sustained holds)
+   * PERF: Called from p5.js draw() loop instead of separate rAF loop
+   * @param {p5} p - p5.js instance
+   */
+  renderHoldIndicators(p) {
+    const now = Date.now()
+
+    // Get hold states via accessor functions
+    const activeLocalHold = this.getActiveLocalHold?.()
+    const activeRemoteHolds = this.getActiveRemoteHolds?.()
+
+    // Render local hold indicator
+    if (activeLocalHold?.position) {
+      const elapsed = now - (activeLocalHold.visualStartTime || now)
+      const pulse = Math.sin(elapsed * 0.001 * Math.PI * 2)
+      const radius = 20 + pulse * 5
+
+      p.push()
+      p.drawingContext.globalAlpha = 0.6 + pulse * 0.1
+      p.noFill()
+      p.stroke(activeLocalHold.color || '#6bcf7f')
+      p.strokeWeight(3)
+      p.circle(
+        activeLocalHold.position.x * p.width,
+        activeLocalHold.position.y * p.height,
+        radius * 2
+      )
+      p.pop()
+    }
+
+    // Render remote hold indicators
+    if (activeRemoteHolds?.size > 0) {
+      activeRemoteHolds.forEach((hold, userId) => {
+        if (!hold?.position) return
+
+        const elapsed = now - (hold.visualStartTime || now)
+        const pulse = Math.sin(elapsed * 0.001 * Math.PI * 2)
+        const radius = 20 + pulse * 5
+
+        p.push()
+        p.drawingContext.globalAlpha = 0.5 + pulse * 0.1
+        p.noFill()
+        p.stroke(hold.color || '#ff6b6b')
+        p.strokeWeight(3)
+        p.circle(
+          hold.position.x * p.width,
+          hold.position.y * p.height,
+          radius * 2
+        )
+        p.pop()
+      })
     }
   }
 

@@ -65,8 +65,9 @@ class WebarmoniumApp {
       // Connect to server
       await this.connectToServer()
 
-      // Start render loop
-      this.startRenderLoop()
+      // PERF: Hold indicator rendering is now consolidated in p5.js draw() loop
+      // This eliminates the separate rAF loop for hold indicators
+      // this.startRenderLoop()  // DISABLED - see visualService.setHoldReferences()
 
       // Try to auto-start audio (may require user interaction)
       this.attemptAutoStartAudio()
@@ -86,6 +87,17 @@ class WebarmoniumApp {
             this.visualService.resize(width / dpr, height / dpr)
           }
         })
+
+        // PERF: Consolidated cursor rendering - eliminates CursorManager rAF loop
+        // Pass cursor manager to visualService for rendering in p5.js draw() loop
+        this.visualService.setCursorManager(this.cursorManager)
+
+        // PERF: Pass hold state accessors for consolidated hold indicator rendering
+        // This eliminates the separate startRenderLoop() rAF loop
+        this.visualService.setHoldReferences(
+          () => this.activeLocalHold,
+          () => this.activeRemoteHolds
+        )
       }
 
       // console.log('✅ Webarmonium initialized successfully')
@@ -220,8 +232,9 @@ class WebarmoniumApp {
     )
     // console.log('🎯 GestureProcessor initialized')
 
-    // Start cursor rendering loop (60fps)
-    this.cursorManager.startRendering()
+    // PERF: Cursor rendering is now consolidated in p5.js draw() loop
+    // This eliminates the separate 60fps rAF loop for cursors
+    // this.cursorManager.startRendering()  // DISABLED - see visualService.setCursorManager()
 
     // Track gesture time for optimized canvas clearing
     this.lastGestureRenderTime = 0
@@ -1577,7 +1590,17 @@ class WebarmoniumApp {
     this.ctx.restore()
   }
 
+  /**
+   * @deprecated DISABLED - Hold indicator rendering is now consolidated in p5.js draw() loop
+   * See: visualService.setHoldReferences() and visualService.renderHoldIndicators()
+   * This method is kept for reference but is no longer called.
+   * PERF: Eliminates separate rAF loop for hold indicators (3 loops -> 1)
+   */
   startRenderLoop() {
+    // DISABLED: This render loop is no longer used
+    // Hold indicators are now rendered in GenerativeVisualService.renderHoldIndicators()
+    return
+
     const render = (timestamp) => {
       // Calculate FPS
       if (timestamp - this.lastFrameTime >= 1000) {

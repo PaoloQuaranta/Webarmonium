@@ -178,8 +178,13 @@ class SpringMeshNetwork {
       }
     }
 
-    // Apply repulsion between all node pairs
-    this.applyRepulsionForces()
+    // PERF: Skip O(n²) repulsion probabilistically under stress
+    // When stress factor is low, we randomly skip some repulsion calculations
+    // to reduce CPU load while maintaining visual coherence
+    const stressFactor = window.visualService?.stressFactor ?? 1.0
+    if (stressFactor > 0.5 || Math.random() < stressFactor) {
+      this.applyRepulsionForces()
+    }
 
     // Update node velocities and positions
     for (const node of this.nodes.values()) {

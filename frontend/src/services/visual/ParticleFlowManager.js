@@ -129,8 +129,12 @@ class ParticleFlowManager {
    * @param {number} count - Number of particles to emit per edge
    */
   emitParticles(sourceUserId, count = this.emitCount) {
-    // Check particle count limit
-    if (this.particles.size >= this.maxParticles) {
+    // PERF: Apply stress factor to max particles for graceful degradation
+    const stressFactor = window.visualService?.stressFactor ?? 1.0
+    const adjustedMaxParticles = Math.ceil(this.maxParticles * stressFactor)
+
+    // Check particle count limit (adjusted by stress)
+    if (this.particles.size >= adjustedMaxParticles) {
       return
     }
 
@@ -155,7 +159,7 @@ class ParticleFlowManager {
       // Create multiple particles per edge for visual density
       const particleCount = Math.min(count, 3)  // Cap initial burst
       for (let i = 0; i < particleCount; i++) {
-        if (this.particles.size >= this.maxParticles) break
+        if (this.particles.size >= adjustedMaxParticles) break
 
         const particle = this.createCascadeParticle(edge, sourceNode.color, 1.0, waveContext, 0)
         if (particle) {
@@ -175,7 +179,11 @@ class ParticleFlowManager {
    * @returns {Object} Created particle or null
    */
   createCascadeParticle(edge, color, life, waveContext, hopCount) {
-    if (this.particles.size >= this.maxParticles) return null
+    // PERF: Apply stress factor to max particles
+    const stressFactor = window.visualService?.stressFactor ?? 1.0
+    const adjustedMaxParticles = Math.ceil(this.maxParticles * stressFactor)
+
+    if (this.particles.size >= adjustedMaxParticles) return null
     if (life < this.minLifeThreshold) return null
     if (hopCount > this.maxHops) return null
 
@@ -234,8 +242,16 @@ class ParticleFlowManager {
     // Mark arrival node as visited
     waveContext.visitedNodes.add(arrivalNodeId)
 
-    // Calculate cascaded life
-    const cascadeLife = particle.life * this.lifeDecayPerHop
+    // PERF: Get stress factor for cascade adjustments
+    const stressFactor = window.visualService?.stressFactor ?? 1.0
+
+    // PERF: Increase decay under stress (particles die faster when FPS drops)
+    // Normal stress (1.0): decay = 0.6 (slower, more propagation)
+    // High stress (0.3): decay = 1.02 (faster, less propagation)
+    const adjustedDecay = this.lifeDecayPerHop * (2 - stressFactor)
+
+    // Calculate cascaded life with adjusted decay
+    const cascadeLife = particle.life * adjustedDecay
     if (cascadeLife < this.minLifeThreshold) return
 
     const nextHop = particle.hopCount + 1
@@ -247,6 +263,9 @@ class ParticleFlowManager {
       edge => edge.sourceId === arrivalNodeId || edge.targetId === arrivalNodeId
     )
 
+    // PERF: Apply stress factor to max particles
+    const adjustedMaxParticles = Math.ceil(this.maxParticles * stressFactor)
+
     // Spawn cascade particles to unvisited nodes
     // Fewer particles per edge on deeper hops
     const particlesPerEdge = Math.max(1, Math.floor(waveContext.countPerEdge * cascadeLife))
@@ -257,10 +276,10 @@ class ParticleFlowManager {
 
       // Skip if other node already visited (prevents cycles)
       if (waveContext.visitedNodes.has(otherNodeId)) continue
-      if (this.particles.size >= this.maxParticles) break
+      if (this.particles.size >= adjustedMaxParticles) break
 
       for (let i = 0; i < particlesPerEdge; i++) {
-        if (this.particles.size >= this.maxParticles) break
+        if (this.particles.size >= adjustedMaxParticles) break
 
         // Create particle that travels TO the other node
         // We need to handle edge direction - if we're traveling "backwards", start at progress=1
@@ -293,7 +312,11 @@ class ParticleFlowManager {
    * @returns {Object} Created particle or null
    */
   createCascadeParticleBidirectional(edge, color, life, waveContext, hopCount, isForward, destinationNodeId) {
-    if (this.particles.size >= this.maxParticles) return null
+    // PERF: Apply stress factor to max particles
+    const stressFactor = window.visualService?.stressFactor ?? 1.0
+    const adjustedMaxParticles = Math.ceil(this.maxParticles * stressFactor)
+
+    if (this.particles.size >= adjustedMaxParticles) return null
     if (life < this.minLifeThreshold) return null
     if (hopCount > this.maxHops) return null
 
