@@ -1759,14 +1759,6 @@ class AudioService {
 
     // CRITICAL: Use triggerAttack (NOT triggerAttackRelease)
     // This opens the gate without closing it
-    // DEBUG: Show patch info to verify correct timbre
-    let patchInfo = 'gestureSynth (fallback)'
-    if (useUserSynth && this.userSynthManager) {
-      const slot = this.userSynthManager.getUserSlot(userId)
-      const patch = this.userSynthManager.getPatchForUser(userId)
-      patchInfo = `${patch?.name || 'unknown'} (slot=${slot}, osc=${patch?.oscillator?.type || 'unknown'})`
-    }
-    console.log(`🎹 SUSTAINED TAP: userId=${userId?.substring(0,8)}, patch=${patchInfo}, freq=${actualFrequency.toFixed(1)}Hz, vel=${actualVelocity.toFixed(2)}, isRemote=${isRemote}, synthType=${synth?.constructor?.name}, disposed=${synth?.disposed}`)
     synth.triggerAttack(actualFrequency, now, actualVelocity)
 
     // Track active sustained note for later release
@@ -2681,21 +2673,12 @@ class AudioService {
    * @param {Object} musicalEvent - Musical event data
    */
   playMusicalEvent(musicalEvent) {
-    // DEBUG: PROMINENT log to verify this function is being called
-    console.log(`📣 playMusicalEvent CALLED - userId=${musicalEvent?.userId?.substring(0,8)}, contextState=${Tone.context?.state}, transportState=${Tone.Transport?.state}`)
-
     // CRITICAL: Check AudioContext state - if suspended, try to resume
     if (Tone.context?.state === 'suspended') {
-      console.log('⚠️ AudioContext suspended - attempting to resume...')
-      Tone.context.resume().then(() => {
-        console.log('✅ AudioContext resumed')
-      }).catch(e => {
-        console.error('❌ Failed to resume AudioContext:', e)
-      })
+      Tone.context.resume()
     }
 
     if (!this.isInitialized || !musicalEvent || this.muted) {
-      console.log('🔇 playMusicalEvent blocked - initialized:', this.isInitialized, 'muted:', this.muted)
       return
     }
 
@@ -2852,7 +2835,6 @@ class AudioService {
 
           if (userId && this.userSynthManager) {
             const synthData = this.userSynthManager.getSynthForUser(userId)
-            console.log(`🎹 getSynthForUser(${userId?.substring(0,8)}):`, synthData ? 'found' : 'null', synthData?.synth?.disposed ? 'DISPOSED' : 'ok')
             if (synthData && synthData.synth && !synthData.synth.disposed) {
               synth = synthData.synth
               actualFrequency = this.userSynthManager.constrainFrequencyToTessitura(eventFrequency, userId)
@@ -2883,10 +2865,9 @@ class AudioService {
             })
           }
 
-          // Volume hierarchy: local (×1.0) > remote (×0.9)
-          const finalVelocity = isStreamed ? eventVelocity * 0.9 : eventVelocity
-
-          console.log(`🎵 TRIGGER: freq=${actualFrequency?.toFixed(1)}Hz, dur=${eventDuration?.toFixed(2)}s, vel=${finalVelocity?.toFixed(2)}, synth=${synth ? (synth === this.gestureSynth ? 'gestureSynth' : 'userSynth') : 'null'}, disposed=${synth?.disposed}`)
+          // Volume hierarchy: local (×1.15 boost) > remote (×1.0)
+          // Local gestures get a slight boost for prominence
+          const finalVelocity = isStreamed ? eventVelocity : Math.min(1.0, eventVelocity * 1.15)
 
           // Use the precise audio time from Transport.schedule
           synth.triggerAttackRelease(

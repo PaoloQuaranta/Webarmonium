@@ -188,7 +188,7 @@ const REAL_USER_PATCHES = {
       frequency: 250,
       Q: 0.7
     },
-    volume: 8,              // BOOSTED: Was 6, now 8 for bell clarity
+    volume: 12,             // BOOSTED: FM/sine has few harmonics, needs significant boost
     effects: {
       delaySend: 0.25,
       reverbSend: 0.35
@@ -288,7 +288,7 @@ const REAL_USER_PATCHES = {
       frequency: 3000,
       Q: 1.0
     },
-    volume: 7,
+    volume: 11,             // BOOSTED: FM/sine has few harmonics
     effects: {
       delaySend: 0.4,       // More delay
       reverbSend: 0.5       // More reverb
