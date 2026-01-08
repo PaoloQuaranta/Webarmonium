@@ -3754,3 +3754,122 @@ Fixed remaining trembling in GitHub and HackerNews virtual cursors by adjusting 
 | Cursor easing | 0.2 | 0.12 |
 
 ---
+
+## Entry #43 - Windows Chrome Audio Stability: Comprehensive Performance Optimization
+
+**Date**: 2026-01-08
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Problem Statement
+
+Audio instability on Windows Chrome (Win 10/11) manifesting as:
+- Crackles and pops during user interactions
+- Audio hiccups during scroll/mouse movements
+- Stuttering during particle/pulse explosions
+
+### Root Causes Identified
+
+1. **Small audio buffer** - Default `latencyHint: 'interactive'` uses ~10-20ms buffer
+2. **Low lookAhead** - Tone.js default 0.05s insufficient for Windows Chrome
+3. **Three separate rAF loops** competing for main thread
+4. **No graphics degradation** under performance stress
+
+### Changes Implemented
+
+#### Phase 8: Graceful Graphics Degradation
+
+**File**: `frontend/src/services/GenerativeVisualService.js`
+- Added `stressFactor` property (0.3-1.0) based on FPS
+- Exposed via `window.visualService` for subsystem access
+- Added `renderCursors()` and `renderHoldIndicators()` methods
+
+**File**: `frontend/src/services/visual/ParticleFlowManager.js`
+- Dynamic `maxParticles` limit: `Math.ceil(this.maxParticles * stressFactor)`
+- Accelerated cascade decay under stress: `lifeDecayPerHop * (2 - stressFactor)`
+- Applied at: `emitParticles()`, `createCascadeParticle()`, `createCascadeParticleBidirectional()`, `onParticleArrival()`
+
+**File**: `frontend/src/services/visual/WavePacketSystem.js`
+- Dynamic `maxPulses` limit: `Math.ceil(this.maxPulses * stressFactor)`
+- Applied at: `emitPulse()`, `createCascadePulse()`, `createCascadePulseBidirectional()`, `onPulseArrival()`
+
+**File**: `frontend/src/services/visual/SpringMeshNetwork.js`
+- Probabilistic O(n²) repulsion skip: `if (stressFactor > 0.5 || Math.random() < stressFactor)`
+
+#### Phase 9: Consolidated Cursor Rendering
+
+**Eliminated 2 rAF loops** (3 → 1):
+
+**File**: `frontend/src/main.js`
+- Disabled `this.cursorManager.startRendering()`
+- Disabled `this.startRenderLoop()`
+- Added `visualService.setCursorManager()` integration
+- Added `visualService.setHoldReferences()` for hold indicators
+
+**Result**: Single p5.js draw() loop at 30fps handles all rendering.
+
+#### Phase 10: Audio Buffer Optimization
+
+**File**: `frontend/src/services/AudioService.js`
+
+Added platform-aware audio configuration:
+
+```javascript
+// Platform detection
+_detectWindowsChrome() {
+  const ua = navigator.userAgent
+  const isWindows = ua.includes('Windows') || navigator.platform?.includes('Win')
+  const isChrome = ua.includes('Chrome') && !ua.includes('Edg') && !ua.includes('OPR')
+  return isWindows && isChrome
+}
+
+// AudioContext configuration (BEFORE Tone.start())
+_configureAudioContext() {
+  const latencyHint = this._isWindowsChrome ? 'playback' : 'balanced'
+  const customContext = new AudioContext({ latencyHint })
+  Tone.setContext(customContext)
+}
+
+// lookAhead increase (AFTER Tone.start())
+Tone.context.lookAhead = this._isWindowsChrome ? 0.15 : 0.1
+```
+
+### Configuration Summary
+
+| Parameter | Windows Chrome | Other Browsers | Default |
+|-----------|----------------|----------------|---------|
+| `latencyHint` | 'playback' (~100-200ms) | 'balanced' (~40-60ms) | 'interactive' (~10-20ms) |
+| `lookAhead` | 150ms | 100ms | 50ms |
+| Note rate limit | 16 notes/sec | 32 notes/sec | 32 notes/sec |
+
+### Performance Improvements
+
+| Metric | Before | After |
+|--------|--------|-------|
+| rAF loops | 3 | 1 |
+| Audio buffer (Windows) | ~10-20ms | ~100-200ms |
+| Scheduling lookahead | 50ms | 100-150ms |
+| Particle limit under stress | Fixed 120 | 36-120 (dynamic) |
+| Pulse limit under stress | Fixed 40 | 12-40 (dynamic) |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Platform detection, AudioContext config, lookAhead |
+| `frontend/src/services/GenerativeVisualService.js` | stressFactor, renderCursors, renderHoldIndicators |
+| `frontend/src/services/visual/ParticleFlowManager.js` | Dynamic particle limits, cascade decay |
+| `frontend/src/services/visual/WavePacketSystem.js` | Dynamic pulse limits |
+| `frontend/src/services/visual/SpringMeshNetwork.js` | Probabilistic repulsion skip |
+| `frontend/src/main.js` | Disabled redundant rAF loops |
+| `frontend/index.html` | Version bump to v1.0.14 |
+
+### Testing Results
+
+- ✅ No audio crackles during normal interactions
+- ✅ Smooth audio during scroll and mouse movements
+- ✅ Graphics degrade gracefully under FPS stress
+- ✅ Single render loop reduces main thread contention
+- ✅ Larger buffer provides headroom for audio scheduling
+
+---
