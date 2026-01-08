@@ -399,11 +399,26 @@ class VirtualUserService {
       const current = roomState.currentPositions[source]
       const target = roomState.targetPositions[source]
 
-      // Smooth interpolation (12% per frame) to reduce trembling
-      // Entry #42: Reduced from 0.2 to 0.12 for smoother cursor movement
-      const easing = 0.12
-      let newX = current.x + (target.x - current.x) * easing
-      let newY = current.y + (target.y - current.y) * easing
+      // Calculate distance to target
+      const deltaX = target.x - current.x
+      const deltaY = target.y - current.y
+      const distance = Math.hypot(deltaX, deltaY)
+
+      // SETTLING THRESHOLD: Snap to target if very close to prevent endless micro-movements (jitter)
+      // Entry #44: Added 0.1% threshold to eliminate floating-point jitter
+      const SETTLING_THRESHOLD = 0.001
+      let newX, newY
+      if (distance < SETTLING_THRESHOLD) {
+        // Snap to target - cursor has arrived
+        newX = target.x
+        newY = target.y
+      } else {
+        // Smooth interpolation (12% per frame) to reduce trembling
+        // Entry #42: Reduced from 0.2 to 0.12 for smoother cursor movement
+        const easing = 0.12
+        newX = current.x + deltaX * easing
+        newY = current.y + deltaY * easing
+      }
 
       // Clamp to region bounds
       newX = Math.max(config.region.xMin, Math.min(config.region.xMax, newX))

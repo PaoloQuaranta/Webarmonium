@@ -4327,3 +4327,142 @@ if (patch.volume > MAX_PATCH_VOLUME_DB) {
 4. **Low FPS scenario**: Verify particles/pulses still render (minimum 30% of limits) when FPS drops
 
 ---
+
+## Entry #47 - Cursor Size Fix & Virtual User Jitter Elimination
+
+**Date**: 2026-01-09
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed two cursor rendering issues:
+1. Cursors in normal rooms were too small compared to landing page
+2. Virtual user cursors still occasionally trembled/jittered in both room types
+
+---
+
+### Issue 1: Cursor Size Mismatch Between Room Types
+
+**User Report**: "i cursori di real e virtual users nelle normal room sono troppo piccoli. dovrebbero avere le stesse dimensioni che hanno in landing page room"
+
+**Root Cause**: Two separate cursor rendering systems existed with different size calculations:
+
+| System | Location | Size Calculation |
+|--------|----------|------------------|
+| CursorManager | `CursorManager.js:26` | `10 * dpr` (scales with devicePixelRatio) |
+| GenerativeVisualService | `GenerativeVisualService.js:487` | `10` (no DPR scaling) |
+
+The `CursorManager.startRendering()` was disabled (line 237 in main.js), and all cursor rendering was delegated to `GenerativeVisualService.renderCursors()`. However, this method didn't account for devicePixelRatio, causing cursors to appear smaller on high-DPI displays.
+
+**Fix** (`frontend/src/services/GenerativeVisualService.js:471-525`):
+
+Added comprehensive DPR scaling to `renderCursors()`:
+
+```javascript
+renderCursors(p) {
+  if (!this.cursorManager?.cursors) return
+
+  // Scale cursor size by devicePixelRatio to match CursorManager behavior
+  const dpr = window.devicePixelRatio || 1
+
+  this.cursorManager.cursors.forEach((cursor, userId) => {
+    // Cursor circle - scale by DPR for consistent size across displays
+    const baseSize = isDrawing ? 8 : 10
+    const size = baseSize * dpr
+    p.strokeWeight((isVirtual ? 1 : 2) * dpr)
+
+    // Set dash pattern for virtual cursors
+    if (isVirtual) {
+      p.drawingContext.setLineDash([6 * dpr, 4 * dpr])
+    }
+
+    p.circle(pixelX, pixelY, size * 2)
+
+    // Crosshair lines
+    const crosshairExtend = 6 * dpr
+    p.strokeWeight(1 * dpr)
+
+    // User label
+    p.textSize(12 * dpr)
+    p.text(label, pixelX, pixelY + size + 6 * dpr)
+  })
+}
+```
+
+**Additional improvements**:
+- Virtual cursors now use dashed lines (matching CursorManager behavior)
+- User labels use `userId.replace('-metrics', '')` for cleaner display
+
+---
+
+### Issue 2: Virtual User Cursor Jitter
+
+**User Report**: "il bug che credevamo risolto dei cursori virtual user che tremano sono ancora saltuariamente presenti per tutti e 3 i virtual users sia in landing page room che in normal room"
+
+**Root Cause**: The cursor interpolation code had no "settling threshold". When the current position was very close to the target position, tiny floating-point differences caused endless micro-movements:
+
+```
+easing = 0.12 (12% of remaining distance per frame)
+If current = 0.500000 and target = 0.500001
+  → Movement = 0.000001 * 0.12 = 0.00000012 per frame
+  → Endless micro-jitter that never settles
+```
+
+**Fix**: Added settling threshold to both services:
+
+**LandingCompositionService.js** (lines 1388-1407):
+```javascript
+// Calculate distance to target
+const deltaX = target.x - current.x
+const deltaY = target.y - current.y
+const distance = Math.hypot(deltaX, deltaY)
+
+// SETTLING THRESHOLD: Snap to target if very close to prevent endless micro-movements
+// Entry #47: Added 0.1% threshold to eliminate floating-point jitter
+const SETTLING_THRESHOLD = 0.001
+let newX, newY
+if (distance < SETTLING_THRESHOLD) {
+  // Snap to target - cursor has arrived
+  newX = target.x
+  newY = target.y
+} else {
+  // Smooth interpolation (12% per frame)
+  const easing = 0.12
+  newX = current.x + deltaX * easing
+  newY = current.y + deltaY * easing
+}
+```
+
+**VirtualUserService.js** (lines 402-421): Same fix applied for normal rooms.
+
+---
+
+### Anti-Trembling Parameter Summary (Updated)
+
+| Parameter | Location | Value | Purpose |
+|-----------|----------|-------|---------|
+| Dead zone threshold | `_updateTargetPositionWithSmoothing()` | 5% | Ignore small target changes |
+| Target smoothing | `_updateTargetPositionWithSmoothing()` | 0.15 | Gradual target approach |
+| Cursor easing | Interpolation loop | 0.12 | Smooth 20fps interpolation |
+| **Settling threshold** | Interpolation loop | **0.1%** | **NEW: Snap when very close** |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/GenerativeVisualService.js` | DPR scaling for cursor size, stroke weight, crosshair, text; dashed lines for virtual cursors |
+| `backend/src/services/LandingCompositionService.js` | Settling threshold (0.001) to snap cursor when distance < 0.1% |
+| `backend/src/services/VirtualUserService.js` | Settling threshold (0.001) to snap cursor when distance < 0.1% |
+
+---
+
+### Testing Results
+
+- ✅ VirtualUserService unit tests pass (34/34)
+- ✅ Cursor size now consistent between landing page and normal rooms
+- ✅ Virtual cursors should no longer exhibit micro-jitter when stationary
+
+---

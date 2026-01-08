@@ -471,6 +471,9 @@ class GenerativeVisualService {
   renderCursors(p) {
     if (!this.cursorManager?.cursors) return
 
+    // Scale cursor size by devicePixelRatio to match CursorManager behavior
+    const dpr = window.devicePixelRatio || 1
+
     this.cursorManager.cursors.forEach((cursor, userId) => {
       const { x, y, color, isDrawing, isVirtual, alpha } = cursor
       const pixelX = x * p.width
@@ -483,24 +486,39 @@ class GenerativeVisualService {
         p.drawingContext.globalAlpha = alpha
       }
 
-      // Cursor circle - virtual cursors use thinner stroke
-      const size = isDrawing ? 8 : 10
+      // Cursor circle - scale by DPR for consistent size across displays
+      // Virtual cursors use dashed line style (handled below)
+      const baseSize = isDrawing ? 8 : 10
+      const size = baseSize * dpr
       p.noFill()
       p.stroke(color)
-      p.strokeWeight(isVirtual ? 1 : 2)
+      p.strokeWeight((isVirtual ? 1 : 2) * dpr)
+
+      // Set dash pattern for virtual cursors
+      if (isVirtual) {
+        p.drawingContext.setLineDash([6 * dpr, 4 * dpr])
+      }
+
       p.circle(pixelX, pixelY, size * 2)
 
+      // Reset line dash
+      if (isVirtual) {
+        p.drawingContext.setLineDash([])
+      }
+
       // Crosshair lines
-      p.line(pixelX - size - 6, pixelY, pixelX + size + 6, pixelY)
-      p.line(pixelX, pixelY - size - 6, pixelX, pixelY + size + 6)
+      const crosshairExtend = 6 * dpr
+      p.strokeWeight(1 * dpr)
+      p.line(pixelX - size - crosshairExtend, pixelY, pixelX + size + crosshairExtend, pixelY)
+      p.line(pixelX, pixelY - size - crosshairExtend, pixelX, pixelY + size + crosshairExtend)
 
       // User label
-      const label = isVirtual ? userId.split('-').pop() : userId.substring(0, 8)
+      const label = isVirtual ? userId.replace('-metrics', '') : userId.substring(0, 8)
       p.fill(color)
       p.noStroke()
       p.textAlign(p.CENTER, p.TOP)
-      p.textSize(10)
-      p.text(label, pixelX, pixelY + size + 6)
+      p.textSize(12 * dpr)
+      p.text(label, pixelX, pixelY + size + 6 * dpr)
 
       p.pop()
     })
