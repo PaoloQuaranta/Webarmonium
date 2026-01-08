@@ -4124,3 +4124,206 @@ if (framePixelDistance > this.dragStreaming.perFrameDeadZone) {
 | Intentional drag | Works normally | Works normally (>2px movements counted) |
 
 ---
+
+## Entry #46 - Code Review Fixes: Entry #43-45 Issues Resolved
+
+**Date**: 2026-01-09
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Comprehensive code review of Entry #43, #44, and #45 identified 9 issues ranging from critical to medium priority. All issues have been fixed.
+
+---
+
+### Critical Issues Fixed
+
+#### Issue 1: AudioContext Resume Race Condition
+**File**: `frontend/src/services/AudioService.js` (Lines 328-369)
+
+**Problem**: The retry mechanism for `context.resume()` used a fixed 50ms delay which was insufficient for audio hardware initialization. The context state check was synchronous after a fixed delay, not reflecting actual state changes.
+
+**Fix**: Replaced fixed delay with proper polling mechanism:
+```javascript
+// Poll for state change with timeout instead of fixed delay
+const pollTimeout = 500  // Max wait per attempt
+const pollInterval = 10   // Check every 10ms
+const startTime = Date.now()
+
+while (Tone.context.state !== 'running' && Date.now() - startTime < pollTimeout) {
+  await new Promise(resolve => setTimeout(resolve, pollInterval))
+}
+```
+
+---
+
+#### Issue 2: Memory Leak - window.visualService Not Cleaned Up
+**File**: `frontend/src/services/GenerativeVisualService.js` (Lines 598-602)
+
+**Problem**: Global `window.visualService` reference was never cleaned up in `dispose()`, causing memory leaks if app was reinitialized.
+
+**Fix**: Added cleanup in dispose():
+```javascript
+// Clean up global window reference to prevent memory leak
+if (window.visualService === this) {
+  delete window.visualService
+}
+```
+
+---
+
+#### Issue 3: NaN Propagation in Drag Streaming
+**File**: `frontend/src/services/EnhancedGestureCapture.js` (Lines 384-388)
+
+**Problem**: Canvas size could be 0 during initialization, causing `distance * 0 = 0` which broke the pixel-based filtering logic.
+
+**Fix**: Added canvas size validation:
+```javascript
+if (canvasSize === 0) {
+  console.warn('⚠️ Canvas size is 0, skipping drag movement tracking')
+  return
+}
+```
+
+---
+
+#### Issue 4: holdWasActive Reset Bug (CRITICAL)
+**File**: `frontend/src/services/EnhancedGestureCapture.js` (Line 417)
+
+**Problem**: The code reset `sustainedHold.wasActive = false` when transitioning from hold to drag. This **undermined Entry #45's entire fix** - when a gesture transitioned from hold to drag, `holdWasActive` became false, causing `GestureProcessor` to NOT skip local audio processing, resulting in **double playback**.
+
+**Fix**: Removed the reset (commented out with explanation):
+```javascript
+// Entry #46 FIX: DO NOT reset wasActive when transitioning to drag
+// The holdWasActive flag tracks if hold system was EVER used, not if currently active
+// Previous bug: resetting to false caused double playback on hold->drag transition
+// this.sustainedHold.wasActive = false  // REMOVED - caused bug #4 in code review
+```
+
+---
+
+### High Priority Issues Fixed
+
+#### Issue 5: Missing Velocity Input Validation
+**File**: `frontend/src/services/AudioService.js` (Lines 2879-2883)
+
+**Problem**: No defensive validation for velocity - if `eventVelocity` was NaN or invalid, audio would play with invalid velocity.
+
+**Fix**: Added defensive validation with fallback:
+```javascript
+const safeVelocity = (typeof eventVelocity === 'number' && !isNaN(eventVelocity))
+  ? Math.max(0, Math.min(1.0, eventVelocity))
+  : 0.7  // Default fallback
+const finalVelocity = isStreamed ? safeVelocity : Math.min(1.0, safeVelocity * 1.15)
+```
+
+Also ensured `isStreamed` is strictly boolean:
+```javascript
+const isStreamed = musicalEvent.properties?.isStreamed === true
+```
+
+---
+
+#### Issue 6: Transport.start() Unsafe Check
+**File**: `frontend/src/services/MusicalScheduler.js` (Lines 112-117)
+
+**Problem**: The check verified context state but not Transport existence. If Tone.js initialization failed, `Tone.Transport` could be undefined.
+
+**Fix**: Added full null chain check:
+```javascript
+if (window.Tone?.context?.state === 'running' && window.Tone?.Transport) {
+  window.Tone.Transport.start();
+} else {
+  console.warn('[MusicalScheduler] Skipping Transport.start() - prerequisites not met');
+}
+```
+
+---
+
+### Medium Priority Issues Fixed
+
+#### Issue 7: Code Duplication - Platform Detection
+**Files**: `AudioService.js`, `EnhancedGestureCapture.js`
+
+**Problem**: Both files had identical `_detectWindowsChrome()` implementations, violating DRY principle.
+
+**Fix**: Created shared utility `frontend/src/utils/PlatformDetection.js`:
+```javascript
+class PlatformDetection {
+  static _cache = null
+
+  static isWindowsChrome() {
+    if (PlatformDetection._cache !== null) return PlatformDetection._cache
+
+    const ua = navigator.userAgent || ''
+    const isWindows = ua.includes('Windows') || (navigator.platform?.includes('Win') ?? false)
+    const isChrome = ua.includes('Chrome') && !ua.includes('Edg') && !ua.includes('OPR')
+    PlatformDetection._cache = isWindows && isChrome
+    return PlatformDetection._cache
+  }
+}
+```
+
+Updated both services to use the shared utility with fallback.
+
+---
+
+#### Issue 8: stressFactor Range Not Enforced
+**File**: `frontend/src/services/GenerativeVisualService.js` (Line 365)
+
+**Problem**: `stressFactor` was documented as `0.3-1.0` but could become < 0.3 if FPS dropped very low, potentially causing zero particle/pulse limits.
+
+**Fix**: Added explicit minimum enforcement:
+```javascript
+this.stressFactor = Math.max(0.3, graphicsBudget)
+```
+
+---
+
+#### Issue 9: Volume Clipping Risk for High-dB Patches
+**File**: `frontend/src/services/audio/UserSynthManager.js` (Lines 210-217)
+
+**Problem**: FM patches (slots 3, 7) were boosted to 11-12 dB without any limiting. Multiple simultaneous FM notes could cause audio distortion or speaker damage.
+
+**Fix**: Added volume limiting with warning:
+```javascript
+const MAX_PATCH_VOLUME_DB = 10  // Safety limit
+const patchVolume = Math.min(patch.volume || 0, MAX_PATCH_VOLUME_DB)
+if (patch.volume > MAX_PATCH_VOLUME_DB) {
+  console.warn(`⚠️ Patch "${patch.name}" volume capped: ${patch.volume} dB → ${MAX_PATCH_VOLUME_DB} dB`)
+}
+```
+
+---
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `frontend/src/utils/PlatformDetection.js` | Shared platform detection utility |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Resume polling fix, isStreamed validation, velocity validation, shared utility usage |
+| `frontend/src/services/GenerativeVisualService.js` | window.visualService cleanup, stressFactor minimum enforcement |
+| `frontend/src/services/EnhancedGestureCapture.js` | Canvas size validation, holdWasActive reset removed, shared utility usage |
+| `frontend/src/services/MusicalScheduler.js` | Transport.start() null chain check |
+| `frontend/src/services/audio/UserSynthManager.js` | Volume limiting for high-dB patches |
+| `frontend/index.html` | Added PlatformDetection.js script |
+| `frontend/rooms.html` | Added PlatformDetection.js script |
+
+---
+
+### Testing Recommendations
+
+1. **Sustained hold to drag transition**: Verify no double playback when user starts a hold and then drags
+2. **AudioContext resume**: Test on multiple browsers, especially after tab sleep/wake
+3. **High-dB patches**: Verify FM patches (slots 3, 7) are properly capped at 10 dB
+4. **Low FPS scenario**: Verify particles/pulses still render (minimum 30% of limits) when FPS drops
+
+---

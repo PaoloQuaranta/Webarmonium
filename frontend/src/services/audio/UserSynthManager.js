@@ -207,7 +207,14 @@ class UserSynthManager {
       })
 
       // Create volume node
-      const volume = new Tone.Volume(patch.volume || 0)
+      // Entry #46 FIX: Limit patch volume to prevent clipping and speaker damage
+      // High volume patches (like FM/bell at 11-12 dB) could cause distortion if multiple play simultaneously
+      const MAX_PATCH_VOLUME_DB = 10  // Safety limit
+      const patchVolume = Math.min(patch.volume || 0, MAX_PATCH_VOLUME_DB)
+      if (patch.volume > MAX_PATCH_VOLUME_DB) {
+        console.warn(`⚠️ Patch "${patch.name}" volume capped: ${patch.volume} dB → ${MAX_PATCH_VOLUME_DB} dB`)
+      }
+      const volume = new Tone.Volume(patchVolume)
 
       // Create panner for stereo placement (virtual users get fixed positions)
       let panValue = 0

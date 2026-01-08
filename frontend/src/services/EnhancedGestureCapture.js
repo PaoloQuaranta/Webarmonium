@@ -158,10 +158,16 @@ class EnhancedGestureCapture {
 
   /**
    * Detect Windows Chrome for performance optimization
+   * Entry #46: Now uses shared PlatformDetection utility to eliminate code duplication
    * Windows Chrome has higher audio latency and needs more conservative timing
    * @returns {boolean} True if running on Windows Chrome
    */
   _detectWindowsChrome() {
+    // Use shared utility if available, fall back to inline detection
+    if (typeof PlatformDetection !== 'undefined') {
+      return PlatformDetection.isWindowsChrome()
+    }
+    // Fallback for safety (should not reach here with proper script loading)
     const ua = navigator.userAgent
     const isWindows = ua.includes('Windows') || navigator.platform?.includes('Win')
     const isChrome = ua.includes('Chrome') && !ua.includes('Edg') && !ua.includes('OPR')
@@ -381,6 +387,12 @@ class EnhancedGestureCapture {
       // Normalized coordinates don't directly compare to pixel threshold
       const canvasSize = Math.max(this.canvas.width, this.canvas.height)
 
+      // Entry #46 FIX: Validate canvas size to prevent NaN/0 propagation during initialization
+      if (canvasSize === 0) {
+        console.warn('⚠️ Canvas size is 0, skipping drag movement tracking')
+        return
+      }
+
       // Entry #45 FIX: Apply per-frame dead zone filter to prevent jitter accumulation
       // Only count movement if this frame's pixel distance exceeds the dead zone
       // This prevents tiny mouse sensor jitter from accumulating during long holds
@@ -412,9 +424,12 @@ class EnhancedGestureCapture {
         this.sustainedHold.isActive = false
         this.sustainedHold.activeNoteId = null
         this.sustainedHold.startPosition = null
-        // CRITICAL FIX: Reset wasActive when transitioning to drag
-        // This gesture now uses streaming, not hold system - backend should process streamedNotes
-        this.sustainedHold.wasActive = false
+        // Entry #46 FIX: DO NOT reset wasActive when transitioning to drag
+        // The holdWasActive flag tracks if hold system was EVER used, not if currently active
+        // This prevents double playback: if hold started, audio was already played via
+        // sustainedHold system, and GestureProcessor should skip local audio processing
+        // Previous bug: resetting to false caused double playback on hold->drag transition
+        // this.sustainedHold.wasActive = false  // REMOVED - caused bug #4 in code review
 
         // Activate drag streaming and play first drag note
         this.dragStreaming.isActive = true

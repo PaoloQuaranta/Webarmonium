@@ -360,7 +360,9 @@ class GenerativeVisualService {
       const graphicsBudget = Math.min(1.0, Math.max(0.3, this.fps / this.targetFps))
 
       // PERF: Expose stress factor for subsystems (particle/pulse limiting)
-      this.stressFactor = graphicsBudget
+      // Entry #46 FIX: Enforce minimum 0.3 to prevent zero particle/pulse limits
+      // If FPS drops very low, stressFactor could become < 0.3 without this enforcement
+      this.stressFactor = Math.max(0.3, graphicsBudget)
 
       let targetMode = this.performanceMode
 
@@ -593,6 +595,12 @@ class GenerativeVisualService {
     if (this.p5Instance) {
       this.p5Instance.remove()
       this.p5Instance = null
+    }
+
+    // Entry #46 FIX: Clean up global window reference to prevent memory leak
+    // If this instance is the one exposed globally, remove the reference
+    if (window.visualService === this) {
+      delete window.visualService
     }
 
     // console.log('✅ GenerativeVisualService: Disposed')

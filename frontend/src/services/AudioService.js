@@ -265,10 +265,16 @@ class AudioService {
 
   /**
    * Detect Windows Chrome for audio buffer optimization
+   * Entry #46: Now uses shared PlatformDetection utility to eliminate code duplication
    * Windows Chrome has higher audio latency and needs larger buffers to prevent glitches
    * @returns {boolean} True if running on Windows Chrome
    */
   _detectWindowsChrome() {
+    // Use shared utility if available, fall back to inline detection
+    if (typeof PlatformDetection !== 'undefined') {
+      return PlatformDetection.isWindowsChrome()
+    }
+    // Fallback for safety (should not reach here with proper script loading)
     const ua = navigator.userAgent
     const isWindows = ua.includes('Windows') || navigator.platform?.includes('Win')
     const isChrome = ua.includes('Chrome') && !ua.includes('Edg') && !ua.includes('OPR')
@@ -325,7 +331,8 @@ class AudioService {
           await Tone.start()
           console.log('🔊 After Tone.start(), state:', Tone.context.state)
 
-          // FIX: If still suspended, try explicit context.resume() with retries
+          // Entry #46 FIX: If still suspended, try explicit context.resume() with proper polling
+          // Previous implementation used fixed 50ms delay which was insufficient for audio hardware
           if (Tone.context.state !== 'running') {
             console.log('🔊 Context still suspended, trying explicit resume...')
             const rawContext = Tone.context.rawContext || Tone.context._context || Tone.context
@@ -333,16 +340,23 @@ class AudioService {
             for (let attempt = 1; attempt <= 3; attempt++) {
               try {
                 // Try to resume the raw AudioContext
-                if (rawContext && typeof rawContext.resume === 'function') {
+                if (rawContext?.resume) {
                   await rawContext.resume()
                 }
                 // Also try Tone.context.resume if available
-                if (typeof Tone.context.resume === 'function') {
+                if (Tone.context?.resume) {
                   await Tone.context.resume()
                 }
 
-                // Wait a bit for the context to actually start
-                await new Promise(resolve => setTimeout(resolve, 50))
+                // Entry #46 FIX: Poll for state change with timeout instead of fixed delay
+                // Audio hardware initialization can take variable time
+                const pollTimeout = 500  // Max wait per attempt
+                const pollInterval = 10   // Check every 10ms
+                const startTime = Date.now()
+
+                while (Tone.context.state !== 'running' && Date.now() - startTime < pollTimeout) {
+                  await new Promise(resolve => setTimeout(resolve, pollInterval))
+                }
 
                 console.log(`🔊 After resume attempt ${attempt}, state:`, Tone.context.state)
 
@@ -2783,7 +2797,8 @@ class AudioService {
       // Key insight: schedule on audio thread, not main thread with setTimeout
 
       // Pre-compute all values outside the callback to reduce GC pressure
-      const isStreamed = musicalEvent.properties?.isStreamed
+      // Entry #46 FIX: Ensure isStreamed is strictly boolean to prevent truthy string bugs
+      const isStreamed = musicalEvent.properties?.isStreamed === true
       const userId = musicalEvent.userId
       const eventFrequency = frequency
       const eventDuration = adjustedDuration
@@ -2867,7 +2882,11 @@ class AudioService {
 
           // Volume hierarchy: local (×1.15 boost) > remote (×1.0)
           // Local gestures get a slight boost for prominence
-          const finalVelocity = isStreamed ? eventVelocity : Math.min(1.0, eventVelocity * 1.15)
+          // Entry #46 FIX: Defensive validation for velocity to prevent NaN/invalid values
+          const safeVelocity = (typeof eventVelocity === 'number' && !isNaN(eventVelocity))
+            ? Math.max(0, Math.min(1.0, eventVelocity))
+            : 0.7  // Default fallback
+          const finalVelocity = isStreamed ? safeVelocity : Math.min(1.0, safeVelocity * 1.15)
 
           // Use the precise audio time from Transport.schedule
           synth.triggerAttackRelease(
