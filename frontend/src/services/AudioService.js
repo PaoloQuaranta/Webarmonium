@@ -324,6 +324,41 @@ class AudioService {
           console.log('🔊 Calling Tone.start(), current state:', Tone.context.state)
           await Tone.start()
           console.log('🔊 After Tone.start(), state:', Tone.context.state)
+
+          // FIX: If still suspended, try explicit context.resume() with retries
+          if (Tone.context.state !== 'running') {
+            console.log('🔊 Context still suspended, trying explicit resume...')
+            const rawContext = Tone.context.rawContext || Tone.context._context || Tone.context
+
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              try {
+                // Try to resume the raw AudioContext
+                if (rawContext && typeof rawContext.resume === 'function') {
+                  await rawContext.resume()
+                }
+                // Also try Tone.context.resume if available
+                if (typeof Tone.context.resume === 'function') {
+                  await Tone.context.resume()
+                }
+
+                // Wait a bit for the context to actually start
+                await new Promise(resolve => setTimeout(resolve, 50))
+
+                console.log(`🔊 After resume attempt ${attempt}, state:`, Tone.context.state)
+
+                if (Tone.context.state === 'running') {
+                  console.log('🔊 ✅ Context resumed successfully!')
+                  break
+                }
+              } catch (resumeError) {
+                console.warn(`🔊 Resume attempt ${attempt} failed:`, resumeError)
+              }
+            }
+
+            if (Tone.context.state !== 'running') {
+              console.warn('🔊 ⚠️ Context still not running after retries. User may need to click again.')
+            }
+          }
         } else {
           console.log('🔊 Tone.context already running')
         }
@@ -336,10 +371,12 @@ class AudioService {
           // console.log(`🔊 Tone.context.lookAhead set to ${Tone.context.lookAhead}s`)
         }
 
-        // CRITICAL: Start Transport for scheduled events
-        if (Tone.Transport.state !== 'started') {
+        // CRITICAL: Start Transport for scheduled events (only if context is running)
+        if (Tone.context.state === 'running' && Tone.Transport.state !== 'started') {
           Tone.Transport.start()
           // console.log('🚀 Tone.Transport started for event scheduling')
+        } else if (Tone.context.state !== 'running') {
+          console.warn('🔊 Skipping Transport.start() - context still not running')
         }
 
         // CRITICAL: Ensure audioContext is properly set
@@ -387,7 +424,12 @@ class AudioService {
 ////          })
         }
 
-        return true
+        // Return true only if context is actually running
+        const contextRunning = Tone.context.state === 'running'
+        if (!contextRunning) {
+          console.warn('🔊 AudioService.start() completed but context still not running')
+        }
+        return contextRunning
       } else {
         throw new Error('Tone.js not available')
       }

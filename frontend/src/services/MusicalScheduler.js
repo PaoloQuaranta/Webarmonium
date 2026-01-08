@@ -108,9 +108,13 @@ class MusicalScheduler {
     if (this.isRunning) return;
 
     try {
-      // Start Tone.js Transport
+      // Start Tone.js Transport (only if context is running to avoid warnings)
       if (window.Tone && window.Tone.Transport) {
-        window.Tone.Transport.start();
+        if (window.Tone.context && window.Tone.context.state === 'running') {
+          window.Tone.Transport.start();
+        } else {
+          console.warn('[MusicalScheduler] Skipping Transport.start() - context not running');
+        }
       }
 
       // Start our scheduling worker

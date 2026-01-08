@@ -1478,7 +1478,9 @@ class WebarmoniumApp {
             this.socketService.socket.emit('request-drone')
           }
         } else {
-          // console.warn('⚠️ AudioService.start() returned false')
+          // AudioContext still suspended - ask user to click again
+          console.warn('⚠️ AudioService.start() returned false - context still suspended')
+          this.showError('Audio context blocked. Please click Start Audio again.')
         }
       } catch (error) {
         // console.error('❌ Failed to start audio:', error)
