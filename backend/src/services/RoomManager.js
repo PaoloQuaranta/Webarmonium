@@ -120,8 +120,8 @@ class RoomManager {
     let assignedSlot = null
     try {
       assignedSlot = room.assignSlotToUser(user)
-      console.log(`🎹 Slot assignment SUCCESS: slot=${assignedSlot} for user ${userId.substring(0, 8)} in room ${roomId}`)
-      console.log(`   Available slots remaining: ${room.availableSlots ? Array.from(room.availableSlots) : 'N/A'}`)
+      // console.log(`🎹 Slot assignment SUCCESS: slot=${assignedSlot} for user ${userId.substring(0, 8)} in room ${roomId}`)
+      // console.log(`   Available slots remaining: ${room.availableSlots ? Array.from(room.availableSlots) : 'N/A'}`)
     } catch (slotError) {
       console.error(`⚠️ Slot assignment FAILED for ${userId.substring(0, 8)}: ${slotError.message}`)
       console.error(`   Available slots: ${room.availableSlots ? Array.from(room.availableSlots) : 'N/A'}`)
@@ -142,12 +142,12 @@ class RoomManager {
     const modeChange = room.updateMode()
     let modeTransitionInfo = null
 
-    console.log(`🔄 RoomManager.joinRoom: roomId=${roomId}, userCount=${room.getUserCount()}, modeChange=${JSON.stringify(modeChange)}, hasVirtualUserService=${!!this.virtualUserService}`)
+    // console.log(`🔄 RoomManager.joinRoom: roomId=${roomId}, userCount=${room.getUserCount()}, modeChange=${JSON.stringify(modeChange)}, hasVirtualUserService=${!!this.virtualUserService}`)
 
     if (room.getUserCount() === 1 && this.virtualUserService) {
       // First user joined: activate virtual users
       const activeSources = this.virtualUserService.getMostActiveSources()
-      console.log(`🎭 Activating virtual users for room ${roomId}: ${activeSources.join(', ')}`)
+      // console.log(`🎭 Activating virtual users for room ${roomId}: ${activeSources.join(', ')}`)
       this.virtualUserService.activateForRoom(roomId, activeSources, {
         key: 'C',
         mode: 'ionian',
@@ -157,7 +157,7 @@ class RoomManager {
       room.addVirtualUser(activeSources[1] + '-metrics', this.virtualUserService.virtualUserConfigs[activeSources[1]])
     } else if (modeChange.changed && modeChange.to === 'multi' && this.virtualUserService) {
       // Transition from solo to multi: deactivate virtual users
-      console.log(`🎭 Deactivating virtual users for room ${roomId} (mode: solo→multi)`)
+      // console.log(`🎭 Deactivating virtual users for room ${roomId} (mode: solo→multi)`)
       this.virtualUserService.deactivateForRoom(roomId, true)
       room.clearVirtualUsers()
 
@@ -222,7 +222,7 @@ class RoomManager {
 
     // Release user's synth slot back to room pool
     room.releaseUserSlot(user)
-    console.log(`🎹 Released slot from user ${userId.substring(0, 8)} in room ${roomId}`)
+    // console.log(`🎹 Released slot from user ${userId.substring(0, 8)} in room ${roomId}`)
 
     // Cancel any active drawing stroke
     const drawingService = this.drawingServices.get(roomId)
@@ -243,11 +243,11 @@ class RoomManager {
     // Handle mode transitions
     const modeChange = room.updateMode()
 
-    console.log(`🔄 RoomManager.leaveRoom: roomId=${roomId}, userCount=${room.getUserCount()}, isEmpty=${room.isEmpty()}, modeChange=${JSON.stringify(modeChange)}, hasVirtualUserService=${!!this.virtualUserService}`)
+    // console.log(`🔄 RoomManager.leaveRoom: roomId=${roomId}, userCount=${room.getUserCount()}, isEmpty=${room.isEmpty()}, modeChange=${JSON.stringify(modeChange)}, hasVirtualUserService=${!!this.virtualUserService}`)
 
     if (room.isEmpty()) {
       // Room is now empty: deactivate virtual users and start memory expiration
-      console.log(`🎭 Deactivating virtual users for empty room ${roomId}`)
+      // console.log(`🎭 Deactivating virtual users for empty room ${roomId}`)
       if (this.virtualUserService) {
         this.virtualUserService.deactivateForRoom(roomId, false)
       }
@@ -257,7 +257,7 @@ class RoomManager {
     } else if (modeChange.changed && modeChange.to === 'solo' && this.virtualUserService) {
       // Transition from multi to solo: activate virtual users
       const activeSources = this.virtualUserService.getMostActiveSources()
-      console.log(`🎭 Reactivating virtual users for room ${roomId} (mode: multi→solo): ${activeSources.join(', ')}`)
+      // console.log(`🎭 Reactivating virtual users for room ${roomId} (mode: multi→solo): ${activeSources.join(', ')}`)
       this.virtualUserService.activateForRoom(roomId, activeSources, {
         key: 'C',
         mode: 'ionian',
@@ -672,7 +672,7 @@ class RoomManager {
       newRoomId = `${baseName}-${suffix}`
     }
 
-    console.log(`🏠 Created overflow room: ${newRoomId} (from ${originalRoomId})`)
+    // console.log(`🏠 Created overflow room: ${newRoomId} (from ${originalRoomId})`)
     return newRoomId
   }
 

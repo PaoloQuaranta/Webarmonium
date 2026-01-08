@@ -222,7 +222,7 @@ class BackgroundCompositionService {
       isDrone: true,
       timestamp: Date.now()
     })
-    console.log(`🎵 Drone emitted to socket for room ${roomId} (request-drone)`)
+    // console.log(`🎵 Drone emitted to socket for room ${roomId} (request-drone)`)
   }
 
   /**

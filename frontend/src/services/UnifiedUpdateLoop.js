@@ -108,7 +108,7 @@ class UnifiedUpdateLoop {
     // Use requestAnimationFrame for optimal browser scheduling
     this.rafId = requestAnimationFrame(this._boundLoop)
 
-    console.log(`UnifiedUpdateLoop: Started with ${this.callbacks.size} callbacks`)
+    // console.log(`UnifiedUpdateLoop: Started with ${this.callbacks.size} callbacks`)
   }
 
   /**
@@ -124,7 +124,7 @@ class UnifiedUpdateLoop {
       this.rafId = null
     }
 
-    console.log('UnifiedUpdateLoop: Stopped')
+    // console.log('UnifiedUpdateLoop: Stopped')
   }
 
   /**
@@ -203,7 +203,7 @@ class UnifiedUpdateLoop {
     this.stop()
     this.callbacks.clear()
     UnifiedUpdateLoop.instance = null
-    console.log('UnifiedUpdateLoop: Disposed')
+    // console.log('UnifiedUpdateLoop: Disposed')
   }
 }
 

@@ -7,7 +7,7 @@
  */
 
 // DEBUG: Verify file is loaded
-console.log('🔴🔴🔴 AudioService.js v36 LOADING 🔴🔴🔴')
+// console.log('🔴🔴🔴 AudioService.js v36 LOADING 🔴🔴🔴')
 
 // Note: MusicalScheduler and LFOManager will be loaded via global scripts
 class AudioService {
@@ -364,7 +364,7 @@ class AudioService {
         // Always ensure Tone is started (requires user gesture from click handler)
         if (Tone.context.state !== 'running') {
           await Tone.start()
-          console.log('🔊 Tone.js context started/resumed')
+          // console.log('🔊 Tone.js context started/resumed')
         }
 
         // CRITICAL: Start Transport for scheduled events
@@ -508,7 +508,7 @@ class AudioService {
 
     // Wait for reverb to generate impulse response (non-blocking)
     this.reverb.ready.then(() => {
-      console.log('✅ Reverb impulse response ready')
+      // console.log('✅ Reverb impulse response ready')
     }).catch(e => {
       console.warn('Reverb initialization warning:', e.message)
     })
@@ -788,7 +788,7 @@ class AudioService {
       }
       this.droneVoidController = new DroneVoidController(this)
       this.droneVoidController.start()
-      console.log('DroneVoidController: Initialized - drone starts silent until activity void')
+      // console.log('DroneVoidController: Initialized - drone starts silent until activity void')
     }
 
     // Create gesture-responsive synth with optimized polyphony
@@ -845,22 +845,22 @@ class AudioService {
 
     // Initialize UserSynthManager for per-user unique timbres
     // Each user (real or virtual) gets their own synth with unique patch
-    console.log('🔍 Checking UserSynthManager availability:', typeof UserSynthManager)
-    console.log('🔍 Checking PatchDefinitions availability:', typeof window.PatchDefinitions)
+    // console.log('🔍 Checking UserSynthManager availability:', typeof UserSynthManager)
+    // console.log('🔍 Checking PatchDefinitions availability:', typeof window.PatchDefinitions)
     if (typeof UserSynthManager !== 'undefined') {
       this.userSynthManager = new UserSynthManager({
         masterVolume: this.masterVolume,
         delay: this.delay,
         reverb: this.reverb
       })
-      console.log('✅ UserSynthManager: Initialized for per-user timbres')
+      // console.log('✅ UserSynthManager: Initialized for per-user timbres')
 
       // Apply slot lookup if socketService was already set (from main.js init)
       if (this.socketService) {
         this.userSynthManager.setSlotLookup((userId) => {
           return this.socketService.getSlotForUser(userId)
         })
-        console.log('🎹 UserSynthManager: Slot lookup applied from existing socketService')
+        // console.log('🎹 UserSynthManager: Slot lookup applied from existing socketService')
       }
     } else {
       console.error('❌ UserSynthManager NOT AVAILABLE - all users will have same timbre!')
@@ -886,7 +886,7 @@ class AudioService {
       this.userSynthManager.setSlotLookup((userId) => {
         return socketService.getSlotForUser(userId)
       })
-      console.log('🎹 AudioService: Slot lookup configured via SocketService')
+      // console.log('🎹 AudioService: Slot lookup configured via SocketService')
     }
   }
 
@@ -1737,7 +1737,7 @@ class AudioService {
       const patch = this.userSynthManager.getPatchForUser(userId)
       patchInfo = `${patch?.name || 'unknown'} (slot=${slot}, osc=${patch?.oscillator?.type || 'unknown'})`
     }
-    console.log(`🎹 triggerSustainedNoteAttack: userId=${userId?.substring(0,8)}, patch=${patchInfo}, freq=${actualFrequency.toFixed(1)}Hz`)
+    // console.log(`🎹 triggerSustainedNoteAttack: userId=${userId?.substring(0,8)}, patch=${patchInfo}, freq=${actualFrequency.toFixed(1)}Hz`)
     synth.triggerAttack(actualFrequency, now, actualVelocity)
 
     // Track active sustained note for later release
@@ -2330,7 +2330,7 @@ class AudioService {
       for (const eventId of this.droneRepeatEventIds) {
         Tone.Transport.clear(eventId)
       }
-      console.log(`🧹 Cleared ${this.droneRepeatEventIds.length} drone repeat events`)
+      // console.log(`🧹 Cleared ${this.droneRepeatEventIds.length} drone repeat events`)
       this.droneRepeatEventIds = []
     }
     // Legacy cleanup (single event ID)

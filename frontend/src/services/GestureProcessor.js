@@ -242,10 +242,10 @@ class GestureProcessor {
       // FIX: Use backend-assigned userId, NOT socket.id (they are different!)
       const localUserId = this.socketService?.getUserId?.() || this.socketService?.socket?.id || null
 
-      console.log(`🎵 Local phrase: ${phrase.length} notes, userId=${localUserId?.substring(0,8)}`)
-      phrase.forEach((note, i) => {
-        console.log(`  Note ${i}: pitch=${note.pitch}, startTime=${note.startTime.toFixed(3)}s, duration=${note.duration.toFixed(3)}s`)
-      })
+      // console.log(`🎵 Local phrase: ${phrase.length} notes, userId=${localUserId?.substring(0,8)}`)
+      // phrase.forEach((note, i) => {
+      //   console.log(`  Note ${i}: pitch=${note.pitch}, startTime=${note.startTime.toFixed(3)}s, duration=${note.duration.toFixed(3)}s`)
+      // })
 
       // Play each note in the phrase AND broadcast to remote users
       const broadcastTime = Date.now()
@@ -276,7 +276,7 @@ class GestureProcessor {
               }
             }
 
-            console.log(`🎶 Playing note ${index} at ${Date.now() % 10000}ms: pitch=${note.pitch}, freq=${frequency.toFixed(1)}Hz`)
+            // console.log(`🎶 Playing note ${index} at ${Date.now() % 10000}ms: pitch=${note.pitch}, freq=${frequency.toFixed(1)}Hz`)
             this.audioService.playMusicalEvent(musicalEvent)
 
             // CRITICAL: Also broadcast to remote users for synchronization

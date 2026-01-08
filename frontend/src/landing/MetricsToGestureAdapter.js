@@ -107,7 +107,7 @@ export class MetricsToGestureAdapter {
   initialize(visualService, audioService) {
     this.visualService = visualService
     this.audioService = audioService
-    console.log('🔄 MetricsToGestureAdapter initialized')
+    // console.log('🔄 MetricsToGestureAdapter initialized')
   }
 
   /**
@@ -139,7 +139,7 @@ export class MetricsToGestureAdapter {
     // Listen for metric updates
     window.addEventListener('metrics:updated', this._onMetricsUpdated)
 
-    console.log('🔄 MetricsToGestureAdapter started with 3 virtual users')
+    // console.log('🔄 MetricsToGestureAdapter started with 3 virtual users')
   }
 
   /**
@@ -171,7 +171,7 @@ export class MetricsToGestureAdapter {
     // Remove metric update listener
     window.removeEventListener('metrics:updated', this._onMetricsUpdated)
 
-    console.log('🔄 MetricsToGestureAdapter stopped')
+    // console.log('🔄 MetricsToGestureAdapter stopped')
   }
 
   /**
@@ -180,7 +180,7 @@ export class MetricsToGestureAdapter {
    * @private
    */
   _onMetricsUpdated(event) {
-    console.log('🔄 MetricsToGestureAdapter received metrics:', event.detail)
+    // console.log('🔄 MetricsToGestureAdapter received metrics:', event.detail)
     this.metrics = event.detail
     this._updateCursorPositions()
   }
@@ -496,16 +496,16 @@ export class MetricsToGestureAdapter {
       }
     }
 
-    console.log('🔊 Generating audio:', user.userId, 'freq:', frequency.toFixed(0), 'Hz', 'intensity:', intensity.toFixed(2))
+    // console.log('🔊 Generating audio:', user.userId, 'freq:', frequency.toFixed(0), 'Hz', 'intensity:', intensity.toFixed(2))
 
     // Trigger sound through existing AudioService API
     // Use playThreeTierNote directly as it actually generates sound
     if (typeof this.audioService.playThreeTierNote === 'function') {
       const velocity = intensity * 200
-      console.log('🔊 Calling playThreeTierNote:', audioParams.tier || 'remote', frequency.toFixed(0), 'Hz, velocity:', velocity)
+      // console.log('🔊 Calling playThreeTierNote:', audioParams.tier || 'remote', frequency.toFixed(0), 'Hz, velocity:', velocity)
       this.audioService.playThreeTierNote(frequency, audioParams.tier || 'remote', velocity)
     } else if (typeof this.audioService.processGestureAudio === 'function') {
-      console.log('🔊 Calling processGestureAudio')
+      // console.log('🔊 Calling processGestureAudio')
       this.audioService.processGestureAudio(audioParams)
     } else {
       console.warn('⚠️ No audio input method found on AudioService')

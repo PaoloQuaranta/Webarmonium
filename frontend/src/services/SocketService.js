@@ -556,12 +556,12 @@ class SocketService {
   getSlotForUser(userId) {
     // Check if it's the current user
     if (userId === this.currentUserId) {
-      console.log(`🔍 getSlotForUser: ${userId?.substring(0,8)} is CURRENT user, slot=${this.currentSlot}`)
+      // console.log(`🔍 getSlotForUser: ${userId?.substring(0,8)} is CURRENT user, slot=${this.currentSlot}`)
       return this.currentSlot
     }
     // Look up in the userSlots map
     const mapSlot = this.userSlots.get(userId)
-    console.log(`🔍 getSlotForUser: ${userId?.substring(0,8)} lookup in userSlots map, found=${mapSlot !== undefined}, slot=${mapSlot}, mapSize=${this.userSlots.size}`)
+    // console.log(`🔍 getSlotForUser: ${userId?.substring(0,8)} lookup in userSlots map, found=${mapSlot !== undefined}, slot=${mapSlot}, mapSize=${this.userSlots.size}`)
     return mapSlot !== undefined ? mapSlot : null
   }
 
@@ -580,7 +580,7 @@ class SocketService {
     const userSlot = data.slot ?? data.user?.slot
     if (userSlot !== undefined) {
       this.userSlots.set(data.userId || data.user?.id, userSlot)
-      console.log(`🎹 User joined with slot ${userSlot}: ${(data.userId || data.user?.id).substring(0, 8)}`)
+      // console.log(`🎹 User joined with slot ${userSlot}: ${(data.userId || data.user?.id).substring(0, 8)}`)
     }
 
     this.emit('user-joined', {
@@ -601,7 +601,7 @@ class SocketService {
     // Remove user's slot from tracking
     if (data.userId) {
       this.userSlots.delete(data.userId)
-      console.log(`🎹 User left, slot released: ${data.userId.substring(0, 8)}`)
+      // console.log(`🎹 User left, slot released: ${data.userId.substring(0, 8)}`)
     }
 
     this.emit('user-left', {

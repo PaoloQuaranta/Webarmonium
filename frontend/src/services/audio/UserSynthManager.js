@@ -3,7 +3,7 @@
  * Manages per-user synth instances with unique timbres
  * Each user gets a dedicated synth based on their patch definition
  */
-console.log('📦 UserSynthManager.js LOADING...')
+// console.log('📦 UserSynthManager.js LOADING...')
 
 class UserSynthManager {
   /**
@@ -30,7 +30,7 @@ class UserSynthManager {
     // Get patch definitions
     this.patchDefinitions = window.PatchDefinitions || null
     if (this.patchDefinitions) {
-      console.log('✅ UserSynthManager: PatchDefinitions available')
+      // console.log('✅ UserSynthManager: PatchDefinitions available')
     } else {
       console.error('❌ UserSynthManager: PatchDefinitions NOT available - synths cannot be created!')
     }
@@ -46,7 +46,7 @@ class UserSynthManager {
    */
   setSlotLookup(fn) {
     this.slotLookupFn = fn
-    console.log('✅ UserSynthManager: slotLookupFn set')
+    // console.log('✅ UserSynthManager: slotLookupFn set')
   }
 
   /**
@@ -74,7 +74,7 @@ class UserSynthManager {
     // Use backend-assigned slot if lookup function is available
     if (this.slotLookupFn) {
       const backendSlot = this.slotLookupFn(userId)
-      console.log(`🔍 SLOT LOOKUP: userId=${userId?.substring(0, 8)}, backendSlot=${backendSlot}, hasLookupFn=true`)
+      // console.log(`🔍 SLOT LOOKUP: userId=${userId?.substring(0, 8)}, backendSlot=${backendSlot}, hasLookupFn=true`)
       if (backendSlot !== null && backendSlot !== undefined) {
         return backendSlot
       }
@@ -92,7 +92,7 @@ class UserSynthManager {
       hash = hash & hash // Convert to 32-bit integer
     }
     const hashSlot = Math.abs(hash) % 8
-    console.log(`🔍 HASH FALLBACK: userId=${userId?.substring(0, 8)}, hashSlot=${hashSlot}`)
+    // console.log(`🔍 HASH FALLBACK: userId=${userId?.substring(0, 8)}, hashSlot=${hashSlot}`)
     return hashSlot
   }
 
@@ -152,11 +152,11 @@ class UserSynthManager {
       const oscillatorConfig = patch.oscillator
 
       // DEBUG: Show all current synth assignments
-      const existingAssignments = Array.from(this.userSynths.entries()).map(([uid, data]) =>
-        `${uid.substring(0,8)}→${data.patch?.name || '?'}`
-      ).join(', ')
-      console.log(`🎹 NEW SYNTH: user=${userId.substring(0,8)}, patch="${patch.name}", slot=${slot}, osc=${oscillatorConfig.type}`)
-      console.log(`   Current synths: [${existingAssignments || 'none'}]`)
+      // const existingAssignments = Array.from(this.userSynths.entries()).map(([uid, data]) =>
+      //   `${uid.substring(0,8)}→${data.patch?.name || '?'}`
+      // ).join(', ')
+      // console.log(`🎹 NEW SYNTH: user=${userId.substring(0,8)}, patch="${patch.name}", slot=${slot}, osc=${oscillatorConfig.type}`)
+      // console.log(`   Current synths: [${existingAssignments || 'none'}]`)
 
       if (oscillatorConfig.type === 'fmsine') {
         // FM Synthesis - FMSynth has different options structure
@@ -198,7 +198,7 @@ class UserSynthManager {
         })
       }
 
-      console.log(`✅ Synth created for ${userId}: oscillator type should be ${oscillatorConfig.type}`)
+      // console.log(`✅ Synth created for ${userId}: oscillator type should be ${oscillatorConfig.type}`)
 
       // Create filter based on patch
       const filterConfig = patch.filter
@@ -285,7 +285,7 @@ class UserSynthManager {
         slot
       })
 
-      console.log(`Created synth for ${userId}: ${patch.name} (oscillator: ${oscillatorConfig.type})`)
+      // console.log(`Created synth for ${userId}: ${patch.name} (oscillator: ${oscillatorConfig.type})`)
 
     } catch (error) {
       console.error(`Failed to create synth for ${userId}:`, error)
@@ -487,13 +487,13 @@ class UserSynthManager {
           if (synthData.filter) synthData.filter.dispose()
           if (synthData.synth) synthData.synth.dispose()
 
-          console.log(`Fully disposed synth for ${userId}`)
+          // console.log(`Fully disposed synth for ${userId}`)
         } catch (e) {
           console.warn(`Error during synth disposal for ${userId}:`, e.message)
         }
       }, 1000)
 
-      console.log(`Initiated cleanup for ${userId}`)
+      // console.log(`Initiated cleanup for ${userId}`)
 
     } catch (error) {
       console.error(`Error cleaning up synth for ${userId}:`, error)
@@ -546,7 +546,7 @@ class UserSynthManager {
 // Export for browser (window global)
 if (typeof window !== 'undefined') {
   window.UserSynthManager = UserSynthManager
-  console.log('✅ UserSynthManager exported to window.UserSynthManager')
+  // console.log('✅ UserSynthManager exported to window.UserSynthManager')
 }
 
 // Export for module systems

@@ -81,7 +81,7 @@ class WebMetricsPoller {
     this._poll()
     this.intervalId = setInterval(() => this._poll(), 5000)
 
-    console.log('📊 WebMetricsPoller started')
+    // console.log('📊 WebMetricsPoller started')
   }
 
   /**
@@ -95,7 +95,7 @@ class WebMetricsPoller {
       this.intervalId = null
     }
 
-    console.log('📊 WebMetricsPoller stopped')
+    // console.log('📊 WebMetricsPoller stopped')
   }
 
   /**
@@ -337,11 +337,11 @@ class WebMetricsPoller {
         github: { ...enrichedMetrics.github }
       }
 
-      console.log('📊 Metrics update:', {
-        wikipedia: `${metricsSnapshot.wikipedia.editsPerMinute} edits/min (vel: ${metricsSnapshot.wikipedia.velocity?.toFixed(2)})`,
-        hackernews: `${metricsSnapshot.hackernews.postsPerMinute} posts/min (vel: ${metricsSnapshot.hackernews.velocity?.toFixed(2)})`,
-        github: `${metricsSnapshot.github.commitsPerMinute} commits/min (vel: ${metricsSnapshot.github.velocity?.toFixed(2)})`
-      })
+      // console.log('📊 Metrics update:', {
+      //   wikipedia: `${metricsSnapshot.wikipedia.editsPerMinute} edits/min (vel: ${metricsSnapshot.wikipedia.velocity?.toFixed(2)})`,
+      //   hackernews: `${metricsSnapshot.hackernews.postsPerMinute} posts/min (vel: ${metricsSnapshot.hackernews.velocity?.toFixed(2)})`,
+      //   github: `${metricsSnapshot.github.commitsPerMinute} commits/min (vel: ${metricsSnapshot.github.velocity?.toFixed(2)})`
+      // })
 
       this.onMetricsUpdate(metricsSnapshot)
     }

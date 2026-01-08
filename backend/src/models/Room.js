@@ -250,7 +250,7 @@ class Room {
         this.availableSlots = new Set([0, 1, 2, 3, 4, 5, 6, 7])
       }
       this.availableSlots.add(user.assignedSlot)
-      console.log(`🎹 Slot ${user.assignedSlot} released, available: [${Array.from(this.availableSlots).sort().join(', ')}]`)
+      // console.log(`🎹 Slot ${user.assignedSlot} released, available: [${Array.from(this.availableSlots).sort().join(', ')}]`)
     }
   }
 

@@ -733,15 +733,15 @@ class LandingApp {
     let synth = null
     let actualFrequency = frequency
 
-    console.log(`🔍 _handleVirtualHoldStart: userId=${userId}, userSynthManager=${!!this.audioService.userSynthManager}`)
+    // console.log(`🔍 _handleVirtualHoldStart: userId=${userId}, userSynthManager=${!!this.audioService.userSynthManager}`)
 
     if (userId && this.audioService.userSynthManager) {
       const synthData = this.audioService.userSynthManager.getSynthForUser(userId)
-      console.log(`🔍 getSynthForUser(HOLD):`, synthData ? `patch=${synthData.patch?.name}, disposed=${synthData.synth?.disposed}` : 'null')
+      // console.log(`🔍 getSynthForUser(HOLD):`, synthData ? `patch=${synthData.patch?.name}, disposed=${synthData.synth?.disposed}` : 'null')
       if (synthData && synthData.synth && !synthData.synth.disposed) {
         synth = synthData.synth
         actualFrequency = this.audioService.userSynthManager.constrainFrequencyToTessitura(frequency, userId)
-        console.log(`🎵 Virtual HOLD: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
+        // console.log(`🎵 Virtual HOLD: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
       }
     } else {
       console.warn(`⚠️ No userSynthManager or userId in HOLD - falling back`)
@@ -858,15 +858,15 @@ class LandingApp {
     let actualFrequency = frequency
     const tapDuration = duration || 0.1  // Default 100ms for tap
 
-    console.log(`🔍 _handleVirtualTapNote: userId=${userId}, userSynthManager=${!!this.audioService.userSynthManager}`)
+    // console.log(`🔍 _handleVirtualTapNote: userId=${userId}, userSynthManager=${!!this.audioService.userSynthManager}`)
 
     if (userId && this.audioService.userSynthManager) {
       const synthData = this.audioService.userSynthManager.getSynthForUser(userId)
-      console.log(`🔍 getSynthForUser result:`, synthData ? `synth exists, disposed=${synthData.synth?.disposed}` : 'null')
+      // console.log(`🔍 getSynthForUser result:`, synthData ? `synth exists, disposed=${synthData.synth?.disposed}` : 'null')
       if (synthData && synthData.synth && !synthData.synth.disposed) {
         synth = synthData.synth
         actualFrequency = this.audioService.userSynthManager.constrainFrequencyToTessitura(frequency, userId)
-        console.log(`🎵 Virtual TAP: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
+        // console.log(`🎵 Virtual TAP: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
       }
     } else {
       console.warn(`⚠️ No userSynthManager or userId - falling back to gestureSynth`)

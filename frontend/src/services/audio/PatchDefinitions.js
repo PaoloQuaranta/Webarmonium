@@ -3,7 +3,7 @@
  * Defines unique synth patches for virtual and real users
  * Each user has a distinctive timbre to make them sonically distinguishable
  */
-console.log('📦 PatchDefinitions.js LOADING...')
+// console.log('📦 PatchDefinitions.js LOADING...')
 
 /**
  * Virtual User Patches - Analogico/Caldo Style
@@ -365,7 +365,7 @@ if (typeof window !== 'undefined') {
     getVirtualUserIds,
     getPatchByName
   }
-  console.log('✅ PatchDefinitions exported to window.PatchDefinitions')
+  // console.log('✅ PatchDefinitions exported to window.PatchDefinitions')
 }
 
 // Export for module systems

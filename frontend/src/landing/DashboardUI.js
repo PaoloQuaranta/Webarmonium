@@ -63,7 +63,7 @@ export class DashboardUI {
   initialize(callbacks = {}) {
     this._cacheElements()
     this._bindControls(callbacks)
-    console.log('📊 DashboardUI initialized (meter-based mode)')
+    // console.log('📊 DashboardUI initialized (meter-based mode)')
   }
 
   /**
@@ -309,7 +309,7 @@ export class DashboardUI {
    * Cleanup
    */
   dispose() {
-    console.log('📊 DashboardUI disposed')
+    // console.log('📊 DashboardUI disposed')
   }
 }
 

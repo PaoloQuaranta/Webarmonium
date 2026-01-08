@@ -79,7 +79,7 @@ class DroneVoidController {
         }
 
         this.isRunning = true
-        console.log('DroneVoidController: Started with UnifiedUpdateLoop')
+        // console.log('DroneVoidController: Started with UnifiedUpdateLoop')
       } else {
         // Fallback to setInterval if UnifiedUpdateLoop not available
         this.updateTimer = setInterval(() => {
@@ -87,7 +87,7 @@ class DroneVoidController {
         }, this.config.updateInterval)
 
         this.isRunning = true
-        console.log('DroneVoidController: Started with setInterval fallback')
+        // console.log('DroneVoidController: Started with setInterval fallback')
       }
     } catch (error) {
       console.error('DroneVoidController: Failed to start update timer:', error)
@@ -123,7 +123,7 @@ class DroneVoidController {
     } catch (error) {
       console.error('DroneVoidController: Error during stop:', error)
     } finally {
-      console.log('DroneVoidController: Stopped')
+      // console.log('DroneVoidController: Stopped')
     }
   }
 
@@ -139,7 +139,7 @@ class DroneVoidController {
 
     this._setDroneVolumeImmediate(this.config.droneSilentDb)
 
-    console.log('DroneVoidController: Reset - drone silent')
+    // console.log('DroneVoidController: Reset - drone silent')
   }
 
   // ==================== Activity Registration Methods ====================
@@ -274,10 +274,10 @@ class DroneVoidController {
         // Use linear ramp for gain (more natural for amplitude)
         gainNode.gain.linearRampTo(targetGain, fadeTime)
 
-        if (this.debugEnabled || Math.abs(targetGain - currentGain) > 0.3) {
-          console.log(`DroneVoidController: Gain ${isIncreasing ? 'fade in' : 'fade out'} ` +
-            `to ${targetGain.toFixed(3)} over ${fadeTime}s`)
-        }
+        // if (this.debugEnabled || Math.abs(targetGain - currentGain) > 0.3) {
+        //   console.log(`DroneVoidController: Gain ${isIncreasing ? 'fade in' : 'fade out'} ` +
+        //     `to ${targetGain.toFixed(3)} over ${fadeTime}s`)
+        // }
         return
       } catch (e) {
         // Critical #2: Log error before fallback
@@ -294,10 +294,10 @@ class DroneVoidController {
 
         this.audioService.ambientVolumes.pad.volume.rampTo(targetDb, fadeTime)
 
-        if (this.debugEnabled || Math.abs(targetDb - currentDb) > 10) {
-          console.log(`DroneVoidController: Volume ${isIncreasing ? 'fade in' : 'fade out'} ` +
-            `to ${targetDb.toFixed(1)}dB over ${fadeTime}s`)
-        }
+        // if (this.debugEnabled || Math.abs(targetDb - currentDb) > 10) {
+        //   console.log(`DroneVoidController: Volume ${isIncreasing ? 'fade in' : 'fade out'} ` +
+        //     `to ${targetDb.toFixed(1)}dB over ${fadeTime}s`)
+        // }
       } catch (e) {
         console.warn('DroneVoidController: Failed to set volume:', e.message)
       }

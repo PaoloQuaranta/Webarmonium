@@ -389,7 +389,7 @@ class LandingCompositionService {
       isDrone: true,
       timestamp: Date.now()
     })
-    console.log('🎵 Drone emitted to socket (request-drone)')
+    // console.log('🎵 Drone emitted to socket (request-drone)')
   }
 
   /**

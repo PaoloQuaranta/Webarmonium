@@ -36,7 +36,7 @@ const AuthHandler = {
 
         // Start landing composition service
         if (socket.services.landingCompositionService) {
-          console.log('🎵 Starting LandingCompositionService...')
+          // console.log('🎵 Starting LandingCompositionService...')
           socket.services.landingCompositionService.start()
 
           // Entry #27: Always emit drone to joining socket (fixes drone not playing after stop/start)
@@ -107,7 +107,7 @@ const AuthHandler = {
    */
   registerRequestDroneHandler (socket) {
     socket.on('request-drone', (data, callback) => {
-      console.log('📡 request-drone received from socket:', socket.id, 'roomId:', socket.roomId)
+      // console.log('📡 request-drone received from socket:', socket.id, 'roomId:', socket.roomId)
       try {
         const roomId = socket.roomId
 
@@ -120,7 +120,7 @@ const AuthHandler = {
         // Landing room: use LandingCompositionService
         if (roomId === 'landing-room') {
           if (socket.services.landingCompositionService) {
-            console.log('🎵 Emitting drone to landing socket')
+            // console.log('🎵 Emitting drone to landing socket')
             socket.services.landingCompositionService.emitDroneToSocket(socket)
             if (callback) callback({ success: true })
           } else {
@@ -132,7 +132,7 @@ const AuthHandler = {
 
         // Normal room: use BackgroundCompositionService
         if (socket.services.backgroundCompositionService) {
-          console.log('🎵 Emitting drone to room socket:', roomId)
+          // console.log('🎵 Emitting drone to room socket:', roomId)
           socket.services.backgroundCompositionService.emitDroneToSocket(socket, roomId)
           if (callback) callback({ success: true })
         } else {
@@ -212,7 +212,7 @@ const AuthHandler = {
                   virtualUsers,
                   timestamp: Date.now()
                 })
-                console.log(`🎭 Re-emitted virtual-users-activated to redirected socket for room ${actualRoomId}`)
+                // console.log(`🎭 Re-emitted virtual-users-activated to redirected socket for room ${actualRoomId}`)
               }
             }
           } catch (reEmitError) {

@@ -147,7 +147,7 @@ class VirtualUserService {
       }
     }
 
-    console.log(`✅ VirtualUserService: ${sources.length} configurations validated`)
+    // console.log(`✅ VirtualUserService: ${sources.length} configurations validated`)
   }
 
   /**
@@ -245,7 +245,7 @@ class VirtualUserService {
       })
     }
 
-    console.log(`🎭 Virtual users activated for room ${roomId}: ${sources.join(', ')}`)
+    // console.log(`🎭 Virtual users activated for room ${roomId}: ${sources.join(', ')}`)
   }
 
   /**
@@ -280,7 +280,7 @@ class VirtualUserService {
 
     this.activeRooms.delete(roomId)
 
-    console.log(`🎭 Virtual users deactivated for room ${roomId}`)
+    // console.log(`🎭 Virtual users deactivated for room ${roomId}`)
   }
 
   /**
@@ -1007,7 +1007,7 @@ class VirtualUserService {
     for (const roomId of this.activeRooms.keys()) {
       this.deactivateForRoom(roomId, false)
     }
-    console.log('🎭 VirtualUserService shutdown complete')
+    // console.log('🎭 VirtualUserService shutdown complete')
   }
 }
 
