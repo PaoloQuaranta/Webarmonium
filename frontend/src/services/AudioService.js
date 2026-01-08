@@ -529,7 +529,7 @@ class AudioService {
     this.delaySends = {
       bass: new Tone.Gain(0.15),      // 15% to delay
       pad: new Tone.Gain(0.2),        // 20% to delay
-      chords: new Tone.Gain(0.2),     // 20% to delay
+      chords: new Tone.Gain(0.35),    // 35% to delay (Entry #42: increased from 20%)
       gesture: new Tone.Gain(0.25),   // 25% to delay (more present)
       backgroundHigh: new Tone.Gain(0.2),  // 20% to delay for composition
       backgroundMid: new Tone.Gain(0.2),   // 20% to delay for composition

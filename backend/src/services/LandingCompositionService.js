@@ -209,15 +209,16 @@ class LandingCompositionService {
     const deltaY = newY - currentTarget.y
     const distance = Math.hypot(deltaX, deltaY)
 
-    // Dead zone: ignore movements < 2% of scene to prevent jitter
-    const DEAD_ZONE_THRESHOLD = 0.02
+    // Dead zone: ignore movements < 5% of scene to prevent jitter
+    // Entry #42: Increased from 2% to 5% to reduce trembling
+    const DEAD_ZONE_THRESHOLD = 0.05
     if (distance < DEAD_ZONE_THRESHOLD) {
       return  // Keep current target, don't update
     }
 
-    // Smooth target transition (0.3 factor, slower than cursor easing 0.2)
-    // This prevents sudden target jumps that cause trembling
-    const TARGET_SMOOTHING = 0.3
+    // Smooth target transition (0.15 factor = slower approach to new target)
+    // Entry #42: Reduced from 0.3 to 0.15 to reduce trembling
+    const TARGET_SMOOTHING = 0.15
     this.targetPositions[source] = {
       x: currentTarget.x + deltaX * TARGET_SMOOTHING,
       y: currentTarget.y + deltaY * TARGET_SMOOTHING
@@ -1384,8 +1385,9 @@ class LandingCompositionService {
         const current = this.currentPositions[source]
         const target = this.targetPositions[source]
 
-        // Faster interpolation (20% per frame) for more responsive movement
-        const easing = 0.2
+        // Smooth interpolation (12% per frame) to reduce trembling
+        // Entry #42: Reduced from 0.2 to 0.12 for smoother cursor movement
+        const easing = 0.12
         let newX = current.x + (target.x - current.x) * easing
         let newY = current.y + (target.y - current.y) * easing
 

@@ -3723,3 +3723,34 @@ notes: ornamented.map((pitch, i) => ({
 - All phrase notes have valid duration, velocity, and articulation
 
 ---
+
+## Entry #42 - Chords Delay Send + Virtual Cursor Anti-Trembling
+
+**Date**: 2026-01-08
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Changes Made
+
+#### 1. Chords Delay Send Increase
+Increased chords voice delay send from 20% to 35% for more spacious sound.
+
+**File**: `frontend/src/services/AudioService.js`
+```javascript
+chords: new Tone.Gain(0.35),    // 35% to delay (was 20%)
+```
+
+#### 2. Virtual Cursor Anti-Trembling
+Fixed remaining trembling in GitHub and HackerNews virtual cursors by adjusting smoothing parameters.
+
+**Files**:
+- `backend/src/services/LandingCompositionService.js`
+- `backend/src/services/VirtualUserService.js`
+
+| Parameter | Before | After |
+|-----------|--------|-------|
+| Dead zone threshold | 2% | 5% |
+| Target smoothing | 0.3 | 0.15 |
+| Cursor easing | 0.2 | 0.12 |
+
+---
