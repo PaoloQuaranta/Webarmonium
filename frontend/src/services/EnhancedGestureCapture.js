@@ -101,10 +101,70 @@ class EnhancedGestureCapture {
     this.onSustainedHoldStart = null  // Called when hold timer fires (gate opens)
     this.onSustainedHoldEnd = null    // Called on mouseup or transition complete (gate closes)
 
+    // Performance: Throttle utilities for event handlers
+    this._throttledHandlers = new Map()
+
+    // PERFORMANCE: Detect Windows Chrome for conservative audio timing
+    // Windows Chrome has higher audio latency (~20-40ms vs ~10-15ms on macOS)
+    // Reduce note rate to prevent audio stuttering
+    this._isWindowsChrome = this._detectWindowsChrome()
+    this._minNoteInterval = this._isWindowsChrome ? 62.5 : 31.25 // 16 vs 32 notes/sec
+
     // Initialize
     this.setupEventListeners()
 
     // console.log('EnhancedGestureCapture initialized')
+  }
+
+  /**
+   * Create a throttled version of a function
+   * @param {Function} func - Function to throttle
+   * @param {number} limit - Minimum ms between calls
+   * @returns {Function} Throttled function
+   */
+  _throttle(func, limit) {
+    let lastCall = 0
+    let pendingArgs = null
+    let rafId = null
+
+    const throttled = (...args) => {
+      const now = performance.now()
+      const timeSinceLastCall = now - lastCall
+
+      if (timeSinceLastCall >= limit) {
+        lastCall = now
+        func.apply(this, args)
+      } else {
+        // Store latest args for trailing call
+        pendingArgs = args
+
+        // Schedule trailing call if not already scheduled
+        if (!rafId) {
+          rafId = requestAnimationFrame(() => {
+            if (pendingArgs) {
+              lastCall = performance.now()
+              func.apply(this, pendingArgs)
+              pendingArgs = null
+            }
+            rafId = null
+          })
+        }
+      }
+    }
+
+    return throttled
+  }
+
+  /**
+   * Detect Windows Chrome for performance optimization
+   * Windows Chrome has higher audio latency and needs more conservative timing
+   * @returns {boolean} True if running on Windows Chrome
+   */
+  _detectWindowsChrome() {
+    const ua = navigator.userAgent
+    const isWindows = ua.includes('Windows') || navigator.platform?.includes('Win')
+    const isChrome = ua.includes('Chrome') && !ua.includes('Edg') && !ua.includes('OPR')
+    return isWindows && isChrome
   }
 
   /**
@@ -117,10 +177,26 @@ class EnhancedGestureCapture {
 
   /**
    * Setup event listeners for gesture capture
+   * PERFORMANCE: Throttled handlers to reduce main thread congestion
    */
   setupEventListeners() {
     // Verify canvas is valid
     // console.log('🔍 setupEventListeners: canvas element:', this.canvas?.id, 'tagName:', this.canvas?.tagName)
+
+    // PERFORMANCE: Create throttled handlers
+    // Gesture move: 60fps (16.67ms) - needs responsiveness for drag detection
+    const throttledGestureMove = this._throttle((e) => this.handleGestureMove(e), 16.67)
+
+    // Hover: 20fps (50ms) - hover modulation doesn't need 60fps
+    const throttledHover = this._throttle((e) => this.handleHover(e), 50)
+
+    // Touch move: 60fps with passive option for better scroll performance
+    const throttledTouchMove = this._throttle((e) => this.handleGestureMove(e), 16.67)
+
+    // Store for cleanup
+    this._throttledHandlers.set('gestureMove', throttledGestureMove)
+    this._throttledHandlers.set('hover', throttledHover)
+    this._throttledHandlers.set('touchMove', throttledTouchMove)
 
     // Mouse events
     const mousedownHandler = (e) => {
@@ -128,26 +204,39 @@ class EnhancedGestureCapture {
       this.handleGestureStart(e)
     }
     this.canvas.addEventListener('mousedown', mousedownHandler)
-    this.canvas.addEventListener('mousemove', (e) => this.handleGestureMove(e))
+
+    // PERFORMANCE: Single mousemove handler that dispatches to both gesture and hover
+    // This replaces the previous duplicate listeners
+    const unifiedMouseMove = (e) => {
+      // When capturing (dragging), only process gesture move
+      // Hover is skipped during drag (see handleHover early return)
+      throttledGestureMove(e)
+
+      // Hover is only processed when NOT capturing
+      // handleHover already checks isCapturing, so safe to always call
+      throttledHover(e)
+    }
+    this.canvas.addEventListener('mousemove', unifiedMouseMove)
+    this._throttledHandlers.set('unifiedMouseMove', unifiedMouseMove)
+
     this.canvas.addEventListener('mouseup', (e) => this.handleGestureEnd(e))
     this.canvas.addEventListener('mouseleave', (e) => this.handleGestureEnd(e))
 
-    // Touch events
+    // Touch events - PERFORMANCE: Use throttled handler
     this.canvas.addEventListener('touchstart', (e) => this.handleGestureStart(e))
-    this.canvas.addEventListener('touchmove', (e) => this.handleGestureMove(e))
+    this.canvas.addEventListener('touchmove', throttledTouchMove)
     this.canvas.addEventListener('touchend', (e) => this.handleGestureEnd(e))
     this.canvas.addEventListener('touchcancel', (e) => this.handleGestureEnd(e))
 
-    // Hover events for cross-layer modulation
-    this.canvas.addEventListener('mousemove', (e) => this.handleHover(e))
+    // Hover start/end (not throttled - these are infrequent)
     this.canvas.addEventListener('mouseenter', (e) => this.handleHoverStart(e))
     this.canvas.addEventListener('mouseleave', (e) => this.handleHoverEnd(e))
 
     // Prevent default touch behaviors
-    this.canvas.addEventListener('touchstart', (e) => e.preventDefault())
-    this.canvas.addEventListener('touchmove', (e) => e.preventDefault())
+    this.canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false })
+    this.canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false })
 
-    // console.log('👆 Enhanced gesture event listeners setup complete')
+    // console.log('👆 Enhanced gesture event listeners setup complete (throttled)')
   }
 
   /**
@@ -349,13 +438,14 @@ class EnhancedGestureCapture {
       const normalizedSpeed = Math.min(speed, 3) // Allow up to 3x for very fast movements
 
       // Map velocity to musical note intervals (120 BPM)
+      // PERFORMANCE: Use platform-specific minimum interval to prevent audio stuttering
       let adjustedInterval
       if (normalizedSpeed > 2.0) {
-        // Very fast: 64th notes (31.25ms at 120 BPM)
-        adjustedInterval = 31.25
+        // Very fast: Use platform minimum (32nd notes on Windows, 64th on others)
+        adjustedInterval = this._minNoteInterval
       } else if (normalizedSpeed > 1.2) {
         // Fast: 32nd notes (62.5ms)
-        adjustedInterval = 62.5
+        adjustedInterval = Math.max(62.5, this._minNoteInterval)
       } else if (normalizedSpeed > 0.7) {
         // Medium-fast: 16th notes (125ms)
         adjustedInterval = 125

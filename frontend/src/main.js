@@ -227,19 +227,29 @@ class WebarmoniumApp {
     this.lastGestureRenderTime = 0
 
     // Setup hover modulation for three-tier architecture
+    // PERFORMANCE: Use rAF batching to defer audio updates
+    this._pendingHoverUpdate = null
+    this._hoverRafScheduled = false
+
     this.gestureCapture.setHoverModulationCallback((hoverData) => {
       // console.log('🎛️ Hover modulation callback triggered:', hoverData)
 
-      // Rimuoviamo l'indicatore visivo del tremolo
-      // this.updateTremoloIndicator(hoverData)
+      // PERFORMANCE: Batch hover updates via requestAnimationFrame
+      // Instead of calling audio directly on every hover event,
+      // we queue the update and process it once per frame
+      this._pendingHoverUpdate = hoverData
 
-      // console.log('🔊 Audio state - started:', this.isAudioStarted, 'service exists:', !!this.audioService, 'method exists:', !!(this.audioService && this.audioService.handleHoverModulation))
+      if (!this._hoverRafScheduled) {
+        this._hoverRafScheduled = true
 
-      if (this.isAudioStarted && this.audioService && this.audioService.handleHoverModulation) {
-        // console.log('🎛️ Calling handleHoverModulation...')
-        this.audioService.handleHoverModulation(hoverData)
-      } else {
-        // console.warn('⚠️ Hover modulation blocked - Audio not ready')
+        requestAnimationFrame(() => {
+          this._hoverRafScheduled = false
+
+          if (this._pendingHoverUpdate && this.isAudioStarted && this.audioService && this.audioService.handleHoverModulation) {
+            this.audioService.handleHoverModulation(this._pendingHoverUpdate)
+          }
+          // Don't clear _pendingHoverUpdate - keep latest for next frame if needed
+        })
       }
     })
 

@@ -148,10 +148,17 @@ class GenerativeVisualService {
       return
     }
 
-    // Calculate delta time
+    // Calculate delta time and FPS
     const now = p.millis()
-    const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1) // Cap at 100ms
+    const delta = now - this.lastFrameTime
+    const dt = Math.min(delta / 1000, 0.1) // Cap at 100ms
     this.lastFrameTime = now
+
+    // Calculate FPS (exponential moving average)
+    if (delta > 0 && delta < 1000) {  // Ignore first frame and anomalies
+      const instantFps = 1000 / delta
+      this.fps = this.fps * 0.9 + instantFps * 0.1
+    }
 
     // Performance monitoring
     this.updatePerformanceMetrics(p)
@@ -316,31 +323,29 @@ class GenerativeVisualService {
 
   /**
    * Performance monitoring and degradation
+   * PERFORMANCE: Integrates with AudioPerformanceController for audio-over-graphics priority
    * @param {p5} p - p5.js instance
    */
   updatePerformanceMetrics(p) {
-    const now = p.millis()
-    const delta = now - this.lastFrameTime
-
-    // Calculate FPS (exponential moving average)
-    if (delta > 0) {
-      const instantFps = 1000 / delta
-      this.fps = this.fps * 0.9 + instantFps * 0.1
-    }
-
     this.frameCount++
 
-    // Check for performance degradation every N frames
+    // Only check performance every N frames to avoid overhead
     if (this.frameCount % this.frameSampleInterval === 0) {
-      if (this.fps < this.disableThreshold && this.performanceMode !== 'disabled') {
-        // console.warn('GenerativeVisualService: FPS below threshold, disabling effects')
-        this.performanceMode = 'disabled'
-      } else if (this.fps < this.degradeThreshold && this.performanceMode === 'normal') {
-        // console.warn('GenerativeVisualService: FPS below threshold, entering degraded mode')
-        this.performanceMode = 'degraded'
-      } else if (this.fps > this.recoveryThreshold && this.performanceMode !== 'normal') {
-        // console.log('GenerativeVisualService: FPS recovered, returning to normal mode')
-        this.performanceMode = 'normal'
+      // Performance mode based on FPS only - audio stress should NOT affect graphics
+      // The user experience is more important than "protecting" audio
+      const graphicsBudget = Math.min(1.0, Math.max(0.3, this.fps / this.targetFps))
+
+      let targetMode = this.performanceMode
+
+      if (graphicsBudget < 0.5) {
+        // Only degrade if graphics FPS is actually low
+        targetMode = 'degraded'
+      } else {
+        targetMode = 'normal'
+      }
+
+      if (targetMode !== this.performanceMode) {
+        this.performanceMode = targetMode
       }
     }
 

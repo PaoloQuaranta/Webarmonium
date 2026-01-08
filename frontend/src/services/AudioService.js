@@ -1848,28 +1848,90 @@ class AudioService {
 
   /**
    * Track a new voice for polyphony management
+   * PERFORMANCE FIX: Check limits BEFORE adding voice to prevent race conditions
    * @param {string} voiceId - Unique voice identifier
    * @param {Object} synth - Synth instance
    * @param {number} duration - Note duration
+   * @returns {boolean} True if voice was tracked, false if rejected
    */
   trackVoice(voiceId, synth, duration) {
-    if (!this.generativeState) return
+    if (!this.generativeState) return false
 
+    // PERFORMANCE FIX: Synchronous polyphony check BEFORE adding new voice
+    // This prevents exceeding voice limit which causes audio stuttering
+    const currentVoices = this.generativeState.activeVoices.size
+
+    if (currentVoices >= this.maxTotalVoices) {
+      // Force release of oldest voice to make room
+      const oldest = this._getOldestVoice()
+      if (oldest) {
+        this._forceReleaseVoice(oldest)
+      } else {
+        // No voice to release, reject this one
+        return false
+      }
+    }
+
+    // Now safe to add the new voice
     this.generativeState.activeVoices.set(voiceId, {
       synth,
       startTime: Date.now(),
       duration
     })
 
-    // Schedule voice cleanup
-    setTimeout(() => {
-      if (this.generativeState.activeVoices.has(voiceId)) {
+    // Schedule voice cleanup using Transport for audio-thread timing
+    const cleanupTime = Tone.now() + duration + 0.5 // 500ms buffer
+    Tone.Transport.scheduleOnce(() => {
+      if (this.generativeState?.activeVoices.has(voiceId)) {
         this.generativeState.activeVoices.delete(voiceId)
       }
-    }, duration * 1000 + 500) // Add 500ms buffer
+    }, cleanupTime)
 
-    // Check polyphony limits
-    this.managePolyphony()
+    return true
+  }
+
+  /**
+   * Get the oldest active voice for polyphony management
+   * @returns {string|null} Voice ID of oldest voice, or null if none
+   */
+  _getOldestVoice() {
+    if (!this.generativeState?.activeVoices?.size) return null
+
+    let oldestId = null
+    let oldestTime = Infinity
+
+    for (const [voiceId, voiceData] of this.generativeState.activeVoices.entries()) {
+      if (voiceData.startTime < oldestTime) {
+        oldestTime = voiceData.startTime
+        oldestId = voiceId
+      }
+    }
+
+    return oldestId
+  }
+
+  /**
+   * Force immediate release of a voice (for polyphony management)
+   * @param {string} voiceId - Voice ID to release
+   */
+  _forceReleaseVoice(voiceId) {
+    const voice = this.generativeState?.activeVoices.get(voiceId)
+    if (!voice) return
+
+    try {
+      if (voice.synth) {
+        // Force immediate release without scheduling
+        if (voice.synth.releaseAll) {
+          voice.synth.releaseAll(Tone.now())
+        } else if (voice.synth.triggerRelease) {
+          voice.synth.triggerRelease(Tone.now())
+        }
+      }
+    } catch (e) {
+      // Ignore errors during force release
+    }
+
+    this.generativeState.activeVoices.delete(voiceId)
   }
 
   /**
