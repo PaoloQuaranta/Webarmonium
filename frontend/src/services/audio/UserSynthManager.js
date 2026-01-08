@@ -388,7 +388,8 @@ class UserSynthManager {
     const synthData = this.userSynths.get(noteData.userId)
     if (synthData) {
       try {
-        synthData.synth.triggerRelease(noteData.frequency, Tone.now())
+        // MonoSynth.triggerRelease(time?) does NOT take frequency argument
+        synthData.synth.triggerRelease(Tone.now())
       } catch (error) {
         // Note may have already been released
       }

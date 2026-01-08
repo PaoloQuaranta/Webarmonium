@@ -574,10 +574,10 @@ class EnhancedGestureCapture {
 ////      })
     }
 
-    // STOP DRAG NOTE STREAMING (always active since mousedown)
-    // CRITICAL: Mark that streaming was active so GestureProcessor knows to skip note generation
-    // This is ALWAYS true now since we play first note on mousedown
-    this.currentGesture.streamingWasActive = true
+    // STOP DRAG NOTE STREAMING
+    // CRITICAL: Only mark streamingWasActive if notes were ACTUALLY played
+    // If audio wasn't ready, streamedNotes will be empty and GestureProcessor should generate fallback audio
+    this.currentGesture.streamingWasActive = this.dragStreaming.streamedNotes.length > 0
     this.currentGesture.streamingNoteCount = this.dragStreaming.noteCount
 
     // CRITICAL: Include streamedNotes array for backend broadcast (exact replication)

@@ -1761,10 +1761,10 @@ class AudioService {
       return
     }
 
-    // CRITICAL: Trigger release on specific frequency
-    // Tone.js synth can play multiple notes simultaneously (polyphony)
+    // CRITICAL: Trigger release - MonoSynth.triggerRelease(time?) does NOT take frequency
+    // MonoSynth is monophonic, only one note can play at a time
     const now = Tone.now()
-    synth.triggerRelease(noteData.frequency, now)
+    synth.triggerRelease(now)
 
     // Remove from tracking
     this.activeSustainedNotes.delete(noteId)
