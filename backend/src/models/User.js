@@ -53,13 +53,13 @@ class User {
   }
 
   /**
-   * Assign synth timbre slot (0-3 for real users)
-   * @param {number} slot - Slot number (0-3)
+   * Assign synth timbre slot (0-7 for real users)
+   * @param {number} slot - Slot number (0-7)
    * @throws {Error} If slot is invalid
    */
   assignSlot (slot) {
-    if (typeof slot !== 'number' || slot < 0 || slot > 3) {
-      throw new Error(`Invalid slot: ${slot}. Must be 0-3`)
+    if (typeof slot !== 'number' || slot < 0 || slot > 7) {
+      throw new Error(`Invalid slot: ${slot}. Must be 0-7`)
     }
     this.assignedSlot = slot
   }

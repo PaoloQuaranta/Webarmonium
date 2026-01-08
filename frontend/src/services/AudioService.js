@@ -7,7 +7,7 @@
  */
 
 // DEBUG: Verify file is loaded
-console.log('🔴🔴🔴 AudioService.js v30 LOADING 🔴🔴🔴')
+console.log('🔴🔴🔴 AudioService.js v36 LOADING 🔴🔴🔴')
 
 // Note: MusicalScheduler and LFOManager will be loaded via global scripts
 class AudioService {
@@ -21,6 +21,9 @@ class AudioService {
 
     // REAL-TIME AUDIO FIX: Track Transport-scheduled events for proper cleanup
     this.scheduledTransportEvents = []
+
+    // PERFORMANCE FIX: Track ALL drone repeat events (not just one)
+    this.droneRepeatEventIds = []
 
     // New musical architecture services
     this.musicalScheduler = null; // Will be initialized after scripts are loaded
@@ -358,10 +361,10 @@ class AudioService {
     try {
       // Initialize Tone.js audio context
       if (window.Tone) {
-        // Always ensure Tone is started
+        // Always ensure Tone is started (requires user gesture from click handler)
         if (Tone.context.state !== 'running') {
           await Tone.start()
-          // console.log('🔊 Tone.js context started/resumed')
+          console.log('🔊 Tone.js context started/resumed')
         }
 
         // CRITICAL: Start Transport for scheduled events
@@ -493,11 +496,22 @@ class AudioService {
     this.volumeController.setMasterVolumeNode(this.masterVolume)
 
     // Create global FX buses (100% wet for send/return architecture)
+    // Note: Reverb needs async initialization for impulse response
     this.reverb = new Tone.Reverb({
       decay: 3.0,        // 3 second decay
       preDelay: 0.01,    // 10ms predelay
       wet: 1.0           // 100% wet - this is a FX bus, not insert
-    }).connect(this.masterVolume)
+    })
+
+    // Connect reverb after creation (will work once ready)
+    this.reverb.connect(this.masterVolume)
+
+    // Wait for reverb to generate impulse response (non-blocking)
+    this.reverb.ready.then(() => {
+      console.log('✅ Reverb impulse response ready')
+    }).catch(e => {
+      console.warn('Reverb initialization warning:', e.message)
+    })
 
     this.delay = new Tone.FeedbackDelay({
       delayTime: 0.2,    // 200ms delay time
@@ -641,12 +655,13 @@ class AudioService {
         maxPolyphony: 2  // 2 voices as requested
       }),
 
-      // PAD: Ethereal, slow-evolving pad (4 voices for lush texture)
+      // PAD: Ethereal, slow-evolving pad
+      // PERFORMANCE FIX: Reduced oscillator count 5→2 (was 40 oscillators at full polyphony!)
       pad: new Tone.PolySynth({
         oscillator: {
           type: 'fattriangle',  // Softer, rounder than square - DISTINCT from chords
-          count: 5,  // More voices for lush pad texture
-          spread: 60  // Wide spread for spacious sound
+          count: 2,  // PERFORMANCE: Reduced from 5 (was causing audio overload)
+          spread: 30  // PERFORMANCE: Reduced from 60 (less detuning = less CPU)
         },
         volume: +5,  // DRONE FIX: Match backgroundHigh/Mid/Low for audibility
         envelope: {
@@ -655,7 +670,7 @@ class AudioService {
           sustain: 0.7,
           release: 4.0   // VERY LONG release - pad lingers
         },
-        maxPolyphony: 8  // Entry #27: Increased from 4 to handle drone overlap during release
+        maxPolyphony: 6  // PERFORMANCE: Reduced from 8 (now 12 oscillators max vs 40)
       }),
 
       // CHORDS: Bright, articulate chords (4 voices)
@@ -675,6 +690,7 @@ class AudioService {
       }),
 
       // BACKGROUND COMPOSITION LAYERS - High volume to match gestures
+      // PERFORMANCE: Reduced polyphony from 12 to 6 per layer (total 18 vs 36)
       backgroundHigh: new Tone.PolySynth({
         oscillator: {
           type: 'sine',  // Pure tone for melodic clarity
@@ -688,7 +704,7 @@ class AudioService {
           sustain: 0.7,
           release: 0.5
         },
-        maxPolyphony: 12
+        maxPolyphony: 6  // Reduced from 12
       }),
 
       backgroundMid: new Tone.PolySynth({
@@ -704,7 +720,7 @@ class AudioService {
           sustain: 0.6,
           release: 0.8
         },
-        maxPolyphony: 12
+        maxPolyphony: 6  // Reduced from 12
       }),
 
       backgroundLow: new Tone.PolySynth({
@@ -720,7 +736,7 @@ class AudioService {
           sustain: 0.8,
           release: 1.0
         },
-        maxPolyphony: 12
+        maxPolyphony: 6  // Reduced from 12
       })
     }
 
@@ -775,7 +791,8 @@ class AudioService {
       console.log('DroneVoidController: Initialized - drone starts silent until activity void')
     }
 
-    // Create gesture-responsive synth with INCREASED polyphony and cleaner sound
+    // Create gesture-responsive synth with optimized polyphony
+    // PERFORMANCE: Reduced from 128 to 32 voices - prevents CPU overload
     this.gestureSynth = new Tone.PolySynth({
       oscillator: {
         type: 'sawtooth',
@@ -789,7 +806,7 @@ class AudioService {
         sustain: 0.3,  // Lower sustain to prevent overlapping
         release: 0.8    // Faster release
       },
-      maxPolyphony: 128 // INCREASED from 64 - prevent note drops
+      maxPolyphony: 32  // PERFORMANCE: Reduced from 128 - 32 is sufficient for most cases
     })
 
     // Add filter to gesture synth for hover modulation - OPEN FILTER for sawtooth harmonics
@@ -2308,7 +2325,15 @@ class AudioService {
       this.masterVolume.volume.value = -10
     }
 
-    // Clear any existing drone repeat event
+    // Clear ALL existing drone repeat events (FIX: was only clearing one, causing leak)
+    if (this.droneRepeatEventIds && this.droneRepeatEventIds.length > 0) {
+      for (const eventId of this.droneRepeatEventIds) {
+        Tone.Transport.clear(eventId)
+      }
+      console.log(`🧹 Cleared ${this.droneRepeatEventIds.length} drone repeat events`)
+      this.droneRepeatEventIds = []
+    }
+    // Legacy cleanup (single event ID)
     if (this.droneRepeatEventId) {
       Tone.Transport.clear(this.droneRepeatEventId)
       this.droneRepeatEventId = null
@@ -2337,13 +2362,15 @@ class AudioService {
         }
 
         // Schedule repeating drone using RELATIVE time syntax ("+8" means 8 seconds from now)
+        // PERFORMANCE FIX: Store ALL event IDs in array (was overwriting single ID, causing leak)
         const repeatStartTime = `+${duration + delay}`
-        this.droneRepeatEventId = Tone.Transport.scheduleRepeat((audioTime) => {
+        const repeatEventId = Tone.Transport.scheduleRepeat((audioTime) => {
           if (this.ambientLayers && this.ambientLayers.pad) {
             this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
           }
         }, duration, repeatStartTime)
-        this.scheduledTransportEvents.push(this.droneRepeatEventId)
+        this.droneRepeatEventIds.push(repeatEventId)
+        this.scheduledTransportEvents.push(repeatEventId)
       } else {
         // For non-drone textures, use relative time scheduling
         const relativeTime = `+${0.1 + delay}`
@@ -2584,152 +2611,109 @@ class AudioService {
         playTime = Tone.now() + delay
       }
 
-      // CRITICAL FIX: Use ONLY setTimeout (no Transport.schedule)
-      // Transport.schedule has race conditions with cancel()
+      // PERFORMANCE FIX: Use Transport.schedule for audio-thread scheduling
+      // This prevents main thread congestion from delaying audio callbacks
+      // Key insight: schedule on audio thread, not main thread with setTimeout
 
-      // Calculate delay in milliseconds
-      const delayMs = delay * 1000
+      // Pre-compute all values outside the callback to reduce GC pressure
+      const isStreamed = musicalEvent.properties?.isStreamed
+      const userId = musicalEvent.userId
+      const eventFrequency = frequency
+      const eventDuration = adjustedDuration
+      const eventVelocity = adjustedVelocity
+      const eventArticulation = articulation
 
-      // Schedule attack with setTimeout
-      const attackTimeoutId = setTimeout(() => {
-        // DEBUG: Log inside setTimeout to verify callback fires
-        console.log(`📣 playMusicalEvent setTimeout FIRED - userId=${musicalEvent?.userId?.substring(0,8)}`)
+      // Pre-compute envelope based on articulation (avoid object creation in callback)
+      let envAttack, envDecay, envSustain, envRelease
+      switch (eventArticulation) {
+        case 'staccato':
+          envAttack = 0.005
+          envDecay = eventDuration * 0.2
+          envSustain = 0.3
+          envRelease = eventDuration * 0.3
+          break
+        case 'marcato':
+          envAttack = 0.01
+          envDecay = eventDuration * 0.3
+          envSustain = 0.5
+          envRelease = eventDuration * 0.4
+          break
+        case 'legato':
+          envAttack = eventDuration * 0.1
+          envDecay = eventDuration * 0.2
+          envSustain = 0.7
+          envRelease = eventDuration * 0.7
+          break
+        default:
+          envAttack = 0.005
+          envDecay = 0.02
+          envSustain = 0.1
+          envRelease = 0.05
+      }
 
+      // Schedule audio event on the audio thread using Transport.schedule
+      // This ensures precise timing regardless of main thread load
+      const scheduleTime = playTime
+
+      const transportEventId = Tone.Transport.schedule((time) => {
         if (!this.gestureSynth || this.gestureSynth.disposed) {
-          console.warn('🔇 Synth disposed, skipping note - gestureSynth:', !!this.gestureSynth, 'disposed:', this.gestureSynth?.disposed)
           return
         }
 
         try {
-          // CRITICAL: Configure oscillator and envelope based on note type and articulation
-          // Remote streaming notes use square wave for differentiation
-          const isStreamed = musicalEvent.properties?.isStreamed
-
-          // Configure envelope based on articulation
-          // Envelopes are proportional to note duration for better musicality
-          let envelope
-          switch (articulation) {
-            case 'staccato':
-              // Fast: short, articulated notes (50% of duration)
-              envelope = {
-                attack: 0.005,
-                decay: adjustedDuration * 0.2,
-                sustain: 0.3,
-                release: adjustedDuration * 0.3
-              }
-              break
-            case 'marcato':
-              // Medium: accented notes (70% of duration)
-              envelope = {
-                attack: 0.01,
-                decay: adjustedDuration * 0.3,
-                sustain: 0.5,
-                release: adjustedDuration * 0.4
-              }
-              break
-            case 'legato':
-              // Slow: smooth, connected notes (95% of duration)
-              envelope = {
-                attack: adjustedDuration * 0.1,
-                decay: adjustedDuration * 0.2,
-                sustain: 0.7,
-                release: adjustedDuration * 0.7
-              }
-              break
-            default:
-              // Fallback
-              envelope = {
-                attack: 0.005,
-                decay: 0.02,
-                sustain: 0.1,
-                release: 0.05
-              }
-          }
-
-          // CRITICAL: Use per-user synth if available for unique timbres
-          const userId = musicalEvent.userId
           let synth = null
-          let actualFrequency = frequency
-          let oscillatorType = 'unknown'
-
-          console.log(`🔍 playMusicalEvent check: userId=${userId?.substring(0,8)}, hasUserSynthManager=${!!this.userSynthManager}, eventType=${musicalEvent.eventType}`)
+          let actualFrequency = eventFrequency
 
           if (userId && this.userSynthManager) {
             const synthData = this.userSynthManager.getSynthForUser(userId)
-            if (synthData) {
-              oscillatorType = synthData.patch?.oscillator?.type || 'no-type'
-              console.log(`🔍 getSynthForUser: patch=${synthData.patch?.name}, osc=${oscillatorType}, disposed=${synthData.synth?.disposed}`)
-            } else {
-              console.log(`🔍 getSynthForUser: returned null for userId=${userId?.substring(0,8)}`)
-            }
             if (synthData && synthData.synth && !synthData.synth.disposed) {
               synth = synthData.synth
-              actualFrequency = this.userSynthManager.constrainFrequencyToTessitura(frequency, userId)
+              actualFrequency = this.userSynthManager.constrainFrequencyToTessitura(eventFrequency, userId)
 
-              // CRITICAL FIX: Force-apply oscillator config to each PolySynth voice
-              // PolySynth.set() may not properly propagate to voices
+              // Apply oscillator config
               const patchOsc = synthData.patch?.oscillator
               if (patchOsc && patchOsc.type !== 'fmsine') {
                 try {
-                  // Method 1: Try set on the PolySynth
                   synth.set({ oscillator: patchOsc })
-
-                  // Method 2: Try setting on each voice directly
-                  if (synth.voices && synth.voices.length > 0) {
-                    synth.voices.forEach(voice => {
-                      if (voice && voice.oscillator) {
-                        voice.oscillator.type = patchOsc.type
-                        if (patchOsc.count) voice.oscillator.count = patchOsc.count
-                        if (patchOsc.spread) voice.oscillator.spread = patchOsc.spread
-                        if (patchOsc.width !== undefined) voice.oscillator.width = patchOsc.width
-                      }
-                    })
-                  }
                 } catch (e) {
-                  console.warn(`Could not set oscillator: ${e.message}`)
+                  // Ignore oscillator set errors
                 }
               }
-
-              console.log(`🎵 USING USER SYNTH: ${synthData.patch?.name} (${oscillatorType}) for ${userId?.substring(0,8)}, freq=${actualFrequency.toFixed(1)}Hz`)
             }
           }
 
-          // Fallback to gestureSynth if no user synth available
+          // Fallback to gestureSynth
           if (!synth) {
-            console.warn(`⚠️ FALLBACK to gestureSynth (sawtooth) - userId=${userId?.substring(0,8)}, userSynthManager=${!!this.userSynthManager}`)
             synth = this.gestureSynth
-            oscillatorType = 'sawtooth (fallback)'
             this.gestureSynth.set({
               oscillator: { type: 'sawtooth' },
-              envelope
+              envelope: {
+                attack: envAttack,
+                decay: envDecay,
+                sustain: envSustain,
+                release: envRelease
+              }
             })
           }
 
-          // Volume hierarchy: local (×1.0) > remote (×0.9) - was 0.7
-          const finalVelocity = isStreamed ? adjustedVelocity * 0.9 : adjustedVelocity
+          // Volume hierarchy: local (×1.0) > remote (×0.9)
+          const finalVelocity = isStreamed ? eventVelocity * 0.9 : eventVelocity
 
+          // Use the precise audio time from Transport.schedule
           synth.triggerAttackRelease(
             actualFrequency,
-            adjustedDuration,
-            Tone.now(),
+            eventDuration,
+            time,  // Use scheduled time, not Tone.now()
             finalVelocity
           )
-
-          // console.log(`🎶 Note played (${isStreamed ? 'REMOTE' : 'LOCAL'}):`, {
-//            frequency: frequency.toFixed(1),
-//            duration: adjustedDuration.toFixed(3),
-//            velocity: finalVelocity.toFixed(3),
-//            type: isStreamed ? 'remote (×0.7)' : 'local (full)',
-//            articulation: articulation
-////          })
         } catch (e) {
-          // console.warn('Note play error:', e.message)
+          // Silently handle errors to prevent callback crashes
         }
-      }, delayMs)
+      }, scheduleTime)
 
-      // Store for cleanup
-      if (!this.scheduledTimeouts) this.scheduledTimeouts = []
-      this.scheduledTimeouts.push(attackTimeoutId)
+      // Store Transport event ID for cleanup (not setTimeout ID)
+      if (!this.scheduledTransportEvents) this.scheduledTransportEvents = []
+      this.scheduledTransportEvents.push(transportEventId)
 
       // EVOLUTIVE: Integrate user phrase into background composition
       this.integrateUserPhraseIntoBackground(musicalEvent, frequency, adjustedDuration)

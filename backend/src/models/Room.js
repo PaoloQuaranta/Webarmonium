@@ -25,7 +25,10 @@ class Room {
       '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00',
       '#ffff33', '#a65628', '#f781bf', '#999999', '#66c2a5'
     ]) // 10-color pool for user assignment
-    this.availableSlots = new Set([0, 1, 2, 3]) // 4-slot pool for real user timbres (virtual users have hardwired timbres)
+    // EXPANDED: 8-slot pool to handle race conditions when users refresh
+    // (disconnect event may not process before new join, causing temporary slot exhaustion)
+    // Patches cycle through 4 timbres via % 4, but having 8 slots prevents assignment failures
+    this.availableSlots = new Set([0, 1, 2, 3, 4, 5, 6, 7])
     this.maxStrokes = 10000 // Soft limit for memory management
 
     // SUSTAINED HOLD: Track active sustained holds for disconnect cleanup
@@ -220,7 +223,7 @@ class Room {
   assignSlotToUser (user) {
     // Initialize slots if not present (for rooms created before slot system)
     if (!this.availableSlots) {
-      this.availableSlots = new Set([0, 1, 2, 3])
+      this.availableSlots = new Set([0, 1, 2, 3, 4, 5, 6, 7])
     }
 
     if (this.availableSlots.size === 0) {
@@ -244,9 +247,10 @@ class Room {
     if (user.assignedSlot !== null) {
       // Initialize slots if not present (for rooms created before slot system)
       if (!this.availableSlots) {
-        this.availableSlots = new Set([0, 1, 2, 3])
+        this.availableSlots = new Set([0, 1, 2, 3, 4, 5, 6, 7])
       }
       this.availableSlots.add(user.assignedSlot)
+      console.log(`🎹 Slot ${user.assignedSlot} released, available: [${Array.from(this.availableSlots).sort().join(', ')}]`)
     }
   }
 

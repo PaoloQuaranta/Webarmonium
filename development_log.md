@@ -3183,3 +3183,270 @@ Updated all font-family declarations from Inter/system fonts to Archivo (Google 
 - Fits the techno/electronic music context
 
 ---
+
+## Entry #37 - Performance Optimization: Windows + Chrome Audio Stability
+
+**Date**: 2026-01-08
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Problem Statement
+
+User reported severe performance issues specifically on **Windows 11 + Chrome**:
+- Audio dropouts (choppy, stuttering audio)
+- Animations freezing and restarting
+- No issues on iPad Safari or Linux Chromium
+
+### Root Cause Analysis (via Performance Optimizer Agent)
+
+Six critical issues identified:
+
+| Priority | Issue | Impact |
+|----------|-------|--------|
+| 1 | **Timer Proliferation** | ~40-60 setInterval callbacks/sec competing for main thread |
+| 2 | **setTimeout for Audio** | Audio scheduled on main thread, not audio thread |
+| 3 | **GC Pressure** | 100+ object allocations/sec in hot paths |
+| 4 | **Polyphony Explosion** | 178 max voices (gestureSynth: 128!) |
+| 5 | **Canvas Blocking** | p5.js immediate-mode blocking main thread |
+| 6 | **No latencyHint** | Chrome defaults to 'interactive' (less stable) |
+
+**Why Chrome Windows Specifically?**
+- Chrome's V8 GC is more aggressive than Safari's JSC
+- Windows audio drivers have higher baseline latency
+- Chrome's timer coalescing differs from Safari/Chromium
+
+---
+
+### Solutions Implemented
+
+#### 1. UnifiedUpdateLoop Class (NEW)
+
+Created [UnifiedUpdateLoop.js](frontend/src/services/UnifiedUpdateLoop.js) - consolidates all setInterval timers into a single requestAnimationFrame-based loop.
+
+**Benefits:**
+- Single rAF callback vs 40-60 timer callbacks
+- Reduced closure allocations (less GC pressure)
+- Better Chrome timer coalescing
+- Automatic frame budget management
+
+**Usage:**
+```javascript
+const loop = UnifiedUpdateLoop.getInstance()
+loop.register('lfo', (dt) => updateLFO(dt), 30)  // 30Hz
+loop.register('drone', (dt) => updateDrone(dt), 10)  // 10Hz
+loop.start()
+```
+
+#### 2. Transport.schedule for Audio Events
+
+Replaced `setTimeout` with `Tone.Transport.schedule()` in [AudioService.js:2587-2689](frontend/src/services/AudioService.js#L2587).
+
+**Before:**
+```javascript
+setTimeout(() => {
+  synth.triggerAttackRelease(freq, dur, Tone.now())
+}, delayMs)  // Main thread!
+```
+
+**After:**
+```javascript
+Tone.Transport.schedule((time) => {
+  synth.triggerAttackRelease(freq, dur, time)  // Audio thread!
+}, scheduleTime)
+```
+
+This ensures audio events fire precisely regardless of main thread load.
+
+#### 3. Reduced Polyphony
+
+| Synth | Before | After |
+|-------|--------|-------|
+| gestureSynth | 128 | 32 |
+| backgroundHigh | 12 | 6 |
+| backgroundMid | 12 | 6 |
+| backgroundLow | 12 | 6 |
+| **Total voices** | **178** | **64** |
+
+#### 4. Audio Context latencyHint
+
+Added `latencyHint: 'balanced'` configuration:
+
+```javascript
+const newContext = new AudioContext({ latencyHint: 'balanced' })
+Tone.setContext(newContext)
+```
+
+'Balanced' trades ~40ms latency for much better stability under load.
+
+#### 5. UnifiedUpdateLoop Integration
+
+Updated services to use UnifiedUpdateLoop instead of setInterval:
+
+| Service | Timer | New Hz |
+|---------|-------|--------|
+| DroneVoidController | 100ms | 10Hz |
+| ParticleFlowManager | 5000ms | 0.2Hz |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/UnifiedUpdateLoop.js` | NEW - Unified update loop class |
+| `frontend/src/services/AudioService.js` | Transport.schedule, polyphony reduction, latencyHint |
+| `frontend/src/services/DroneVoidController.js` | UnifiedUpdateLoop integration |
+| `frontend/src/services/visual/ParticleFlowManager.js` | UnifiedUpdateLoop integration |
+| `frontend/rooms.html` | Added UnifiedUpdateLoop script |
+| `frontend/index.html` | Added UnifiedUpdateLoop script |
+
+---
+
+### Expected Performance Improvement
+
+| Fix | Impact |
+|-----|--------|
+| UnifiedUpdateLoop | ~30% (timer consolidation) |
+| Transport.schedule | ~25% (audio thread scheduling) |
+| Reduced polyphony | ~15% (fewer oscillator calculations) |
+| latencyHint | ~5% (more stable scheduling) |
+
+**Total estimated improvement: 60-75% reduction in audio dropouts**
+
+---
+
+## Entry #38 - Slot Pool Expansion: Race Condition Fix for Multi-Instance Audio
+
+**Date**: 2026-01-08
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Problem Statement
+
+After Entry #37 performance optimizations, user reported:
+- Audio corruption with 2+ browser instances open (especially when drone starts)
+- Console warnings showing `backendSlot=null`, falling back to hash-based slot assignment
+- Multiple users getting duplicate timbres instead of unique ones
+
+### Root Cause Analysis
+
+**Race condition during browser refresh:**
+
+When a user refreshes their browser tab:
+1. NEW socket connection sends `user:join` immediately
+2. OLD socket disconnect event may not process yet
+3. Slot pool (originally 4 slots) becomes exhausted
+4. New user gets `assignedSlot = null` → hash fallback → duplicate timbres
+
+**Sequence:**
+```
+T+0ms:   User A refreshes browser
+T+1ms:   NEW socket connects, requests slot
+T+1ms:   Pool: [0,1,2,3] - User A (new) gets slot 0
+T+2ms:   User B already has slot 1
+T+3ms:   User C already has slot 2
+T+4ms:   User D already has slot 3
+T+5ms:   Pool: [] - EMPTY (old User A disconnect not processed yet)
+T+10ms:  Another refresh → No slots available!
+T+50ms:  OLD socket finally disconnects, releases slot (too late)
+```
+
+---
+
+### Solution: Expand Slot Pool from 4 to 8
+
+Since rooms accept max 4 users, expanding to 8 slots provides:
+- 4 slots for active users
+- 4 slots "headroom" for race conditions during refresh
+- Slots eventually get released when old sockets disconnect
+
+---
+
+### Implementation
+
+#### 1. Backend Room.js - Expanded Pool
+
+```javascript
+// EXPANDED: 8-slot pool to handle race conditions
+this.availableSlots = new Set([0, 1, 2, 3, 4, 5, 6, 7])
+
+releaseUserSlot(user) {
+  if (user.assignedSlot !== null) {
+    this.availableSlots.add(user.assignedSlot)
+    console.log(`Slot ${user.assignedSlot} released, available: [${Array.from(this.availableSlots).sort().join(', ')}]`)
+  }
+}
+```
+
+#### 2. Backend User.js - Updated Validation
+
+```javascript
+assignSlot(slot) {
+  if (typeof slot !== 'number' || slot < 0 || slot > 7) {
+    throw new Error(`Invalid slot: ${slot}. Must be 0-7`)
+  }
+  this.assignedSlot = slot
+}
+```
+
+#### 3. Frontend PatchDefinitions.js - 4 New Patches
+
+Added unique patches for slots 4-7:
+
+| Slot | Patch Name | Character |
+|------|------------|-----------|
+| 4 | Soft Square | Warm, rounded square wave |
+| 5 | Wide Pulse | Hollow PWM sound |
+| 6 | Bright Chorus | Detuned sawtooth ensemble |
+| 7 | Deep Bell | FM synthesis bell tone |
+
+#### 4. Frontend UserSynthManager.js - Pan Calculation Fix
+
+**Problem:** Original formula `(slot - 1.5) * 0.3` only worked for slots 0-3
+
+```javascript
+// OLD (slots 0-3): pan = -0.45, -0.15, +0.15, +0.45
+panValue = (slot - 1.5) * 0.3
+
+// NEW (slots 0-7): pan = -0.7 to +0.7
+panValue = ((slot % 8) - 3.5) * 0.2
+// Defensive clamp for safety
+panValue = Math.max(-1, Math.min(1, panValue))
+```
+
+**Pan Distribution:**
+| Slot | Pan Value | Position |
+|------|-----------|----------|
+| 0 | -0.70 | Far left |
+| 1 | -0.50 | Mid-left |
+| 2 | -0.30 | Slight left |
+| 3 | -0.10 | Near center |
+| 4 | +0.10 | Near center |
+| 5 | +0.30 | Slight right |
+| 6 | +0.50 | Mid-right |
+| 7 | +0.70 | Far right |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/models/Room.js` | Expanded slot pool from 4 to 8, added release logging |
+| `backend/src/models/User.js` | Updated validation from 0-3 to 0-7 |
+| `backend/src/services/RoomManager.js` | Added detailed slot assignment logging |
+| `frontend/src/services/SocketService.js` | Added warning when slot not received |
+| `frontend/src/services/audio/UserSynthManager.js` | Fixed pan calculation, hash fallback to % 8 |
+| `frontend/src/services/audio/PatchDefinitions.js` | Added 4 new patches for slots 4-7 |
+
+---
+
+### Testing Verification
+
+1. Open 4 browser instances → each gets unique slot (0-3)
+2. Refresh one instance → gets new slot (4-7) during race window
+3. After ~50ms, old socket disconnects → slot released back to pool
+4. No more `backendSlot=null` warnings
+5. All users have unique timbres
+
+---

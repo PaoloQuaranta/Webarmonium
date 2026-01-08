@@ -307,9 +307,12 @@ class SocketService {
         }
 
         // Save backend-assigned slot for exclusive timbre per room
-        if (response.assignedSlot !== undefined) {
+        if (response.assignedSlot !== undefined && response.assignedSlot !== null) {
           this.currentSlot = response.assignedSlot
-          console.log(`🎹 Backend slot saved from joinRoom: slot=${response.assignedSlot}`)
+          console.log(`🎹 Backend slot SAVED: slot=${response.assignedSlot}`)
+        } else {
+          console.warn(`⚠️ Backend slot NOT received in joinRoom response! assignedSlot=${response.assignedSlot}`)
+          console.warn(`   Full response keys: ${Object.keys(response).join(', ')}`)
         }
 
         // Populate userSlots map from all users in room

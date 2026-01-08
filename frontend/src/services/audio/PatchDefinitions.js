@@ -193,6 +193,106 @@ const REAL_USER_PATCHES = {
       delaySend: 0.25,
       reverbSend: 0.35
     }
+  },
+
+  // SLOTS 4-7: Additional patches for expanded pool (race condition handling)
+  // These are variants of 0-3 with different characteristics
+
+  4: {
+    name: 'Soft Square',
+    oscillator: {
+      type: 'square'        // Variant of slot 0
+    },
+    envelope: {
+      attack: 0.08,         // Softer attack than slot 0
+      decay: 0.4,
+      sustain: 0.6,
+      release: 0.6
+    },
+    filter: {
+      type: 'lowpass',
+      frequency: 1500,      // More muffled than slot 0
+      Q: 0.8
+    },
+    volume: 3,
+    effects: {
+      delaySend: 0.3,       // More delay
+      reverbSend: 0.4
+    }
+  },
+
+  5: {
+    name: 'Wide Pulse',
+    oscillator: {
+      type: 'pulse',
+      width: 0.4            // Wider pulse than slot 1 (more hollow)
+    },
+    envelope: {
+      attack: 0.06,
+      decay: 0.25,
+      sustain: 0.5,
+      release: 0.4
+    },
+    filter: {
+      type: 'lowpass',      // Different filter than slot 1
+      frequency: 1500,
+      Q: 1.2
+    },
+    volume: 5,
+    effects: {
+      delaySend: 0.25,
+      reverbSend: 0.35
+    }
+  },
+
+  6: {
+    name: 'Bright Chorus',
+    oscillator: {
+      type: 'fatsawtooth',
+      count: 2,             // Fewer voices than slot 2
+      spread: 40            // Wider spread - more detuned
+    },
+    envelope: {
+      attack: 0.05,         // Faster attack than slot 2
+      decay: 0.2,
+      sustain: 0.8,
+      release: 0.3
+    },
+    filter: {
+      type: 'highpass',     // Different from slot 2's lowpass
+      frequency: 300,
+      Q: 0.5
+    },
+    volume: 4,
+    effects: {
+      delaySend: 0.15,
+      reverbSend: 0.25
+    }
+  },
+
+  7: {
+    name: 'Deep Bell',
+    oscillator: {
+      type: 'fmsine',
+      modulationType: 'triangle',  // Different modulator than slot 3
+      modulationIndex: 6           // Higher modulation - more metallic
+    },
+    envelope: {
+      attack: 0.01,
+      decay: 0.5,           // Longer decay than slot 3
+      sustain: 0.3,
+      release: 0.8          // Longer release
+    },
+    filter: {
+      type: 'lowpass',      // Different from slot 3's highpass
+      frequency: 3000,
+      Q: 1.0
+    },
+    volume: 7,
+    effects: {
+      delaySend: 0.4,       // More delay
+      reverbSend: 0.5       // More reverb
+    }
   }
 }
 
@@ -224,8 +324,8 @@ function getPatchForUser(userId, userSlot = 0) {
   if (isVirtualUser(userId)) {
     return VIRTUAL_USER_PATCHES[userId]
   }
-  // Real user - use slot-based patch
-  const slot = Math.abs(userSlot) % 4  // Ensure slot is 0-3
+  // Real user - use slot-based patch (8 slots for race condition handling)
+  const slot = Math.abs(userSlot) % 8  // Ensure slot is 0-7
   return REAL_USER_PATCHES[slot]
 }
 

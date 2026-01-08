@@ -22,12 +22,15 @@
   <!-- Socket.io client for backend connection -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
+  <!-- Performance optimization: Unified update loop -->
+  <script src="src/services/UnifiedUpdateLoop.js?v=1"></script>
+
   <!-- Existing Webarmonium visual subsystems -->
   <script src="src/services/visual/VisualUtils.js"></script>
   <script src="src/services/visual/TopologyGenerator.js"></script>
   <script src="src/services/visual/SpringMeshNetwork.js"></script>
   <script src="src/services/visual/WavePacketSystem.js"></script>
-  <script src="src/services/visual/ParticleFlowManager.js"></script>
+  <script src="src/services/visual/ParticleFlowManager.js?v=10"></script>
   <script src="src/services/visual/NoiseTextureNebulaSystem.js?v=4"></script>
   <script src="src/services/visual/PrecomputedAttractorSystem.js?v=7"></script>
   <script src="src/services/GenerativeVisualService.js?v=10"></script>
@@ -37,10 +40,10 @@
   <script src="src/services/LFOManager.js"></script>
   <script src="src/services/VolumeController.js"></script>
   <!-- Per-user synth patches -->
-  <script src="src/services/audio/PatchDefinitions.js?v=3"></script>
-  <script src="src/services/audio/UserSynthManager.js?v=5"></script>
-  <script src="src/services/AudioService.js?v=30"></script>
-  <script src="src/services/DroneVoidController.js"></script>
+  <script src="src/services/audio/PatchDefinitions.js?v=4"></script>
+  <script src="src/services/audio/UserSynthManager.js?v=12"></script>
+  <script src="src/services/AudioService.js?v=36"></script>
+  <script src="src/services/DroneVoidController.js?v=2"></script>
 </head>
 <body>
   <header>
@@ -192,6 +195,6 @@
   </main>
 
   <!-- Landing page module scripts -->
-  <script type="module" src="src/landing/main.js?v=47"></script>
+  <script type="module" src="src/landing/main.js?v=48"></script>
 </body>
 </html>

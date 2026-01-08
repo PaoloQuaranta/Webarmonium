@@ -120,9 +120,11 @@ class RoomManager {
     let assignedSlot = null
     try {
       assignedSlot = room.assignSlotToUser(user)
-      console.log(`🎹 Assigned slot ${assignedSlot} to user ${userId.substring(0, 8)} in room ${roomId}`)
+      console.log(`🎹 Slot assignment SUCCESS: slot=${assignedSlot} for user ${userId.substring(0, 8)} in room ${roomId}`)
+      console.log(`   Available slots remaining: ${room.availableSlots ? Array.from(room.availableSlots) : 'N/A'}`)
     } catch (slotError) {
-      console.error(`⚠️ Slot assignment failed for ${userId.substring(0, 8)}: ${slotError.message}`)
+      console.error(`⚠️ Slot assignment FAILED for ${userId.substring(0, 8)}: ${slotError.message}`)
+      console.error(`   Available slots: ${room.availableSlots ? Array.from(room.availableSlots) : 'N/A'}`)
       // Continue without slot - will fall back to hash on frontend
     }
 

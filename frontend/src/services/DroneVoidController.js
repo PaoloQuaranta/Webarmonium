@@ -63,15 +63,32 @@ class DroneVoidController {
     // Set drone to silent initially
     this._setDroneVolumeImmediate(this.config.droneSilentDb)
 
-    // Critical #4: Wrap setInterval in try/catch to prevent memory leaks
+    // PERFORMANCE FIX: Use UnifiedUpdateLoop instead of setInterval
+    // Reduces timer competition on main thread
     try {
-      this.updateTimer = setInterval(() => {
-        this._updateVoidScore()
-      }, this.config.updateInterval)
+      const updateLoop = window.UnifiedUpdateLoop?.getInstance()
+      if (updateLoop) {
+        // Register at 10Hz (100ms interval) - same as original setInterval
+        updateLoop.register('droneVoid', () => {
+          this._updateVoidScore()
+        }, 10)
 
-      // Only mark as running after successful timer creation
-      this.isRunning = true
-      console.log('DroneVoidController: Started - drone silent until activity void detected')
+        // Ensure loop is started
+        if (!updateLoop.isRunning) {
+          updateLoop.start()
+        }
+
+        this.isRunning = true
+        console.log('DroneVoidController: Started with UnifiedUpdateLoop')
+      } else {
+        // Fallback to setInterval if UnifiedUpdateLoop not available
+        this.updateTimer = setInterval(() => {
+          this._updateVoidScore()
+        }, this.config.updateInterval)
+
+        this.isRunning = true
+        console.log('DroneVoidController: Started with setInterval fallback')
+      }
     } catch (error) {
       console.error('DroneVoidController: Failed to start update timer:', error)
       this.updateTimer = null
@@ -89,6 +106,13 @@ class DroneVoidController {
 
     // Critical: Wrap cleanup in try/catch to ensure cleanup completes
     try {
+      // Unregister from UnifiedUpdateLoop if used
+      const updateLoop = window.UnifiedUpdateLoop?.getInstance()
+      if (updateLoop) {
+        updateLoop.unregister('droneVoid')
+      }
+
+      // Also clear setInterval fallback if used
       if (this.updateTimer) {
         clearInterval(this.updateTimer)
         this.updateTimer = null

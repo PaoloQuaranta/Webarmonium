@@ -85,12 +85,13 @@ class UserSynthManager {
     }
 
     // Fallback: Simple hash from userId string to get consistent slot
+    // EXPANDED: Use % 8 to match expanded backend pool (prevents slot collision during race conditions)
     let hash = 0
     for (let i = 0; i < userId.length; i++) {
       hash = ((hash << 5) - hash) + userId.charCodeAt(i)
       hash = hash & hash // Convert to 32-bit integer
     }
-    const hashSlot = Math.abs(hash) % 4
+    const hashSlot = Math.abs(hash) % 8
     console.log(`🔍 HASH FALLBACK: userId=${userId?.substring(0, 8)}, hashSlot=${hashSlot}`)
     return hashSlot
   }
@@ -218,9 +219,12 @@ class UserSynthManager {
         else if (userId === 'github-metrics') panValue = 0.5
         // hackernews-metrics stays at center (0)
       } else {
-        // Real users: slight spread based on slot
-        panValue = (slot - 1.5) * 0.3  // -0.45 to 0.45
+        // Real users: slight spread based on slot (8 slots now)
+        // Map slot 0-7 to pan -0.7 to +0.7
+        panValue = ((slot % 8) - 3.5) * 0.2  // Clamps naturally to -0.7 to +0.7
       }
+      // DEFENSIVE: Clamp pan value to valid range [-1, 1]
+      panValue = Math.max(-1, Math.min(1, panValue))
       const pan = new Tone.Panner(panValue)
 
       // Connect signal chain: synth -> filter -> volume -> pan -> master
@@ -228,8 +232,15 @@ class UserSynthManager {
       filter.connect(volume)
       volume.connect(pan)
 
-      if (this.masterVolume) {
-        pan.connect(this.masterVolume)
+      // DEFENSIVE: Check if masterVolume is a valid Tone.js node before connecting
+      // This prevents errors when audio nodes aren't fully initialized (e.g., Reverb not ready)
+      if (this.masterVolume && typeof this.masterVolume.input !== 'undefined') {
+        try {
+          pan.connect(this.masterVolume)
+        } catch (e) {
+          console.warn('UserSynthManager: Could not connect to masterVolume, using destination:', e.message)
+          pan.toDestination()
+        }
       } else {
         pan.toDestination()
       }
@@ -238,16 +249,28 @@ class UserSynthManager {
       let delaySend = null
       let reverbSend = null
 
-      if (this.delay && patch.effects?.delaySend > 0) {
-        delaySend = new Tone.Gain(patch.effects.delaySend)
-        volume.connect(delaySend)
-        delaySend.connect(this.delay)
+      // DEFENSIVE: Validate delay node before connecting
+      if (this.delay && typeof this.delay.input !== 'undefined' && patch.effects?.delaySend > 0) {
+        try {
+          delaySend = new Tone.Gain(patch.effects.delaySend)
+          volume.connect(delaySend)
+          delaySend.connect(this.delay)
+        } catch (e) {
+          console.warn('UserSynthManager: Could not connect to delay:', e.message)
+          delaySend = null
+        }
       }
 
-      if (this.reverb && patch.effects?.reverbSend > 0) {
-        reverbSend = new Tone.Gain(patch.effects.reverbSend)
-        volume.connect(reverbSend)
-        reverbSend.connect(this.reverb)
+      // DEFENSIVE: Validate reverb node before connecting
+      if (this.reverb && typeof this.reverb.input !== 'undefined' && patch.effects?.reverbSend > 0) {
+        try {
+          reverbSend = new Tone.Gain(patch.effects.reverbSend)
+          volume.connect(reverbSend)
+          reverbSend.connect(this.reverb)
+        } catch (e) {
+          console.warn('UserSynthManager: Could not connect to reverb:', e.message)
+          reverbSend = null
+        }
       }
 
       // Store synth data

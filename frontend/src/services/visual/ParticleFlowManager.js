@@ -80,22 +80,45 @@ class ParticleFlowManager {
 
   /**
    * Setup periodic cleanup of old particles
+   * PERFORMANCE: Uses UnifiedUpdateLoop to reduce timer competition
    */
   setupAutoCleanup() {
-    this.cleanupTimer = setInterval(() => {
-      const now = Date.now()
-      const particlesToRemove = []
+    // PERFORMANCE FIX: Use UnifiedUpdateLoop instead of setInterval
+    const updateLoop = window.UnifiedUpdateLoop?.getInstance()
+    if (updateLoop) {
+      // Register at 0.2Hz (5000ms interval) for cleanup
+      updateLoop.register('particleCleanup', () => {
+        this._performCleanup()
+      }, 0.2)
 
-      for (const [particleId, particle] of this.particles) {
-        if (now - particle.createdAt > this.maxAge) {
-          particlesToRemove.push(particleId)
-        }
+      // Ensure loop is started
+      if (!updateLoop.isRunning) {
+        updateLoop.start()
       }
+    } else {
+      // Fallback to setInterval if UnifiedUpdateLoop not available
+      this.cleanupTimer = setInterval(() => {
+        this._performCleanup()
+      }, this.cleanupIntervalMs)
+    }
+  }
 
-      for (const particleId of particlesToRemove) {
-        this.removeParticle(particleId)
+  /**
+   * Perform particle cleanup (extracted for reuse)
+   */
+  _performCleanup() {
+    const now = Date.now()
+    const particlesToRemove = []
+
+    for (const [particleId, particle] of this.particles) {
+      if (now - particle.createdAt > this.maxAge) {
+        particlesToRemove.push(particleId)
       }
-    }, this.cleanupIntervalMs)
+    }
+
+    for (const particleId of particlesToRemove) {
+      this.removeParticle(particleId)
+    }
   }
 
   /**
@@ -622,6 +645,13 @@ class ParticleFlowManager {
    * Dispose of resources
    */
   dispose() {
+    // Unregister from UnifiedUpdateLoop if used
+    const updateLoop = window.UnifiedUpdateLoop?.getInstance()
+    if (updateLoop) {
+      updateLoop.unregister('particleCleanup')
+    }
+
+    // Also clear setInterval fallback if used
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer)
       this.cleanupTimer = null
