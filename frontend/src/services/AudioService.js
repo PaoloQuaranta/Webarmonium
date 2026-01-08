@@ -25,6 +25,11 @@ class AudioService {
     // PERFORMANCE FIX: Track ALL drone repeat events (not just one)
     this.droneRepeatEventIds = []
 
+    // PERF: Platform detection for audio buffer optimization
+    // Windows Chrome has higher audio latency and needs larger buffers
+    this._isWindowsChrome = this._detectWindowsChrome()
+    this._audioConfigured = false
+
     // New musical architecture services
     this.musicalScheduler = null; // Will be initialized after scripts are loaded
     this.lfoManager = null; // Will be initialized after audio context
@@ -259,6 +264,51 @@ class AudioService {
   }
 
   /**
+   * Detect Windows Chrome for audio buffer optimization
+   * Windows Chrome has higher audio latency and needs larger buffers to prevent glitches
+   * @returns {boolean} True if running on Windows Chrome
+   */
+  _detectWindowsChrome() {
+    const ua = navigator.userAgent
+    const isWindows = ua.includes('Windows') || navigator.platform?.includes('Win')
+    const isChrome = ua.includes('Chrome') && !ua.includes('Edg') && !ua.includes('OPR')
+    return isWindows && isChrome
+  }
+
+  /**
+   * Configure AudioContext for optimal buffer size based on platform
+   * PERF: Windows Chrome needs larger buffers to prevent crackles/hiccups
+   * Must be called BEFORE Tone.start() to take effect
+   */
+  _configureAudioContext() {
+    if (this._audioConfigured) return
+    this._audioConfigured = true
+
+    try {
+      // Determine latencyHint based on platform
+      // 'playback' = larger buffer (~100-200ms), most stable for music
+      // 'balanced' = medium buffer (~40-60ms), good compromise
+      // 'interactive' = smallest buffer (~10-20ms), prone to glitches on Windows
+      const latencyHint = this._isWindowsChrome ? 'playback' : 'balanced'
+
+      // Create new AudioContext with optimized settings
+      const contextOptions = {
+        latencyHint: latencyHint
+        // sampleRate: 44100  // Uncomment to force lower sample rate if needed
+      }
+
+      // Only create custom context if Tone hasn't started yet
+      if (window.Tone && Tone.context.state === 'suspended') {
+        const customContext = new AudioContext(contextOptions)
+        Tone.setContext(customContext)
+        console.log(`🔊 AudioContext configured: latencyHint=${latencyHint}, sampleRate=${customContext.sampleRate}`)
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to configure AudioContext:', error.message)
+    }
+  }
+
+  /**
    * Start the audio engine
    * @returns {Promise} Resolves when audio context is ready
    */
@@ -266,10 +316,21 @@ class AudioService {
     try {
       // Initialize Tone.js audio context
       if (window.Tone) {
+        // PERF: Configure AudioContext BEFORE starting for optimal buffer size
+        this._configureAudioContext()
+
         // Always ensure Tone is started (requires user gesture from click handler)
         if (Tone.context.state !== 'running') {
           await Tone.start()
           // console.log('🔊 Tone.js context started/resumed')
+        }
+
+        // PERF: Increase lookAhead for better scheduling buffer
+        // Default is 0.05 (50ms), increase to 0.1 (100ms) for stability
+        // This gives the audio thread more time to prepare scheduled events
+        if (Tone.context.lookAhead < 0.1) {
+          Tone.context.lookAhead = this._isWindowsChrome ? 0.15 : 0.1
+          // console.log(`🔊 Tone.context.lookAhead set to ${Tone.context.lookAhead}s`)
         }
 
         // CRITICAL: Start Transport for scheduled events
