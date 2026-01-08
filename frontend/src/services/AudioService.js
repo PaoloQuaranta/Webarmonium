@@ -321,8 +321,11 @@ class AudioService {
 
         // Always ensure Tone is started (requires user gesture from click handler)
         if (Tone.context.state !== 'running') {
+          console.log('🔊 Calling Tone.start(), current state:', Tone.context.state)
           await Tone.start()
-          // console.log('🔊 Tone.js context started/resumed')
+          console.log('🔊 After Tone.start(), state:', Tone.context.state)
+        } else {
+          console.log('🔊 Tone.context already running')
         }
 
         // PERF: Increase lookAhead for better scheduling buffer
@@ -1663,9 +1666,12 @@ class AudioService {
    * @returns {Object|null} Note tracking data { noteId, frequency, startTime } or null if failed
    */
   triggerSustainedNoteAttack(frequency, velocity, position, userId = null, isRemote = false) {
-    // Check audio context state
+    // Check audio context state - try to resume if suspended
     if (Tone.context.state !== 'running') {
-      // console.warn('⚠️ Audio context not running, cannot start sustained note')
+      console.warn('⚠️ Audio context not running:', Tone.context.state, '- attempting resume')
+      if (Tone.context.state === 'suspended') {
+        Tone.context.resume()
+      }
       return null
     }
 
@@ -2634,7 +2640,17 @@ class AudioService {
    */
   playMusicalEvent(musicalEvent) {
     // DEBUG: PROMINENT log to verify this function is being called
-    console.log(`📣 playMusicalEvent CALLED - userId=${musicalEvent?.userId?.substring(0,8)}, eventType=${musicalEvent?.eventType}, gestureAction=${musicalEvent?.properties?.gestureAction}`)
+    console.log(`📣 playMusicalEvent CALLED - userId=${musicalEvent?.userId?.substring(0,8)}, contextState=${Tone.context?.state}, transportState=${Tone.Transport?.state}`)
+
+    // CRITICAL: Check AudioContext state - if suspended, try to resume
+    if (Tone.context?.state === 'suspended') {
+      console.log('⚠️ AudioContext suspended - attempting to resume...')
+      Tone.context.resume().then(() => {
+        console.log('✅ AudioContext resumed')
+      }).catch(e => {
+        console.error('❌ Failed to resume AudioContext:', e)
+      })
+    }
 
     if (!this.isInitialized || !musicalEvent || this.muted) {
       console.log('🔇 playMusicalEvent blocked - initialized:', this.isInitialized, 'muted:', this.muted)
@@ -2836,7 +2852,7 @@ class AudioService {
           // Volume hierarchy: local (×1.0) > remote (×0.9)
           const finalVelocity = isStreamed ? eventVelocity * 0.9 : eventVelocity
 
-          console.log(`🎵 TRIGGER: freq=${actualFrequency?.toFixed(1)}Hz, dur=${eventDuration?.toFixed(2)}s, vel=${finalVelocity?.toFixed(2)}, synth=${synth ? (synth === this.gestureSynth ? 'gestureSynth' : 'userSynth') : 'null'}`)
+          console.log(`🎵 TRIGGER: freq=${actualFrequency?.toFixed(1)}Hz, dur=${eventDuration?.toFixed(2)}s, vel=${finalVelocity?.toFixed(2)}, synth=${synth ? (synth === this.gestureSynth ? 'gestureSynth' : 'userSynth') : 'null'}, disposed=${synth?.disposed}`)
 
           // Use the precise audio time from Transport.schedule
           synth.triggerAttackRelease(
