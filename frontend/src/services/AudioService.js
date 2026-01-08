@@ -146,135 +146,40 @@ class AudioService {
     this.filterUpdateInterval = 50 // 50ms = 20 updates per second maximum
     this.lastFilterLogTime = 0
 
-    // LFO system for advanced hover modulation
+    // LFO system stub - SIMPLIFIED
+    // PERF: Removed setInterval(30Hz) implementation that competed with main thread
+    // The original code was already disabled via disableAllLFOSystems() but still
+    // allocated timers and callbacks. Now it's a minimal stub for API compatibility.
+    // Real LFO modulation uses Tone.LFO (audio thread): droneAmplitudeLFO, dronePitchLFO
     this.lfoSystem = {
-      // Local hover LFO parameters
-      localResonance: 1.0,      // x-axis controls resonance (1-10)
-      localCutoff: 1000,        // y-axis controls base cutoff (200-4000Hz)
-
-      // Remote hover LFO parameters
-      remoteAmplitude: 0.5,     // x-axis controls LFO amplitude (0-2.0)
-      remoteSpeed: 1.0,         // y-axis controls LFO speed (0.1-8Hz)
-
-      // LFO state
-      lfoPhase: 0,
-      lastLfoUpdate: Date.now(),
-      currentLFOValue: 0,
       isActive: false,
-      updateInterval: null,      // setInterval reference
-
-      // Initialize LFO
-      init() {
-        this.lfoPhase = 0
-        this.lastLfoUpdate = Date.now()
-        this.currentLFOValue = 0
-        this.isActive = false
-        // console.log('🎛️ LFO system initialized for hover modulation')
-      },
-
-      // Start continuous LFO updates
-      start() {
-        if (this.isActive) return
-
-        this.isActive = true
-        this.lastLfoUpdate = Date.now()
-
-        // Start continuous LFO updates at 30Hz for stable audio
-        this.updateInterval = setInterval(() => {
-          if (!this.isActive) return
-
-          const now = Date.now()
-          const deltaTime = (now - this.lastLfoUpdate) / 1000 // Convert to seconds
-          this.lastLfoUpdate = now
-
-          // Update LFO phase based on current speed
-          this.lfoPhase += deltaTime * this.remoteSpeed * 2 * Math.PI
-
-          // Keep phase in range [0, 2π]
-          if (this.lfoPhase > 2 * Math.PI) {
-            this.lfoPhase -= 2 * Math.PI
-          }
-
-          // Calculate new LFO value
-          this.currentLFOValue = Math.sin(this.lfoPhase)
-
-        }, 1000 / 30) // 30 FPS updates - stable for audio
-
-        // console.log('🌊 Continuous LFO started at 30Hz - stable for audio')
-      },
-
-      // Stop continuous LFO updates
-      stop() {
-        this.isActive = false
-        if (this.updateInterval) {
-          clearInterval(this.updateInterval)
-          this.updateInterval = null
-        }
-        // console.log('⏹️ Continuous LFO stopped')
-      },
-
-      // Update LFO phase and get current value 
-      update() {
-        if (!this.isActive) {
-          // Fallback to manual update if not active
-          const now = Date.now()
-          const deltaTime = (now - this.lastLfoUpdate) / 1000
-          this.lastLfoUpdate = now
-
-          this.lfoPhase += deltaTime * this.remoteSpeed * 2 * Math.PI
-          if (this.lfoPhase > 2 * Math.PI) {
-            this.lfoPhase -= 2 * Math.PI
-          }
-          return Math.sin(this.lfoPhase)
-        }
-        return this.currentLFOValue
-      },
-
-      // Get current modulated cutoff frequency with LFO
-      getModulatedCutoff() {
-        const lfoValue = this.update()
-        const modulationRange = this.localCutoff * this.remoteAmplitude * 0.8 // Max 80% modulation
-        const modulatedCutoff = this.localCutoff + (lfoValue * modulationRange)
-
-        // Clamp to valid frequency range
-        return Math.max(50, Math.min(8000, modulatedCutoff))
-      },
-
-      // Get current LFO value for display/debug
-      getCurrentLFOValue() {
-        return this.currentLFOValue
-      },
-
-      // Check if LFO is currently active
-      isLFOActive() {
-        return this.isActive
-      }
+      currentLFOValue: 0,
+      localCutoff: 1000,
+      remoteAmplitude: 0.5,
+      remoteSpeed: 1.0,
+      // Stub methods for cleanup compatibility
+      init() { this.isActive = false; this.currentLFOValue = 0 },
+      start() { /* disabled - use Tone.LFO instead */ },
+      stop() { this.isActive = false },
+      update() { return 0 },
+      getModulatedCutoff() { return this.localCutoff },
+      getCurrentLFOValue() { return 0 },
+      isLFOActive() { return false }
     }
-
-    // LFO system disabled - using only unified modulation
-    this.disableAllLFOSystems()
   }
 
   /**
-   * NUCLEAR OPTION: Completely disable all LFO systems to eliminate tremolo
-   * This is the definitive fix for omnipresent tremolo issues
+   * Disable all LFO systems to eliminate tremolo
+   * Note: lfoSystem is already a stub, this handles Tone.LFO instances
    */
   disableAllLFOSystems() {
-    // console.log('🚨 NUCLEAR OPTION: Disabling ALL LFO systems to eliminate tremolo')
-
-    // Disable lfoSystem completely
+    // lfoSystem is now a stub - just reset flags for safety
     if (this.lfoSystem) {
       this.lfoSystem.isActive = false
       this.lfoSystem.currentLFOValue = 0
-      this.lfoSystem.lfoPhase = 0
-      if (this.lfoSystem.updateInterval) {
-        clearInterval(this.lfoSystem.updateInterval)
-        this.lfoSystem.updateInterval = null
-      }
-      // console.log('🛑 lfoSystem completely disabled')
     }
 
-    // Disable any existing LFO instances
+    // Disable any existing Tone.LFO instances
     if (this.remoteFilterLFO) {
       this.remoteFilterLFO.stop()
       this.remoteFilterLFO.dispose()
@@ -937,20 +842,11 @@ class AudioService {
       this.droneAmplitudeLFO.connect(this.ambientVolumes.pad.volume)
       this.droneAmplitudeLFO.start()
 
-      // FILTER MODULATION: Slow timbral evolution
-      // Frequency 0.02 Hz = 50 second cycle
-      this.droneFilterLFO = new Tone.LFO({
-        frequency: 0.02,   // 50 second cycle
-        min: 400,          // Dark: 400 Hz cutoff
-        max: 2000,         // Bright: 2000 Hz cutoff
-        type: 'sine'
-      })
-
-      // Connect to pad filter frequency
-      this.droneFilterLFO.connect(this.ambientFilters.pad.frequency)
-      this.droneFilterLFO.start()
+      // REMOVED: droneFilterLFO (was 50 second cycle on pad.frequency)
+      // Reason: Conflicts with updateBackgroundFilters and handleHoverModulation
+      // which also modify pad.frequency. Keeping only amplitude LFO for volume modulation.
     } catch (e) {
-      console.warn('Drone amplitude/filter modulation setup failed:', e.message)
+      console.warn('Drone amplitude modulation setup failed:', e.message)
     }
 
     // PITCH DRIFT: Subtle organic detuning
@@ -975,12 +871,11 @@ class AudioService {
 
     // Randomize LFO phases so they don't all sync up
     this.droneAmplitudeLFO.phase = Math.random() * 360
-    this.droneFilterLFO.phase = Math.random() * 360
     if (this.dronePitchLFO.state === 'started') {
       this.dronePitchLFO.phase = Math.random() * 360
     }
 
-    // console.log('🎵 Drone modulation setup complete: amplitude (33s), filter (50s), pitch (20s)')
+    // console.log('🎵 Drone modulation setup complete: amplitude (33s), pitch (20s)')
   }
 
   /**
@@ -1624,10 +1519,18 @@ class AudioService {
   /**
    * Update background filters with gesture-based modulation
    * FIX: Restored this missing functionality
+   * PERF: Throttled to 20Hz to prevent audio stuttering
    * @param {Object} sonicParams - Sonic parameters from gesture
    */
   updateBackgroundFilters(sonicParams) {
     if (!this.ambientFilters) return
+
+    // PERF: Throttle filter updates to prevent audio stuttering (20Hz max)
+    const now = performance.now()
+    if (now - this.lastFilterUpdateTime < this.filterUpdateInterval) {
+      return // Skip this update
+    }
+    this.lastFilterUpdateTime = now
 
     // Calculate filter modulation based on gesture coordinates
     const filterFreq = this.calculateFilterFrequency(sonicParams)
@@ -4505,133 +4408,8 @@ class AudioService {
   }
 
   /**
-   * Cross-layer hover modulation for three-tier architecture
-   * @param {Object} hoverData - Hover position and context
-   */
-  applyCrossLayerHoverModulation(hoverData) {
-    if (!hoverData) return
-
-    const { position, userId, intensity = 0.5 } = hoverData || {}
-
-    // Validate position and userId to prevent undefined errors
-    if (!position || (position.x === null || position.y === null)) {
-      // console.warn('🔇 Hover data missing or invalid position, skipping modulation')
-      return
-    }
-
-    // Log full hover data for debugging
-    // console.log('🎛️ HOVER DATA DEBUG:', {
-//      position,
-//      userId,
-//      intensity,
-//      hasValidPosition: !!(position.x == null || position.y == null),
-//      hasValidUserId: !!userId,
-//      source: 'handleHoverModulation call',
-//      isInitialized: this.isInitialized
-////    })
-
-    // Log full hover data for debugging
-    // console.log('🎛️ HOVER DATA DEBUG:', {
-//      position,
-//      userId,
-//      intensity,
-//      hasValidPosition: !!(position.x == null || position.y == null),
-//      hasValidUserId: !!userId,
-//      source: 'handleHoverModulation call',
-//      isInitialized: this.isInitialized
-////    })
-    // console.log(`🎛️ Cross-layer hover modulation: userId=${userId}, intensity=${intensity}`)
-
-    // Local user hover modulates:
-    // 1. Background filters (low-mid frequency range)
-    // 2. Remote gesture filters (mid-high frequency range)
-    if (!userId || userId === this.currentUserId) {
-      // console.log('🎛️ LOCAL HOVER: Calling modulateBackgroundFilters and modulateRemoteGestureFilters')
-      this.modulateBackgroundFilters(position, intensity * 0.7)
-      this.modulateRemoteGestureFilters(position, intensity * 0.5)
-    } else {
-      // console.log('🎛️ REMOTE HOVER: Calling modulateLocalGestureFilters')
-    }
-
-    // Remote user hover modulates:
-    // Only local gesture filters (high frequency range)
-    if (userId && userId !== this.currentUserId) {
-      this.modulateLocalGestureFilters(position, intensity * 0.8)
-    }
-  }
-
-  /**
-   * Modulate background filters (low-mid frequency range)
-   */
-  modulateBackgroundFilters(position, intensity) {
-    if (!this.ambientFilters || !Tone.context) return
-
-    // Bass layer: 100-400Hz range
-    const bassFilter = this.ambientFilters.bass
-    const baseFreq = 250
-    const modFreq = baseFreq + (position.y || 0.5) * 150 * intensity
-
-    bassFilter.frequency.linearRampToValueAtTime(
-      modFreq,
-      Tone.context.currentTime + 0.1
-    )
-
-    bassFilter.Q.linearRampToValueAtTime(
-      2 + intensity * 3,
-      Tone.context.currentTime + 0.1
-    )
-  }
-
-  /**
-   * Modulate remote gesture filters (mid-high frequency range)
-   */
-  modulateRemoteGestureFilters(position, intensity) {
-    if (!this.ambientFilters || !Tone.context) return
-
-    // Pad layer: 400-1200Hz range
-    const padFilter = this.ambientFilters.pad
-    if (!padFilter) return
-
-    const baseFreq = 800
-    const modFreq = baseFreq + (position.x || 0.5) * 400 * intensity
-
-    padFilter.frequency.linearRampToValueAtTime(
-      modFreq,
-      Tone.context.currentTime + 0.08
-    )
-
-    padFilter.Q.linearRampToValueAtTime(
-      3 + intensity * 4,
-      Tone.context.currentTime + 0.08
-    )
-  }
-
-  /**
-   * Modulate local gesture filters (high frequency range)
-   */
-  modulateLocalGestureFilters(position, intensity) {
-    if (!this.ambientFilters || !Tone.context) return
-
-    // Chords layer: 800-2000Hz range
-    const chordsFilter = this.ambientFilters.chords
-    if (!chordsFilter) return
-
-    const baseFreq = 1400
-    const modFreq = baseFreq + (position.x || 0.5) * 600 * intensity
-
-    chordsFilter.frequency.linearRampToValueAtTime(
-      modFreq,
-      Tone.context.currentTime + 0.05
-    )
-
-    chordsFilter.Q.linearRampToValueAtTime(
-      5 + intensity * 8,
-      Tone.context.currentTime + 0.05
-    )
-  }
-
-  /**
    * Handle hover modulation for cross-layer effects
+   * PERF: Throttled to 20Hz to prevent filter update conflicts
    * @param {Object} hoverData - Hover data with position, velocity, intensity, and isRemote
    */
   handleHoverModulation(hoverData) {
@@ -4649,6 +4427,14 @@ class AudioService {
       // console.warn('🔇 handleHoverModulation blocked - no gestureSynth')
       return
     }
+
+    // PERF: Throttle filter updates to prevent audio stuttering (20Hz max)
+    // Shares throttle with updateBackgroundFilters to limit total filter updates
+    const now = performance.now()
+    if (now - this.lastFilterUpdateTime < this.filterUpdateInterval) {
+      return // Skip this update
+    }
+    this.lastFilterUpdateTime = now
 
     // Extract position and data with safety checks
     const position = hoverData?.position || hoverData || { x: 0.5, y: 0.5 }
