@@ -4346,53 +4346,54 @@ Fixed two cursor rendering issues:
 
 **User Report**: "i cursori di real e virtual users nelle normal room sono troppo piccoli. dovrebbero avere le stesse dimensioni che hanno in landing page room"
 
-**Root Cause**: Two separate cursor rendering systems existed with different size calculations:
+**Root Cause Discovery**: After initial investigation, discovered that cursor rendering in normal rooms uses `SpringMeshNetwork.renderNode()` with `NODE_CONFIG` from `VisualConstants.js`, NOT `GenerativeVisualService.renderCursors()`. The original NODE_CONFIG values were too small:
 
-| System | Location | Size Calculation |
-|--------|----------|------------------|
-| CursorManager | `CursorManager.js:26` | `10 * dpr` (scales with devicePixelRatio) |
-| GenerativeVisualService | `GenerativeVisualService.js:487` | `10` (no DPR scaling) |
+| Property | Original Value | Fixed Value |
+|----------|----------------|-------------|
+| idleSize | 4 | 10 |
+| tapSize | 6 | 14 |
+| dragSize | 8 | 18 |
+| holdPulseMin | 8 | 15 |
+| holdPulseMax | 12 | 22 |
 
-The `CursorManager.startRendering()` was disabled (line 237 in main.js), and all cursor rendering was delegated to `GenerativeVisualService.renderCursors()`. However, this method didn't account for devicePixelRatio, causing cursors to appear smaller on high-DPI displays.
+The landing page doesn't load `VisualConstants.js`, so it uses default `NODE_CONFIG` values defined directly in `SpringMeshNetwork.js`. Both needed updating.
 
-**Fix** (`frontend/src/services/GenerativeVisualService.js:471-525`):
+**Fix 1** (`frontend/src/services/VisualConstants.js`):
 
-Added comprehensive DPR scaling to `renderCursors()`:
+Updated NODE_CONFIG with properly sized cursor values:
 
 ```javascript
-renderCursors(p) {
-  if (!this.cursorManager?.cursors) return
-
-  // Scale cursor size by devicePixelRatio to match CursorManager behavior
-  const dpr = window.devicePixelRatio || 1
-
-  this.cursorManager.cursors.forEach((cursor, userId) => {
-    // Cursor circle - scale by DPR for consistent size across displays
-    const baseSize = isDrawing ? 8 : 10
-    const size = baseSize * dpr
-    p.strokeWeight((isVirtual ? 1 : 2) * dpr)
-
-    // Set dash pattern for virtual cursors
-    if (isVirtual) {
-      p.drawingContext.setLineDash([6 * dpr, 4 * dpr])
-    }
-
-    p.circle(pixelX, pixelY, size * 2)
-
-    // Crosshair lines
-    const crosshairExtend = 6 * dpr
-    p.strokeWeight(1 * dpr)
-
-    // User label
-    p.textSize(12 * dpr)
-    p.text(label, pixelX, pixelY + size + 6 * dpr)
-  })
+const NODE_CONFIG = {
+  idleSize: 10,           // Cursor size when idle
+  tapSize: 14,            // Cursor size during tap
+  dragSize: 18,           // Cursor size during drag
+  holdPulseMin: 15,       // Hold pulse minimum size
+  holdPulseMax: 22,       // Hold pulse maximum size
+  holdPulseSpeed: 0.005,
+  glowBlur: 20,
+  glowActiveOnly: true
 }
 ```
 
-**Additional improvements**:
-- Virtual cursors now use dashed lines (matching CursorManager behavior)
-- User labels use `userId.replace('-metrics', '')` for cleaner display
+**Fix 2** (`frontend/src/services/SpringMeshNetwork.js`):
+
+Updated default NODE_CONFIG (used when VisualConstants.js not loaded, i.e., landing page):
+
+```javascript
+const nodeConfig = (typeof window !== 'undefined' && window.VisualConstants?.NODE_CONFIG)
+  ? window.VisualConstants.NODE_CONFIG
+  : {
+      idleSize: 10,
+      tapSize: 14,
+      dragSize: 18,
+      holdPulseMin: 15,
+      holdPulseMax: 22,
+      holdPulseSpeed: 0.005,
+      glowBlur: 20
+    }
+```
+
+**Iterative Tuning**: Initial values were doubled (20/28/36), but user feedback indicated "ora sono enormi. dimezza il diametro" - cursors were too big. Halved to final values (10/14/18).
 
 ---
 
@@ -4453,7 +4454,8 @@ if (distance < SETTLING_THRESHOLD) {
 
 | File | Changes |
 |------|---------|
-| `frontend/src/services/GenerativeVisualService.js` | DPR scaling for cursor size, stroke weight, crosshair, text; dashed lines for virtual cursors |
+| `frontend/src/services/VisualConstants.js` | NODE_CONFIG sizes updated (idleSize: 10, tapSize: 14, dragSize: 18) |
+| `frontend/src/services/SpringMeshNetwork.js` | Default NODE_CONFIG updated for landing page (same sizes) |
 | `backend/src/services/LandingCompositionService.js` | Settling threshold (0.001) to snap cursor when distance < 0.1% |
 | `backend/src/services/VirtualUserService.js` | Settling threshold (0.001) to snap cursor when distance < 0.1% |
 
