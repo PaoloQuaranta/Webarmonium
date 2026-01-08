@@ -1766,7 +1766,7 @@ class AudioService {
       const patch = this.userSynthManager.getPatchForUser(userId)
       patchInfo = `${patch?.name || 'unknown'} (slot=${slot}, osc=${patch?.oscillator?.type || 'unknown'})`
     }
-    // console.log(`🎹 triggerSustainedNoteAttack: userId=${userId?.substring(0,8)}, patch=${patchInfo}, freq=${actualFrequency.toFixed(1)}Hz`)
+    console.log(`🎹 SUSTAINED TAP: userId=${userId?.substring(0,8)}, patch=${patchInfo}, freq=${actualFrequency.toFixed(1)}Hz, vel=${actualVelocity.toFixed(2)}, isRemote=${isRemote}, synthType=${synth?.constructor?.name}, disposed=${synth?.disposed}`)
     synth.triggerAttack(actualFrequency, now, actualVelocity)
 
     // Track active sustained note for later release
