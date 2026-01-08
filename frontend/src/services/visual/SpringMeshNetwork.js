@@ -48,13 +48,13 @@ class SpringMeshNetwork {
     const nodeConfig = (typeof window !== 'undefined' && window.VisualConstants?.NODE_CONFIG)
       ? window.VisualConstants.NODE_CONFIG
       : {
-          idleSize: 20,
-          tapSize: 28,
-          dragSize: 36,
-          holdPulseMin: 30,
-          holdPulseMax: 45,
+          idleSize: 10,
+          tapSize: 14,
+          dragSize: 18,
+          holdPulseMin: 15,
+          holdPulseMax: 22,
           holdPulseSpeed: 0.005,
-          glowBlur: 25
+          glowBlur: 20
         }
 
     // Node storage: userId -> Node object
