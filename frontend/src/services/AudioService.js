@@ -2753,15 +2753,6 @@ class AudioService {
       // Final duration clamping
       adjustedDuration = Math.max(0.02, Math.min(3.0, adjustedDuration))
 
-      // Calculate timing for Tone.js
-      let playTime = Tone.now()
-      let delay = 0
-
-      if (musicalEvent.timestamp) {
-        delay = Math.max(0, (musicalEvent.timestamp - Date.now()) / 1000)
-        playTime = Tone.now() + delay
-      }
-
       // PERFORMANCE FIX: Use Transport.schedule for audio-thread scheduling
       // This prevents main thread congestion from delaying audio callbacks
       // Key insight: schedule on audio thread, not main thread with setTimeout
@@ -2804,7 +2795,8 @@ class AudioService {
 
       // Schedule audio event on the audio thread using Transport.schedule
       // This ensures precise timing regardless of main thread load
-      const scheduleTime = playTime
+      // FIX: Use "+0" for immediate playback - Transport.schedule expects Transport time, not Tone.now()
+      const scheduleTime = "+0"  // Immediate in Transport time
 
       const transportEventId = Tone.Transport.schedule((time) => {
         if (!this.gestureSynth || this.gestureSynth.disposed) {
