@@ -40,6 +40,7 @@ class EnhancedGestureCapture {
       noteCount: 0,
       totalDistance: 0,
       minDistanceForDrag: 15, // pixels - min movement to activate drag streaming
+      perFrameDeadZone: 2,    // Entry #45: pixels - ignore per-frame movements below this (filters jitter)
       streamedNotes: [] // CRITICAL: Array of all notes played during streaming
     }
 
@@ -376,12 +377,18 @@ class EnhancedGestureCapture {
       this.gestureTracker.lastUpdateTime = now
 
       // REAL-TIME DRAG NOTE STREAMING
-      // Calculate total distance moved from start position
-      this.dragStreaming.totalDistance += distance
-
       // CRITICAL FIX: Convert normalized distance (0-1) to pixels for comparison
       // Normalized coordinates don't directly compare to pixel threshold
       const canvasSize = Math.max(this.canvas.width, this.canvas.height)
+
+      // Entry #45 FIX: Apply per-frame dead zone filter to prevent jitter accumulation
+      // Only count movement if this frame's pixel distance exceeds the dead zone
+      // This prevents tiny mouse sensor jitter from accumulating during long holds
+      const framePixelDistance = distance * canvasSize
+      if (framePixelDistance > this.dragStreaming.perFrameDeadZone) {
+        this.dragStreaming.totalDistance += distance
+      }
+
       const pixelDistance = this.dragStreaming.totalDistance * canvasSize
 
       // TRANSITION: If sustained note active AND movement exceeds threshold → switch to drag

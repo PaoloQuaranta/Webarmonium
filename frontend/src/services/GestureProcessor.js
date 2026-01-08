@@ -58,6 +58,26 @@ class GestureProcessor {
       return // Exit early - no local audio processing needed
     }
 
+    // Entry #45 FIX: If sustained hold system was active, audio was already handled
+    // The sustained note was played during the hold via onSustainedHoldStart
+    // and released via onSustainedHoldEnd. Skip local audio to prevent double playback.
+    if (gesture.holdWasActive) {
+      // Still send to backend for multi-user sync
+      const gestureToSend = {
+        ...gesture,
+        position: gesture.coordinates || gesture.position || { x: 0.5, y: 0.5 }
+      }
+
+      this.socketService.sendGesture(gestureToSend)
+
+      // Draw trail if needed
+      if (this.drawGestureTrailCallback) {
+        this.drawGestureTrailCallback(gesture)
+      }
+
+      return // Exit early - no local audio processing needed
+    }
+
     // Determine gesture action FIRST (needed to set flags before sending)
     const gestureAction = gesture.action || this.determineGestureAction(gesture)
     // console.log('🔍 Determined gesture action:', gestureAction, 'from gesture.action:', gesture.action)

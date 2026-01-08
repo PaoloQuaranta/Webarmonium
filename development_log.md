@@ -4020,3 +4020,107 @@ Removed active debug console.log statements from:
 - ✅ No Transport errors when context suspended
 
 ---
+
+## Entry #45 - Sustained Hold Double-Playback Fix
+
+**Date**: 2026-01-09
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Problem Statement
+
+User reported: "tap sostenuti spesso generano frasi lente al mouse up invece di interrompere nota singola sostenuta"
+
+Translation: Sustained taps often generate slow phrases on mouse up instead of just stopping the sustained single note.
+
+---
+
+### Root Cause Analysis
+
+**Two bugs identified:**
+
+#### Bug 1: Missing `holdWasActive` Check in GestureProcessor
+
+In `GestureProcessor.processGesture()`, the code checked `streamingWasActive` to skip local audio processing, but did NOT check `holdWasActive`. When a sustained hold ended:
+
+1. `onSustainedHoldEnd` callback released the sustained note
+2. `onGesture` callback triggered `handleGesture()` → `processGesture()`
+3. Since `streamingWasActive` was false, code continued
+4. `processClickGesture()` was called, playing a **NEW additional tap note**
+
+Result: Double note playback - the sustained note during hold + a new tap on release.
+
+#### Bug 2: Jitter Accumulation Causing False Drag Transitions
+
+In `EnhancedGestureCapture.handleGestureMove()`, the `totalDistance` accumulated every frame's movement without filtering:
+
+```javascript
+this.dragStreaming.totalDistance += distance
+```
+
+For long sustained holds, tiny jitter (mouse sensor noise, hand tremor of ±1-2px per frame) accumulated and eventually exceeded the 15px drag threshold:
+
+- 60fps × 1-2px jitter × multi-second hold = 60-120+ pixels
+- Threshold exceeded → transition to drag mode
+- `wasActive` set to false → backend generated phrase
+
+---
+
+### Solution
+
+#### Fix 1: Added `holdWasActive` Check in GestureProcessor
+
+**File**: `frontend/src/services/GestureProcessor.js:61-79`
+
+```javascript
+// Entry #45 FIX: If sustained hold system was active, audio was already handled
+// The sustained note was played during the hold via onSustainedHoldStart
+// and released via onSustainedHoldEnd. Skip local audio to prevent double playback.
+if (gesture.holdWasActive) {
+  // Still send to backend for multi-user sync
+  const gestureToSend = {
+    ...gesture,
+    position: gesture.coordinates || gesture.position || { x: 0.5, y: 0.5 }
+  }
+  this.socketService.sendGesture(gestureToSend)
+  return // Exit early - no local audio processing needed
+}
+```
+
+#### Fix 2: Per-Frame Dead Zone Filter
+
+**File**: `frontend/src/services/EnhancedGestureCapture.js:43,384-390`
+
+Added `perFrameDeadZone` parameter (2px) to filter out tiny jitter:
+
+```javascript
+// Configuration
+perFrameDeadZone: 2,  // pixels - ignore per-frame movements below this
+
+// In handleGestureMove():
+const framePixelDistance = distance * canvasSize
+if (framePixelDistance > this.dragStreaming.perFrameDeadZone) {
+  this.dragStreaming.totalDistance += distance
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/GestureProcessor.js` | Added `holdWasActive` check at line 61-79 |
+| `frontend/src/services/EnhancedGestureCapture.js` | Added `perFrameDeadZone` config (2px), added dead zone filter in `handleGestureMove()` |
+
+---
+
+### Behavioral Changes
+
+| Scenario | Before | After |
+|----------|--------|-------|
+| Sustained tap release | Sustained note + additional tap note | Only sustained note (released cleanly) |
+| Long hold with jitter | Could transition to drag, generate phrase | Stays as tap (jitter filtered) |
+| Intentional drag | Works normally | Works normally (>2px movements counted) |
+
+---
