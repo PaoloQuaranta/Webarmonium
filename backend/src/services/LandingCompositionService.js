@@ -186,6 +186,45 @@ class LandingCompositionService {
   }
 
   /**
+   * Update target position with dead zone and smooth transition
+   * Prevents cursor trembling by:
+   * 1. Dead zone: Ignoring small movements (< 2% of scene)
+   * 2. Smooth transition: Interpolating target position instead of jumping
+   * UNIFIED with VirtualUserService
+   * @param {string} source - Source name
+   * @param {number} newX - New target X position
+   * @param {number} newY - New target Y position
+   * @private
+   */
+  _updateTargetPositionWithSmoothing(source, newX, newY) {
+    const currentTarget = this.targetPositions[source]
+    if (!currentTarget) {
+      // No current target, set directly
+      this.targetPositions[source] = { x: newX, y: newY }
+      return
+    }
+
+    // Calculate distance to new target
+    const deltaX = newX - currentTarget.x
+    const deltaY = newY - currentTarget.y
+    const distance = Math.hypot(deltaX, deltaY)
+
+    // Dead zone: ignore movements < 2% of scene to prevent jitter
+    const DEAD_ZONE_THRESHOLD = 0.02
+    if (distance < DEAD_ZONE_THRESHOLD) {
+      return  // Keep current target, don't update
+    }
+
+    // Smooth target transition (0.3 factor, slower than cursor easing 0.2)
+    // This prevents sudden target jumps that cause trembling
+    const TARGET_SMOOTHING = 0.3
+    this.targetPositions[source] = {
+      x: currentTarget.x + deltaX * TARGET_SMOOTHING,
+      y: currentTarget.y + deltaY * TARGET_SMOOTHING
+    }
+  }
+
+  /**
    * Update metric statistics for DYNAMIC NORMALIZATION
    * Tracks min/max values to achieve MAXIMUM musical variety
    * @param {string} source - Source name (wikipedia, hackernews, github)
@@ -536,11 +575,12 @@ class LandingCompositionService {
 
     const gesturePosition = { x, y }
 
-    // Update target position so cursor moves to where tap occurred
-    this.targetPositions[source] = {
-      x: Math.max(user.region.xMin, Math.min(user.region.xMax, x)),
-      y: Math.max(0.05, Math.min(0.95, y))
-    }
+    // Clamp to bounds
+    const clampedX = Math.max(user.region.xMin, Math.min(user.region.xMax, x))
+    const clampedY = Math.max(0.05, Math.min(0.95, y))
+
+    // Update target position with smoothing to prevent trembling
+    this._updateTargetPositionWithSmoothing(source, clampedX, clampedY)
 
     // ORGANIC DURATION: Correlate tap duration to stability metric
     // Stability already derives from velocity (1 - velocity/10)
@@ -585,11 +625,12 @@ class LandingCompositionService {
 
     const gesturePosition = { x, y }
 
-    // Update target position so cursor moves to drag start
-    this.targetPositions[source] = {
-      x: Math.max(user.region.xMin, Math.min(user.region.xMax, x)),
-      y: Math.max(0.05, Math.min(0.95, y))
-    }
+    // Clamp to bounds
+    const clampedX = Math.max(user.region.xMin, Math.min(user.region.xMax, x))
+    const clampedY = Math.max(0.05, Math.min(0.95, y))
+
+    // Update target position with smoothing to prevent trembling
+    this._updateTargetPositionWithSmoothing(source, clampedX, clampedY)
 
     // ORGANIC DURATION: Correlate phrase duration to density metric
     // Density represents magnitude of real metrics (avgEditSize, avgUpvotes, newStars)
@@ -628,11 +669,12 @@ class LandingCompositionService {
 
     const gesturePosition = { x, y }
 
-    // Update target position so cursor moves to hover position
-    this.targetPositions[source] = {
-      x: Math.max(user.region.xMin, Math.min(user.region.xMax, x)),
-      y: Math.max(0.05, Math.min(0.95, y))
-    }
+    // Clamp to bounds
+    const clampedX = Math.max(user.region.xMin, Math.min(user.region.xMax, x))
+    const clampedY = Math.max(0.05, Math.min(0.95, y))
+
+    // Update target position with smoothing to prevent trembling
+    this._updateTargetPositionWithSmoothing(source, clampedX, clampedY)
 
     // This doesn't emit sound directly, only modulation
     return {
@@ -1079,11 +1121,8 @@ class LandingCompositionService {
     const targetY = Math.max(0.05, Math.min(0.95, y))
     const notePosition = { x: targetX, y: targetY }
 
-    // Update target position so cursor moves to note position
-    this.targetPositions[gesture.source] = {
-      x: targetX,
-      y: targetY
-    }
+    // Update target position WITH SMOOTHING to prevent trembling
+    this._updateTargetPositionWithSmoothing(gesture.source, targetX, targetY)
 
     // UNIFIED: Use beat-quantized duration (same as normal rooms)
     // Gesture duration emerges from stability metric, then quantized to beat grid
@@ -1290,11 +1329,9 @@ class LandingCompositionService {
         this.pendingTimeouts.delete(noteTimeoutId)
         if (!this.io || !this.isRunning) return
 
-        // CRITICAL: Update target position so cursor moves to this note's position
-        this.targetPositions[gesture.source] = {
-          x: clampedX,
-          y: clampedY
-        }
+        // Update target position WITH SMOOTHING to prevent trembling
+        // Each note smoothly moves cursor along trajectory
+        this._updateTargetPositionWithSmoothing(gesture.source, clampedX, clampedY)
 
         // Emit hold:start with note's position along trajectory
         const noteVelocity = note.velocity || 80  // Default to 80 if undefined
@@ -1447,9 +1484,12 @@ class LandingCompositionService {
    */
   calculateStabilityMetric(source) {
     const velocity = Math.abs(this.webMetricsPoller?.getVelocity(source) || 0)
-    // Lower velocity = more stable = tap gesture
-    // Normalize: velocity 0-10 maps to stability 1-0
-    return Math.max(0, 1 - (velocity / 10))
+    // UNIFIED: Use dynamic normalization (same as VirtualUserService)
+    // Normalizes velocity against historical P10-P90 percentiles
+    // This ensures fair competition between stability/density/periodicity metrics
+    const normalizedVelocity = this.normalizeMetricDynamic(source, 'velocity', velocity)
+    // Higher velocity = lower stability
+    return Math.max(0, 1 - normalizedVelocity)
   }
 
   /**
