@@ -3591,3 +3591,135 @@ this._updateTargetPositionWithSmoothing(gesture.source, clampedX, clampedY)
 - Behavior matches normal rooms
 
 ---
+
+## Entry #41 - PhraseMorphology: Ornamentation Array Length Mismatch Fix
+
+**Date**: 2026-01-08
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Problem Statement
+
+Backend was logging warnings about invalid notes in phrases:
+
+```
+⚠️ Invalid note in phrase: index 10, source wikipedia {
+  pitch: 79,
+  duration: undefined,
+  velocity: undefined,
+  articulation: undefined,
+  position: 1.25,
+  startBeat: 2.0000000000000004
+}
+```
+
+Notes had valid `pitch` but `undefined` for `duration`, `velocity`, and `articulation`.
+
+---
+
+### Root Cause Analysis
+
+In `PhraseMorphology.generatePhrase()`:
+
+1. `pitches` array has `phraseLength` elements (e.g., 8 notes)
+2. `rhythm` array has `phraseLength` elements
+3. `ornamented = applyOrnamentation(pitches, rhythm, gestureData)` - **can have MORE notes**
+4. `dynamics = generateDynamics(acceleration, velocity)` - **always 5 elements** (bug!)
+5. `articulations = generateArticulations(velocity, curvature)` - **always 5 elements** (bug!)
+
+The `applyOrnamentation()` function adds extra notes (trills, approach notes, blue notes, arpeggios) but doesn't add corresponding entries to `rhythm`, `dynamics`, and `articulations`.
+
+**Additional Bug**: `generateDynamics()` and `generateArticulations()` had broken logic:
+```javascript
+const noteCount = Array.isArray(velocity) ? velocity.length : 5  // Always 5!
+```
+Since `velocity` is a number (0-100), `noteCount` was always hardcoded to 5.
+
+---
+
+### Solution
+
+#### 1. Pass Actual Note Count to Helper Functions
+
+```javascript
+// BEFORE:
+const dynamics = this.generateDynamics(acceleration, velocity)
+const articulations = this.generateArticulations(velocity, curvature)
+
+// AFTER:
+const dynamics = this.generateDynamics(acceleration, velocity, ornamented.length)
+const articulations = this.generateArticulations(velocity, curvature, ornamented.length)
+```
+
+#### 2. Update Function Signatures
+
+```javascript
+// BEFORE:
+generateDynamics(acceleration, velocity) {
+  const noteCount = Array.isArray(velocity) ? velocity.length : 5
+
+// AFTER:
+generateDynamics(acceleration, velocity, noteCount = 5) {
+  // Use provided noteCount instead of deriving from velocity
+```
+
+Same change for `generateArticulations()`.
+
+#### 3. Extend Rhythm Array for Ornament Notes
+
+```javascript
+// After ornamentation, extend rhythm array if needed
+const avgDuration = rhythm.length > 0
+  ? rhythm.reduce((sum, d) => sum + d, 0) / rhythm.length
+  : 0.25
+const ornamentDuration = avgDuration * 0.25  // Ornaments are short
+
+while (rhythm.length < ornamented.length) {
+  rhythm.push(ornamentDuration)
+}
+```
+
+#### 4. Add Fallback Values in Note Creation
+
+```javascript
+notes: ornamented.map((pitch, i) => ({
+  pitch,
+  duration: rhythm[i] || ornamentDuration,      // Fallback for safety
+  velocity: dynamics[i] || 70,                   // Fallback for safety
+  articulation: articulations[i] || 'staccato',  // Fallback for safety
+  position: i / ornamented.length,               // Use ornamented.length
+  startBeat: this.calculateStartBeat(rhythm, i)
+})),
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/PhraseMorphology.js:57-90` | Extended rhythm array, added fallbacks, fixed position calculation |
+| `backend/src/services/PhraseMorphology.js:512-516` | `generateDynamics()` accepts `noteCount` parameter |
+| `backend/src/services/PhraseMorphology.js:541-545` | `generateArticulations()` accepts `noteCount` parameter |
+
+---
+
+### Behavioral Changes
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Ornament note duration | undefined (dropped) | 1/4 of average duration |
+| Ornament note velocity | undefined (dropped) | 70 (default) |
+| Ornament note articulation | undefined (dropped) | 'staccato' |
+| dynamics array length | Always 5 | Matches ornamented.length |
+| articulations array length | Always 5 | Matches ornamented.length |
+
+---
+
+### Testing Results
+
+- No more "Invalid note in phrase" warnings
+- Ornament notes (trills, approaches, blue notes) now play correctly
+- All phrase notes have valid duration, velocity, and articulation
+
+---

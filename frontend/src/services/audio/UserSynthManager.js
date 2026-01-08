@@ -23,9 +23,9 @@ class UserSynthManager {
     // Track active notes per user for cleanup
     this.activeNotes = new Map()  // Map<noteId, userId>
 
-    // Max polyphony per user synth - REDUCED for performance
-    // 8 voices × 7 users max = 56 total voices (was 224!)
-    this.maxPolyphonyPerUser = 8
+    // MONOPHONY: Each user can only play ONE note at a time
+    // This is a core architectural requirement - no chords per user
+    this.maxPolyphonyPerUser = 1
 
     // Get patch definitions
     this.patchDefinitions = window.PatchDefinitions || null
@@ -158,18 +158,18 @@ class UserSynthManager {
       // console.log(`🎹 NEW SYNTH: user=${userId.substring(0,8)}, patch="${patch.name}", slot=${slot}, osc=${oscillatorConfig.type}`)
       // console.log(`   Current synths: [${existingAssignments || 'none'}]`)
 
+      // MONOPHONY: Use MonoSynth instead of PolySynth for true monophonic behavior
+      // MonoSynth is structurally monophonic - only one note can play at a time
       if (oscillatorConfig.type === 'fmsine') {
-        // FM Synthesis - FMSynth has different options structure
-        synth = new Tone.PolySynth(Tone.FMSynth, {
-          maxPolyphony: this.maxPolyphonyPerUser,
+        // FM Synthesis - use FMSynth directly (inherently monophonic)
+        synth = new Tone.FMSynth({
           modulationIndex: oscillatorConfig.modulationIndex || 3,
           modulationType: oscillatorConfig.modulationType || 'sine',
           envelope: patch.envelope
         })
       } else if (oscillatorConfig.type === 'pulse') {
-        // Pulse wave
-        synth = new Tone.PolySynth(Tone.Synth, {
-          maxPolyphony: this.maxPolyphonyPerUser,
+        // Pulse wave - MonoSynth with pulse oscillator
+        synth = new Tone.MonoSynth({
           oscillator: {
             type: 'pulse',
             width: oscillatorConfig.width || 0.5
@@ -177,9 +177,8 @@ class UserSynthManager {
           envelope: patch.envelope
         })
       } else if (oscillatorConfig.type.startsWith('fat')) {
-        // Fat oscillators (fatsine, fatsawtooth, fattriangle)
-        synth = new Tone.PolySynth(Tone.Synth, {
-          maxPolyphony: this.maxPolyphonyPerUser,
+        // Fat oscillators - MonoSynth with fat oscillator
+        synth = new Tone.MonoSynth({
           oscillator: {
             type: oscillatorConfig.type,
             count: oscillatorConfig.count || 3,
@@ -189,8 +188,7 @@ class UserSynthManager {
         })
       } else {
         // Basic oscillator types (sine, sawtooth, triangle, square)
-        synth = new Tone.PolySynth(Tone.Synth, {
-          maxPolyphony: this.maxPolyphonyPerUser,
+        synth = new Tone.MonoSynth({
           oscillator: {
             type: oscillatorConfig.type
           },
@@ -273,7 +271,7 @@ class UserSynthManager {
         }
       }
 
-      // Store synth data
+      // Store synth data (includes lastTriggerTime for MonoSynth timing safety)
       this.userSynths.set(userId, {
         synth,
         filter,
@@ -282,7 +280,8 @@ class UserSynthManager {
         delaySend,
         reverbSend,
         patch,
-        slot
+        slot,
+        lastTriggerTime: 0  // Track last trigger time to prevent MonoSynth timing errors
       })
 
       // console.log(`Created synth for ${userId}: ${patch.name} (oscillator: ${oscillatorConfig.type})`)
@@ -416,12 +415,33 @@ class UserSynthManager {
       const constrainedFreq = this.constrainFrequencyToTessitura(frequency, userId)
       const finalVelocity = isRemote ? velocity * 0.7 : velocity
 
-      synthData.synth.triggerAttackRelease(
-        constrainedFreq,
-        duration,
-        Tone.now(),
-        finalVelocity
-      )
+      // MONOSYNTH TIMING FIX: Ensure strictly increasing start times
+      const now = Tone.now()
+      const lastTime = synthData.lastTriggerTime || 0
+      const minGap = 0.005  // 5ms minimum gap between notes
+      const safeTime = Math.max(now, lastTime + minGap)
+
+      // Update last trigger time
+      synthData.lastTriggerTime = safeTime
+
+      try {
+        synthData.synth.triggerAttackRelease(
+          constrainedFreq,
+          duration,
+          safeTime,
+          finalVelocity
+        )
+      } catch (triggerErr) {
+        // If still failing, force release and retry with fresh timing
+        try {
+          synthData.synth.triggerRelease()
+          const freshTime = Tone.now() + 0.01
+          synthData.lastTriggerTime = freshTime
+          synthData.synth.triggerAttackRelease(constrainedFreq, duration, freshTime, finalVelocity)
+        } catch (retryErr) {
+          // Silently fail - note will be skipped
+        }
+      }
 
     } catch (error) {
       console.error(`Failed to trigger attack/release for ${userId}:`, error)
@@ -436,7 +456,7 @@ class UserSynthManager {
     const synthData = this.userSynths.get(userId)
     if (synthData) {
       try {
-        synthData.synth.releaseAll()
+        synthData.synth.triggerRelease()  // MonoSynth uses triggerRelease()
       } catch (error) {
         // Ignore release errors
       }

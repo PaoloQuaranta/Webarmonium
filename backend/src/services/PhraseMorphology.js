@@ -57,11 +57,21 @@ class PhraseMorphology {
     // 6. Add ornamentation based on gesture character
     const ornamented = this.applyOrnamentation(pitches, rhythm, gestureData)
 
-    // 7. Generate dynamics (velocity curve)
-    const dynamics = this.generateDynamics(acceleration, velocity)
+    // 7. Generate dynamics (velocity curve) - pass actual note count
+    const dynamics = this.generateDynamics(acceleration, velocity, ornamented.length)
 
-    // 8. Create articulation pattern
-    const articulations = this.generateArticulations(velocity, curvature)
+    // 8. Create articulation pattern - pass actual note count
+    const articulations = this.generateArticulations(velocity, curvature, ornamented.length)
+
+    // 9. CRITICAL: Extend rhythm array if ornamentation added extra notes
+    // Ornament notes get short durations (1/4 of average original duration)
+    const avgDuration = rhythm.length > 0
+      ? rhythm.reduce((sum, d) => sum + d, 0) / rhythm.length
+      : 0.25
+    const ornamentDuration = avgDuration * 0.25
+    while (rhythm.length < ornamented.length) {
+      rhythm.push(ornamentDuration)
+    }
 
 // console.log('🎵 Generated phrase:', {
 //      noteCount: phraseLength,
@@ -72,10 +82,10 @@ class PhraseMorphology {
     return {
       notes: ornamented.map((pitch, i) => ({
         pitch,                    // MIDI note number
-        duration: rhythm[i],     // in beats
-        velocity: dynamics[i],    // 0-127
-        articulation: articulations[i],
-        position: i / phraseLength, // Position in phrase (0-1)
+        duration: rhythm[i] || ornamentDuration,     // in beats (fallback for safety)
+        velocity: dynamics[i] || 70,    // 0-127 (fallback for safety)
+        articulation: articulations[i] || 'staccato',
+        position: i / ornamented.length, // Position in phrase (0-1) - use ornamented.length
         startBeat: this.calculateStartBeat(rhythm, i) // When this note starts
       })),
       metadata: {
@@ -136,8 +146,9 @@ class PhraseMorphology {
     // Calculate how many notes fit in the phrase duration
     const idealNoteCount = Math.floor(phraseDurationBeats / baseDuration)
 
-    // Clamp to reasonable range (min 2, max 32 notes)
-    const noteCount = Math.max(2, Math.min(32, idealNoteCount))
+    // Clamp to reasonable range (min 2, max 12 notes)
+    // Reduced from 32 to prevent explosive phrase generation
+    const noteCount = Math.max(2, Math.min(12, idealNoteCount))
 
 // console.log('📏 Phrase length calculation:', {
 //      phraseDurationBeats,
@@ -498,10 +509,10 @@ class PhraseMorphology {
     return ornamented
   }
 
-  generateDynamics(acceleration, velocity) {
+  generateDynamics(acceleration, velocity, noteCount = 5) {
     // Generate dynamic contour based on gesture acceleration
     const baseVel = Array.isArray(velocity) ? velocity[0] || 50 : velocity
-    const noteCount = Array.isArray(velocity) ? velocity.length : 5
+    // Use provided noteCount instead of deriving from velocity
     const dynamics = []
 
     if (acceleration > 5) {
@@ -527,10 +538,10 @@ class PhraseMorphology {
     return dynamics
   }
 
-  generateArticulations(velocity, curvature) {
+  generateArticulations(velocity, curvature, noteCount = 5) {
     // Generate articulation patterns based on gesture character
     const baseVel = Array.isArray(velocity) ? velocity[0] || 50 : velocity
-    const noteCount = Array.isArray(velocity) ? velocity.length : 5
+    // Use provided noteCount instead of deriving from velocity
     const articulations = []
 
     for (let i = 0; i < noteCount; i++) {

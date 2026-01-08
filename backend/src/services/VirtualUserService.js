@@ -176,6 +176,54 @@ class VirtualUserService {
   }
 
   /**
+   * Set RoomManager reference for HoverOrchestrator access
+   * Required for hover gesture modulation support
+   * @param {RoomManager} roomManager
+   */
+  setRoomManager(roomManager) {
+    this.roomManager = roomManager
+  }
+
+  /**
+   * Update target position with dead zone and smooth transition
+   * Prevents cursor trembling by:
+   * 1. Dead zone: Ignoring small movements (< 2% of scene)
+   * 2. Smooth transition: Interpolating target position instead of jumping
+   * @param {Object} roomState - Room state object
+   * @param {string} source - Source name
+   * @param {number} newX - New target X position
+   * @param {number} newY - New target Y position
+   * @private
+   */
+  _updateTargetPositionWithSmoothing(roomState, source, newX, newY) {
+    const currentTarget = roomState.targetPositions[source]
+    if (!currentTarget) {
+      // No current target, set directly
+      roomState.targetPositions[source] = { x: newX, y: newY }
+      return
+    }
+
+    // Calculate distance to new target
+    const deltaX = newX - currentTarget.x
+    const deltaY = newY - currentTarget.y
+    const distance = Math.hypot(deltaX, deltaY)
+
+    // Dead zone: ignore movements < 2% of scene to prevent jitter
+    const DEAD_ZONE_THRESHOLD = 0.02
+    if (distance < DEAD_ZONE_THRESHOLD) {
+      return  // Keep current target, don't update
+    }
+
+    // Smooth target transition (0.3 factor, slower than cursor easing 0.2)
+    // This prevents sudden target jumps that cause trembling
+    const TARGET_SMOOTHING = 0.3
+    roomState.targetPositions[source] = {
+      x: currentTarget.x + deltaX * TARGET_SMOOTHING,
+      y: currentTarget.y + deltaY * TARGET_SMOOTHING
+    }
+  }
+
+  /**
    * Get the 2 most active sources from WebMetricsPoller
    * @returns {string[]} Array of 2 source names
    */
@@ -507,6 +555,8 @@ class VirtualUserService {
           this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
         } else if (gestureType === 'drag') {
           this._emitDragGesture(roomId, source, config, roomState, normalizedVelocity, velocity)
+        } else if (gestureType === 'hover') {
+          this._emitHoverGesture(roomId, source, config, roomState)
         }
       } catch (sourceError) {
         console.error(`⚠️ VirtualUserService: Error generating gesture for source "${source}" in room ${roomId}:`, sourceError.message)
@@ -527,8 +577,8 @@ class VirtualUserService {
     const x = config.region.xMin + (activityLevel * (config.region.xMax - config.region.xMin))
     const y = 0.1 + (normalizedVelocity * 0.8) // Full vertical range
 
-    // Update target position
-    roomState.targetPositions[source] = { x, y }
+    // Update target position with smoothing to prevent trembling
+    this._updateTargetPositionWithSmoothing(roomState, source, x, y)
 
     // Calculate frequency from position (same formula as normal rooms and Landing)
     const octaveBase = 110 + (1 - y) * 440
@@ -675,8 +725,8 @@ class VirtualUserService {
     const endY = Math.max(0.05, Math.min(0.95,
       startY + (direction * trajectoryLength * regionHeight * 0.5)))
 
-    // Update target position for cursor interpolation
-    roomState.targetPositions[source] = { x: startX, y: startY }
+    // Update target position with smoothing to prevent trembling
+    this._updateTargetPositionWithSmoothing(roomState, source, startX, startY)
 
     // ORGANIC DURATION: Correlate phrase duration to density metric (same as Landing)
     // Higher density = more content magnitude = longer phrase
@@ -777,8 +827,8 @@ class VirtualUserService {
       setTimeout(() => {
         if (!this.activeRooms.has(roomId)) return
 
-        // Update cursor position
-        roomState.targetPositions[source] = { x: noteX, y: noteY }
+        // Update cursor position with smoothing to prevent trembling
+        this._updateTargetPositionWithSmoothing(roomState, source, noteX, noteY)
 
         // Emit hold:start
         this.io.to(roomId).emit('hold:start', {
@@ -807,6 +857,57 @@ class VirtualUserService {
         }, noteDurationMs)
       }, startDelayMs)
     })
+  }
+
+  /**
+   * Emit a hover gesture (no sound, only filter modulation)
+   * UNIFIED with LandingCompositionService: hover gestures for filter modulation
+   * Cursor moves but no notes are emitted - only hover-update for HoverOrchestrator
+   * @private
+   */
+  _emitHoverGesture(roomId, source, config, roomState) {
+    const periodicity = this._calculatePeriodicityMetric(source)
+
+    // Position from periodicity metric (same as Landing)
+    const x = config.region.xMin + (periodicity * (config.region.xMax - config.region.xMin))
+    const y = 0.2 + (periodicity * 0.6)  // 0.2-0.8 range (middle-upper region)
+
+    // Clamp to bounds
+    const clampedX = Math.max(config.region.xMin, Math.min(config.region.xMax, x))
+    const clampedY = Math.max(0.05, Math.min(0.95, y))
+
+    // Update target position with smoothing to prevent trembling
+    this._updateTargetPositionWithSmoothing(roomState, source, clampedX, clampedY)
+
+    const hoverData = {
+      userId: config.userId,
+      position: { x: clampedX, y: clampedY },
+      intensity: periodicity,
+      velocity: 0,  // hovers have no velocity
+      isVirtual: true,
+      isRemote: true,
+      timestamp: Date.now()
+    }
+
+    // Send directly to HoverOrchestrator for modulation processing
+    // This is the correct flow (same as MusicalHandler does for real users)
+    if (this.roomManager) {
+      let hoverOrchestrator = this.roomManager.getHoverOrchestrator(roomId)
+
+      if (!hoverOrchestrator) {
+        // Create HoverOrchestrator if it doesn't exist for this room
+        const HoverOrchestrator = require('./HoverOrchestrator')
+        hoverOrchestrator = new HoverOrchestrator(roomId, this.io)
+        this.roomManager.setHoverOrchestrator(roomId, hoverOrchestrator)
+        hoverOrchestrator.start()
+      }
+
+      // Add hover event for modulation processing
+      hoverOrchestrator.addHoverEvent(hoverData)
+    }
+
+    // Also emit to clients for visual feedback (cursor position)
+    this.io.to(roomId).emit('hover-update', hoverData)
   }
 
   /**
@@ -903,20 +1004,25 @@ class VirtualUserService {
    * NO thresholds - gestures emerge naturally from metric variations
    * Same as LandingCompositionService
    * @param {string} source - Source name
-   * @returns {string} Gesture type: 'tap' or 'drag'
+   * @returns {string} Gesture type: 'tap', 'drag', or 'hover'
    * @private
    */
   _classifyGestureType(source) {
     const stability = this._calculateStabilityMetric(source)
     const density = this._calculateDensityMetric(source)
+    const periodicity = this._calculatePeriodicityMetric(source)
 
     // Pure relative comparison: whichever metric is highest determines gesture type
     // NO thresholds - preserves correlation between metrics and gestures
-    // Note: We only use tap/drag for normal rooms (no hover modulation like landing)
-    if (stability >= density) {
+    // UNIFIED with LandingCompositionService: now includes hover gesture type
+    const maxMetric = Math.max(stability, density, periodicity)
+
+    if (maxMetric === stability) {
       return 'tap'
-    } else {
+    } else if (maxMetric === density) {
       return 'drag'  // phrase
+    } else {
+      return 'hover'  // modulation (no sound, only filter modulation)
     }
   }
 

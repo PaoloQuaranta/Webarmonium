@@ -457,13 +457,18 @@ class AudioService {
       // Entry #27: Release ALL synths including ambientLayers to free voices for drone
       // Without this, pad's 4-second release keeps voices occupied = max polyphony exceeded
       if (this.gestureSynth && !this.gestureSynth.disposed) {
-        this.gestureSynth.releaseAll()
+        this.gestureSynth.triggerRelease()  // MonoSynth uses triggerRelease()
       }
       if (this.ambientLayers) {
         Object.keys(this.ambientLayers).forEach(layer => {
           try {
             if (this.ambientLayers[layer] && !this.ambientLayers[layer].disposed) {
-              this.ambientLayers[layer].releaseAll(0.05)  // Fast release to immediately free voices
+              // Support both PolySynth (releaseAll) and MonoSynth (triggerRelease)
+              if (this.ambientLayers[layer].releaseAll) {
+                this.ambientLayers[layer].releaseAll(0.05)
+              } else if (this.ambientLayers[layer].triggerRelease) {
+                this.ambientLayers[layer].triggerRelease()
+              }
             }
           } catch (e) {
             // Ignore errors
@@ -637,65 +642,66 @@ class AudioService {
       nextProgressionChange: 4 // Change progression after N cycles
     }
 
-    // Create multi-layer ambient synth system with REDUCED POLYPHONY
-    // BASS: Deep, warm foundation (2 voices for clarity)
+    // OPTIMIZED: Reduced oscillator count for performance
+    // bass/backgroundHigh/Mid/Low = MonoSynth (1 voice each)
+    // pad = 3 voices, chords = 4 voices
     this.ambientLayers = {
-      bass: new Tone.PolySynth({
+      // BASS: MonoSynth - deep foundation (1 voice)
+      bass: new Tone.MonoSynth({
         oscillator: {
-          type: 'fatsawtooth',  // Rich bass tone
-          count: 4,  // More unison voices for fuller bass
-          spread: 40
+          type: 'sawtooth'  // Rich bass tone
         },
         envelope: {
-          attack: 0.01,  // Quick attack for punchy bass
+          attack: 0.01,
           decay: 0.1,
-          sustain: 0.9,   // High sustain
-          release: 0.2   // Short release
-        },
-        maxPolyphony: 2  // 2 voices as requested
+          sustain: 0.9,
+          release: 0.2
+        }
       }),
 
-      // PAD: Ethereal, slow-evolving pad
-      // PERFORMANCE FIX: Reduced oscillator count 5→2 (was 40 oscillators at full polyphony!)
+      // PAD: Ethereal drone layer (6 voices to handle 4s release overlap)
       pad: new Tone.PolySynth({
         oscillator: {
-          type: 'fattriangle',  // Softer, rounder than square - DISTINCT from chords
-          count: 2,  // PERFORMANCE: Reduced from 5 (was causing audio overload)
-          spread: 30  // PERFORMANCE: Reduced from 60 (less detuning = less CPU)
+          type: 'triangle'  // Soft, warm
         },
-        volume: +5,  // DRONE FIX: Match backgroundHigh/Mid/Low for audibility
+        volume: +5,
         envelope: {
-          attack: 0.8,   // DRONE FIX: Reduced from 1.5s - must be audible within first second
-          decay: 1.5,    // Longer decay
+          attack: 0.8,
+          decay: 1.5,
           sustain: 0.7,
-          release: 4.0   // VERY LONG release - pad lingers
+          release: 4.0
         },
-        maxPolyphony: 6  // PERFORMANCE: Reduced from 8 (now 12 oscillators max vs 40)
+        maxPolyphony: 6  // 2 notes × 3 overlapping triggers during 4s release
       }),
 
-      // CHORDS: Bright, articulate chords (4 voices)
-      chords: new Tone.PolySynth({
-        oscillator: {
-          type: 'fatsquare',  // Hollow, bright - DISTINCT from pad
-          count: 2,  // Fewer voices for clarity
-          spread: 20  // Tighter spread
-        },
-        envelope: {
-          attack: 0.05,  // Quick attack for articulation
-          decay: 0.2,
-          sustain: 0.7,
-          release: 0.4   // Shorter release than pad
-        },
-        maxPolyphony: 4  // 4 voices as requested
-      }),
+      // CHORDS: Electric piano (FM synthesis, Rhodes-style)
+      chords: (() => {
+        const synth = new Tone.PolySynth(Tone.FMSynth, { maxPolyphony: 8 })  // 3 notes × 2-3 overlapping triggers
+        synth.set({
+          modulationIndex: 3.5,      // Bell-like overtones
+          harmonicity: 2,            // Octave relationship
+          envelope: {
+            attack: 0.01,            // Fast attack
+            decay: 0.4,              // Moderate decay for bell character
+            sustain: 0.3,            // Low sustain (piano-like)
+            release: 0.8             // Smooth release
+          },
+          modulationEnvelope: {
+            attack: 0.01,
+            decay: 0.2,
+            sustain: 0.2,
+            release: 0.5
+          }
+        })
+        return synth
+      })(),
 
-      // BACKGROUND COMPOSITION LAYERS - High volume to match gestures
-      // PERFORMANCE: Reduced polyphony from 12 to 6 per layer (total 18 vs 36)
-      backgroundHigh: new Tone.PolySynth({
+      // BACKGROUND COMPOSITION LAYERS - MonoSynth with distinctive timbres
+      // backgroundHigh: Pulse wave (nasal, cutting) - for melody
+      backgroundHigh: new Tone.MonoSynth({
         oscillator: {
-          type: 'sine',  // Pure tone for melodic clarity
-          count: 2,
-          spread: 20
+          type: 'pulse',
+          width: 0.3  // Narrow pulse = nasal, distinctive
         },
         volume: +5,
         envelope: {
@@ -703,15 +709,14 @@ class AudioService {
           decay: 0.2,
           sustain: 0.7,
           release: 0.5
-        },
-        maxPolyphony: 6  // Reduced from 12
+        }
       }),
 
-      backgroundMid: new Tone.PolySynth({
+      // backgroundMid: PWM (animated pulse) - for harmony/arpeggios
+      backgroundMid: new Tone.MonoSynth({
         oscillator: {
-          type: 'triangle',  // Softer than sine, good for arpeggios
-          count: 2,
-          spread: 15
+          type: 'pwm',
+          modulationFrequency: 0.5  // Slow modulation for movement
         },
         volume: +5,
         envelope: {
@@ -719,15 +724,13 @@ class AudioService {
           decay: 0.3,
           sustain: 0.6,
           release: 0.8
-        },
-        maxPolyphony: 6  // Reduced from 12
+        }
       }),
 
-      backgroundLow: new Tone.PolySynth({
+      // backgroundLow: Square wave (warm, hollow) - for bass lines
+      backgroundLow: new Tone.MonoSynth({
         oscillator: {
-          type: 'sawtooth',  // Bright harmonics for bass presence
-          count: 3,
-          spread: 30
+          type: 'square'  // Warm, hollow - distinct from sawtooth bass
         },
         volume: +5,
         envelope: {
@@ -735,26 +738,34 @@ class AudioService {
           decay: 0.3,
           sustain: 0.8,
           release: 1.0
-        },
-        maxPolyphony: 6  // Reduced from 12
+        }
       })
+    }
+
+    // MONOSYNTH TIMING FIX: Track last trigger time per layer to avoid
+    // "Start time must be strictly greater than previous start time" error
+    this.monoSynthLastTrigger = {
+      bass: 0,
+      backgroundHigh: 0,
+      backgroundMid: 0,
+      backgroundLow: 0
     }
 
     // Create individual filters and volumes for each layer
     this.ambientFilters = {
       bass: new Tone.Filter({ type: 'lowpass', frequency: 150, Q: 1 }),    // Deep bass (50-150Hz)
       pad: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 1.5 }),   // Mid-range pad
-      chords: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 2 }),  // Brighter chords
-      backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 1 }),  // Bright melodic layer
-      backgroundMid: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 1.5 }),  // Mid-range arpeggios
-      backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 2 })  // INCREASED from 300Hz for audibility
+      chords: new Tone.Filter({ type: 'lowpass', frequency: 6000, Q: 1 }),  // FM piano needs high frequencies
+      backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 5000, Q: 1 }),  // Pulse needs brightness
+      backgroundMid: new Tone.Filter({ type: 'lowpass', frequency: 3000, Q: 1 }),   // PWM needs harmonics
+      backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 1.5 }) // Square needs body
     }
 
     // Background volumes - balanced with gestures
     this.ambientVolumes = {
       bass: new Tone.Volume(0),       // INCREASED for fuller low-end
       pad: new Tone.Volume(-3),       // Entry #27: Reduced from +6dB - was too loud
-      chords: new Tone.Volume(-12),   // INCREASED but still subtle
+      chords: new Tone.Volume(0),     // Electric piano - balanced in mix
       backgroundHigh: new Tone.Volume(+3),  // INCREASED for audible composition
       backgroundMid: new Tone.Volume(+3),   // INCREASED for audible composition
       backgroundLow: new Tone.Volume(+3)    // INCREASED for audible composition
@@ -791,13 +802,11 @@ class AudioService {
       // console.log('DroneVoidController: Initialized - drone starts silent until activity void')
     }
 
-    // Create gesture-responsive synth with optimized polyphony
-    // PERFORMANCE: Reduced from 128 to 32 voices - prevents CPU overload
-    this.gestureSynth = new Tone.PolySynth({
+    // Create gesture-responsive synth - MONOPHONIC (true MonoSynth)
+    // MonoSynth is structurally monophonic - only one note can play at a time
+    this.gestureSynth = new Tone.MonoSynth({
       oscillator: {
-        type: 'sawtooth',
-        harmonicity: 0,  // Remove harmonicity to prevent triangle waves
-        modulationType: 'none'  // Disable modulation
+        type: 'sawtooth'
       },
       volume: +3,  // INCREASED from -5dB - virtual taps must be audible over background!
       envelope: {
@@ -805,9 +814,11 @@ class AudioService {
         decay: 0.2,   // Faster decay
         sustain: 0.3,  // Lower sustain to prevent overlapping
         release: 0.8    // Faster release
-      },
-      maxPolyphony: 32  // PERFORMANCE: Reduced from 128 - 32 is sufficient for most cases
+      }
     })
+
+    // MONOSYNTH TIMING FIX: Track last trigger time for gesture synth
+    this.gestureSynthLastTrigger = 0
 
     // Add filter to gesture synth for hover modulation - OPEN FILTER for sawtooth harmonics
     this.gestureFilter = new Tone.Filter({
@@ -1202,9 +1213,9 @@ class AudioService {
       const frequency = state.currentTonic * Math.pow(2, (scaleNote / 12) + layer.octave)
       frequencies = [frequency]
 
-      // CRITICAL: Release with short time to immediately free voices
+      // CRITICAL: Release previous note (bass is MonoSynth, uses triggerRelease)
       try {
-        synth.releaseAll(0.05)  // 50ms release to prevent polyphony overflow
+        synth.triggerRelease()
       } catch (e) {
         // Ignore release errors
       }
@@ -1431,20 +1442,25 @@ class AudioService {
 
       try {
         if (this.gestureSynth && !this.gestureSynth.disposed) {
-          this.gestureSynth.releaseAll()
+          this.gestureSynth.triggerRelease()  // MonoSynth uses triggerRelease()
         }
       } catch (e) {
-        // console.warn('⚠️ gestureSynth releaseAll error:', e.message)
+        // console.warn('⚠️ gestureSynth triggerRelease error:', e.message)
       }
 
       if (this.ambientLayers) {
         Object.keys(this.ambientLayers).forEach(layer => {
           try {
             if (this.ambientLayers[layer] && !this.ambientLayers[layer].disposed) {
-              this.ambientLayers[layer].releaseAll()
+              // Support both PolySynth (releaseAll) and MonoSynth (triggerRelease)
+              if (this.ambientLayers[layer].releaseAll) {
+                this.ambientLayers[layer].releaseAll()
+              } else if (this.ambientLayers[layer].triggerRelease) {
+                this.ambientLayers[layer].triggerRelease()
+              }
             }
           } catch (e) {
-            // console.warn(`⚠️ ${layer} releaseAll error:`, e.message)
+            // console.warn(`⚠️ ${layer} release error:`, e.message)
           }
         })
       }
@@ -1542,7 +1558,8 @@ class AudioService {
         // console.log(`  ↳ Active voices before: ${this.gestureSynth.activeVoices}`)
 
         // Trigger note with full velocity (no reduction multiplier)
-        this.gestureSynth.triggerAttackRelease(frequency, tierDuration, undefined, velocity)
+        // Use safe trigger for MonoSynth timing compliance
+        this.safeGestureSynthTrigger(frequency, tierDuration, undefined, velocity)
 
         // console.log(`  ↳ Active voices after: ${this.gestureSynth.activeVoices}`)
         // console.log(`  ↳ Trigger successful!`)
@@ -1814,8 +1831,13 @@ class AudioService {
 
         // Release the voice if it's been playing for more than 1 second
         if (now - voiceData.startTime > 1000) {
-          if (voiceData.synth && voiceData.synth.releaseAll) {
-            voiceData.synth.releaseAll()
+          if (voiceData.synth) {
+            // Support both PolySynth (releaseAll) and MonoSynth (triggerRelease)
+            if (voiceData.synth.releaseAll) {
+              voiceData.synth.releaseAll()
+            } else if (voiceData.synth.triggerRelease) {
+              voiceData.synth.triggerRelease()
+            }
           }
           this.generativeState.activeVoices.delete(voiceId)
           // console.log(`🔇 Cleaned up voice ${voiceId} for polyphony management`)
@@ -2035,12 +2057,8 @@ class AudioService {
           // console.log(`🎵 Playing collaborative pattern ${index}: ${frequency.toFixed(1)}Hz, duration: ${duration}s, intensity: ${intensity.toFixed(2)}`)
 
           // Play short note with guaranteed release (FR-006: <200ms latency)
-          this.gestureSynth.triggerAttackRelease(
-            frequency,
-            duration,
-            `+${delay}`,
-            velocity
-          )
+          // Use safe trigger for MonoSynth timing compliance
+          this.safeGestureSynthTrigger(frequency, duration, `+${delay}`, velocity)
 
           // Track the note for cleanup
           this.activeNotes.set(noteId, {
@@ -2178,10 +2196,8 @@ class AudioService {
         // REAL-TIME FIX: Schedule on audio thread via Transport
         // This runs on the Web Audio thread, immune to main thread congestion
         const eventId = Tone.Transport.schedule((audioTime) => {
-          const layer = this.ambientLayers && this.ambientLayers[layerName]
-          if (layer) {
-            layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
-          }
+          // Use safe trigger for MonoSynth timing compliance
+          this.safeMonoSynthTrigger(layerName, frequency, duration, audioTime, velocity)
         }, scheduleTime)
 
         // Track for cleanup
@@ -2218,11 +2234,8 @@ class AudioService {
         const scheduleTime = now + lookahead + delay
 
         const eventId = Tone.Transport.schedule((audioTime) => {
-          if (this.ambientLayers && this.ambientLayers.backgroundHigh) {
-            this.ambientLayers.backgroundHigh.triggerAttackRelease(
-              frequency, duration, audioTime, velocity
-            )
-          }
+          // Use safe trigger for MonoSynth timing compliance
+          this.safeMonoSynthTrigger('backgroundHigh', frequency, duration, audioTime, velocity)
         }, scheduleTime)
         this.scheduledTransportEvents.push(eventId)
       }
@@ -2265,11 +2278,8 @@ class AudioService {
           const scheduleTime = now + lookahead + delay
 
           const eventId = Tone.Transport.schedule((audioTime) => {
-            if (this.ambientLayers && this.ambientLayers.backgroundMid) {
-              this.ambientLayers.backgroundMid.triggerAttackRelease(
-                frequency, duration, audioTime, 0.06
-              )
-            }
+            // Use safe trigger for MonoSynth timing compliance
+            this.safeMonoSynthTrigger('backgroundMid', frequency, duration, audioTime, 0.06)
           }, scheduleTime)
           this.scheduledTransportEvents.push(eventId)
         }
@@ -2288,11 +2298,8 @@ class AudioService {
           const scheduleTime = now + lookahead + baseDelay
 
           const eventId = Tone.Transport.schedule((audioTime) => {
-            if (this.ambientLayers && this.ambientLayers.backgroundLow) {
-              this.ambientLayers.backgroundLow.triggerAttackRelease(
-                frequency, duration, audioTime, 0.05
-              )
-            }
+            // Use safe trigger for MonoSynth timing compliance
+            this.safeMonoSynthTrigger('backgroundLow', frequency, duration, audioTime, 0.05)
           }, scheduleTime)
           this.scheduledTransportEvents.push(eventId)
         }
@@ -2340,7 +2347,11 @@ class AudioService {
     }
 
     const texture = content.texture
-    for (let index = 0; index < texture.length; index++) {
+    // POLYPHONY FIX: Limit drone textures to pad's maxPolyphony (3 voices)
+    const maxDroneVoices = 3
+    const maxTextures = isDrone ? Math.min(texture.length, maxDroneVoices) : texture.length
+
+    for (let index = 0; index < maxTextures; index++) {
       const textureItem = texture[index]
       if (!textureItem.note) continue
 
@@ -2356,6 +2367,14 @@ class AudioService {
         // Don't use Transport.schedule() which uses Transport time (can be out of sync after stop/start)
         const layer = this.ambientLayers && this.ambientLayers[layerName]
         if (layer) {
+          // POLYPHONY FIX: Release all before first drone trigger (only on first drone)
+          if (index === 0) {
+            try {
+              layer.releaseAll(0.05)
+            } catch (e) {
+              // Ignore release errors
+            }
+          }
           const audioTime = Tone.now() + 0.05 + delay
           // console.log(`🎹 DRONE IMMEDIATE: freq=${frequency.toFixed(1)}Hz, time=${audioTime.toFixed(2)}s`)
           layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
@@ -2366,6 +2385,13 @@ class AudioService {
         const repeatStartTime = `+${duration + delay}`
         const repeatEventId = Tone.Transport.scheduleRepeat((audioTime) => {
           if (this.ambientLayers && this.ambientLayers.pad) {
+            // POLYPHONY FIX: Release ALL previous notes before triggering new one
+            // This prevents voice accumulation in the PolySynth (max 3 voices)
+            try {
+              this.ambientLayers.pad.releaseAll(0.05)  // Quick release to free voices
+            } catch (e) {
+              // Ignore release errors
+            }
             this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
           }
         }, duration, repeatStartTime)
@@ -2375,10 +2401,8 @@ class AudioService {
         // For non-drone textures, use relative time scheduling
         const relativeTime = `+${0.1 + delay}`
         const eventId = Tone.Transport.schedule((audioTime) => {
-          const layer = this.ambientLayers && this.ambientLayers[layerName]
-          if (layer) {
-            layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
-          }
+          // Use safe trigger for MonoSynth timing compliance (backgroundLow is MonoSynth)
+          this.safeMonoSynthTrigger(layerName, frequency, duration, audioTime, velocity)
         }, relativeTime)
         this.scheduledTransportEvents.push(eventId)
       }
@@ -2410,6 +2434,90 @@ class AudioService {
    */
   midiToFrequency(midiNote) {
     return 440 * Math.pow(2, (midiNote - 69) / 12)
+  }
+
+  /**
+   * Safely trigger MonoSynth with proper timing
+   * MonoSynth requires strictly increasing start times - this helper ensures that
+   * @param {string} layerName - Name of the MonoSynth layer
+   * @param {number} frequency - Frequency in Hz
+   * @param {number|string} duration - Duration in seconds or Tone.js notation
+   * @param {number} time - Audio context time to trigger at
+   * @param {number} velocity - Velocity 0-1
+   */
+  safeMonoSynthTrigger(layerName, frequency, duration, time, velocity) {
+    const layer = this.ambientLayers && this.ambientLayers[layerName]
+    if (!layer) return
+
+    // For PolySynth layers, just trigger normally
+    if (!this.monoSynthLastTrigger || !(layerName in this.monoSynthLastTrigger)) {
+      layer.triggerAttackRelease(frequency, duration, time, velocity)
+      return
+    }
+
+    // MonoSynth: ensure time is strictly greater than last trigger
+    const lastTime = this.monoSynthLastTrigger[layerName] || 0
+    const minGap = 0.005  // 5ms minimum gap between notes
+    const safeTime = Math.max(time, lastTime + minGap)
+
+    // Update last trigger time
+    this.monoSynthLastTrigger[layerName] = safeTime
+
+    try {
+      layer.triggerAttackRelease(frequency, duration, safeTime, velocity)
+    } catch (err) {
+      // If still failing, force release and retry with fresh timing
+      try {
+        layer.triggerRelease()
+        const freshTime = Tone.now() + 0.01
+        this.monoSynthLastTrigger[layerName] = freshTime
+        layer.triggerAttackRelease(frequency, duration, freshTime, velocity)
+      } catch (retryErr) {
+        // Silently fail - note will be skipped
+      }
+    }
+  }
+
+  /**
+   * Safely trigger gestureSynth (MonoSynth) with proper timing
+   * @param {number} frequency - Frequency in Hz
+   * @param {number|string} duration - Duration in seconds or Tone.js notation
+   * @param {number} time - Audio context time (undefined for immediate)
+   * @param {number} velocity - Velocity 0-1
+   */
+  safeGestureSynthTrigger(frequency, duration, time, velocity) {
+    if (!this.gestureSynth) return
+
+    // Convert relative time strings ("+0.5") to absolute time
+    let requestedTime
+    if (time === undefined) {
+      requestedTime = Tone.now()
+    } else if (typeof time === 'string' && time.startsWith('+')) {
+      requestedTime = Tone.now() + parseFloat(time.substring(1))
+    } else {
+      requestedTime = time
+    }
+
+    const lastTime = this.gestureSynthLastTrigger || 0
+    const minGap = 0.005  // 5ms minimum gap between notes
+    const safeTime = Math.max(requestedTime, lastTime + minGap)
+
+    // Update last trigger time
+    this.gestureSynthLastTrigger = safeTime
+
+    try {
+      this.gestureSynth.triggerAttackRelease(frequency, duration, safeTime, velocity)
+    } catch (err) {
+      // If still failing, force release and retry with fresh timing
+      try {
+        this.gestureSynth.triggerRelease()
+        const freshTime = Tone.now() + 0.01
+        this.gestureSynthLastTrigger = freshTime
+        this.gestureSynth.triggerAttackRelease(frequency, duration, freshTime, velocity)
+      } catch (retryErr) {
+        // Silently fail - note will be skipped
+      }
+    }
   }
 
   /**
@@ -2484,7 +2592,8 @@ class AudioService {
 
       // Play short beep (volume controlled by masterVolume)
       // console.log(`🎵 Playing draw sound at frequency ${frequency}Hz`)
-      this.gestureSynth.triggerAttackRelease(frequency, '16n', undefined, 0.3)
+      // Use safe trigger for MonoSynth timing compliance
+      this.safeGestureSynthTrigger(frequency, '16n', undefined, 0.3)
 
     } catch (error) {
       // console.warn('AudioService: Error playing draw sound', error)
@@ -4216,12 +4325,8 @@ class AudioService {
 
     // Play note with tier-specific parameters
     // console.log('🔍 About to trigger single note:', adjustedFrequency.toFixed(1) + 'Hz, tier:', tier)
-    this.gestureSynth.triggerAttackRelease(
-      adjustedFrequency,
-      adjustedDuration,
-      undefined,
-      adjustedVolume
-    )
+    // Use safe trigger for MonoSynth timing compliance
+    this.safeGestureSynthTrigger(adjustedFrequency, adjustedDuration, undefined, adjustedVolume)
     // console.log('🔍 Note triggered successfully')
   }
 
