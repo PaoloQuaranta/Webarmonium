@@ -3873,3 +3873,150 @@ Tone.context.lookAhead = this._isWindowsChrome ? 0.15 : 0.1
 - ✅ Larger buffer provides headroom for audio scheduling
 
 ---
+
+## Entry #44 - Real User Gesture Audio Fixes & Volume Normalization
+
+**Date**: 2026-01-08
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed multiple audio issues affecting real user gestures:
+1. AudioContext suspended after clicking "Start Audio" on some instances
+2. FM patches (Bell Chime, Deep Bell) too quiet compared to other timbres
+3. Local gestures quieter than remote/virtual user gestures
+4. Transport scheduling error when context suspended
+5. Debug log cleanup
+
+---
+
+### Issue 1: AudioContext Suspended After Start
+
+**User Report**: "start audio premuto, ma audio sospeso. alcuni casi non riesco a far partire audio"
+
+**Root Cause**: `Tone.start()` was called but the underlying AudioContext remained in 'suspended' state on some browser instances. The code checked `Tone.context.state` but didn't retry with explicit resume.
+
+**Fix** (`frontend/src/services/AudioService.js`):
+
+Added retry mechanism with explicit context.resume():
+
+```javascript
+// FIX: If still suspended, try explicit context.resume() with retries
+if (Tone.context.state !== 'running') {
+  console.log('Context still suspended, trying explicit resume...')
+  const rawContext = Tone.context.rawContext || Tone.context._context || Tone.context
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      if (rawContext && typeof rawContext.resume === 'function') {
+        await rawContext.resume()
+      }
+      if (typeof Tone.context.resume === 'function') {
+        await Tone.context.resume()
+      }
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      if (Tone.context.state === 'running') break
+    } catch (resumeError) {
+      console.warn(`Resume attempt ${attempt} failed:`, resumeError)
+    }
+  }
+}
+
+// Return contextRunning boolean
+const contextRunning = Tone.context.state === 'running'
+return contextRunning
+```
+
+**Additional Fix** (`frontend/src/main.js`):
+
+Added user-friendly error message when context stays suspended:
+
+```javascript
+if (!startResult) {
+  console.warn('AudioService.start() returned false - context still suspended')
+  this.showError('Audio context blocked. Please click Start Audio again.')
+}
+```
+
+---
+
+### Issue 2: FM Patches Too Quiet (Slots 3, 7)
+
+**User Report**: "bisogna normalizzare volume tra le patch, tutte le patch con pochi armonici sono troppo basse"
+
+**Root Cause**: FM synthesis patches (Bell Chime, Deep Bell) use sine/FM oscillators with fewer harmonics than sawtooth/square patches. The ear perceives them as quieter at the same dB level due to less harmonic content.
+
+**Fix** (`frontend/src/services/audio/PatchDefinitions.js`):
+
+| Slot | Patch | Volume Before | Volume After | Boost |
+|------|-------|---------------|--------------|-------|
+| 3 | Bell Chime | 8 dB | 12 dB | +4 dB |
+| 7 | Deep Bell | 7 dB | 11 dB | +4 dB |
+
+---
+
+### Issue 3: Local Gestures Quieter Than Remote
+
+**User Report**: "alza un po' il volume dei gesti locali"
+
+**Root Cause**: Remote gestures had velocity modifications (×0.9 for remote, additional reduction for streamed), but local gestures had no boost to compensate.
+
+**Fix** (`frontend/src/services/AudioService.js`):
+
+Added 15% velocity boost for local (non-streamed) gestures:
+
+```javascript
+// Volume hierarchy: local (×1.15 boost) > remote (×1.0)
+const finalVelocity = isStreamed ? eventVelocity : Math.min(1.0, eventVelocity * 1.15)
+```
+
+---
+
+### Issue 4: Transport.start() When Context Suspended
+
+**Problem**: MusicalScheduler called `Transport.start()` even when AudioContext was suspended, causing errors.
+
+**Fix** (`frontend/src/services/MusicalScheduler.js`):
+
+Protected Transport.start() with context state check:
+
+```javascript
+if (window.Tone.context && window.Tone.context.state === 'running') {
+  window.Tone.Transport.start()
+} else {
+  console.warn('[MusicalScheduler] Skipping Transport.start() - context not running')
+}
+```
+
+---
+
+### Issue 5: Debug Log Cleanup
+
+Removed active debug console.log statements from:
+- `AudioService.js` - patchInfo logging removed
+- Various other locations cleaned up
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Resume retry mechanism, local velocity boost (+15%), debug cleanup |
+| `frontend/src/services/MusicalScheduler.js` | Protected Transport.start() |
+| `frontend/src/services/audio/PatchDefinitions.js` | FM patch volume boost (slots 3, 7) |
+| `frontend/src/main.js` | Error message for suspended context |
+| `frontend/index.html` | Version bump to v1.0.18 |
+
+---
+
+### Testing Results
+
+- ✅ AudioContext suspended issue resolved (user: "non riesco più a ricreare context suspended")
+- ✅ FM patches now audible at comparable level to other timbres
+- ✅ Local gestures slightly louder than remote (as intended)
+- ✅ No Transport errors when context suspended
+
+---
