@@ -2634,10 +2634,10 @@ class AudioService {
    */
   playMusicalEvent(musicalEvent) {
     // DEBUG: PROMINENT log to verify this function is being called
-    // console.log(`📣 playMusicalEvent CALLED - userId=${musicalEvent?.userId?.substring(0,8)}, eventType=${musicalEvent?.eventType}, gestureAction=${musicalEvent?.properties?.gestureAction}`)
+    console.log(`📣 playMusicalEvent CALLED - userId=${musicalEvent?.userId?.substring(0,8)}, eventType=${musicalEvent?.eventType}, gestureAction=${musicalEvent?.properties?.gestureAction}`)
 
     if (!this.isInitialized || !musicalEvent || this.muted) {
-      // console.log('🔇 playMusicalEvent blocked - initialized:', this.isInitialized, 'muted:', this.muted)
+      console.log('🔇 playMusicalEvent blocked - initialized:', this.isInitialized, 'muted:', this.muted)
       return
     }
 
@@ -2792,6 +2792,7 @@ class AudioService {
 
       const transportEventId = Tone.Transport.schedule((time) => {
         if (!this.gestureSynth || this.gestureSynth.disposed) {
+          console.log('🔇 Transport callback - gestureSynth not available')
           return
         }
 
@@ -2801,6 +2802,7 @@ class AudioService {
 
           if (userId && this.userSynthManager) {
             const synthData = this.userSynthManager.getSynthForUser(userId)
+            console.log(`🎹 getSynthForUser(${userId?.substring(0,8)}):`, synthData ? 'found' : 'null', synthData?.synth?.disposed ? 'DISPOSED' : 'ok')
             if (synthData && synthData.synth && !synthData.synth.disposed) {
               synth = synthData.synth
               actualFrequency = this.userSynthManager.constrainFrequencyToTessitura(eventFrequency, userId)
@@ -2834,6 +2836,8 @@ class AudioService {
           // Volume hierarchy: local (×1.0) > remote (×0.9)
           const finalVelocity = isStreamed ? eventVelocity * 0.9 : eventVelocity
 
+          console.log(`🎵 TRIGGER: freq=${actualFrequency?.toFixed(1)}Hz, dur=${eventDuration?.toFixed(2)}s, vel=${finalVelocity?.toFixed(2)}, synth=${synth ? (synth === this.gestureSynth ? 'gestureSynth' : 'userSynth') : 'null'}`)
+
           // Use the precise audio time from Transport.schedule
           synth.triggerAttackRelease(
             actualFrequency,
@@ -2842,7 +2846,7 @@ class AudioService {
             finalVelocity
           )
         } catch (e) {
-          // Silently handle errors to prevent callback crashes
+          console.log('❌ triggerAttackRelease error:', e.message)
         }
       }, scheduleTime)
 
