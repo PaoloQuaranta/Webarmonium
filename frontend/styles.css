@@ -124,9 +124,10 @@ header p {
 .metric-card {
   background: var(--card-bg);
   border-radius: 8px;
-  padding: 0.4rem 0.5rem;
+  padding: 0.5rem 0.75rem;
   border: 1px solid var(--border-color);
   transition: border-color 0.2s ease, box-shadow 0.3s ease;
+  min-width: 120px;
 }
 
 .metric-card:hover {
@@ -149,7 +150,7 @@ header p {
 .meters-container {
   display: flex;
   justify-content: space-between;
-  gap: 0.25rem;
+  gap: 0.5rem;
   height: 60px;
 }
 
@@ -163,7 +164,7 @@ header p {
 
 .meter-bar {
   width: 100%;
-  max-width: 16px;
+  max-width: 18px;
   height: 38px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 3px;
@@ -202,10 +203,11 @@ header p {
 }
 
 .meter-label {
-  font-size: 0.45rem;
+  font-size: 0.5rem;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 /* Source-specific colors */
