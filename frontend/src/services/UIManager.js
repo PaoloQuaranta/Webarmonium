@@ -339,6 +339,32 @@ class UIManager {
     document.getElementById('mobileAudioControls')?.appendChild(volumeContainer)
 
     this.mobileVolumeSlider = mobileVolumeSlider
+
+    // Create Low Power Mode toggle button
+    const lowPowerBtn = document.createElement('button')
+    lowPowerBtn.id = 'mobileLowPowerToggle'
+    lowPowerBtn.className = 'mobile-low-power-btn'
+    this._updateLowPowerButton(lowPowerBtn)
+
+    lowPowerBtn.onclick = () => {
+      if (window.MobileResourceManager) {
+        MobileResourceManager.getInstance().toggleLowPowerMode()
+        this._updateLowPowerButton(lowPowerBtn)
+      }
+    }
+
+    document.getElementById('mobileAudioControls')?.appendChild(lowPowerBtn)
+    this.mobileLowPowerBtn = lowPowerBtn
+  }
+
+  /**
+   * Update Low Power button appearance based on current state
+   */
+  _updateLowPowerButton(btn) {
+    if (!btn || !window.MobileResourceManager) return
+    const isLowPower = MobileResourceManager.getInstance().isLowPowerMode()
+    btn.textContent = isLowPower ? 'Low Power ON' : 'Low Power'
+    btn.classList.toggle('active', isLowPower)
   }
 
   /**

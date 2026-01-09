@@ -453,6 +453,26 @@
                 min-height: 48px;
             }
 
+            /* Mobile Low Power button */
+            .mobile-low-power-btn {
+                background: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                color: #aaa;
+                border-radius: 8px;
+                font-size: 14px;
+                transition: background 0.2s, border-color 0.2s, color 0.2s;
+            }
+
+            .mobile-low-power-btn.active {
+                background: rgba(34, 197, 94, 0.2);
+                border-color: rgba(34, 197, 94, 0.5);
+                color: #22c55e;
+            }
+
+            .mobile-low-power-btn:active {
+                background: rgba(255, 255, 255, 0.2);
+            }
+
             /* Mobile volume slider */
             .mobile-volume-control {
                 display: flex;
@@ -636,7 +656,7 @@
     <script src="src/services/SocketService.js?v=11"></script> <!-- DEBUG: Added slot lookup logging -->
     <!-- Sprint 2 refactoring: Extracted components -->
     <script src="src/services/CanvasManager.js?v=1"></script>
-    <script src="src/services/UIManager.js?v=6"></script> <!-- Entry #52: Direct method calls -->
+    <script src="src/services/UIManager.js?v=7"></script> <!-- Entry #52: Mobile Low Power btn -->
     <script src="src/services/VolumeController.js?v=1"></script>
     <!-- Enhanced generative graphics system -->
     <script src="src/services/visual/VisualConstants.js?v=9"></script>
