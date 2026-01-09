@@ -56,7 +56,7 @@
   </header>
 
   <main>
-    <!-- Unified Controls Bar -->
+    <!-- Controls Bar -->
     <section id="controls-bar">
       <button id="btn-toggle" class="primary-btn">▶ Start</button>
 
@@ -65,19 +65,82 @@
         <input type="range" id="volume" min="0" max="100" value="70">
       </div>
 
-      <!-- Compact Metrics -->
-      <div class="compact-metrics">
-        <div class="compact-metric" id="wikipedia-metric" data-source="wikipedia">
-          <span class="compact-label" style="color: #e41a1c;">Wiki</span>
-          <div class="compact-bar" data-metric="editsPerMinute"><div class="compact-fill"></div></div>
+      <!-- Metrics Dashboard (inline, smaller) -->
+      <div id="metrics-dashboard">
+        <div class="metric-card" id="wikipedia-metric" data-source="wikipedia">
+          <h3 class="source-title" style="color: #e41a1c;">Wikipedia</h3>
+          <div class="meters-container">
+            <div class="meter" data-metric="editsPerMinute">
+              <div class="meter-bar"><div class="meter-fill"></div></div>
+              <span class="meter-value">0</span>
+              <span class="meter-label">edits</span>
+            </div>
+            <div class="meter" data-metric="velocity">
+              <div class="meter-bar"><div class="meter-fill"></div></div>
+              <span class="meter-value">0</span>
+              <span class="meter-label">velocity</span>
+            </div>
+            <div class="meter" data-metric="avgEditSize">
+              <div class="meter-bar"><div class="meter-fill"></div></div>
+              <span class="meter-value">0</span>
+              <span class="meter-label">size</span>
+            </div>
+            <div class="meter" data-metric="newArticles">
+              <div class="meter-bar"><div class="meter-fill"></div></div>
+              <span class="meter-value">0</span>
+              <span class="meter-label">new</span>
+            </div>
+          </div>
         </div>
-        <div class="compact-metric" id="hackernews-metric" data-source="hackernews">
-          <span class="compact-label" style="color: #ff7f00;">HN</span>
-          <div class="compact-bar" data-metric="postsPerMinute"><div class="compact-fill"></div></div>
+        <div class="metric-card" id="hackernews-metric" data-source="hackernews">
+          <h3 class="source-title" style="color: #ff7f00;">HackerNews</h3>
+          <div class="meters-container">
+            <div class="meter" data-metric="postsPerMinute">
+              <div class="meter-bar"><div class="meter-fill"></div></div>
+              <span class="meter-value">0</span>
+              <span class="meter-label">posts</span>
+            </div>
+            <div class="meter" data-metric="velocity">
+              <div class="meter-bar"><div class="meter-fill"></div></div>
+              <span class="meter-value">0</span>
+              <span class="meter-label">velocity</span>
+            </div>
+            <div class="meter" data-metric="avgUpvotes">
+              <div class="meter-bar"><div class="meter-fill"></div></div>
+              <span class="meter-value">0</span>
+              <span class="meter-label">upvotes</span>
+            </div>
+            <div class="meter" data-metric="commentCount">
+              <div class="meter-bar"><div class="meter-fill"></div></div>
+              <span class="meter-value">0</span>
+              <span class="meter-label">comments</span>
+            </div>
+          </div>
         </div>
-        <div class="compact-metric" id="github-metric" data-source="github">
-          <span class="compact-label" style="color: #377eb8;">GH</span>
-          <div class="compact-bar" data-metric="pushesPerMinute"><div class="compact-fill"></div></div>
+        <div class="metric-card" id="github-metric" data-source="github">
+          <h3 class="source-title" style="color: #377eb8;">GitHub</h3>
+          <div class="meters-container">
+            <div class="meter" data-metric="pushesPerMinute">
+              <div class="meter-bar"><div class="meter-fill"></div></div>
+              <span class="meter-value">0</span>
+              <span class="meter-label">pushes</span>
+            </div>
+            <div class="meter" data-metric="velocity">
+              <div class="meter-bar"><div class="meter-fill"></div></div>
+              <span class="meter-value">0</span>
+              <span class="meter-label">velocity</span>
+            </div>
+            <div class="meter" data-metric="createsPerMinute">
+              <div class="meter-bar"><div class="meter-fill"></div></div>
+              <span class="meter-value">0</span>
+              <span class="meter-label">creates</span>
+            </div>
+            <div class="meter" data-metric="deletesPerMinute">
+              <div class="meter-bar"><div class="meter-fill"></div></div>
+              <span class="meter-value">0</span>
+              <span class="meter-label">deletes</span>
+            </div>
+          </div>
         </div>
       </div>
 

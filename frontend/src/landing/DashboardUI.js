@@ -1,9 +1,9 @@
 /**
  * DashboardUI
- * Educational dashboard showing real-time metrics with compact horizontal bars
+ * Educational dashboard showing real-time metrics with vertical meter visualizations
  *
  * Responsibilities:
- * - Update compact horizontal meters with live data from backend
+ * - Update vertical meters with live data from backend
  * - Flash meters when gestures are triggered
  * - Bind control button (toggle Start/Stop) and Volume slider
  * - Show room activity (users in rooms)
@@ -30,13 +30,22 @@ export class DashboardUI {
     // These adapt over time based on observed values
     this.normRanges = {
       wikipedia: {
-        editsPerMinute: { min: 0, max: 100 }
+        editsPerMinute: { min: 0, max: 100 },
+        velocity: { min: -10, max: 10 },
+        avgEditSize: { min: 0, max: 5000 },
+        newArticles: { min: 0, max: 10 }
       },
       hackernews: {
-        postsPerMinute: { min: 0, max: 20 }
+        postsPerMinute: { min: 0, max: 20 },
+        velocity: { min: -5, max: 5 },
+        avgUpvotes: { min: 0, max: 500 },
+        commentCount: { min: 0, max: 100 }
       },
       github: {
-        pushesPerMinute: { min: 0, max: 50 }
+        pushesPerMinute: { min: 0, max: 50 },
+        velocity: { min: -10, max: 10 },
+        createsPerMinute: { min: 0, max: 30 },
+        deletesPerMinute: { min: 0, max: 20 }
       }
     }
 
@@ -59,7 +68,7 @@ export class DashboardUI {
     this._cacheElements()
     this._bindControls(callbacks)
     this._startRoomActivityPolling()
-    // console.log('📊 DashboardUI initialized (compact mode)')
+    // console.log('📊 DashboardUI initialized (meter-based mode)')
   }
 
   /**
@@ -74,14 +83,31 @@ export class DashboardUI {
       github: metrics.github || {}
     }
 
-    // Update each source's compact bar (single primary metric per source)
-    this._updateCompactMeter('wikipedia', 'editsPerMinute', metrics.wikipedia?.editsPerMinute || 0)
-    this._updateCompactMeter('hackernews', 'postsPerMinute', metrics.hackernews?.postsPerMinute || 0)
-    this._updateCompactMeter('github', 'pushesPerMinute', metrics.github?.commitsPerMinute || 0)
+    // Update each source's meters
+    this._updateSourceMeters('wikipedia', {
+      editsPerMinute: metrics.wikipedia?.editsPerMinute || 0,
+      velocity: metrics.wikipedia?.velocity || 0,
+      avgEditSize: metrics.wikipedia?.avgEditSize || 0,
+      newArticles: metrics.wikipedia?.newArticles || 0
+    })
+
+    this._updateSourceMeters('hackernews', {
+      postsPerMinute: metrics.hackernews?.postsPerMinute || 0,
+      velocity: metrics.hackernews?.velocity || 0,
+      avgUpvotes: metrics.hackernews?.avgUpvotes || 0,
+      commentCount: metrics.hackernews?.commentCount || 0
+    })
+
+    this._updateSourceMeters('github', {
+      pushesPerMinute: metrics.github?.commitsPerMinute || 0,
+      velocity: metrics.github?.velocity || 0,
+      createsPerMinute: metrics.github?.createsPerMinute || 0,
+      deletesPerMinute: metrics.github?.deletesPerMinute || 0
+    })
   }
 
   /**
-   * Flash a source's compact meter when a gesture is triggered
+   * Flash a source's meters when a gesture is triggered
    * @param {string} source - Source name (wikipedia, hackernews, github)
    * @param {string} triggerMetric - Which metric triggered the gesture (optional)
    */
@@ -89,9 +115,25 @@ export class DashboardUI {
     const card = this.elements.cards[source]
     if (!card) return
 
-    // Flash the compact metric card
+    // Flash the entire card
     card.classList.add('flash')
     setTimeout(() => card.classList.remove('flash'), 300)
+
+    // If a specific metric triggered, flash that meter
+    if (triggerMetric) {
+      const meter = card.querySelector(`[data-metric="${triggerMetric}"]`)
+      if (meter) {
+        meter.classList.add('flash')
+        setTimeout(() => meter.classList.remove('flash'), 300)
+      }
+    } else {
+      // Flash the velocity meter (usually the trigger)
+      const velocityMeter = card.querySelector('[data-metric="velocity"]')
+      if (velocityMeter) {
+        velocityMeter.classList.add('flash')
+        setTimeout(() => velocityMeter.classList.remove('flash'), 300)
+      }
+    }
   }
 
   /**
@@ -100,7 +142,7 @@ export class DashboardUI {
    */
   _cacheElements() {
     this.elements = {
-      // Compact metric cards
+      // Metric cards
       cards: {
         wikipedia: document.getElementById('wikipedia-metric'),
         hackernews: document.getElementById('hackernews-metric'),
@@ -115,33 +157,52 @@ export class DashboardUI {
   }
 
   /**
-   * Update a compact horizontal meter
-   * @param {string} source - Source name (wikipedia, hackernews, github)
-   * @param {string} metric - Metric name
-   * @param {number} value - Metric value
+   * Update meters for a single source
+   * @param {string} source - Source name
+   * @param {Object} values - Metric values
    * @private
    */
-  _updateCompactMeter(source, metric, value) {
+  _updateSourceMeters(source, values) {
     const card = this.elements.cards[source]
     if (!card) return
 
-    const bar = card.querySelector(`[data-metric="${metric}"]`)
-    if (!bar) return
+    const ranges = this.normRanges[source]
 
-    // Update normalization range dynamically
-    const range = this.normRanges[source]?.[metric]
-    if (range) {
-      if (value > range.max) range.max = value * 1.2
-    }
+    Object.entries(values).forEach(([metric, value]) => {
+      const meter = card.querySelector(`[data-metric="${metric}"]`)
+      if (!meter) return
 
-    // Calculate normalized value (0-100%)
-    const normalized = this._normalizeValue(value, range)
+      // Update normalization range dynamically
+      const range = ranges[metric]
+      if (range) {
+        // Expand range if value exceeds current bounds
+        if (value > range.max) range.max = value * 1.2
+        if (value < range.min && metric !== 'velocity') range.min = Math.max(0, value * 0.8)
+      }
 
-    // Update compact bar fill (horizontal - use width instead of height)
-    const fill = bar.querySelector('.compact-fill')
-    if (fill) {
-      fill.style.width = `${normalized}%`
-    }
+      // Calculate normalized value (0-100%)
+      const normalized = this._normalizeValue(value, range)
+
+      // Update meter fill
+      const fill = meter.querySelector('.meter-fill')
+      if (fill) {
+        fill.style.height = `${normalized}%`
+      }
+
+      // Update meter value display
+      const valueEl = meter.querySelector('.meter-value')
+      if (valueEl) {
+        // Format based on metric type
+        if (metric === 'velocity') {
+          const sign = value > 0 ? '+' : ''
+          valueEl.textContent = `${sign}${value.toFixed(1)}`
+        } else if (metric === 'avgEditSize' || metric === 'avgUpvotes') {
+          valueEl.textContent = value >= 1000 ? `${(value / 1000).toFixed(1)}k` : Math.round(value)
+        } else {
+          valueEl.textContent = Math.round(value)
+        }
+      }
+    })
   }
 
   /**
@@ -154,6 +215,15 @@ export class DashboardUI {
   _normalizeValue(value, range) {
     if (!range) return 50
 
+    // Handle velocity specially (can be negative)
+    if (range.min < 0) {
+      // Map negative-to-positive range to 0-100
+      const absMax = Math.max(Math.abs(range.min), Math.abs(range.max))
+      const normalized = ((value + absMax) / (absMax * 2)) * 100
+      return Math.max(0, Math.min(100, normalized))
+    }
+
+    // Normal 0-max normalization
     const span = range.max - range.min
     if (span === 0) return 50
 

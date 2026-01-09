@@ -5190,36 +5190,30 @@ Implemented an auto-hide system for both the controls section (top) and instruct
 
 **Date**: 2026-01-09
 **Author**: Claude Code (AI Assistant)
-**Status**: COMPLETED
+**Status**: COMPLETED (corrected)
 
 ### Summary
 
-Redesigned the landing page layout with compact metrics, room activity indicator, larger canvas, and terminology correction (commit → push).
+Redesigned the landing page layout with smaller inline metric cards (preserving original 4-meter vertical layout), room activity indicator, larger canvas, and terminology correction (commit → push).
 
 ---
 
 ### Changes Implemented
 
-#### 1. Compact Metrics Bar
+#### 1. Smaller Inline Metric Cards
 
-**Before:** Three large metric cards (Wikipedia, HackerNews, GitHub) with 4 vertical meters each, taking significant vertical space.
+**Before:** Three large metric cards below the header, each with 4 vertical meters, taking significant vertical space.
 
-**After:** Compact horizontal bars inline with controls:
-- Start button → Volume slider → Compact metrics → Join Room
+**After:** Same 3 metric cards with 4 vertical meters each, but smaller and inline with controls:
+- Start button → Volume slider → **Metric Cards** → Join Room + Activity
 
-```html
-<div class="compact-metrics">
-  <div class="compact-metric" id="wikipedia-metric">
-    <span class="compact-label" style="color: #e41a1c;">Wiki</span>
-    <div class="compact-bar" data-metric="editsPerMinute">
-      <div class="compact-fill"></div>
-    </div>
-  </div>
-  <!-- ... HN and GH similar -->
-</div>
-```
+Dimensions reduced:
+- Card padding: `1rem` → `0.4rem 0.5rem`
+- Meters container height: `100px` → `50px`
+- Meter bar: `24px × 60px` → `14px × 30px`
+- Font sizes reduced proportionally
 
-Each metric now shows only the primary activity indicator (edits/posts/pushes per minute) as a small horizontal bar.
+**Note:** Original implementation incorrectly transformed to compact horizontal bars. Corrected to preserve full 4-meter vertical layout per source (edits/velocity/size/new for Wikipedia, posts/velocity/upvotes/comments for HN, pushes/velocity/creates/deletes for GitHub).
 
 ---
 
@@ -5271,9 +5265,9 @@ Changed all references from "commit" to "push" (GitHub terminology):
 
 | File | Changes |
 |------|---------|
-| `frontend/index.html` | Restructured controls bar, compact metrics, join-section with rooms-activity span, commit→push text |
-| `frontend/styles.css` | Added `.compact-metrics`, `.compact-metric`, `.compact-bar`, `.compact-fill`, `.join-section`, `.rooms-activity` styles; updated `#canvas-container` height; responsive adjustments |
-| `frontend/src/landing/DashboardUI.js` | Simplified to single metric per source, added room activity polling with `_startRoomActivityPolling()`, `_fetchRoomActivity()`, `_updateRoomActivity()` |
+| `frontend/index.html` | Moved metric cards into `#controls-bar`, added `.join-section` with `#rooms-activity` span, commit→push terminology |
+| `frontend/styles.css` | Added inline `#controls-bar` flexbox layout, reduced metric card dimensions (padding, heights, fonts), added `.join-section`, `.rooms-activity` styles; doubled `#canvas-container` height for desktop |
+| `frontend/src/landing/DashboardUI.js` | Preserved original 4-meter logic per source, added room activity polling with `_startRoomActivityPolling()`, `_fetchRoomActivity()`, `_updateRoomActivity()`, `pushesPerMinute` instead of `commitsPerMinute` |
 | `backend/src/server.js` | Added `/api/rooms/stats` endpoint returning totalUsers and activeRooms |
 
 ---
