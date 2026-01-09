@@ -34,8 +34,6 @@ class UIManager {
     this.controlsVisible = true
     this.instructionsVisible = true
     this.autoHideTimeout = null
-    this.controlsToggleBtn = null
-    this.instructionsToggleBtn = null
     this.isInteractingWithControls = false
 
     // Constants
@@ -213,10 +211,9 @@ class UIManager {
   }
 
   /**
-   * Setup desktop UI with edge detection and toggle buttons
+   * Setup desktop UI with edge detection (no toggle buttons)
    */
   _setupDesktopUI() {
-    this._createDesktopToggleButtons()
     this._setupAutoHide()
     this._setupEdgeDetection()
     this._setupControlsInteraction()
@@ -266,10 +263,6 @@ class UIManager {
     this.mobileSheet = document.createElement('div')
     this.mobileSheet.className = 'mobile-bottom-sheet'
 
-    // Get content from original elements
-    const roomInterface = document.querySelector('.room-interface')
-    const instructions = document.querySelector('.instructions')
-
     this.mobileSheet.innerHTML = `
       <div class="mobile-sheet-handle"></div>
       <div class="mobile-sheet-content">
@@ -283,7 +276,7 @@ class UIManager {
           <a href="index.html" class="mobile-back-link">← Back to main page</a>
         </div>
         <div class="mobile-sheet-section" id="mobileAudioControls">
-          <!-- Audio controls will be cloned here -->
+          <!-- Audio controls will be added here -->
         </div>
         <div class="mobile-sheet-section mobile-instructions">
           <div><strong>Tap</strong> for notes (hold longer for sustained tones)</div>
@@ -296,22 +289,56 @@ class UIManager {
 
     document.body.appendChild(this.mobileSheet)
 
-    // Clone audio toggle button
+    // Create audio toggle button that triggers the original
     const audioToggle = document.getElementById('audioToggle')
     if (audioToggle) {
-      const clone = audioToggle.cloneNode(true)
-      clone.id = 'mobileAudioToggle'
-      // Copy onclick handler
-      clone.onclick = audioToggle.onclick
-      document.getElementById('mobileAudioControls')?.appendChild(clone)
+      const mobileAudioBtn = document.createElement('button')
+      mobileAudioBtn.id = 'mobileAudioToggle'
+      mobileAudioBtn.className = audioToggle.className
+      mobileAudioBtn.textContent = audioToggle.textContent
+      // Click triggers the original button
+      mobileAudioBtn.onclick = () => {
+        audioToggle.click()
+        // Update mobile button text to match original after click
+        setTimeout(() => {
+          mobileAudioBtn.textContent = audioToggle.textContent
+        }, 50)
+      }
+      document.getElementById('mobileAudioControls')?.appendChild(mobileAudioBtn)
+
+      // Store reference for state sync
+      this.mobileAudioBtn = mobileAudioBtn
+      this.originalAudioToggle = audioToggle
     }
 
-    // Clone dynamic audio controls container
-    const audioControls = document.getElementById('audio-controls')
-    if (audioControls) {
-      const clone = audioControls.cloneNode(true)
-      clone.id = 'mobileAudioControlsContainer'
-      document.getElementById('mobileAudioControls')?.appendChild(clone)
+    // Create volume slider that syncs with original
+    const originalVolumeSlider = document.getElementById('volumeSlider')
+    if (originalVolumeSlider) {
+      const volumeContainer = document.createElement('div')
+      volumeContainer.className = 'mobile-volume-control'
+      volumeContainer.innerHTML = '<span class="mobile-volume-label">Volume</span>'
+
+      const mobileVolumeSlider = document.createElement('input')
+      mobileVolumeSlider.type = 'range'
+      mobileVolumeSlider.id = 'mobileVolumeSlider'
+      mobileVolumeSlider.min = originalVolumeSlider.min
+      mobileVolumeSlider.max = originalVolumeSlider.max
+      mobileVolumeSlider.step = originalVolumeSlider.step
+      mobileVolumeSlider.value = originalVolumeSlider.value
+      mobileVolumeSlider.className = 'mobile-volume-slider'
+
+      // Sync with original slider
+      mobileVolumeSlider.oninput = () => {
+        originalVolumeSlider.value = mobileVolumeSlider.value
+        // Dispatch input event on original to trigger its handlers
+        originalVolumeSlider.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+
+      volumeContainer.appendChild(mobileVolumeSlider)
+      document.getElementById('mobileAudioControls')?.appendChild(volumeContainer)
+
+      this.mobileVolumeSlider = mobileVolumeSlider
+      this.originalVolumeSlider = originalVolumeSlider
     }
   }
 
@@ -366,27 +393,6 @@ class UIManager {
     if (mobileRoomId && mainRoomId) {
       mobileRoomId.textContent = mainRoomId.textContent
     }
-  }
-
-  /**
-   * Create desktop toggle buttons
-   */
-  _createDesktopToggleButtons() {
-    // Controls toggle (top-right) - chevron
-    this.controlsToggleBtn = document.createElement('button')
-    this.controlsToggleBtn.className = 'ui-toggle-btn ui-toggle-controls expanded'
-    this.controlsToggleBtn.innerHTML = '&#9660;' // Down chevron (▼) when expanded
-    this.controlsToggleBtn.setAttribute('aria-label', 'Toggle controls')
-    this.controlsToggleBtn.onclick = () => this.toggleControls()
-    document.body.appendChild(this.controlsToggleBtn)
-
-    // Instructions toggle (bottom-center) - info icon
-    this.instructionsToggleBtn = document.createElement('button')
-    this.instructionsToggleBtn.className = 'ui-toggle-btn ui-toggle-instructions'
-    this.instructionsToggleBtn.innerHTML = 'i' // Info icon
-    this.instructionsToggleBtn.setAttribute('aria-label', 'Toggle instructions')
-    this.instructionsToggleBtn.onclick = () => this.toggleInstructions()
-    document.body.appendChild(this.instructionsToggleBtn)
   }
 
   /**
@@ -467,7 +473,6 @@ class UIManager {
       el.classList.remove('collapsed')
     }
     this.controlsVisible = true
-    this._updateToggleButton('controls')
   }
 
   /**
@@ -479,7 +484,6 @@ class UIManager {
       el.classList.add('collapsed')
     }
     this.controlsVisible = false
-    this._updateToggleButton('controls')
   }
 
   /**
@@ -503,7 +507,6 @@ class UIManager {
       el.classList.remove('collapsed')
     }
     this.instructionsVisible = true
-    this._updateToggleButton('instructions')
   }
 
   /**
@@ -515,7 +518,6 @@ class UIManager {
       el.classList.add('collapsed')
     }
     this.instructionsVisible = false
-    this._updateToggleButton('instructions')
   }
 
   /**
@@ -561,29 +563,6 @@ class UIManager {
   }
 
   /**
-   * Update toggle button appearance based on state (desktop only)
-   */
-  _updateToggleButton(which) {
-    if (which === 'controls' && this.controlsToggleBtn) {
-      if (this.controlsVisible) {
-        this.controlsToggleBtn.innerHTML = '&#9660;' // Down chevron
-        this.controlsToggleBtn.classList.add('expanded')
-      } else {
-        this.controlsToggleBtn.innerHTML = '&#9650;' // Up chevron
-        this.controlsToggleBtn.classList.remove('expanded')
-      }
-    }
-
-    if (which === 'instructions' && this.instructionsToggleBtn) {
-      if (this.instructionsVisible) {
-        this.instructionsToggleBtn.innerHTML = '&#10005;' // X to close
-      } else {
-        this.instructionsToggleBtn.innerHTML = 'i' // Info icon
-      }
-    }
-  }
-
-  /**
    * Check if current device is mobile (screen size + touch)
    * More reliable than just touch detection (laptops have touch too)
    */
@@ -605,14 +584,6 @@ class UIManager {
     // Remove event listeners
     if (this._boundEdgeHandler) {
       document.removeEventListener('mousemove', this._boundEdgeHandler)
-    }
-
-    // Remove desktop toggle buttons
-    if (this.controlsToggleBtn) {
-      this.controlsToggleBtn.remove()
-    }
-    if (this.instructionsToggleBtn) {
-      this.instructionsToggleBtn.remove()
     }
 
     // Remove mobile elements

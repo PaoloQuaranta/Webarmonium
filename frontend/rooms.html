@@ -215,50 +215,6 @@
             pointer-events: none;
         }
 
-        /* Entry #52: Desktop toggle buttons */
-        .ui-toggle-btn {
-            position: fixed;
-            z-index: 1001;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: rgba(255, 255, 255, 0.9);
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            cursor: pointer;
-            opacity: 0.8;
-            transition: opacity 0.2s, transform 0.3s ease, background 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-        }
-
-        .ui-toggle-btn:hover {
-            opacity: 1;
-            background: rgba(0, 0, 0, 0.8);
-        }
-
-        .ui-toggle-btn:active {
-            transform: scale(0.95);
-        }
-
-        .ui-toggle-controls {
-            top: 10px;
-            right: 10px;
-        }
-
-        .ui-toggle-controls.expanded {
-            transform: rotate(180deg);
-        }
-
-        .ui-toggle-instructions {
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-
         /* Entry #52: Mobile hidden class */
         .mobile-hidden {
             display: none !important;
@@ -334,11 +290,6 @@
                 -webkit-user-select: none;
                 user-select: none;
                 -webkit-touch-callout: none;
-            }
-
-            /* Entry #52: Hide desktop toggle buttons on mobile */
-            .ui-toggle-btn {
-                display: none;
             }
 
             /* Entry #52: Mobile menu button */
@@ -501,6 +452,49 @@
                 width: 100%;
                 min-height: 48px;
             }
+
+            /* Mobile volume slider */
+            .mobile-volume-control {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 8px 0;
+            }
+
+            .mobile-volume-label {
+                color: #aaa;
+                font-size: 14px;
+                min-width: 60px;
+            }
+
+            .mobile-volume-slider {
+                flex: 1;
+                height: 6px;
+                -webkit-appearance: none;
+                appearance: none;
+                background: rgba(255, 255, 255, 0.2);
+                border-radius: 3px;
+                outline: none;
+            }
+
+            .mobile-volume-slider::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 24px;
+                height: 24px;
+                background: #00d4ff;
+                border-radius: 50%;
+                cursor: pointer;
+            }
+
+            .mobile-volume-slider::-moz-range-thumb {
+                width: 24px;
+                height: 24px;
+                background: #00d4ff;
+                border-radius: 50%;
+                cursor: pointer;
+                border: none;
+            }
         }
 
         /* Accelerometer calibration button (mobile only) */
@@ -642,7 +636,7 @@
     <script src="src/services/SocketService.js?v=11"></script> <!-- DEBUG: Added slot lookup logging -->
     <!-- Sprint 2 refactoring: Extracted components -->
     <script src="src/services/CanvasManager.js?v=1"></script>
-    <script src="src/services/UIManager.js?v=4"></script> <!-- Entry #52: Mobile bottom sheet -->
+    <script src="src/services/UIManager.js?v=5"></script> <!-- Entry #52: Mobile menu + desktop hover -->
     <script src="src/services/VolumeController.js?v=1"></script>
     <!-- Enhanced generative graphics system -->
     <script src="src/services/visual/VisualConstants.js?v=9"></script>
