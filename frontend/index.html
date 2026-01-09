@@ -58,14 +58,16 @@
   <main>
     <!-- Controls Bar -->
     <section id="controls-bar">
-      <button id="btn-toggle" class="primary-btn">▶ Start</button>
-
-      <div class="slider-group">
-        <label for="volume">Volume</label>
-        <input type="range" id="volume" min="0" max="100" value="70">
+      <!-- Left: Start + Volume -->
+      <div class="controls-left">
+        <button id="btn-toggle" class="primary-btn">▶ Start</button>
+        <div class="slider-group">
+          <label for="volume">Volume</label>
+          <input type="range" id="volume" min="0" max="100" value="70">
+        </div>
       </div>
 
-      <!-- Metrics Dashboard (inline, smaller) -->
+      <!-- Center: Metrics Dashboard -->
       <div id="metrics-dashboard">
         <div class="metric-card" id="wikipedia-metric" data-source="wikipedia">
           <h3 class="source-title" style="color: #e41a1c;">Wikipedia</h3>
@@ -144,6 +146,7 @@
         </div>
       </div>
 
+      <!-- Right: Join + User Count -->
       <div class="join-section">
         <a href="rooms.html" class="room-link">Join a Room</a>
         <span id="rooms-activity" class="rooms-activity"></span>
