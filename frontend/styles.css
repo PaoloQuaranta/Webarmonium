@@ -127,7 +127,7 @@ header p {
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border-color);
   transition: border-color 0.2s ease, box-shadow 0.3s ease;
-  width: 140px;
+  width: 170px;
   flex-shrink: 0;
 }
 
