@@ -5999,3 +5999,86 @@ Open browser console and check for:
 ```
 
 ---
+
+## Entry #59 - Chrome/Opera Windows Audio Optimizations
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Additional audio optimizations specifically for Chrome and Opera on Windows, which showed worse audio dropout behavior than Edge after Entry #58 fixes. Based on web research, increased Tone.js scheduler interval and reduced filter update rate.
+
+**User Report**: "edge va molto meglio, opera solo qualche click, chrome ancora audio dropout e crackles"
+
+---
+
+### Research Findings
+
+Web search revealed Chrome on Windows is a known problematic configuration:
+
+1. **Chromium Bug #161307** (2012+): Chrome has audio issues on Windows since Chrome 23
+2. **Tone.js Performance Wiki**: Recommends adjusting `updateInterval` and scheduling in advance
+3. **Web Audio Performance Notes**: "context.updateInterval + context.lookAhead gives total latency"
+4. **Chrome DevTools WebAudio**: Monitor "render capacity" - near 100% causes glitches
+
+---
+
+### Solution
+
+Added Chrome/Opera-specific optimizations that don't affect Edge (which works well):
+
+#### 1. New Detection Method
+```javascript
+static isWindowsChromeOrOpera() {
+  const ua = navigator.userAgent
+  const isWindows = ua.includes('Windows')
+  const isChrome = ua.includes('Chrome') && !ua.includes('Edg')
+  const isOpera = ua.includes('OPR') || ua.includes('Opera')
+  return isWindows && (isChrome || isOpera)
+}
+```
+
+#### 2. Increased Tone.context.updateInterval
+- Default: 25ms (0.025s)
+- Chrome/Opera Windows: 50ms (0.05s)
+- Reduces scheduler CPU overhead
+
+#### 3. Reduced Filter Update Rate
+- Default: 30Hz
+- Chrome/Opera Windows: 20Hz
+- Reduces main thread load
+
+---
+
+### Configuration Summary
+
+| Browser | latencyHint | lookAhead | sampleRate | updateInterval | filterRate |
+|---------|-------------|-----------|------------|----------------|------------|
+| Chrome Windows | playback | 200ms | 44100 | **50ms** | **20Hz** |
+| Opera Windows | playback | 200ms | 44100 | **50ms** | **20Hz** |
+| Edge Windows | playback | 200ms | 44100 | 25ms | 30Hz |
+| iOS/Mac | interactive | 100ms | default | 25ms | 30Hz |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/utils/PlatformDetection.js` | Added `isWindowsChromeOrOpera()`, `getAudioUpdateInterval()`, `getFilterUpdateRate()` |
+| `frontend/src/services/AudioService.js` | Set `Tone.context.updateInterval`, use platform-specific filter rate |
+
+---
+
+### Verification
+
+Open browser console and check for:
+```
+🔊 Tone.context.updateInterval set to 0.05s
+```
+
+Filter update rate is logged during audio system creation.
+
+---

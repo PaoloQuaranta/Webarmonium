@@ -248,12 +248,18 @@ class AudioService {
    * Initialize the three-tier audio architecture
    */
   initializeThreeTierAudio() {
+    // PERF: Entry #59 - Use platform-specific filter update rate
+    // Chrome on Windows benefits from lower update rate (20Hz vs 30Hz)
+    const filterUpdateHz = typeof PlatformDetection !== 'undefined'
+      ? PlatformDetection.getFilterUpdateRate()
+      : 30
+
     // Continuous filter update system properties
     this.continuousFilterUpdate = {
       isActive: false,
       updateInterval: null,
       lastUpdate: 0,
-      updateRate: 1000 / 30 // 30Hz - much more stable for audio filters
+      updateRate: 1000 / filterUpdateHz // Platform-specific Hz for audio filters
     }
 
     // Performance tracking
@@ -508,6 +514,18 @@ class AudioService {
         if (Tone.context.lookAhead < targetLookAhead) {
           Tone.context.lookAhead = targetLookAhead
           console.log(`🔊 Tone.context.lookAhead set to ${targetLookAhead}s`)
+        }
+
+        // PERF: Entry #59: Use platform-specific updateInterval for Chrome Windows
+        // Default is 0.025s (25ms). Higher values reduce scheduler CPU overhead
+        // but increase latency. Chrome on Windows benefits from 50ms.
+        const targetUpdateInterval = typeof PlatformDetection !== 'undefined'
+          ? PlatformDetection.getAudioUpdateInterval()
+          : 0.025
+
+        if (Tone.context.updateInterval !== targetUpdateInterval) {
+          Tone.context.updateInterval = targetUpdateInterval
+          console.log(`🔊 Tone.context.updateInterval set to ${targetUpdateInterval}s`)
         }
 
         // CRITICAL: Start Transport for scheduled events (only if context is running)
@@ -3925,10 +3943,14 @@ class AudioService {
       Tone.Transport.start()
     }
 
-    // REAL-TIME FIX: Use Transport.scheduleRepeat at 30Hz (sufficient for audio params)
+    // REAL-TIME FIX: Use Transport.scheduleRepeat (sufficient for audio params)
     // rAF runs at display refresh rate and competes with rendering workloads
     // Transport scheduling is on the audio thread and immune to main thread congestion
-    const updateInterval = 1 / 30 // 30Hz is sufficient for smooth audio parameter updates
+    // PERF: Entry #59 - Use platform-specific rate (20Hz for Chrome Windows, 30Hz default)
+    const filterUpdateHz = typeof PlatformDetection !== 'undefined'
+      ? PlatformDetection.getFilterUpdateRate()
+      : 30
+    const updateInterval = 1 / filterUpdateHz
 
     this.parameterUpdateEventId = Tone.Transport.scheduleRepeat(() => {
       if (!this.updateLoopActive) return

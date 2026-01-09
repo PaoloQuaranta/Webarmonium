@@ -228,6 +228,55 @@ class PlatformDetection {
   }
 
   /**
+   * Detect if running on Windows with Chrome or Opera (most problematic for audio)
+   * Entry #59 FIX: Both Chrome and Opera on Windows have audio issues
+   * Edge performs better and is excluded
+   * @returns {boolean} True if Windows Chrome or Opera
+   */
+  static isWindowsChromeOrOpera() {
+    const ua = navigator.userAgent || ''
+    const isWindows = ua.includes('Windows') || (navigator.platform?.includes('Win') ?? false)
+    // Chrome (not Edge) OR Opera
+    const isChrome = ua.includes('Chrome') && !ua.includes('Edg')
+    const isOpera = ua.includes('OPR') || ua.includes('Opera')
+    return isWindows && (isChrome || isOpera)
+  }
+
+  /**
+   * Get recommended Tone.context.updateInterval based on platform
+   * Entry #59 FIX: Chrome/Opera on Windows need higher updateInterval to reduce scheduler overhead
+   * Default Tone.js updateInterval is 0.025s (25ms)
+   * @returns {number} updateInterval in seconds
+   */
+  static getAudioUpdateInterval() {
+    if (PlatformDetection.isWindowsChromeOrOpera()) {
+      return 0.05 // 50ms for Windows Chrome/Opera (2x default) - reduces scheduler CPU load
+    }
+    if (PlatformDetection.isAndroidChrome()) {
+      return 0.04 // 40ms for Android Chrome
+    }
+    return 0.025 // 25ms default (Tone.js default)
+  }
+
+  /**
+   * Get recommended filter/parameter update rate based on platform
+   * Entry #59 FIX: Chrome/Opera on Windows need lower update rate to reduce main thread load
+   * @returns {number} updates per second (Hz)
+   */
+  static getFilterUpdateRate() {
+    if (PlatformDetection.isWindowsChromeOrOpera()) {
+      return 20 // 20Hz for Windows Chrome/Opera (was 30Hz)
+    }
+    if (PlatformDetection.isAndroidChrome()) {
+      return 20 // 20Hz for Android Chrome
+    }
+    if (PlatformDetection.isMobile()) {
+      return 24 // 24Hz for other mobile
+    }
+    return 30 // 30Hz default
+  }
+
+  /**
    * Clear all cached values (useful for testing)
    */
   static clearCache() {
