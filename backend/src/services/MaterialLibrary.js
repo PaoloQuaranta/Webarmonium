@@ -467,6 +467,11 @@ class MaterialLibrary {
 
     // Clear modulations history
     this.modulations = []
+
+    // Reset musical context to defaults (complete cleanup)
+    this.keyCenter = null
+    this.mode = 'ionian'
+    this.tempo = 120
   }
 }
 

@@ -31,6 +31,8 @@ const AuthHandler = {
         // Track connection for polling lifecycle control
         if (socket.services.connectionTracker) {
           socket.services.connectionTracker.onUserConnected(socket.id, landingRoomId)
+        } else {
+          console.warn('⚠️ join-landing: connectionTracker unavailable - polling lifecycle not managed')
         }
 
 // console.log(`✅ User joined landing room:`, {
@@ -189,6 +191,8 @@ const AuthHandler = {
         if (socket.services.connectionTracker) {
           socket.services.connectionTracker.onUserConnected(socket.id, roomId)
           socket.services.connectionTracker.updateActivity()
+        } else {
+          console.warn('⚠️ join-room: connectionTracker unavailable - polling lifecycle not managed')
         }
 
         // Attempt to join room (this may emit virtual-users-activated)
@@ -501,6 +505,8 @@ const AuthHandler = {
     // Track disconnection for polling lifecycle (applies to all rooms including landing)
     if (socket.services.connectionTracker) {
       socket.services.connectionTracker.onUserDisconnected(socket.id)
+    } else {
+      console.warn('⚠️ disconnect: connectionTracker unavailable - polling lifecycle not managed')
     }
 
     if (socket.userId && socket.roomId) {

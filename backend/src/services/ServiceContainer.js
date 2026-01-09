@@ -308,13 +308,36 @@ function wireServices (container, config = {}) {
       webMetricsPoller.setConnectionTracker(service)
 
       // Control polling lifecycle based on connected users
+      // CRITICAL: Added error handling and state checks to prevent race conditions
       service.setOnEmptyCallback(() => {
-        webMetricsPoller.stop()
-        landingCompositionService.stop()
+        try {
+          // Only stop if currently running (idempotent)
+          if (webMetricsPoller.isRunning) {
+            webMetricsPoller.stop()
+          }
+        } catch (error) {
+          console.error('Error stopping WebMetricsPoller:', error.message)
+        }
+
+        try {
+          // Only stop if currently running
+          if (landingCompositionService.isRunning) {
+            landingCompositionService.stop()
+          }
+        } catch (error) {
+          console.error('Error stopping LandingCompositionService:', error.message)
+        }
       })
 
       service.setOnFirstUserCallback(() => {
-        webMetricsPoller.start()
+        try {
+          // Only start if not already running (idempotent)
+          if (!webMetricsPoller.isRunning) {
+            webMetricsPoller.start()
+          }
+        } catch (error) {
+          console.error('Error starting WebMetricsPoller:', error.message)
+        }
         // landingCompositionService.start() is called in AuthHandler on join-landing
       })
     }

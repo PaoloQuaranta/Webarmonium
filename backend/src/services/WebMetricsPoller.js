@@ -186,8 +186,12 @@ class WebMetricsPoller {
     if (inactivityDuration > this.inactivityBackoff.threshold) {
       // Calculate multiplier: doubles every 30 min of inactivity
       const periods = Math.floor(inactivityDuration / this.inactivityBackoff.threshold)
+
+      // CRITICAL: Ensure periods >= 1 to prevent 2^(-1) = 0.5 edge case
+      // Formula: period 1 (30-60min) = 1x, period 2 (60-90min) = 2x, etc.
+      const safePeriods = Math.max(1, periods)
       this.inactivityBackoff.currentMultiplier = Math.min(
-        Math.pow(2, periods - 1),
+        Math.max(1, Math.pow(2, safePeriods - 1)), // Ensure multiplier >= 1
         this.inactivityBackoff.maxMultiplier
       )
     } else {
@@ -338,11 +342,22 @@ class WebMetricsPoller {
       if (!response.ok) {
         if (response.status === 403) {
           this._handleGitHubRateLimit(response)
+        } else if (response.status >= 500) {
+          // Server errors also trigger backoff (but less aggressively than rate limits)
+          this.githubBackoff.consecutiveFailures++
+          if (this.githubBackoff.consecutiveFailures >= 3) {
+            this.githubBackoff.active = true
+            this.githubBackoff.currentDelay = Math.min(
+              this.githubBackoff.currentDelay * this.githubBackoff.multiplier,
+              this.githubBackoff.maxDelay
+            )
+            console.warn(`GitHub server error (${response.status}): backing off for ${Math.round(this.githubBackoff.currentDelay / 1000)}s`)
+          }
         }
         return
       }
 
-      // Success - reset backoff
+      // Success - reset backoff (resets consecutiveFailures for both rate limit and network errors)
       this._resetGitHubBackoff()
 
       const events = await response.json()
@@ -399,12 +414,25 @@ class WebMetricsPoller {
     // Try to get precise reset time from headers
     const resetHeader = response.headers.get('X-RateLimit-Reset')
     if (resetHeader) {
-      const resetTime = parseInt(resetHeader) * 1000 // Convert to ms
-      const waitTime = resetTime - Date.now()
-      if (waitTime > 0) {
-        this.githubBackoff.currentDelay = Math.min(waitTime + 5000, this.githubBackoff.maxDelay) // +5s buffer
-        console.warn(`GitHub rate limit: waiting until reset (${Math.round(waitTime / 1000)}s)`)
-        return
+      const resetTimestamp = parseInt(resetHeader, 10)
+
+      // CRITICAL: Validate resetTimestamp to prevent integer overflow
+      // Unix timestamps should be reasonable (between 2020 and 2100)
+      const MIN_VALID_TIMESTAMP = 1577836800 // 2020-01-01
+      const MAX_VALID_TIMESTAMP = 4102444800 // 2100-01-01
+
+      if (!isNaN(resetTimestamp) && resetTimestamp >= MIN_VALID_TIMESTAMP && resetTimestamp <= MAX_VALID_TIMESTAMP) {
+        const resetTime = resetTimestamp * 1000 // Convert to ms
+        const waitTime = resetTime - Date.now()
+
+        // Only use header value if wait time is positive and reasonable (< 2 hours)
+        if (waitTime > 0 && waitTime < 7200000) {
+          this.githubBackoff.currentDelay = Math.min(waitTime + 5000, this.githubBackoff.maxDelay) // +5s buffer
+          console.warn(`GitHub rate limit: waiting until reset (${Math.round(waitTime / 1000)}s)`)
+          return
+        }
+      } else {
+        console.warn(`GitHub rate limit: invalid X-RateLimit-Reset header value: ${resetHeader}`)
       }
     }
 
