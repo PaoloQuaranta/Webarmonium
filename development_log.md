@@ -5185,3 +5185,101 @@ Implemented an auto-hide system for both the controls section (top) and instruct
 - [ ] Transitions: Smooth 300ms slide in/out
 
 ---
+
+## Entry #53 - Landing Page Layout Redesign
+
+**Date**: 2026-01-09
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Redesigned the landing page layout with compact metrics, room activity indicator, larger canvas, and terminology correction (commit → push).
+
+---
+
+### Changes Implemented
+
+#### 1. Compact Metrics Bar
+
+**Before:** Three large metric cards (Wikipedia, HackerNews, GitHub) with 4 vertical meters each, taking significant vertical space.
+
+**After:** Compact horizontal bars inline with controls:
+- Start button → Volume slider → Compact metrics → Join Room
+
+```html
+<div class="compact-metrics">
+  <div class="compact-metric" id="wikipedia-metric">
+    <span class="compact-label" style="color: #e41a1c;">Wiki</span>
+    <div class="compact-bar" data-metric="editsPerMinute">
+      <div class="compact-fill"></div>
+    </div>
+  </div>
+  <!-- ... HN and GH similar -->
+</div>
+```
+
+Each metric now shows only the primary activity indicator (edits/posts/pushes per minute) as a small horizontal bar.
+
+---
+
+#### 2. Room Activity Indicator
+
+Added "x users in y rooms" label next to "Join a Room" button:
+
+```html
+<div class="join-section">
+  <a href="rooms.html" class="room-link">Join a Room</a>
+  <span id="rooms-activity" class="rooms-activity"></span>
+</div>
+```
+
+**Backend endpoint** (`/api/rooms/stats`):
+- Returns `totalUsers` and `activeRooms` (excludes landing-room)
+- Polls every 10 seconds from DashboardUI
+
+**Frontend behavior**:
+- Shows "x users in y rooms" when there are active users
+- Hidden when no users in rooms
+- Singular/plural grammar handling
+
+---
+
+#### 3. Canvas Height Doubled (Desktop)
+
+| Device | Before | After |
+|--------|--------|-------|
+| Desktop | `clamp(300px, 50vh, 500px)` | `clamp(600px, 80vh, 1000px)` |
+| Mobile | `clamp(300px, 50vh, 500px)` | `clamp(300px, 50vh, 500px)` (unchanged) |
+
+---
+
+#### 4. Terminology: "commit" → "push"
+
+Changed all references from "commit" to "push" (GitHub terminology):
+
+| Location | Before | After |
+|----------|--------|-------|
+| GitHub metric label | `commits` | `pushes` |
+| How It Works text | "commits (every 60s)" | "pushes (every 60s)" |
+| How It Works text | "commit frequency" | "push frequency" |
+| data-metric attribute | `commitsPerMinute` | `pushesPerMinute` |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/index.html` | Restructured controls bar, compact metrics, join-section with rooms-activity span, commit→push text |
+| `frontend/styles.css` | Added `.compact-metrics`, `.compact-metric`, `.compact-bar`, `.compact-fill`, `.join-section`, `.rooms-activity` styles; updated `#canvas-container` height; responsive adjustments |
+| `frontend/src/landing/DashboardUI.js` | Simplified to single metric per source, added room activity polling with `_startRoomActivityPolling()`, `_fetchRoomActivity()`, `_updateRoomActivity()` |
+| `backend/src/server.js` | Added `/api/rooms/stats` endpoint returning totalUsers and activeRooms |
+
+---
+
+### Version
+
+Updated to v1.0.25
+
+---

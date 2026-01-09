@@ -168,6 +168,40 @@ app.get('/api/metrics', (req, res) => {
   }
 })
 
+// Global room statistics endpoint (for landing page)
+app.get('/api/rooms/stats', (req, res) => {
+  try {
+    // Count users in normal rooms only (exclude landing-room)
+    let totalUsers = 0
+    let activeRooms = 0
+
+    if (roomManager.rooms) {
+      for (const [roomId, room] of roomManager.rooms) {
+        // Exclude landing room from counts
+        if (roomId === 'landing-room') continue
+
+        const userCount = room.users?.size || 0
+        if (userCount > 0) {
+          totalUsers += userCount
+          activeRooms++
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      totalUsers,
+      activeRooms,
+      timestamp: Date.now()
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Stats unavailable'
+    })
+  }
+})
+
 // Room statistics endpoint
 app.get('/api/rooms/:id/stats', (req, res) => {
   try {

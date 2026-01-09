@@ -56,8 +56,8 @@
   </header>
 
   <main>
-    <!-- Controls (moved to top) -->
-    <section id="controls">
+    <!-- Unified Controls Bar -->
+    <section id="controls-bar">
       <button id="btn-toggle" class="primary-btn">▶ Start</button>
 
       <div class="slider-group">
@@ -65,91 +65,31 @@
         <input type="range" id="volume" min="0" max="100" value="70">
       </div>
 
-      <a href="rooms.html" class="room-link">Join a Room →</a>
+      <!-- Compact Metrics -->
+      <div class="compact-metrics">
+        <div class="compact-metric" id="wikipedia-metric" data-source="wikipedia">
+          <span class="compact-label" style="color: #e41a1c;">Wiki</span>
+          <div class="compact-bar" data-metric="editsPerMinute"><div class="compact-fill"></div></div>
+        </div>
+        <div class="compact-metric" id="hackernews-metric" data-source="hackernews">
+          <span class="compact-label" style="color: #ff7f00;">HN</span>
+          <div class="compact-bar" data-metric="postsPerMinute"><div class="compact-fill"></div></div>
+        </div>
+        <div class="compact-metric" id="github-metric" data-source="github">
+          <span class="compact-label" style="color: #377eb8;">GH</span>
+          <div class="compact-bar" data-metric="pushesPerMinute"><div class="compact-fill"></div></div>
+        </div>
+      </div>
+
+      <div class="join-section">
+        <a href="rooms.html" class="room-link">Join a Room</a>
+        <span id="rooms-activity" class="rooms-activity"></span>
+      </div>
     </section>
 
     <!-- Error/Status Messages -->
     <div id="error-message" class="message error"></div>
     <div id="status-message" class="message status"></div>
-
-    <!-- Metrics Dashboard -->
-    <section id="metrics-dashboard">
-      <div class="metric-card" id="wikipedia-metric" data-source="wikipedia">
-        <h3 class="source-title" style="color: #e41a1c;">Wikipedia</h3>
-        <div class="meters-container">
-          <div class="meter" data-metric="editsPerMinute">
-            <div class="meter-bar"><div class="meter-fill"></div></div>
-            <span class="meter-value">0</span>
-            <span class="meter-label">edits</span>
-          </div>
-          <div class="meter" data-metric="velocity">
-            <div class="meter-bar"><div class="meter-fill"></div></div>
-            <span class="meter-value">0</span>
-            <span class="meter-label">velocity</span>
-          </div>
-          <div class="meter" data-metric="avgEditSize">
-            <div class="meter-bar"><div class="meter-fill"></div></div>
-            <span class="meter-value">0</span>
-            <span class="meter-label">size</span>
-          </div>
-          <div class="meter" data-metric="newArticles">
-            <div class="meter-bar"><div class="meter-fill"></div></div>
-            <span class="meter-value">0</span>
-            <span class="meter-label">new</span>
-          </div>
-        </div>
-      </div>
-      <div class="metric-card" id="hackernews-metric" data-source="hackernews">
-        <h3 class="source-title" style="color: #ff7f00;">HackerNews</h3>
-        <div class="meters-container">
-          <div class="meter" data-metric="postsPerMinute">
-            <div class="meter-bar"><div class="meter-fill"></div></div>
-            <span class="meter-value">0</span>
-            <span class="meter-label">posts</span>
-          </div>
-          <div class="meter" data-metric="velocity">
-            <div class="meter-bar"><div class="meter-fill"></div></div>
-            <span class="meter-value">0</span>
-            <span class="meter-label">velocity</span>
-          </div>
-          <div class="meter" data-metric="avgUpvotes">
-            <div class="meter-bar"><div class="meter-fill"></div></div>
-            <span class="meter-value">0</span>
-            <span class="meter-label">upvotes</span>
-          </div>
-          <div class="meter" data-metric="commentCount">
-            <div class="meter-bar"><div class="meter-fill"></div></div>
-            <span class="meter-value">0</span>
-            <span class="meter-label">comments</span>
-          </div>
-        </div>
-      </div>
-      <div class="metric-card" id="github-metric" data-source="github">
-        <h3 class="source-title" style="color: #377eb8;">GitHub</h3>
-        <div class="meters-container">
-          <div class="meter" data-metric="commitsPerMinute">
-            <div class="meter-bar"><div class="meter-fill"></div></div>
-            <span class="meter-value">0</span>
-            <span class="meter-label">commits</span>
-          </div>
-          <div class="meter" data-metric="velocity">
-            <div class="meter-bar"><div class="meter-fill"></div></div>
-            <span class="meter-value">0</span>
-            <span class="meter-label">velocity</span>
-          </div>
-          <div class="meter" data-metric="createsPerMinute">
-            <div class="meter-bar"><div class="meter-fill"></div></div>
-            <span class="meter-value">0</span>
-            <span class="meter-label">creates</span>
-          </div>
-          <div class="meter" data-metric="deletesPerMinute">
-            <div class="meter-bar"><div class="meter-fill"></div></div>
-            <span class="meter-value">0</span>
-            <span class="meter-label">deletes</span>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- Canvas Container -->
     <section id="canvas-container">
@@ -163,14 +103,14 @@
         Webarmonium transforms real-time web activity into generative music and visuals through a direct correlation system.
         Three data sources are polled continuously: <strong style="color: #e41a1c;">Wikipedia</strong> edits (every 5s),
         <strong style="color: #ff7f00;">HackerNews</strong> posts (every 10s), and <strong style="color: #377eb8;">GitHub</strong>
-        commits (every 60s). Each source feeds metrics into a <em>dynamic normalization</em> engine that tracks historical
+        pushes (every 60s). Each source feeds metrics into a <em>dynamic normalization</em> engine that tracks historical
         min/max values rather than using fixed thresholds&mdash;this ensures maximum musical variety as the system adapts
         to actual data patterns over time.
       </p>
 
       <p class="explainer-detail">
         <strong>Monitored parameters</strong> include: edit rate, velocity (rate of change), edit size, new article count,
-        post frequency, upvote averages, comment counts, commit frequency, repository creates, and deletes. These metrics
+        post frequency, upvote averages, comment counts, push frequency, repository creates, and deletes. These metrics
         generate <em>virtual gestures</em> that feed into the same composition engine used in collaborative rooms, employing
         six generative algorithms (cellular automata, fractals, Markov chains, neural patterns, Fibonacci sequences, and
         chaos theory). The <em>velocity</em> of each metric&mdash;how quickly it changes&mdash;determines gesture intensity:
@@ -194,7 +134,7 @@
     <footer>
       <p>Powered by <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia API</a>, <a href="https://news.ycombinator.com" target="_blank" rel="noopener">HackerNews API</a>, and <a href="https://github.com" target="_blank" rel="noopener">GitHub API</a></p>
       <p class="footer-note">Data updates every 5-60 seconds depending on source. Rate limits are respected.</p>
-      <p class="version-tag">v1.0.24</p>
+      <p class="version-tag">v1.0.25</p>
     </footer>
   </main>
 
