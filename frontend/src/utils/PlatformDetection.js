@@ -11,6 +11,7 @@ class PlatformDetection {
   static _androidCache = null
   static _iosCache = null
   static _androidVersionCache = null
+  static _windowsBrowserCache = null
 
   /**
    * Detect if running on Windows Chrome
@@ -36,6 +37,32 @@ class PlatformDetection {
     }
 
     return PlatformDetection._cache
+  }
+
+  /**
+   * Detect if running on Windows with ANY Chromium-based browser (Chrome, Edge, Opera, Brave)
+   * Entry #56 FIX: Windows audio drivers (WASAPI) have high baseline latency across all browsers
+   * Edge was previously excluded, causing audio dropouts for Edge users
+   * @returns {boolean} True if running on Windows with a Chromium-based browser
+   */
+  static isWindowsBrowser() {
+    if (PlatformDetection._windowsBrowserCache !== null) {
+      return PlatformDetection._windowsBrowserCache
+    }
+
+    try {
+      const ua = navigator.userAgent || ''
+      const isWindows = ua.includes('Windows') || (navigator.platform?.includes('Win') ?? false)
+      // Include all Chromium-based browsers: Chrome, Edge (Edg), Opera (OPR), Brave, etc.
+      // Note: All Chromium browsers include 'Chrome' in UA, Edge adds 'Edg', Opera adds 'OPR'
+      const isChromiumBased = ua.includes('Chrome') || ua.includes('Edg')
+      PlatformDetection._windowsBrowserCache = isWindows && isChromiumBased
+    } catch (e) {
+      console.warn('PlatformDetection: Unable to detect Windows browser, defaulting to false')
+      PlatformDetection._windowsBrowserCache = false
+    }
+
+    return PlatformDetection._windowsBrowserCache
   }
 
   /**
@@ -166,14 +193,15 @@ class PlatformDetection {
 
   /**
    * Get recommended audio latency hint based on platform
+   * Entry #56 FIX: Use isWindowsBrowser() to cover Edge and other Chromium browsers
    * @returns {string} 'playback' | 'balanced' | 'interactive'
    */
   static getAudioLatencyHint() {
     if (PlatformDetection.isAndroidChrome()) {
       return 'playback' // Most conservative for Android Chrome
     }
-    if (PlatformDetection.isWindowsChrome()) {
-      return 'playback' // Already implemented
+    if (PlatformDetection.isWindowsBrowser()) {
+      return 'playback' // Entry #56: All Windows Chromium browsers need larger buffers
     }
     if (PlatformDetection.isMobile()) {
       return 'balanced' // Reasonable for other mobile
@@ -183,14 +211,15 @@ class PlatformDetection {
 
   /**
    * Get recommended Tone.js lookAhead based on platform
+   * Entry #56 FIX: Increased Windows lookAhead to match Android (0.2s)
    * @returns {number} lookAhead in seconds
    */
   static getAudioLookAhead() {
     if (PlatformDetection.isAndroidChrome()) {
       return 0.2 // 200ms for Android Chrome
     }
-    if (PlatformDetection.isWindowsChrome()) {
-      return 0.15 // 150ms already set
+    if (PlatformDetection.isWindowsBrowser()) {
+      return 0.2 // Entry #56: 200ms for Windows (was 150ms, now matches Android)
     }
     if (PlatformDetection.isMobile()) {
       return 0.12 // 120ms for other mobile
@@ -207,6 +236,7 @@ class PlatformDetection {
     PlatformDetection._androidCache = null
     PlatformDetection._iosCache = null
     PlatformDetection._androidVersionCache = null
+    PlatformDetection._windowsBrowserCache = null
   }
 }
 

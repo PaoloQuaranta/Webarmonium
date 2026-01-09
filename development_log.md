@@ -5890,3 +5890,112 @@ socket.emit('room-joined', {
 Updated to v1.0.30
 
 ---
+
+## Entry #58 - Windows Audio Dropout Fix (All Browsers)
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed audio dropouts and crackles on Windows that affected both Chrome and Edge browsers. The root cause was that Edge was explicitly excluded from audio optimizations, and Windows browsers had insufficient buffer settings compared to Android.
+
+**User Report**: "abbiamo ancora audio dropout e crackles in chrome su windows... ho testato anche con edge su win e abbiamo lo stesso problema audio. il problema non esiste su ipad e iphone"
+
+---
+
+### Root Cause Analysis
+
+#### Issue 1: Edge Browser Explicitly Excluded
+
+In `PlatformDetection.isWindowsChrome()`:
+```javascript
+const isChrome = ua.includes('Chrome') && !ua.includes('Edg') && !ua.includes('OPR')
+```
+
+Edge was explicitly excluded from Windows Chrome detection, so Edge users got `latencyHint: 'balanced'` (fallback) instead of `latencyHint: 'playback'`.
+
+#### Issue 2: Windows lookAhead Lower Than Android
+
+| Platform | lookAhead |
+|----------|-----------|
+| Android Chrome | 200ms |
+| Windows Chrome | 150ms |
+
+Windows has notoriously problematic audio drivers (WASAPI), yet got a **smaller** buffer than Android.
+
+#### Issue 3: Sample Rate Not Reduced for Windows
+
+Only Android Chrome got sample rate reduction (44100Hz). Windows ran at the default 48000Hz, meaning more CPU processing work.
+
+---
+
+### Solution
+
+#### 1. New `isWindowsBrowser()` Method
+
+Detects ANY Chromium-based browser on Windows (Chrome, Edge, Opera, Brave):
+
+```javascript
+static isWindowsBrowser() {
+  const ua = navigator.userAgent || ''
+  const isWindows = ua.includes('Windows') || (navigator.platform?.includes('Win') ?? false)
+  const isChromiumBased = ua.includes('Chrome') || ua.includes('Edg')
+  return isWindows && isChromiumBased
+}
+```
+
+#### 2. Updated `getAudioLatencyHint()`
+
+Changed from `isWindowsChrome()` to `isWindowsBrowser()` so Edge and other browsers get `'playback'` mode.
+
+#### 3. Increased Windows lookAhead to Match Android
+
+Changed from 150ms to 200ms:
+```javascript
+if (PlatformDetection.isWindowsBrowser()) {
+  return 0.2 // Entry #58: 200ms (was 150ms, now matches Android)
+}
+```
+
+#### 4. Added Sample Rate Reduction for Windows
+
+```javascript
+const isWindowsBrowser = typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsBrowser()
+
+if (isAndroidChrome || isWindowsBrowser) {
+  contextOptions.sampleRate = 44100
+}
+```
+
+---
+
+### Configuration Comparison
+
+| Setting | Windows Chrome (Before) | Windows Edge (Before) | All Windows (After) |
+|---------|------------------------|----------------------|---------------------|
+| latencyHint | 'playback' | 'balanced' (fallback) | 'playback' |
+| lookAhead | 150ms | 100ms (fallback) | 200ms |
+| sampleRate | 48000 (default) | 48000 (default) | 44100 |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/utils/PlatformDetection.js` | Added `isWindowsBrowser()` method, updated `getAudioLatencyHint()` and `getAudioLookAhead()` to use it, added `_windowsBrowserCache` |
+| `frontend/src/services/AudioService.js` | Updated `_configureAudioContext()` to apply 44100Hz sample rate for Windows browsers |
+
+---
+
+### Verification
+
+Open browser console and check for:
+```
+🔊 AudioContext configured: latencyHint=playback, sampleRate=44100, isWindowsBrowser=true, isAndroidChrome=false
+🔊 Tone.context.lookAhead set to 0.2s
+```
+
+---

@@ -354,8 +354,12 @@ class AudioService {
         latencyHint: latencyHint
       }
 
-      // Entry #48: Android Chrome benefits from lower sample rate to reduce processing load
-      if (isAndroidChrome) {
+      // Entry #56 FIX: Detect Windows browser for sample rate reduction
+      const isWindowsBrowser = typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsBrowser()
+
+      // Entry #48/#56: Android Chrome and Windows browsers benefit from lower sample rate
+      // Reduces CPU processing load and helps prevent audio dropouts
+      if (isAndroidChrome || isWindowsBrowser) {
         contextOptions.sampleRate = 44100
       }
 
@@ -363,7 +367,7 @@ class AudioService {
       if (window.Tone && Tone.context.state === 'suspended') {
         const customContext = new AudioContext(contextOptions)
         Tone.setContext(customContext)
-        console.log(`🔊 AudioContext configured: latencyHint=${latencyHint}, sampleRate=${customContext.sampleRate}, isAndroidChrome=${isAndroidChrome}`)
+        console.log(`🔊 AudioContext configured: latencyHint=${latencyHint}, sampleRate=${customContext.sampleRate}, isWindowsBrowser=${isWindowsBrowser}, isAndroidChrome=${isAndroidChrome}`)
       }
     } catch (error) {
       console.warn('⚠️ Failed to configure AudioContext:', error.message)
