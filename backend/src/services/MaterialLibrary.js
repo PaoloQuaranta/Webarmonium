@@ -440,6 +440,34 @@ class MaterialLibrary {
       modulations: this.modulations.length
     }
   }
+
+  /**
+   * Clear all materials from the library
+   * Used for memory cleanup when service stops
+   */
+  clearAllMaterials() {
+    // Clear all harmonic function arrays
+    this.materials = {
+      tonic: [],
+      dominant: [],
+      subdominant: [],
+      chromatic: []
+    }
+
+    // Clear all character arrays
+    this.byCharacter = {
+      melodic: [],
+      harmonic: [],
+      rhythmic: [],
+      textural: []
+    }
+
+    // Clear lifecycle tracking
+    this.lifetimes.clear()
+
+    // Clear modulations history
+    this.modulations = []
+  }
 }
 
 module.exports = MaterialLibrary

@@ -69,6 +69,34 @@ class WebMetricsPoller {
 
     // Event callbacks
     this.onMetricsUpdate = null
+
+    // ConnectionTracker reference for inactivity detection
+    this.connectionTracker = null
+
+    // GitHub rate limit backoff
+    this.githubBackoff = {
+      active: false,
+      currentDelay: 60000,    // Start at normal (60s)
+      maxDelay: 3600000,      // Max 1 hour between attempts
+      multiplier: 2,
+      lastAttempt: 0,
+      consecutiveFailures: 0
+    }
+
+    // Inactivity backoff (after 30 min of no user activity)
+    this.inactivityBackoff = {
+      threshold: 30 * 60 * 1000,  // 30 minutes
+      currentMultiplier: 1,
+      maxMultiplier: 12           // Wikipedia 5s->60s, GitHub 60s->720s
+    }
+  }
+
+  /**
+   * Set ConnectionTracker for inactivity detection
+   * @param {ConnectionTracker} tracker - ConnectionTracker instance
+   */
+  setConnectionTracker (tracker) {
+    this.connectionTracker = tracker
   }
 
   /**
@@ -115,24 +143,68 @@ class WebMetricsPoller {
 
     const now = Date.now()
 
-    // Poll each source if its interval has elapsed
-    if (now - this.sources.wikipedia.lastFetch >= this.sources.wikipedia.interval) {
+    // Calculate inactivity backoff multiplier
+    this._updateInactivityMultiplier(now)
+    const multiplier = this.inactivityBackoff.currentMultiplier
+
+    // Poll each source if its adjusted interval has elapsed
+    if (now - this.sources.wikipedia.lastFetch >= this.sources.wikipedia.interval * multiplier) {
       await this._fetchWikipedia()
       this.sources.wikipedia.lastFetch = now
     }
 
-    if (now - this.sources.hackernews.lastFetch >= this.sources.hackernews.interval) {
+    if (now - this.sources.hackernews.lastFetch >= this.sources.hackernews.interval * multiplier) {
       await this._fetchHackerNews()
       this.sources.hackernews.lastFetch = now
     }
 
-    if (now - this.sources.github.lastFetch >= this.sources.github.interval) {
+    // GitHub uses its own backoff logic (rate limit aware)
+    const githubInterval = this._getGitHubInterval() * multiplier
+    if (now - this.sources.github.lastFetch >= githubInterval) {
       await this._fetchGitHub()
       this.sources.github.lastFetch = now
     }
 
     // Emit metrics update
     this._emitMetricsUpdate()
+  }
+
+  /**
+   * Update inactivity backoff multiplier based on user activity
+   * @param {number} now - Current timestamp
+   * @private
+   */
+  _updateInactivityMultiplier(now) {
+    if (!this.connectionTracker) {
+      this.inactivityBackoff.currentMultiplier = 1
+      return
+    }
+
+    const lastActivity = this.connectionTracker.getLastActivityTime()
+    const inactivityDuration = now - lastActivity
+
+    if (inactivityDuration > this.inactivityBackoff.threshold) {
+      // Calculate multiplier: doubles every 30 min of inactivity
+      const periods = Math.floor(inactivityDuration / this.inactivityBackoff.threshold)
+      this.inactivityBackoff.currentMultiplier = Math.min(
+        Math.pow(2, periods - 1),
+        this.inactivityBackoff.maxMultiplier
+      )
+    } else {
+      this.inactivityBackoff.currentMultiplier = 1
+    }
+  }
+
+  /**
+   * Get GitHub polling interval (rate limit aware)
+   * @returns {number} Interval in milliseconds
+   * @private
+   */
+  _getGitHubInterval() {
+    if (this.githubBackoff.active) {
+      return this.githubBackoff.currentDelay
+    }
+    return this.sources.github.interval
   }
 
   /**
@@ -253,6 +325,8 @@ class WebMetricsPoller {
    * @private
    */
   async _fetchGitHub() {
+    this.githubBackoff.lastAttempt = Date.now()
+
     try {
       const response = await fetch(this.sources.github.url, {
         headers: {
@@ -263,11 +337,13 @@ class WebMetricsPoller {
 
       if (!response.ok) {
         if (response.status === 403) {
-          // Rate limited
-          console.warn('GitHub API rate limit reached')
+          this._handleGitHubRateLimit(response)
         }
         return
       }
+
+      // Success - reset backoff
+      this._resetGitHubBackoff()
 
       const events = await response.json()
       const now = Date.now()
@@ -299,7 +375,55 @@ class WebMetricsPoller {
       }
     } catch (error) {
       console.warn('GitHub fetch error:', error.message)
+      // Network errors also trigger backoff
+      this.githubBackoff.consecutiveFailures++
+      if (this.githubBackoff.consecutiveFailures >= 3) {
+        this.githubBackoff.active = true
+        this.githubBackoff.currentDelay = Math.min(
+          this.githubBackoff.currentDelay * this.githubBackoff.multiplier,
+          this.githubBackoff.maxDelay
+        )
+      }
     }
+  }
+
+  /**
+   * Handle GitHub rate limit response
+   * @param {Response} response - Fetch response
+   * @private
+   */
+  _handleGitHubRateLimit(response) {
+    this.githubBackoff.active = true
+    this.githubBackoff.consecutiveFailures++
+
+    // Try to get precise reset time from headers
+    const resetHeader = response.headers.get('X-RateLimit-Reset')
+    if (resetHeader) {
+      const resetTime = parseInt(resetHeader) * 1000 // Convert to ms
+      const waitTime = resetTime - Date.now()
+      if (waitTime > 0) {
+        this.githubBackoff.currentDelay = Math.min(waitTime + 5000, this.githubBackoff.maxDelay) // +5s buffer
+        console.warn(`GitHub rate limit: waiting until reset (${Math.round(waitTime / 1000)}s)`)
+        return
+      }
+    }
+
+    // Exponential backoff fallback
+    this.githubBackoff.currentDelay = Math.min(
+      this.githubBackoff.currentDelay * this.githubBackoff.multiplier,
+      this.githubBackoff.maxDelay
+    )
+    console.warn(`GitHub rate limit: backing off for ${Math.round(this.githubBackoff.currentDelay / 1000)}s`)
+  }
+
+  /**
+   * Reset GitHub backoff after successful request
+   * @private
+   */
+  _resetGitHubBackoff() {
+    this.githubBackoff.active = false
+    this.githubBackoff.currentDelay = this.sources.github.interval
+    this.githubBackoff.consecutiveFailures = 0
   }
 
   /**

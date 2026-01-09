@@ -216,6 +216,12 @@ function createServiceContainer (config = {}) {
     return new VirtualUserService()
   })
 
+  // Connection tracker for polling lifecycle control
+  container.register('connectionTracker', () => {
+    const ConnectionTracker = require('./ConnectionTracker')
+    return new ConnectionTracker()
+  })
+
   return container
 }
 
@@ -258,8 +264,8 @@ function wireServices (container, config = {}) {
         service.updateMetrics(metrics)
       }
 
-      // Start WebMetricsPoller
-      webMetricsPoller.start()
+      // NOTE: WebMetricsPoller is NOT started here anymore
+      // ConnectionTracker controls polling lifecycle based on connected users
     },
     virtualUserService: (service, c) => {
       // Link WebMetricsPoller for activity tracking and metrics
@@ -288,6 +294,29 @@ function wireServices (container, config = {}) {
       if (config.io) {
         service.setSocketIO(config.io)
       }
+    },
+    connectionTracker: (service, c) => {
+      const webMetricsPoller = c.get('webMetricsPoller')
+      const landingCompositionService = c.get('landingCompositionService')
+
+      // Set Socket.IO for room counting
+      if (config.io) {
+        service.setIO(config.io)
+      }
+
+      // Link to WebMetricsPoller for inactivity tracking
+      webMetricsPoller.setConnectionTracker(service)
+
+      // Control polling lifecycle based on connected users
+      service.setOnEmptyCallback(() => {
+        webMetricsPoller.stop()
+        landingCompositionService.stop()
+      })
+
+      service.setOnFirstUserCallback(() => {
+        webMetricsPoller.start()
+        // landingCompositionService.start() is called in AuthHandler on join-landing
+      })
     }
   })
 

@@ -28,6 +28,11 @@ const AuthHandler = {
         socket.roomId = landingRoomId
         socket.join(landingRoomId)
 
+        // Track connection for polling lifecycle control
+        if (socket.services.connectionTracker) {
+          socket.services.connectionTracker.onUserConnected(socket.id, landingRoomId)
+        }
+
 // console.log(`✅ User joined landing room:`, {
 //          userId: socket.userId,
 //          socketId: socket.id,
@@ -179,6 +184,12 @@ const AuthHandler = {
         // This ensures the socket receives virtual-users-activated event
         socket.roomId = roomId
         socket.join(roomId)
+
+        // Track connection for polling lifecycle control
+        if (socket.services.connectionTracker) {
+          socket.services.connectionTracker.onUserConnected(socket.id, roomId)
+          socket.services.connectionTracker.updateActivity()
+        }
 
         // Attempt to join room (this may emit virtual-users-activated)
         const result = await socket.services.roomManager.joinRoom(
@@ -487,6 +498,11 @@ const AuthHandler = {
    * @param {RoomManager} roomManager - Room manager service
    */
   async handleDisconnection (socket, roomManager) {
+    // Track disconnection for polling lifecycle (applies to all rooms including landing)
+    if (socket.services.connectionTracker) {
+      socket.services.connectionTracker.onUserDisconnected(socket.id)
+    }
+
     if (socket.userId && socket.roomId) {
       // Skip room manager for landing-room (not managed by RoomManager)
       const isLandingRoom = socket.roomId === 'landing-room'

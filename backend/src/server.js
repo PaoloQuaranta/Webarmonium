@@ -27,6 +27,10 @@ const limiter = rateLimit({
 const app = express()
 const server = http.createServer(app)
 
+// Trust proxy for rate limiter (behind nginx/cloudflare)
+// Fixes ERR_ERL_UNEXPECTED_X_FORWARDED_FOR error
+app.set('trust proxy', 1)
+
 // Socket.IO configuration
 const io = socketIo(server, {
   cors: {

@@ -4539,3 +4539,167 @@ if (node.userId) {
 - No more duplicate large crosshair cursors
 
 ---
+
+## Entry #49 - Backend Resilience: Connection-Aware Polling & Rate Limit Handling
+
+**Date**: 2026-01-09
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed production server crashes caused by OOM (Out of Memory) kills. Implemented connection-aware polling that stops when no users are connected, exponential backoff for GitHub rate limits, and inactivity-based polling interval adjustment.
+
+---
+
+### Problem Statement
+
+Production backend server was crashing overnight with "Killed" messages (OOM Killer). Log analysis revealed:
+
+1. **WebMetricsPoller running 24/7** - Polling Wikipedia (5s), HackerNews (10s), GitHub (60s) even with 0 connected clients
+2. **GitHub API rate limit exhausted** - 60 requests/hour limit reached constantly, no backoff implemented
+3. **Memory accumulation** - `virtualGestureHistory` and other structures growing unbounded
+4. **Trust proxy error** - `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` from express-rate-limit
+
+**User Report**: "durante la notte il server backend di produzione ha crashato... problemi di rate limit delle sorgenti"
+
+---
+
+### Solution Architecture
+
+Created `ConnectionTracker` service as central orchestrator for polling lifecycle:
+
+```
+User connects → ConnectionTracker.onUserConnected()
+                → if first user: WebMetricsPoller.start()
+
+User disconnects → ConnectionTracker.onUserDisconnected()
+                  → if last user: WebMetricsPoller.stop(), LandingCompositionService.stop()
+```
+
+---
+
+### Implementation Details
+
+#### 1. New Service: ConnectionTracker.js
+
+Tracks all socket connections across landing room and regular rooms:
+
+| Method | Purpose |
+|--------|---------|
+| `onUserConnected(socketId, roomId)` | Track new connection, trigger `onFirstUserCallback` if was empty |
+| `onUserDisconnected(socketId)` | Remove tracking, trigger `onEmptyCallback` if now empty |
+| `updateActivity()` | Update last activity timestamp (for inactivity backoff) |
+| `getLastActivityTime()` | Get timestamp for inactivity calculation |
+| `setOnEmptyCallback(fn)` | Set callback when 0→users |
+| `setOnFirstUserCallback(fn)` | Set callback when users→1 |
+
+#### 2. WebMetricsPoller Modifications
+
+**GitHub Rate Limit Backoff:**
+```javascript
+this.githubBackoff = {
+  active: false,
+  currentDelay: 60000,    // Normal interval
+  maxDelay: 3600000,      // Max 1 hour
+  multiplier: 2,
+  consecutiveFailures: 0
+}
+
+// Uses X-RateLimit-Reset header when available
+// Falls back to exponential backoff (2x each failure)
+```
+
+**Inactivity Backoff (after 30 min):**
+```javascript
+this.inactivityBackoff = {
+  threshold: 30 * 60 * 1000,  // 30 minutes
+  currentMultiplier: 1,
+  maxMultiplier: 12           // Wikipedia 5s→60s, GitHub 60s→720s
+}
+
+// Multiplier doubles every 30 min of inactivity
+// Resets to 1x when activity detected
+```
+
+#### 3. ServiceContainer Wiring
+
+- Removed unconditional `webMetricsPoller.start()` from startup
+- Added ConnectionTracker wiring with lifecycle callbacks:
+  - `onEmpty` → stop WebMetricsPoller and LandingCompositionService
+  - `onFirstUser` → start WebMetricsPoller
+
+#### 4. AuthHandler Hooks
+
+Added tracking calls in socket event handlers:
+- `join-landing`: `connectionTracker.onUserConnected(socketId, 'landing-room')`
+- `join-room`: `connectionTracker.onUserConnected(socketId, roomId)` + `updateActivity()`
+- `handleDisconnection`: `connectionTracker.onUserDisconnected(socketId)`
+
+#### 5. Memory Cleanup
+
+**LandingCompositionService.clearHistory():**
+- Clears `virtualGestureHistory` arrays
+- Resets `metricStatistics` samples
+- Clears `materialLibrary` via new `clearAllMaterials()` method
+- Called automatically in `stop()`
+
+**MaterialLibrary.clearAllMaterials():**
+- Clears all harmonic function arrays (tonic, dominant, subdominant, chromatic)
+- Clears all character arrays (melodic, harmonic, rhythmic, textural)
+- Clears lifecycle tracking Map
+- Clears modulations history
+
+#### 6. Trust Proxy Fix
+
+Added to server.js before rate limiter middleware:
+```javascript
+app.set('trust proxy', 1)  // Trust first proxy (nginx/cloudflare)
+```
+
+---
+
+### Files Modified
+
+| File | Action | Changes |
+|------|--------|---------|
+| `backend/src/services/ConnectionTracker.js` | **NEW** | Connection tracking service with lifecycle callbacks |
+| `backend/src/server.js` | Modified | Added `trust proxy` setting |
+| `backend/src/services/ServiceContainer.js` | Modified | Register ConnectionTracker, remove auto-start, add wiring |
+| `backend/src/api/handlers/AuthHandler.js` | Modified | Add tracking hooks in join/disconnect handlers |
+| `backend/src/services/WebMetricsPoller.js` | Modified | Add backoff state, `setConnectionTracker()`, `_updateInactivityMultiplier()`, `_handleGitHubRateLimit()`, `_resetGitHubBackoff()` |
+| `backend/src/services/LandingCompositionService.js` | Modified | Add `clearHistory()` method called in `stop()` |
+| `backend/src/services/MaterialLibrary.js` | Modified | Add `clearAllMaterials()` method |
+
+---
+
+### Behavioral Changes
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Polling at server start | Immediate, always | Only when first user connects |
+| Polling with 0 users | Continues forever | Stops automatically |
+| GitHub 403 response | Log and continue at 60s | Exponential backoff using X-RateLimit-Reset header |
+| Long inactivity | Same intervals | Intervals increase 2x every 30 min (max 12x) |
+| Memory on stop | Retained | Cleared (virtualGestureHistory, materials, statistics) |
+| Trust proxy | Not set (caused errors) | Set to trust first proxy |
+
+---
+
+### Verification
+
+1. **Syntax checks**: All modified files pass `node --check`
+2. **Unit tests**: WebMetricsPoller tests pass
+3. **Integration tests**: Socket tests have pre-existing failures (port binding issues, not related to these changes)
+
+---
+
+### Expected Production Impact
+
+- **No more OOM kills** from continuous polling
+- **GitHub API** rate limit respected with intelligent backoff
+- **Lower resource usage** when no users connected
+- **Memory cleanup** prevents accumulation over time
+- **Trust proxy error** eliminated
+
+---

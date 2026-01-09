@@ -463,7 +463,42 @@ class LandingCompositionService {
     }
     this.pendingTimeouts.clear()
 
+    // Clear accumulated history to free memory
+    this.clearHistory()
+
     // console.log('🎵 LandingCompositionService stopped')
+  }
+
+  /**
+   * Clear accumulated history to free memory
+   * Called when service stops to prevent memory leaks
+   */
+  clearHistory() {
+    // Clear virtual gesture history
+    this.virtualGestureHistory = {
+      wikipedia: [],
+      hackernews: [],
+      github: []
+    }
+
+    // Reset metric statistics (keeps structure, clears samples)
+    for (const source of Object.keys(this.metricStatistics)) {
+      for (const metric of Object.keys(this.metricStatistics[source])) {
+        this.metricStatistics[source][metric] = {
+          min: Infinity,
+          max: 0,
+          samples: []
+        }
+      }
+    }
+
+    // Clear material library
+    if (this.materialLibrary && typeof this.materialLibrary.clearAllMaterials === 'function') {
+      this.materialLibrary.clearAllMaterials()
+    }
+
+    // Reset composition count
+    this.compositionCount = 0
   }
 
   /**
