@@ -5063,3 +5063,125 @@ static getAudioLookAhead()           // Platform-aware timing
 - [x] Memory: No leaks after extended use
 
 ---
+
+## Entry #52 - Collapsible UI Controls for Mobile-Friendly Rooms
+
+**Date**: 2026-01-09
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Problem Statement
+
+On mobile devices (tested on iPhone), the room interface controls at the top and instructions at the bottom completely overlapped the visual scene in both portrait and landscape modes. This made the experience unusable on mobile and also cluttered the desktop experience.
+
+**User Report**: "in room normali, sia in portrait che in landscape, la sezione dei bottoni e il riquadro di istruzioni coprono completamente la scena"
+
+---
+
+### Solution: Auto-Hide Collapsible UI
+
+Implemented an auto-hide system for both the controls section (top) and instructions section (bottom):
+
+#### Behavior
+
+| Feature | Implementation |
+|---------|----------------|
+| Initial state | Both sections visible for 5 seconds after page load |
+| Auto-hide | After 5 seconds of inactivity, sections slide out of view |
+| Desktop reveal | Hover near top/bottom edge zones (100px) shows relevant section |
+| Mobile reveal | Tap anywhere on canvas briefly shows both sections (3 seconds) |
+| Manual toggle | Persistent toggle buttons always visible at edges |
+| Interaction lock | While interacting with controls, auto-hide is paused |
+
+#### Toggle Buttons
+
+- **Top-right**: Chevron button (▼/▲) to toggle controls
+- **Bottom-center**: Info button (i/✕) to toggle instructions
+- Both buttons have 44×44px touch targets on mobile for accessibility
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/rooms.html` | Added CSS for `.collapsed` states, transitions (0.3s), toggle buttons with mobile-specific sizes |
+| `frontend/src/services/UIManager.js` | Added collapsible UI system: `initCollapsibleUI()`, show/hide methods, edge detection, canvas tap handler, auto-hide timer |
+| `frontend/src/main.js` | Call `uiManager.initCollapsibleUI()` after `showApp()` |
+
+---
+
+### CSS Implementation
+
+```css
+/* Collapsed states with smooth transitions */
+.room-interface {
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.room-interface.collapsed {
+    transform: translateY(calc(-100% - 30px));
+    opacity: 0;
+    pointer-events: none;
+}
+
+.instructions.collapsed {
+    transform: translateX(-50%) translateY(calc(100% + 30px));
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Toggle buttons - always visible */
+.ui-toggle-btn {
+    position: fixed;
+    z-index: 1001;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(5px);
+    border-radius: 50%;
+    width: 36px; /* 44px on mobile */
+    height: 36px;
+}
+```
+
+---
+
+### UIManager Methods Added
+
+| Method | Purpose |
+|--------|---------|
+| `initCollapsibleUI()` | Setup auto-hide timers, toggle buttons, event listeners |
+| `showControls()` / `hideControls()` | Show/hide room interface |
+| `showInstructions()` / `hideInstructions()` | Show/hide instructions |
+| `toggleControls()` / `toggleInstructions()` | Toggle visibility |
+| `showAllUI()` / `hideAllUI()` | Utility methods |
+| `brieflyShowUI()` | Show for 3 seconds (mobile tap) |
+| `resetAutoHideTimer()` | Restart 5 second countdown |
+| `_setupEdgeDetection()` | Desktop hover near edges |
+| `_setupCanvasTapHandler()` | Mobile tap-to-show |
+| `_setupControlsInteraction()` | Pause auto-hide while interacting |
+
+---
+
+### Mobile Considerations
+
+1. **Touch targets**: Toggle buttons are 44×44px on mobile (48×48px was already set for other buttons)
+2. **Safe areas**: Respects `env(safe-area-inset-*)` for notched devices
+3. **No edge hover**: Touch devices only use tap-to-show behavior
+4. **Canvas tap**: Tapping the canvas briefly shows both UI sections for 3 seconds
+
+---
+
+### Testing Checklist
+
+- [ ] Desktop: UI visible for 5s, then auto-hides
+- [ ] Desktop: Hover near top edge shows controls
+- [ ] Desktop: Hover near bottom edge shows instructions
+- [ ] Desktop: Click toggle buttons to manually show/hide
+- [ ] Desktop: Interacting with controls resets timer
+- [ ] Mobile (iPhone): Portrait - controls don't overlap scene when hidden
+- [ ] Mobile (iPhone): Landscape - same behavior
+- [ ] Mobile: Tap canvas briefly shows both UI sections
+- [ ] Mobile: Tap toggle buttons to show/hide
+- [ ] Transitions: Smooth 300ms slide in/out
+
+---

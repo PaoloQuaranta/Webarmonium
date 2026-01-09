@@ -75,6 +75,9 @@ class WebarmoniumApp {
       // Hide loading screen FIRST
       this.showApp()
 
+      // Entry #52: Initialize collapsible UI
+      this.uiManager.initCollapsibleUI()
+
       // THEN initialize visual service (p5.js needs visible container)
       // console.log('🎨 Initializing visual service after showApp...')
       const p5Container = document.getElementById('p5-container')
