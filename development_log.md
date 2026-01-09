@@ -5781,3 +5781,112 @@ This helped identify that the issue wasn't timbre-specific but state-related.
 Updated to v1.0.29
 
 ---
+
+## Entry #57 - Slot Lookup Race Condition Fix
+
+**Date**: 2026-01-09
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed console warnings "No backend slot for [userId], falling back to hash" that appeared during audio playback. The issue was a race condition where audio events used the user's ID before the backend-assigned slot was fully synchronized.
+
+---
+
+### Problem Statement
+
+Console showed repeated warnings:
+```
+⚠️ No backend slot for b5a25d20, falling back to hash
+```
+
+Audio still worked (fell back to hash-based slot), but the warnings were noisy and indicated a timing issue.
+
+---
+
+### Root Cause Analysis
+
+Three issues combined:
+
+1. **ID mismatch in lookup**: `getSlotForUser()` only checked `currentUserId`, but audio events could use `socket.id` before `currentUserId` was set
+
+2. **Missing slot in `handleRoomJoined`**: The `room-joined` socket event saved `currentUserId` but NOT `currentSlot`
+
+3. **Backend not sending slot**: The `room-joined` event emission didn't include `assignedSlot`
+
+---
+
+### Solution
+
+#### 1. Frontend: Extended ID matching in getSlotForUser()
+
+**File:** `frontend/src/services/SocketService.js`
+
+```javascript
+// Check both backend userId AND socket.id
+if (userId === this.currentUserId || userId === this.socket?.id) {
+  return this.currentSlot
+}
+```
+
+#### 2. Frontend: Save slot in handleRoomJoined()
+
+**File:** `frontend/src/services/SocketService.js`
+
+```javascript
+handleRoomJoined(data) {
+  // ... save userId ...
+
+  // Also save slot if provided
+  if (data.assignedSlot !== undefined && data.assignedSlot !== null) {
+    this.currentSlot = data.assignedSlot
+    if (data.userId) {
+      this.userSlots.set(data.userId, data.assignedSlot)
+    }
+  }
+}
+```
+
+#### 3. Frontend: Add self to userSlots in joinRoom()
+
+**File:** `frontend/src/services/SocketService.js`
+
+```javascript
+// After setting currentSlot, add self to map
+if (this.currentUserId && this.currentSlot !== null) {
+  this.userSlots.set(this.currentUserId, this.currentSlot)
+}
+```
+
+#### 4. Backend: Include assignedSlot in room-joined event
+
+**File:** `backend/src/api/handlers/AuthHandler.js`
+
+```javascript
+socket.emit('room-joined', {
+  roomId: actualRoomId,
+  userId: socket.userId,
+  assignedSlot: result.assignedSlot,  // ADDED
+  users: result.users,
+  room: result.room,
+  timestamp: Date.now()
+})
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/SocketService.js` | Extended `getSlotForUser()` to match `socket.id`, added slot saving in `handleRoomJoined()`, add self to `userSlots` in `joinRoom()` |
+| `backend/src/api/handlers/AuthHandler.js` | Added `assignedSlot` to `room-joined` event |
+
+---
+
+### Version
+
+Updated to v1.0.30
+
+---

@@ -328,8 +328,12 @@ class SocketService {
               this.userSlots.set(u.id, u.slot)
             }
           })
-          console.log(`🎹 UserSlots populated: ${this.userSlots.size} users`)
         }
+        // Also add self to userSlots for consistent lookup
+        if (this.currentUserId && this.currentSlot !== null) {
+          this.userSlots.set(this.currentUserId, this.currentSlot)
+        }
+        console.log(`🎹 UserSlots populated: ${this.userSlots.size} users`)
 
         // Track latency
         const latency = performance.now() - startTime
@@ -534,6 +538,16 @@ class SocketService {
       console.log(`🆔 Backend userId saved: ${data.userId.substring(0, 8)}... (socket.id=${this.socket?.id?.substring(0, 8)}...)`)
     }
 
+    // Also save slot if provided (mirrors joinRoom response handling)
+    if (data.assignedSlot !== undefined && data.assignedSlot !== null) {
+      this.currentSlot = data.assignedSlot
+      // Add self to userSlots map for consistent lookup
+      if (data.userId) {
+        this.userSlots.set(data.userId, data.assignedSlot)
+      }
+      console.log(`🎹 Backend slot saved: ${data.assignedSlot}`)
+    }
+
     this.emit('room-joined-update', data)
   }
 
@@ -559,14 +573,13 @@ class SocketService {
    * @returns {number|null} The user's slot (0-3) or null if not found
    */
   getSlotForUser(userId) {
-    // Check if it's the current user
-    if (userId === this.currentUserId) {
-      // console.log(`🔍 getSlotForUser: ${userId?.substring(0,8)} is CURRENT user, slot=${this.currentSlot}`)
+    // Check if it's the current user (match both backend userId and socket.id)
+    // This handles race conditions where audio events use socket.id before currentUserId is set
+    if (userId === this.currentUserId || userId === this.socket?.id) {
       return this.currentSlot
     }
     // Look up in the userSlots map
     const mapSlot = this.userSlots.get(userId)
-    // console.log(`🔍 getSlotForUser: ${userId?.substring(0,8)} lookup in userSlots map, found=${mapSlot !== undefined}, slot=${mapSlot}, mapSize=${this.userSlots.size}`)
     return mapSlot !== undefined ? mapSlot : null
   }
 

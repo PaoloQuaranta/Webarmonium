@@ -296,6 +296,7 @@ const AuthHandler = {
         socket.emit('room-joined', {
           roomId: actualRoomId,
           userId: socket.userId,
+          assignedSlot: result.assignedSlot,
           users: result.users,
           room: result.room,
           timestamp: Date.now()
