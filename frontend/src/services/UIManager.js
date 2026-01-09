@@ -289,20 +289,22 @@ class UIManager {
 
     document.body.appendChild(this.mobileSheet)
 
-    // Create audio toggle button that triggers the original
+    // Create audio toggle button that directly calls app method
     const audioToggle = document.getElementById('audioToggle')
     if (audioToggle) {
       const mobileAudioBtn = document.createElement('button')
       mobileAudioBtn.id = 'mobileAudioToggle'
       mobileAudioBtn.className = audioToggle.className
       mobileAudioBtn.textContent = audioToggle.textContent
-      // Click triggers the original button
+      // Directly call app method (clicking hidden elements unreliable)
       mobileAudioBtn.onclick = () => {
-        audioToggle.click()
-        // Update mobile button text to match original after click
-        setTimeout(() => {
-          mobileAudioBtn.textContent = audioToggle.textContent
-        }, 50)
+        if (window.webarmoniumApp?.toggleAudio) {
+          window.webarmoniumApp.toggleAudio()
+          // Update both buttons' text after toggle
+          setTimeout(() => {
+            mobileAudioBtn.textContent = audioToggle.textContent
+          }, 100)
+        }
       }
       document.getElementById('mobileAudioControls')?.appendChild(mobileAudioBtn)
 
@@ -311,35 +313,32 @@ class UIManager {
       this.originalAudioToggle = audioToggle
     }
 
-    // Create volume slider that syncs with original
-    const originalVolumeSlider = document.getElementById('volumeSlider')
-    if (originalVolumeSlider) {
-      const volumeContainer = document.createElement('div')
-      volumeContainer.className = 'mobile-volume-control'
-      volumeContainer.innerHTML = '<span class="mobile-volume-label">Volume</span>'
+    // Create volume slider that directly controls audio service
+    const volumeContainer = document.createElement('div')
+    volumeContainer.className = 'mobile-volume-control'
+    volumeContainer.innerHTML = '<span class="mobile-volume-label">Volume</span>'
 
-      const mobileVolumeSlider = document.createElement('input')
-      mobileVolumeSlider.type = 'range'
-      mobileVolumeSlider.id = 'mobileVolumeSlider'
-      mobileVolumeSlider.min = originalVolumeSlider.min
-      mobileVolumeSlider.max = originalVolumeSlider.max
-      mobileVolumeSlider.step = originalVolumeSlider.step
-      mobileVolumeSlider.value = originalVolumeSlider.value
-      mobileVolumeSlider.className = 'mobile-volume-slider'
+    const mobileVolumeSlider = document.createElement('input')
+    mobileVolumeSlider.type = 'range'
+    mobileVolumeSlider.id = 'mobileVolumeSlider'
+    mobileVolumeSlider.min = '0'
+    mobileVolumeSlider.max = '100'
+    mobileVolumeSlider.step = '1'
+    mobileVolumeSlider.value = '70' // Default 70%
+    mobileVolumeSlider.className = 'mobile-volume-slider'
 
-      // Sync with original slider
-      mobileVolumeSlider.oninput = () => {
-        originalVolumeSlider.value = mobileVolumeSlider.value
-        // Dispatch input event on original to trigger its handlers
-        originalVolumeSlider.dispatchEvent(new Event('input', { bubbles: true }))
+    // Directly control audio service volume
+    mobileVolumeSlider.oninput = () => {
+      const volume = parseInt(mobileVolumeSlider.value, 10) / 100 // Convert to 0-1
+      if (window.webarmoniumApp?.audioService?.setVolume) {
+        window.webarmoniumApp.audioService.setVolume(volume)
       }
-
-      volumeContainer.appendChild(mobileVolumeSlider)
-      document.getElementById('mobileAudioControls')?.appendChild(volumeContainer)
-
-      this.mobileVolumeSlider = mobileVolumeSlider
-      this.originalVolumeSlider = originalVolumeSlider
     }
+
+    volumeContainer.appendChild(mobileVolumeSlider)
+    document.getElementById('mobileAudioControls')?.appendChild(volumeContainer)
+
+    this.mobileVolumeSlider = mobileVolumeSlider
   }
 
   /**
