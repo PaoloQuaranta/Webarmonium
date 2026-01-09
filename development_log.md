@@ -5468,3 +5468,145 @@ notesAlreadyStreamed: gesture.streamingWasActive || false,
 Updated to v1.0.26
 
 ---
+
+## Entry #55 - Real-Time Drag Note Streaming Fixes (Entry #54 Bugfixes)
+
+**Date**: 2026-01-09
+**Author**: Claude Code (AI Assistant)
+**Status**: RESOLVED
+
+### Summary
+
+Fixed two critical bugs in the Entry #54 implementation that prevented real-time note streaming from working:
+1. Remote phrases completely stopped playing (regression)
+2. `note:stream` events were received but not played (0 listeners)
+
+Root cause: SocketEventCoordinator class was never instantiated, so its listener registration methods were never called.
+
+---
+
+### Problem Statement
+
+**User Report #1**: "ora le frasi remote non suonano più" (remote phrases no longer play)
+- After Entry #54 implementation, remote users heard nothing at all
+
+**User Report #2**: "ora sento le frasi remote dopo il mouse up, come era prima delle tue modifiche" (now I hear remote phrases after mouseup, as before your changes)
+- After first fix, fallback worked but real-time streaming still didn't
+
+---
+
+### Root Cause Analysis
+
+#### Issue 1: Remote Phrases Completely Silent
+
+The `!gesture.notesAlreadyStreamed` condition added in Entry #54 was blocking ALL note broadcasts:
+
+```javascript
+// PROBLEMATIC CODE in GestureHandler.js:
+if (gesture.streamedNotes && ... && !gesture.notesAlreadyStreamed) {
+  // Broadcast notes...
+}
+```
+
+Since `notesAlreadyStreamed` was being set by the frontend, the backend blocked the fallback broadcast path, but the real-time `note:stream` path wasn't working either (see Issue 2). This caused complete silence.
+
+#### Issue 2: note:stream Events Not Playing (0 Listeners)
+
+Backend logs showed `note:stream` events being received and broadcast correctly. Frontend logs revealed the problem:
+
+```
+SocketService: note:stream event received
+SocketService: Emitting internal event 'note:stream', listeners: 0
+```
+
+**Discovery**: The `SocketEventCoordinator` class exists in the codebase but is **never instantiated**. The class has a `registerNoteStreamEvents()` method that would register the listener, but since no instance is created, the method is never called.
+
+All other socket event listeners are registered directly in `main.js`, not via SocketEventCoordinator.
+
+---
+
+### Solution
+
+#### Fix 1: Remove Blocking Condition
+**File:** `backend/src/api/handlers/GestureHandler.js`
+
+```javascript
+// BEFORE (broken):
+if (gesture.streamedNotes && Array.isArray(gesture.streamedNotes) &&
+    gesture.streamedNotes.length > 0 && !gesture.notesAlreadyStreamed) {
+
+// AFTER (working):
+if (gesture.streamedNotes && Array.isArray(gesture.streamedNotes) &&
+    gesture.streamedNotes.length > 0) {
+```
+
+This restores the fallback path so remote users hear notes even if real-time streaming fails.
+
+#### Fix 2: Add note:stream Listener Directly in main.js
+**File:** `frontend/src/main.js`
+
+Added the listener in `initializeSocketService()` alongside other socket event listeners:
+
+```javascript
+// Handle real-time note streaming from remote users (drag notes)
+this.socketService.on('note:stream', (data) => {
+  if (!this.isAudioStarted || !data?.event) {
+    return
+  }
+
+  const event = data.event
+  const remoteUserId = data.userId
+
+  // Include userId for per-user synth routing
+  const eventWithUserId = { ...event, userId: remoteUserId }
+
+  // Play immediately - no delay for real-time streaming
+  if (this.audioService) {
+    this.audioService.playMusicalEvent(eventWithUserId)
+  }
+})
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/api/handlers/GestureHandler.js` | Removed `!gesture.notesAlreadyStreamed` condition |
+| `frontend/src/main.js` | Added `note:stream` event listener (~15 lines) |
+| `frontend/index.html` | Version bump to v1.0.28 |
+
+---
+
+### Debugging Process
+
+1. **Added backend debug logs** → Confirmed `note:stream` received and broadcast correctly
+2. **Added frontend SocketService logs** → Found `listeners: 0` for internal event
+3. **Investigated SocketEventCoordinator** → Discovered class never instantiated
+4. **Pragmatic fix** → Added listener in main.js (where all other listeners are)
+5. **Cleanup** → Removed all debug logs after confirming fix
+
+---
+
+### Architectural Note
+
+The `SocketEventCoordinator` class exists in `frontend/src/handlers/SocketEventCoordinator.js` but is never used. All socket event registration happens directly in `main.js`. This is an existing architectural pattern in the codebase, not a bug - but worth noting for future reference.
+
+---
+
+### Behavioral Result
+
+| Aspect | Before Fix | After Fix |
+|--------|------------|-----------|
+| Remote phrase playback | Completely silent | Working (real-time) |
+| Fallback path | Blocked by condition | Available if streaming fails |
+| Real-time streaming | Not working (0 listeners) | Working |
+
+---
+
+### Version
+
+Updated to v1.0.28
+
+---
