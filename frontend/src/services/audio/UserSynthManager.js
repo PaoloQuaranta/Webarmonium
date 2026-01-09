@@ -540,6 +540,41 @@ class UserSynthManager {
   }
 
   /**
+   * Reset all synth states without destroying them
+   * Called when tab becomes visible to clear stale timing and release stuck notes
+   * This fixes issues where notes skip or have wrong envelopes after window switching
+   */
+  resetAllSynthStates() {
+    const now = typeof Tone !== 'undefined' ? Tone.now() : 0
+
+    for (const [userId, synthData] of this.userSynths.entries()) {
+      try {
+        // 1. Release any stuck notes
+        if (synthData.synth && !synthData.synth.disposed) {
+          try {
+            synthData.synth.triggerRelease()
+          } catch (e) {
+            // Ignore release errors - note may already be released
+          }
+        }
+
+        // 2. Reset lastTriggerTime to prevent timing conflicts
+        // Using current time ensures next note will be scheduled properly
+        synthData.lastTriggerTime = now
+
+        // console.log(`🔄 Reset synth state for ${userId.substring(0, 8)}: ${synthData.patch?.name}`)
+      } catch (e) {
+        console.warn(`Failed to reset synth state for ${userId}:`, e)
+      }
+    }
+
+    // 3. Clear all active notes tracking
+    this.activeNotes.clear()
+
+    console.log(`🔄 Reset ${this.userSynths.size} synth states after visibility change`)
+  }
+
+  /**
    * Get stats about current synths
    * @returns {Object} Stats object
    */

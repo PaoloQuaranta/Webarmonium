@@ -5610,3 +5610,174 @@ The `SocketEventCoordinator` class exists in `frontend/src/handlers/SocketEventC
 Updated to v1.0.28
 
 ---
+
+## Entry #56 - Visibility Change Audio Reset Fix
+
+**Date**: 2026-01-09
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed audio glitches (skipped notes, wrong envelopes) that occurred when switching away from Chrome and returning. The issue affected some timbres more than others, but the root cause was stale AudioContext and synth state after tab visibility changes.
+
+---
+
+### Problem Statement
+
+User reported that some timbres (Deep Bell, Nasal Reed) didn't correctly play local phrases during drag after switching windows. Notes would skip or have clipped envelopes. The problem appeared random but was reproducible by:
+
+1. Playing drag notes with a specific patch
+2. Switching to another application (alt-tab)
+3. Returning to Chrome
+4. Playing drag notes again - now broken
+
+Initially suspected timbre-specific issues, but debugging revealed the problem was state corruption after visibility changes.
+
+---
+
+### Root Cause Analysis
+
+When Chrome tab loses focus:
+
+1. **AudioContext suspends** - Chrome suspends Web Audio to save resources
+2. **Tone.now() freezes** - Audio clock stops advancing
+3. **lastTriggerTime becomes stale** - MonoSynth timing tracking is outdated
+4. **Stuck notes possible** - Notes in attack/sustain phase never released
+
+When returning:
+
+1. AudioContext may auto-resume or stay suspended
+2. `lastTriggerTime` values are in the past
+3. MonoSynth timing calculations fail (negative durations, overlapping notes)
+4. Some patches more sensitive (FM synthesis, fast envelopes)
+
+**Key finding**: There was NO `visibilitychange` handler in AudioService to manage this transition.
+
+---
+
+### Solution
+
+#### 1. Added Visibility Change Handler to AudioService
+
+**File:** `frontend/src/services/AudioService.js`
+
+```javascript
+constructor() {
+  // ... existing code ...
+
+  // VISIBILITY FIX: Handle tab visibility changes
+  this._boundVisibilityHandler = this._handleVisibilityChange.bind(this)
+  document.addEventListener('visibilitychange', this._boundVisibilityHandler)
+}
+
+_handleVisibilityChange() {
+  if (document.hidden) {
+    console.log('🔇 Tab hidden - AudioContext may suspend')
+    return
+  }
+
+  console.log('🔊 Tab visible - checking audio state...')
+
+  // 1. Resume AudioContext if suspended
+  if (Tone.context?.state === 'suspended') {
+    Tone.context.resume()
+  }
+
+  // 2. Restart Transport if stopped
+  if (Tone.Transport?.state !== 'started' && Tone.context?.state === 'running') {
+    Tone.Transport.start()
+  }
+
+  // 3. Reset UserSynthManager states
+  if (this.userSynthManager) {
+    this.userSynthManager.resetAllSynthStates()
+  }
+}
+```
+
+#### 2. Added resetAllSynthStates() to UserSynthManager
+
+**File:** `frontend/src/services/audio/UserSynthManager.js`
+
+```javascript
+resetAllSynthStates() {
+  const now = typeof Tone !== 'undefined' ? Tone.now() : 0
+
+  for (const [userId, synthData] of this.userSynths.entries()) {
+    try {
+      // 1. Release any stuck notes
+      if (synthData.synth && !synthData.synth.disposed) {
+        try {
+          synthData.synth.triggerRelease()
+        } catch (e) {
+          // Ignore - note may already be released
+        }
+      }
+
+      // 2. Reset lastTriggerTime to current time
+      synthData.lastTriggerTime = now
+    } catch (e) {
+      console.warn(`Failed to reset synth state for ${userId}:`, e)
+    }
+  }
+
+  // 3. Clear active notes tracking
+  this.activeNotes.clear()
+
+  console.log(`🔄 Reset ${this.userSynths.size} synth states after visibility change`)
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Added `_handleVisibilityChange()` method, visibility event listener in constructor |
+| `frontend/src/services/audio/UserSynthManager.js` | Added `resetAllSynthStates()` method |
+
+---
+
+### Debug Log Added
+
+For troubleshooting, a temporary log was added to show patch names during playback:
+
+```javascript
+console.log(`🎹 PATCH: "${synthData.patch?.name}" | slot=${synthData.slot} | freq=${actualFrequency.toFixed(0)}Hz`)
+```
+
+This helped identify that the issue wasn't timbre-specific but state-related.
+
+---
+
+### Behavioral Result
+
+| Aspect | Before Fix | After Fix |
+|--------|------------|-----------|
+| Tab switch recovery | Audio glitches, skipped notes | Clean recovery |
+| AudioContext state | May stay suspended | Auto-resumed |
+| Transport state | May stay stopped | Auto-restarted |
+| MonoSynth timing | Stale lastTriggerTime | Reset to current time |
+| Stuck notes | Possible | Released on visibility change |
+
+---
+
+### Console Output After Fix
+
+```
+🔇 Tab hidden - AudioContext may suspend
+🔊 Tab visible - checking audio state...
+🔊 Resuming suspended AudioContext...
+🔊 AudioContext resumed, state: running
+🔄 Reset 2 synth states after visibility change
+```
+
+---
+
+### Version
+
+Updated to v1.0.29
+
+---

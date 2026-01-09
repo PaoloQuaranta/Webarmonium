@@ -171,6 +171,48 @@ class AudioService {
       getCurrentLFOValue() { return 0 },
       isLFOActive() { return false }
     }
+
+    // VISIBILITY FIX: Handle tab visibility changes to prevent synth state corruption
+    // When Chrome tab loses focus, AudioContext may suspend and timing gets stale
+    this._boundVisibilityHandler = this._handleVisibilityChange.bind(this)
+    document.addEventListener('visibilitychange', this._boundVisibilityHandler)
+  }
+
+  /**
+   * Handle visibility change - reset synth states when tab becomes visible
+   * Fixes issues with notes skipping or having wrong envelopes after window switch
+   */
+  _handleVisibilityChange() {
+    if (document.hidden) {
+      // Tab is being hidden - nothing to do
+      console.log('🔇 Tab hidden - AudioContext may suspend')
+      return
+    }
+
+    // Tab is becoming visible again
+    console.log('🔊 Tab visible - checking audio state...')
+
+    // 1. Resume AudioContext if suspended
+    if (Tone.context?.state === 'suspended') {
+      console.log('🔊 Resuming suspended AudioContext...')
+      Tone.context.resume().then(() => {
+        console.log('🔊 AudioContext resumed, state:', Tone.context.state)
+      }).catch(e => {
+        console.warn('🔊 Failed to resume AudioContext:', e)
+      })
+    }
+
+    // 2. Restart Transport if stopped
+    if (Tone.Transport?.state !== 'started' && Tone.context?.state === 'running') {
+      console.log('🔊 Restarting Tone.Transport...')
+      Tone.Transport.start()
+    }
+
+    // 3. Reset UserSynthManager states to clear stale timing
+    if (this.userSynthManager) {
+      this.userSynthManager.resetAllSynthStates()
+      console.log('🔊 UserSynthManager states reset')
+    }
   }
 
   /**
@@ -2932,6 +2974,9 @@ class AudioService {
             if (synthData && synthData.synth && !synthData.synth.disposed) {
               synth = synthData.synth
               actualFrequency = this.userSynthManager.constrainFrequencyToTessitura(eventFrequency, userId)
+
+              // DEBUG: Log patch name for troubleshooting timbre issues
+              console.log(`🎹 PATCH: "${synthData.patch?.name}" | slot=${synthData.slot} | freq=${actualFrequency.toFixed(0)}Hz | dur=${eventDuration.toFixed(2)}s | vel=${eventVelocity.toFixed(2)}`)
 
               // Apply oscillator config
               const patchOsc = synthData.patch?.oscillator
