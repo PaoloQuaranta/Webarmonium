@@ -199,12 +199,12 @@
             max-width: 90%;
         }
 
-        /* Mobile optimizations */
+        /* Entry #48: Mobile optimizations */
         @media (max-width: 768px) {
             .room-interface {
-                top: 10px;
-                left: 10px;
-                right: 10px;
+                top: max(10px, env(safe-area-inset-top, 10px));
+                left: max(10px, env(safe-area-inset-left, 10px));
+                right: max(10px, env(safe-area-inset-right, 10px));
                 padding: 12px;
             }
 
@@ -215,9 +215,68 @@
             }
 
             .instructions {
-                bottom: 10px;
-                font-size: 12px;
+                bottom: max(10px, calc(env(safe-area-inset-bottom, 10px) + 50px));
+                font-size: 11px;
+                padding: 10px 15px;
+            }
+
+            /* Larger touch targets */
+            button, .audio-toggle, .primary-btn {
+                min-height: 48px;
+                min-width: 48px;
                 padding: 12px 20px;
+                font-size: 16px;
+            }
+
+            /* Audio controls layout for mobile */
+            .audio-controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .audio-controls button {
+                width: 100%;
+            }
+
+            /* Volume slider - larger touch area */
+            input[type="range"] {
+                height: 24px;
+                -webkit-appearance: none;
+            }
+
+            /* Prevent pull-to-refresh and overscroll */
+            body {
+                overscroll-behavior: none;
+            }
+
+            /* Prevent text selection during gestures */
+            canvas, #p5-container {
+                -webkit-user-select: none;
+                user-select: none;
+                -webkit-touch-callout: none;
+            }
+        }
+
+        /* Accelerometer calibration button (mobile only) */
+        .accelerometer-calibrate {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .accelerometer-calibrate {
+                display: inline-block;
+                background: rgba(99, 102, 241, 0.2);
+                border: 1px solid rgba(99, 102, 241, 0.4);
+                color: white;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+            }
+
+            .accelerometer-calibrate.active {
+                background: rgba(99, 102, 241, 0.4);
             }
         }
 
@@ -326,7 +385,11 @@
     <script src="src/services/UnifiedUpdateLoop.js?v=1"></script>
 
     <!-- Entry #46: Shared platform detection utility -->
-    <script src="src/utils/PlatformDetection.js?v=1"></script>
+    <script src="src/utils/PlatformDetection.js?v=2"></script>
+
+    <!-- Entry #48: Mobile support services -->
+    <script src="src/services/AccelerometerHoverService.js?v=1"></script>
+    <script src="src/services/MobileResourceManager.js?v=1"></script>
 
     <!-- Application services -->
     <!-- <script src="src/services/GestureCapture.js?v=5"></script> -->
@@ -363,7 +426,7 @@
     <script src="src/services/audio/PatchDefinitions.js?v=4"></script> <!-- 8 slots for race condition handling -->
     <script src="src/services/audio/UserSynthManager.js?v=12"></script> <!-- Fixed pan range for 8 slots -->
 
-    <script src="src/services/AudioService.js?v=36"></script> <!-- PERF: Fixed drone event leak, reduced pad oscillators -->
+    <script src="src/services/AudioService.js?v=37"></script> <!-- Entry #51: Android 13 audio fix -->
     <script src="src/services/DroneVoidController.js?v=2"></script> <!-- PERF: UnifiedUpdateLoop integration -->
     <!-- PHASE 1+2: Re-enabled hover, musical architecture loaded -->
     <script>
@@ -392,7 +455,7 @@
     <script src="src/services/gesture/DragStreamProcessor.js?v=1"></script>
 
     <!-- Enhanced generative music services -->
-    <script src="src/services/EnhancedGestureCapture.js?v=21"></script>
+    <script src="src/services/EnhancedGestureCapture.js?v=22"></script> <!-- Entry #51: Accelerometer hover -->
 
     <!-- Sprint 4: Gesture processing component -->
     <script src="src/services/GestureProcessor.js?v=4"></script>
@@ -403,7 +466,7 @@
     <script src="src/handlers/SocketEventCoordinator.js?v=2"></script>
 
     <!-- UI components -->
-    <script src="src/components/AudioControls.js?v=5"></script>
+    <script src="src/components/AudioControls.js?v=6"></script> <!-- Entry #51: Low Power Mode toggle -->
     <!-- CompositionVisualizer disabled for three-tier implementation -->
 
     <!-- Main application -->
@@ -416,7 +479,7 @@
             }
         }, 1000)
     </script>
-    <script src="src/main.js?v=69"></script> <!-- PERF: Performance optimization fixes -->
+    <script src="src/main.js?v=70"></script> <!-- Entry #51: Accelerometer permission request -->
 </body>
 
 </html>

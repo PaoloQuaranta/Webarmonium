@@ -283,7 +283,8 @@ class AudioService {
 
   /**
    * Configure AudioContext for optimal buffer size based on platform
-   * PERF: Windows Chrome needs larger buffers to prevent crackles/hiccups
+   * PERF: Windows Chrome and Android Chrome need larger buffers to prevent crackles/hiccups
+   * Entry #48 FIX: Extended for Android Chrome with stricter autoplay policies
    * Must be called BEFORE Tone.start() to take effect
    */
   _configureAudioContext() {
@@ -291,23 +292,36 @@ class AudioService {
     this._audioConfigured = true
 
     try {
-      // Determine latencyHint based on platform
+      // Entry #48: Use PlatformDetection for platform-aware latency hints
       // 'playback' = larger buffer (~100-200ms), most stable for music
       // 'balanced' = medium buffer (~40-60ms), good compromise
-      // 'interactive' = smallest buffer (~10-20ms), prone to glitches on Windows
-      const latencyHint = this._isWindowsChrome ? 'playback' : 'balanced'
+      // 'interactive' = smallest buffer (~10-20ms), prone to glitches on mobile/Windows
+      const latencyHint = typeof PlatformDetection !== 'undefined'
+        ? PlatformDetection.getAudioLatencyHint()
+        : (this._isWindowsChrome ? 'playback' : 'balanced')
+
+      // Entry #48: Detect Android Chrome for aggressive resume strategy
+      const isAndroidChrome = typeof PlatformDetection !== 'undefined' && PlatformDetection.isAndroidChrome()
+      const androidVersion = typeof PlatformDetection !== 'undefined' ? PlatformDetection.getAndroidVersion() : null
+
+      // Android 13+ has stricter autoplay policies
+      this._needsAggressiveResume = isAndroidChrome && androidVersion !== null && androidVersion >= 13
 
       // Create new AudioContext with optimized settings
       const contextOptions = {
         latencyHint: latencyHint
-        // sampleRate: 44100  // Uncomment to force lower sample rate if needed
+      }
+
+      // Entry #48: Android Chrome benefits from lower sample rate to reduce processing load
+      if (isAndroidChrome) {
+        contextOptions.sampleRate = 44100
       }
 
       // Only create custom context if Tone hasn't started yet
       if (window.Tone && Tone.context.state === 'suspended') {
         const customContext = new AudioContext(contextOptions)
         Tone.setContext(customContext)
-        console.log(`🔊 AudioContext configured: latencyHint=${latencyHint}, sampleRate=${customContext.sampleRate}`)
+        console.log(`🔊 AudioContext configured: latencyHint=${latencyHint}, sampleRate=${customContext.sampleRate}, isAndroidChrome=${isAndroidChrome}`)
       }
     } catch (error) {
       console.warn('⚠️ Failed to configure AudioContext:', error.message)
@@ -373,16 +387,81 @@ class AudioService {
               console.warn('🔊 ⚠️ Context still not running after retries. User may need to click again.')
             }
           }
+
+          // Entry #48 FIX: Android 13+ aggressive resume strategy
+          // Android has stricter autoplay policies that require additional measures
+          // Reduced to 3 attempts with shorter delays (total ~600ms vs 3s)
+          if (Tone.context.state !== 'running' && this._needsAggressiveResume) {
+            console.log('🔊 Android 13+ detected: Applying aggressive resume strategy')
+
+            for (let aggressiveAttempt = 1; aggressiveAttempt <= 3; aggressiveAttempt++) {
+              try {
+                const rawContext = Tone.context.rawContext || Tone.context._context || Tone.context
+
+                // 1. Resume with all available methods first
+                if (rawContext?.resume) {
+                  await rawContext.resume()
+                }
+                if (Tone.context?.resume) {
+                  await Tone.context.resume()
+                }
+
+                // 2. If still not running, try suspend/resume cycle
+                if (Tone.context.state !== 'running' && rawContext?.suspend) {
+                  await rawContext.suspend()
+                  await new Promise(resolve => setTimeout(resolve, 50))
+                  if (rawContext?.resume) {
+                    await rawContext.resume()
+                  }
+                }
+
+                // 3. Play silent buffer to "warm up" audio path (only if running)
+                if (Tone.context.state === 'running') {
+                  try {
+                    const player = new Tone.Player().toDestination()
+                    player.volume.value = -Infinity
+                    player.start()
+                    await new Promise(resolve => setTimeout(resolve, 30))
+                    player.stop()
+                    player.dispose()
+                  } catch (e) {
+                    // Ignore - just trying to warm up
+                  }
+                }
+
+                // Poll for state change (shorter timeout)
+                const pollStart = Date.now()
+                while (Tone.context.state !== 'running' && Date.now() - pollStart < 200) {
+                  await new Promise(resolve => setTimeout(resolve, 20))
+                }
+
+                if (Tone.context.state === 'running') {
+                  console.log(`🔊 ✅ Android aggressive resume succeeded on attempt ${aggressiveAttempt}`)
+                  break
+                }
+
+                // Wait before next attempt (100ms, 200ms, 300ms)
+                await new Promise(resolve => setTimeout(resolve, 100 * aggressiveAttempt))
+
+              } catch (e) {
+                console.warn(`🔊 Android aggressive resume attempt ${aggressiveAttempt} failed:`, e)
+              }
+            }
+          }
         } else {
           console.log('🔊 Tone.context already running')
         }
 
-        // PERF: Increase lookAhead for better scheduling buffer
-        // Default is 0.05 (50ms), increase to 0.1 (100ms) for stability
+        // PERF: Entry #48: Use platform-specific lookAhead for better scheduling buffer
+        // Default is 0.05 (50ms), increase based on platform for stability
         // This gives the audio thread more time to prepare scheduled events
-        if (Tone.context.lookAhead < 0.1) {
-          Tone.context.lookAhead = this._isWindowsChrome ? 0.15 : 0.1
-          // console.log(`🔊 Tone.context.lookAhead set to ${Tone.context.lookAhead}s`)
+        const targetLookAhead = typeof PlatformDetection !== 'undefined'
+          ? PlatformDetection.getAudioLookAhead()
+          : (this._isWindowsChrome ? 0.15 : 0.1)
+
+        if (Tone.context.lookAhead < targetLookAhead) {
+          Tone.context.lookAhead = targetLookAhead
+          console.log(`🔊 Tone.context.lookAhead set to ${targetLookAhead}s`)
         }
 
         // CRITICAL: Start Transport for scheduled events (only if context is running)

@@ -4900,3 +4900,166 @@ npm test -- tests/unit/VirtualUserService.test.js         # 34/34 PASS
 | Test coverage (ConnectionTracker) | 0% | 100% |
 
 ---
+
+## Entry #51 - Mobile-Friendly Implementation: Accelerometer Hover, Android Audio Fix, Resource Management
+
+**Date**: 2026-01-09
+**Author**: Claude Code (AI Assistant)
+**Status**: RESOLVED - Full mobile support implemented
+
+### Problem Statement
+
+Webarmonium needed mobile-friendly improvements:
+1. **No hover interaction on mobile** - Desktop mouse hover had no mobile equivalent
+2. **Audio not working on Android 13 Chrome** - Works on iOS 26, silent on Android 13
+3. **No resource management for mobile** - Battery drain and performance issues
+4. **UI not optimized for touch** - Buttons too small, no safe-area handling
+
+---
+
+### Solution Overview
+
+#### 1. Accelerometer-Based Hover (AccelerometerHoverService.js)
+
+**New Service**: Converts device tilt to hover position when NOT touching the screen.
+
+| Axis | Mapping | Range |
+|------|---------|-------|
+| Beta (forward/backward tilt) | Y position | ±30° from baseline |
+| Gamma (left/right tilt) | X position | ±30° from baseline |
+
+**Features**:
+- Auto-calibration on first reading (current position = center)
+- Dead zone (3°) to prevent jitter at rest
+- Smoothing (0.3 factor) for fluid movement
+- 20Hz update rate (matches hover throttle)
+- Deactivates when touching screen (direct touch takes priority)
+
+**iOS Permission Handling**:
+```javascript
+if (PlatformDetection.requiresOrientationPermission()) {
+  const permission = await DeviceOrientationEvent.requestPermission()
+  // iOS 13+ requires user gesture for permission
+}
+```
+
+#### 2. Android 13 Audio Fix (AudioService.js)
+
+**Root Cause**: Android 13 Chrome has stricter Web Audio API autoplay policies.
+
+**Fix Components**:
+
+| Component | Implementation |
+|-----------|----------------|
+| Platform detection | `isAndroidChrome()` + `getAndroidVersion() >= 13` |
+| AudioContext config | `sampleRate: 44100`, `latencyHint: 'playback'` |
+| Aggressive resume | Suspend/resume cycle + silent buffer warmup |
+| Extended lookAhead | 200ms for Android Chrome (vs 100ms default) |
+
+**Aggressive Resume Strategy** (3 attempts max):
+```javascript
+for (let attempt = 1; attempt <= 3; attempt++) {
+  // 1. Suspend then resume
+  await rawContext.suspend()
+  await new Promise(r => setTimeout(r, 100))
+  await rawContext.resume()
+
+  // 2. Silent buffer warmup
+  const player = new Tone.Player().toDestination()
+  player.volume.value = -Infinity
+  player.start()
+
+  // 3. Poll for running state
+  if (Tone.context.state === 'running') break
+  await new Promise(r => setTimeout(r, 100 * attempt))
+}
+```
+
+#### 3. Mobile Resource Manager (MobileResourceManager.js)
+
+**Singleton service** with 4 performance modes:
+
+| Mode | Target FPS | Particles | Nebulas | Polyphony | Trigger |
+|------|------------|-----------|---------|-----------|---------|
+| full | 30 | ✓ | ✓ | 8 | Desktop |
+| balanced | 24 | ✓ | ✓ | 6 | Default mobile |
+| lowPower | 20 | ✗ | ✓ | 4 | Manual toggle |
+| critical | 15 | ✗ | ✗ | 2 | Battery <15% |
+
+**Automatic Features**:
+- Battery monitoring via Battery API
+- FPS monitoring with adaptive degradation
+- Pauses FPS monitoring when page hidden (battery saving)
+- Upgrade/downgrade based on actual performance
+
+**Manual Control**:
+- Low Power Mode toggle in AudioControls UI
+- User override persists until explicitly disabled
+
+#### 4. Platform Detection Extensions (PlatformDetection.js)
+
+**New Methods**:
+```javascript
+static isMobile()                    // UA + touch + screen size
+static isAndroid()                   // /Android/i regex
+static isAndroidChrome()             // Android + Chrome
+static isIOS()                       // Including iPadOS 13+
+static getAndroidVersion()           // Parse from UA
+static hasDeviceOrientation()        // DeviceOrientationEvent check
+static requiresOrientationPermission() // iOS 13+ permission API
+static getAudioLatencyHint()         // Platform-aware hint
+static getAudioLookAhead()           // Platform-aware timing
+```
+
+#### 5. UI Mobile Improvements (rooms.html CSS)
+
+- Minimum touch target: 48×48px
+- Safe-area-inset handling for notched devices
+- `overscroll-behavior: none` to prevent pull-to-refresh
+- Responsive audio controls layout
+
+---
+
+### Code Review Fixes Applied
+
+| Issue | Severity | Fix |
+|-------|----------|-----|
+| Memory leak in battery listeners | Critical | Bound handlers + cleanup in destroy() |
+| Script loading race condition | Critical | Defensive PlatformDetection check |
+| Excessive Android resume attempts | High | Reduced 5→3 attempts (~600ms vs 3s) |
+| Permission request race condition | High | `permissionRequested` mutex flag |
+| FPS monitoring battery drain | High | Page Visibility API pause/resume |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/utils/PlatformDetection.js` | Extended with mobile/Android/iOS detection |
+| `frontend/src/services/AudioService.js` | Android 13 audio fix + platform-aware config |
+| `frontend/src/services/EnhancedGestureCapture.js` | Accelerometer hover integration |
+| `frontend/src/components/AudioControls.js` | Low Power Mode toggle |
+| `frontend/src/main.js` | Permission request on first interaction |
+| `frontend/rooms.html` | Mobile CSS + script loading |
+
+### New Files
+
+| File | Description |
+|------|-------------|
+| `frontend/src/services/AccelerometerHoverService.js` | Tilt-to-hover service |
+| `frontend/src/services/MobileResourceManager.js` | Adaptive resource management |
+
+---
+
+### Testing Checklist
+
+- [x] Android 13 Chrome: Audio starts on user interaction
+- [x] iOS: Accelerometer permission request works
+- [x] Tilt hover: Device tilt maps to cursor position
+- [x] Touch override: Accelerometer pauses during touch
+- [x] Low Power Mode: Toggle reduces FPS and disables particles
+- [x] Battery low: Automatic switch to critical mode
+- [x] Memory: No leaks after extended use
+
+---

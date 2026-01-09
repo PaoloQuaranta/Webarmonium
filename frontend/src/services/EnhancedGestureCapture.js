@@ -243,6 +243,54 @@ class EnhancedGestureCapture {
     this.canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false })
     this.canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false })
 
+    // Entry #48: Initialize accelerometer hover for mobile devices
+    // This allows tilt-based hover when NOT touching the screen
+    if (typeof PlatformDetection !== 'undefined' &&
+        PlatformDetection.isMobile() &&
+        PlatformDetection.hasDeviceOrientation() &&
+        typeof AccelerometerHoverService !== 'undefined') {
+
+      this.accelerometerHover = new AccelerometerHoverService()
+
+      // Connect accelerometer updates to hover modulation
+      this.accelerometerHover.onHoverUpdate = (hoverData) => {
+        // Update internal hover state
+        this.hoverState.position = hoverData.position
+        this.hoverState.hoverIntensity = hoverData.intensity
+        this.hoverState.hoverVelocity = hoverData.velocity || 0
+        this.hoverState.isHovering = true
+        this.hoverState.lastHoverTime = Date.now()
+
+        // Trigger modulation callback
+        if (this.onHoverModulation) {
+          this.onHoverModulation(hoverData)
+        }
+
+        // Emit hover update to server
+        this.emitHoverUpdate()
+        this.emitCursorPosition()
+      }
+
+      // Track touch state for accelerometer (only active when NOT touching)
+      this.canvas.addEventListener('touchstart', () => {
+        if (this.accelerometerHover) {
+          this.accelerometerHover.setTouchState(true)
+        }
+      })
+      this.canvas.addEventListener('touchend', () => {
+        if (this.accelerometerHover) {
+          this.accelerometerHover.setTouchState(false)
+        }
+      })
+      this.canvas.addEventListener('touchcancel', () => {
+        if (this.accelerometerHover) {
+          this.accelerometerHover.setTouchState(false)
+        }
+      })
+
+      console.log('📱 Accelerometer hover initialized for mobile')
+    }
+
     // console.log('👆 Enhanced gesture event listeners setup complete (throttled)')
   }
 
@@ -1367,6 +1415,12 @@ class EnhancedGestureCapture {
     this.canvas.removeEventListener('mousemove', this.handleHover)
     this.canvas.removeEventListener('mouseenter', this.handleHoverStart)
     this.canvas.removeEventListener('mouseleave', this.handleHoverEnd)
+
+    // Entry #48: Cleanup accelerometer hover service
+    if (this.accelerometerHover) {
+      this.accelerometerHover.destroy()
+      this.accelerometerHover = null
+    }
 
     // console.log('🧹 EnhancedGestureCapture destroyed')
   }
