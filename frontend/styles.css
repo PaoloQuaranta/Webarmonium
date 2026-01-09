@@ -127,7 +127,8 @@ header p {
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border-color);
   transition: border-color 0.2s ease, box-shadow 0.3s ease;
-  min-width: 120px;
+  width: 140px;
+  flex-shrink: 0;
 }
 
 .metric-card:hover {
@@ -565,11 +566,13 @@ footer a:hover {
   }
 
   .metric-card {
+    width: 100px;
     padding: 0.3rem 0.4rem;
   }
 
   .meters-container {
     height: 40px;
+    gap: 0.25rem;
   }
 
   .meter-bar {
