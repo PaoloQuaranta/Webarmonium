@@ -1268,6 +1268,24 @@ class WebarmoniumApp {
       }
     })
 
+    // Handle real-time note streaming from remote users (drag notes)
+    this.socketService.on('note:stream', (data) => {
+      if (!this.isAudioStarted || !data?.event) {
+        return
+      }
+
+      const event = data.event
+      const remoteUserId = data.userId
+
+      // Include userId for per-user synth routing
+      const eventWithUserId = { ...event, userId: remoteUserId }
+
+      // Play immediately - no delay for real-time streaming
+      if (this.audioService) {
+        this.audioService.playMusicalEvent(eventWithUserId)
+      }
+    })
+
     // Handle unified modulation from HoverOrchestrator
     this.socketService.on('unified-modulation', (modulationData) => {
       if (this.isAudioStarted && modulationData) {
