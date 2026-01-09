@@ -723,6 +723,15 @@ class SpringMeshNetwork {
 
     // Reset shadow
     p.drawingContext.shadowBlur = 0
+
+    // User label below the node
+    if (node.userId) {
+      const label = node.userId.substring(0, 8)
+      p.fill(node.color)
+      p.textAlign(p.CENTER, p.TOP)
+      p.textSize(10)
+      p.text(label, x, y + size / 2 + 4)
+    }
   }
 
   /**

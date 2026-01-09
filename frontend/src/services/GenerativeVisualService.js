@@ -219,13 +219,7 @@ class GenerativeVisualService {
         this.attractors.render(p)
       }
 
-      // 5. PERF: Consolidated cursor rendering (on top of everything)
-      // Eliminates separate CursorManager rAF loop
-      if (this.cursorManager) {
-        this.renderCursors(p)
-      }
-
-      // 6. Hold indicators (pulsing circles)
+      // 5. Hold indicators (pulsing circles)
       // Eliminates separate startRenderLoop() rAF in main.js
       this.renderHoldIndicators(p)
     }

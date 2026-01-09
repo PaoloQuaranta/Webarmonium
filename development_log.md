@@ -4468,3 +4468,74 @@ if (distance < SETTLING_THRESHOLD) {
 - ✅ Virtual cursors should no longer exhibit micro-jitter when stationary
 
 ---
+
+## Entry #48 - Remove Duplicate Cursor Rendering System
+
+**Date**: 2026-01-09
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Removed the duplicate cursor rendering system that was causing double cursors for remote users. The old `renderCursors()` method in GenerativeVisualService was drawing large circles with crosshairs and labels on top of the SpringMeshNetwork node cursors. Consolidated to single p5.js cursor system with labels.
+
+---
+
+### Problem Statement
+
+After previous cursor consolidation work, remote users were still showing duplicate cursors:
+1. **SpringMeshNetwork nodes** - small filled circles (10-22px)
+2. **GenerativeVisualService.renderCursors()** - large circles (40px) with crosshairs and labels
+
+User report: "ci sono ancora i doppi cursori dei real users, ora enormi"
+
+---
+
+### Solution
+
+1. **Removed** `renderCursors()` call from GenerativeVisualService draw loop (lines 222-226)
+2. **Added** user labels to SpringMeshNetwork.renderNode() method
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/GenerativeVisualService.js` | Removed `renderCursors(p)` call from draw loop |
+| `frontend/src/services/visual/SpringMeshNetwork.js` | Added user label rendering below nodes (8-char userId) |
+
+---
+
+### Code Changes
+
+**GenerativeVisualService.js** - Removed:
+```javascript
+// 5. PERF: Consolidated cursor rendering (on top of everything)
+// Eliminates separate CursorManager rAF loop
+if (this.cursorManager) {
+  this.renderCursors(p)
+}
+```
+
+**SpringMeshNetwork.js** - Added in renderNode():
+```javascript
+// User label below the node
+if (node.userId) {
+  const label = node.userId.substring(0, 8)
+  p.fill(node.color)
+  p.textAlign(p.CENTER, p.TOP)
+  p.textSize(10)
+  p.text(label, x, y + size / 2 + 4)
+}
+```
+
+---
+
+### Result
+
+- Single cursor system (SpringMeshNetwork only)
+- Labels displayed below each node
+- No more duplicate large crosshair cursors
+
+---
