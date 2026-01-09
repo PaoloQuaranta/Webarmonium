@@ -215,29 +215,29 @@
             pointer-events: none;
         }
 
-        /* Entry #52: Toggle buttons - always visible */
+        /* Entry #52: Desktop toggle buttons */
         .ui-toggle-btn {
             position: fixed;
             z-index: 1001;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.6);
             backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: rgba(255, 255, 255, 0.9);
             border-radius: 50%;
-            width: 36px;
-            height: 36px;
+            width: 40px;
+            height: 40px;
             cursor: pointer;
-            opacity: 0.6;
-            transition: opacity 0.2s, transform 0.3s ease;
+            opacity: 0.8;
+            transition: opacity 0.2s, transform 0.3s ease, background 0.2s;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
+            font-size: 16px;
         }
 
         .ui-toggle-btn:hover {
             opacity: 1;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.8);
         }
 
         .ui-toggle-btn:active {
@@ -257,6 +257,25 @@
             bottom: 10px;
             left: 50%;
             transform: translateX(-50%);
+        }
+
+        /* Entry #52: Mobile hidden class */
+        .mobile-hidden {
+            display: none !important;
+        }
+
+        /* Entry #52: Mobile menu button */
+        .mobile-menu-btn {
+            display: none;
+        }
+
+        /* Entry #52: Mobile bottom sheet */
+        .mobile-menu-backdrop {
+            display: none;
+        }
+
+        .mobile-bottom-sheet {
+            display: none;
         }
 
         /* Entry #48: Mobile optimizations */
@@ -317,20 +336,170 @@
                 -webkit-touch-callout: none;
             }
 
-            /* Entry #52: Mobile toggle buttons - larger touch targets */
+            /* Entry #52: Hide desktop toggle buttons on mobile */
             .ui-toggle-btn {
-                width: 44px;
-                height: 44px;
+                display: none;
+            }
+
+            /* Entry #52: Mobile menu button */
+            .mobile-menu-btn {
+                display: flex;
+                position: fixed;
+                top: max(12px, env(safe-area-inset-top, 12px));
+                right: max(12px, env(safe-area-inset-right, 12px));
+                z-index: 1002;
+                background: rgba(0, 212, 255, 0.9);
+                border: none;
+                color: #1a1a2e;
+                border-radius: 50%;
+                width: 52px;
+                height: 52px;
+                cursor: pointer;
+                align-items: center;
+                justify-content: center;
+                font-size: 24px;
+                font-weight: bold;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                transition: transform 0.2s, background 0.2s;
+            }
+
+            .mobile-menu-btn:active {
+                transform: scale(0.95);
+            }
+
+            .mobile-menu-btn.open {
+                background: rgba(255, 100, 100, 0.9);
+            }
+
+            /* Entry #52: Mobile backdrop */
+            .mobile-menu-backdrop {
+                display: block;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 1003;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.3s ease;
+            }
+
+            .mobile-menu-backdrop.open {
+                opacity: 1;
+                pointer-events: auto;
+            }
+
+            /* Entry #52: Mobile bottom sheet */
+            .mobile-bottom-sheet {
+                display: block;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: rgba(26, 26, 46, 0.98);
+                backdrop-filter: blur(20px);
+                border-radius: 20px 20px 0 0;
+                z-index: 1004;
+                transform: translateY(100%);
+                transition: transform 0.3s ease;
+                max-height: 80vh;
+                overflow-y: auto;
+                padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+            }
+
+            .mobile-bottom-sheet.open {
+                transform: translateY(0);
+            }
+
+            .mobile-sheet-handle {
+                width: 40px;
+                height: 4px;
+                background: rgba(255, 255, 255, 0.3);
+                border-radius: 2px;
+                margin: 12px auto;
+            }
+
+            .mobile-sheet-content {
+                padding: 0 20px 20px;
+            }
+
+            .mobile-sheet-section {
+                padding: 12px 0;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+
+            .mobile-sheet-section:last-child {
+                border-bottom: none;
+            }
+
+            .mobile-sheet-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .mobile-user-count {
+                background: rgba(0, 212, 255, 0.2);
+                color: #00d4ff;
+                padding: 6px 14px;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: 500;
+            }
+
+            .mobile-room-id {
+                font-family: 'Courier New', monospace;
+                font-size: 12px;
+                color: #888;
+            }
+
+            .mobile-back-link {
+                display: block;
+                color: #00d4ff;
+                text-decoration: none;
+                font-size: 14px;
+                padding: 8px 0;
+            }
+
+            .mobile-instructions {
+                font-size: 13px;
+                color: #aaa;
+                line-height: 1.6;
+            }
+
+            .mobile-instructions div {
+                margin-bottom: 6px;
+            }
+
+            .mobile-close-btn {
+                width: 100%;
+                background: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                color: white;
+                padding: 14px;
+                border-radius: 10px;
                 font-size: 16px;
+                margin-top: 10px;
+                cursor: pointer;
             }
 
-            .ui-toggle-controls {
-                top: max(8px, env(safe-area-inset-top, 8px));
-                right: max(8px, env(safe-area-inset-right, 8px));
+            .mobile-close-btn:active {
+                background: rgba(255, 255, 255, 0.2);
             }
 
-            .ui-toggle-instructions {
-                bottom: max(8px, env(safe-area-inset-bottom, 8px));
+            /* Mobile audio controls styling */
+            #mobileAudioControls {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            #mobileAudioControls button {
+                width: 100%;
+                min-height: 48px;
             }
         }
 
@@ -473,7 +642,7 @@
     <script src="src/services/SocketService.js?v=11"></script> <!-- DEBUG: Added slot lookup logging -->
     <!-- Sprint 2 refactoring: Extracted components -->
     <script src="src/services/CanvasManager.js?v=1"></script>
-    <script src="src/services/UIManager.js?v=3"></script> <!-- Entry #52: Collapsible UI -->
+    <script src="src/services/UIManager.js?v=4"></script> <!-- Entry #52: Mobile bottom sheet -->
     <script src="src/services/VolumeController.js?v=1"></script>
     <!-- Enhanced generative graphics system -->
     <script src="src/services/visual/VisualConstants.js?v=9"></script>

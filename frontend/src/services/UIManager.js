@@ -40,8 +40,14 @@ class UIManager {
 
     // Constants
     this.AUTO_HIDE_DELAY = 5000 // 5 seconds
-    this.BRIEF_SHOW_DELAY = 3000 // 3 seconds for tap-to-show
-    this.EDGE_ZONE_SIZE = 100 // pixels from edge to trigger show
+    this.EDGE_ZONE_SIZE = 80 // pixels from edge to trigger show (desktop only)
+
+    // Mobile state
+    this.isMobile = false
+    this.mobileMenuOpen = false
+    this.mobileMenuBtn = null
+    this.mobileBackdrop = null
+    this.mobileSheet = null
   }
 
   /**
@@ -187,7 +193,7 @@ class UIManager {
   }
 
   // ==========================================
-  // Entry #52: Collapsible UI Methods
+  // Entry #52: Collapsible UI Methods (v2 - Mobile Bottom Sheet)
   // ==========================================
 
   /**
@@ -195,18 +201,177 @@ class UIManager {
    * Should be called after DOM is ready
    */
   initCollapsibleUI() {
-    this._createToggleButtons()
-    this._setupAutoHide()
-    this._setupEdgeDetection()
-    this._setupControlsInteraction()
-    this._setupCanvasTapHandler()
-    console.log('✅ UIManager: Collapsible UI initialized')
+    this.isMobile = this._isMobileDevice()
+
+    if (this.isMobile) {
+      this._setupMobileMenu()
+    } else {
+      this._setupDesktopUI()
+    }
+
+    console.log(`✅ UIManager: Collapsible UI initialized (${this.isMobile ? 'mobile' : 'desktop'} mode)`)
   }
 
   /**
-   * Create toggle buttons for controls and instructions
+   * Setup desktop UI with edge detection and toggle buttons
    */
-  _createToggleButtons() {
+  _setupDesktopUI() {
+    this._createDesktopToggleButtons()
+    this._setupAutoHide()
+    this._setupEdgeDetection()
+    this._setupControlsInteraction()
+  }
+
+  /**
+   * Setup mobile UI with single bottom sheet menu
+   */
+  _setupMobileMenu() {
+    // Hide original controls and instructions
+    const roomInterface = document.querySelector('.room-interface')
+    const instructions = document.querySelector('.instructions')
+
+    if (roomInterface) roomInterface.classList.add('mobile-hidden')
+    if (instructions) instructions.classList.add('mobile-hidden')
+
+    // Create menu button
+    this._createMobileMenuButton()
+
+    // Create bottom sheet
+    this._createMobileBottomSheet()
+  }
+
+  /**
+   * Create mobile menu button (hamburger)
+   */
+  _createMobileMenuButton() {
+    this.mobileMenuBtn = document.createElement('button')
+    this.mobileMenuBtn.className = 'mobile-menu-btn'
+    this.mobileMenuBtn.innerHTML = '&#9776;' // Hamburger icon (☰)
+    this.mobileMenuBtn.setAttribute('aria-label', 'Open menu')
+    this.mobileMenuBtn.onclick = () => this.toggleMobileMenu()
+    document.body.appendChild(this.mobileMenuBtn)
+  }
+
+  /**
+   * Create mobile bottom sheet with all controls
+   */
+  _createMobileBottomSheet() {
+    // Backdrop
+    this.mobileBackdrop = document.createElement('div')
+    this.mobileBackdrop.className = 'mobile-menu-backdrop'
+    this.mobileBackdrop.onclick = () => this.closeMobileMenu()
+    document.body.appendChild(this.mobileBackdrop)
+
+    // Bottom sheet
+    this.mobileSheet = document.createElement('div')
+    this.mobileSheet.className = 'mobile-bottom-sheet'
+
+    // Get content from original elements
+    const roomInterface = document.querySelector('.room-interface')
+    const instructions = document.querySelector('.instructions')
+
+    this.mobileSheet.innerHTML = `
+      <div class="mobile-sheet-handle"></div>
+      <div class="mobile-sheet-content">
+        <div class="mobile-sheet-section">
+          <div class="mobile-sheet-row">
+            <span class="mobile-user-count" id="mobileUserCount">👥 1 user</span>
+            <span class="mobile-room-id" id="mobileRoomId">Room: connecting...</span>
+          </div>
+        </div>
+        <div class="mobile-sheet-section">
+          <a href="index.html" class="mobile-back-link">← Back to main page</a>
+        </div>
+        <div class="mobile-sheet-section" id="mobileAudioControls">
+          <!-- Audio controls will be cloned here -->
+        </div>
+        <div class="mobile-sheet-section mobile-instructions">
+          <div><strong>Tap</strong> for notes (hold longer for sustained tones)</div>
+          <div><strong>Drag</strong> to create melodic phrases</div>
+          <div><strong>Hover</strong> to modulate filters and effects</div>
+        </div>
+        <button class="mobile-close-btn" onclick="window.webarmoniumApp?.uiManager?.closeMobileMenu()">Close</button>
+      </div>
+    `
+
+    document.body.appendChild(this.mobileSheet)
+
+    // Clone audio toggle button
+    const audioToggle = document.getElementById('audioToggle')
+    if (audioToggle) {
+      const clone = audioToggle.cloneNode(true)
+      clone.id = 'mobileAudioToggle'
+      // Copy onclick handler
+      clone.onclick = audioToggle.onclick
+      document.getElementById('mobileAudioControls')?.appendChild(clone)
+    }
+
+    // Clone dynamic audio controls container
+    const audioControls = document.getElementById('audio-controls')
+    if (audioControls) {
+      const clone = audioControls.cloneNode(true)
+      clone.id = 'mobileAudioControlsContainer'
+      document.getElementById('mobileAudioControls')?.appendChild(clone)
+    }
+  }
+
+  /**
+   * Toggle mobile menu open/close
+   */
+  toggleMobileMenu() {
+    if (this.mobileMenuOpen) {
+      this.closeMobileMenu()
+    } else {
+      this.openMobileMenu()
+    }
+  }
+
+  /**
+   * Open mobile menu
+   */
+  openMobileMenu() {
+    this.mobileMenuOpen = true
+    this.mobileBackdrop?.classList.add('open')
+    this.mobileSheet?.classList.add('open')
+    this.mobileMenuBtn?.classList.add('open')
+    this.mobileMenuBtn.innerHTML = '&#10005;' // X icon
+
+    // Sync user count and room ID
+    this._syncMobileDisplay()
+  }
+
+  /**
+   * Close mobile menu
+   */
+  closeMobileMenu() {
+    this.mobileMenuOpen = false
+    this.mobileBackdrop?.classList.remove('open')
+    this.mobileSheet?.classList.remove('open')
+    this.mobileMenuBtn?.classList.remove('open')
+    this.mobileMenuBtn.innerHTML = '&#9776;' // Hamburger icon
+  }
+
+  /**
+   * Sync mobile display with main UI state
+   */
+  _syncMobileDisplay() {
+    const mobileUserCount = document.getElementById('mobileUserCount')
+    const mobileRoomId = document.getElementById('mobileRoomId')
+    const mainUserCount = document.getElementById('userCount')
+    const mainRoomId = document.getElementById('roomId')
+
+    if (mobileUserCount && mainUserCount) {
+      mobileUserCount.textContent = mainUserCount.textContent
+    }
+    if (mobileRoomId && mainRoomId) {
+      mobileRoomId.textContent = mainRoomId.textContent
+    }
+  }
+
+  /**
+   * Create desktop toggle buttons
+   */
+  _createDesktopToggleButtons() {
     // Controls toggle (top-right) - chevron
     this.controlsToggleBtn = document.createElement('button')
     this.controlsToggleBtn.className = 'ui-toggle-btn ui-toggle-controls expanded'
@@ -235,9 +400,6 @@ class UIManager {
    * Setup edge zone detection for desktop hover
    */
   _setupEdgeDetection() {
-    // Only setup for non-touch devices
-    if (this._isTouchDevice()) return
-
     // Bound handler for cleanup
     this._boundEdgeHandler = (e) => this._handleEdgeDetection(e)
     document.addEventListener('mousemove', this._boundEdgeHandler)
@@ -249,7 +411,7 @@ class UIManager {
   _handleEdgeDetection(e) {
     const y = e.clientY
 
-    // Top edge zone - show controls
+    // Top edge zone - show controls (only top 80px)
     if (y < this.EDGE_ZONE_SIZE) {
       if (!this.controlsVisible) {
         this.showControls()
@@ -257,7 +419,7 @@ class UIManager {
       }
     }
 
-    // Bottom edge zone - show instructions
+    // Bottom edge zone - show instructions (only bottom 80px)
     if (y > window.innerHeight - this.EDGE_ZONE_SIZE) {
       if (!this.instructionsVisible) {
         this.showInstructions()
@@ -267,7 +429,7 @@ class UIManager {
   }
 
   /**
-   * Setup interaction detection on controls
+   * Setup interaction detection on controls (desktop only)
    * Prevents auto-hide while user is interacting
    */
   _setupControlsInteraction() {
@@ -281,49 +443,19 @@ class UIManager {
         this.isInteractingWithControls = false
         this.resetAutoHideTimer()
       })
-      // Touch equivalent
-      roomInterface.addEventListener('touchstart', () => {
+    }
+
+    const instructions = document.querySelector('.instructions')
+    if (instructions) {
+      instructions.addEventListener('mouseenter', () => {
         this.isInteractingWithControls = true
         clearTimeout(this.autoHideTimeout)
       })
-      roomInterface.addEventListener('touchend', () => {
-        // Small delay before allowing auto-hide again
-        setTimeout(() => {
-          this.isInteractingWithControls = false
-          this.resetAutoHideTimer()
-        }, 500)
+      instructions.addEventListener('mouseleave', () => {
+        this.isInteractingWithControls = false
+        this.resetAutoHideTimer()
       })
     }
-  }
-
-  /**
-   * Setup canvas tap handler for mobile
-   * Tapping the canvas briefly shows UI
-   */
-  _setupCanvasTapHandler() {
-    // Only for touch devices
-    if (!this._isTouchDevice()) return
-
-    const canvas = document.getElementById('gestureCanvas')
-    if (!canvas) return
-
-    // Bound handler for cleanup
-    this._boundCanvasTapHandler = (e) => {
-      // Only trigger if UI is hidden and tap is not on toggle buttons
-      if (!this.controlsVisible || !this.instructionsVisible) {
-        // Don't trigger if touching controls or toggle buttons
-        const target = e.target
-        if (target.closest('.room-interface') ||
-            target.closest('.instructions') ||
-            target.closest('.ui-toggle-btn')) {
-          return
-        }
-
-        this.brieflyShowUI()
-      }
-    }
-
-    canvas.addEventListener('touchstart', this._boundCanvasTapHandler, { passive: true })
   }
 
   /**
@@ -429,19 +561,7 @@ class UIManager {
   }
 
   /**
-   * Briefly show UI (for tap-to-show on mobile)
-   * Shows for BRIEF_SHOW_DELAY then hides
-   */
-  brieflyShowUI() {
-    this.showAllUI()
-    clearTimeout(this.autoHideTimeout)
-    this.autoHideTimeout = setTimeout(() => {
-      this.hideAllUI()
-    }, this.BRIEF_SHOW_DELAY)
-  }
-
-  /**
-   * Update toggle button appearance based on state
+   * Update toggle button appearance based on state (desktop only)
    */
   _updateToggleButton(which) {
     if (which === 'controls' && this.controlsToggleBtn) {
@@ -464,16 +584,19 @@ class UIManager {
   }
 
   /**
-   * Check if current device is touch-enabled
+   * Check if current device is mobile (screen size + touch)
+   * More reliable than just touch detection (laptops have touch too)
    */
-  _isTouchDevice() {
-    return 'ontouchstart' in window ||
-      navigator.maxTouchPoints > 0 ||
-      navigator.msMaxTouchPoints > 0
+  _isMobileDevice() {
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+    const isSmallScreen = window.innerWidth <= 768
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+
+    return (hasTouch && isSmallScreen) || isMobileUA
   }
 
   /**
-   * Cleanup (no-op for now, but provided for consistency)
+   * Cleanup
    */
   destroy() {
     // Clear timers
@@ -484,15 +607,7 @@ class UIManager {
       document.removeEventListener('mousemove', this._boundEdgeHandler)
     }
 
-    // Remove canvas tap handler
-    if (this._boundCanvasTapHandler) {
-      const canvas = document.getElementById('gestureCanvas')
-      if (canvas) {
-        canvas.removeEventListener('touchstart', this._boundCanvasTapHandler)
-      }
-    }
-
-    // Remove toggle buttons
+    // Remove desktop toggle buttons
     if (this.controlsToggleBtn) {
       this.controlsToggleBtn.remove()
     }
@@ -500,9 +615,25 @@ class UIManager {
       this.instructionsToggleBtn.remove()
     }
 
+    // Remove mobile elements
+    if (this.mobileMenuBtn) {
+      this.mobileMenuBtn.remove()
+    }
+    if (this.mobileBackdrop) {
+      this.mobileBackdrop.remove()
+    }
+    if (this.mobileSheet) {
+      this.mobileSheet.remove()
+    }
+
+    // Restore hidden elements
+    const roomInterface = document.querySelector('.room-interface')
+    const instructions = document.querySelector('.instructions')
+    if (roomInterface) roomInterface.classList.remove('mobile-hidden')
+    if (instructions) instructions.classList.remove('mobile-hidden')
+
     this.currentRoom = null
     this.userCount = 1
-    // console.log('✅ UIManager: Cleaned up')
   }
 }
 
