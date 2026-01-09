@@ -523,10 +523,10 @@ class AudioService {
           ? PlatformDetection.getAudioUpdateInterval()
           : 0.025
 
-        if (Tone.context.updateInterval !== targetUpdateInterval) {
-          Tone.context.updateInterval = targetUpdateInterval
-          console.log(`🔊 Tone.context.updateInterval set to ${targetUpdateInterval}s`)
-        }
+        // Always set and log - updateInterval is critical for Chrome/Opera stability
+        const isWindowsChromeOrOpera = typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsChromeOrOpera()
+        Tone.context.updateInterval = targetUpdateInterval
+        console.log(`🔊 Tone.context.updateInterval set to ${targetUpdateInterval}s (isWindowsChromeOrOpera=${isWindowsChromeOrOpera})`)
 
         // CRITICAL: Start Transport for scheduled events (only if context is running)
         if (Tone.context.state === 'running' && Tone.Transport.state !== 'started') {
