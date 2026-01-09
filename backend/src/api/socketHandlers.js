@@ -41,6 +41,7 @@ const socketHandlers = {
     // Musical handlers (sustained holds, events, sync)
     MusicalHandler.registerHoldStartHandler(socket)
     MusicalHandler.registerHoldEndHandler(socket)
+    MusicalHandler.registerNoteStreamHandler(socket)
     MusicalHandler.registerMusicalEventHandler(socket)
     MusicalHandler.registerCompositionUpdateHandler(socket)
     MusicalHandler.registerClockSyncHandler(socket)

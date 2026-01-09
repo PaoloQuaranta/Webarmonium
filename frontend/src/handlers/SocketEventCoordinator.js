@@ -100,6 +100,9 @@ class SocketEventCoordinator {
     // Musical events
     this.registerMusicalEvents()
 
+    // Real-time note streaming events
+    this.registerNoteStreamEvents()
+
     // Error events
     this.registerErrorEvents()
 
@@ -403,6 +406,28 @@ class SocketEventCoordinator {
         if (this.audioService) {
           this.audioService.playMusicalEvent(eventWithUserId)
         }
+      }
+    })
+  }
+
+  /**
+   * Register note stream events for real-time drag note playback from remote users
+   */
+  registerNoteStreamEvents() {
+    this.socketService.on('note:stream', (data) => {
+      if (!this.isAudioStarted || !data?.event) {
+        return
+      }
+
+      const event = data.event
+      const remoteUserId = data.userId
+
+      // Include userId for per-user synth routing
+      const eventWithUserId = { ...event, userId: remoteUserId }
+
+      // Play immediately - no delay for real-time streaming
+      if (this.audioService) {
+        this.audioService.playMusicalEvent(eventWithUserId)
       }
     })
   }

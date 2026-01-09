@@ -40,6 +40,7 @@ const GESTURE_EVENTS = {
 const MUSICAL_EVENTS = {
   HOLD_START: 'hold:start',
   HOLD_END: 'hold:end',
+  NOTE_STREAM: 'note:stream',
   MUSICAL_EVENT: 'musical:event',
   COMPOSITION_UPDATE: 'composition:update',
   CLOCK_SYNC: 'clock:sync',

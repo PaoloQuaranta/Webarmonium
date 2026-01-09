@@ -215,6 +215,11 @@ class SocketService {
       this.emit('hold:end', data)
     })
 
+    // Real-time drag note streaming from remote users
+    this.socket.on('note:stream', (data) => {
+      this.emit('note:stream', data)
+    })
+
     // Unified modulation from HoverOrchestrator
     this.socket.on('unified-modulation', (data) => {
       // console.log('🎛️ SocketService received unified-modulation:', data)

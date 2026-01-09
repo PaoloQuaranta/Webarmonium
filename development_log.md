@@ -5285,3 +5285,186 @@ Changed all references from "commit" to "push" (GitHub terminology):
 Updated to v1.0.25
 
 ---
+
+## Entry #54 - Real-Time Drag Note Streaming for Remote Users
+
+**Date**: 2026-01-09
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented real-time streaming of drag notes to remote users. Previously, notes generated during drag gestures were played locally in real-time but only transmitted to remote users after mouseup via `gesture-complete`. This caused desync between cursor movement and audio for remote users. Now, drag notes are streamed in real-time as they're played locally.
+
+---
+
+### Problem Statement
+
+**User Report**: "la frase generata durante il drag viene riprodotta in tempo reale in locale e trasmessa alle istanze remote dopo il mouse up. questo causa un fuori sync tra movimenti cursore e generazione audio di istanze remote"
+
+The existing flow was:
+1. During drag, notes played locally via `audioService.playMusicalEvent()`
+2. Notes collected in `streamedNotes[]` array
+3. On mouseup, entire gesture sent via `gesture-complete`
+4. Backend broadcast all notes to remote users
+5. Remote users heard notes only AFTER gesture completed
+
+---
+
+### Solution: New `note:stream` WebSocket Event
+
+Added a new real-time event `note:stream` that broadcasts each drag note immediately as it's played locally, following the same pattern as `hold:start` (which already worked in real-time).
+
+---
+
+### Implementation Details
+
+#### 1. Backend: Event Constant
+**File:** `backend/src/constants/SocketEvents.js`
+```javascript
+NOTE_STREAM: 'note:stream',
+```
+
+#### 2. Backend: Event Handler with Rate Limiting & Validation
+**File:** `backend/src/api/handlers/MusicalHandler.js`
+
+Added `registerNoteStreamHandler(socket)` method with:
+- **Rate limiting**: 40ms minimum between notes (25 notes/sec max) per user
+- **Frequency validation**: 20-20000 Hz range
+- **Position validation**: x,y must be 0-1 normalized coordinates
+- **Velocity validation**: Clamped to 0-1 range
+- **Broadcast**: `socket.to(socket.roomId).emit('note:stream', ...)`
+
+```javascript
+// Rate limiting per user
+const now = Date.now()
+if (socket._lastNoteStreamTime && (now - socket._lastNoteStreamTime) < MIN_NOTE_INTERVAL) {
+  return // Silent drop
+}
+socket._lastNoteStreamTime = now
+
+// Validation
+if (typeof data.frequency !== 'number' || data.frequency < 20 || data.frequency > 20000) {
+  return ValidationHandler.sendError(callback, 'INVALID_FREQUENCY', ...)
+}
+```
+
+#### 3. Backend: Handler Registration
+**File:** `backend/src/api/socketHandlers.js`
+```javascript
+MusicalHandler.registerNoteStreamHandler(socket)
+```
+
+#### 4. Frontend: Emit `note:stream` During Drag
+**File:** `frontend/src/main.js`
+
+In `setDragStreamingNoteCallback`, after `this.audioService.playMusicalEvent()`:
+```javascript
+// REAL-TIME STREAMING: Emit note to backend for remote users
+// Throttle: ~20 notes/second max (50ms minimum interval)
+const streamNow = Date.now()
+const MIN_STREAM_INTERVAL = 50
+
+if (!this._lastNoteStreamTime || (streamNow - this._lastNoteStreamTime) >= MIN_STREAM_INTERVAL) {
+  this._lastNoteStreamTime = streamNow
+
+  if (this.socketService?.socket && this.socketService.currentRoom) {
+    this.socketService.socket.emit('note:stream', {
+      frequency, duration, articulation, position, velocity, noteIndex, timestamp
+    })
+  }
+}
+```
+
+#### 5. Frontend: SocketService Listener
+**File:** `frontend/src/services/SocketService.js`
+```javascript
+this.socket.on('note:stream', (data) => {
+  this.emit('note:stream', data)
+})
+```
+
+#### 6. Frontend: Event Coordinator Handler
+**File:** `frontend/src/handlers/SocketEventCoordinator.js`
+
+Added `registerNoteStreamEvents()` method:
+```javascript
+registerNoteStreamEvents() {
+  this.socketService.on('note:stream', (data) => {
+    if (!this.isAudioStarted || !data?.event) return
+
+    const eventWithUserId = { ...data.event, userId: data.userId }
+
+    // Play immediately - no delay for real-time streaming
+    if (this.audioService) {
+      this.audioService.playMusicalEvent(eventWithUserId)
+    }
+  })
+}
+```
+
+#### 7. Backend: Skip Re-broadcast on gesture-complete
+**File:** `backend/src/api/handlers/GestureHandler.js`
+
+Modified the condition to skip re-broadcasting when notes were already streamed:
+```javascript
+// CRITICAL: If streamedNotes present AND not already streamed in real-time
+if (gesture.streamedNotes && gesture.streamedNotes.length > 0 && !gesture.notesAlreadyStreamed) {
+  // Broadcast notes...
+}
+```
+
+#### 8. Frontend: Mark Notes as Already Streamed
+**File:** `frontend/src/services/EnhancedGestureCapture.js`
+
+Added flag to gesture-complete payload:
+```javascript
+notesAlreadyStreamed: gesture.streamingWasActive || false,
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/constants/SocketEvents.js` | Added `NOTE_STREAM: 'note:stream'` constant |
+| `backend/src/api/handlers/MusicalHandler.js` | Added `registerNoteStreamHandler()` with rate limiting and validation (~70 lines) |
+| `backend/src/api/socketHandlers.js` | Registered new handler |
+| `backend/src/api/handlers/GestureHandler.js` | Skip re-broadcast when `notesAlreadyStreamed` |
+| `frontend/src/main.js` | Emit `note:stream` with 50ms throttling (~15 lines) |
+| `frontend/src/services/SocketService.js` | Added `note:stream` listener |
+| `frontend/src/handlers/SocketEventCoordinator.js` | Added `registerNoteStreamEvents()` method (~20 lines) |
+| `frontend/src/services/EnhancedGestureCapture.js` | Added `notesAlreadyStreamed` flag |
+
+---
+
+### Security & Performance
+
+| Aspect | Implementation |
+|--------|----------------|
+| Rate limiting (backend) | 40ms minimum between notes per user |
+| Rate limiting (frontend) | 50ms minimum between emissions |
+| Frequency validation | 20-20000 Hz range |
+| Position validation | x,y must be 0-1 |
+| Velocity validation | Clamped to 0-1, converted to 0-100 |
+| Duplicate prevention | `notesAlreadyStreamed` flag prevents re-broadcast |
+
+---
+
+### Behavioral Changes
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Local playback | Real-time | Real-time (unchanged) |
+| Remote playback | After mouseup (delayed) | Real-time (immediate) |
+| Cursor-audio sync | Desync for remote users | Synchronized |
+| Network events | 1 batch at end | ~20 events/sec during drag |
+
+---
+
+### Version
+
+Updated to v1.0.26
+
+---

@@ -1053,6 +1053,9 @@ class EnhancedGestureCapture {
           streamedNotes: gesture.streamedNotes || [],
           streamingWasActive: gesture.streamingWasActive || false,
           streamingNoteCount: gesture.streamingNoteCount || 0,
+          // CRITICAL: notesAlreadyStreamed indicates notes were sent via note:stream in real-time
+          // When true, backend should NOT re-broadcast notes via musical:event
+          notesAlreadyStreamed: gesture.streamingWasActive || false,
           // CRITICAL: holdWasActive indicates if gesture was handled by hold:start/hold:end system
           // When true, backend should NOT generate additional notes via gestureToMusicService
           holdWasActive: gesture.holdWasActive || false

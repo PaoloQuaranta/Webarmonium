@@ -135,6 +135,122 @@ const MusicalHandler = {
   },
 
   /**
+   * Register note:stream event handler for real-time drag note streaming
+   * Receives notes as they're played during drag gestures and broadcasts to other users
+   * @param {Socket} socket - Socket instance with userId and roomId
+   * @fires note:stream - Broadcasts note to other users in room
+   */
+  registerNoteStreamHandler (socket) {
+    // Rate limiting: minimum 40ms between notes (25 notes/sec max)
+    const MIN_NOTE_INTERVAL = 40
+
+    socket.on('note:stream', async (data, callback) => {
+      try {
+        // Validate session
+        if (!socket.userId || !socket.roomId) {
+          if (typeof callback === 'function') {
+            ValidationHandler.sendError(callback, 'NO_ACTIVE_SESSION', 'No active room session')
+          }
+          return
+        }
+
+        // Rate limiting per user
+        const now = Date.now()
+        if (socket._lastNoteStreamTime && (now - socket._lastNoteStreamTime) < MIN_NOTE_INTERVAL) {
+          // Silent drop - don't error, just skip this note
+          return
+        }
+        socket._lastNoteStreamTime = now
+
+        // Validate required fields
+        if (!data || data.frequency === undefined || !data.position) {
+          if (typeof callback === 'function') {
+            ValidationHandler.sendError(callback, 'INVALID_NOTE_DATA', 'Missing required note data')
+          }
+          return
+        }
+
+        // Validate frequency (20Hz - 20kHz human hearing range)
+        if (typeof data.frequency !== 'number' || isNaN(data.frequency) ||
+            data.frequency < 20 || data.frequency > 20000) {
+          if (typeof callback === 'function') {
+            ValidationHandler.sendError(callback, 'INVALID_FREQUENCY', 'Frequency must be 20-20000 Hz')
+          }
+          return
+        }
+
+        // Validate position (0-1 normalized coordinates)
+        if (!data.position || typeof data.position.x !== 'number' || typeof data.position.y !== 'number' ||
+            data.position.x < 0 || data.position.x > 1 || data.position.y < 0 || data.position.y > 1) {
+          if (typeof callback === 'function') {
+            ValidationHandler.sendError(callback, 'INVALID_POSITION', 'Position must be {x: 0-1, y: 0-1}')
+          }
+          return
+        }
+
+        // Validate velocity if present (0-1 range)
+        const velocity = data.velocity !== undefined
+          ? (typeof data.velocity === 'number' && !isNaN(data.velocity)
+            ? Math.max(0, Math.min(1, data.velocity)) * 100
+            : 80)
+          : 80
+
+        const room = socket.services.roomManager.getRoom(socket.roomId)
+        if (!room) {
+          if (typeof callback === 'function') {
+            ValidationHandler.sendError(callback, 'ROOM_NOT_FOUND', 'Room not found')
+          }
+          return
+        }
+
+        // Get user color for visual sync
+        const user = room.getUser(socket.userId)
+        const userColor = user?.assignedColor || '#6bcf7f'
+
+        // Build broadcast payload matching musical:event format
+        const noteStreamBroadcast = {
+          type: 'note:stream',
+          userId: socket.userId,
+          event: {
+            eventType: 'note',
+            timestamp: Date.now(),
+            position: data.position,
+            properties: {
+              frequency: data.frequency,
+              duration: data.duration,
+              velocity: velocity, // Use validated velocity
+              articulation: data.articulation || 'staccato',
+              noteIndex: data.noteIndex || 0,
+              isStreamed: true,
+              gestureAction: 'drag-streaming'
+            }
+          },
+          userColor: userColor,
+          isRemote: true,
+          timestamp: Date.now()
+        }
+
+        // Broadcast to other users in room (not sender)
+        socket.to(socket.roomId).emit('note:stream', noteStreamBroadcast)
+
+        // Update room activity
+        if (room.updateActivity) {
+          room.updateActivity()
+        }
+
+        // Fire-and-forget acknowledgment
+        if (typeof callback === 'function') {
+          callback({ success: true, timestamp: Date.now() })
+        }
+      } catch (error) {
+        if (typeof callback === 'function') {
+          ValidationHandler.sendError(callback, 'NOTE_STREAM_FAILED', error.message)
+        }
+      }
+    })
+  },
+
+  /**
    * Register musical:event broadcast handler
    * @param {Socket} socket - Socket instance
    */

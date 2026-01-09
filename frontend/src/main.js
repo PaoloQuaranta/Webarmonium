@@ -520,6 +520,27 @@ class WebarmoniumApp {
 
       this.audioService.playMusicalEvent(musicalEvent)
 
+      // REAL-TIME STREAMING: Emit note to backend for remote users
+      // Throttle: ~20 notes/second max (50ms minimum interval)
+      const streamNow = Date.now()
+      const MIN_STREAM_INTERVAL = 50
+
+      if (!this._lastNoteStreamTime || (streamNow - this._lastNoteStreamTime) >= MIN_STREAM_INTERVAL) {
+        this._lastNoteStreamTime = streamNow
+
+        if (this.socketService?.socket && this.socketService.currentRoom) {
+          this.socketService.socket.emit('note:stream', {
+            frequency: frequency,
+            duration: noteData.duration,
+            articulation: noteData.articulation,
+            position: { x, y },
+            velocity: noteData.velocity,
+            noteIndex: noteData.noteIndex,
+            timestamp: streamNow
+          })
+        }
+      }
+
       // CRITICAL: Return note data for collection in streamedNotes array
       return {
         frequency: frequency,
