@@ -5190,34 +5190,42 @@ Implemented an auto-hide system for both the controls section (top) and instruct
 
 **Date**: 2026-01-09
 **Author**: Claude Code (AI Assistant)
-**Status**: COMPLETED (corrected)
+**Status**: COMPLETED
 
 ### Summary
 
-Redesigned the landing page layout with smaller inline metric cards (preserving original 4-meter vertical layout), room activity indicator, larger canvas, and terminology correction (commit → push).
+Redesigned the landing page layout with spread controls bar (left: Start+Volume, center: metric cards 250px each, right: Join+Activity), room activity indicator, doubled canvas height, and terminology correction (commit → push).
 
 ---
 
 ### Changes Implemented
 
-#### 1. Smaller Inline Metric Cards
+#### 1. Spread Controls Bar Layout
 
-**Before:** Three large metric cards below the header, each with 4 vertical meters, taking significant vertical space.
+**Before:** Three large metric cards below the header, each with 4 vertical meters, taking significant vertical space. All controls centered.
 
-**After:** Same 3 metric cards with 4 vertical meters each, but smaller and inline with controls:
-- Start button → Volume slider → **Metric Cards** → Join Room + Activity
+**After:** Spread layout with three groups:
+- **Left:** Start button + Volume slider (wrapped in `.controls-left`)
+- **Center:** 3 metric cards with 4 vertical meters each
+- **Right:** Join Room button + User count (`.join-section`)
 
-Dimensions reduced:
-- Card padding: `1rem` → `0.4rem 0.5rem`
-- Meters container height: `100px` → `50px`
-- Meter bar: `24px × 60px` → `14px × 30px`
-- Font sizes reduced proportionally
+CSS: `justify-content: space-between` for spread layout.
 
-**Note:** Original implementation incorrectly transformed to compact horizontal bars. Corrected to preserve full 4-meter vertical layout per source (edits/velocity/size/new for Wikipedia, posts/velocity/upvotes/comments for HN, pushes/velocity/creates/deletes for GitHub).
+#### 2. Metric Card Dimensions
+
+Final dimensions after multiple iterations:
+- Card width: **250px** (fixed, `flex-shrink: 0`)
+- Card padding: `0.5rem 0.75rem`
+- Meters container height: `60px`
+- Meter bar: `18px × 38px`
+- Meters gap: `0.5rem`
+- Labels: `0.5rem` font with `white-space: nowrap`
+
+All 3 cards have identical fixed width to prevent Wikipedia card from being narrower than HackerNews/GitHub (which have longer labels like "comments", "upvotes").
 
 ---
 
-#### 2. Room Activity Indicator
+#### 3. Room Activity Indicator
 
 Added "x users in y rooms" label next to "Join a Room" button:
 
@@ -5239,7 +5247,7 @@ Added "x users in y rooms" label next to "Join a Room" button:
 
 ---
 
-#### 3. Canvas Height Doubled (Desktop)
+#### 4. Canvas Height Doubled (Desktop)
 
 | Device | Before | After |
 |--------|--------|-------|
@@ -5248,7 +5256,7 @@ Added "x users in y rooms" label next to "Join a Room" button:
 
 ---
 
-#### 4. Terminology: "commit" → "push"
+#### 5. Terminology: "commit" → "push"
 
 Changed all references from "commit" to "push" (GitHub terminology):
 
@@ -5265,8 +5273,8 @@ Changed all references from "commit" to "push" (GitHub terminology):
 
 | File | Changes |
 |------|---------|
-| `frontend/index.html` | Moved metric cards into `#controls-bar`, added `.join-section` with `#rooms-activity` span, commit→push terminology |
-| `frontend/styles.css` | Added inline `#controls-bar` flexbox layout, reduced metric card dimensions (padding, heights, fonts), added `.join-section`, `.rooms-activity` styles; doubled `#canvas-container` height for desktop |
+| `frontend/index.html` | Wrapped Start+Volume in `.controls-left`, moved metric cards into `#controls-bar`, added `.join-section` with `#rooms-activity` span, commit→push terminology |
+| `frontend/styles.css` | Spread `#controls-bar` layout (`space-between`), `.controls-left` group, metric cards 250px fixed width, meter dimensions (60px container, 38px bars, 0.5rem gap), `.join-section`, `.rooms-activity` styles; doubled `#canvas-container` height for desktop |
 | `frontend/src/landing/DashboardUI.js` | Preserved original 4-meter logic per source, added room activity polling with `_startRoomActivityPolling()`, `_fetchRoomActivity()`, `_updateRoomActivity()`, `pushesPerMinute` instead of `commitsPerMinute` |
 | `backend/src/server.js` | Added `/api/rooms/stats` endpoint returning totalUsers and activeRooms |
 
