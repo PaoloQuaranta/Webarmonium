@@ -588,15 +588,19 @@ class UIManager {
   }
 
   /**
-   * Check if current device is mobile (screen size + touch)
-   * More reliable than just touch detection (laptops have touch too)
+   * Check if current device is mobile/tablet (should use mobile menu, not edge hover)
+   * Includes detection for iPadOS 13+ which reports as "MacIntel" but has touch
    */
   _isMobileDevice() {
     const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
     const isSmallScreen = window.innerWidth <= 768
     const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
-    return (hasTouch && isSmallScreen) || isMobileUA
+    // iPadOS 13+ detection: reports as Mac but has touch capability
+    // navigator.maxTouchPoints > 1 indicates multi-touch (iPad has 5+)
+    const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+
+    return (hasTouch && isSmallScreen) || isMobileUA || isIPadOS
   }
 
   /**

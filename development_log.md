@@ -971,3 +971,84 @@ try {
 | `frontend/src/services/AudioService.js` | Added safe timing logic in `playMusicalEventInternal()` |
 
 ---
+
+## Entry #67 - Notification Positioning & iPad Mobile Menu Fix
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed two UI issues:
+1. Notification messages (virtual users activated/deactivated) were appearing at the top of the screen, obscuring the UI bar
+2. iPad was using desktop edge-hover UI instead of mobile hamburger menu
+
+---
+
+### Problem Statement
+
+User reported:
+- "il messaggio di notifica aggiunta user reali e disabilitazione user virtuali compare sopra la barra UI in alto, oscurandola"
+- "su ipad la barra UI viene gestita con hover edge come se fosse screenshot, ma essendo touch ci vuole menu mobile"
+
+---
+
+### Root Cause Analysis
+
+#### Issue 1: Notification Position
+NotificationService positioned the container at `top: 20px`, which placed notifications over the room-interface UI bar.
+
+#### Issue 2: iPad Detection
+The `_isMobileDevice()` function in UIManager only detected:
+- Small screens (≤768px) with touch
+- Mobile user agents (Android, iPhone, iPad, etc.)
+
+**Problem**: iPadOS 13+ reports as "MacIntel" in user agent (not "iPad"), and iPad screens are typically wider than 768px. This caused iPads to be detected as desktop devices, triggering edge-hover behavior instead of the mobile hamburger menu.
+
+---
+
+### Solution
+
+#### 1. Center Notifications in Screen
+Changed container positioning from top to center:
+
+```javascript
+// BEFORE
+top: 20px;
+left: 50%;
+transform: translateX(-50%);
+
+// AFTER
+top: 50%;
+left: 50%;
+transform: translate(-50%, -50%);
+```
+
+#### 2. Detect iPadOS 13+
+Added detection for iPadOS 13+ which reports as Mac but has multi-touch:
+
+```javascript
+// iPadOS 13+ detection: reports as Mac but has touch capability
+// navigator.maxTouchPoints > 1 indicates multi-touch (iPad has 5+)
+const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+
+return (hasTouch && isSmallScreen) || isMobileUA || isIPadOS
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/NotificationService.js` | Changed notification container from `top: 20px` to `top: 50%` with centered transform |
+| `frontend/src/services/UIManager.js` | Added iPadOS 13+ detection in `_isMobileDevice()` |
+
+---
+
+### Version
+
+Updated to v1.0.41
+
+---
