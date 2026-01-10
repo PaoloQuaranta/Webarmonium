@@ -2198,3 +2198,52 @@ This ensures perfect audio-visual coherence: when you hear a note, the cursor is
 Updated to v1.0.56
 
 ---
+
+## Entry #77 - Technical Appendix Verification Fixes
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Completed systematic verification of ALL documentation claims (28 total) against source code. Found and fixed 2 discrepancies in technical-appendix.html.
+
+---
+
+### Verification Results
+
+- **Landing Page claims**: 8/8 TRUE
+- **Collaborative Rooms claims**: 8/8 TRUE
+- **Technical Appendix claims**: 10/12 TRUE, 2 needed correction
+
+---
+
+### Discrepancies Fixed
+
+#### 1. Material Selection (line 290)
+**Before**: "Top 5 - Scored by freshness × complexity × mood match"
+**After**: "Top 3 - Scored by key compatibility × mood match"
+**Code**: MaterialLibrary.js:226 uses `count = 3` default
+
+#### 2. Environmental Memory Phases (lines 309-333)
+**Before**: Time-based triggers (0-30s, 30s-1min, >1min)
+**After**: Gesture-count-based triggers (< 10, 10-50, > 200 gestures)
+**Code**: MemoryState.js:453-456 uses pattern count, not elapsed time
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/technical-appendix.html` | Fixed material selection count and memory phase triggers |
+| `frontend/index.html` | Version tag v1.0.57 |
+
+---
+
+### Version
+
+Updated to v1.0.57
+
+---
