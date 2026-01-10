@@ -234,50 +234,52 @@ class UIManager {
   }
 
   /**
-   * Entry #74: Create Settings button for desktop UI
+   * Entry #74: Create Settings button for desktop UI (inline with audio controls)
    */
   _createDesktopSettingsButton () {
     // Check if button already exists
     if (document.getElementById('desktopSettingsBtn')) return
 
+    // Find the audio-controls container in the UI bar
+    const audioControls = document.querySelector('.audio-controls')
+    if (!audioControls) {
+      console.warn('UIManager: .audio-controls not found, cannot add Settings button')
+      return
+    }
+
     const settingsBtn = document.createElement('button')
     settingsBtn.id = 'desktopSettingsBtn'
-    settingsBtn.className = 'desktop-settings-btn'
-    settingsBtn.innerHTML = '&#9881;' // Gear icon
-    settingsBtn.title = 'Settings'
+    settingsBtn.className = 'audio-toggle desktop-settings-btn'
+    settingsBtn.innerHTML = '&#9881; Settings'
+    settingsBtn.title = 'Open settings'
     settingsBtn.setAttribute('aria-label', 'Open settings')
 
+    // Style matching the audio-toggle buttons
     settingsBtn.style.cssText = `
-      position: fixed;
-      top: 12px;
-      right: 12px;
-      z-index: 1000;
-      background: rgba(0, 212, 255, 0.15);
-      border: 1px solid rgba(0, 212, 255, 0.3);
-      color: #00d4ff;
-      border-radius: 8px;
-      width: 40px;
-      height: 40px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #ccc;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 8px 16px;
+      border-radius: 6px;
       cursor: pointer;
-      font-size: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
+      font-weight: 500;
+      font-size: 14px;
+      transition: all 0.2s;
     `
 
     settingsBtn.onmouseenter = () => {
-      settingsBtn.style.background = 'rgba(0, 212, 255, 0.25)'
-      settingsBtn.style.borderColor = 'rgba(0, 212, 255, 0.5)'
+      settingsBtn.style.background = 'rgba(255, 255, 255, 0.2)'
+      settingsBtn.style.color = 'white'
     }
     settingsBtn.onmouseleave = () => {
-      settingsBtn.style.background = 'rgba(0, 212, 255, 0.15)'
-      settingsBtn.style.borderColor = 'rgba(0, 212, 255, 0.3)'
+      settingsBtn.style.background = 'rgba(255, 255, 255, 0.1)'
+      settingsBtn.style.color = '#ccc'
     }
 
     settingsBtn.onclick = () => this.openSettingsPanel()
 
-    document.body.appendChild(settingsBtn)
+    // Insert at the end of audio-controls
+    audioControls.appendChild(settingsBtn)
     this.desktopSettingsBtn = settingsBtn
   }
 

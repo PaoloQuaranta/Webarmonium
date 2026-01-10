@@ -1911,3 +1911,149 @@ if (typeof factor !== 'number' || !isFinite(factor)) {
 Updated to v1.0.52
 
 ---
+
+## Entry #75 - Settings Panel UI Improvements
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Improved Settings panel UX with two changes: moved the desktop Settings button inline with the UI bar (instead of floating separately), and made the Apply button close the panel with a canvas notification "Settings applied".
+
+---
+
+### Problem Statement
+
+User reported two issues:
+1. **Desktop Settings button was separate** from the UI bar, floating as a standalone fixed-position element in top-right corner
+2. **Apply button didn't close the panel** - users had to manually close after applying settings
+
+---
+
+### Solution
+
+#### 1. Inline Desktop Settings Button
+
+Changed `_createDesktopSettingsButton()` to insert the button into `.audio-controls` container instead of appending to `document.body`:
+
+**File:** `frontend/src/services/UIManager.js`
+
+```javascript
+_createDesktopSettingsButton () {
+  // Find the audio-controls container in the UI bar
+  const audioControls = document.querySelector('.audio-controls')
+  if (!audioControls) {
+    console.warn('UIManager: .audio-controls not found')
+    return
+  }
+
+  const settingsBtn = document.createElement('button')
+  settingsBtn.className = 'audio-toggle desktop-settings-btn'
+  settingsBtn.innerHTML = '&#9881; Settings'
+
+  // Style matching other buttons in the bar
+  settingsBtn.style.cssText = `
+    background: rgba(255, 255, 255, 0.1);
+    color: #ccc;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    ...
+  `
+
+  // Insert at the end of audio-controls
+  audioControls.appendChild(settingsBtn)
+}
+```
+
+**Before**: Fixed position button at `top: 12px; right: 12px`
+**After**: Inline button in `.audio-controls` next to "Start Audio" and "Back to main page"
+
+#### 2. Apply Button Closes Panel + Canvas Notification
+
+Modified `_applySettings()` to close the panel and show a toast notification:
+
+**File:** `frontend/src/components/SettingsPanel.js`
+
+```javascript
+_applySettings () {
+  // ... save settings and reload profiles ...
+
+  // Close panel and show notification
+  this.close()
+  this._showCanvasNotification('Settings applied')
+}
+
+_showCanvasNotification (message) {
+  const notification = document.createElement('div')
+  notification.className = 'settings-canvas-notification'
+  notification.textContent = message
+
+  document.body.appendChild(notification)
+
+  // Animate in
+  requestAnimationFrame(() => {
+    notification.classList.add('visible')
+  })
+
+  // Remove after 2 seconds
+  setTimeout(() => {
+    notification.classList.remove('visible')
+    setTimeout(() => notification.remove(), 300)
+  }, 2000)
+}
+```
+
+Added CSS for the toast notification:
+
+```css
+.settings-canvas-notification {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(78, 205, 196, 0.9);
+  color: #1a1a2e;
+  padding: 12px 24px;
+  border-radius: 25px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.settings-canvas-notification.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/UIManager.js` | Settings button now inline in `.audio-controls` |
+| `frontend/src/components/SettingsPanel.js` | Apply closes panel, shows canvas notification |
+
+---
+
+### UX Flow
+
+1. User clicks "Settings" button in UI bar
+2. Settings panel opens
+3. User changes options
+4. User clicks "Apply"
+5. Panel closes automatically
+6. Teal toast "Settings applied" appears at bottom center
+7. Toast fades out after 2 seconds
+
+---
+
+### Version
+
+Updated to v1.0.54
+
+---

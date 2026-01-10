@@ -346,17 +346,35 @@ class SettingsPanel {
       window.webarmoniumApp.visualService.applyGraphicsQuality()
     }
 
-    // Visual feedback
-    const applyBtn = this.panel.querySelector('.settings-apply')
-    if (applyBtn) {
-      const originalText = applyBtn.textContent
-      applyBtn.textContent = 'Applied!'
-      applyBtn.style.background = '#4ecdc4'
+    // Close panel and show notification
+    this.close()
+    this._showCanvasNotification('Settings applied')
+  }
+
+  /**
+   * Show a notification overlay on the canvas
+   */
+  _showCanvasNotification (message) {
+    const notification = document.createElement('div')
+    notification.className = 'settings-canvas-notification'
+    notification.textContent = message
+
+    document.body.appendChild(notification)
+
+    // Animate in
+    requestAnimationFrame(() => {
+      notification.classList.add('visible')
+    })
+
+    // Remove after delay
+    setTimeout(() => {
+      notification.classList.remove('visible')
       setTimeout(() => {
-        applyBtn.textContent = originalText
-        applyBtn.style.background = ''
-      }, 1000)
-    }
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification)
+        }
+      }, 300)
+    }, 2000)
   }
 
   /**
@@ -623,6 +641,30 @@ settingsStyles.textContent = `
   .settings-panel::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
     border-radius: 3px;
+  }
+
+  /* Canvas notification toast */
+  .settings-canvas-notification {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(78, 205, 196, 0.9);
+    color: #1a1a2e;
+    padding: 12px 24px;
+    border-radius: 25px;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+    box-shadow: 0 4px 20px rgba(78, 205, 196, 0.3);
+  }
+
+  .settings-canvas-notification.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 `
 document.head.appendChild(settingsStyles)
