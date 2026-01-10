@@ -151,12 +151,10 @@ class AudioService {
     this.filterUpdateInterval = 50 // 50ms = 20 updates per second maximum
     this.lastFilterLogTime = 0
 
-    // Entry #60: Separate throttle for ambient filters (much slower for Chrome/Opera)
-    // Ambient filters don't need fast updates - smooth musical changes are better
+    // Entry #60: Separate throttle for ambient filters (slow is more musical)
+    // Ambient filters don't need rapid updates - smooth transitions sound better
     this.lastAmbientFilterUpdateTime = 0
-    const isProblematicPlatform = typeof PlatformDetection !== 'undefined' &&
-      PlatformDetection.isWindowsChromeOrOpera()
-    this.ambientFilterUpdateInterval = isProblematicPlatform ? 300 : 100 // 3Hz for Chrome, 10Hz default
+    this.ambientFilterUpdateInterval = 200 // 5Hz universal - slow is more musical
 
     // LFO system stub - SIMPLIFIED
     // PERF: Removed setInterval(30Hz) implementation that competed with main thread
@@ -4063,15 +4061,10 @@ class AudioService {
 
   /**
    * Handle musical beats
+   * Entry #60: Removed downbeat emphasis - effect was imperceptible
    */
-  onMusicalBeat(data) {
-    // Trigger beat-synchronized audio events
-    if (this.isInitialized && !this.muted) {
-      // Add subtle emphasis on downbeats
-      if (data.beat === 0) {
-        this.addDownbeatEmphasis();
-      }
-    }
+  onMusicalBeat() {
+    // Entry #60: Downbeat emphasis removed - was imperceptible, just wasted CPU
   }
 
   /**
@@ -4090,27 +4083,6 @@ class AudioService {
     if (this.generativeState) {
       // Evolve ambient parameters slightly on each beat
       this.evolveAmbientParameters(data.beat, data.bar);
-    }
-  }
-
-  /**
-   * Add subtle emphasis on downbeats
-   * Entry #60 FIX: Disabled for Chrome/Opera on Windows - 5% gain for 50ms is imperceptible
-   * but causes unnecessary audio thread load
-   */
-  addDownbeatEmphasis() {
-    // Entry #60: Skip for problematic platforms - effect is imperceptible anyway
-    if (typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsChromeOrOpera()) {
-      return // Skip - causes audio glitches without audible benefit
-    }
-
-    // Add very subtle filter sweep or volume emphasis on downbeats
-    if (this.masterVolume && this.masterVolume.gain) {
-      const currentGain = this.masterVolume.gain.value;
-      this.masterVolume.gain.rampTo(currentGain * 1.05, 0.05);
-      setTimeout(() => {
-        this.masterVolume.gain.rampTo(currentGain, 0.05);
-      }, 50);
     }
   }
 
