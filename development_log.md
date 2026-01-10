@@ -1052,3 +1052,98 @@ return (hasTouch && isSmallScreen) || isMobileUA || isIPadOS
 Updated to v1.0.41
 
 ---
+
+## Entry #68 - Real User Synth Volume Boost
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed low volume issue with real user local gestures in normal rooms. Real users' gestures were significantly quieter than the background and virtual users due to a mismatch in gain staging between the fallback `gestureSynth` and per-user synths created by `UserSynthManager`.
+
+---
+
+### Problem Statement
+
+User reported: "le voci locali di real users nelle room sono troppo basse rispetto a background e users virtuali"
+
+Local gesture audio from real users was barely audible compared to:
+- Background composition layers
+- Virtual user gestures
+- The fallback gestureSynth
+
+---
+
+### Root Cause Analysis
+
+**Gain staging mismatch** between two audio paths:
+
+#### GestureSynth (fallback) - Total: +9 dB
+```
+gestureSynth (volume: +3 dB)
+  → gestureFilter
+  → gesturePan
+  → gestureVolume (+6 dB)  ← Additional boost
+  → masterVolume
+```
+
+#### Real User Synth (UserSynthManager) - Total: 3-5 dB
+```
+synth (volume: 0 dB default)
+  → filter
+  → volume (patch.volume: 3-5 dB)  ← Only stage
+  → pan
+  → masterVolume
+```
+
+The `gestureVolume (+6 dB)` node was only applied to the fallback `gestureSynth`, not to per-user synths. Real users were **4-6 dB quieter** than the fallback.
+
+---
+
+### Solution
+
+#### 1. Boosted REAL_USER_PATCHES volumes (+6 dB)
+
+**File:** `frontend/src/services/audio/PatchDefinitions.js`
+
+| Slot | Patch Name | Before | After |
+|------|------------|--------|-------|
+| 0 | Retro Square | 3 dB | **9 dB** |
+| 1 | Nasal Reed | 5 dB | **11 dB** |
+| 2 | Warm Chorus | 4 dB | **10 dB** |
+| 3 | Bell Chime | 12 dB | (unchanged, already high) |
+| 4 | Soft Square | 3 dB | **9 dB** |
+| 5 | Wide Pulse | 5 dB | **11 dB** |
+| 6 | Bright Chorus | 4 dB | **10 dB** |
+| 7 | Deep Bell | 11 dB | (unchanged, already high) |
+
+#### 2. Raised MAX_PATCH_VOLUME_DB cap
+
+**File:** `frontend/src/services/audio/UserSynthManager.js`
+
+```javascript
+// BEFORE
+const MAX_PATCH_VOLUME_DB = 10
+
+// AFTER
+const MAX_PATCH_VOLUME_DB = 12  // Allows real user patches to match gestureSynth prominence
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/audio/PatchDefinitions.js` | Boosted volume for slots 0-2, 4-6 by +6 dB |
+| `frontend/src/services/audio/UserSynthManager.js` | Raised MAX_PATCH_VOLUME_DB from 10 to 12 |
+
+---
+
+### Version
+
+Updated to v1.0.43
+
+---

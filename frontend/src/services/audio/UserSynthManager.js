@@ -208,8 +208,9 @@ class UserSynthManager {
 
       // Create volume node
       // Entry #46 FIX: Limit patch volume to prevent clipping and speaker damage
-      // High volume patches (like FM/bell at 11-12 dB) could cause distortion if multiple play simultaneously
-      const MAX_PATCH_VOLUME_DB = 10  // Safety limit
+      // High volume patches could cause distortion if multiple play simultaneously
+      // UPDATED: Raised from 10 to 12 dB to match gestureSynth level (+3 synth + 6 gestureVolume = +9)
+      const MAX_PATCH_VOLUME_DB = 12  // Safety limit - allows real user patches to match gestureSynth prominence
       const patchVolume = Math.min(patch.volume || 0, MAX_PATCH_VOLUME_DB)
       if (patch.volume > MAX_PATCH_VOLUME_DB) {
         console.warn(`⚠️ Patch "${patch.name}" volume capped: ${patch.volume} dB → ${MAX_PATCH_VOLUME_DB} dB`)

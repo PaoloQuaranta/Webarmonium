@@ -114,7 +114,7 @@ const REAL_USER_PATCHES = {
       frequency: 2500,
       Q: 1.2
     },
-    volume: 3,              // Square is loud - boosted
+    volume: 9,              // BOOSTED +6dB to match gestureSynth (+3 synth + 6 gestureVolume = +9)
     effects: {
       delaySend: 0.15,
       reverbSend: 0.2
@@ -138,7 +138,7 @@ const REAL_USER_PATCHES = {
       frequency: 1000,
       Q: 2
     },
-    volume: 5,              // Boosted
+    volume: 11,             // BOOSTED +6dB to match gestureSynth level
     effects: {
       delaySend: 0.1,
       reverbSend: 0.2
@@ -163,7 +163,7 @@ const REAL_USER_PATCHES = {
       frequency: 1800,
       Q: 0.8
     },
-    volume: 4,              // Boosted
+    volume: 10,             // BOOSTED +6dB to match gestureSynth level
     effects: {
       delaySend: 0.2,
       reverbSend: 0.4
@@ -214,7 +214,7 @@ const REAL_USER_PATCHES = {
       frequency: 1500,      // More muffled than slot 0
       Q: 0.8
     },
-    volume: 3,
+    volume: 9,              // BOOSTED +6dB to match gestureSynth level
     effects: {
       delaySend: 0.3,       // More delay
       reverbSend: 0.4
@@ -238,7 +238,7 @@ const REAL_USER_PATCHES = {
       frequency: 1500,
       Q: 1.2
     },
-    volume: 5,
+    volume: 11,             // BOOSTED +6dB to match gestureSynth level
     effects: {
       delaySend: 0.25,
       reverbSend: 0.35
@@ -263,7 +263,7 @@ const REAL_USER_PATCHES = {
       frequency: 300,
       Q: 0.5
     },
-    volume: 4,
+    volume: 10,             // BOOSTED +6dB to match gestureSynth level
     effects: {
       delaySend: 0.15,
       reverbSend: 0.25
