@@ -1399,3 +1399,128 @@ Replaced in:
 Updated to v1.0.48
 
 ---
+
+## Entry #71 - Position/Audio Separation for Virtual Cursors
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed an issue where tessitura constraints were incorrectly limiting virtual cursor positions. Tessituras should only constrain AUDIO frequencies, while cursor positions should be free to move across the entire canvas.
+
+---
+
+### Problem Statement
+
+After implementing reverse mapping (#70), virtual cursors were constrained to small regions of the canvas because their positions were calculated from tessitura-constrained frequencies:
+- Bass (110-220Hz) → cursors stuck in bottom-left area
+- Tenor (196-392Hz) → cursors stuck in lower-middle area
+- Soprano (523-1047Hz) → cursors stuck in upper-middle area
+
+This was incorrect: tessituras should only affect the audio output, not the visual cursor movement.
+
+---
+
+### Solution
+
+Separate audio frequency from position frequency:
+- **audioFreq**: Tessitura-constrained frequency for sound output
+- **positionFreq**: Raw unconstrained frequency for cursor position
+
+#### Full Canvas Formula
+```javascript
+const fullCanvasFreq = 110 + (activityLevel * 1100)  // Range: 110-1210Hz
+const position = this.frequencyMapper.frequencyToPosition(fullCanvasFreq)
+```
+
+This maps:
+- `activity=0.00` → `freq=110Hz` → `pos=(x=0.00, y=0.95)` (bottom-left)
+- `activity=0.50` → `freq=660Hz` → `pos=(x=0.50, y=0.50)` (center)
+- `activity=1.00` → `freq=1210Hz` → `pos=(x=1.00, y=0.05)` (top-right)
+
+---
+
+### Changes
+
+#### VirtualUserService.js
+
+**`_emitTapGesture()`**:
+```javascript
+// Audio frequency (tessitura-constrained)
+const { min: freqMin, max: freqMax } = config.frequencyRange
+let rawFreq = freqMin + (activityLevel * (freqMax - freqMin))
+frequency = this.frequencyMapper.enforceTessitura(frequency, freqMin, freqMax)
+
+// Position on FULL CANVAS (independent of tessitura)
+const fullCanvasFreq = 110 + (activityLevel * 1100)
+const position = this.frequencyMapper.frequencyToPosition(fullCanvasFreq)
+```
+
+**`_emitDragGesture()`**:
+```javascript
+const noteData = phrase.notes.map((note, i) => {
+  const rawFreq = 440 * Math.pow(2, (note.pitch - 69) / 12)
+  const audioFreq = this.frequencyMapper.enforceTessitura(rawFreq, freqMin, freqMax)
+  return {
+    audioFreq: audioFreq,       // For sound (tessitura-constrained)
+    positionFreq: rawFreq,      // For cursor (full canvas)
+    // ...
+  }
+})
+
+// Position uses positionFreq
+const startFreq = noteData[0].positionFreq
+const endFreq = noteData[noteData.length - 1].positionFreq
+
+// Audio uses audioFreq
+frequency: note.audioFreq,
+```
+
+**`_emitHoverGesture()`**:
+```javascript
+const fullCanvasFreq = 110 + (periodicity * 1100)
+const position = this.frequencyMapper.frequencyToPosition(fullCanvasFreq)
+```
+
+#### LandingCompositionService.js
+
+Same pattern applied to:
+- `emitTapNote()`
+- `emitDragPhrase()`
+- `generateVirtualHover()`
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/VirtualUserService.js` | Separate audioFreq from positionFreq in all gesture methods |
+| `backend/src/services/LandingCompositionService.js` | Same separation pattern |
+
+---
+
+### Verification
+
+```
+Activity Level → Full Canvas Position:
+  activity=0.00 → freq=110Hz → pos=(x=0.00, y=0.95)
+  activity=0.50 → freq=660Hz → pos=(x=0.50, y=0.50)
+  activity=1.00 → freq=1210Hz → pos=(x=1.00, y=0.05)
+
+Compare with tessitura-constrained (bass: 110-220Hz):
+  activity=0.00 → freq=110Hz → pos=(x=0.00, y=0.95)
+  activity=1.00 → freq=220Hz → pos=(x=0.07, y=0.86)  ← Very limited!
+```
+
+All tests pass (34/34).
+
+---
+
+### Version
+
+Updated to v1.0.49
+
+---

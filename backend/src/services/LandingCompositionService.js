@@ -624,11 +624,10 @@ class LandingCompositionService {
     const periodicity = this.calculatePeriodicityMetric(source)
     const user = this.virtualUsers[source]
 
-    // REVERSE MAPPING: Calculate position from frequency based on periodicity
-    // Higher periodicity = higher frequency range = different position in scene
-    const { min: freqMin, max: freqMax } = user.frequencyRange
-    const hoverFreq = freqMin + (periodicity * (freqMax - freqMin))
-    const position = this.frequencyMapper.frequencyToPosition(hoverFreq)
+    // Calculate position on FULL CANVAS (independent of tessitura)
+    // Hover has no audio, only modulation - cursor can move freely
+    const fullCanvasFreq = 110 + (periodicity * 1100) // Full range: 110-1210Hz
+    const position = this.frequencyMapper.frequencyToPosition(fullCanvasFreq)
 
     // Emit cursor position for hover
     this._emitCursorAtPosition(source, user, position)
@@ -1028,11 +1027,11 @@ class LandingCompositionService {
    * @private
    */
   async emitTapNote(gesture, user, musicalContext) {
-    // 1. FIRST: Generate frequency from tessitura range (NOT from position)
+    // 1. Calculate AUDIO frequency (constrained to tessitura)
     const activityLevel = this.calculateActivityLevel(gesture.source)
     const { min: freqMin, max: freqMax } = user.frequencyRange
 
-    // Map activity level to frequency within tessitura
+    // Map activity level to frequency within tessitura for AUDIO
     let rawFreq = freqMin + (activityLevel * (freqMax - freqMin))
 
     // Convert to MIDI pitch for scale constraint
@@ -1040,11 +1039,13 @@ class LandingCompositionService {
     const pitch = this.harmonicEngine.constrainToScale(rawPitch, musicalContext.key, musicalContext.mode)
     let frequency = 440 * Math.pow(2, (pitch - 69) / 12)
 
-    // Ensure frequency stays within tessitura using octave wrapping
+    // Ensure audio frequency stays within tessitura using octave wrapping
     frequency = this.frequencyMapper.enforceTessitura(frequency, freqMin, freqMax)
 
-    // 2. REVERSE MAPPING: Calculate position FROM frequency
-    const position = this.frequencyMapper.frequencyToPosition(frequency)
+    // 2. Calculate POSITION on FULL CANVAS (independent of tessitura)
+    // Cursor can move freely across entire canvas based on activity level
+    const fullCanvasFreq = 110 + (activityLevel * 1100) // Full range: 110-1210Hz
+    const position = this.frequencyMapper.frequencyToPosition(fullCanvasFreq)
 
     // 3. Emit cursor position synchronized with note
     this._emitCursorAtPosition(gesture.source, user, position)
@@ -1113,7 +1114,9 @@ class LandingCompositionService {
     const beatDurationMs = (60 / musicalContext.tempo) * 1000
     const { min: freqMin, max: freqMax } = user.frequencyRange
 
-    // 2. Calculate frequencies for each note (with tessitura enforcement)
+    // 2. Calculate frequencies for each note
+    // - audioFreq: constrained to tessitura (for sound)
+    // - positionFreq: unconstrained (for cursor position on full canvas)
     const noteData = phrase.notes.map((note, i) => {
       if (!note || typeof note.pitch !== 'number' || isNaN(note.pitch) ||
           note.pitch < 0 || note.pitch > 127 ||
@@ -1124,12 +1127,13 @@ class LandingCompositionService {
       const rawFreq = 440 * Math.pow(2, (note.pitch - 69) / 12)
       if (!isFinite(rawFreq) || rawFreq <= 0) return null
 
-      // Tessitura enforcement with octave wrapping
-      const noteFreq = this.frequencyMapper.enforceTessitura(rawFreq, freqMin, freqMax)
+      // Tessitura enforcement for AUDIO only
+      const audioFreq = this.frequencyMapper.enforceTessitura(rawFreq, freqMin, freqMax)
 
       return {
         noteId: `virtual_${gesture.source}_${Date.now()}_${i}`,
-        frequency: noteFreq,
+        audioFreq: audioFreq,       // For sound (tessitura-constrained)
+        positionFreq: rawFreq,      // For cursor (full canvas)
         velocity: Math.max(0, Math.min(1, (note.velocity || 80) / 127)),
         startDelayMs: note.startBeat * beatDurationMs,
         durationMs: note.duration * beatDurationMs
@@ -1138,9 +1142,9 @@ class LandingCompositionService {
 
     if (noteData.length === 0) return
 
-    // 3. REVERSE MAPPING: Calculate start and end positions from first/last note frequencies
-    const startFreq = noteData[0].frequency
-    const endFreq = noteData[noteData.length - 1].frequency
+    // 3. Calculate positions from RAW frequencies (full canvas movement)
+    const startFreq = noteData[0].positionFreq
+    const endFreq = noteData[noteData.length - 1].positionFreq
     const startPosition = this.frequencyMapper.frequencyToPosition(startFreq)
 
     // Emit phrase event for visual system
@@ -1168,23 +1172,25 @@ class LandingCompositionService {
       this.pendingTimeouts.add(timeoutId)
     })
 
-    // 6. Emit notes with their positions (reverse-mapped from frequency)
+    // 6. Emit notes with their positions
+    // - audioFreq for sound (tessitura-constrained)
+    // - positionFreq for cursor (full canvas)
     noteData.forEach((note) => {
       const noteTimeoutId = setTimeout(() => {
         this.pendingTimeouts.delete(noteTimeoutId)
         if (!this.io || !this.isRunning) return
 
-        // Get position from frequency for this specific note
-        const notePosition = this.frequencyMapper.frequencyToPosition(note.frequency)
+        // Get position from RAW frequency (full canvas movement)
+        const notePosition = this.frequencyMapper.frequencyToPosition(note.positionFreq)
 
         this.io.to(this.landingRoomId).emit('hold:start', {
           type: 'hold:start',
           userId: user.userId,
           noteId: note.noteId,
-          frequency: note.frequency,
+          frequency: note.audioFreq,  // Tessitura-constrained for sound
           velocity: note.velocity,
           duration: note.durationMs / 1000,
-          position: notePosition,
+          position: notePosition,     // Full canvas position
           userColor: user.color,
           isRemote: true,
           timestamp: Date.now()
