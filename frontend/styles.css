@@ -588,3 +588,48 @@ footer a:hover {
     padding: 1rem;
   }
 }
+
+/* Entry #73: Audio mode indicator */
+.audio-mode-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 14px;
+  margin-left: 10px;
+  transition: opacity 0.3s ease, background 0.3s ease;
+}
+
+.audio-mode-indicator.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.audio-mode-indicator.low-power {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+}
+
+.audio-mode-indicator.degraded {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.audio-mode-indicator.minimal {
+  background: rgba(249, 115, 22, 0.2);
+  color: #f97316;
+}
+
+.audio-mode-indicator.emergency {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  animation: pulse-warning 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}

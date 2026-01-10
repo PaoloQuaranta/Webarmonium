@@ -40,6 +40,11 @@ class UIManager {
     this.AUTO_HIDE_DELAY = 5000 // 5 seconds
     this.EDGE_ZONE_SIZE = 80 // pixels from edge to trigger show (desktop only)
 
+    // Audio mode indicator state (Entry #73)
+    this.audioModeIndicator = null
+    this.currentAudioMode = 'normal'
+    this.audioStressFactor = 1.0
+
     // Mobile state
     this.isMobile = false
     this.mobileMenuOpen = false
@@ -206,6 +211,9 @@ class UIManager {
     } else {
       this._setupDesktopUI()
     }
+
+    // Initialize audio mode indicator (Entry #73)
+    this.initAudioModeIndicator()
 
     console.log(`✅ UIManager: Collapsible UI initialized (${this.isMobile ? 'mobile' : 'desktop'} mode)`)
   }
@@ -397,10 +405,25 @@ class UIManager {
     this._updateLowPowerButton(lowPowerBtn)
 
     lowPowerBtn.onclick = () => {
+      // Toggle Low Power mode in MobileResourceManager (if available)
       if (window.MobileResourceManager) {
         MobileResourceManager.getInstance().toggleLowPowerMode()
-        this._updateLowPowerButton(lowPowerBtn)
       }
+      // Also toggle in PlatformDetection for audio tier (Entry #73)
+      if (window.PlatformDetection) {
+        const isCurrentlyEnabled = PlatformDetection.isLowPowerModeEnabled()
+        PlatformDetection.setLowPowerMode(!isCurrentlyEnabled)
+        console.log(`🔋 Low Power Mode: ${!isCurrentlyEnabled ? 'enabled' : 'disabled'}`)
+
+        // Entry #73 FIX: Trigger AudioService to reload profile with new settings
+        if (window.webarmoniumApp?.audioService?.reloadAudioProfile) {
+          window.webarmoniumApp.audioService.reloadAudioProfile()
+        } else if (window.AudioService?.reloadAudioProfile) {
+          window.AudioService.reloadAudioProfile()
+        }
+      }
+      this._updateLowPowerButton(lowPowerBtn)
+      this._updateAudioModeIndicator()
     }
 
     document.getElementById('mobileAudioControls')?.appendChild(lowPowerBtn)
@@ -411,10 +434,140 @@ class UIManager {
    * Update Low Power button appearance based on current state
    */
   _updateLowPowerButton(btn) {
-    if (!btn || !window.MobileResourceManager) return
-    const isLowPower = MobileResourceManager.getInstance().isLowPowerMode()
-    btn.textContent = isLowPower ? 'Low Power ON' : 'Low Power'
+    if (!btn) return
+    // Check both MobileResourceManager and PlatformDetection
+    let isLowPower = false
+    if (window.MobileResourceManager) {
+      isLowPower = MobileResourceManager.getInstance().isLowPowerMode()
+    }
+    if (window.PlatformDetection && PlatformDetection.isLowPowerModeEnabled()) {
+      isLowPower = true
+    }
+    btn.textContent = isLowPower ? '🔋 Low Power ON' : '🔋 Low Power'
     btn.classList.toggle('active', isLowPower)
+  }
+
+  // ==========================================
+  // Entry #73: Audio Mode Indicator Methods
+  // ==========================================
+
+  /**
+   * Initialize audio mode indicator
+   * Call after DOM is ready (typically in initCollapsibleUI)
+   */
+  initAudioModeIndicator() {
+    // Create indicator element if it doesn't exist
+    if (!document.getElementById('audioModeIndicator')) {
+      this.audioModeIndicator = document.createElement('span')
+      this.audioModeIndicator.id = 'audioModeIndicator'
+      this.audioModeIndicator.className = 'audio-mode-indicator hidden'
+      this.audioModeIndicator.title = 'Audio is running in power-saving mode'
+
+      // Insert into room interface (desktop) or will be shown in mobile menu
+      const roomInterface = document.querySelector('.room-interface')
+      if (roomInterface) {
+        roomInterface.appendChild(this.audioModeIndicator)
+      } else {
+        // Fallback: append to body with fixed positioning
+        this.audioModeIndicator.style.cssText = `
+          position: fixed;
+          top: 12px;
+          left: 12px;
+          z-index: 1000;
+        `
+        document.body.appendChild(this.audioModeIndicator)
+      }
+    } else {
+      this.audioModeIndicator = document.getElementById('audioModeIndicator')
+    }
+
+    // Set up event listeners for audio stress changes
+    this._setupAudioStressListeners()
+
+    console.log('🔊 UIManager: Audio mode indicator initialized')
+  }
+
+  /**
+   * Set up listeners for audio stress events from AudioService
+   */
+  _setupAudioStressListeners() {
+    // Listen for custom audio stress events (dispatched by AudioService)
+    window.addEventListener('audio-mode-change', (e) => {
+      this.currentAudioMode = e.detail?.mode || 'normal'
+      this.audioStressFactor = e.detail?.stressFactor ?? 1.0
+      this._updateAudioModeIndicator()
+    })
+
+    window.addEventListener('audio-stress-change', (e) => {
+      this.audioStressFactor = e.detail?.stressFactor ?? 1.0
+      this.currentAudioMode = e.detail?.mode || this.currentAudioMode
+      this._updateAudioModeIndicator()
+    })
+  }
+
+  /**
+   * Update audio mode indicator based on current state
+   */
+  _updateAudioModeIndicator() {
+    if (!this.audioModeIndicator) return
+
+    // Check if Low Power mode is enabled
+    const isLowPowerEnabled = window.PlatformDetection?.isLowPowerModeEnabled() || false
+    const isDegraded = this.currentAudioMode !== 'normal' || this.audioStressFactor < 0.8
+
+    // Determine icon and visibility
+    if (isLowPowerEnabled) {
+      this.audioModeIndicator.innerHTML = '🔋'
+      this.audioModeIndicator.title = 'Low Power Audio mode enabled'
+      this.audioModeIndicator.classList.remove('hidden')
+      this.audioModeIndicator.classList.add('low-power')
+      this.audioModeIndicator.classList.remove('degraded', 'minimal', 'emergency')
+    } else if (isDegraded) {
+      // Show degraded indicator based on mode
+      const modeIcons = {
+        'degraded': '⚡',
+        'minimal': '📉',
+        'emergency': '⚠️'
+      }
+      const modeDescriptions = {
+        'degraded': 'Audio quality reduced for performance',
+        'minimal': 'Minimal audio mode active',
+        'emergency': 'Audio under stress - emergency mode'
+      }
+      const icon = modeIcons[this.currentAudioMode] || '⚡'
+      const desc = modeDescriptions[this.currentAudioMode] || 'Audio quality adjusted'
+
+      this.audioModeIndicator.innerHTML = icon
+      this.audioModeIndicator.title = desc
+      this.audioModeIndicator.classList.remove('hidden', 'low-power')
+      this.audioModeIndicator.classList.add(this.currentAudioMode)
+    } else {
+      // Normal mode - hide indicator
+      this.audioModeIndicator.classList.add('hidden')
+      this.audioModeIndicator.classList.remove('low-power', 'degraded', 'minimal', 'emergency')
+    }
+  }
+
+  /**
+   * Manually set audio mode (called by AudioService)
+   * @param {string} mode - 'normal' | 'degraded' | 'minimal' | 'emergency'
+   * @param {number} stressFactor - Stress factor 0.3-1.0
+   */
+  setAudioMode(mode, stressFactor = 1.0) {
+    this.currentAudioMode = mode
+    this.audioStressFactor = stressFactor
+    this._updateAudioModeIndicator()
+  }
+
+  /**
+   * Get current audio mode for external access
+   * @returns {Object} { mode, stressFactor }
+   */
+  getAudioMode() {
+    return {
+      mode: this.currentAudioMode,
+      stressFactor: this.audioStressFactor
+    }
   }
 
   /**
@@ -696,6 +849,12 @@ class UIManager {
     }
     if (this.mobileSheet) {
       this.mobileSheet.remove()
+    }
+
+    // Remove audio mode indicator (Entry #73)
+    if (this.audioModeIndicator) {
+      this.audioModeIndicator.remove()
+      this.audioModeIndicator = null
     }
 
     // Restore hidden elements

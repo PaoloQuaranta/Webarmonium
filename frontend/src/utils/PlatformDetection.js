@@ -2,6 +2,7 @@
  * PlatformDetection - Shared utility for platform detection
  * Entry #46 FIX: Centralized platform detection to eliminate code duplication
  * Entry #48 FIX: Extended for mobile/Android/iOS detection and audio optimization
+ * Entry #73 FIX: Integrated with DeviceCapabilities for tier-based audio profiles
  *
  * Used by AudioService and EnhancedGestureCapture for performance optimizations
  */
@@ -12,6 +13,7 @@ class PlatformDetection {
   static _iosCache = null
   static _androidVersionCache = null
   static _windowsBrowserCache = null
+  static _lowPowerModeEnabled = false  // Manual Low Power mode toggle
 
   /**
    * Detect if running on Windows Chrome
@@ -323,6 +325,173 @@ class PlatformDetection {
     PlatformDetection._iosCache = null
     PlatformDetection._androidVersionCache = null
     PlatformDetection._windowsBrowserCache = null
+  }
+
+  // =========================================================================
+  // Entry #73: Device-Adaptive Audio Architecture
+  // =========================================================================
+
+  /**
+   * Enable/disable manual Low Power mode
+   * @param {boolean} enabled - Whether Low Power mode is enabled
+   */
+  static setLowPowerMode(enabled) {
+    PlatformDetection._lowPowerModeEnabled = enabled
+    console.log(`🔋 Low Power Audio mode: ${enabled ? 'ENABLED' : 'DISABLED'}`)
+  }
+
+  /**
+   * Check if Low Power mode is enabled (manual setting)
+   * @returns {boolean}
+   */
+  static isLowPowerModeEnabled() {
+    return PlatformDetection._lowPowerModeEnabled
+  }
+
+  /**
+   * Get the effective audio profile combining device tier + platform + manual settings
+   * Entry #73: Comprehensive audio configuration
+   * @returns {Object} Complete audio configuration profile
+   */
+  static getEffectiveAudioProfile() {
+    // Get base profile from DeviceCapabilities if available
+    const DeviceCaps = typeof DeviceCapabilities !== 'undefined' ? DeviceCapabilities : null
+    let baseProfile = null
+
+    if (DeviceCaps) {
+      baseProfile = DeviceCaps.getAudioProfile()
+    }
+
+    // If Low Power mode is manually enabled, force ultra-low profile
+    if (PlatformDetection._lowPowerModeEnabled) {
+      return {
+        lookAhead: 0.5,           // 500ms
+        updateInterval: 0.2,      // 200ms
+        sampleRate: 22050,
+        filterUpdateRate: 5,      // Hz
+        maxPolyphony: 1,
+        backgroundLayers: [],     // No background
+        useAmbientFilters: false,
+        synthComplexity: 'mono-sine',
+        tier: 'ultra-low',
+        source: 'manual-low-power'
+      }
+    }
+
+    // If DeviceCapabilities detected a tier, use its profile
+    if (baseProfile) {
+      const tier = DeviceCaps.getTier()
+
+      // Apply platform-specific overrides for problematic browsers
+      // Even on a high-end device, Windows Chrome needs special handling
+      if (PlatformDetection.isWindowsChromePure() && tier !== 'ultra-low') {
+        return {
+          ...baseProfile,
+          lookAhead: Math.max(baseProfile.lookAhead, 0.25),      // At least 250ms
+          updateInterval: Math.max(baseProfile.updateInterval, 0.1), // At least 100ms
+          filterUpdateRate: Math.min(baseProfile.filterUpdateRate, 15), // Max 15Hz
+          tier: tier,
+          source: 'device-tier-with-windows-chrome-override'
+        }
+      }
+
+      if (PlatformDetection.isWindowsOpera() && tier !== 'ultra-low') {
+        return {
+          ...baseProfile,
+          lookAhead: Math.max(baseProfile.lookAhead, 0.2),       // At least 200ms
+          updateInterval: Math.max(baseProfile.updateInterval, 0.05), // At least 50ms
+          filterUpdateRate: Math.min(baseProfile.filterUpdateRate, 20), // Max 20Hz
+          tier: tier,
+          source: 'device-tier-with-windows-opera-override'
+        }
+      }
+
+      return {
+        ...baseProfile,
+        tier: tier,
+        source: 'device-tier'
+      }
+    }
+
+    // Fallback: Use original platform-based detection
+    return {
+      lookAhead: PlatformDetection.getAudioLookAhead(),
+      updateInterval: PlatformDetection.getAudioUpdateInterval(),
+      sampleRate: (PlatformDetection.isAndroidChrome() || PlatformDetection.isWindowsBrowser()) ? 44100 : 48000,
+      filterUpdateRate: PlatformDetection.getFilterUpdateRate(),
+      maxPolyphony: PlatformDetection.isMobile() ? 4 : 8,
+      backgroundLayers: ['bass', 'pad', 'chords'],
+      useAmbientFilters: true,
+      synthComplexity: 'full',
+      tier: 'unknown',
+      source: 'platform-fallback'
+    }
+  }
+
+  /**
+   * Get the current device tier (from DeviceCapabilities or inferred)
+   * @returns {'high'|'medium'|'low'|'ultra-low'|'unknown'}
+   */
+  static getDeviceTier() {
+    if (PlatformDetection._lowPowerModeEnabled) {
+      return 'ultra-low'
+    }
+
+    const DeviceCaps = typeof DeviceCapabilities !== 'undefined' ? DeviceCapabilities : null
+    if (DeviceCaps) {
+      return DeviceCaps.getTier()
+    }
+
+    // Infer tier from platform if DeviceCapabilities not available
+    if (PlatformDetection.isWindowsChromePure()) return 'low'
+    if (PlatformDetection.isAndroidChrome()) return 'low'
+    if (PlatformDetection.isMobile()) return 'medium'
+    return 'medium'
+  }
+
+  /**
+   * Check if current device/settings suggest using simplified audio
+   * @returns {boolean} True if should use simplified audio
+   */
+  static shouldUseSimplifiedAudio() {
+    const tier = PlatformDetection.getDeviceTier()
+    return tier === 'low' || tier === 'ultra-low'
+  }
+
+  /**
+   * Get maximum polyphony for current device/settings
+   * @returns {number} Max simultaneous voices
+   */
+  static getMaxPolyphony() {
+    const profile = PlatformDetection.getEffectiveAudioProfile()
+    return profile.maxPolyphony
+  }
+
+  /**
+   * Get enabled background layers for current device/settings
+   * @returns {string[]} Array of layer names ('bass', 'pad', 'chords')
+   */
+  static getEnabledBackgroundLayers() {
+    const profile = PlatformDetection.getEffectiveAudioProfile()
+    return profile.backgroundLayers
+  }
+
+  /**
+   * Check if ambient filters should be used
+   * @returns {boolean}
+   */
+  static shouldUseAmbientFilters() {
+    const profile = PlatformDetection.getEffectiveAudioProfile()
+    return profile.useAmbientFilters
+  }
+
+  /**
+   * Get synth complexity setting
+   * @returns {'full'|'simplified'|'minimal'|'mono-sine'}
+   */
+  static getSynthComplexity() {
+    const profile = PlatformDetection.getEffectiveAudioProfile()
+    return profile.synthComplexity
   }
 }
 

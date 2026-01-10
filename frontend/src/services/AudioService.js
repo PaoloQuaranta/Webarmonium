@@ -16,6 +16,12 @@ class AudioService {
     this.audioEngine = null
     this.gestureCapture = null
 
+    // Entry #73: Device-Adaptive Audio Architecture
+    this.stressMonitor = null
+    this.audioProfile = null
+    this.isUltraLowPowerMode = false
+    this.ultraLowPowerAudio = null
+
     // CRITICAL: Track all scheduled timeouts for cleanup on stop
     this.scheduledTimeouts = []
 
@@ -386,6 +392,227 @@ class AudioService {
   }
 
   /**
+   * Entry #73: Initialize audio profile based on device capabilities
+   * Loads profile from PlatformDetection which combines DeviceCapabilities + platform overrides
+   */
+  _initializeAudioProfile() {
+    try {
+      // Get effective profile (combines device tier + platform + low power mode)
+      if (typeof PlatformDetection !== 'undefined') {
+        this.audioProfile = PlatformDetection.getEffectiveAudioProfile()
+        this.isUltraLowPowerMode = this.audioProfile.synthComplexity === 'mono-sine'
+
+        console.log(`🔧 Audio Profile loaded:`, {
+          tier: this.audioProfile.tier,
+          source: this.audioProfile.source,
+          maxPolyphony: this.audioProfile.maxPolyphony,
+          backgroundLayers: this.audioProfile.backgroundLayers,
+          synthComplexity: this.audioProfile.synthComplexity
+        })
+
+        // If Ultra-Low Power mode, initialize the minimal audio engine
+        if (this.isUltraLowPowerMode && typeof UltraLowPowerAudio !== 'undefined') {
+          this.ultraLowPowerAudio = new UltraLowPowerAudio()
+          console.log('🔋 Ultra-Low Power Audio mode enabled')
+        }
+      } else {
+        // Fallback profile
+        this.audioProfile = {
+          lookAhead: 0.1,
+          updateInterval: 0.025,
+          sampleRate: 48000,
+          filterUpdateRate: 30,
+          maxPolyphony: 8,
+          backgroundLayers: ['bass', 'pad', 'chords'],
+          useAmbientFilters: true,
+          synthComplexity: 'full',
+          tier: 'unknown',
+          source: 'fallback'
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to initialize audio profile:', error.message)
+    }
+  }
+
+  /**
+   * Entry #73 FIX: Reload audio profile after Low Power mode toggle
+   * Called when user toggles Low Power mode to apply new settings
+   */
+  reloadAudioProfile() {
+    try {
+      console.log('🔧 AudioService: Reloading audio profile...')
+
+      const previousProfile = this.audioProfile
+      const wasUltraLow = this.isUltraLowPowerMode
+
+      // Re-fetch effective profile
+      if (typeof PlatformDetection !== 'undefined') {
+        this.audioProfile = PlatformDetection.getEffectiveAudioProfile()
+        this.isUltraLowPowerMode = this.audioProfile.synthComplexity === 'mono-sine'
+
+        console.log(`🔧 Audio Profile reloaded:`, {
+          tier: this.audioProfile.tier,
+          source: this.audioProfile.source,
+          maxPolyphony: this.audioProfile.maxPolyphony,
+          synthComplexity: this.audioProfile.synthComplexity
+        })
+
+        // Handle transition to/from Ultra-Low Power mode
+        if (this.isUltraLowPowerMode && !wasUltraLow) {
+          // Switching TO Ultra-Low Power mode
+          if (typeof UltraLowPowerAudio !== 'undefined' && !this.ultraLowPowerAudio) {
+            this.ultraLowPowerAudio = new UltraLowPowerAudio()
+            this.ultraLowPowerAudio.initialize()
+            console.log('🔋 Ultra-Low Power Audio activated')
+          }
+          // Stop complex audio components
+          this.stopBackground()
+        } else if (!this.isUltraLowPowerMode && wasUltraLow) {
+          // Switching FROM Ultra-Low Power mode
+          if (this.ultraLowPowerAudio) {
+            this.ultraLowPowerAudio.dispose()
+            this.ultraLowPowerAudio = null
+            console.log('🔋 Ultra-Low Power Audio deactivated')
+          }
+          // Restart background if it was playing
+          if (this.isPlaying) {
+            this.startBackground()
+          }
+        }
+
+        // Dispatch event for UI update
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('audio-profile-change', {
+            detail: {
+              profile: this.audioProfile,
+              isUltraLowPower: this.isUltraLowPowerMode
+            }
+          }))
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to reload audio profile:', error.message)
+    }
+  }
+
+  /**
+   * Entry #73: Start stress monitor for runtime audio adaptation
+   */
+  _startStressMonitor() {
+    try {
+      if (typeof AudioStressMonitor !== 'undefined') {
+        if (!this.stressMonitor) {
+          this.stressMonitor = new AudioStressMonitor()
+
+          // Handle stress changes
+          this.stressMonitor.onStressChange = (data) => {
+            console.log(`🎧 Audio stress: factor=${data.stressFactor.toFixed(2)}, mode=${data.mode}`)
+
+            // Emit event for UI indicator
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('audio-stress-change', { detail: data }))
+            }
+          }
+
+          // Handle mode changes
+          this.stressMonitor.onModeChange = (data) => {
+            console.log(`🎧 Audio mode changed: ${data.from} → ${data.to}`)
+
+            // Apply degradation based on mode
+            this._applyStressDegradation(data.to)
+
+            // Emit event for UI indicator
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('audio-mode-change', { detail: data }))
+            }
+          }
+        }
+
+        this.stressMonitor.start(Tone.context)
+        console.log('🎧 AudioStressMonitor started')
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to start stress monitor:', error.message)
+    }
+  }
+
+  /**
+   * Entry #73: Apply audio degradation based on stress mode
+   * @param {'normal'|'degraded'|'minimal'|'emergency'} mode
+   */
+  _applyStressDegradation(mode) {
+    try {
+      switch (mode) {
+        case 'degraded':
+          // Reduce filter update rate
+          this.filterUpdateInterval = 100 // 10Hz
+          this.ambientFilterUpdateInterval = 500 // 2Hz
+          console.log('🎧 Degraded mode: Reduced filter update rates')
+          break
+
+        case 'minimal':
+          // Further reduce updates, consider stopping some layers
+          this.filterUpdateInterval = 200 // 5Hz
+          this.ambientFilterUpdateInterval = 1000 // 1Hz
+          console.log('🎧 Minimal mode: Significantly reduced audio processing')
+          break
+
+        case 'emergency':
+          // Stop background composition, only play direct gestures
+          if (this.evolvingGenerationActive) {
+            this.stopEvolvingGeneration()
+            console.log('🎧 Emergency mode: Stopped background composition')
+          }
+          break
+
+        case 'normal':
+        default:
+          // Restore normal rates based on profile
+          const filterRate = this.audioProfile?.filterUpdateRate || 30
+          this.filterUpdateInterval = Math.round(1000 / filterRate)
+          this.ambientFilterUpdateInterval = 200
+          break
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to apply stress degradation:', error.message)
+    }
+  }
+
+  /**
+   * Entry #73: Check if a background layer should be played based on profile
+   * @param {string} layerName - 'bass', 'pad', or 'chords'
+   * @returns {boolean} True if layer should be played
+   */
+  _isLayerEnabled(layerName) {
+    // In Ultra-Low Power mode, no background layers
+    if (this.isUltraLowPowerMode) return false
+
+    // Check profile
+    if (this.audioProfile && this.audioProfile.backgroundLayers) {
+      return this.audioProfile.backgroundLayers.includes(layerName)
+    }
+
+    // Default: all layers enabled
+    return true
+  }
+
+  /**
+   * Entry #73: Get current audio status for UI
+   * @returns {Object} Status info
+   */
+  getAudioStatus() {
+    return {
+      tier: this.audioProfile?.tier || 'unknown',
+      isUltraLowPower: this.isUltraLowPowerMode,
+      stressMode: this.stressMonitor?.getMode() || 'unknown',
+      stressFactor: this.stressMonitor?.getStressFactor() || 1.0,
+      enabledLayers: this.audioProfile?.backgroundLayers || ['bass', 'pad', 'chords'],
+      isDegraded: this.stressMonitor?.isDegraded() || false
+    }
+  }
+
+  /**
    * Start the audio engine
    * @returns {Promise} Resolves when audio context is ready
    */
@@ -395,6 +622,9 @@ class AudioService {
       if (window.Tone) {
         // PERF: Configure AudioContext BEFORE starting for optimal buffer size
         this._configureAudioContext()
+
+        // Entry #73: Load audio profile and check for Low Power mode
+        this._initializeAudioProfile()
 
         // Always ensure Tone is started (requires user gesture from click handler)
         if (Tone.context.state !== 'running') {
@@ -546,6 +776,9 @@ class AudioService {
         } else if (Tone.context.state !== 'running') {
           console.warn('🔊 Skipping Transport.start() - context still not running')
         }
+
+        // Entry #73: Start stress monitor after Transport is running
+        this._startStressMonitor()
 
         // CRITICAL: Ensure audioContext is properly set
         this.audioContext = Tone.context
@@ -1236,6 +1469,11 @@ class AudioService {
     const startTime = Tone.now() + 2 // 2 second delay like original
 
     this.compositionLoopEventId = Tone.Transport.scheduleRepeat((audioTime) => {
+      // Entry #73 FIX: Record timing for stress monitoring (composition loop)
+      if (this.stressMonitor) {
+        this.stressMonitor.recordTiming(audioTime, Tone.now())
+      }
+
       // The callback timing is precise, but we do the work synchronously
       // This is still better than setTimeout because the *timing* is audio-accurate
       compositionTick()
@@ -1335,6 +1573,9 @@ class AudioService {
     const scale = state.currentScale
 
     if (!this.ambientLayers || this.muted) return
+
+    // Entry #73: Skip layer if disabled by device profile
+    if (!this._isLayerEnabled(layerName)) return
 
     const synth = this.ambientLayers[layerName]
     if (!synth) return
@@ -2996,6 +3237,11 @@ class AudioService {
       const scheduleTime = "+0"  // Immediate in Transport time
 
       const transportEventId = Tone.Transport.schedule((time) => {
+        // Entry #73 FIX: Record timing for stress monitoring
+        if (this.stressMonitor) {
+          this.stressMonitor.recordTiming(time, Tone.now())
+        }
+
         if (!this.gestureSynth || this.gestureSynth.disposed) {
           console.log('🔇 Transport callback - gestureSynth not available')
           return

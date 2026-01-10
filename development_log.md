@@ -1623,3 +1623,146 @@ Modified:
 Updated to v1.0.50
 
 ---
+
+## Entry #73 - Device-Adaptive Audio Architecture (Code Review Fixes)
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented critical fixes identified by code review for the Device-Adaptive Audio Architecture (Entry #73). The original implementation had 5 issues that reduced effectiveness to ~60%. After fixes, stress monitoring now functions correctly.
+
+---
+
+### Code Review Issues Fixed
+
+#### Fix #1: recordTiming() Integration (CRITICAL)
+
+**Problem**: `AudioStressMonitor.recordTiming()` was never called from AudioService, so runtime stress detection **didn't work**.
+
+**Solution**: Added `stressMonitor.recordTiming(scheduledTime, Tone.now())` calls to:
+- User gesture audio scheduling (Transport.schedule callback)
+- Composition loop (scheduleRepeat callback at 100ms interval)
+
+```javascript
+const transportEventId = Tone.Transport.schedule((time) => {
+  // Entry #73 FIX: Record timing for stress monitoring
+  if (this.stressMonitor) {
+    this.stressMonitor.recordTiming(time, Tone.now())
+  }
+  // ... rest of audio callback
+}, scheduleTime)
+```
+
+#### Fix #2: Tier Thresholds Too Aggressive
+
+**Problem**: `cpuCores <= 3` misclassified modern 4-core phones as "low" tier. Android version < 10 was also too aggressive.
+
+**Solution**: Replaced single-threshold checks with a **scoring system**:
+- CPU: ≤2 cores = +2 points, ≤4 cores = +1 point
+- Memory: ≤2GB = +2 points, ≤4GB = +1 point
+- Low-end GPU: +2 points
+- Android < 9: +1 point (not auto-low)
+- 3G connection: +1 point
+- **Score ≥ 3 → "low" tier** (combines multiple factors)
+
+```javascript
+let lowScore = 0
+if (cpuCores <= 2) lowScore += 2
+else if (cpuCores <= 4) lowScore += 1
+// ... other factors
+if (lowScore >= 3) return 'low'
+```
+
+#### Fix #3: UltraLowPowerAudio Error Recovery
+
+**Problem**: No recovery mechanism if oscillator failed during playback.
+
+**Solution**: Added:
+- Try-catch wrapper around `_playNoteImmediate()`
+- `_recreateOscillator()` method for automatic recovery
+- Graceful handling if oscillator gets in bad state
+
+```javascript
+_recreateOscillator() {
+  if (this.oscillator) {
+    try { this.oscillator.stop(); this.oscillator.disconnect() } catch (e) {}
+  }
+  this.oscillator = this.audioContext.createOscillator()
+  this.oscillator.connect(this.gainNode)
+  this.oscillator.start()
+}
+```
+
+#### Fix #4: Drift Threshold Too Sensitive
+
+**Problem**: 50ms threshold triggered on normal GC pauses, causing false positives.
+
+**Solution**:
+- Increased `DRIFT_THRESHOLD_MS` from 50ms to **100ms**
+- Added consecutive event tracking: requires **3 consecutive** high drift events
+- Resets counter on normal drift
+
+```javascript
+if (drift > this.DRIFT_THRESHOLD_MS) {
+  this.consecutiveHighDrift++
+  if (this.consecutiveHighDrift >= this.CONSECUTIVE_DRIFT_TRIGGER) {
+    this._recordUnderrun('sustained-timing-drift')
+    this.consecutiveHighDrift = 0
+  }
+} else {
+  this.consecutiveHighDrift = 0  // Reset on normal drift
+}
+```
+
+#### Fix #5: Low Power Toggle Incomplete
+
+**Problem**: Toggle changed setting but didn't trigger AudioService to reload profile.
+
+**Solution**:
+- Added `reloadAudioProfile()` method to AudioService
+- UIManager Low Power toggle now calls `audioService.reloadAudioProfile()`
+- Handles transitions to/from Ultra-Low Power mode (starts/stops UltraLowPowerAudio)
+
+```javascript
+// In UIManager Low Power toggle handler
+if (window.webarmoniumApp?.audioService?.reloadAudioProfile) {
+  window.webarmoniumApp.audioService.reloadAudioProfile()
+}
+```
+
+---
+
+### Files Modified
+
+| File | Version | Changes |
+|------|---------|---------|
+| `AudioService.js` | v39 | Added recordTiming() calls, reloadAudioProfile() method |
+| `DeviceCapabilities.js` | v2 | Scoring-based tier calculation |
+| `AudioStressMonitor.js` | v2 | 100ms threshold, consecutive drift tracking |
+| `UltraLowPowerAudio.js` | v2 | Error recovery with _recreateOscillator() |
+| `UIManager.js` | v9 | reloadAudioProfile() call on toggle |
+| `rooms.html` | - | Version updates |
+| `index.html` | - | Version updates |
+
+---
+
+### Effectiveness After Fixes
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Stress monitoring active | ❌ | ✅ |
+| False positive rate | High | Low (3 consecutive required) |
+| Tier misclassification | Common | Rare (scoring system) |
+| Low Power toggle effect | Partial | Complete |
+| Error recovery | None | Automatic |
+
+---
+
+### Version
+
+Updated to v1.0.51
+
+---

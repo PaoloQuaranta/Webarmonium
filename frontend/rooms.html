@@ -566,6 +566,51 @@
             font-size: 14px;
             line-height: 1.4;
         }
+
+        /* Entry #73: Audio mode indicator */
+        .audio-mode-indicator {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-left: 10px;
+            transition: opacity 0.3s ease, background 0.3s ease;
+        }
+
+        .audio-mode-indicator.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .audio-mode-indicator.low-power {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .audio-mode-indicator.degraded {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+
+        .audio-mode-indicator.minimal {
+            background: rgba(249, 115, 22, 0.2);
+            color: #f97316;
+        }
+
+        .audio-mode-indicator.emergency {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            animation: pulse-warning 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse-warning {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
     </style>
 </head>
 
@@ -644,7 +689,10 @@
     <script src="src/services/UnifiedUpdateLoop.js?v=1"></script>
 
     <!-- Entry #46: Shared platform detection utility -->
-    <script src="src/utils/PlatformDetection.js?v=3"></script>
+    <script src="src/utils/PlatformDetection.js?v=4"></script>
+
+    <!-- Entry #73: Device capability detection -->
+    <script src="src/utils/DeviceCapabilities.js?v=2"></script> <!-- Entry #73 FIX: Tier threshold scoring -->
 
     <!-- Entry #48: Mobile support services -->
     <script src="src/services/AccelerometerHoverService.js?v=1"></script>
@@ -656,7 +704,7 @@
     <script src="src/services/SocketService.js?v=12"></script> <!-- Fix: Add virtual:phrase-visual handler -->
     <!-- Sprint 2 refactoring: Extracted components -->
     <script src="src/services/CanvasManager.js?v=1"></script>
-    <script src="src/services/UIManager.js?v=7"></script> <!-- Entry #52: Mobile Low Power btn -->
+    <script src="src/services/UIManager.js?v=9"></script> <!-- Entry #73 FIX: Profile reload on toggle -->
     <script src="src/services/VolumeController.js?v=1"></script>
     <!-- Enhanced generative graphics system -->
     <script src="src/services/visual/VisualConstants.js?v=9"></script>
@@ -679,7 +727,8 @@
     <script src="src/services/audio/GestureAudioMapper.js?v=1"></script>
     <script src="src/services/audio/PolyphonyManager.js?v=1"></script>
     <script src="src/services/audio/CompositionPlayer.js?v=1"></script>
-    <script src="src/services/audio/GenerativeMusicEngine.js?v=1"></script>
+    <script src="src/services/audio/GenerativeMusicEngine.js?v=2"></script> <!-- Entry #73: Tone.Transport -->
+
     <script src="src/services/audio/FilterModulationSystem.js?v=1"></script>
     <script src="src/services/audio/ParameterController.js?v=1"></script>
     <script src="src/services/audio/ThreeTierAudioSystem.js?v=1"></script>
@@ -687,7 +736,11 @@
     <script src="src/services/audio/PatchDefinitions.js?v=5"></script> <!-- Entry #68: Real user volume boost -->
     <script src="src/services/audio/UserSynthManager.js?v=13"></script> <!-- Entry #68: MAX_PATCH_VOLUME_DB raised to 12 -->
 
-    <script src="src/services/AudioService.js?v=37"></script> <!-- Entry #51: Android 13 audio fix -->
+    <!-- Entry #73: Audio stress monitoring and ultra-low power mode -->
+    <script src="src/services/audio/AudioStressMonitor.js?v=2"></script> <!-- Entry #73 FIX: Consecutive drift -->
+    <script src="src/services/audio/UltraLowPowerAudio.js?v=2"></script> <!-- Entry #73 FIX: Error recovery -->
+
+    <script src="src/services/AudioService.js?v=39"></script> <!-- Entry #73 FIX: recordTiming + reloadProfile -->
     <script src="src/services/DroneVoidController.js?v=2"></script> <!-- PERF: UnifiedUpdateLoop integration -->
     <!-- PHASE 1+2: Re-enabled hover, musical architecture loaded -->
     <script>

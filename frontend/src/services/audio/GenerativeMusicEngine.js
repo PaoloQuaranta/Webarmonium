@@ -118,6 +118,7 @@ class GenerativeMusicEngine {
 
   /**
    * Start evolving generative music system
+   * Entry #73: Converted from setTimeout to Tone.Transport.scheduleRepeat
    */
   startEvolvingGeneration() {
     if (this.evolvingGenerationActive) return
@@ -125,7 +126,11 @@ class GenerativeMusicEngine {
     this.evolvingGenerationActive = true
     this.lastVoiceUpdateTime = Date.now()
 
-    const compositionLoop = () => {
+    // Pre-cache layer names to avoid Object.keys allocation in loop
+    const layerNames = Object.keys(this.generativeState.layers)
+
+    // Composition tick function - called precisely by Transport
+    const compositionTick = () => {
       if (!this.evolvingGenerationActive) {
         return
       }
@@ -135,8 +140,9 @@ class GenerativeMusicEngine {
         const deltaTime = now - this.lastVoiceUpdateTime
         this.lastVoiceUpdateTime = now
 
-        // Update each layer independently
-        Object.keys(this.generativeState.layers).forEach(layerName => {
+        // Update each layer independently using for loop (no allocation)
+        for (let i = 0; i < layerNames.length; i++) {
+          const layerName = layerNames[i]
           const layer = this.generativeState.layers[layerName]
 
           layer.nextNoteTime -= deltaTime
@@ -161,7 +167,7 @@ class GenerativeMusicEngine {
             const jitter = 1 + (Math.random() - 0.5) * 0.1
             layer.nextNoteTime = baseTime * jitter
           }
-        })
+        }
 
         // Harmonic progression change
         const timeSinceChordChange = now - this.generativeState.lastChordChange
@@ -173,23 +179,56 @@ class GenerativeMusicEngine {
         this.generativeState.evolutionCycle++
 
       } catch (error) {
-        // console.error('🎵 Error in composition loop:', error)
+        // Silently handle errors to prevent loop disruption
       }
-
-      setTimeout(compositionLoop, 100)
     }
 
-    setTimeout(() => {
-      // console.log('🎵 Starting bass + pad + chords composition system')
-      compositionLoop()
-    }, 2000)
+    // Entry #73: Use Tone.Transport.scheduleRepeat instead of setTimeout
+    // This schedules on the audio thread, immune to main thread congestion
+    if (typeof Tone !== 'undefined' && Tone.Transport) {
+      // Ensure Transport is running
+      if (Tone.Transport.state !== 'started') {
+        Tone.Transport.start()
+      }
+
+      const startTime = Tone.now() + 2 // 2 second delay like original
+
+      this.compositionLoopEventId = Tone.Transport.scheduleRepeat(() => {
+        compositionTick()
+      }, 0.1, startTime) // 100ms interval
+
+      console.log('🎵 GenerativeMusicEngine: Using Tone.Transport scheduling')
+    } else {
+      // Fallback to setTimeout if Tone not available
+      console.warn('🎵 GenerativeMusicEngine: Tone.Transport not available, using setTimeout fallback')
+      const compositionLoopFallback = () => {
+        if (!this.evolvingGenerationActive) return
+        compositionTick()
+        this._fallbackTimeoutId = setTimeout(compositionLoopFallback, 100)
+      }
+      this._fallbackTimeoutId = setTimeout(compositionLoopFallback, 2000)
+    }
   }
 
   /**
    * Stop evolving generation
+   * Entry #73: Properly cancels Transport-scheduled events
    */
   stopEvolvingGeneration() {
     this.evolvingGenerationActive = false
+
+    // Clear Transport-scheduled event
+    if (this.compositionLoopEventId !== undefined && typeof Tone !== 'undefined' && Tone.Transport) {
+      Tone.Transport.clear(this.compositionLoopEventId)
+      this.compositionLoopEventId = undefined
+    }
+
+    // Clear fallback setTimeout if used
+    if (this._fallbackTimeoutId) {
+      clearTimeout(this._fallbackTimeoutId)
+      this._fallbackTimeoutId = null
+    }
+
     // console.log('🎵 Evolving generation stopped')
   }
 
