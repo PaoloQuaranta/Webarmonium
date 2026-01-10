@@ -243,6 +243,27 @@ class UIManager {
   _createMobileMenuButton() {
     this.mobileMenuBtn = document.createElement('button')
     this.mobileMenuBtn.className = 'mobile-menu-btn'
+    // Force all styles inline for iPad (screen > 768px bypasses media query)
+    this.mobileMenuBtn.style.cssText = `
+      display: flex;
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top, 12px));
+      right: max(12px, env(safe-area-inset-right, 12px));
+      z-index: 1002;
+      background: rgba(0, 212, 255, 0.9);
+      border: none;
+      color: #1a1a2e;
+      border-radius: 50%;
+      width: 52px;
+      height: 52px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: bold;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transition: transform 0.2s, background 0.2s;
+    `
     this.mobileMenuBtn.innerHTML = '&#9776;' // Hamburger icon (☰)
     this.mobileMenuBtn.setAttribute('aria-label', 'Open menu')
     this.mobileMenuBtn.onclick = () => this.toggleMobileMenu()
@@ -253,15 +274,44 @@ class UIManager {
    * Create mobile bottom sheet with all controls
    */
   _createMobileBottomSheet() {
-    // Backdrop
+    // Backdrop - force base styles for iPad (screen > 768px)
     this.mobileBackdrop = document.createElement('div')
     this.mobileBackdrop.className = 'mobile-menu-backdrop'
+    this.mobileBackdrop.style.cssText = `
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1001;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    `
     this.mobileBackdrop.onclick = () => this.closeMobileMenu()
     document.body.appendChild(this.mobileBackdrop)
 
-    // Bottom sheet
+    // Bottom sheet - force base styles for iPad (screen > 768px)
     this.mobileSheet = document.createElement('div')
     this.mobileSheet.className = 'mobile-bottom-sheet'
+    this.mobileSheet.style.cssText = `
+      display: block;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+      border-radius: 20px 20px 0 0;
+      padding: 20px;
+      padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+      z-index: 1003;
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+      max-height: 70vh;
+      overflow-y: auto;
+    `
 
     this.mobileSheet.innerHTML = `
       <div class="mobile-sheet-handle"></div>
@@ -386,6 +436,17 @@ class UIManager {
     this.mobileBackdrop?.classList.add('open')
     this.mobileSheet?.classList.add('open')
     this.mobileMenuBtn?.classList.add('open')
+    // Set inline styles for iPad (CSS .open class inside media query doesn't apply)
+    if (this.mobileBackdrop) {
+      this.mobileBackdrop.style.opacity = '1'
+      this.mobileBackdrop.style.pointerEvents = 'auto'
+    }
+    if (this.mobileSheet) {
+      this.mobileSheet.style.transform = 'translateY(0)'
+    }
+    if (this.mobileMenuBtn) {
+      this.mobileMenuBtn.style.background = 'rgba(255, 100, 100, 0.9)'
+    }
     this.mobileMenuBtn.innerHTML = '&#10005;' // X icon
 
     // Sync user count and room ID
@@ -400,6 +461,17 @@ class UIManager {
     this.mobileBackdrop?.classList.remove('open')
     this.mobileSheet?.classList.remove('open')
     this.mobileMenuBtn?.classList.remove('open')
+    // Reset inline styles
+    if (this.mobileBackdrop) {
+      this.mobileBackdrop.style.opacity = '0'
+      this.mobileBackdrop.style.pointerEvents = 'none'
+    }
+    if (this.mobileSheet) {
+      this.mobileSheet.style.transform = 'translateY(100%)'
+    }
+    if (this.mobileMenuBtn) {
+      this.mobileMenuBtn.style.background = 'rgba(0, 212, 255, 0.9)'
+    }
     this.mobileMenuBtn.innerHTML = '&#9776;' // Hamburger icon
   }
 
