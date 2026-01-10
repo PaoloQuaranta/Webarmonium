@@ -515,6 +515,70 @@ const GestureHandler = {
           roomForUpdate.updateActivity()
         }
 
+        // ADD MATERIAL TO BACKGROUND COMPOSITION SERVICE
+        // This is critical for real user gestures to influence background composition
+        if (socket.services.backgroundCompositionService) {
+          try {
+            const toneDurationToMs = (toneDuration) => {
+              if (typeof toneDuration === 'number') return toneDuration
+              const durationMap = {
+                '32n': 62.5, '16n': 125, '8n': 250, '4n': 500, '2n': 1000, '1n': 2000
+              }
+              return durationMap[toneDuration] || 250
+            }
+
+            let musicalPhrase
+
+            if (gesture.streamedNotes && gesture.streamedNotes.length > 0) {
+              // Build phrase from streamed notes
+              musicalPhrase = {
+                notes: gesture.streamedNotes.map(note => ({
+                  pitch: note.frequency,
+                  duration: toneDurationToMs(note.duration),
+                  velocity: note.velocity || 0.5,
+                  articulation: note.articulation || 'staccato',
+                  timestamp: note.timestamp
+                })),
+                duration: gesture.streamedNotes.reduce((sum, note) =>
+                  sum + toneDurationToMs(note.duration), 0)
+              }
+            } else {
+              // Tap gesture - minimal phrase
+              musicalPhrase = {
+                notes: [{
+                  pitch: 440,
+                  duration: 250,
+                  velocity: gesture.intensity || 0.5,
+                  articulation: 'staccato',
+                  timestamp: Date.now()
+                }],
+                duration: 250
+              }
+            }
+
+            const gestureData = {
+              userId: socket.userId,
+              roomId: socket.roomId,
+              gesture: {
+                type: gesture.type || gesture.action || 'tap',
+                coordinates: gesture.coordinates || gesture.position,
+                intensity: gesture.intensity || 0.5,
+                speed: gesture.speed || 0.5,
+                duration: gesture.duration || 0,
+                startTime: gesture.startTime
+              }
+            }
+
+            socket.services.backgroundCompositionService.addMaterial(
+              socket.roomId,
+              gestureData,
+              musicalPhrase
+            )
+          } catch (error) {
+            // Silent fail - don't break gesture handling
+          }
+        }
+
         const processingTime = Date.now() - startTime
         if (processingTime > 100) {
           // // console.warn(`⚠️ gesture-complete processing time ${processingTime}ms exceeds 100ms target`)
