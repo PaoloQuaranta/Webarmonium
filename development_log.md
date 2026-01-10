@@ -749,3 +749,63 @@ this.cursorManager.enableVirtualCursors()
 Updated to v1.0.37
 
 ---
+
+## Entry #64 - Virtual Cursor Ghost Fix (Part 3)
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Entries #62 and #63 fixed CursorManager but virtual cursors still persisted. Root cause: the `visualService` (GenerativeVisualService + SpringMeshNetwork) maintains its own node tracking **separate** from CursorManager. The deactivation code called a non-existent method.
+
+---
+
+### Root Cause
+
+In `virtual-users-deactivated` handler:
+```javascript
+this.visualService.removeVirtualUser?.(userId)  // ← Method doesn't exist!
+```
+
+The `?.` optional chaining silently failed. The correct method is `removeUser()`.
+
+---
+
+### Solution
+
+Changed:
+```javascript
+// BEFORE (broken)
+this.visualService.removeVirtualUser?.(userId)
+
+// AFTER (fixed)
+this.visualService.removeUser(userId)
+```
+
+---
+
+### Architecture Note
+
+Two separate cursor systems exist:
+1. **CursorManager** - Renders cursor circles on overlay canvas
+2. **GenerativeVisualService.springMesh** - Renders network nodes with edges
+
+Both must be updated when users join/leave.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/main.js` | Fixed `removeVirtualUser` → `removeUser` in deactivation handler |
+
+---
+
+### Version
+
+Updated to v1.0.38
+
+---

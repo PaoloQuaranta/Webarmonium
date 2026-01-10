@@ -1391,7 +1391,7 @@ class WebarmoniumApp {
       if (this.visualService && data.sources) {
         data.sources.forEach(source => {
           const userId = `${source}-metrics`
-          this.visualService.removeVirtualUser?.(userId)
+          this.visualService.removeUser(userId) // FIX: was removeVirtualUser (doesn't exist)
         })
       }
 
