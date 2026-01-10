@@ -586,6 +586,106 @@ class GenerativeVisualService {
     }
   }
 
+  // =========================================================================
+  // Entry #74: Graphics Quality Control
+  // =========================================================================
+
+  /**
+   * Apply graphics quality settings from UserSettings
+   * Called when settings panel applies new graphics quality
+   */
+  applyGraphicsQuality () {
+    if (typeof UserSettings === 'undefined') {
+      console.warn('UserSettings not loaded, cannot apply graphics quality')
+      return
+    }
+
+    // Get base profile (auto-detected or default)
+    const baseProfile = {
+      shadowBlur: true,
+      particleCount: 120,
+      attractorPoints: 1200,
+      pulseGlow: true,
+      cascadeEnabled: true
+    }
+
+    // Get effective profile with user overrides
+    const profile = UserSettings.getEffectiveGraphicsProfile(baseProfile)
+
+    console.log('🎨 Applying graphics quality:', profile)
+
+    // Apply to WavePacketSystem (pulses)
+    if (this.wavePackets) {
+      this.wavePackets.setGlowEnabled(profile.pulseGlow !== false)
+    }
+
+    // Apply to ParticleFlowManager
+    if (this.particles) {
+      this.particles.setCascadeEnabled(profile.cascadeEnabled !== false)
+      if (profile.particleCount) {
+        this.particles.setMaxParticles(profile.particleCount)
+      }
+    }
+
+    // Apply to PrecomputedAttractorSystem
+    if (this.attractors && profile.attractorPoints) {
+      this.attractors.setPointLimit(profile.attractorPoints)
+    }
+
+    // Store current profile for reference
+    this.currentGraphicsProfile = profile
+  }
+
+  /**
+   * Set graphics quality directly (alternative to applyGraphicsQuality)
+   * @param {string} quality - 'full', 'reduced', 'minimal'
+   */
+  setGraphicsQuality (quality) {
+    const profiles = {
+      full: {
+        shadowBlur: true,
+        particleCount: 120,
+        attractorPoints: 1200,
+        pulseGlow: true,
+        cascadeEnabled: true
+      },
+      reduced: {
+        shadowBlur: false,
+        particleCount: 80,
+        attractorPoints: 800,
+        pulseGlow: false,
+        cascadeEnabled: true
+      },
+      minimal: {
+        shadowBlur: false,
+        particleCount: 40,
+        attractorPoints: 400,
+        pulseGlow: false,
+        cascadeEnabled: false
+      }
+    }
+
+    const profile = profiles[quality] || profiles.full
+
+    console.log(`🎨 Setting graphics quality: ${quality}`, profile)
+
+    // Apply to subsystems
+    if (this.wavePackets) {
+      this.wavePackets.setGlowEnabled(profile.pulseGlow)
+    }
+
+    if (this.particles) {
+      this.particles.setCascadeEnabled(profile.cascadeEnabled)
+      this.particles.setMaxParticles(profile.particleCount)
+    }
+
+    if (this.attractors) {
+      this.attractors.setPointLimit(profile.attractorPoints)
+    }
+
+    this.currentGraphicsProfile = profile
+  }
+
   /**
    * Cleanup: remove p5.js instance and dispose subsystems
    */

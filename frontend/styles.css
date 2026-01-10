@@ -326,6 +326,24 @@ button:disabled {
   background: linear-gradient(135deg, #ef4444, #dc2626);
 }
 
+/* Entry #74: Settings button */
+.settings-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-btn:hover {
+  background: var(--accent);
+  color: var(--bg-primary);
+  border-color: var(--accent);
+}
+
 .room-link {
   color: var(--accent);
   text-decoration: none;

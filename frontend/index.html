@@ -32,6 +32,10 @@
   <!-- Entry #73: Device capability detection -->
   <script src="src/utils/DeviceCapabilities.js?v=2"></script>
 
+  <!-- Entry #74: User settings and settings panel -->
+  <script src="src/services/UserSettings.js?v=1"></script>
+  <script src="src/components/SettingsPanel.js?v=1"></script>
+
   <!-- Existing Webarmonium visual subsystems -->
   <script src="src/services/visual/VisualUtils.js"></script>
   <script src="src/services/visual/TopologyGenerator.js"></script>
@@ -68,13 +72,14 @@
   <main>
     <!-- Controls Bar -->
     <section id="controls-bar">
-      <!-- Left: Start + Volume -->
+      <!-- Left: Start + Volume + Settings -->
       <div class="controls-left">
         <button id="btn-toggle" class="primary-btn">▶ Start</button>
         <div class="slider-group">
           <label for="volume">Volume</label>
           <input type="range" id="volume" min="0" max="100" value="70">
         </div>
+        <button id="btn-settings" class="settings-btn" title="Settings" onclick="openLandingSettings()">&#9881;</button>
       </div>
 
       <!-- Center: Metrics Dashboard -->
@@ -210,11 +215,24 @@
     <footer>
       <p>Powered by <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia API</a>, <a href="https://news.ycombinator.com" target="_blank" rel="noopener">HackerNews API</a>, and <a href="https://github.com" target="_blank" rel="noopener">GitHub API</a></p>
       <p class="footer-note">Data updates every 5-60 seconds depending on source. Rate limits are respected.</p>
-      <p class="version-tag">v1.0.52</p>
+      <p class="version-tag">v1.0.53</p>
     </footer>
   </main>
 
+  <!-- Entry #74: Settings panel opener for landing page -->
+  <script>
+    let landingSettingsPanel = null
+    function openLandingSettings () {
+      if (!landingSettingsPanel && typeof SettingsPanel !== 'undefined') {
+        landingSettingsPanel = new SettingsPanel()
+      }
+      if (landingSettingsPanel) {
+        landingSettingsPanel.open()
+      }
+    }
+  </script>
+
   <!-- Landing page module scripts -->
-  <script type="module" src="src/landing/main.js?v=48"></script>
+  <script type="module" src="src/landing/main.js?v=49"></script>
 </body>
 </html>

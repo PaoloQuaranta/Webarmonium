@@ -51,6 +51,9 @@ class UIManager {
     this.mobileMenuBtn = null
     this.mobileBackdrop = null
     this.mobileSheet = null
+
+    // Entry #74: Settings panel
+    this.settingsPanel = null
   }
 
   /**
@@ -225,6 +228,57 @@ class UIManager {
     this._setupAutoHide()
     this._setupEdgeDetection()
     this._setupControlsInteraction()
+
+    // Entry #74: Add Settings button to desktop UI
+    this._createDesktopSettingsButton()
+  }
+
+  /**
+   * Entry #74: Create Settings button for desktop UI
+   */
+  _createDesktopSettingsButton () {
+    // Check if button already exists
+    if (document.getElementById('desktopSettingsBtn')) return
+
+    const settingsBtn = document.createElement('button')
+    settingsBtn.id = 'desktopSettingsBtn'
+    settingsBtn.className = 'desktop-settings-btn'
+    settingsBtn.innerHTML = '&#9881;' // Gear icon
+    settingsBtn.title = 'Settings'
+    settingsBtn.setAttribute('aria-label', 'Open settings')
+
+    settingsBtn.style.cssText = `
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 1000;
+      background: rgba(0, 212, 255, 0.15);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      color: #00d4ff;
+      border-radius: 8px;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    `
+
+    settingsBtn.onmouseenter = () => {
+      settingsBtn.style.background = 'rgba(0, 212, 255, 0.25)'
+      settingsBtn.style.borderColor = 'rgba(0, 212, 255, 0.5)'
+    }
+    settingsBtn.onmouseleave = () => {
+      settingsBtn.style.background = 'rgba(0, 212, 255, 0.15)'
+      settingsBtn.style.borderColor = 'rgba(0, 212, 255, 0.3)'
+    }
+
+    settingsBtn.onclick = () => this.openSettingsPanel()
+
+    document.body.appendChild(settingsBtn)
+    this.desktopSettingsBtn = settingsBtn
   }
 
   /**
@@ -398,53 +452,49 @@ class UIManager {
 
     this.mobileVolumeSlider = mobileVolumeSlider
 
-    // Create Low Power Mode toggle button
-    const lowPowerBtn = document.createElement('button')
-    lowPowerBtn.id = 'mobileLowPowerToggle'
-    lowPowerBtn.className = 'mobile-low-power-btn'
-    this._updateLowPowerButton(lowPowerBtn)
+    // Entry #74: Create Settings button (replaces Low Power toggle)
+    const settingsBtn = document.createElement('button')
+    settingsBtn.id = 'mobileSettingsBtn'
+    settingsBtn.className = 'mobile-settings-btn'
+    settingsBtn.innerHTML = '&#9881; Settings' // Gear icon
+    settingsBtn.onclick = () => this.openSettingsPanel()
 
-    lowPowerBtn.onclick = () => {
-      // Toggle Low Power mode in MobileResourceManager (if available)
-      if (window.MobileResourceManager) {
-        MobileResourceManager.getInstance().toggleLowPowerMode()
-      }
-      // Also toggle in PlatformDetection for audio tier (Entry #73)
-      if (window.PlatformDetection) {
-        const isCurrentlyEnabled = PlatformDetection.isLowPowerModeEnabled()
-        PlatformDetection.setLowPowerMode(!isCurrentlyEnabled)
-        console.log(`🔋 Low Power Mode: ${!isCurrentlyEnabled ? 'enabled' : 'disabled'}`)
+    document.getElementById('mobileAudioControls')?.appendChild(settingsBtn)
+    this.mobileSettingsBtn = settingsBtn
+  }
 
-        // Entry #73 FIX: Trigger AudioService to reload profile with new settings
-        if (window.webarmoniumApp?.audioService?.reloadAudioProfile) {
-          window.webarmoniumApp.audioService.reloadAudioProfile()
-        } else if (window.AudioService?.reloadAudioProfile) {
-          window.AudioService.reloadAudioProfile()
-        }
-      }
-      this._updateLowPowerButton(lowPowerBtn)
-      this._updateAudioModeIndicator()
+  // ==========================================
+  // Entry #74: Settings Panel Methods
+  // ==========================================
+
+  /**
+   * Open the settings panel
+   */
+  openSettingsPanel () {
+    // Close mobile menu if open
+    if (this.mobileMenuOpen) {
+      this.closeMobileMenu()
     }
 
-    document.getElementById('mobileAudioControls')?.appendChild(lowPowerBtn)
-    this.mobileLowPowerBtn = lowPowerBtn
+    // Create panel instance if needed
+    if (!this.settingsPanel && typeof SettingsPanel !== 'undefined') {
+      this.settingsPanel = new SettingsPanel()
+    }
+
+    if (this.settingsPanel) {
+      this.settingsPanel.open()
+    } else {
+      console.warn('SettingsPanel not loaded')
+    }
   }
 
   /**
-   * Update Low Power button appearance based on current state
+   * Close the settings panel
    */
-  _updateLowPowerButton(btn) {
-    if (!btn) return
-    // Check both MobileResourceManager and PlatformDetection
-    let isLowPower = false
-    if (window.MobileResourceManager) {
-      isLowPower = MobileResourceManager.getInstance().isLowPowerMode()
+  closeSettingsPanel () {
+    if (this.settingsPanel) {
+      this.settingsPanel.close()
     }
-    if (window.PlatformDetection && PlatformDetection.isLowPowerModeEnabled()) {
-      isLowPower = true
-    }
-    btn.textContent = isLowPower ? '🔋 Low Power ON' : '🔋 Low Power'
-    btn.classList.toggle('active', isLowPower)
   }
 
   // ==========================================
@@ -855,6 +905,16 @@ class UIManager {
     if (this.audioModeIndicator) {
       this.audioModeIndicator.remove()
       this.audioModeIndicator = null
+    }
+
+    // Entry #74: Remove settings elements
+    if (this.desktopSettingsBtn) {
+      this.desktopSettingsBtn.remove()
+      this.desktopSettingsBtn = null
+    }
+    if (this.settingsPanel) {
+      this.settingsPanel.close()
+      this.settingsPanel = null
     }
 
     // Restore hidden elements

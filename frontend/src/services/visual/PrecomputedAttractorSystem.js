@@ -515,6 +515,28 @@ class PrecomputedAttractorSystem {
   }
 
   /**
+   * Entry #74: Set point limit for graphics quality control
+   * @param {number} limit - Maximum points to render (affects performance)
+   */
+  setPointLimit (limit) {
+    if (typeof limit !== 'number' || !isFinite(limit) || limit < 100) {
+      console.warn('⚠️ PrecomputedAttractorSystem: Invalid point limit:', limit)
+      return
+    }
+
+    // Limit can only reduce points (not increase above original)
+    const newCount = Math.min(limit, 1200)
+    if (newCount !== this.pointCount) {
+      console.log(`🎨 PrecomputedAttractorSystem: Point limit set to ${newCount}`)
+      this.pointCount = newCount
+
+      // Regenerate precomputed frames with new point count
+      // This is expensive so only do it if really changing
+      this.precompute()
+    }
+  }
+
+  /**
    * Clear state
    */
   clear() {

@@ -453,24 +453,23 @@
                 min-height: 48px;
             }
 
-            /* Mobile Low Power button */
-            .mobile-low-power-btn {
-                background: rgba(255, 255, 255, 0.1);
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                color: #aaa;
+            /* Entry #74: Mobile Settings button */
+            .mobile-settings-btn {
+                background: rgba(0, 212, 255, 0.15);
+                border: 1px solid rgba(0, 212, 255, 0.3);
+                color: #00d4ff;
                 border-radius: 8px;
                 font-size: 14px;
                 transition: background 0.2s, border-color 0.2s, color 0.2s;
             }
 
-            .mobile-low-power-btn.active {
-                background: rgba(34, 197, 94, 0.2);
-                border-color: rgba(34, 197, 94, 0.5);
-                color: #22c55e;
+            .mobile-settings-btn:hover {
+                background: rgba(0, 212, 255, 0.25);
+                border-color: rgba(0, 212, 255, 0.5);
             }
 
-            .mobile-low-power-btn:active {
-                background: rgba(255, 255, 255, 0.2);
+            .mobile-settings-btn:active {
+                background: rgba(0, 212, 255, 0.35);
             }
 
             /* Mobile volume slider */
@@ -704,7 +703,9 @@
     <script src="src/services/SocketService.js?v=12"></script> <!-- Fix: Add virtual:phrase-visual handler -->
     <!-- Sprint 2 refactoring: Extracted components -->
     <script src="src/services/CanvasManager.js?v=1"></script>
-    <script src="src/services/UIManager.js?v=9"></script> <!-- Entry #73 FIX: Profile reload on toggle -->
+    <script src="src/services/UIManager.js?v=10"></script> <!-- Entry #74: Settings panel integration -->
+    <script src="src/services/UserSettings.js?v=1"></script> <!-- Entry #74: User settings storage -->
+    <script src="src/components/SettingsPanel.js?v=1"></script> <!-- Entry #74: Settings panel UI -->
     <script src="src/services/VolumeController.js?v=1"></script>
     <!-- Enhanced generative graphics system -->
     <script src="src/services/visual/VisualConstants.js?v=9"></script>

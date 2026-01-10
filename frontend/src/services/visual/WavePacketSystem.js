@@ -70,6 +70,19 @@ class WavePacketSystem {
     this.intensityDecayPerHop = pulseConfig.intensityDecayPerHop || 0.4  // Intensity multiplier per hop
     this.minIntensityThreshold = 0.12  // Stop propagating below this intensity
     this.maxHops = pulseConfig.maxHops || 2  // Maximum propagation depth
+
+    // Entry #74: Glow control (user settings override)
+    this._glowEnabled = true  // Default: enabled
+    this._glowOverride = null  // null = use stressFactor, true/false = force
+  }
+
+  /**
+   * Entry #74: Enable/disable pulse glow effect
+   * @param {boolean} enabled - Whether glow is enabled
+   */
+  setGlowEnabled (enabled) {
+    this._glowOverride = enabled
+    console.log(`🎨 WavePacketSystem: Glow ${enabled ? 'enabled' : 'disabled'}`)
   }
 
   /**
@@ -625,8 +638,12 @@ class WavePacketSystem {
 
     // PERFORMANCE: Conditional glow effect - disable under stress
     // shadowBlur is expensive especially on Chrome/Windows
+    // Entry #74: Respect user override if set
     const stressFactor = window.visualService?.stressFactor ?? 1.0
-    const useGlow = stressFactor > 0.7
+    let useGlow = stressFactor > 0.7
+    if (this._glowOverride !== null) {
+      useGlow = this._glowOverride
+    }
 
     // FIX: Always set/reset shadowBlur to avoid state bleeding if stressFactor changes mid-frame
     p.drawingContext.shadowBlur = useGlow ? 30 * pulse.intensity : 0

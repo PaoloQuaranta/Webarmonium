@@ -393,31 +393,18 @@ class AudioService {
 
   /**
    * Entry #73: Initialize audio profile based on device capabilities
+   * Entry #74: Now also integrates UserSettings overrides
    * Loads profile from PlatformDetection which combines DeviceCapabilities + platform overrides
    */
   _initializeAudioProfile() {
     try {
       // Get effective profile (combines device tier + platform + low power mode)
+      let baseProfile = null
       if (typeof PlatformDetection !== 'undefined') {
-        this.audioProfile = PlatformDetection.getEffectiveAudioProfile()
-        this.isUltraLowPowerMode = this.audioProfile.synthComplexity === 'mono-sine'
-
-        console.log(`🔧 Audio Profile loaded:`, {
-          tier: this.audioProfile.tier,
-          source: this.audioProfile.source,
-          maxPolyphony: this.audioProfile.maxPolyphony,
-          backgroundLayers: this.audioProfile.backgroundLayers,
-          synthComplexity: this.audioProfile.synthComplexity
-        })
-
-        // If Ultra-Low Power mode, initialize the minimal audio engine
-        if (this.isUltraLowPowerMode && typeof UltraLowPowerAudio !== 'undefined') {
-          this.ultraLowPowerAudio = new UltraLowPowerAudio()
-          console.log('🔋 Ultra-Low Power Audio mode enabled')
-        }
+        baseProfile = PlatformDetection.getEffectiveAudioProfile()
       } else {
         // Fallback profile
-        this.audioProfile = {
+        baseProfile = {
           lookAhead: 0.1,
           updateInterval: 0.025,
           sampleRate: 48000,
@@ -430,6 +417,34 @@ class AudioService {
           source: 'fallback'
         }
       }
+
+      // Entry #74: Apply UserSettings overrides
+      if (typeof UserSettings !== 'undefined') {
+        this.audioProfile = UserSettings.getEffectiveAudioProfile(baseProfile)
+        console.log(`🔧 Audio Profile with UserSettings:`, {
+          tier: this.audioProfile.tier,
+          source: this.audioProfile.source,
+          maxPolyphony: this.audioProfile.maxPolyphony,
+          backgroundLayers: this.audioProfile.backgroundLayers,
+          synthComplexity: this.audioProfile.synthComplexity,
+          lookAhead: this.audioProfile.lookAhead,
+          sampleRate: this.audioProfile.sampleRate
+        })
+      } else {
+        this.audioProfile = baseProfile
+        console.log(`🔧 Audio Profile loaded:`, {
+          tier: this.audioProfile.tier,
+          source: this.audioProfile.source
+        })
+      }
+
+      this.isUltraLowPowerMode = this.audioProfile.synthComplexity === 'mono-sine'
+
+      // If Ultra-Low Power mode, initialize the minimal audio engine
+      if (this.isUltraLowPowerMode && typeof UltraLowPowerAudio !== 'undefined') {
+        this.ultraLowPowerAudio = new UltraLowPowerAudio()
+        console.log('🔋 Ultra-Low Power Audio mode enabled')
+      }
     } catch (error) {
       console.warn('⚠️ Failed to initialize audio profile:', error.message)
     }
@@ -437,59 +452,78 @@ class AudioService {
 
   /**
    * Entry #73 FIX: Reload audio profile after Low Power mode toggle
-   * Called when user toggles Low Power mode to apply new settings
+   * Entry #74: Also reloads when UserSettings change
+   * Called when user toggles Low Power mode or changes Settings to apply new settings
    */
   reloadAudioProfile() {
     try {
       console.log('🔧 AudioService: Reloading audio profile...')
 
-      const previousProfile = this.audioProfile
       const wasUltraLow = this.isUltraLowPowerMode
 
-      // Re-fetch effective profile
+      // Re-fetch base profile from PlatformDetection
+      let baseProfile = null
       if (typeof PlatformDetection !== 'undefined') {
-        this.audioProfile = PlatformDetection.getEffectiveAudioProfile()
-        this.isUltraLowPowerMode = this.audioProfile.synthComplexity === 'mono-sine'
+        baseProfile = PlatformDetection.getEffectiveAudioProfile()
+      } else {
+        baseProfile = this.audioProfile // Keep current as fallback
+      }
 
-        console.log(`🔧 Audio Profile reloaded:`, {
-          tier: this.audioProfile.tier,
-          source: this.audioProfile.source,
-          maxPolyphony: this.audioProfile.maxPolyphony,
-          synthComplexity: this.audioProfile.synthComplexity
-        })
+      // Entry #74: Apply UserSettings overrides
+      if (typeof UserSettings !== 'undefined') {
+        this.audioProfile = UserSettings.getEffectiveAudioProfile(baseProfile)
+      } else {
+        this.audioProfile = baseProfile
+      }
 
-        // Handle transition to/from Ultra-Low Power mode
-        if (this.isUltraLowPowerMode && !wasUltraLow) {
-          // Switching TO Ultra-Low Power mode
-          if (typeof UltraLowPowerAudio !== 'undefined' && !this.ultraLowPowerAudio) {
-            this.ultraLowPowerAudio = new UltraLowPowerAudio()
-            this.ultraLowPowerAudio.initialize()
-            console.log('🔋 Ultra-Low Power Audio activated')
-          }
-          // Stop complex audio components
-          this.stopBackground()
-        } else if (!this.isUltraLowPowerMode && wasUltraLow) {
-          // Switching FROM Ultra-Low Power mode
-          if (this.ultraLowPowerAudio) {
-            this.ultraLowPowerAudio.dispose()
-            this.ultraLowPowerAudio = null
-            console.log('🔋 Ultra-Low Power Audio deactivated')
-          }
-          // Restart background if it was playing
-          if (this.isPlaying) {
-            this.startBackground()
-          }
+      this.isUltraLowPowerMode = this.audioProfile.synthComplexity === 'mono-sine'
+
+      console.log(`🔧 Audio Profile reloaded:`, {
+        tier: this.audioProfile.tier,
+        source: this.audioProfile.source,
+        maxPolyphony: this.audioProfile.maxPolyphony,
+        synthComplexity: this.audioProfile.synthComplexity,
+        lookAhead: this.audioProfile.lookAhead,
+        sampleRate: this.audioProfile.sampleRate
+      })
+
+      // Update Tone.js lookAhead if changed
+      if (window.Tone && this.audioProfile.lookAhead) {
+        Tone.context.lookAhead = this.audioProfile.lookAhead
+        console.log(`🔊 Tone.context.lookAhead updated to ${this.audioProfile.lookAhead}s`)
+      }
+
+      // Handle transition to/from Ultra-Low Power mode
+      if (this.isUltraLowPowerMode && !wasUltraLow) {
+        // Switching TO Ultra-Low Power mode
+        if (typeof UltraLowPowerAudio !== 'undefined' && !this.ultraLowPowerAudio) {
+          this.ultraLowPowerAudio = new UltraLowPowerAudio()
+          this.ultraLowPowerAudio.initialize()
+          console.log('🔋 Ultra-Low Power Audio activated')
         }
-
-        // Dispatch event for UI update
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('audio-profile-change', {
-            detail: {
-              profile: this.audioProfile,
-              isUltraLowPower: this.isUltraLowPowerMode
-            }
-          }))
+        // Stop complex audio components
+        this.stopBackground()
+      } else if (!this.isUltraLowPowerMode && wasUltraLow) {
+        // Switching FROM Ultra-Low Power mode
+        if (this.ultraLowPowerAudio) {
+          this.ultraLowPowerAudio.dispose()
+          this.ultraLowPowerAudio = null
+          console.log('🔋 Ultra-Low Power Audio deactivated')
         }
+        // Restart background if it was playing
+        if (this.isPlaying) {
+          this.startBackground()
+        }
+      }
+
+      // Dispatch event for UI update
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('audio-profile-change', {
+          detail: {
+            profile: this.audioProfile,
+            isUltraLowPower: this.isUltraLowPowerMode
+          }
+        }))
       }
     } catch (error) {
       console.warn('⚠️ Failed to reload audio profile:', error.message)

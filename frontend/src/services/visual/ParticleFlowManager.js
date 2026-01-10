@@ -80,6 +80,36 @@ class ParticleFlowManager {
     this.lifeDecayPerHop = particleConfig.lifeDecayPerHop || 0.45  // Life multiplier per hop
     this.minLifeThreshold = 0.2  // Stop propagating below this life
     this.maxHops = particleConfig.maxHops || 3  // Maximum propagation depth
+
+    // Entry #74: Graphics quality controls
+    this._cascadeEnabled = true
+  }
+
+  /**
+   * Entry #74: Enable/disable cascade propagation
+   * @param {boolean} enabled - Whether cascade is enabled
+   */
+  setCascadeEnabled (enabled) {
+    this._cascadeEnabled = enabled
+    console.log(`🎨 ParticleFlowManager: Cascade ${enabled ? 'enabled' : 'disabled'}`)
+  }
+
+  /**
+   * Entry #74: Set maximum particle count
+   * @param {number} count - Maximum particles
+   */
+  setMaxParticles (count) {
+    this.maxParticles = count
+    console.log(`🎨 ParticleFlowManager: Max particles set to ${count}`)
+
+    // If we have more particles than new max, remove oldest
+    if (this.particles.size > count) {
+      const toRemove = this.particles.size - count
+      const particleIds = Array.from(this.particles.keys()).slice(0, toRemove)
+      for (const id of particleIds) {
+        this.removeParticle(id)
+      }
+    }
   }
 
   /**
@@ -259,6 +289,9 @@ class ParticleFlowManager {
    */
   onParticleArrival(particle) {
     if (!particle.shouldCascade || !particle.waveContext) return
+
+    // Entry #74: Skip cascade if disabled by user settings
+    if (!this._cascadeEnabled) return
 
     const waveContext = particle.waveContext
     // For bidirectional particles, use destinationNodeId; otherwise use edge.targetId
