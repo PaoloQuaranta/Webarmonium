@@ -6,11 +6,21 @@
  */
 
 class SettingsPanel {
+  // Fix #7: Animation timing constants
+  static ANIMATION_DURATION = 300 // ms - panel fade in/out
+  static TOAST_DISPLAY_DURATION = 2000 // ms - how long toast is visible
+  static TOAST_DELAY_AFTER_CLOSE = 350 // ms - wait for panel close animation
+
   constructor () {
     this.isOpen = false
     this.overlay = null
     this.panel = null
     this.stressUpdateInterval = null
+
+    // Fix #1: Notification tracking for cleanup
+    this.activeNotification = null
+    this.notificationTimeout = null
+    this.notificationRemovalTimeout = null
 
     // Bind methods
     this.open = this.open.bind(this)
@@ -50,17 +60,27 @@ class SettingsPanel {
     // Remove event listeners
     document.removeEventListener('keydown', this._handleKeyDown)
 
+    // Fix #1: Clear notification timers on close
+    if (this.notificationTimeout) {
+      clearTimeout(this.notificationTimeout)
+      this.notificationTimeout = null
+    }
+    if (this.notificationRemovalTimeout) {
+      clearTimeout(this.notificationRemovalTimeout)
+      this.notificationRemovalTimeout = null
+    }
+
     // Animate out
     this.overlay.classList.remove('settings-visible')
 
-    // Remove after animation
+    // Remove after animation (Fix #7: use constant)
     setTimeout(() => {
       if (this.overlay && this.overlay.parentNode) {
         this.overlay.parentNode.removeChild(this.overlay)
       }
       this.overlay = null
       this.panel = null
-    }, 300)
+    }, SettingsPanel.ANIMATION_DURATION)
   }
 
   /**
@@ -334,30 +354,70 @@ class SettingsPanel {
       }
     })
 
-    console.log('Settings applied:', UserSettings.getAll())
-
-    // Trigger audio reload
+    // Fix #4: Try-catch for audio reload
     if (window.webarmoniumApp?.audioService?.reloadAudioProfile) {
-      window.webarmoniumApp.audioService.reloadAudioProfile()
+      try {
+        window.webarmoniumApp.audioService.reloadAudioProfile()
+      } catch (error) {
+        console.error('Failed to reload audio profile:', error)
+        this._showCanvasNotification('Audio reload failed')
+        return
+      }
     }
 
-    // Trigger graphics reload
+    // Fix #4: Try-catch for graphics reload
     if (window.webarmoniumApp?.visualService?.applyGraphicsQuality) {
-      window.webarmoniumApp.visualService.applyGraphicsQuality()
+      try {
+        window.webarmoniumApp.visualService.applyGraphicsQuality()
+      } catch (error) {
+        console.error('Failed to apply graphics quality:', error)
+        this._showCanvasNotification('Graphics update failed')
+        return
+      }
     }
 
-    // Close panel and show notification
+    // Close panel first
     this.close()
-    this._showCanvasNotification('Settings applied')
+
+    // Fix #2: Delay notification until after panel close animation
+    setTimeout(() => {
+      this._showCanvasNotification('Settings applied')
+    }, SettingsPanel.TOAST_DELAY_AFTER_CLOSE)
   }
 
   /**
    * Show a notification overlay on the canvas
    */
   _showCanvasNotification (message) {
+    // Fix #3 (partial): Validate input
+    if (typeof message !== 'string') {
+      console.warn('Invalid notification message:', message)
+      return
+    }
+    const sanitizedMessage = String(message).slice(0, 200)
+
+    // Fix #1: Clear any existing notification
+    if (this.activeNotification && this.activeNotification.parentNode) {
+      this.activeNotification.parentNode.removeChild(this.activeNotification)
+    }
+    if (this.notificationTimeout) {
+      clearTimeout(this.notificationTimeout)
+    }
+    if (this.notificationRemovalTimeout) {
+      clearTimeout(this.notificationRemovalTimeout)
+    }
+
     const notification = document.createElement('div')
     notification.className = 'settings-canvas-notification'
-    notification.textContent = message
+    notification.textContent = sanitizedMessage
+
+    // Fix #6: Add ARIA live region for screen readers
+    notification.setAttribute('role', 'status')
+    notification.setAttribute('aria-live', 'polite')
+    notification.setAttribute('aria-atomic', 'true')
+
+    // Fix #1: Track active notification
+    this.activeNotification = notification
 
     document.body.appendChild(notification)
 
@@ -366,15 +426,19 @@ class SettingsPanel {
       notification.classList.add('visible')
     })
 
-    // Remove after delay
-    setTimeout(() => {
+    // Remove after delay (Fix #7: use constants)
+    this.notificationTimeout = setTimeout(() => {
       notification.classList.remove('visible')
-      setTimeout(() => {
+      this.notificationRemovalTimeout = setTimeout(() => {
         if (notification.parentNode) {
           notification.parentNode.removeChild(notification)
         }
-      }, 300)
-    }, 2000)
+        // Fix #1: Clear reference
+        if (this.activeNotification === notification) {
+          this.activeNotification = null
+        }
+      }, SettingsPanel.ANIMATION_DURATION)
+    }, SettingsPanel.TOAST_DISPLAY_DURATION)
   }
 
   /**
@@ -389,16 +453,22 @@ class SettingsPanel {
     UserSettings.resetAll()
     this._loadCurrentSettings()
 
-    console.log('Settings reset to defaults')
-
-    // Trigger audio reload
+    // Fix #4: Try-catch for audio reload
     if (window.webarmoniumApp?.audioService?.reloadAudioProfile) {
-      window.webarmoniumApp.audioService.reloadAudioProfile()
+      try {
+        window.webarmoniumApp.audioService.reloadAudioProfile()
+      } catch (error) {
+        console.error('Failed to reload audio profile:', error)
+      }
     }
 
-    // Trigger graphics reload
+    // Fix #4: Try-catch for graphics reload
     if (window.webarmoniumApp?.visualService?.applyGraphicsQuality) {
-      window.webarmoniumApp.visualService.applyGraphicsQuality()
+      try {
+        window.webarmoniumApp.visualService.applyGraphicsQuality()
+      } catch (error) {
+        console.error('Failed to apply graphics quality:', error)
+      }
     }
 
     // Visual feedback

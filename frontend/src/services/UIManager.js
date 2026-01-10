@@ -235,6 +235,7 @@ class UIManager {
 
   /**
    * Entry #74: Create Settings button for desktop UI (inline with audio controls)
+   * Fix #3: Uses CSS classes instead of inline styles
    */
   _createDesktopSettingsButton () {
     // Check if button already exists
@@ -249,32 +250,10 @@ class UIManager {
 
     const settingsBtn = document.createElement('button')
     settingsBtn.id = 'desktopSettingsBtn'
-    settingsBtn.className = 'audio-toggle desktop-settings-btn'
+    settingsBtn.className = 'desktop-settings-btn' // Fix #3: CSS handles all styling
     settingsBtn.innerHTML = '&#9881; Settings'
     settingsBtn.title = 'Open settings'
     settingsBtn.setAttribute('aria-label', 'Open settings')
-
-    // Style matching the audio-toggle buttons
-    settingsBtn.style.cssText = `
-      background: rgba(255, 255, 255, 0.1);
-      color: #ccc;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 500;
-      font-size: 14px;
-      transition: all 0.2s;
-    `
-
-    settingsBtn.onmouseenter = () => {
-      settingsBtn.style.background = 'rgba(255, 255, 255, 0.2)'
-      settingsBtn.style.color = 'white'
-    }
-    settingsBtn.onmouseleave = () => {
-      settingsBtn.style.background = 'rgba(255, 255, 255, 0.1)'
-      settingsBtn.style.color = '#ccc'
-    }
 
     settingsBtn.onclick = () => this.openSettingsPanel()
 

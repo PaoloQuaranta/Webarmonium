@@ -192,6 +192,24 @@
             color: white;
         }
 
+        /* Fix #3: Desktop settings button CSS (instead of inline styles) */
+        .desktop-settings-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ccc;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .desktop-settings-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
         .instructions {
             position: fixed;
             bottom: 20px;
@@ -705,7 +723,7 @@
     <script src="src/services/CanvasManager.js?v=1"></script>
     <script src="src/services/UIManager.js?v=10"></script> <!-- Entry #74: Settings panel integration -->
     <script src="src/services/UserSettings.js?v=1"></script> <!-- Entry #74: User settings storage -->
-    <script src="src/components/SettingsPanel.js?v=1"></script> <!-- Entry #74: Settings panel UI -->
+    <script src="src/components/SettingsPanel.js?v=2"></script> <!-- Entry #74: Settings panel UI -->
     <script src="src/services/VolumeController.js?v=1"></script>
     <!-- Enhanced generative graphics system -->
     <script src="src/services/visual/VisualConstants.js?v=9"></script>

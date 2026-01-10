@@ -1912,7 +1912,7 @@ Updated to v1.0.52
 
 ---
 
-## Entry #75 - Settings Panel UI Improvements
+## Entry #75 - Settings Panel UI Improvements + Code Review Fixes
 
 **Date**: 2026-01-10
 **Author**: Claude Code (AI Assistant)
@@ -1920,7 +1920,7 @@ Updated to v1.0.52
 
 ### Summary
 
-Improved Settings panel UX with two changes: moved the desktop Settings button inline with the UI bar (instead of floating separately), and made the Apply button close the panel with a canvas notification "Settings applied".
+Improved Settings panel UX with two changes: moved the desktop Settings button inline with the UI bar (instead of floating separately), and made the Apply button close the panel with a canvas notification "Settings applied". Then applied 7 code review fixes for memory leaks, race conditions, and accessibility.
 
 ---
 
@@ -1936,96 +1936,123 @@ User reported two issues:
 
 #### 1. Inline Desktop Settings Button
 
-Changed `_createDesktopSettingsButton()` to insert the button into `.audio-controls` container instead of appending to `document.body`:
+Changed `_createDesktopSettingsButton()` to insert the button into `.audio-controls` container instead of appending to `document.body`. Now uses CSS class instead of inline styles.
 
 **File:** `frontend/src/services/UIManager.js`
 
 ```javascript
 _createDesktopSettingsButton () {
-  // Find the audio-controls container in the UI bar
   const audioControls = document.querySelector('.audio-controls')
-  if (!audioControls) {
-    console.warn('UIManager: .audio-controls not found')
-    return
-  }
+  if (!audioControls) return
 
   const settingsBtn = document.createElement('button')
-  settingsBtn.className = 'audio-toggle desktop-settings-btn'
+  settingsBtn.className = 'desktop-settings-btn' // CSS handles all styling
   settingsBtn.innerHTML = '&#9881; Settings'
-
-  // Style matching other buttons in the bar
-  settingsBtn.style.cssText = `
-    background: rgba(255, 255, 255, 0.1);
-    color: #ccc;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    ...
-  `
-
-  // Insert at the end of audio-controls
   audioControls.appendChild(settingsBtn)
 }
 ```
 
-**Before**: Fixed position button at `top: 12px; right: 12px`
-**After**: Inline button in `.audio-controls` next to "Start Audio" and "Back to main page"
-
 #### 2. Apply Button Closes Panel + Canvas Notification
 
-Modified `_applySettings()` to close the panel and show a toast notification:
+Modified `_applySettings()` to close the panel and show a toast notification after delay.
 
-**File:** `frontend/src/components/SettingsPanel.js`
+---
 
+### Code Review Fixes (7 Issues)
+
+After initial implementation, code-reviewer agent identified 7 issues. All fixed:
+
+#### Fix #1: Memory Leak in Toast Notifications (HIGH)
+
+**Problem**: Multiple rapid "Apply" clicks could accumulate orphaned DOM elements.
+
+**Solution**: Track active notification and clear timeouts:
 ```javascript
-_applySettings () {
-  // ... save settings and reload profiles ...
+// Constructor
+this.activeNotification = null
+this.notificationTimeout = null
+this.notificationRemovalTimeout = null
 
-  // Close panel and show notification
-  this.close()
-  this._showCanvasNotification('Settings applied')
+// In _showCanvasNotification()
+if (this.activeNotification?.parentNode) {
+  this.activeNotification.parentNode.removeChild(this.activeNotification)
 }
+if (this.notificationTimeout) clearTimeout(this.notificationTimeout)
+this.activeNotification = notification
+```
 
-_showCanvasNotification (message) {
-  const notification = document.createElement('div')
-  notification.className = 'settings-canvas-notification'
-  notification.textContent = message
+#### Fix #2: Race Condition - Toast Behind Overlay (HIGH)
 
-  document.body.appendChild(notification)
+**Problem**: Notification appeared while panel was still fading out (300ms animation).
 
-  // Animate in
-  requestAnimationFrame(() => {
-    notification.classList.add('visible')
-  })
+**Solution**: Delay notification by 350ms after `close()`:
+```javascript
+this.close()
+setTimeout(() => {
+  this._showCanvasNotification('Settings applied')
+}, SettingsPanel.TOAST_DELAY_AFTER_CLOSE)
+```
 
-  // Remove after 2 seconds
-  setTimeout(() => {
-    notification.classList.remove('visible')
-    setTimeout(() => notification.remove(), 300)
-  }, 2000)
+#### Fix #3: Inline Styles Instead of CSS (MEDIUM)
+
+**Problem**: Desktop button used `style.cssText` and JS hover handlers.
+
+**Solution**: Moved to CSS class in `rooms.html`:
+```css
+.desktop-settings-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  /* ... */
+}
+.desktop-settings-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
 }
 ```
 
-Added CSS for the toast notification:
+#### Fix #4: Missing Error Handling (MEDIUM)
 
-```css
-.settings-canvas-notification {
-  position: fixed;
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%) translateY(20px);
-  background: rgba(78, 205, 196, 0.9);
-  color: #1a1a2e;
-  padding: 12px 24px;
-  border-radius: 25px;
-  font-size: 14px;
-  font-weight: 600;
-  z-index: 9999;
-  opacity: 0;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+**Problem**: `reloadAudioProfile()` and `applyGraphicsQuality()` calls had no error handling.
+
+**Solution**: Wrapped in try-catch with error notification:
+```javascript
+try {
+  window.webarmoniumApp.audioService.reloadAudioProfile()
+} catch (error) {
+  console.error('Failed to reload audio profile:', error)
+  this._showCanvasNotification('Audio reload failed')
+  return
 }
+```
 
-.settings-canvas-notification.visible {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
+#### Fix #5: Console.log in Production (MEDIUM)
+
+**Problem**: `console.log('Settings applied:')` left in production code.
+
+**Solution**: Removed debug logging from `_applySettings()` and `_resetSettings()`.
+
+#### Fix #6: Missing ARIA Live Region (LOW)
+
+**Problem**: Toast notification didn't announce to screen readers.
+
+**Solution**: Added accessibility attributes:
+```javascript
+notification.setAttribute('role', 'status')
+notification.setAttribute('aria-live', 'polite')
+notification.setAttribute('aria-atomic', 'true')
+```
+
+#### Fix #7: Magic Numbers (LOW)
+
+**Problem**: Hard-coded timing values (300ms, 2000ms) scattered through code.
+
+**Solution**: Static class constants:
+```javascript
+class SettingsPanel {
+  static ANIMATION_DURATION = 300      // ms - panel fade in/out
+  static TOAST_DISPLAY_DURATION = 2000 // ms - how long toast is visible
+  static TOAST_DELAY_AFTER_CLOSE = 350 // ms - wait for panel close animation
 }
 ```
 
@@ -2035,8 +2062,9 @@ Added CSS for the toast notification:
 
 | File | Changes |
 |------|---------|
-| `frontend/src/services/UIManager.js` | Settings button now inline in `.audio-controls` |
-| `frontend/src/components/SettingsPanel.js` | Apply closes panel, shows canvas notification |
+| `frontend/src/services/UIManager.js` | Settings button uses CSS class, removed inline styles |
+| `frontend/src/components/SettingsPanel.js` | All 7 fixes: notification tracking, delayed toast, try-catch, ARIA, constants |
+| `frontend/rooms.html` | Added `.desktop-settings-btn` CSS class |
 
 ---
 
@@ -2047,13 +2075,14 @@ Added CSS for the toast notification:
 3. User changes options
 4. User clicks "Apply"
 5. Panel closes automatically
-6. Teal toast "Settings applied" appears at bottom center
-7. Toast fades out after 2 seconds
+6. **Wait 350ms** for panel animation to complete
+7. Teal toast "Settings applied" appears at bottom center
+8. Toast fades out after 2 seconds
 
 ---
 
 ### Version
 
-Updated to v1.0.54
+Updated to v1.0.55
 
 ---
