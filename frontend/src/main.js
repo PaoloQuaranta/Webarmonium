@@ -69,9 +69,6 @@ class WebarmoniumApp {
       // Setup event listeners
       this.setupEventListeners()
 
-      // Connect to server
-      await this.connectToServer()
-
       // PERF: Hold indicator rendering is now consolidated in p5.js draw() loop
       // This eliminates the separate rAF loop for hold indicators
       // this.startRenderLoop()  // DISABLED - see visualService.setHoldReferences()
@@ -85,8 +82,9 @@ class WebarmoniumApp {
       // Entry #52: Initialize collapsible UI
       this.uiManager.initCollapsibleUI()
 
-      // THEN initialize visual service (p5.js needs visible container)
-      // console.log('🎨 Initializing visual service after showApp...')
+      // Entry #69: Initialize visual service BEFORE connecting to server
+      // This ensures springMesh exists when virtual user events arrive
+      // p5.js container is visible after showApp()
       const p5Container = document.getElementById('p5-container')
       if (p5Container && this.visualService) {
         this.visualService.initialize(p5Container)
@@ -109,6 +107,10 @@ class WebarmoniumApp {
           () => this.activeRemoteHolds
         )
       }
+
+      // Entry #69: Connect to server AFTER visual service is initialized
+      // This ensures springMesh exists when virtual user events arrive
+      await this.connectToServer()
 
       // console.log('✅ Webarmonium initialized successfully')
     } catch (error) {
