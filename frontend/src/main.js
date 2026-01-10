@@ -1085,7 +1085,12 @@ class WebarmoniumApp {
     // This replaces multiple individual hold:start visual triggers with a single emission
     // Entry #69: Bypass updateGestureData throttle - consolidation already limits rate
     this.socketService.on('virtual:phrase-visual', (data) => {
-      if (!this.visualService) return
+      console.log('🎭 virtual:phrase-visual received:', data?.userId?.substring(0, 8), 'visualService:', !!this.visualService)
+
+      if (!this.visualService) {
+        console.warn('⚠️ virtual:phrase-visual: visualService is null')
+        return
+      }
 
       // SECURITY: Validate incoming socket data structure
       if (!data || typeof data !== 'object') return
@@ -1098,6 +1103,13 @@ class WebarmoniumApp {
       // Scale particle count by note count (capped at 4)
       const noteCount = typeof data.noteCount === 'number' ? data.noteCount : 1
       const velocity = data.velocity || 0.7
+
+      console.log('🎭 Emitting P&P:', {
+        wavePackets: !!this.visualService.wavePackets,
+        particles: !!this.visualService.particles,
+        noteCount,
+        velocity
+      })
 
       // BYPASS THROTTLE: Directly emit P&P to subsystems (like landing page)
       // The consolidation from backend already limits emission rate
