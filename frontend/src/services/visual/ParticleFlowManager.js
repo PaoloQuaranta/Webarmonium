@@ -51,6 +51,10 @@ class ParticleFlowManager {
     // Active particles storage
     this.particles = new Map() // particleId -> Particle object
 
+    // PERFORMANCE: Object pool for particle reuse
+    const ParticlePoolClass = (typeof window !== 'undefined' && window.ParticlePool) || null
+    this.particlePool = ParticlePoolClass ? new ParticlePoolClass(80) : null
+
     // Particle ID counter
     this.particleCounter = 0
 
@@ -72,10 +76,10 @@ class ParticleFlowManager {
     this.waveContexts = new Map()  // waveId -> ParticleWaveContext
     this.waveCounter = 0
 
-    // Cascade propagation parameters
-    this.lifeDecayPerHop = 0.6  // Life multiplier per hop - faster decay to reduce spread
-    this.minLifeThreshold = 0.2  // Stop propagating below this life - higher threshold
-    this.maxHops = 5  // Maximum propagation depth - reduced to prevent storms
+    // Cascade propagation parameters - now configurable via VisualConstants
+    this.lifeDecayPerHop = particleConfig.lifeDecayPerHop || 0.45  // Life multiplier per hop
+    this.minLifeThreshold = 0.2  // Stop propagating below this life
+    this.maxHops = particleConfig.maxHops || 3  // Maximum propagation depth
   }
 
   /**
@@ -189,19 +193,40 @@ class ParticleFlowManager {
 
     const particleId = `particle-${this.particleCounter++}`
 
-    const particle = {
-      id: particleId,
-      edge: edge,
-      progress: Math.random() * 0.1,  // Slight stagger in starting position
-      speed: this.baseSpeed + Math.random() * this.speedVariation,
-      size: (this.minSize + Math.random() * (this.maxSize - this.minSize)) * Math.sqrt(life),
-      color: color,
-      life: life,
-      createdAt: Date.now(),
-      // CASCADE PROPAGATION properties
-      waveContext: waveContext,
-      hopCount: hopCount,
-      shouldCascade: true  // Flag for arrival-based propagation
+    // PERFORMANCE: Use object pool if available
+    let particle
+    if (this.particlePool) {
+      particle = this.particlePool.acquire()
+      // FIX: Handle pool exhaustion (returns null when max size reached)
+      if (!particle) return null
+      particle.id = particleId
+      particle.edge = edge
+      particle.progress = Math.random() * 0.1
+      particle.speed = this.baseSpeed + Math.random() * this.speedVariation
+      particle.size = (this.minSize + Math.random() * (this.maxSize - this.minSize)) * Math.sqrt(life)
+      particle.color = color
+      particle.life = life
+      particle.createdAt = Date.now()
+      particle.waveContext = waveContext
+      particle.hopCount = hopCount
+      particle.shouldCascade = true
+      particle.isReverse = false
+      particle.destinationNodeId = null
+    } else {
+      particle = {
+        id: particleId,
+        edge: edge,
+        progress: Math.random() * 0.1,  // Slight stagger in starting position
+        speed: this.baseSpeed + Math.random() * this.speedVariation,
+        size: (this.minSize + Math.random() * (this.maxSize - this.minSize)) * Math.sqrt(life),
+        color: color,
+        life: life,
+        createdAt: Date.now(),
+        // CASCADE PROPAGATION properties
+        waveContext: waveContext,
+        hopCount: hopCount,
+        shouldCascade: true  // Flag for arrival-based propagation
+      }
     }
 
     // Add to edge's particle array
@@ -245,10 +270,10 @@ class ParticleFlowManager {
     // PERF: Get stress factor for cascade adjustments
     const stressFactor = window.visualService?.stressFactor ?? 1.0
 
-    // PERF: Increase decay under stress (particles die faster when FPS drops)
-    // Normal stress (1.0): decay = 0.6 (slower, more propagation)
-    // High stress (0.3): decay = 1.02 (faster, less propagation)
-    const adjustedDecay = this.lifeDecayPerHop * (2 - stressFactor)
+    // PERF: Reduce cascade under stress (particles retain less life when FPS drops)
+    // Normal stress (1.0): decay = 0.45 (45% retained per hop)
+    // High stress (0.3): decay = 0.135 (13.5% retained - faster death, less propagation)
+    const adjustedDecay = this.lifeDecayPerHop * stressFactor
 
     // Calculate cascaded life with adjusted decay
     const cascadeLife = particle.life * adjustedDecay
@@ -322,22 +347,43 @@ class ParticleFlowManager {
 
     const particleId = `particle-${this.particleCounter++}`
 
-    const particle = {
-      id: particleId,
-      edge: edge,
-      progress: isForward ? (Math.random() * 0.1) : (1 - Math.random() * 0.1),
-      speed: this.baseSpeed + Math.random() * this.speedVariation,
-      size: (this.minSize + Math.random() * (this.maxSize - this.minSize)) * Math.sqrt(life),
-      color: color,
-      life: life,
-      createdAt: Date.now(),
-      // CASCADE PROPAGATION properties
-      waveContext: waveContext,
-      hopCount: hopCount,
-      shouldCascade: true,
-      // BIDIRECTIONAL properties
-      isReverse: !isForward,  // True if traveling target→source
-      destinationNodeId: destinationNodeId
+    // PERFORMANCE: Use object pool if available
+    let particle
+    if (this.particlePool) {
+      particle = this.particlePool.acquire()
+      // FIX: Handle pool exhaustion (returns null when max size reached)
+      if (!particle) return null
+      particle.id = particleId
+      particle.edge = edge
+      particle.progress = isForward ? (Math.random() * 0.1) : (1 - Math.random() * 0.1)
+      particle.speed = this.baseSpeed + Math.random() * this.speedVariation
+      particle.size = (this.minSize + Math.random() * (this.maxSize - this.minSize)) * Math.sqrt(life)
+      particle.color = color
+      particle.life = life
+      particle.createdAt = Date.now()
+      particle.waveContext = waveContext
+      particle.hopCount = hopCount
+      particle.shouldCascade = true
+      particle.isReverse = !isForward
+      particle.destinationNodeId = destinationNodeId
+    } else {
+      particle = {
+        id: particleId,
+        edge: edge,
+        progress: isForward ? (Math.random() * 0.1) : (1 - Math.random() * 0.1),
+        speed: this.baseSpeed + Math.random() * this.speedVariation,
+        size: (this.minSize + Math.random() * (this.maxSize - this.minSize)) * Math.sqrt(life),
+        color: color,
+        life: life,
+        createdAt: Date.now(),
+        // CASCADE PROPAGATION properties
+        waveContext: waveContext,
+        hopCount: hopCount,
+        shouldCascade: true,
+        // BIDIRECTIONAL properties
+        isReverse: !isForward,  // True if traveling target→source
+        destinationNodeId: destinationNodeId
+      }
     }
 
     // Add to edge's particle array
@@ -534,6 +580,11 @@ class ParticleFlowManager {
 
       // Remove from active particles map
       this.particles.delete(particleId)
+
+      // PERFORMANCE: Release particle back to pool for reuse
+      if (this.particlePool) {
+        this.particlePool.release(particle)
+      }
     }
   }
 

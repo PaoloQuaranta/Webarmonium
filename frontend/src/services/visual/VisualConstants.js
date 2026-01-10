@@ -21,7 +21,9 @@ const PULSE_CONFIG = {
   intensity: 1.0,         // Initial intensity
   decayRate: 1.5,         // Intensity decay per second - slower for longer travel
   width: 10,              // Pulse width in pixels - increased for better visibility
-  maxPulses: 40           // Maximum active pulses - reduced to prevent storms
+  maxPulses: 25,          // Maximum active pulses - reduced for performance
+  maxHops: 2,             // Maximum cascade hops - reduced from 4
+  intensityDecayPerHop: 0.4  // Faster decay per hop - was 0.55
 }
 
 // Particle Configuration
@@ -31,10 +33,12 @@ const PARTICLE_CONFIG = {
   minSize: 3,             // Minimum particle size - increased for visibility
   maxSize: 6,             // Maximum particle size - increased for visibility
   lifeDecay: 0.2,         // Life decay per second - slower for longer travel
-  emitCount: 3,           // Particles per emission - reduced to prevent storms
-  maxParticles: 120,      // Maximum active particles - reduced to prevent storms
+  emitCount: 2,           // Particles per emission - reduced for performance
+  maxParticles: 80,       // Maximum active particles - reduced for performance
   cleanupInterval: 5000,  // Cleanup interval (ms)
-  maxAge: 10000           // Maximum particle age (ms)
+  maxAge: 10000,          // Maximum particle age (ms)
+  maxHops: 3,             // Maximum cascade hops - reduced from 5
+  lifeDecayPerHop: 0.45   // Faster decay per hop - was 0.6
 }
 
 // Network Topology Configuration

@@ -48,6 +48,10 @@ class GenerativeVisualService {
     this.degradeThreshold = 20
     this.disableThreshold = 15
     this.recoveryThreshold = 28
+
+    // P&P emission throttling per user
+    this._lastEmitByUser = new Map()
+    this.MIN_EMIT_INTERVAL = 300  // ms between p&p emissions per user
     this.frameSampleInterval = 60
 
     // Background color (matching Webarmonium theme)
@@ -295,6 +299,15 @@ class GenerativeVisualService {
       if (gestureData.isActive) {
         // Emit wave pulse on tap, drag, or hold start
         if (gestureData.type === 'tap' || gestureData.type === 'drag' || gestureData.type === 'hold') {
+          // THROTTLE: Check per-user emission rate to prevent p&p storms
+          const now = Date.now()
+          const lastEmit = this._lastEmitByUser.get(userId) || 0
+          if (now - lastEmit < this.MIN_EMIT_INTERVAL) {
+            // Skip emission, too soon since last p&p for this user
+            return
+          }
+          this._lastEmitByUser.set(userId, now)
+
           // Emit pulse
           if (this.wavePackets) {
             this.wavePackets.emitPulse(userId, node.color)
@@ -324,6 +337,8 @@ class GenerativeVisualService {
    */
   removeUser(userId) {
     this.springMesh.removeNode(userId)
+    // FIX: Clean up emission throttle tracking to prevent memory leak
+    this._lastEmitByUser.delete(userId)
   }
 
   /**

@@ -47,6 +47,10 @@ class WavePacketSystem {
     // Active pulses storage
     this.activePulses = new Map() // pulseId -> Pulse object
 
+    // PERFORMANCE: Object pool for pulse reuse
+    const PulsePoolClass = (typeof window !== 'undefined' && window.PulsePool) || null
+    this.pulsePool = PulsePoolClass ? new PulsePoolClass(30) : null
+
     // Pulse ID counter
     this.pulseCounter = 0
 
@@ -62,10 +66,10 @@ class WavePacketSystem {
     this.waveContexts = new Map()  // waveId -> WaveContext
     this.waveCounter = 0
 
-    // Cascade propagation parameters
-    this.intensityDecayPerHop = 0.55  // Intensity multiplier per hop - faster decay to reduce spread
-    this.minIntensityThreshold = 0.12  // Stop propagating below this intensity - higher threshold
-    this.maxHops = 4  // Maximum propagation depth - reduced to prevent storms
+    // Cascade propagation parameters - now configurable via VisualConstants
+    this.intensityDecayPerHop = pulseConfig.intensityDecayPerHop || 0.4  // Intensity multiplier per hop
+    this.minIntensityThreshold = 0.12  // Stop propagating below this intensity
+    this.maxHops = pulseConfig.maxHops || 2  // Maximum propagation depth
   }
 
   /**
@@ -130,19 +134,40 @@ class WavePacketSystem {
 
     const pulseId = `pulse-${this.pulseCounter++}`
 
-    const pulse = {
-      id: pulseId,
-      edge: edge,
-      progress: 0,
-      speed: this.baseSpeed + Math.random() * this.speedVariation,
-      intensity: intensity,
-      color: color,
-      width: this.pulseWidth * Math.sqrt(intensity),  // Width scales with intensity
-      createdAt: Date.now(),
-      // CASCADE PROPAGATION properties
-      waveContext: waveContext,
-      hopCount: hopCount,
-      shouldCascade: true  // Flag for arrival-based propagation
+    // PERFORMANCE: Use object pool if available
+    let pulse
+    if (this.pulsePool) {
+      pulse = this.pulsePool.acquire()
+      // FIX: Handle pool exhaustion (returns null when max size reached)
+      if (!pulse) return null
+      pulse.id = pulseId
+      pulse.edge = edge
+      pulse.progress = 0
+      pulse.speed = this.baseSpeed + Math.random() * this.speedVariation
+      pulse.intensity = intensity
+      pulse.color = color
+      pulse.width = this.pulseWidth * Math.sqrt(intensity)
+      pulse.createdAt = Date.now()
+      pulse.waveContext = waveContext
+      pulse.hopCount = hopCount
+      pulse.shouldCascade = true
+      pulse.isReverse = false
+      pulse.destinationNodeId = null
+    } else {
+      pulse = {
+        id: pulseId,
+        edge: edge,
+        progress: 0,
+        speed: this.baseSpeed + Math.random() * this.speedVariation,
+        intensity: intensity,
+        color: color,
+        width: this.pulseWidth * Math.sqrt(intensity),  // Width scales with intensity
+        createdAt: Date.now(),
+        // CASCADE PROPAGATION properties
+        waveContext: waveContext,
+        hopCount: hopCount,
+        shouldCascade: true  // Flag for arrival-based propagation
+      }
     }
 
     // Add to edge's pulse array
@@ -248,22 +273,43 @@ class WavePacketSystem {
 
     const pulseId = `pulse-${this.pulseCounter++}`
 
-    const pulse = {
-      id: pulseId,
-      edge: edge,
-      progress: isForward ? 0 : 1,  // Start at beginning or end depending on direction
-      speed: this.baseSpeed + Math.random() * this.speedVariation,
-      intensity: intensity,
-      color: color,
-      width: this.pulseWidth * Math.sqrt(intensity),
-      createdAt: Date.now(),
-      // CASCADE PROPAGATION properties
-      waveContext: waveContext,
-      hopCount: hopCount,
-      shouldCascade: true,
-      // BIDIRECTIONAL properties
-      isReverse: !isForward,  // True if traveling target→source
-      destinationNodeId: destinationNodeId
+    // PERFORMANCE: Use object pool if available
+    let pulse
+    if (this.pulsePool) {
+      pulse = this.pulsePool.acquire()
+      // FIX: Handle pool exhaustion (returns null when max size reached)
+      if (!pulse) return null
+      pulse.id = pulseId
+      pulse.edge = edge
+      pulse.progress = isForward ? 0 : 1
+      pulse.speed = this.baseSpeed + Math.random() * this.speedVariation
+      pulse.intensity = intensity
+      pulse.color = color
+      pulse.width = this.pulseWidth * Math.sqrt(intensity)
+      pulse.createdAt = Date.now()
+      pulse.waveContext = waveContext
+      pulse.hopCount = hopCount
+      pulse.shouldCascade = true
+      pulse.isReverse = !isForward
+      pulse.destinationNodeId = destinationNodeId
+    } else {
+      pulse = {
+        id: pulseId,
+        edge: edge,
+        progress: isForward ? 0 : 1,  // Start at beginning or end depending on direction
+        speed: this.baseSpeed + Math.random() * this.speedVariation,
+        intensity: intensity,
+        color: color,
+        width: this.pulseWidth * Math.sqrt(intensity),
+        createdAt: Date.now(),
+        // CASCADE PROPAGATION properties
+        waveContext: waveContext,
+        hopCount: hopCount,
+        shouldCascade: true,
+        // BIDIRECTIONAL properties
+        isReverse: !isForward,  // True if traveling target→source
+        destinationNodeId: destinationNodeId
+      }
     }
 
     // Add to edge's pulse array
@@ -504,6 +550,11 @@ class WavePacketSystem {
 
       // Remove from active pulses map
       this.activePulses.delete(pulseId)
+
+      // PERFORMANCE: Release pulse back to pool for reuse
+      if (this.pulsePool) {
+        this.pulsePool.release(pulse)
+      }
     }
   }
 
@@ -572,17 +623,23 @@ class WavePacketSystem {
     const rgb = this.hexToRgbArray(pulse.color)
     p.fill(rgb[0], rgb[1], rgb[2], glowAlpha)
 
-    // Add glow effect using shadow blur
-    p.drawingContext.shadowBlur = 30 * pulse.intensity
-    p.drawingContext.shadowColor = pulse.color
+    // PERFORMANCE: Conditional glow effect - disable under stress
+    // shadowBlur is expensive especially on Chrome/Windows
+    const stressFactor = window.visualService?.stressFactor ?? 1.0
+    const useGlow = stressFactor > 0.7
+
+    // FIX: Always set/reset shadowBlur to avoid state bleeding if stressFactor changes mid-frame
+    p.drawingContext.shadowBlur = useGlow ? 30 * pulse.intensity : 0
+    p.drawingContext.shadowColor = useGlow ? pulse.color : ''
     p.circle(pos.x, pos.y, size * 2)
 
     // Draw inner bright core
     p.fill(255, 255, 255, alpha)
     p.circle(pos.x, pos.y, size * 0.5)
 
-    // Reset shadow
+    // Always reset shadow after drawing
     p.drawingContext.shadowBlur = 0
+    p.drawingContext.shadowColor = ''
   }
 
   /**

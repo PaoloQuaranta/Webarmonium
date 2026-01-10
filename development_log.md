@@ -1053,6 +1053,104 @@ Updated to v1.0.41
 
 ---
 
+## Entry #69 - Particles & Pulses Uniformization + Performance Optimization
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Uniformed particle and pulse (P&P) production between virtual and real users. Virtual users were producing excessive P&P bursts that froze the graphics engine, while real users only emitted P&P at mousedown (not during drag). Also implemented performance optimizations including object pooling, cascade reduction, and conditional shadowBlur.
+
+---
+
+### Problem Statement
+
+1. **Virtual users**: Each drag gesture emitted a phrase of 10+ notes, each triggering 2-5 particles + 1 pulse, causing exponential cascade growth (3→9→27→81 particles)
+2. **Real users**: P&P only emitted on mousedown, not during continuous drag
+3. **Performance**: No object pooling (fresh allocations), expensive shadowBlur, unbounded cascade propagation
+
+---
+
+### Solution
+
+#### 1. Virtual User P&P Consolidation (Backend)
+
+Added `virtual:phrase-visual` event to emit single consolidated visual trigger per phrase:
+```javascript
+this.io.to(roomId).emit('virtual:phrase-visual', {
+  userId, noteCount, velocity, position, userColor, isVirtual: true
+})
+```
+
+Added `suppressVisual: true` to individual `hold:start` events to prevent duplicate triggers.
+
+#### 2. Real User Drag P&P Emission (Frontend)
+
+Added throttled P&P emission during drag streaming (400ms interval):
+```javascript
+if (visualNow - this._lastDragVisualEmit >= DRAG_VISUAL_INTERVAL) {
+  this.visualService.updateGestureData(userId, { type: 'drag', velocity, isActive: true })
+}
+```
+
+#### 3. Per-User Emission Throttling
+
+Added 300ms minimum interval between P&P emissions per user in GenerativeVisualService.
+
+#### 4. Cascade Reduction
+
+- Reduced maxHops: Particles 5→3, Pulses 4→2
+- Increased decay per hop: Particles 0.6→0.45, Pulses 0.55→0.4
+- Reduced maxPulses 40→25, maxParticles 120→80, emitCount 3→2
+
+#### 5. Object Pooling
+
+Created `ParticlePool.js` and `PulsePool.js` for object reuse:
+- Pre-allocate objects, reuse instead of allocating
+- Reduces GC pressure during animation
+- Added maxSize limits (ParticlePool: 150, PulsePool: 60)
+
+#### 6. Conditional shadowBlur
+
+Disable expensive shadowBlur effect when stressFactor < 0.7 (under performance stress).
+
+---
+
+### Code Review Fixes
+
+Applied critical fixes identified by code-reviewer agent:
+
+1. **Security**: Added validation for socket event data in `virtual:phrase-visual` handler
+2. **Memory leak**: Added cleanup of `_lastEmitByUser` Map in `removeUser()`
+3. **Bug fix**: Corrected cascade decay formula (was inverted: `2 - stressFactor` → `stressFactor`)
+4. **Pool bounds**: Added maxSize to pools with null return on exhaustion
+5. **shadowBlur race**: Always reset shadowBlur after drawing regardless of condition
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/VirtualUserService.js` | Added `suppressVisual` flag, emit `virtual:phrase-visual` event |
+| `frontend/src/main.js` | Handler for `virtual:phrase-visual`, respect `suppressVisual`, drag P&P throttling, `_sanitizeColor()` helper |
+| `frontend/src/services/GenerativeVisualService.js` | Per-user emission throttling, cleanup in `removeUser()` |
+| `frontend/src/services/visual/VisualConstants.js` | Reduced maxPulses, maxParticles, emitCount, added maxHops/decay configs |
+| `frontend/src/services/visual/ParticleFlowManager.js` | Pool integration, cascade reduction, fixed decay formula |
+| `frontend/src/services/visual/WavePacketSystem.js` | Pool integration, conditional shadowBlur with proper cleanup |
+| `frontend/src/services/visual/ParticlePool.js` | **NEW** - Object pool for particles with maxSize |
+| `frontend/src/services/visual/PulsePool.js` | **NEW** - Object pool for pulses with maxSize |
+
+---
+
+### Version
+
+Updated to v1.0.44
+
+---
+
 ## Entry #68 - Real User Synth Volume Boost
 
 **Date**: 2026-01-10

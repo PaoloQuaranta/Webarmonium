@@ -806,6 +806,18 @@ class VirtualUserService {
       timestamp: Date.now()
     })
 
+    // VISUAL CONSOLIDATION: Emit single visual event for entire phrase
+    // This prevents p&p explosion from multiple hold:start events
+    this.io.to(roomId).emit('virtual:phrase-visual', {
+      userId: config.userId,
+      noteCount: phrase.notes.length,
+      velocity: Math.min(1, normalizedVelocity),
+      position: { x: startX, y: startY },
+      userColor: config.color,
+      isVirtual: true,
+      timestamp: Date.now()
+    })
+
     // Emit each note with timing from PhraseMorphology (same as LandingCompositionService)
     const { min: freqMin, max: freqMax } = config.frequencyRange
 
@@ -847,7 +859,7 @@ class VirtualUserService {
         // Update cursor position with smoothing to prevent trembling
         this._updateTargetPositionWithSmoothing(roomState, source, noteX, noteY)
 
-        // Emit hold:start
+        // Emit hold:start (visual suppressed - handled by virtual:phrase-visual)
         this.io.to(roomId).emit('hold:start', {
           type: 'hold:start',
           userId: config.userId,
@@ -859,6 +871,7 @@ class VirtualUserService {
           userColor: config.color,
           isRemote: true,
           isVirtual: true,
+          suppressVisual: true,  // Visual already handled by virtual:phrase-visual
           timestamp: Date.now()
         })
 

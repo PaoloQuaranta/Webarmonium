@@ -527,6 +527,26 @@ class WebarmoniumApp {
 
       this.audioService.playMusicalEvent(musicalEvent)
 
+      // VISUAL P&P DURING DRAG: Emit particles/pulses periodically during drag
+      // Throttled to 400ms (2.5 p&p/sec) for uniform visual feedback
+      const visualNow = Date.now()
+      const DRAG_VISUAL_INTERVAL = 400  // ms between visual emissions
+
+      if (!this._lastDragVisualEmit || (visualNow - this._lastDragVisualEmit) >= DRAG_VISUAL_INTERVAL) {
+        this._lastDragVisualEmit = visualNow
+
+        if (this.visualService && this.socketService?.socket) {
+          const userId = this.socketService.socket.id
+          const color = this.currentUserColor || '#00ff00'
+          this.visualService.updateCursorPosition(userId, x, y, color)
+          this.visualService.updateGestureData(userId, {
+            type: 'drag',
+            velocity: noteData.velocity,
+            isActive: true
+          })
+        }
+      }
+
       // REAL-TIME STREAMING: Emit note to backend for remote users
       // Throttle: ~20 notes/second max (50ms minimum interval)
       const streamNow = Date.now()
@@ -952,18 +972,21 @@ class WebarmoniumApp {
           synth.triggerAttackRelease(actualFrequency, noteDuration, Tone.now(), velocity)
         }
 
-        // VISUAL: Always update visual service (triggers particles/pulses)
-        // This is separate from audio to ensure visual feedback even if audio fails
+        // VISUAL: Update cursor position, but skip p&p if suppressVisual is set
+        // When suppressVisual is true, p&p are handled by virtual:phrase-visual event
         if (this.visualService) {
           const color = data.userColor || '#ff6b6b'
           this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
-          // CRITICAL: Must call updateGestureData to trigger particles and pulses
-          this.visualService.updateGestureData(data.userId, {
-            type: 'hold',
-            velocity: data.velocity || 0.7,
-            holdStart: Date.now(),
-            isActive: true
-          })
+
+          // Only trigger particles/pulses if NOT suppressed
+          if (!data.suppressVisual) {
+            this.visualService.updateGestureData(data.userId, {
+              type: 'hold',
+              velocity: data.velocity || 0.7,
+              holdStart: Date.now(),
+              isActive: true
+            })
+          }
         }
 
         return // Don't use sustained note mechanism for virtual users
@@ -1054,6 +1077,30 @@ class WebarmoniumApp {
       this.activeRemoteHolds.delete(data.noteId)
 
       // console.log(`🌐 Remote hold end: user ${data.userId.substring(0, 8)}, ${data.duration}ms hold${data.reason ? ' (' + data.reason + ')' : ''}`)
+    })
+
+    // VIRTUAL PHRASE VISUAL: Consolidated p&p emission for virtual user phrases
+    // This replaces multiple individual hold:start visual triggers with a single emission
+    this.socketService.on('virtual:phrase-visual', (data) => {
+      if (!this.visualService) return
+
+      // SECURITY: Validate incoming socket data structure
+      if (!data || typeof data !== 'object') return
+      if (!data.userId || typeof data.userId !== 'string') return
+      if (!data.position || typeof data.position.x !== 'number' || typeof data.position.y !== 'number') return
+
+      const color = this._sanitizeColor(data.userColor) || '#ff6b6b'
+      this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
+
+      // Scale velocity by note count (capped at 4 for visual emission)
+      const noteCount = typeof data.noteCount === 'number' ? data.noteCount : 1
+      const cappedMultiplier = Math.min(noteCount, 4) / 4  // 0.25-1.0
+      this.visualService.updateGestureData(data.userId, {
+        type: 'hold',
+        velocity: (data.velocity || 0.7) * cappedMultiplier,
+        holdStart: Date.now(),
+        isActive: true
+      })
     })
 
     // console.log('✅ Sustained hold event listeners registered')
@@ -1885,6 +1932,20 @@ class WebarmoniumApp {
       this.audioService.setVolume(volume / 100) // Convert 0-100 to 0-1
       // console.log(`🔊 Volume set to ${volume}%, audioService.volume is now: ${this.audioService.volume}`)
     }
+  }
+
+  /**
+   * SECURITY: Sanitize color values from socket events
+   * Prevents potential XSS through malicious color strings
+   * @param {string} color - Color value to sanitize
+   * @returns {string|null} Sanitized hex color or null if invalid
+   */
+  _sanitizeColor(color) {
+    if (!color || typeof color !== 'string') return null
+    // Only allow valid hex colors (3, 4, 6, or 8 hex digits with optional #)
+    const hexPattern = /^#?([0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/
+    if (!hexPattern.test(color)) return null
+    return color.startsWith('#') ? color : `#${color}`
   }
 
   /**
