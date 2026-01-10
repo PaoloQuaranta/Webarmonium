@@ -45,6 +45,13 @@ class WebarmoniumApp {
     this.activeRemoteHolds = new Map()  // noteId -> { noteId, audioNoteId, userId, frequency, startTime }
     this.pendingHoldNoteData = null  // { noteId, frequency, velocity, startTime } - for network sync when audio not ready
 
+    // FIX: Track users who have left to prevent cursor race conditions
+    // When user-left arrives, we add userId here. cursor-position events for these users are ignored.
+    this.leftUsers = new Set()
+
+    // FIX: Track if virtual users are currently active
+    this.virtualUsersActive = false
+
     // Initialize the application
     this.init()
   }
@@ -832,6 +839,11 @@ class WebarmoniumApp {
       this.updateRoomDisplay()
       // console.log('🏠 Joined room:', data.room.roomId)
 
+      // FIX: Clear leftUsers set when joining a new room (prevents memory leak)
+      // Previous room's userIds are no longer relevant
+      this.leftUsers.clear()
+      this.virtualUsersActive = false
+
       // CRITICAL FIX: Set room context in gesture capture so gestures include roomId
       // Without this, gestures have roomId: null and are never sent to backend
       if (this.gestureCapture && this.gestureCapture.setRoomContext) {
@@ -846,12 +858,23 @@ class WebarmoniumApp {
       this.userCount = data.userCount
       this.updateRoomDisplay()
       // console.log('👤 User joined, total users:', this.userCount)
+
+      // FIX: Remove from leftUsers set if user rejoins (new session with same ID unlikely but safe)
+      if (data.user?.id) {
+        this.leftUsers.delete(data.user.id)
+      }
     })
 
     this.socketService.on('user-left', (data) => {
       this.userCount = data.userCount
       this.updateRoomDisplay()
       // console.log('👋 User left, total users:', this.userCount)
+
+      // FIX: Add to leftUsers set BEFORE removing cursor to prevent race condition
+      // Late cursor-position events for this user will be ignored
+      if (data.userId) {
+        this.leftUsers.add(data.userId)
+      }
 
       // Remove user's cursor
       if (data.userId && this.cursorManager) {
@@ -865,6 +888,11 @@ class WebarmoniumApp {
     // FIX: Handle user-disconnected for unexpected disconnects (e.g., browser close)
     this.socketService.on('user-disconnected', (data) => {
       // console.log('🔌 User disconnected unexpectedly:', data.userId)
+
+      // FIX: Add to leftUsers set BEFORE removing cursor
+      if (data.userId) {
+        this.leftUsers.add(data.userId)
+      }
 
       // Remove user's cursor from visualization
       if (data.userId && this.cursorManager) {
@@ -1056,6 +1084,11 @@ class WebarmoniumApp {
     })
 
     this.socketService.on('cursor-position', (data) => {
+      // FIX: Ignore cursor updates for users who have left (race condition prevention)
+      if (this.leftUsers.has(data.userId)) {
+        return
+      }
+
       if (this.cursorManager) {
         this.cursorManager.updateCursor(
           data.userId,
@@ -1316,6 +1349,9 @@ class WebarmoniumApp {
     this.socketService.on('virtual-users-activated', (data) => {
       console.log('🎭 Virtual users activated:', data.sources)
 
+      // FIX: Track virtual users state to prevent race conditions
+      this.virtualUsersActive = true
+
       if (this.cursorManager && data.virtualUsers) {
         data.virtualUsers.forEach(user => {
           this.cursorManager.addVirtualCursor(user.userId, user.color, true) // fadeIn
@@ -1343,6 +1379,9 @@ class WebarmoniumApp {
     this.socketService.on('virtual-users-deactivated', (data) => {
       console.log('🎭 Virtual users deactivated:', data.sources)
 
+      // FIX: Track virtual users state BEFORE removing cursors to prevent race conditions
+      this.virtualUsersActive = false
+
       if (this.cursorManager) {
         this.cursorManager.removeAllVirtualCursors(true) // fadeOut
       }
@@ -1362,9 +1401,11 @@ class WebarmoniumApp {
 
     // Virtual cursor position updates
     this.socketService.on('virtual-cursors', (data) => {
+      // FIX: Ignore virtual cursor updates if virtual users have been deactivated (race condition prevention)
+      if (!this.virtualUsersActive) return
       if (!this.cursorManager || !data.cursors) return
 
-      for (const [source, cursor] of Object.entries(data.cursors)) {
+      for (const [, cursor] of Object.entries(data.cursors)) {
         // Fallback: add cursor if it doesn't exist yet (handles race condition with virtual-users-activated)
         if (!this.cursorManager.isVirtualCursor(cursor.userId)) {
           this.cursorManager.addVirtualCursor(cursor.userId, cursor.color, true) // fadeIn
