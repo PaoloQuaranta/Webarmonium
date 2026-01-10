@@ -228,29 +228,51 @@ class PlatformDetection {
   }
 
   /**
+   * Detect if running on Windows with Chrome (not Edge, not Opera)
+   * Chrome on Windows is the MOST problematic for audio
+   * @returns {boolean} True if Windows Chrome (pure Chrome, not Chromium variants)
+   */
+  static isWindowsChromePure() {
+    const ua = navigator.userAgent || ''
+    const isWindows = ua.includes('Windows') || (navigator.platform?.includes('Win') ?? false)
+    // Pure Chrome: has 'Chrome' but NOT Edge, NOT Opera
+    const isPureChrome = ua.includes('Chrome') && !ua.includes('Edg') && !ua.includes('OPR') && !ua.includes('Opera')
+    return isWindows && isPureChrome
+  }
+
+  /**
+   * Detect if running on Windows with Opera
+   * @returns {boolean} True if Windows Opera
+   */
+  static isWindowsOpera() {
+    const ua = navigator.userAgent || ''
+    const isWindows = ua.includes('Windows') || (navigator.platform?.includes('Win') ?? false)
+    const isOpera = ua.includes('OPR') || ua.includes('Opera')
+    return isWindows && isOpera
+  }
+
+  /**
    * Detect if running on Windows with Chrome or Opera (most problematic for audio)
    * Entry #59 FIX: Both Chrome and Opera on Windows have audio issues
    * Edge performs better and is excluded
    * @returns {boolean} True if Windows Chrome or Opera
    */
   static isWindowsChromeOrOpera() {
-    const ua = navigator.userAgent || ''
-    const isWindows = ua.includes('Windows') || (navigator.platform?.includes('Win') ?? false)
-    // Chrome (not Edge) OR Opera
-    const isChrome = ua.includes('Chrome') && !ua.includes('Edg')
-    const isOpera = ua.includes('OPR') || ua.includes('Opera')
-    return isWindows && (isChrome || isOpera)
+    return PlatformDetection.isWindowsChromePure() || PlatformDetection.isWindowsOpera()
   }
 
   /**
    * Get recommended Tone.context.updateInterval based on platform
-   * Entry #59 FIX: Chrome/Opera on Windows need higher updateInterval to reduce scheduler overhead
+   * Entry #59 FIX: Chrome on Windows needs VERY high updateInterval
    * Default Tone.js updateInterval is 0.025s (25ms)
    * @returns {number} updateInterval in seconds
    */
   static getAudioUpdateInterval() {
-    if (PlatformDetection.isWindowsChromeOrOpera()) {
-      return 0.05 // 50ms for Windows Chrome/Opera (2x default) - reduces scheduler CPU load
+    if (PlatformDetection.isWindowsChromePure()) {
+      return 0.1 // 100ms for Windows Chrome (4x default) - MOST aggressive
+    }
+    if (PlatformDetection.isWindowsOpera()) {
+      return 0.05 // 50ms for Windows Opera (2x default)
     }
     if (PlatformDetection.isAndroidChrome()) {
       return 0.04 // 40ms for Android Chrome
@@ -260,12 +282,15 @@ class PlatformDetection {
 
   /**
    * Get recommended filter/parameter update rate based on platform
-   * Entry #59 FIX: Chrome/Opera on Windows need lower update rate to reduce main thread load
+   * Entry #59 FIX: Chrome on Windows needs very low update rate
    * @returns {number} updates per second (Hz)
    */
   static getFilterUpdateRate() {
-    if (PlatformDetection.isWindowsChromeOrOpera()) {
-      return 20 // 20Hz for Windows Chrome/Opera (was 30Hz)
+    if (PlatformDetection.isWindowsChromePure()) {
+      return 15 // 15Hz for Windows Chrome (very aggressive)
+    }
+    if (PlatformDetection.isWindowsOpera()) {
+      return 20 // 20Hz for Windows Opera
     }
     if (PlatformDetection.isAndroidChrome()) {
       return 20 // 20Hz for Android Chrome
@@ -274,6 +299,18 @@ class PlatformDetection {
       return 24 // 24Hz for other mobile
     }
     return 30 // 30Hz default
+  }
+
+  /**
+   * Get recommended Tone.js lookAhead based on platform
+   * Chrome on Windows needs extra lookAhead
+   * @returns {number} lookAhead in seconds
+   */
+  static getAudioLookAheadChrome() {
+    if (PlatformDetection.isWindowsChromePure()) {
+      return 0.25 // 250ms for Windows Chrome (very aggressive)
+    }
+    return null // Use default from getAudioLookAhead()
   }
 
   /**

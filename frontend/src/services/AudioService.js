@@ -504,29 +504,35 @@ class AudioService {
           console.log('🔊 Tone.context already running')
         }
 
-        // PERF: Entry #48: Use platform-specific lookAhead for better scheduling buffer
+        // PERF: Entry #48/#59: Use platform-specific lookAhead for better scheduling buffer
         // Default is 0.05 (50ms), increase based on platform for stability
-        // This gives the audio thread more time to prepare scheduled events
-        const targetLookAhead = typeof PlatformDetection !== 'undefined'
+        // Chrome on Windows needs VERY aggressive settings (250ms)
+        let targetLookAhead = typeof PlatformDetection !== 'undefined'
           ? PlatformDetection.getAudioLookAhead()
           : (this._isWindowsChrome ? 0.15 : 0.1)
 
-        if (Tone.context.lookAhead < targetLookAhead) {
-          Tone.context.lookAhead = targetLookAhead
-          console.log(`🔊 Tone.context.lookAhead set to ${targetLookAhead}s`)
+        // Chrome-specific override - even more aggressive (250ms)
+        const chromeLookAhead = typeof PlatformDetection !== 'undefined' && typeof PlatformDetection.getAudioLookAheadChrome === 'function'
+          ? PlatformDetection.getAudioLookAheadChrome()
+          : null
+        if (chromeLookAhead !== null) {
+          targetLookAhead = chromeLookAhead
         }
+
+        const isWindowsChromePure = typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsChromePure()
+        Tone.context.lookAhead = targetLookAhead
+        console.log(`🔊 Tone.context.lookAhead set to ${targetLookAhead}s (isWindowsChromePure=${isWindowsChromePure})`)
 
         // PERF: Entry #59: Use platform-specific updateInterval for Chrome Windows
         // Default is 0.025s (25ms). Higher values reduce scheduler CPU overhead
-        // but increase latency. Chrome on Windows benefits from 50ms.
+        // Chrome on Windows needs 100ms (4x default)
         const targetUpdateInterval = typeof PlatformDetection !== 'undefined'
           ? PlatformDetection.getAudioUpdateInterval()
           : 0.025
 
-        // Always set and log - updateInterval is critical for Chrome/Opera stability
-        const isWindowsChromeOrOpera = typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsChromeOrOpera()
+        // Always set and log - updateInterval is critical for Chrome stability
         Tone.context.updateInterval = targetUpdateInterval
-        console.log(`🔊 Tone.context.updateInterval set to ${targetUpdateInterval}s (isWindowsChromeOrOpera=${isWindowsChromeOrOpera})`)
+        console.log(`🔊 Tone.context.updateInterval set to ${targetUpdateInterval}s (isWindowsChromePure=${isWindowsChromePure})`)
 
         // CRITICAL: Start Transport for scheduled events (only if context is running)
         if (Tone.context.state === 'running' && Tone.Transport.state !== 'started') {
