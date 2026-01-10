@@ -6082,3 +6082,142 @@ Open browser console and check for:
 Filter update rate is logged during audio system creation.
 
 ---
+
+## Entry #60 - Audio Modulation Simplification (Universal)
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+After Entry #58 and #59 optimizations still left Chrome on Windows with audio issues, performed deep analysis of all audio modulations. Found that rapid filter updates (20-30Hz with 50ms ramps) were causing unnecessary audio thread load without audible benefit. Simplified audio modulations universally for all platforms.
+
+**User Insight**: "mi sembra che non servisse a niente e fosse inaudibile" - User correctly identified that rapid modulations weren't perceptible.
+
+---
+
+### Root Cause Analysis
+
+Detailed audit of AudioService.js revealed ~10 automation events every 33-50ms during hover:
+
+| Filter | Parameters | Ramp Time |
+|--------|------------|-----------|
+| gestureFilter | frequency, Q | 50ms |
+| ambientFilters.chords | frequency, Q | 50ms |
+| ambientFilters.pad | frequency, Q | 50ms |
+| ambientFilters.bass | frequency, Q | 50ms |
+
+**Key Insight**: Ambient background filters don't need rapid updates. The 20-30Hz update rate was creating CPU load without audible musical benefit. Slower, smoother transitions are actually more musical.
+
+---
+
+### Solution: Universal Simplification
+
+Instead of adding more platform-specific workarounds, simplified the audio architecture for ALL platforms:
+
+#### 1. Removed Downbeat Emphasis
+```javascript
+// BEFORE: 5% gain boost for 50ms every beat
+addDownbeatEmphasis() {
+  this.masterVolume.gain.rampTo(currentGain * 1.05, 0.05)
+  setTimeout(() => {
+    this.masterVolume.gain.rampTo(currentGain, 0.05)
+  }, 50)
+}
+
+// AFTER: Removed entirely - effect was imperceptible
+addDownbeatEmphasis() {
+  // Entry #60: Disabled - was imperceptible, just wasted CPU
+}
+```
+
+#### 2. Separate Slower Throttle for Ambient Filters
+```javascript
+// BEFORE: Shared 50ms throttle with gesture filter
+this.filterUpdateInterval = 50 // 20Hz shared
+
+// AFTER: Separate 200ms throttle for ambient filters
+this.ambientFilterUpdateInterval = 200 // 5Hz - slow is more musical
+```
+
+#### 3. Longer Ramp Times for Ambient Filters
+```javascript
+// BEFORE: 50-100ms ramps (too short, caused glitches)
+Tone.context.currentTime + 0.05
+
+// AFTER: 300ms ramps (smooth, musical transitions)
+const rampTime = 0.3
+Tone.context.currentTime + rampTime
+```
+
+#### 4. Changed Q Updates from Immediate to Ramp
+```javascript
+// BEFORE: Instant Q changes (jarring)
+filter.Q.setValueAtTime(filterQ * 2, Tone.context.currentTime)
+
+// AFTER: Smooth Q ramps
+filter.Q.linearRampToValueAtTime(filterQ * 2, Tone.context.currentTime + rampTime)
+```
+
+---
+
+### Result
+
+| Metric | Before | After | Reduction |
+|--------|--------|-------|-----------|
+| Automation events during hover | ~10 every 33-50ms | ~6 every 200ms | **90%** |
+| Downbeat emphasis calls | Every beat | None | **100%** |
+| Ambient filter update rate | 20-30Hz | 5Hz | **75-83%** |
+| Filter ramp time | 50ms | 300ms | +500% (smoother) |
+
+---
+
+### Dead Code Removed
+
+Removed `addDownbeatEmphasis()` function entirely and cleaned up `onMusicalBeat()`:
+
+```javascript
+// BEFORE: 35 lines of code
+// AFTER: 7 lines (net deletion)
+
+// 2 files changed, 7 insertions(+), 35 deletions(-)
+```
+
+---
+
+### Cache Version Fix
+
+iPad showed error: `PlatformDetection.isWindowsChromePure is not a function`
+
+**Root Cause**: Old cached PlatformDetection.js (v=2) didn't have new methods.
+
+**Fix**: Bumped cache version from `?v=2` to `?v=3` in:
+- `frontend/index.html`
+- `frontend/rooms.html`
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Removed addDownbeatEmphasis, added ambientFilterUpdateInterval, increased ramp times |
+| `frontend/index.html` | Cache version v=3, version tag v1.0.34 |
+| `frontend/rooms.html` | Cache version v=3 |
+
+---
+
+### Commits
+
+1. `9d1a698a` - perf: Simplify audio modulations for Chrome/Opera (v1.0.33)
+2. `b411add5` - refactor: Remove dead audio modulation code (v1.0.34)
+3. `43af5052` - fix: Bump PlatformDetection.js cache version to v=3
+
+---
+
+### User Feedback
+
+"finalmente! va molto meglio anche chrome" - Chrome audio working well after simplification.
+
+---
