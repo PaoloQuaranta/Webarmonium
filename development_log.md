@@ -809,3 +809,85 @@ Both must be updated when users join/leave.
 Updated to v1.0.38
 
 ---
+
+## Entry #65 - Background Composition Race Condition Fix
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed intermittent issue where background composition (polyphonic/homophonic voices) would not start after page reload, even though local and remote gestures worked fine. The composition would sometimes restart on its own after a long time.
+
+---
+
+### Problem Statement
+
+User reported: "ogni tanto ci sono istanze normal room in cui dopo avere premuto start audio e avere fatto dei gesti sul canvas il background non parte"
+
+Symptoms:
+- Background composition doesn't start after page reload (intermittent)
+- Local and remote gesture audio works fine
+- Composition sometimes restarts on its own after a long delay
+
+---
+
+### Root Cause
+
+Race condition during page reload combined with a bug in `addMaterial()`:
+
+1. User reloads page
+2. Old socket disconnects, new socket connects
+3. **Race**: `disconnect` of old socket may arrive AFTER `join` of new socket
+4. If server thinks room is momentarily empty → calls `stopComposition()` → deletes `roomCompositions` entry
+5. User makes gestures → `addMaterial()` called
+6. **BUG**: `addMaterial()` found no `roomState`, called `startComposition()` but then did `return` **without processing the gesture**
+7. First gestures lost → `gestureCount` never reaches 2 → composition never transitions from drone to full composition
+
+The "composition restarts after long time" was because `scheduleNextComposition` continued running, eventually generating compositions regardless of gesture count.
+
+---
+
+### Solution
+
+Modified `addMaterial()` to **not lose gestures** when `roomState` doesn't exist:
+
+```javascript
+// BEFORE (broken)
+const roomState = this.roomCompositions.get(roomId)
+if (!roomState) {
+  this.startComposition(roomId, {})
+  return  // ← GESTURE LOST!
+}
+
+// AFTER (fixed)
+let roomState = this.roomCompositions.get(roomId)
+if (!roomState) {
+  console.warn(`🎼 No room state for ${roomId}, creating and continuing...`)
+  this.startComposition(roomId, {})
+  roomState = this.roomCompositions.get(roomId)
+  if (!roomState) {
+    console.error(`🎼 Failed to create room state for ${roomId}`)
+    return
+  }
+  // Continue processing the gesture instead of returning
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/BackgroundCompositionService.js` | Fixed `addMaterial()` to continue processing gesture after creating room state |
+
+---
+
+### Related Entries
+
+- Entry #61: Fixed real user gestures not triggering background composition (added `addMaterial` calls)
+- Entry #62-64: Fixed cursor race conditions during user leave/disconnect (similar race condition pattern)
+
+---

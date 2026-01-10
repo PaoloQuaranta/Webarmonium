@@ -246,11 +246,17 @@ class BackgroundCompositionService {
    * @param {Object} musicalPhrase - Musical phrase generated from gesture
    */
   addMaterial(roomId, gestureData, musicalPhrase) {
-    const roomState = this.roomCompositions.get(roomId)
+    let roomState = this.roomCompositions.get(roomId)
     if (!roomState) {
-// console.warn(`🎼 No room state for ${roomId}, creating...`)
+      // Entry #64: Don't lose the gesture! Create state and continue processing
+      // This fixes race condition during page reload where disconnect arrives after join
+      console.warn(`🎼 No room state for ${roomId}, creating and continuing...`)
       this.startComposition(roomId, {})
-      return
+      roomState = this.roomCompositions.get(roomId)
+      if (!roomState) {
+        console.error(`🎼 Failed to create room state for ${roomId}`)
+        return
+      }
     }
 
     // INCREMENT GESTURE COUNT for session profiling
