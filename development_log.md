@@ -891,3 +891,83 @@ if (!roomState) {
 - Entry #62-64: Fixed cursor race conditions during user leave/disconnect (similar race condition pattern)
 
 ---
+
+## Entry #66 - MonoSynth Timing Error Fix
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed "The time must be greater than or equal to the last scheduled time" error that caused audio to go mute during gesture playback. The error occurred when rapidly triggering MonoSynth notes.
+
+---
+
+### Problem Statement
+
+User reported audio going mute with console errors:
+```
+🎹 PATCH: "Wide Pulse" | slot=5 | freq=156Hz | dur=0.06s | vel=0.99
+Uncaught Error: The time must be greater than or equal to the last scheduled time
+```
+
+Local gesture audio would stop working entirely after these errors.
+
+---
+
+### Root Cause
+
+In `playMusicalEventInternal()`, the code retrieved a synth from `UserSynthManager` but called `synth.triggerAttackRelease()` directly, **bypassing** the timing protection logic.
+
+`UserSynthManager.triggerAttackRelease()` has safe timing logic:
+- Tracks `lastTriggerTime` per synth
+- Ensures each note's time > previous time + 5ms gap
+- Has retry logic if timing fails
+
+But `AudioService.playMusicalEventInternal()` was calling the synth directly:
+```javascript
+// BEFORE: Direct call without timing protection
+synth.triggerAttackRelease(actualFrequency, eventDuration, time, finalVelocity)
+```
+
+MonoSynth (used for gesture audio) requires strictly increasing start times.
+
+---
+
+### Solution
+
+Added safe timing logic in `playMusicalEventInternal()`:
+
+```javascript
+// Entry #66: MONOSYNTH TIMING FIX
+const minGap = 0.005  // 5ms minimum gap
+let safeTime = time
+
+if (synthData && synthData.lastTriggerTime !== undefined) {
+  safeTime = Math.max(time, synthData.lastTriggerTime + minGap)
+  synthData.lastTriggerTime = safeTime
+} else if (synth === this.gestureSynth) {
+  safeTime = Math.max(time, (this.gestureSynthLastTrigger || 0) + minGap)
+  this.gestureSynthLastTrigger = safeTime
+}
+
+try {
+  synth.triggerAttackRelease(actualFrequency, eventDuration, safeTime, finalVelocity)
+} catch (triggerErr) {
+  // Retry with fresh timing
+  synth.triggerRelease()
+  const freshTime = Tone.now() + 0.01
+  synth.triggerAttackRelease(actualFrequency, eventDuration, freshTime, finalVelocity)
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Added safe timing logic in `playMusicalEventInternal()` |
+
+---

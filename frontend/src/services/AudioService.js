@@ -3048,13 +3048,40 @@ class AudioService {
             : 0.7  // Default fallback
           const finalVelocity = isStreamed ? safeVelocity : Math.min(1.0, safeVelocity * 1.15)
 
-          // Use the precise audio time from Transport.schedule
-          synth.triggerAttackRelease(
-            actualFrequency,
-            eventDuration,
-            time,  // Use scheduled time, not Tone.now()
-            finalVelocity
-          )
+          // Entry #66: MONOSYNTH TIMING FIX - Ensure strictly increasing start times
+          // MonoSynth requires each note's start time > previous note's start time
+          const minGap = 0.005  // 5ms minimum gap between notes
+          let safeTime = time
+
+          if (synthData && synthData.lastTriggerTime !== undefined) {
+            // UserSynthManager synth - use its lastTriggerTime
+            safeTime = Math.max(time, synthData.lastTriggerTime + minGap)
+            synthData.lastTriggerTime = safeTime
+          } else if (synth === this.gestureSynth) {
+            // Fallback gestureSynth - use gestureSynthLastTrigger
+            safeTime = Math.max(time, (this.gestureSynthLastTrigger || 0) + minGap)
+            this.gestureSynthLastTrigger = safeTime
+          }
+
+          try {
+            synth.triggerAttackRelease(
+              actualFrequency,
+              eventDuration,
+              safeTime,
+              finalVelocity
+            )
+          } catch (triggerErr) {
+            // If still failing, force release and retry with fresh timing
+            try {
+              synth.triggerRelease()
+              const freshTime = Tone.now() + 0.01
+              if (synthData) synthData.lastTriggerTime = freshTime
+              else this.gestureSynthLastTrigger = freshTime
+              synth.triggerAttackRelease(actualFrequency, eventDuration, freshTime, finalVelocity)
+            } catch (retryErr) {
+              // Silently fail - note will be skipped
+            }
+          }
         } catch (e) {
           console.log('❌ triggerAttackRelease error:', e.message)
         }
