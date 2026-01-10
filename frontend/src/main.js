@@ -1083,6 +1083,7 @@ class WebarmoniumApp {
 
     // VIRTUAL PHRASE VISUAL: Consolidated p&p emission for virtual user phrases
     // This replaces multiple individual hold:start visual triggers with a single emission
+    // Entry #69: Bypass updateGestureData throttle - consolidation already limits rate
     this.socketService.on('virtual:phrase-visual', (data) => {
       if (!this.visualService) return
 
@@ -1094,15 +1095,22 @@ class WebarmoniumApp {
       const color = this._sanitizeColor(data.userColor) || '#ff6b6b'
       this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
 
-      // Scale velocity by note count (capped at 4 for visual emission)
+      // Scale particle count by note count (capped at 4)
       const noteCount = typeof data.noteCount === 'number' ? data.noteCount : 1
-      const cappedMultiplier = Math.min(noteCount, 4) / 4  // 0.25-1.0
-      this.visualService.updateGestureData(data.userId, {
-        type: 'hold',
-        velocity: (data.velocity || 0.7) * cappedMultiplier,
-        holdStart: Date.now(),
-        isActive: true
-      })
+      const velocity = data.velocity || 0.7
+
+      // BYPASS THROTTLE: Directly emit P&P to subsystems (like landing page)
+      // The consolidation from backend already limits emission rate
+      if (this.visualService.wavePackets) {
+        this.visualService.wavePackets.emitPulse(data.userId, color)
+      }
+
+      if (this.visualService.particles) {
+        // Scale particle count: 3-8 based on note count and velocity
+        const baseCount = Math.min(noteCount, 4) + Math.round(velocity * 4)
+        const particleCount = Math.max(3, Math.min(8, baseCount))
+        this.visualService.particles.emitParticles(data.userId, particleCount)
+      }
     })
 
     // console.log('✅ Sustained hold event listeners registered')
