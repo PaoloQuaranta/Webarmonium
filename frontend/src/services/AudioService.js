@@ -3004,9 +3004,10 @@ class AudioService {
         try {
           let synth = null
           let actualFrequency = eventFrequency
+          let synthData = null  // Entry #66 FIX: Declare outside if block for visibility
 
           if (userId && this.userSynthManager) {
-            const synthData = this.userSynthManager.getSynthForUser(userId)
+            synthData = this.userSynthManager.getSynthForUser(userId)
             if (synthData && synthData.synth && !synthData.synth.disposed) {
               synth = synthData.synth
               actualFrequency = this.userSynthManager.constrainFrequencyToTessitura(eventFrequency, userId)
