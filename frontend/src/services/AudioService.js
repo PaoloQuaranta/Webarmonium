@@ -151,6 +151,13 @@ class AudioService {
     this.filterUpdateInterval = 50 // 50ms = 20 updates per second maximum
     this.lastFilterLogTime = 0
 
+    // Entry #60: Separate throttle for ambient filters (much slower for Chrome/Opera)
+    // Ambient filters don't need fast updates - smooth musical changes are better
+    this.lastAmbientFilterUpdateTime = 0
+    const isProblematicPlatform = typeof PlatformDetection !== 'undefined' &&
+      PlatformDetection.isWindowsChromeOrOpera()
+    this.ambientFilterUpdateInterval = isProblematicPlatform ? 300 : 100 // 3Hz for Chrome, 10Hz default
+
     // LFO system stub - SIMPLIFIED
     // PERF: Removed setInterval(30Hz) implementation that competed with main thread
     // The original code was already disabled via disableAllLFOSystems() but still
@@ -1788,22 +1795,28 @@ class AudioService {
   /**
    * Update background filters with gesture-based modulation
    * FIX: Restored this missing functionality
-   * PERF: Throttled to 20Hz to prevent audio stuttering
+   * Entry #60 FIX: Separate slower throttle for ambient filters (3Hz for Chrome, 10Hz default)
+   * Entry #60 FIX: Longer ramp times (0.3s) for smoother, more musical transitions
    * @param {Object} sonicParams - Sonic parameters from gesture
    */
   updateBackgroundFilters(sonicParams) {
     if (!this.ambientFilters) return
 
-    // PERF: Throttle filter updates to prevent audio stuttering (20Hz max)
+    // Entry #60: Use separate slower throttle for ambient filters
+    // These are background effects - they don't need rapid updates
     const now = performance.now()
-    if (now - this.lastFilterUpdateTime < this.filterUpdateInterval) {
+    if (now - this.lastAmbientFilterUpdateTime < this.ambientFilterUpdateInterval) {
       return // Skip this update
     }
-    this.lastFilterUpdateTime = now
+    this.lastAmbientFilterUpdateTime = now
 
     // Calculate filter modulation based on gesture coordinates
     const filterFreq = this.calculateFilterFrequency(sonicParams)
     const filterQ = this.calculateFilterResonance(sonicParams)
+
+    // Entry #60: Longer ramp times (0.3s) for smoother musical transitions
+    // Short ramps (0.05s) cause audio glitches on Chrome without audible benefit
+    const rampTime = 0.3
 
     // Apply modulation to ambient filters with much stronger intensities
     if (this.ambientFilters.chords) {
@@ -1811,10 +1824,9 @@ class AudioService {
       const chordsFreq = filterFreq * 2.5 // Increased multiplier
       this.ambientFilters.chords.frequency.linearRampToValueAtTime(
         Math.min(8000, Math.max(100, chordsFreq)), // Much wider range
-        Tone.context.currentTime + 0.05 // Faster transition
+        Tone.context.currentTime + rampTime
       )
-      this.ambientFilters.chords.Q.setValueAtTime(filterQ * 2, Tone.context.currentTime) // Stronger Q
-      // console.log(`🎛️ Chords filter: ${Math.min(8000, Math.max(100, chordsFreq)).toFixed(1)}Hz, Q=${(filterQ * 2).toFixed(2)}`)
+      this.ambientFilters.chords.Q.linearRampToValueAtTime(filterQ * 2, Tone.context.currentTime + rampTime)
     }
 
     if (this.ambientFilters.pad) {
@@ -1822,10 +1834,9 @@ class AudioService {
       const padFreq = filterFreq * 1.8 // Increased multiplier
       this.ambientFilters.pad.frequency.linearRampToValueAtTime(
         Math.min(4000, Math.max(100, padFreq)), // Wider range
-        Tone.context.currentTime + 0.08 // Faster transition
+        Tone.context.currentTime + rampTime
       )
-      this.ambientFilters.pad.Q.setValueAtTime(filterQ * 1.5, Tone.context.currentTime) // Stronger Q
-      // console.log(`🎛️ Pad filter: ${Math.min(4000, Math.max(100, padFreq)).toFixed(1)}Hz, Q=${(filterQ * 1.5).toFixed(2)}`)
+      this.ambientFilters.pad.Q.linearRampToValueAtTime(filterQ * 1.5, Tone.context.currentTime + rampTime)
     }
 
     if (this.ambientFilters.bass) {
@@ -1833,10 +1844,9 @@ class AudioService {
       const bassFreq = filterFreq * 0.6 // Increased multiplier
       this.ambientFilters.bass.frequency.linearRampToValueAtTime(
         Math.min(1000, Math.max(30, bassFreq)), // Wider range for bass
-        Tone.context.currentTime + 0.1 // Faster transition
+        Tone.context.currentTime + rampTime
       )
-      this.ambientFilters.bass.Q.setValueAtTime(filterQ * 1.2, Tone.context.currentTime) // Stronger Q
-      // console.log(`🎛️ Bass filter: ${Math.min(1000, Math.max(30, bassFreq)).toFixed(1)}Hz, Q=${(filterQ * 1.2).toFixed(2)}`)
+      this.ambientFilters.bass.Q.linearRampToValueAtTime(filterQ * 1.2, Tone.context.currentTime + rampTime)
     }
   }
 
@@ -4085,8 +4095,15 @@ class AudioService {
 
   /**
    * Add subtle emphasis on downbeats
+   * Entry #60 FIX: Disabled for Chrome/Opera on Windows - 5% gain for 50ms is imperceptible
+   * but causes unnecessary audio thread load
    */
   addDownbeatEmphasis() {
+    // Entry #60: Skip for problematic platforms - effect is imperceptible anyway
+    if (typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsChromeOrOpera()) {
+      return // Skip - causes audio glitches without audible benefit
+    }
+
     // Add very subtle filter sweep or volume emphasis on downbeats
     if (this.masterVolume && this.masterVolume.gain) {
       const currentGain = this.masterVolume.gain.value;
