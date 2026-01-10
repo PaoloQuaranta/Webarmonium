@@ -1353,6 +1353,8 @@ class WebarmoniumApp {
       this.virtualUsersActive = true
 
       if (this.cursorManager && data.virtualUsers) {
+        // FIX: Enable virtual cursors before adding (unblock after previous deactivation)
+        this.cursorManager.enableVirtualCursors()
         data.virtualUsers.forEach(user => {
           this.cursorManager.addVirtualCursor(user.userId, user.color, true) // fadeIn
         })
@@ -1539,7 +1541,10 @@ class WebarmoniumApp {
       // Handle virtual users from join response (backup for socket event timing)
       if (joinResponse && joinResponse.virtualUsers && joinResponse.virtualUsers.length > 0) {
         console.log('🎭 Virtual users from join response:', joinResponse.virtualUsers.map(v => v.source))
+        // FIX: Set state and enable before adding
+        this.virtualUsersActive = true
         if (this.cursorManager) {
+          this.cursorManager.enableVirtualCursors()
           joinResponse.virtualUsers.forEach(user => {
             this.cursorManager.addVirtualCursor(user.userId, user.color, true)
           })

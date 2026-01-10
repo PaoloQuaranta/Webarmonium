@@ -20,6 +20,7 @@ class CursorManager {
 
     // Virtual cursor tracking
     this.virtualCursors = new Set() // Set of virtual cursor userIds
+    this.virtualCursorsBlocked = false // FIX: Block all virtual cursor operations after deactivation
 
     // Rendering settings - account for devicePixelRatio
     const dpr = window.devicePixelRatio || 1
@@ -127,6 +128,7 @@ class CursorManager {
     this.cursors.clear()
     this.virtualCursors.clear()
     this.fadeAnimations.clear()
+    this.virtualCursorsBlocked = false // Reset block state
   }
 
   /**
@@ -136,6 +138,11 @@ class CursorManager {
    * @param {boolean} fadeIn - Whether to fade in
    */
   addVirtualCursor (userId, color, fadeIn = true) {
+    // FIX: Block if virtual cursors were deactivated
+    if (this.virtualCursorsBlocked) {
+      return
+    }
+
     const cursor = {
       x: 0.5,
       y: 0.5,
@@ -190,12 +197,27 @@ class CursorManager {
 
   /**
    * Remove all virtual cursors with optional fade-out
-   * @param {boolean} fadeOut - Whether to fade out
+   * FIX: Always removes immediately (no fade) to prevent race conditions
+   * @param {boolean} fadeOut - Ignored, always removes immediately
    */
   removeAllVirtualCursors (fadeOut = true) {
+    // FIX: Block all future virtual cursor operations
+    this.virtualCursorsBlocked = true
+
+    // FIX: Remove immediately (no fade) to prevent race conditions with late events
     for (const userId of this.virtualCursors) {
-      this.removeVirtualCursor(userId, fadeOut)
+      this.cursors.delete(userId)
+      this.fadeAnimations.delete(userId)
     }
+    this.virtualCursors.clear()
+  }
+
+  /**
+   * Enable virtual cursors (unblock after deactivation)
+   * Call this before adding new virtual cursors
+   */
+  enableVirtualCursors () {
+    this.virtualCursorsBlocked = false
   }
 
   /**
@@ -205,6 +227,11 @@ class CursorManager {
    * @param {number} y - Y coordinate (0-1)
    */
   updateVirtualCursor (userId, x, y) {
+    // FIX: Block if virtual cursors were deactivated
+    if (this.virtualCursorsBlocked) {
+      return
+    }
+
     const cursor = this.cursors.get(userId)
     if (cursor && cursor.isVirtual) {
       cursor.x = x

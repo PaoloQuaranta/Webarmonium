@@ -650,3 +650,102 @@ this.virtualUsersActive = false  // Reset state
 Updated to v1.0.36
 
 ---
+
+## Entry #63 - Virtual Cursor Race Condition Fix (Part 2)
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Entry #62 fix was insufficient - virtual cursors still persisted after deactivation. Root cause was that the `virtualUsersActive` flag in main.js didn't prevent CursorManager from accepting late events. Added a blocking mechanism directly in CursorManager.
+
+---
+
+### Root Cause Analysis
+
+The previous fix only blocked at the event handler level. But:
+1. Late `virtual-cursors` events could still update cursors during fade-out
+2. The fade-out animation (500ms) kept cursors in the Map, allowing updates
+3. Join response could add virtual cursors without checking state
+
+---
+
+### Solution
+
+Added a `virtualCursorsBlocked` flag directly in CursorManager:
+
+#### 1. New Flag in Constructor
+```javascript
+this.virtualCursorsBlocked = false
+```
+
+#### 2. Block Operations in addVirtualCursor/updateVirtualCursor
+```javascript
+addVirtualCursor (userId, color, fadeIn = true) {
+  if (this.virtualCursorsBlocked) return
+  // ...
+}
+
+updateVirtualCursor (userId, x, y) {
+  if (this.virtualCursorsBlocked) return
+  // ...
+}
+```
+
+#### 3. Immediate Removal (No Fade) in removeAllVirtualCursors
+```javascript
+removeAllVirtualCursors (fadeOut = true) {
+  this.virtualCursorsBlocked = true  // Block future operations
+
+  // Remove immediately (no fade) to prevent race conditions
+  for (const userId of this.virtualCursors) {
+    this.cursors.delete(userId)
+    this.fadeAnimations.delete(userId)
+  }
+  this.virtualCursors.clear()
+}
+```
+
+#### 4. New enableVirtualCursors() Method
+```javascript
+enableVirtualCursors () {
+  this.virtualCursorsBlocked = false
+}
+```
+
+#### 5. Call enableVirtualCursors Before Adding
+In `virtual-users-activated` and join response handlers:
+```javascript
+this.cursorManager.enableVirtualCursors()
+// Then add cursors...
+```
+
+---
+
+### Key Changes
+
+| Change | Reason |
+|--------|--------|
+| Removed fade-out animation | Eliminates 500ms vulnerability window |
+| Block flag in CursorManager | Prevents any late updates regardless of source |
+| enableVirtualCursors() method | Explicit unblock before adding new cursors |
+| Reset flag in clearAll() | Ensures clean state on room change |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/CursorManager.js` | Added `virtualCursorsBlocked` flag, modified `addVirtualCursor`, `updateVirtualCursor`, `removeAllVirtualCursors`, added `enableVirtualCursors()` |
+| `frontend/src/main.js` | Call `enableVirtualCursors()` in `virtual-users-activated` and join response |
+
+---
+
+### Version
+
+Updated to v1.0.37
+
+---
