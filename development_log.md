@@ -2086,3 +2086,115 @@ class SettingsPanel {
 Updated to v1.0.55
 
 ---
+
+## Entry #76 - Documentation Accuracy: Reverse Mapping & Coordinate Mapping
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed inaccurate documentation in landing page and technical appendix. The previous documentation incorrectly stated that cursor positions reflect metric activity. In reality, cursor positions are **reverse-mapped** from generated audio frequencies—each cursor follows the music being played, not raw metrics.
+
+---
+
+### Problem Statement
+
+User identified documentation errors:
+1. index.html claimed "cursor movement reflects metric activity velocity" — **FALSE**
+2. technical-appendix.html claimed "cursor positions reflect metric activity, not frequency values" — **FALSE**
+3. Coordinate mapping section was incomplete (missing Y's dual effect on frequency/amplitude)
+
+---
+
+### Root Cause Analysis
+
+Code analysis revealed the actual implementation (Entry #70-72):
+
+1. **Virtual User Cursor System** (VirtualUserService.js, LandingCompositionService.js):
+   - Metrics → generate virtual gestures → produce audio frequencies
+   - Frequencies → **reverse-mapped** via FrequencyPositionMapper → cursor positions
+   - Cursors follow the MUSIC, not raw metrics
+
+2. **Coordinate Mapping** (GestureProcessor.js:83-112):
+   - X: Base frequency = 220Hz + (x × 660Hz) = 220-880Hz
+   - Y: **TWO effects**:
+     - Harmonic shift: >0.7 = ×1.5 (perfect 5th up), <0.3 = ×0.75 (perfect 4th down)
+     - Amplitude: >0.8 = ×1.2 (boost), <0.2 = ×0.6 (reduce)
+   - Z (gyro): Octave shift: >0.8 = ×2 (up), <0.2 = ×0.5 (down)
+
+---
+
+### Solution
+
+#### 1. Fixed index.html (lines 209-216)
+
+**Before (WRONG):**
+```html
+<strong>Timbral mapping</strong>: ... cursor movement on the canvas reflects metric activity velocity
+```
+
+**After (CORRECT):**
+```html
+<strong>Audio-visual coherence</strong>: ... Cursor positions are <em>reverse-mapped</em> from generated audio frequencies—each cursor follows the music being played, not raw metrics.
+```
+
+#### 2. Fixed technical-appendix.html Section 1 (lines 109-114)
+
+**Before (WRONG):**
+```html
+cursor positions reflect metric activity, not frequency values
+```
+
+**After (CORRECT):**
+```html
+Cursor positions are <em>reverse-mapped</em> from generated audio frequencies—each cursor follows the music being played, ensuring perfect audio-visual coherence.
+```
+
+#### 3. Fixed Coordinate Mapping Section (lines 246-257)
+
+**Before (INCOMPLETE):**
+```
+Y coordinate → Amplitude multiplier: 0.6× to 1.2×
+```
+
+**After (COMPLETE):**
+```
+X coordinate (0.0-1.0) → Base frequency: 220Hz + (X × 660Hz) = 220-880Hz
+Y coordinate (0.0-1.0) → Harmonic shift: >0.7 = ×1.5 (5th up), <0.3 = ×0.75 (4th down)
+Y coordinate (0.0-1.0) → Amplitude: >0.8 = ×1.2 (boost), <0.2 = ×0.6 (reduce)
+Z coordinate (gyro)    → Octave shift: >0.8 = ×2 (up), <0.2 = ×0.5 (down)
+```
+
+Added note explaining Landing Page reverse mapping (110-1210Hz range).
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/index.html` | Fixed "Audio-visual coherence" section to describe reverse mapping |
+| `frontend/technical-appendix.html` | Fixed Section 1 intro, corrected Coordinate Mapping with Y's dual effects, added Landing Page reverse mapping note |
+
+---
+
+### Key Concept: Reverse Mapping
+
+The virtual cursor system uses **reverse mapping** (implemented in Entry #70):
+
+```
+Forward (real users):  position → frequency
+Reverse (virtual):     frequency → position
+```
+
+This ensures perfect audio-visual coherence: when you hear a note, the cursor is positioned exactly where a real user would be to produce that same note.
+
+---
+
+### Version
+
+Updated to v1.0.56
+
+---

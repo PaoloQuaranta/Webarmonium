@@ -9,6 +9,7 @@ class SoundPatternGenerator {
   constructor() {
     this.generationAlgorithms = new Map()
     this.generationHistory = new Map() // roomId -> generation history
+    this.roomHashCache = new Map() // Cache for roomId hashes (performance optimization)
     this.performanceMetrics = {
       totalGenerated: 0,
       averageGenerationTime: 0,
@@ -30,6 +31,44 @@ class SoundPatternGenerator {
   }
 
   /**
+   * Deterministic hash function for strings (djb2 algorithm)
+   * Used to derive reproducible values from roomId
+   * Uses caching for performance optimization
+   * @param {string} str - String to hash (non-null, can be empty)
+   * @returns {number} Non-negative 32-bit unsigned integer hash value
+   */
+  hashString(str) {
+    // Return cached value if available
+    if (this.roomHashCache.has(str)) {
+      return this.roomHashCache.get(str)
+    }
+
+    let hash = 5381
+    for (let i = 0; i < str.length; i++) {
+      // Use unsigned right shift to force 32-bit unsigned integer (prevents overflow)
+      hash = (((hash << 5) + hash) + str.charCodeAt(i)) >>> 0
+    }
+
+    // Cache the result for future calls
+    this.roomHashCache.set(str, hash)
+    return hash
+  }
+
+  /**
+   * Deterministic selection based on roomId and complexity
+   * Replaces Math.random() for algorithm selection to ensure reproducibility
+   * @param {string} roomId - Room identifier
+   * @param {number} complexity - Complexity factor (0.0-1.0)
+   * @param {number} maxIndex - Maximum index (exclusive)
+   * @returns {number} Deterministic index
+   */
+  deterministicSelect(roomId, complexity, maxIndex) {
+    const hash = this.hashString(roomId)
+    const seed = hash + Math.floor(complexity * 1000)
+    return seed % maxIndex
+  }
+
+  /**
    * Generate sound patterns based on memory state and room context
    * @param {string} roomId - Room ID
    * @param {MemoryState} memoryState - Room memory state
@@ -46,8 +85,8 @@ class SoundPatternGenerator {
     // Analyze memory state to determine generation strategy
     const generationStrategy = this.analyzeMemoryForGeneration(memoryState, roomContext)
 
-    // Select appropriate algorithm
-    const algorithm = this.selectGenerationAlgorithm(generationStrategy)
+    // Select appropriate algorithm (deterministic based on roomId)
+    const algorithm = this.selectGenerationAlgorithm(roomId, generationStrategy)
 
     // Generate patterns
     const patterns = algorithm.generatePatterns(roomId, memoryState, generationStrategy)
@@ -222,10 +261,12 @@ class SoundPatternGenerator {
 
   /**
    * Select generation algorithm based on strategy
+   * Uses deterministic selection to ensure reproducibility from roomId
+   * @param {string} roomId - Room identifier for deterministic hashing
    * @param {Object} strategy - Generation strategy
    * @returns {Object} Selected algorithm
    */
-  selectGenerationAlgorithm(strategy) {
+  selectGenerationAlgorithm(roomId, strategy) {
     const algorithmPreferences = {
       harmonic: ['fibonacci', 'neural', 'fractal'],
       rhythmic: ['cellular', 'markov', 'chaos'],
@@ -236,8 +277,9 @@ class SoundPatternGenerator {
 
     const preferredAlgorithms = algorithmPreferences[strategy.dominantCharacteristic] || ['neural']
 
-    // Select algorithm with some randomization for variety
-    const algorithmIndex = Math.floor(Math.random() * preferredAlgorithms.length)
+    // Deterministic selection based on roomId and complexity
+    // Same room + same complexity = same algorithm (reproducible)
+    const algorithmIndex = this.deterministicSelect(roomId, strategy.complexity, preferredAlgorithms.length)
     const algorithmName = preferredAlgorithms[algorithmIndex]
 
     return this.generationAlgorithms.get(algorithmName)
@@ -245,16 +287,22 @@ class SoundPatternGenerator {
 
   /**
    * Generate ambient patterns for room initialization
+   * Uses deterministic values derived from roomId for reproducibility
    * @param {string} roomId - Room ID
    * @returns {SoundPattern[]} Initial ambient patterns
    */
   generateInitialAmbientPatterns(roomId) {
     const patterns = []
 
+    // Derive deterministic values from roomId
+    const roomHash = this.hashString(roomId)
+    const droneFrequency = 220 + (roomHash % 220)           // 220-440 Hz, deterministic
+    const droneAmplitude = 0.3 + ((roomHash % 100) / 500)   // 0.3-0.5, deterministic
+
     // Generate base ambient drone
     const ambientDrone = new SoundPattern(roomId, 'ambient', {
-      frequency: 220 + Math.random() * 220, // 220-440 Hz
-      amplitude: 0.3 + Math.random() * 0.2, // 0.3-0.5
+      frequency: droneFrequency,
+      amplitude: droneAmplitude,
       waveform: 'sine',
       envelope: {
         attack: 2.0,

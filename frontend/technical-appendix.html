@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Webarmonium Technical Documentation - Detailed specifications for the generative music and visual system">
+  <title>Webarmonium - Technical Documentation</title>
+
+  <!-- Google Fonts - Archivo -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css?v=4">
+  <style>
+    /* Technical appendix specific styles */
+    .tech-content {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    .tech-section {
+      margin-bottom: 3rem;
+    }
+    .tech-section h2 {
+      color: #fff;
+      border-bottom: 2px solid #377eb8;
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .tech-section h3 {
+      color: #aaa;
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #333;
+    }
+    th {
+      background: #1a1a1a;
+      color: #fff;
+      font-weight: 600;
+    }
+    td {
+      color: #ccc;
+    }
+    tr:hover td {
+      background: #1a1a1a;
+    }
+    .color-wikipedia { color: #e41a1c; }
+    .color-hackernews { color: #ff7f00; }
+    .color-github { color: #377eb8; }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .badge-deterministic { background: #2d5a2d; color: #8fbc8f; }
+    .badge-probabilistic { background: #5a3d2d; color: #deb887; }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 2rem;
+      color: #377eb8;
+      text-decoration: none;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+    .formula {
+      background: #1a1a1a;
+      padding: 1rem;
+      border-radius: 4px;
+      font-family: monospace;
+      color: #8fbc8f;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+    .note {
+      background: #1a2a1a;
+      border-left: 3px solid #377eb8;
+      padding: 1rem;
+      margin: 1rem 0;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>WEBARMONIUM</h1>
+    <p>Technical Documentation</p>
+  </header>
+
+  <main class="tech-content">
+    <a href="index.html" class="back-link">&larr; Back to Landing Page</a>
+
+    <!-- Section 1: Landing Page Virtual User Mapping -->
+    <section class="tech-section">
+      <h2>1. Landing Page: Virtual User Mapping</h2>
+      <p>
+        The landing page generates music from three web activity sources, each mapped to a distinct
+        tessitura (frequency range) and oscillator type. Cursor positions are <em>reverse-mapped</em> from
+        generated audio frequencies&mdash;each cursor follows the music being played, ensuring perfect
+        audio-visual coherence.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Tessitura</th>
+            <th>Frequency Range</th>
+            <th>Oscillator</th>
+            <th>Character</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="color-wikipedia">Wikipedia</td>
+            <td>Bass</td>
+            <td>110-220Hz (A2-A3)</td>
+            <td>Sawtooth (rich harmonics)</td>
+            <td>Deep, warm foundation</td>
+          </tr>
+          <tr>
+            <td class="color-hackernews">HackerNews</td>
+            <td>Tenor</td>
+            <td>196-392Hz (G3-G4)</td>
+            <td>Sine (pure tone)</td>
+            <td>Pure, mellow mid-range</td>
+          </tr>
+          <tr>
+            <td class="color-github">GitHub</td>
+            <td>Soprano</td>
+            <td>523-1047Hz (C5-C6)</td>
+            <td>Triangle (hollow, flute-like)</td>
+            <td>Ethereal, airy highs</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Metrics Monitored</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Primary Metric</th>
+            <th>Secondary Metrics</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="color-wikipedia">Wikipedia</td>
+            <td>editsPerMinute</td>
+            <td>avgEditSize, newArticles</td>
+          </tr>
+          <tr>
+            <td class="color-hackernews">HackerNews</td>
+            <td>postsPerMinute</td>
+            <td>avgUpvotes, commentCount</td>
+          </tr>
+          <tr>
+            <td class="color-github">GitHub</td>
+            <td>commitsPerMinute</td>
+            <td>createsPerMinute, deletesPerMinute</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Section 2: Collaborative Rooms Gesture Processing -->
+    <section class="tech-section">
+      <h2>2. Collaborative Rooms: Gesture Processing</h2>
+
+      <h3>Gesture Types</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Gesture</th>
+            <th>Trigger</th>
+            <th>Audio Result</th>
+            <th>Visual Feedback</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Tap</td>
+            <td>Click/touch &lt;100ms</td>
+            <td>Single percussive note</td>
+            <td>Pulse emission</td>
+          </tr>
+          <tr>
+            <td>Drag</td>
+            <td>Continuous motion</td>
+            <td>Multi-note melodic phrase</td>
+            <td>Particle trail</td>
+          </tr>
+          <tr>
+            <td>Hover</td>
+            <td>Stationary position</td>
+            <td>Filter modulation only</td>
+            <td>Glow effect</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Device Characteristics</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Attack Time</th>
+            <th>Sustain</th>
+            <th>Characteristic</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Touch</td>
+            <td>50ms (fast)</td>
+            <td>Short</td>
+            <td>Percussive, pressure-sensitive dynamics</td>
+          </tr>
+          <tr>
+            <td>Mouse</td>
+            <td>100-300ms</td>
+            <td>Medium</td>
+            <td>Smooth, continuous parameter modulation</td>
+          </tr>
+          <tr>
+            <td>Gyroscope</td>
+            <td>200ms</td>
+            <td>600-1000ms (extended)</td>
+            <td>Octave shifts from orientation</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Coordinate Mapping (Collaborative Rooms)</h3>
+      <div class="formula">
+        X coordinate (0.0-1.0) &rarr; Base frequency: 220Hz + (X &times; 660Hz) = 220-880Hz<br>
+        Y coordinate (0.0-1.0) &rarr; Harmonic shift: &gt;0.7 = &times;1.5 (5th up), &lt;0.3 = &times;0.75 (4th down)<br>
+        Y coordinate (0.0-1.0) &rarr; Amplitude: &gt;0.8 = &times;1.2 (boost), &lt;0.2 = &times;0.6 (reduce)<br>
+        Z coordinate (gyro)    &rarr; Octave shift: &gt;0.8 = &times;2 (up), &lt;0.2 = &times;0.5 (down)
+      </div>
+
+      <div class="note">
+        <strong>Landing Page (Virtual Users):</strong> Cursor positions use <em>reverse mapping</em> from generated audio frequencies.
+        The full frequency range (110-1210Hz) maps to canvas position, so each virtual cursor follows the music it produces rather than raw metrics.
+      </div>
+    </section>
+
+    <!-- Section 3: Multi-User Composition Engine -->
+    <section class="tech-section">
+      <h2>3. Multi-User Composition Engine</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Value</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Max voices</td>
+            <td>4</td>
+            <td>melody, harmony, bass, pad</td>
+          </tr>
+          <tr>
+            <td>Voice assignment</td>
+            <td>Sequential</td>
+            <td>First user &rarr; melody, subsequent &rarr; harmony/bass/pad</td>
+          </tr>
+          <tr>
+            <td>Counterpoint validation</td>
+            <td>Enabled</td>
+            <td>No parallel fifths, no voice crossing</td>
+          </tr>
+          <tr>
+            <td>Material selection</td>
+            <td>Top 5</td>
+            <td>Scored by freshness &times; complexity &times; mood match</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <strong>Virtual User Activation:</strong> When only 1 real user is in a room, 2 virtual users
+        (from Wikipedia and HackerNews metrics) automatically join to provide accompaniment. They deactivate
+        when a second real user joins.
+      </div>
+    </section>
+
+    <!-- Section 4: Environmental Memory System -->
+    <section class="tech-section">
+      <h2>4. Environmental Memory System</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Duration</th>
+            <th>Learning Rate</th>
+            <th>Max Patterns</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Initial</td>
+            <td>0-30 seconds</td>
+            <td>1.5&times; (fast learning)</td>
+            <td>2</td>
+          </tr>
+          <tr>
+            <td>Learning</td>
+            <td>30s - 1 minute</td>
+            <td>1.0&times; (normal)</td>
+            <td>4</td>
+          </tr>
+          <tr>
+            <td>Mature</td>
+            <td>&gt;1 minute</td>
+            <td>0.8&times; (slow evolution)</td>
+            <td>8</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Pattern Compatibility</h3>
+      <p>Gestures influence existing patterns based on these compatibility criteria:</p>
+      <ul>
+        <li><strong>Smooth:</strong> Low intensity, non-touch input</li>
+        <li><strong>Rhythmic:</strong> High intensity, touch input</li>
+        <li><strong>Melodic:</strong> X coordinate in center range (0.3-0.7)</li>
+        <li><strong>Intense:</strong> Intensity &gt; 0.8</li>
+        <li><strong>Spatial:</strong> Z coordinate present (gyroscope)</li>
+      </ul>
+
+      <div class="note">
+        <strong>Pattern Retention:</strong> 24 hours. Rooms develop a unique "personality" from accumulated gestures.
+      </div>
+    </section>
+
+    <!-- Section 5: Generative Algorithms -->
+    <section class="tech-section">
+      <h2>5. Generative Algorithms</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Algorithm</th>
+            <th>Type</th>
+            <th>Randomness</th>
+            <th>How Gestures Influence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Fibonacci</td>
+            <td><span class="badge badge-deterministic">Deterministic</span></td>
+            <td>None</td>
+            <td>Golden ratio timing from gesture duration</td>
+          </tr>
+          <tr>
+            <td>Cellular Automata</td>
+            <td><span class="badge badge-deterministic">Deterministic</span></td>
+            <td>None</td>
+            <td>Conway-like rules from gesture frequency patterns</td>
+          </tr>
+          <tr>
+            <td>Chaos Theory</td>
+            <td><span class="badge badge-deterministic">Deterministic</span></td>
+            <td>None</td>
+            <td>Lorenz attractor seeded by gesture intensity</td>
+          </tr>
+          <tr>
+            <td>Fractal</td>
+            <td><span class="badge badge-deterministic">Deterministic</span></td>
+            <td>None</td>
+            <td>Augment/diminish patterns from gesture material</td>
+          </tr>
+          <tr>
+            <td>Markov Chain</td>
+            <td><span class="badge badge-probabilistic">Probabilistic</span></td>
+            <td>Intrinsic to algorithm</td>
+            <td>Transition probabilities learned from gesture history</td>
+          </tr>
+          <tr>
+            <td>Neural</td>
+            <td><span class="badge badge-probabilistic">Probabilistic</span></td>
+            <td>Intrinsic to algorithm</td>
+            <td>Weights trained on gesture mood/energy patterns</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <strong>Algorithm Selection:</strong> Deterministic, based on room ID and complexity level.
+        The same room with the same complexity will always select the same algorithm.
+      </div>
+    </section>
+
+    <!-- Section 6: Dynamic Normalization -->
+    <section class="tech-section">
+      <h2>6. Dynamic Normalization</h2>
+      <p>
+        Webarmonium uses no hardcoded thresholds. All parameters are normalized dynamically based on
+        observed data ranges.
+      </p>
+
+      <h3>Normalization Method</h3>
+      <div class="formula">
+        normalizedValue = (rawValue - observedMin) / (observedMax - observedMin)
+      </div>
+
+      <h3>Key Principles</h3>
+      <ul>
+        <li><strong>Min/Max Tracking:</strong> Rolling window over gesture/metric history</li>
+        <li><strong>Gesture Classification:</strong> Relative comparison only (stability vs density vs periodicity)</li>
+        <li><strong>Frequency Mapping:</strong> Percentile-based (P10-P90) rather than fixed ranges</li>
+        <li><strong>Velocity Calculation:</strong> Rate of change (positive = increasing, negative = decreasing)</li>
+      </ul>
+    </section>
+
+    <!-- Section 7: Audio Architecture -->
+    <section class="tech-section">
+      <h2>7. Audio Architecture</h2>
+
+      <h3>Three-Tier System</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Tier</th>
+            <th>Purpose</th>
+            <th>Volume Multiplier</th>
+            <th>Base Frequency</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Background</td>
+            <td>Ambient algorithmic music</td>
+            <td>0.7&times;</td>
+            <td>110Hz</td>
+          </tr>
+          <tr>
+            <td>Remote</td>
+            <td>Other users' contributions</td>
+            <td>1.5&times;</td>
+            <td>440Hz</td>
+          </tr>
+          <tr>
+            <td>Local</td>
+            <td>User's own gestures</td>
+            <td>2.0&times;</td>
+            <td>880Hz</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Real User Patches (4 slots)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Slot</th>
+            <th>Name</th>
+            <th>Oscillator</th>
+            <th>Character</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>0</td>
+            <td>Retro Square</td>
+            <td>Square</td>
+            <td>Buzzy, 8-bit</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>Nasal Reed</td>
+            <td>Pulse (20% width)</td>
+            <td>Nasal, oboe-like</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Warm Chorus</td>
+            <td>Fat Sawtooth (3 voices)</td>
+            <td>Lush, detuned</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Bell Chime</td>
+            <td>FM Sine</td>
+            <td>Bell-like, metallic</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Footer -->
+    <footer style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #333;">
+      <p><a href="index.html">&larr; Back to Landing Page</a> | <a href="rooms.html">Join a Room &rarr;</a></p>
+      <p class="footer-note">Webarmonium Technical Documentation</p>
+    </footer>
+  </main>
+</body>
+</html>

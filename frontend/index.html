@@ -180,6 +180,9 @@
     <!-- Mapping Explainer -->
     <section id="mapping-explainer">
       <h2>How It Works</h2>
+
+      <!-- Part 1: Landing Page - Web Activity -->
+      <h3 class="explainer-section-title">Landing Page: Web Activity</h3>
       <p class="explainer-intro">
         Webarmonium transforms real-time web activity into generative music and visuals through a direct correlation system.
         Three data sources are polled continuously: <strong style="color: #e41a1c;">Wikipedia</strong> edits (every 5s),
@@ -193,20 +196,48 @@
         <strong>Monitored parameters</strong> include: edit rate, velocity (rate of change), edit size, new article count,
         post frequency, upvote averages, comment counts, push frequency, repository creates, and deletes. These metrics
         generate <em>virtual gestures</em> that feed into the same composition engine used in collaborative rooms, employing
-        six generative algorithms (cellular automata, fractals, Markov chains, neural patterns, Fibonacci sequences, and
-        chaos theory). The <em>velocity</em> of each metric&mdash;how quickly it changes&mdash;determines gesture intensity:
-        only sources with significant velocity trigger musical events, preventing sonic overload and mimicking natural
-        human interaction patterns.
+        six generative algorithms. Four are purely deterministic (cellular automata, fractals, Fibonacci sequences, and chaos
+        theory), while two (Markov chains and neural patterns) use bounded probabilistic transitions intrinsic to their design.
       </p>
 
       <p class="explainer-detail">
-        <strong>Spatial and timbral mapping</strong>: Wikipedia controls the <span style="color: #e41a1c;">left region</span>
-        with bass tessitura (65-130Hz), HackerNews the <span style="color: #ff7f00;">center</span> with tenor range (196-392Hz),
-        and GitHub the <span style="color: #377eb8;">right region</span> with soprano frequencies (523-1047Hz). Cursor
-        positions on the canvas directly correlate with metric activity&mdash;vertical position maps to pitch within each
-        tessitura, while horizontal movement within each region reflects the source's current velocity. Visual pulses,
-        particle flows, and network connections emerge from the same gesture data that drives the audio, maintaining
-        a unified audio-visual correlation where what you see directly represents what you hear.
+        <strong>Velocity</strong> (the &#177; value in the dashboard) represents the <em>rate of change</em> of each metric:
+        positive values indicate increasing activity, negative values indicate decreasing activity. Only sources with significant
+        velocity trigger musical events, preventing sonic overload and mimicking natural human interaction patterns.
+      </p>
+
+      <p class="explainer-detail">
+        <strong>Audio-visual coherence</strong>: Each source has a distinct audio identity.
+        <span style="color: #e41a1c;">Wikipedia</span> plays in bass tessitura (110-220Hz, A2-A3) with sawtooth waves (rich harmonics),
+        <span style="color: #ff7f00;">HackerNews</span> occupies the tenor range (196-392Hz, G3-G4) with pure sine tones,
+        and <span style="color: #377eb8;">GitHub</span> sounds in soprano frequencies (523-1047Hz, C5-C6) with hollow triangle waves.
+        Cursor positions are <em>reverse-mapped</em> from generated audio frequencies&mdash;each cursor follows the music being played,
+        not raw metrics. Visual pulses and particle flows respond to the same gesture data that drives the audio.
+      </p>
+
+      <!-- Part 2: Collaborative Rooms -->
+      <h3 class="explainer-section-title">Collaborative Rooms: Real Users</h3>
+      <p class="explainer-detail">
+        In <a href="rooms.html">collaborative rooms</a>, real users create music through gestures:
+        <strong>tap</strong> for percussive notes, <strong>drag</strong> for melodic phrases, and <strong>hover</strong> for filter modulation.
+        Each input device produces distinctive characteristics&mdash;touch gestures have fast attacks (50ms), mouse gestures create
+        smooth envelopes (100-300ms), and gyroscope gestures produce extended sustains with octave shifts from orientation.
+      </p>
+
+      <p class="explainer-detail">
+        <strong>Multi-user composition</strong>: Up to 4 users can create polyphonic compositions together, each assigned a distinct
+        voice role (melody, harmony, bass, or pad). The system validates counterpoint rules to ensure musical coherence.
+        When only one real user is present, two virtual users (from web metrics) automatically join to provide accompaniment.
+      </p>
+
+      <p class="explainer-detail">
+        <strong>Environmental memory</strong>: The room learns from gesture patterns over time, with 24-hour retention.
+        Initial gestures have high influence (1.5&times;), while mature rooms evolve more slowly (0.8&times;), creating a unique
+        &ldquo;room personality&rdquo; that shapes future compositions.
+      </p>
+
+      <p class="explainer-link">
+        <a href="technical-appendix.html">View Technical Documentation &rarr;</a>
       </p>
 
     </section>
@@ -215,7 +246,7 @@
     <footer>
       <p>Powered by <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia API</a>, <a href="https://news.ycombinator.com" target="_blank" rel="noopener">HackerNews API</a>, and <a href="https://github.com" target="_blank" rel="noopener">GitHub API</a></p>
       <p class="footer-note">Data updates every 5-60 seconds depending on source. Rate limits are respected.</p>
-      <p class="version-tag">v1.0.55</p>
+      <p class="version-tag">v1.0.56</p>
     </footer>
   </main>
 
