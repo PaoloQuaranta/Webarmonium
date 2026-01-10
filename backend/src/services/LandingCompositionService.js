@@ -6,7 +6,7 @@
  * - Uses CompositionEngine with 6 generative algorithms
  * - Treats web metrics as "virtual gestures" that feed into the composition system
  * - Emits background-composition events for frontend playback
- * - Virtual cursors provide visual context
+ * - Virtual cursors derived from generated frequencies (reverse mapping)
  *
  * Key Difference from BackgroundCompositionService:
  * - Instead of real user gestures, uses web metrics (Wikipedia, HN, GitHub) as input
@@ -19,6 +19,7 @@ const HarmonicEngine = require('./HarmonicEngine')
 const CompositionEngine = require('./CompositionEngine')
 const PhraseMorphology = require('./PhraseMorphology')
 const HoverOrchestrator = require('./HoverOrchestrator')
+const FrequencyPositionMapper = require('../utils/FrequencyPositionMapper')
 
 class LandingCompositionService {
   constructor() {
@@ -76,53 +77,34 @@ class LandingCompositionService {
     this.clockTick = 0
     this.ticksPerMeasure = 16
 
+    // Frequency-to-position mapper for reverse mapping (cursor follows notes)
+    this.frequencyMapper = new FrequencyPositionMapper()
+
     // Virtual user definitions (for cursor display and material generation)
-    // DISTRIBUTED regions for cursor coverage across the scene
-    // Each source gets its own horizontal third to maximize spatial distribution
-    // DIFFERENT TESSITURAS for timbral differentiation
+    // Note: regions removed - cursor positions derived from generated frequencies
     this.virtualUsers = {
       wikipedia: {
         userId: 'wikipedia-metrics',
         color: '#e41a1c',
-        region: { xMin: 0.05, xMax: 0.33 }, // Left third
-        baseFrequency: 130.81, // C3 - BASS tessitura (within 110-220 range)
+        baseFrequency: 130.81,
         tessitura: 'bass',
-        frequencyRange: { min: 110, max: 220 } // A2-A3 (FIXED: was 55-110, too low for speakers)
+        frequencyRange: { min: 110, max: 220 }  // A2-A3
       },
       hackernews: {
         userId: 'hackernews-metrics',
         color: '#ff7f00',
-        region: { xMin: 0.33, xMax: 0.66 }, // Center third
-        baseFrequency: 293.66, // D4 - TENOR tessitura
+        baseFrequency: 293.66,
         tessitura: 'tenor',
-        frequencyRange: { min: 196, max: 392 } // G3-G4
+        frequencyRange: { min: 196, max: 392 }  // G3-G4
       },
       github: {
         userId: 'github-metrics',
         color: '#377eb8',
-        region: { xMin: 0.66, xMax: 0.95 }, // Right third
-        baseFrequency: 659.25, // E5 - SOPRANO tessitura
+        baseFrequency: 659.25,
         tessitura: 'soprano',
-        frequencyRange: { min: 523, max: 1047 } // C5-C6
+        frequencyRange: { min: 523, max: 1047 }  // C5-C6
       }
     }
-
-    // Current cursor positions for interpolation (start at center of each region)
-    this.currentPositions = {
-      wikipedia: { x: 0.19, y: 0.5 },  // Center of left region
-      hackernews: { x: 0.495, y: 0.5 }, // Center of center region
-      github: { x: 0.805, y: 0.5 }     // Center of right region
-    }
-
-    // Target positions (for interpolation) (start at center of each region)
-    this.targetPositions = {
-      wikipedia: { x: 0.19, y: 0.5 },  // Center of left region
-      hackernews: { x: 0.495, y: 0.5 }, // Center of center region
-      github: { x: 0.805, y: 0.5 }     // Center of right region
-    }
-
-    // Cursor interpolation timer
-    this.cursorInterpolationTimer = null
 
     // Virtual gesture history for each source
     this.virtualGestureHistory = {
@@ -186,43 +168,27 @@ class LandingCompositionService {
   }
 
   /**
-   * Update target position with dead zone and smooth transition
-   * Prevents cursor trembling by:
-   * 1. Dead zone: Ignoring small movements (< 2% of scene)
-   * 2. Smooth transition: Interpolating target position instead of jumping
-   * UNIFIED with VirtualUserService
-   * @param {string} source - Source name
-   * @param {number} newX - New target X position
-   * @param {number} newY - New target Y position
+   * Emit cursor position for a virtual user
+   * Called when a note is emitted to synchronize cursor with audio
+   * @param {string} source - Source name (wikipedia, hackernews, github)
+   * @param {Object} user - Virtual user config
+   * @param {Object} position - {x, y} position (0-1 range)
    * @private
    */
-  _updateTargetPositionWithSmoothing(source, newX, newY) {
-    const currentTarget = this.targetPositions[source]
-    if (!currentTarget) {
-      // No current target, set directly
-      this.targetPositions[source] = { x: newX, y: newY }
-      return
-    }
+  _emitCursorAtPosition(source, user, position) {
+    if (!this.io) return
 
-    // Calculate distance to new target
-    const deltaX = newX - currentTarget.x
-    const deltaY = newY - currentTarget.y
-    const distance = Math.hypot(deltaX, deltaY)
-
-    // Dead zone: ignore movements < 5% of scene to prevent jitter
-    // Entry #42: Increased from 2% to 5% to reduce trembling
-    const DEAD_ZONE_THRESHOLD = 0.05
-    if (distance < DEAD_ZONE_THRESHOLD) {
-      return  // Keep current target, don't update
-    }
-
-    // Smooth target transition (0.15 factor = slower approach to new target)
-    // Entry #42: Reduced from 0.3 to 0.15 to reduce trembling
-    const TARGET_SMOOTHING = 0.15
-    this.targetPositions[source] = {
-      x: currentTarget.x + deltaX * TARGET_SMOOTHING,
-      y: currentTarget.y + deltaY * TARGET_SMOOTHING
-    }
+    this.io.to(this.landingRoomId).emit('virtual-cursors', {
+      cursors: {
+        [source]: {
+          userId: user.userId,
+          x: position.x,
+          y: position.y,
+          color: user.color
+        }
+      },
+      timestamp: Date.now()
+    })
   }
 
   /**
@@ -325,8 +291,8 @@ class LandingCompositionService {
       this.hoverOrchestrator.start()
     }
 
-    // Start cursor interpolation
-    this.startCursorInterpolation()
+    // Note: Cursor positions now emitted directly with notes (reverse mapping)
+    // No separate interpolation timer needed
 
     // Broadcast initial drone (fills silence while metrics load)
     setTimeout(() => {
@@ -449,12 +415,6 @@ class LandingCompositionService {
     if (this.compositionTimer) {
       clearTimeout(this.compositionTimer)
       this.compositionTimer = null
-    }
-
-    // Clear cursor interpolation timer
-    if (this.cursorInterpolationTimer) {
-      clearInterval(this.cursorInterpolationTimer)
-      this.cursorInterpolationTimer = null
     }
 
     // CRITICAL: Clear all pending timeouts to prevent memory leaks
@@ -599,24 +559,9 @@ class LandingCompositionService {
    */
   generateVirtualTap(source, velocity) {
     const activity = this.calculateActivityLevel(source)
-    const user = this.virtualUsers[source]
 
-    // Generate tap position based on metrics (where tap occurs in the scene)
-    // X position: based on activity level (distributed across source's region)
-    const x = user.region.xMin + (activity * (user.region.xMax - user.region.xMin))
-
-    // Y position: based on velocity (higher velocity = higher in scene)
-    const normalizedVelocity = this.normalizeMetricDynamic(source, 'velocity', Math.abs(velocity))
-    const y = 0.1 + (normalizedVelocity * 0.8) // Full vertical range
-
-    const gesturePosition = { x, y }
-
-    // Clamp to bounds
-    const clampedX = Math.max(user.region.xMin, Math.min(user.region.xMax, x))
-    const clampedY = Math.max(0.05, Math.min(0.95, y))
-
-    // Update target position with smoothing to prevent trembling
-    this._updateTargetPositionWithSmoothing(source, clampedX, clampedY)
+    // Note: Position is now calculated via REVERSE MAPPING in emitTapNote()
+    // Cursor position is derived FROM the generated frequency, not from metrics directly
 
     // ORGANIC DURATION: Correlate tap duration to stability metric
     // Stability already derives from velocity (1 - velocity/10)
@@ -629,7 +574,6 @@ class LandingCompositionService {
       type: 'tap',
       source: source,
       velocity: velocity,
-      position: gesturePosition,
       duration: tapDurationMs,
       intensity: activity
     }
@@ -648,29 +592,14 @@ class LandingCompositionService {
    */
   generateVirtualDrag(source, velocity, acceleration) {
     const activity = this.calculateActivityLevel(source)
-    const user = this.virtualUsers[source]
 
-    // Generate drag start position based on metrics
-    // X position: based on density metric (where drag starts)
-    const density = this.calculateDensityMetric(source)
-    const x = user.region.xMin + (density * (user.region.xMax - user.region.xMin))
-
-    // Y position: based on acceleration (higher acceleration = higher in scene)
-    const absAccel = Math.abs(acceleration)
-    const y = 0.1 + (absAccel * 0.8) // Full vertical range
-
-    const gesturePosition = { x, y }
-
-    // Clamp to bounds
-    const clampedX = Math.max(user.region.xMin, Math.min(user.region.xMax, x))
-    const clampedY = Math.max(0.05, Math.min(0.95, y))
-
-    // Update target position with smoothing to prevent trembling
-    this._updateTargetPositionWithSmoothing(source, clampedX, clampedY)
+    // Note: Position is now calculated via REVERSE MAPPING in emitDragPhrase()
+    // Cursor trajectory is derived FROM generated note frequencies, not from metrics directly
 
     // ORGANIC DURATION: Correlate phrase duration to density metric
     // Density represents magnitude of real metrics (avgEditSize, avgUpvotes, newStars)
     // Higher density = more content magnitude = longer phrase
+    const density = this.calculateDensityMetric(source)
     const dragDurationMs = 300 + (density * 2700)  // 300-3000ms organic range
 
     return {
@@ -678,7 +607,6 @@ class LandingCompositionService {
       source: source,
       velocity: velocity,
       acceleration: acceleration,
-      position: gesturePosition,
       duration: dragDurationMs,
       intensity: activity
     }
@@ -696,27 +624,20 @@ class LandingCompositionService {
     const periodicity = this.calculatePeriodicityMetric(source)
     const user = this.virtualUsers[source]
 
-    // Generate hover position based on periodicity metric
-    // X position: based on periodicity (where hover occurs)
-    const x = user.region.xMin + (periodicity * (user.region.xMax - user.region.xMin))
+    // REVERSE MAPPING: Calculate position from frequency based on periodicity
+    // Higher periodicity = higher frequency range = different position in scene
+    const { min: freqMin, max: freqMax } = user.frequencyRange
+    const hoverFreq = freqMin + (periodicity * (freqMax - freqMin))
+    const position = this.frequencyMapper.frequencyToPosition(hoverFreq)
 
-    // Y position: hovers tend to be in middle-upper region (for filter modulation)
-    const y = 0.2 + (periodicity * 0.6) // 0.2-0.8 range
-
-    const gesturePosition = { x, y }
-
-    // Clamp to bounds
-    const clampedX = Math.max(user.region.xMin, Math.min(user.region.xMax, x))
-    const clampedY = Math.max(0.05, Math.min(0.95, y))
-
-    // Update target position with smoothing to prevent trembling
-    this._updateTargetPositionWithSmoothing(source, clampedX, clampedY)
+    // Emit cursor position for hover
+    this._emitCursorAtPosition(source, user, position)
 
     // This doesn't emit sound directly, only modulation
     return {
       type: 'hover',
       source: source,
-      position: gesturePosition,
+      position: position,
       intensity: periodicity,
       velocity: 0  // hovers have no velocity
     }
@@ -1083,7 +1004,6 @@ class LandingCompositionService {
     }
 
     const user = this.virtualUsers[gesture.source]
-    const cursor = this.targetPositions[gesture.source]
     const musicalContext = {
       key: this.compositionEngine.keyCenter,
       mode: this.compositionEngine.mode,
@@ -1095,374 +1015,197 @@ class LandingCompositionService {
       await this.emitTapNote(gesture, user, musicalContext)
     } else if (gesture.type === 'drag') {
       // DRAG: Phrase with multiple notes using PhraseMorphology
-      await this.emitDragPhrase(gesture, user, cursor, musicalContext)
+      await this.emitDragPhrase(gesture, user, musicalContext)
     }
   }
 
   /**
-   * Emit a single tap note (short, percussive)
-   * CRITICAL: Generates frequency from metric variance, then derives position FROM frequency
-   * This ensures different notes = different positions (same as normal rooms)
+   * Emit a single tap note (short percussive note)
+   * Uses REVERSE MAPPING: frequency determines cursor position
    * @param {Object} gesture - Tap gesture data
    * @param {Object} user - Virtual user data
    * @param {Object} musicalContext - Musical context (key, mode, tempo)
    * @private
    */
   async emitTapNote(gesture, user, musicalContext) {
-    // UNIFIED: Use SAME position-to-frequency formula as normal rooms (GestureToMusicService.js:179-193)
-    // Position emerges from metrics → frequency calculated from position (same as normal rooms)
-    const position = gesture.position || { x: 0.5, y: 0.5 }
-    const x = position.x
-    const y = position.y
-
-    // SAME FORMULA as normal rooms:
-    // Y controls octave range (110-550Hz), X controls frequency within octave (0-660Hz)
-    const octaveBase = 110 + (1 - y) * 440  // 110-550Hz
-    const withinOctave = x * 660             // 0-660Hz variation
-    const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
-
-    // Convert frequency to MIDI pitch for scale constraint
-    const rawPitch = Math.round(12 * Math.log2(frequency / 440) + 69)
-
-    // HARMONIC COHERENCE: Constrain pitch to current scale (same as normal rooms)
-    const pitch = this.harmonicEngine.constrainToScale(rawPitch, musicalContext.key, musicalContext.mode)
-
-    // Convert constrained pitch back to frequency
-    let constrainedFreq = 440 * Math.pow(2, (pitch - 69) / 12)
-
-    // TESSITURA ENFORCEMENT: Clamp frequency to virtual user's range using octave wrapping
-    // This ensures Wikipedia stays bass, HackerNews stays tenor, GitHub stays soprano
+    // 1. FIRST: Generate frequency from tessitura range (NOT from position)
+    const activityLevel = this.calculateActivityLevel(gesture.source)
     const { min: freqMin, max: freqMax } = user.frequencyRange
 
-    // CRITICAL: Validate frequency to prevent infinite loops (0, NaN, Infinity)
-    if (!isFinite(constrainedFreq) || constrainedFreq <= 0) {
-      constrainedFreq = freqMin  // Fallback to tessitura minimum
-    } else {
-      const MAX_ITERATIONS = 20  // Safety limit
-      let iterations = 0
-      while (constrainedFreq < freqMin && iterations < MAX_ITERATIONS) {
-        constrainedFreq *= 2  // Up an octave
-        iterations++
-      }
-      iterations = 0
-      while (constrainedFreq > freqMax && iterations < MAX_ITERATIONS) {
-        constrainedFreq /= 2  // Down an octave
-        iterations++
-      }
-      constrainedFreq = Math.max(freqMin, Math.min(freqMax, constrainedFreq))  // Final clamp
-    }
+    // Map activity level to frequency within tessitura
+    let rawFreq = freqMin + (activityLevel * (freqMax - freqMin))
 
-    // Clamp position to user's region bounds
-    const targetX = Math.max(user.region.xMin, Math.min(user.region.xMax, x))
-    const targetY = Math.max(0.05, Math.min(0.95, y))
-    const notePosition = { x: targetX, y: targetY }
+    // Convert to MIDI pitch for scale constraint
+    const rawPitch = Math.round(12 * Math.log2(rawFreq / 440) + 69)
+    const pitch = this.harmonicEngine.constrainToScale(rawPitch, musicalContext.key, musicalContext.mode)
+    let frequency = 440 * Math.pow(2, (pitch - 69) / 12)
 
-    // Update target position WITH SMOOTHING to prevent trembling
-    this._updateTargetPositionWithSmoothing(gesture.source, targetX, targetY)
+    // Ensure frequency stays within tessitura using octave wrapping
+    frequency = this.frequencyMapper.enforceTessitura(frequency, freqMin, freqMax)
 
-    // UNIFIED: Use beat-quantized duration (same as normal rooms)
-    // Gesture duration emerges from stability metric, then quantized to beat grid
+    // 2. REVERSE MAPPING: Calculate position FROM frequency
+    const position = this.frequencyMapper.frequencyToPosition(frequency)
+
+    // 3. Emit cursor position synchronized with note
+    this._emitCursorAtPosition(gesture.source, user, position)
+
+    // Duration from stability metric
     const stability = this.calculateStabilityMetric(gesture.source)
-    const tapDurationMs = 50 + (stability * 250)  // 50-300ms emerges from stability
+    const tapDurationMs = 50 + (stability * 250)
     const tempo = musicalContext.tempo || 120
     const quantizedBeats = this.phraseMorphology.quantizeGestureDuration(tapDurationMs, tempo)
-    const beatDuration = 60 / tempo  // seconds per beat
-    const tapDuration = quantizedBeats * beatDuration  // Convert beats to seconds
+    const beatDuration = 60 / tempo
+    const tapDuration = quantizedBeats * beatDuration
 
-    // Emit single short percussive note with quantized duration
+    // 4. Emit musical event with reverse-mapped position
     this.io.to(this.landingRoomId).emit('musical:event', {
       type: 'tap',
       userId: user.userId,
-      frequency: constrainedFreq,
-      velocity: 0.9,  // Strong tap (same as normal rooms)
+      frequency: frequency,
+      velocity: 0.9,
       duration: tapDuration,
-      position: notePosition,
+      position: position,
       userColor: user.color,
       isRemote: true,
       timestamp: Date.now()
     })
-
-    // console.log(`🎵 TAP from ${gesture.source}: freq=${constrainedFreq.toFixed(1)}Hz, pos=(${targetX.toFixed(2)},${targetY.toFixed(2)})`)
   }
 
   /**
    * Emit a drag phrase (multi-note melody using PhraseMorphology)
-   * CRITICAL: Each note is emitted at a different position along a trajectory
-   * This replicates normal room behavior where cursor moves during drag
+   * Uses REVERSE MAPPING: cursor trajectory derived from note frequencies
    * @param {Object} gesture - Drag gesture data
    * @param {Object} user - Virtual user data
-   * @param {Object} cursor - Starting cursor position
    * @param {Object} musicalContext - Musical context (key, mode, tempo)
    * @private
    */
-  async emitDragPhrase(gesture, user, cursor, musicalContext) {
-    const activity = this.calculateActivityLevel(gesture.source)
-
-    // Velocity from gesture determines intensity
+  async emitDragPhrase(gesture, user, musicalContext) {
+    // Calculate metrics for gesture generation
     const absVelocity = Math.abs(gesture.velocity || 0)
-
-    // DYNAMIC NORMALIZATION: Normalize velocity based on HISTORICAL range
     const normalizedVelocity = this.normalizeMetricDynamic(gesture.source, 'velocity', absVelocity)
-
-    // UNIFIED: Use beat-quantized duration (same as normal rooms)
-    // Gesture duration emerges from density metric, then quantized to beat grid
     const density = this.calculateDensityMetric(gesture.source)
-    const phraseDurationMs = 300 + (density * 2700)  // 300-3000ms emerges from density
-    // Note: PhraseMorphology.generatePhrase() will internally call quantizeGestureDuration() using musicalContext.tempo
+    const phraseDurationMs = 300 + (density * 2700)
+    const gestureVelocity = normalizedVelocity * 100
 
-    // SCALE velocity to gesture velocity (0-100) for PhraseMorphology
-    const gestureVelocity = normalizedVelocity * 100  // 0-100 range
-
-    // CRITICAL: Generate trajectory from gesture metrics (NO randomness)
-    // Acceleration determines direction and distance of trajectory
     const absAccel = Math.abs(gesture.acceleration || 0)
     const normalizedAccel = this.normalizeMetricDynamic(gesture.source, 'acceleration', absAccel)
-
-    // UNIFIED: Calculate curvature from metric variance (not hardcoded)
-    // Curvature emerges from relationship between velocity and acceleration
-    // High acceleration with low velocity = high curvature (sharp changes)
-    // Low acceleration with high velocity = low curvature (smooth motion)
-    const velocityVariance = normalizedVelocity  // 0-1
-    const accelerationVariance = normalizedAccel  // 0-1
-
-    // Calculate curvature: 0.0 (linear) to 1.0 (highly curved)
-    // Formula: curvature = |acceleration| / (|velocity| + |acceleration| + small_constant)
-    // This preserves metric-to-music correspondence
+    const velocityVariance = normalizedVelocity
+    const accelerationVariance = normalizedAccel
     const curvature = accelerationVariance / (velocityVariance + accelerationVariance + 0.1)
     const clampedCurvature = Math.max(0, Math.min(1, curvature))
 
-    // Trajectory based on acceleration (higher acceleration = longer trajectory)
-    const regionWidth = user.region.xMax - user.region.xMin
-    const regionHeight = 0.9  // Full height is 0.05-0.95
-
-    // Direction based on acceleration sign (positive = right/up, negative = left/down)
-    const accelDirection = gesture.acceleration >= 0 ? 1 : -1
-
-    // Trajectory length based on normalized acceleration (up to 30% of region)
-    const trajectoryLength = 0.1 + (normalizedAccel * 0.2)  // 0.1-0.3 range
-
-    // Calculate end position
-    const startX = cursor.x
-    const startY = cursor.y
-
-    // End position moves in direction based on acceleration
-    const endX = Math.max(user.region.xMin, Math.min(user.region.xMax, startX + (accelDirection * trajectoryLength * regionWidth)))
-    const endY = Math.max(0.05, Math.min(0.95, startY + (accelDirection * trajectoryLength * regionHeight * 0.5)))
-
-    // Create gestureData for PhraseMorphology with trajectory and DYNAMIC curvature
+    // Create gestureData for PhraseMorphology
     const gestureData = {
       velocity: gestureVelocity,
-      trajectory: {
-        startX: startX,
-        startY: startY,
-        endX: endX,
-        endY: endY
-      },
-      curvature: clampedCurvature,  // EMERGES from velocity/acceleration relationship
+      curvature: clampedCurvature,
       acceleration: gesture.acceleration || 0,
-      intensity: activity,
+      intensity: this.calculateActivityLevel(gesture.source),
       duration: phraseDurationMs
     }
 
-    // Generate phrase using PhraseMorphology (SAME LOGIC AS NORMAL ROOMS)
+    // 1. Generate phrase FIRST (musical content)
     const phrase = this.phraseMorphology.generatePhrase(gestureData, musicalContext)
 
-    // CRITICAL: Validate phrase structure BEFORE processing
     if (!phrase?.notes || !Array.isArray(phrase.notes)) {
-      console.error(`❌ Invalid phrase structure from ${gesture.source}:`, phrase)
       return
     }
 
-    // Filter out invalid notes upfront for cleaner processing
-    const validNotes = phrase.notes.filter((note, i) => {
-      const isValid = (
-        note &&
-        typeof note.pitch === 'number' &&
-        !isNaN(note.pitch) &&
-        note.pitch >= 0 &&
-        note.pitch <= 127 &&
-        typeof note.duration === 'number' &&
-        note.duration > 0
-      )
+    const beatDurationMs = (60 / musicalContext.tempo) * 1000
+    const { min: freqMin, max: freqMax } = user.frequencyRange
 
-      if (!isValid) {
-        console.warn(`⚠️ Invalid note in phrase: index ${i}, source ${gesture.source}`, note)
+    // 2. Calculate frequencies for each note (with tessitura enforcement)
+    const noteData = phrase.notes.map((note, i) => {
+      if (!note || typeof note.pitch !== 'number' || isNaN(note.pitch) ||
+          note.pitch < 0 || note.pitch > 127 ||
+          typeof note.duration !== 'number' || note.duration <= 0) {
+        return null
       }
 
-      return isValid
-    })
+      const rawFreq = 440 * Math.pow(2, (note.pitch - 69) / 12)
+      if (!isFinite(rawFreq) || rawFreq <= 0) return null
 
-    if (validNotes.length === 0) {
-      console.warn(`⚠️ No valid notes in phrase from ${gesture.source}`)
-      return
-    }
+      // Tessitura enforcement with octave wrapping
+      const noteFreq = this.frequencyMapper.enforceTessitura(rawFreq, freqMin, freqMax)
 
-    // console.log(`🎵 PHRASE from ${gesture.source}: ${validNotes.length} notes, trajectory=(${startX.toFixed(2)},${startY.toFixed(2)})→(${endX.toFixed(2)},${endY.toFixed(2)})`)
+      return {
+        noteId: `virtual_${gesture.source}_${Date.now()}_${i}`,
+        frequency: noteFreq,
+        velocity: Math.max(0, Math.min(1, (note.velocity || 80) / 127)),
+        startDelayMs: note.startBeat * beatDurationMs,
+        durationMs: note.duration * beatDurationMs
+      }
+    }).filter(Boolean)
 
-    // Convert beats to milliseconds
-    const beatDurationMs = (60 / musicalContext.tempo) * 1000
+    if (noteData.length === 0) return
 
-    // Emit phrase event for nebulas and sparks (triggers color shift)
+    // 3. REVERSE MAPPING: Calculate start and end positions from first/last note frequencies
+    const startFreq = noteData[0].frequency
+    const endFreq = noteData[noteData.length - 1].frequency
+    const startPosition = this.frequencyMapper.frequencyToPosition(startFreq)
+
+    // Emit phrase event for visual system
     this.io.to(this.landingRoomId).emit('musical:event', {
       type: 'phrase',
       userId: user.userId,
       velocity: Math.min(1, normalizedVelocity),
-      noteCount: validNotes.length,
+      noteCount: noteData.length,
       isRemote: true,
       timestamp: Date.now()
     })
 
-    // Emit each validated note with correct timing and position along trajectory
-    // Get frequency range for tessitura enforcement
-    const { min: freqMin, max: freqMax } = user.frequencyRange
+    // 4. Calculate cursor trajectory (linear interpolation)
+    const trajectory = this.frequencyMapper.calculateDragTrajectory(
+      startFreq, endFreq, phraseDurationMs
+    )
 
-    validNotes.forEach((note, i) => {
-      const noteId = `virtual_${gesture.source}_${Date.now()}_${i}`
+    // 5. Emit cursor positions along trajectory (synchronized with phrase duration)
+    trajectory.forEach((pos) => {
+      const timeoutId = setTimeout(() => {
+        this.pendingTimeouts.delete(timeoutId)
+        if (!this.io || !this.isRunning) return
+        this._emitCursorAtPosition(gesture.source, user, pos)
+      }, pos.timeOffset)
+      this.pendingTimeouts.add(timeoutId)
+    })
 
-      // Convert MIDI pitch to frequency (already validated in filter)
-      let noteFreq = 440 * Math.pow(2, (note.pitch - 69) / 12)
-
-      // Skip invalid frequencies to prevent infinite loops
-      if (!isFinite(noteFreq) || noteFreq <= 0) return
-
-      // TESSITURA ENFORCEMENT: Clamp frequency to virtual user's range using octave wrapping
-      const MAX_ITERATIONS = 20  // Safety limit
-      let iterations = 0
-      while (noteFreq < freqMin && iterations < MAX_ITERATIONS) {
-        noteFreq *= 2  // Up an octave
-        iterations++
-      }
-      iterations = 0
-      while (noteFreq > freqMax && iterations < MAX_ITERATIONS) {
-        noteFreq /= 2  // Down an octave
-        iterations++
-      }
-      noteFreq = Math.max(freqMin, Math.min(freqMax, noteFreq))  // Final clamp
-
-      // CRITICAL: Calculate position along trajectory for this note
-      // Each note gets a position based on its index in the phrase
-      const noteProgress = i / Math.max(1, validNotes.length - 1)  // 0 to 1
-
-      // Linear interpolation from start to end position
-      const noteX = startX + (endX - startX) * noteProgress
-      const noteY = startY + (endY - startY) * noteProgress
-
-      // CRITICAL: Clamp position to region bounds BEFORE creating notePosition
-      // This prevents nodes from appearing outside the scene
-      const clampedX = Math.max(user.region.xMin, Math.min(user.region.xMax, noteX))
-      const clampedY = Math.max(0.05, Math.min(0.95, noteY))
-
-      const notePosition = { x: clampedX, y: clampedY }
-
-      // Calculate start time in milliseconds
-      const startDelayMs = note.startBeat * beatDurationMs
-
-      // Calculate note duration in milliseconds
-      const noteDurationMs = note.duration * beatDurationMs
-
-      // Schedule note emission (with timeout tracking for cleanup)
+    // 6. Emit notes with their positions (reverse-mapped from frequency)
+    noteData.forEach((note) => {
       const noteTimeoutId = setTimeout(() => {
         this.pendingTimeouts.delete(noteTimeoutId)
         if (!this.io || !this.isRunning) return
 
-        // Update target position WITH SMOOTHING to prevent trembling
-        // Each note smoothly moves cursor along trajectory
-        this._updateTargetPositionWithSmoothing(gesture.source, clampedX, clampedY)
+        // Get position from frequency for this specific note
+        const notePosition = this.frequencyMapper.frequencyToPosition(note.frequency)
 
-        // Emit hold:start with note's position along trajectory
-        const noteVelocity = note.velocity || 80  // Default to 80 if undefined
         this.io.to(this.landingRoomId).emit('hold:start', {
           type: 'hold:start',
           userId: user.userId,
-          noteId: noteId,
-          frequency: noteFreq,
-          velocity: Math.max(0, Math.min(1, noteVelocity / 127)),  // Convert 0-127 to 0-1, with defaults
-          duration: noteDurationMs / 1000,  // Convert to seconds
-          position: notePosition,  // CRITICAL: Each note has its own position along trajectory (clamped)
+          noteId: note.noteId,
+          frequency: note.frequency,
+          velocity: note.velocity,
+          duration: note.durationMs / 1000,
+          position: notePosition,
           userColor: user.color,
           isRemote: true,
           timestamp: Date.now()
         })
 
-        // Schedule hold:end (with timeout tracking)
+        // Schedule hold:end
         const holdEndTimeoutId = setTimeout(() => {
           this.pendingTimeouts.delete(holdEndTimeoutId)
           if (this.io && this.isRunning) {
             this.io.to(this.landingRoomId).emit('hold:end', {
               type: 'hold:end',
               userId: user.userId,
-              noteId: noteId,
+              noteId: note.noteId,
               timestamp: Date.now()
             })
           }
-        }, noteDurationMs)
+        }, note.durationMs)
         this.pendingTimeouts.add(holdEndTimeoutId)
-
-      }, startDelayMs)
+      }, note.startDelayMs)
       this.pendingTimeouts.add(noteTimeoutId)
     })
-  }
-
-  /**
-   * Start smooth cursor interpolation loop
-   * @private
-   */
-  startCursorInterpolation() {
-    if (this.cursorInterpolationTimer) return
-
-    // Update cursor positions every 50ms (20fps)
-    this.cursorInterpolationTimer = setInterval(() => {
-      if (!this.isRunning) return
-
-      const cursors = {}
-
-      for (const [source, user] of Object.entries(this.virtualUsers)) {
-        const current = this.currentPositions[source]
-        const target = this.targetPositions[source]
-
-        // Calculate distance to target
-        const deltaX = target.x - current.x
-        const deltaY = target.y - current.y
-        const distance = Math.hypot(deltaX, deltaY)
-
-        // SETTLING THRESHOLD: Snap to target if very close to prevent endless micro-movements (jitter)
-        // Entry #44: Added 0.1% threshold to eliminate floating-point jitter
-        const SETTLING_THRESHOLD = 0.001
-        let newX, newY
-        if (distance < SETTLING_THRESHOLD) {
-          // Snap to target - cursor has arrived
-          newX = target.x
-          newY = target.y
-        } else {
-          // Smooth interpolation (12% per frame) to reduce trembling
-          // Entry #42: Reduced from 0.2 to 0.12 for smoother cursor movement
-          const easing = 0.12
-          newX = current.x + deltaX * easing
-          newY = current.y + deltaY * easing
-        }
-
-        // CRITICAL: CLAMP to SOURCE'S REGION bounds - each source stays in its assigned area
-        newX = Math.max(user.region.xMin, Math.min(user.region.xMax, newX))
-        newY = Math.max(0.05, Math.min(0.95, newY))
-
-        this.currentPositions[source] = { x: newX, y: newY }
-
-        cursors[source] = {
-          userId: user.userId,
-          x: newX,
-          y: newY,
-          color: user.color
-        }
-      }
-
-      // Broadcast interpolated cursor positions
-      if (this.io) {
-        this.io.to(this.landingRoomId).emit('virtual-cursors', {
-          cursors: cursors,
-          timestamp: Date.now()
-        })
-      }
-    }, 50)
   }
 
   /**
@@ -1514,9 +1257,13 @@ class LandingCompositionService {
    * @returns {Object} Virtual cursor positions
    */
   getVirtualCursors() {
+    // Return cursor positions derived from middle of each user's frequency range
+    // Actual positions are emitted directly with notes via reverse mapping
     const cursors = {}
     for (const [source, user] of Object.entries(this.virtualUsers)) {
-      const pos = this.currentPositions[source]
+      // Calculate default position from middle of tessitura
+      const midFreq = (user.frequencyRange.min + user.frequencyRange.max) / 2
+      const pos = this.frequencyMapper.frequencyToPosition(midFreq)
       cursors[source] = {
         userId: user.userId,
         x: pos.x,

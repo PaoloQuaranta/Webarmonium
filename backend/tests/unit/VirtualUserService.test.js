@@ -52,22 +52,23 @@ describe('VirtualUserService', () => {
       for (const [source, config] of Object.entries(service.virtualUserConfigs)) {
         expect(config).toHaveProperty('userId')
         expect(config).toHaveProperty('color')
-        expect(config).toHaveProperty('region')
         expect(config).toHaveProperty('tessitura')
         expect(config).toHaveProperty('frequencyRange')
 
         expect(config.userId).toMatch(/-metrics$/)
         expect(config.color).toMatch(/^#[0-9a-f]{6}$/)
-        expect(config.region).toHaveProperty('xMin')
-        expect(config.region).toHaveProperty('xMax')
+        expect(config.frequencyRange).toHaveProperty('min')
+        expect(config.frequencyRange).toHaveProperty('max')
       }
     })
 
-    test('regions should not overlap', () => {
+    test('tessituras should have distinct frequency ranges', () => {
       const { wikipedia, hackernews, github } = service.virtualUserConfigs
 
-      expect(wikipedia.region.xMax).toBeLessThanOrEqual(hackernews.region.xMin)
-      expect(hackernews.region.xMax).toBeLessThanOrEqual(github.region.xMin)
+      // Wikipedia (bass) should be lower than HackerNews (tenor)
+      expect(wikipedia.frequencyRange.max).toBeLessThanOrEqual(hackernews.frequencyRange.max)
+      // HackerNews (tenor) should be lower than GitHub (soprano)
+      expect(hackernews.frequencyRange.max).toBeLessThanOrEqual(github.frequencyRange.max)
     })
   })
 
@@ -139,19 +140,17 @@ describe('VirtualUserService', () => {
       }))
     })
 
-    test('should initialize cursor positions within source regions', () => {
+    test('should initialize room state with required properties', () => {
       service.activateForRoom('room1', ['wikipedia', 'hackernews'])
 
       const roomState = service.activeRooms.get('room1')
-      const { wikipedia, hackernews } = service.virtualUserConfigs
 
-      // Check wikipedia cursor is within its region
-      expect(roomState.currentPositions.wikipedia.x).toBeGreaterThanOrEqual(wikipedia.region.xMin)
-      expect(roomState.currentPositions.wikipedia.x).toBeLessThanOrEqual(wikipedia.region.xMax)
-
-      // Check hackernews cursor is within its region
-      expect(roomState.currentPositions.hackernews.x).toBeGreaterThanOrEqual(hackernews.region.xMin)
-      expect(roomState.currentPositions.hackernews.x).toBeLessThanOrEqual(hackernews.region.xMax)
+      // Room state should have basic properties (no cursor position tracking)
+      expect(roomState).toHaveProperty('roomId', 'room1')
+      expect(roomState).toHaveProperty('sources')
+      expect(roomState.sources).toEqual(['wikipedia', 'hackernews'])
+      expect(roomState).toHaveProperty('isActive', true)
+      expect(roomState).toHaveProperty('musicalContext')
     })
 
     test('should update sources if room already active', () => {

@@ -1130,12 +1130,33 @@ Applied critical fixes identified by code-reviewer agent:
 
 ---
 
+### Bug Fixes During Implementation
+
+#### Race Condition: visualService.initialize() Order
+Initial testing showed virtual user P&P worked in landing room but not normal rooms. Root cause: `visualService.initialize()` was called AFTER `connectToServer()`, so `springMesh` was null when socket events arrived. Fixed by reordering `init()` to call `initialize()` before `connectToServer()`.
+
+#### Throttle Blocking Virtual Users
+After race condition fix, virtual users only emitted P&P once then stopped. The 300ms throttle in `updateGestureData()` was blocking. Fixed by having `virtual:phrase-visual` handler bypass throttle and call `emitPulse()`/`emitParticles()` directly.
+
+#### Missing SocketService Handler (Critical)
+Events still not reaching frontend despite fixes above. **Root cause**: `SocketService.setupEventHandlers()` didn't include a handler for `virtual:phrase-visual`. The backend emitted the event, but SocketService never forwarded it to local event listeners.
+
+**Fix**: Added missing handler in `SocketService.js`:
+```javascript
+this.socket.on('virtual:phrase-visual', (data) => {
+  this.emit('virtual:phrase-visual', data)
+})
+```
+
+---
+
 ### Files Modified
 
 | File | Changes |
 |------|---------|
 | `backend/src/services/VirtualUserService.js` | Added `suppressVisual` flag, emit `virtual:phrase-visual` event |
-| `frontend/src/main.js` | Handler for `virtual:phrase-visual`, respect `suppressVisual`, drag P&P throttling, `_sanitizeColor()` helper |
+| `frontend/src/main.js` | Handler for `virtual:phrase-visual`, respect `suppressVisual`, drag P&P throttling, `_sanitizeColor()` helper, init order fix |
+| `frontend/src/services/SocketService.js` | **Added `virtual:phrase-visual` socket handler** |
 | `frontend/src/services/GenerativeVisualService.js` | Per-user emission throttling, cleanup in `removeUser()` |
 | `frontend/src/services/visual/VisualConstants.js` | Reduced maxPulses, maxParticles, emitCount, added maxHops/decay configs |
 | `frontend/src/services/visual/ParticleFlowManager.js` | Pool integration, cascade reduction, fixed decay formula |
@@ -1147,7 +1168,7 @@ Applied critical fixes identified by code-reviewer agent:
 
 ### Version
 
-Updated to v1.0.44
+Updated to v1.0.47
 
 ---
 
@@ -1243,5 +1264,138 @@ const MAX_PATCH_VOLUME_DB = 12  // Allows real user patches to match gestureSynt
 ### Version
 
 Updated to v1.0.43
+
+---
+
+## Entry #70 - Virtual Cursor Reverse Mapping Architecture
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Refactored the entire virtual cursor system to use **reverse mapping**: cursor positions are now derived FROM generated note frequencies instead of calculating frequencies from positions. This ensures perfect audio-visual coherence and eliminates cursor trembling issues.
+
+---
+
+### Problem Statement
+
+User reported two issues with virtual cursors (landing page and normal rooms):
+1. **Cursor trembling**: Despite previous fix attempts, cursors still trembled
+2. **Incoherent movement**: Cursor movements didn't match note production
+
+**Root cause**: The old system used a 50ms interpolation timer with position smoothing that caused visible trembling, and calculated frequencies FROM positions (forward mapping), leading to audio-visual desync.
+
+---
+
+### Solution: Reverse Mapping Architecture
+
+Instead of: `position → frequency` (forward)
+Now using: `frequency → position` (reverse)
+
+This guarantees that cursor appears exactly where a real user would be to produce the same note.
+
+---
+
+### Implementation
+
+#### 1. New FrequencyPositionMapper Utility
+
+**File:** `backend/src/utils/FrequencyPositionMapper.js`
+
+Created bidirectional mapping utility with:
+- `positionToFrequency(x, y)` - forward mapping (for real users)
+- `frequencyToPosition(frequency)` - reverse mapping (for virtual users)
+- `calculateDragTrajectory(startFreq, endFreq, durationMs)` - linear interpolation for drags
+- `enforceTessitura(frequency, freqMin, freqMax)` - octave wrapping (extracted from duplicated code)
+
+#### 2. VirtualUserService.js Refactoring
+
+Removed:
+- `_updateTargetPositionWithSmoothing()` method
+- `_interpolateCursors()` method
+- Cursor interpolation timer (50ms)
+- `currentPositions`, `targetPositions` tracking
+- `region` property from virtualUserConfigs
+
+Added:
+- `_emitCursorAtPosition()` helper method
+- Reverse mapping in `_emitTapGesture()`, `_emitDragGesture()`, `_emitHoverGesture()`
+- Direct cursor emission with each note (no interpolation)
+
+#### 3. LandingCompositionService.js Refactoring
+
+Same pattern as VirtualUserService:
+- Removed interpolation timer and position tracking
+- Removed `startCursorInterpolation()` method
+- Added reverse mapping in `emitTapNote()`, `emitDragPhrase()`, `generateVirtualHover()`
+- Fixed `getVirtualCursors()` to return positions from middle of tessitura
+
+#### 4. Code Review Fixes (Critical)
+
+Code-reviewer agent identified incomplete refactoring in LandingCompositionService:
+- Removed orphaned `cursorInterpolationTimer` cleanup
+- Removed dead code referencing `user.region.xMin/xMax`
+- Removed calls to non-existent `_updateTargetPositionWithSmoothing()`
+- Removed unused `targetPositions`/`currentPositions` references
+- Updated `emitDragPhrase()` signature (removed unused `cursor` parameter)
+
+#### 5. DRY: Extracted Tessitura Enforcement
+
+Tessitura enforcement (octave wrapping) was duplicated 4 times. Extracted to `FrequencyPositionMapper.enforceTessitura()`:
+
+```javascript
+enforceTessitura(frequency, freqMin, freqMax) {
+  if (!isFinite(frequency) || frequency <= 0) return freqMin
+
+  const MAX_ITERATIONS = 20
+  let iterations = 0
+  while (frequency < freqMin && iterations < MAX_ITERATIONS) {
+    frequency *= 2
+    iterations++
+  }
+  iterations = 0
+  while (frequency > freqMax && iterations < MAX_ITERATIONS) {
+    frequency /= 2
+    iterations++
+  }
+  return Math.max(freqMin, Math.min(freqMax, frequency))
+}
+```
+
+Replaced in:
+- VirtualUserService `_emitTapGesture()`
+- VirtualUserService `_emitDragGesture()`
+- LandingCompositionService `emitTapNote()`
+- LandingCompositionService `emitDragPhrase()`
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/utils/FrequencyPositionMapper.js` | **NEW** - Bidirectional frequency↔position mapping + `enforceTessitura()` |
+| `backend/src/utils/index.js` | Added FrequencyPositionMapper export |
+| `backend/src/services/VirtualUserService.js` | Removed interpolation, added reverse mapping, use `enforceTessitura()` |
+| `backend/src/services/LandingCompositionService.js` | Same refactoring as VirtualUserService |
+| `backend/tests/unit/VirtualUserService.test.js` | Updated tests for new architecture |
+
+---
+
+### Verification
+
+- ✅ FrequencyPositionMapper loads correctly
+- ✅ `enforceTessitura(50, 110, 220)` → `200` (50*4)
+- ✅ `enforceTessitura(1000, 110, 220)` → `125` (1000/8)
+- ✅ VirtualUserService tests: 34/34 passed
+- ✅ Both services load without errors
+
+---
+
+### Version
+
+Updated to v1.0.48
 
 ---
