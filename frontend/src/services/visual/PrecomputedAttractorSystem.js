@@ -51,10 +51,11 @@ class PrecomputedAttractorSystem {
     this.targetScale = 2.2
     this.fuzzyOffset = 8      // Random offset in pixels for blur effect
 
-    // Rotation for diagonal distribution (precomputed for performance)
-    this.rotationAngle = Math.PI / 5  // 36° (π/5 radians) for diagonal distribution
-    this.rotationCos = Math.cos(this.rotationAngle)  // Precomputed
-    this.rotationSin = Math.sin(this.rotationAngle)  // Precomputed
+    // Rotation for horizontal distribution (precomputed for performance)
+    // Lorenz attractor is naturally vertical; rotate 90° to fit landscape canvas
+    this.rotationAngle = Math.PI / 2  // 90° (π/2 radians) for horizontal orientation
+    this.rotationCos = Math.cos(this.rotationAngle)  // Precomputed: ~0
+    this.rotationSin = Math.sin(this.rotationAngle)  // Precomputed: 1
 
     // Adaptive point reduction (smooth transitions)
     // Stress factor constants
