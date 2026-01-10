@@ -2247,3 +2247,78 @@ Completed systematic verification of ALL documentation claims (28 total) against
 Updated to v1.0.57
 
 ---
+
+## Entry #78 - Gesture Trail Halos Use User Color
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Changed the gesture trail halos (spherical effects left on canvas after drag gestures) from hardcoded cyan to use each user's assigned color. This enables visual differentiation between users in multi-user rooms.
+
+---
+
+### Problem Statement
+
+The `drawGestureTrail()` function in main.js rendered halos with a hardcoded cyan color `rgba(0, 212, 255)`. All users' gesture trails looked identical, making it impossible to distinguish who created which visual effect.
+
+---
+
+### Solution
+
+Modified `drawGestureTrail()` to use `this.currentUserColor` (the color assigned to the user when joining the room from the 10-color pool) instead of hardcoded cyan.
+
+**File:** `frontend/src/main.js` (lines 1775-1782)
+
+```javascript
+// BEFORE (hardcoded cyan)
+gradient.addColorStop(0, `rgba(0, 212, 255, ${alpha})`)
+gradient.addColorStop(1, `rgba(0, 212, 255, 0)`)
+
+// AFTER (user color)
+const userColor = this.currentUserColor || '#00d4ff'  // fallback cyan
+const rgb = window.VisualUtils?.hexToRgb(userColor) || { r: 0, g: 212, b: 255 }
+gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`)
+gradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`)
+```
+
+Used existing `window.VisualUtils.hexToRgb()` utility (from VisualUtils.js:46) for color conversion.
+
+---
+
+### Room Parameters Available for Color Differentiation
+
+| Parameter | Location | Description |
+|-----------|----------|-------------|
+| `this.currentUserColor` | main.js | User's assigned color from 10-color pool (e.g., '#e41a1c') |
+| `room.mode` | RoomManager | 'solo' (1 user) or 'multi' (2+ users) |
+| `room.userCount` | RoomManager | Number of users in room (1-4) |
+| `memoryState.learningPhase` | MemoryState | 'initial', 'learning', 'collaborative', 'developing', 'mature' |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/main.js` | Modified `drawGestureTrail()` to use `currentUserColor` instead of hardcoded cyan |
+
+---
+
+### Verification
+
+1. Start backend: `cd backend && npm run dev`
+2. Start frontend: `cd frontend && npm start`
+3. Open http://localhost:3000 and perform drag gestures
+4. Halos should appear in user's assigned color (not cyan)
+5. Open second browser window — second user should have different colored halos
+
+---
+
+### Version
+
+Updated to v1.0.58
+
+---

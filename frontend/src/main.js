@@ -1772,10 +1772,14 @@ class WebarmoniumApp {
     const alpha = Math.min(intensity, 1)
     const size = 5 + (intensity * 15)
 
-    // Create gradient
+    // Use user's assigned color instead of hardcoded cyan
+    const userColor = this.currentUserColor || '#00d4ff'
+    const rgb = window.VisualUtils?.hexToRgb(userColor) || { r: 0, g: 212, b: 255 }
+
+    // Create gradient with user color
     const gradient = this.ctx.createRadialGradient(x, y, 0, x, y, size)
-    gradient.addColorStop(0, `rgba(0, 212, 255, ${alpha})`)
-    gradient.addColorStop(1, `rgba(0, 212, 255, 0)`)
+    gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`)
+    gradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`)
 
     this.ctx.fillStyle = gradient
     this.ctx.beginPath()
