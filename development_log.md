@@ -1524,3 +1524,102 @@ All tests pass (34/34).
 Updated to v1.0.49
 
 ---
+
+## Entry #72 - Virtual Cursor Smooth Interpolation & Initial Distribution
+
+**Date**: 2026-01-10
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed two issues with virtual cursors:
+1. All cursors appeared at center on startup - now distributed across canvas
+2. Cursors jumped between positions - now smoothly interpolate
+
+---
+
+### Problem Statement
+
+After implementing reverse mapping (#70), virtual cursors had two visible issues:
+1. **Initial positions**: All 3 cursors spawned at center (y=0.5) because they used tessitura midpoint
+2. **Jumpy movement**: Cursors teleported between positions when notes were emitted
+
+---
+
+### Solution
+
+#### 1. Distributed Initial Positions
+Set distinct initial positions for each source based on their tessitura:
+```javascript
+this.currentPositions = {
+  wikipedia: { x: 0.15, y: 0.75 },   // Bottom-left (bass)
+  hackernews: { x: 0.50, y: 0.50 },  // Center (tenor)
+  github: { x: 0.85, y: 0.25 }       // Top-right (soprano)
+}
+```
+
+#### 2. Smooth Interpolation
+Re-introduced interpolation timer but correctly:
+- `_emitCursorAtPosition()` now sets **target** position instead of emitting directly
+- Interpolation timer (50ms/20fps) smoothly moves current → target
+- Uses exponential ease-out: `current += (target - current) * 0.15`
+- Only emits when cursors actually moved (optimization)
+
+---
+
+### Changes
+
+#### LandingCompositionService.js
+
+Added:
+- `currentPositions`, `targetPositions` - position tracking
+- `cursorInterpolationTimer` - 50ms interval
+- `_emitAllCursors()` - emit all cursors at once
+- `_startCursorInterpolation()` - start timer
+- `_interpolateCursors()` - smooth movement logic
+
+Modified:
+- `_emitCursorAtPosition()` - now sets target instead of emitting
+- `start()` - emits initial cursors, starts interpolation
+- `stop()` - clears interpolation timer
+- `getVirtualCursors()` - returns current interpolated positions
+
+#### VirtualUserService.js
+
+Added (per-room):
+- `roomState.currentPositions`, `roomState.targetPositions`
+- `roomState.cursorInterpolationTimer`
+- `_emitAllCursorsForRoom()` - emit cursors for specific room
+- `_startCursorInterpolation()` - per-room timer
+- `_interpolateCursorsForRoom()` - per-room interpolation
+
+Modified:
+- `_emitCursorAtPosition()` - now sets target position
+- `activateForRoom()` - initializes positions, starts interpolation
+- `deactivateForRoom()` - clears interpolation timer
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/LandingCompositionService.js` | Position tracking, interpolation timer, distributed initial positions |
+| `backend/src/services/VirtualUserService.js` | Per-room position tracking and interpolation |
+
+---
+
+### Verification
+
+- ✅ VirtualUserService tests: 34/34 passed
+- ✅ Initial positions distributed: bass bottom-left, tenor center, soprano top-right
+- ✅ Smooth interpolation at 20fps with 0.15 ease factor
+
+---
+
+### Version
+
+Updated to v1.0.50
+
+---

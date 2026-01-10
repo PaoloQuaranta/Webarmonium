@@ -127,6 +127,26 @@ class LandingCompositionService {
     // Track pending timeouts for cleanup (prevents memory leaks)
     this.pendingTimeouts = new Set()
 
+    // Current cursor positions for smooth interpolation
+    // Distributed initial positions across the canvas (left, center, right)
+    this.currentPositions = {
+      wikipedia: { x: 0.15, y: 0.75 },   // Bottom-left area (bass)
+      hackernews: { x: 0.50, y: 0.50 },  // Center (tenor)
+      github: { x: 0.85, y: 0.25 }       // Top-right area (soprano)
+    }
+
+    // Target positions for interpolation
+    this.targetPositions = {
+      wikipedia: { x: 0.15, y: 0.75 },
+      hackernews: { x: 0.50, y: 0.50 },
+      github: { x: 0.85, y: 0.25 }
+    }
+
+    // Interpolation timer for smooth cursor movement
+    this.cursorInterpolationTimer = null
+    this.interpolationInterval = 50  // 20fps for smooth movement
+    this.interpolationSpeed = 0.15   // How fast to approach target (0-1)
+
     // console.log('🎵 LandingCompositionService initialized (CompositionEngine mode)')
   }
 
@@ -168,27 +188,19 @@ class LandingCompositionService {
   }
 
   /**
-   * Emit cursor position for a virtual user
-   * Called when a note is emitted to synchronize cursor with audio
+   * Set target cursor position for a virtual user
+   * The interpolation timer will smoothly move the cursor to this target
    * @param {string} source - Source name (wikipedia, hackernews, github)
-   * @param {Object} user - Virtual user config
-   * @param {Object} position - {x, y} position (0-1 range)
+   * @param {Object} user - Virtual user config (unused, kept for API compatibility)
+   * @param {Object} position - {x, y} target position (0-1 range)
    * @private
    */
   _emitCursorAtPosition(source, user, position) {
-    if (!this.io) return
-
-    this.io.to(this.landingRoomId).emit('virtual-cursors', {
-      cursors: {
-        [source]: {
-          userId: user.userId,
-          x: position.x,
-          y: position.y,
-          color: user.color
-        }
-      },
-      timestamp: Date.now()
-    })
+    // Set target position - interpolation timer will smoothly move there
+    if (this.targetPositions[source]) {
+      this.targetPositions[source].x = position.x
+      this.targetPositions[source].y = position.y
+    }
   }
 
   /**
@@ -291,8 +303,11 @@ class LandingCompositionService {
       this.hoverOrchestrator.start()
     }
 
-    // Note: Cursor positions now emitted directly with notes (reverse mapping)
-    // No separate interpolation timer needed
+    // Emit initial cursor positions (distributed across canvas)
+    this._emitAllCursors()
+
+    // Start cursor interpolation for smooth movement
+    this._startCursorInterpolation()
 
     // Broadcast initial drone (fills silence while metrics load)
     setTimeout(() => {
@@ -303,6 +318,76 @@ class LandingCompositionService {
     this.scheduleNextComposition()
 
     // console.log('🎵 LandingCompositionService started')
+  }
+
+  /**
+   * Emit all cursor positions at once
+   * @private
+   */
+  _emitAllCursors() {
+    if (!this.io) return
+
+    const cursors = {}
+    for (const [source, user] of Object.entries(this.virtualUsers)) {
+      const pos = this.currentPositions[source]
+      cursors[source] = {
+        userId: user.userId,
+        x: pos.x,
+        y: pos.y,
+        color: user.color
+      }
+    }
+
+    this.io.to(this.landingRoomId).emit('virtual-cursors', {
+      cursors,
+      timestamp: Date.now()
+    })
+  }
+
+  /**
+   * Start cursor interpolation timer for smooth movement
+   * @private
+   */
+  _startCursorInterpolation() {
+    if (this.cursorInterpolationTimer) {
+      clearInterval(this.cursorInterpolationTimer)
+    }
+
+    this.cursorInterpolationTimer = setInterval(() => {
+      this._interpolateCursors()
+    }, this.interpolationInterval)
+  }
+
+  /**
+   * Interpolate cursors toward their target positions
+   * Uses linear interpolation for smooth movement
+   * @private
+   */
+  _interpolateCursors() {
+    if (!this.io || !this.isRunning) return
+
+    let anyMoved = false
+    const threshold = 0.001  // Minimum movement threshold
+
+    for (const source of Object.keys(this.virtualUsers)) {
+      const current = this.currentPositions[source]
+      const target = this.targetPositions[source]
+
+      const dx = target.x - current.x
+      const dy = target.y - current.y
+
+      // Only interpolate if there's meaningful distance to cover
+      if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
+        current.x += dx * this.interpolationSpeed
+        current.y += dy * this.interpolationSpeed
+        anyMoved = true
+      }
+    }
+
+    // Only emit if any cursor actually moved
+    if (anyMoved) {
+      this._emitAllCursors()
+    }
   }
 
   /**
@@ -409,6 +494,12 @@ class LandingCompositionService {
     // Stop hover orchestrator
     if (this.hoverOrchestrator) {
       this.hoverOrchestrator.stop()
+    }
+
+    // Clear cursor interpolation timer
+    if (this.cursorInterpolationTimer) {
+      clearInterval(this.cursorInterpolationTimer)
+      this.cursorInterpolationTimer = null
     }
 
     // Clear composition timer
@@ -1263,13 +1354,10 @@ class LandingCompositionService {
    * @returns {Object} Virtual cursor positions
    */
   getVirtualCursors() {
-    // Return cursor positions derived from middle of each user's frequency range
-    // Actual positions are emitted directly with notes via reverse mapping
+    // Return current interpolated positions
     const cursors = {}
     for (const [source, user] of Object.entries(this.virtualUsers)) {
-      // Calculate default position from middle of tessitura
-      const midFreq = (user.frequencyRange.min + user.frequencyRange.max) / 2
-      const pos = this.frequencyMapper.frequencyToPosition(midFreq)
+      const pos = this.currentPositions[source]
       cursors[source] = {
         userId: user.userId,
         x: pos.x,

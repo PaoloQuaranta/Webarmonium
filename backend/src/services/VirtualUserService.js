@@ -88,6 +88,17 @@ class VirtualUserService {
     // Clock for gesture timing
     this.clockTick = 0
 
+    // Interpolation settings for smooth cursor movement
+    this.interpolationInterval = 50  // 20fps
+    this.interpolationSpeed = 0.15   // How fast to approach target (0-1)
+
+    // Initial distributed positions for each source
+    this.initialPositions = {
+      wikipedia: { x: 0.15, y: 0.75 },   // Bottom-left area (bass)
+      hackernews: { x: 0.50, y: 0.50 },  // Center (tenor)
+      github: { x: 0.85, y: 0.25 }       // Top-right area (soprano)
+    }
+
     // Validate configurations at startup (fail-fast)
     this._validateConfigurations()
   }
@@ -167,24 +178,95 @@ class VirtualUserService {
    * Called when a note is emitted to synchronize cursor with audio
    * @param {string} roomId - Room ID
    * @param {string} source - Source name (wikipedia, hackernews, github)
-   * @param {Object} config - Virtual user config
-   * @param {Object} position - {x, y} position (0-1 range)
+   * @param {Object} config - Virtual user config (unused, kept for API compatibility)
+   * @param {Object} position - {x, y} target position (0-1 range)
    * @private
    */
   _emitCursorAtPosition(roomId, source, config, position) {
+    // Set target position - interpolation timer will smoothly move there
+    const roomState = this.activeRooms.get(roomId)
+    if (roomState && roomState.targetPositions[source]) {
+      roomState.targetPositions[source].x = position.x
+      roomState.targetPositions[source].y = position.y
+    }
+  }
+
+  /**
+   * Emit all cursor positions for a room at once
+   * @param {string} roomId - Room ID
+   * @param {Object} roomState - Room state
+   * @private
+   */
+  _emitAllCursorsForRoom(roomId, roomState) {
     if (!this.io) return
 
+    const cursors = {}
+    for (const source of roomState.sources) {
+      const config = this.virtualUserConfigs[source]
+      const pos = roomState.currentPositions[source]
+      cursors[source] = {
+        userId: config.userId,
+        x: pos.x,
+        y: pos.y,
+        color: config.color
+      }
+    }
+
     this.io.to(roomId).emit('virtual-cursors', {
-      cursors: {
-        [source]: {
-          userId: config.userId,
-          x: position.x,
-          y: position.y,
-          color: config.color
-        }
-      },
+      cursors,
       timestamp: Date.now()
     })
+  }
+
+  /**
+   * Start cursor interpolation timer for a room
+   * @param {string} roomId - Room ID
+   * @param {Object} roomState - Room state
+   * @private
+   */
+  _startCursorInterpolation(roomId, roomState) {
+    if (roomState.cursorInterpolationTimer) {
+      clearInterval(roomState.cursorInterpolationTimer)
+    }
+
+    roomState.cursorInterpolationTimer = setInterval(() => {
+      this._interpolateCursorsForRoom(roomId, roomState)
+    }, this.interpolationInterval)
+  }
+
+  /**
+   * Interpolate cursors toward target positions for a room
+   * @param {string} roomId - Room ID
+   * @param {Object} roomState - Room state
+   * @private
+   */
+  _interpolateCursorsForRoom(roomId, roomState) {
+    if (!this.io || !roomState.isActive) return
+
+    let anyMoved = false
+    const threshold = 0.001  // Minimum movement threshold
+
+    for (const source of roomState.sources) {
+      const current = roomState.currentPositions[source]
+      const target = roomState.targetPositions[source]
+
+      if (!current || !target) continue
+
+      const dx = target.x - current.x
+      const dy = target.y - current.y
+
+      // Only interpolate if there's meaningful distance to cover
+      if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
+        current.x += dx * this.interpolationSpeed
+        current.y += dy * this.interpolationSpeed
+        anyMoved = true
+      }
+    }
+
+    // Only emit if any cursor actually moved
+    if (anyMoved) {
+      this._emitAllCursorsForRoom(roomId, roomState)
+    }
   }
 
   /**
@@ -214,19 +296,33 @@ class VirtualUserService {
       return
     }
 
-    // Create room virtual state
-    // Note: No cursor position tracking - positions derived from generated frequencies
+    // Create room virtual state with cursor tracking for smooth interpolation
+    const currentPositions = {}
+    const targetPositions = {}
+    for (const source of sources) {
+      const initial = this.initialPositions[source] || { x: 0.5, y: 0.5 }
+      currentPositions[source] = { ...initial }
+      targetPositions[source] = { ...initial }
+    }
+
     const roomState = {
       roomId,
       sources,
       musicalContext,
       isActive: true,
-      gestureGenerationTimer: null
+      gestureGenerationTimer: null,
+      cursorInterpolationTimer: null,
+      currentPositions,
+      targetPositions
     }
 
     this.activeRooms.set(roomId, roomState)
 
-    // Start loops for this room
+    // Emit initial cursor positions (distributed across canvas)
+    this._emitAllCursorsForRoom(roomId, roomState)
+
+    // Start interpolation and gesture loops for this room
+    this._startCursorInterpolation(roomId, roomState)
     this._startRoomLoops(roomId)
 
     // Emit activation event with virtual user info
@@ -258,6 +354,12 @@ class VirtualUserService {
     if (!roomState) return
 
     roomState.isActive = false
+
+    // Stop cursor interpolation timer
+    if (roomState.cursorInterpolationTimer) {
+      clearInterval(roomState.cursorInterpolationTimer)
+      roomState.cursorInterpolationTimer = null
+    }
 
     // Stop gesture generation timer
     if (roomState.gestureGenerationTimer) {
