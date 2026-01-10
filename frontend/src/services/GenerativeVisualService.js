@@ -215,6 +215,7 @@ class GenerativeVisualService {
       // 4. Attractors (top layer)
       if (this.attractors) {
         this.attractors.setPerformanceMode(this.performanceMode)
+        this.attractors.setStressFactor(this.stressFactor)
         // Sync color with current nebula palette
         if (this.nebulas && this.nebulas.currentPalette) {
           const nebulaColor = this.nebulas.currentPalette.colors[0]

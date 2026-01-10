@@ -47,12 +47,37 @@ class PrecomputedAttractorSystem {
     this.baseColor = { hue: 180, sat: 100, light: 80, alpha: 90 }
     this.pointSize = 1.5      // Tiny points for dense cloud
     this.glowSize = 3         // Minimal glow
-    this.scale = 2.0          // FULL SCENE - use most of the canvas
-    this.targetScale = 2.0
+    this.scale = 2.2          // FULL SCENE with slight zoom
+    this.targetScale = 2.2
     this.fuzzyOffset = 8      // Random offset in pixels for blur effect
 
-    // Performance mode
+    // Rotation for diagonal distribution (precomputed for performance)
+    this.rotationAngle = Math.PI / 5  // 36° (π/5 radians) for diagonal distribution
+    this.rotationCos = Math.cos(this.rotationAngle)  // Precomputed
+    this.rotationSin = Math.sin(this.rotationAngle)  // Precomputed
+
+    // Adaptive point reduction (smooth transitions)
+    // Stress factor constants
+    this.STRESS_MIN = 0.3
+    this.STRESS_MAX = 1.0
+    this.STEP_MIN = 1
+    this.STEP_MAX = 2
+    this.stressFactor = 1.0       // 1.0 = full performance, 0.3 = high stress
+    this.currentStep = 1          // Current rendering step (1 = all points)
+    this.targetStep = 1           // Target step for smooth transition
+    this.stepTransitionRate = 0.05  // How fast step transitions
+    this.lastRenderedStep = 1     // Hysteresis: prevents rapid step oscillation
+
+    // Performance mode (kept for backwards compatibility)
     this.performanceMode = 'normal'
+
+    // Precompute fuzzy offsets for all points (eliminates 4800 trig calls/frame)
+    this.fuzzyOffsetsX = []
+    this.fuzzyOffsetsY = []
+    for (let i = 0; i < this.pointCount; i++) {
+      this.fuzzyOffsetsX[i] = (Math.sin(i * 0.1) + Math.cos(i * 0.17)) * this.fuzzyOffset
+      this.fuzzyOffsetsY[i] = (Math.cos(i * 0.13) + Math.sin(i * 0.19)) * this.fuzzyOffset
+    }
 
     // Initialize
     this._precomputeAttractors()
@@ -249,6 +274,9 @@ class PrecomputedAttractorSystem {
     // Smooth scale transitions
     this.scale += (this.targetScale - this.scale) * 0.03
 
+    // Smooth step transitions for adaptive point reduction
+    this.currentStep += (this.targetStep - this.currentStep) * this.stepTransitionRate
+
     // Update morph progress
     if (this.currentAttractor !== this.targetAttractor && this.morphProgress >= 1.0) {
       this.morphProgress = 0
@@ -302,18 +330,40 @@ class PrecomputedAttractorSystem {
     p.colorMode(p.HSB, 360, 100, 100, 100)
     p.noStroke()
 
-    // In degraded mode, render fewer points
-    const step = this.performanceMode === 'degraded' ? 3 : 1
+    // Use precomputed rotation values (Fix #1)
+    const cos = this.rotationCos
+    const sin = this.rotationSin
+
+    // Hysteresis for step transitions (Fix #4) - prevents rapid oscillation
+    const roundedStep = Math.round(this.currentStep)
+    if (this.lastRenderedStep === 1 && this.currentStep < 1.7) {
+      // Stay at step 1 until currentStep reaches 1.7
+      this.lastRenderedStep = 1
+    } else if (this.lastRenderedStep === 2 && this.currentStep > 1.3) {
+      // Stay at step 2 until currentStep drops below 1.3
+      this.lastRenderedStep = 2
+    } else {
+      this.lastRenderedStep = roundedStep
+    }
+    const step = Math.max(1, this.lastRenderedStep)
+
+    // Gradual glow opacity with easing (Fix #5)
+    // Wider transition range (0.35 to 0.75) with cubic easing
+    const glowFactor = Math.max(0, Math.min(1, (this.stressFactor - 0.35) / 0.4))
+    const glowOpacity = this._easeInOutCubic(glowFactor)
 
     for (let i = 0; i < points.length; i += step) {
       const point = points[i]
 
-      // Map normalized coords to screen with FUZZY OFFSET for blur effect
-      // Use deterministic noise based on point index for stable blur
-      const fuzzyX = (Math.sin(i * 0.1 + this.time * 2) + Math.cos(i * 0.17)) * this.fuzzyOffset
-      const fuzzyY = (Math.cos(i * 0.13 + this.time * 2) + Math.sin(i * 0.19)) * this.fuzzyOffset
-      const screenX = centerX + (point.x - 0.5) * displaySize + fuzzyX
-      const screenY = centerY + (point.y - 0.5) * displaySize + fuzzyY
+      // Apply rotation for diagonal distribution
+      const nx = point.x - 0.5
+      const ny = point.y - 0.5
+      const rotatedX = nx * cos - ny * sin
+      const rotatedY = nx * sin + ny * cos
+
+      // Use precomputed fuzzy offsets (Fix #6) - eliminates 4800 trig calls/frame
+      const screenX = centerX + rotatedX * displaySize + this.fuzzyOffsetsX[i]
+      const screenY = centerY + rotatedY * displaySize + this.fuzzyOffsetsY[i]
 
       // Depth-based appearance - closer points (higher z) are brighter and larger
       const depthFactor = 0.8 + point.z * 0.2
@@ -324,9 +374,9 @@ class PrecomputedAttractorSystem {
       const bright = 70 + point.z * 25  // 70-95 brightness based on depth
       const alpha = 60 + point.z * 25   // 60-85 alpha (slightly lower for blur effect)
 
-      // Glow (larger, same vivid color)
-      if (this.performanceMode !== 'degraded') {
-        p.fill(hue, sat, bright * 0.85, alpha * 0.4)
+      // Glow (larger, same vivid color) - gradual fade based on stress with easing
+      if (glowOpacity > 0) {
+        p.fill(hue, sat, bright * 0.85, alpha * 0.4 * glowOpacity)
         p.ellipse(screenX, screenY, this.glowSize * depthFactor, this.glowSize * depthFactor)
       }
 
@@ -431,10 +481,31 @@ class PrecomputedAttractorSystem {
   }
 
   /**
-   * Set performance mode
+   * Set performance mode (kept for backwards compatibility)
    */
   setPerformanceMode(mode) {
     this.performanceMode = mode
+  }
+
+  /**
+   * Set stress factor for adaptive point reduction
+   * @param {number} factor - 1.0 = full performance, 0.3 = high stress
+   */
+  setStressFactor(factor) {
+    // Fix #3: Validate input to prevent NaN propagation
+    if (typeof factor !== 'number' || !isFinite(factor)) {
+      console.warn('⚠️ PrecomputedAttractorSystem: Invalid stress factor:', factor, '- using 1.0')
+      factor = 1.0
+    }
+
+    // Clamp to valid range
+    this.stressFactor = Math.max(this.STRESS_MIN, Math.min(this.STRESS_MAX, factor))
+
+    // Fix #2: Mathematically precise mapping
+    // Map stress factor [0.3, 1.0] → target step [1, 2]
+    const stressRange = this.STRESS_MAX - this.STRESS_MIN  // 0.7
+    const stepRange = this.STEP_MAX - this.STEP_MIN        // 1
+    this.targetStep = this.STEP_MIN + (this.STRESS_MAX - this.stressFactor) / stressRange * stepRange
   }
 
   /**
