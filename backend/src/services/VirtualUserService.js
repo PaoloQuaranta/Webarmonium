@@ -567,6 +567,7 @@ class VirtualUserService {
 
         // Classify gesture type using relative metrics (no hardcoded thresholds)
         const gestureType = this._classifyGestureType(source)
+        console.log(`🎭 VirtualUser ${source} gesture: type=${gestureType}, velocity=${normalizedVelocity.toFixed(3)}`)
 
         if (gestureType === 'tap') {
           this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
@@ -808,6 +809,7 @@ class VirtualUserService {
 
     // VISUAL CONSOLIDATION: Emit single visual event for entire phrase
     // This prevents p&p explosion from multiple hold:start events
+    console.log(`🎭 Emitting virtual:phrase-visual: room=${roomId}, source=${source}, noteCount=${phrase.notes.length}`)
     this.io.to(roomId).emit('virtual:phrase-visual', {
       userId: config.userId,
       noteCount: phrase.notes.length,
@@ -1041,6 +1043,8 @@ class VirtualUserService {
     const stability = this._calculateStabilityMetric(source)
     const density = this._calculateDensityMetric(source)
     const periodicity = this._calculatePeriodicityMetric(source)
+
+    console.log(`🎭 ${source} metrics: stability=${stability.toFixed(3)}, density=${density.toFixed(3)}, periodicity=${periodicity.toFixed(3)}`)
 
     // Pure relative comparison: whichever metric is highest determines gesture type
     // NO thresholds - preserves correlation between metrics and gestures

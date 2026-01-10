@@ -257,6 +257,11 @@ class SocketService {
       this.emit('virtual-cursors', data)
     })
 
+    // Virtual phrase visual event for consolidated p&p emission
+    this.socket.on('virtual:phrase-visual', (data) => {
+      this.emit('virtual:phrase-visual', data)
+    })
+
     this.socket.on('mode-transition', (data) => {
       console.log('🔄 SocketService received mode-transition:', data)
       this.emit('mode-transition', data)
