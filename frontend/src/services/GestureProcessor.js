@@ -71,8 +71,17 @@ class GestureProcessor {
       this.socketService.sendGesture(gestureToSend)
 
       // Draw trail if needed
+      // Entry #81 FIX: Add action='hold' and use gesture duration for intensity
+      // MEDIUM FIX #9: Use typeof check to handle duration=0 case
       if (this.drawGestureTrailCallback) {
-        this.drawGestureTrailCallback(gesture)
+        const rawDuration = gesture.duration
+        const duration = typeof rawDuration === 'number' && rawDuration >= 0 ? rawDuration : 1000
+        const gestureWithMeta = {
+          ...gesture,
+          action: 'hold',  // Sustained hold = 'hold' action for trail
+          duration: duration
+        }
+        this.drawGestureTrailCallback(gestureWithMeta)
       }
 
       return // Exit early - no local audio processing needed
@@ -159,8 +168,22 @@ class GestureProcessor {
     // console.log('🎵 Processing TAP gesture - single note')
 
     // Draw gesture trail halo for tap
+    // Entry #81 FIX: Add action and duration for trail intensity calculation
+    // MEDIUM FIX #9: Properly handle edge cases in duration calculation
     if (this.drawGestureTrailCallback) {
-      this.drawGestureTrailCallback(gesture)
+      // Clone gesture to avoid mutating original
+      // Calculate duration: prefer existing duration, fallback to elapsed time, minimum 100ms
+      let duration = gesture.duration
+      if (typeof duration !== 'number' || duration < 0) {
+        const elapsed = Date.now() - (gesture.startTime || Date.now())
+        duration = Math.max(100, elapsed) // Minimum 100ms for visibility
+      }
+      const gestureWithMeta = {
+        ...gesture,
+        action: 'tap',
+        duration: duration
+      }
+      this.drawGestureTrailCallback(gestureWithMeta)
     }
 
     // Calculate frequency using BOTH X and Y for maximum variation

@@ -831,7 +831,9 @@ class LandingApp {
       this.virtualNotes.delete(noteId)
 
       // Entry #81: Draw trail halo for virtual user drag end
-      const cursorData = this.currentCursors[userId || note.userId]
+      // FIX: Use helper to find cursor by userId (keys are 'wikipedia' not 'wikipedia-metrics')
+      const cursorData = this._findCursorByUserId(userId || note.userId)
+      console.log('🟢 Virtual hold:end trail attempt:', { userId, noteUserId: note.userId, hasCursor: !!cursorData, currentCursors: Object.keys(this.currentCursors) })
       if (cursorData) {
         // Calculate intensity from hold duration (same as real users)
         const holdDuration = duration || 1000
@@ -928,7 +930,9 @@ class LandingApp {
     }
 
     // Entry #81: Draw trail halo for virtual user tap
-    const cursorData = this.currentCursors[userId]
+    // FIX: Use helper to find cursor by userId (keys are 'wikipedia' not 'wikipedia-metrics')
+    const cursorData = this._findCursorByUserId(userId)
+    console.log('🟢 Virtual tap trail attempt:', { userId, hasCursor: !!cursorData, currentCursors: Object.keys(this.currentCursors) })
     if (cursorData) {
       // Tap intensity based on duration (100ms = 0.3, 500ms = ~0.5)
       const intensity = Math.min(1, 0.3 + (tapDuration / 2) * 0.7)
@@ -953,6 +957,38 @@ class LandingApp {
     if (userId.includes('wikipedia')) return 'wikipedia'
     if (userId.includes('hackernews')) return 'hackernews'
     if (userId.includes('github')) return 'github'
+    return null
+  }
+
+  /**
+   * Find cursor data by userId
+   * Entry #81 FIX: Cursors are stored with source keys (wikipedia, hackernews, github)
+   * but userId is 'wikipedia-metrics', 'hackernews-metrics', etc.
+   * @param {string} userId - e.g., 'wikipedia-metrics'
+   * @returns {Object|null} Cursor data or null
+   * @private
+   */
+  _findCursorByUserId(userId) {
+    if (!userId) return null
+
+    // Direct key match first (unlikely but check anyway)
+    if (this.currentCursors[userId]) {
+      return this.currentCursors[userId]
+    }
+
+    // Search by cursor.userId property
+    for (const cursor of Object.values(this.currentCursors)) {
+      if (cursor && cursor.userId === userId) {
+        return cursor
+      }
+    }
+
+    // Extract source from userId and try that as key (e.g., 'wikipedia-metrics' → 'wikipedia')
+    const source = this._extractSourceFromUserId(userId)
+    if (source && this.currentCursors[source]) {
+      return this.currentCursors[source]
+    }
+
     return null
   }
 
@@ -1121,7 +1157,13 @@ class LandingApp {
    * @private
    */
   _renderTrailHalo(normX, normY, intensity, color) {
-    if (!this.trailCtx || !this.trailCanvas) return
+    // DEBUG: Verify rendering is called
+    console.log('🔴 Landing _renderTrailHalo called:', { normX, normY, intensity, color, hasCtx: !!this.trailCtx, hasCanvas: !!this.trailCanvas })
+
+    if (!this.trailCtx || !this.trailCanvas) {
+      console.warn('⚠️ Landing trail halo: no canvas context available')
+      return
+    }
 
     const x = normX * this.trailCanvas.width
     const y = normY * this.trailCanvas.height

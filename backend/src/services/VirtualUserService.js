@@ -140,6 +140,38 @@ class VirtualUserService {
   }
 
   /**
+   * HIGH FIX #6: Validate position object has finite x and y coordinates
+   * @param {Object} position - Position with x, y properties
+   * @returns {boolean} True if valid
+   * @private
+   */
+  _isValidPosition(position) {
+    return position &&
+           typeof position.x === 'number' && Number.isFinite(position.x) &&
+           typeof position.y === 'number' && Number.isFinite(position.y)
+  }
+
+  /**
+   * HIGH FIX #6: Validate color string
+   * @param {string} color - Color string
+   * @returns {boolean} True if valid
+   * @private
+   */
+  _isValidColor(color) {
+    return typeof color === 'string' && color.length > 0
+  }
+
+  /**
+   * HIGH FIX #6: Validate duration is a finite non-negative number
+   * @param {number} duration - Duration value
+   * @returns {boolean} True if valid
+   * @private
+   */
+  _isValidDuration(duration) {
+    return typeof duration === 'number' && Number.isFinite(duration) && duration >= 0
+  }
+
+  /**
    * Set WebMetricsPoller reference
    * @param {WebMetricsPoller} poller
    */
@@ -639,16 +671,27 @@ class VirtualUserService {
     }
 
     // Emit hold:end after duration (resets visual state)
+    // Entry #81 FIX: Include position, userColor, duration for trail halo rendering
+    // HIGH FIX #6: Validate all trail halo data before emitting
     const tapDurationMs2 = tapDuration * 1000
     setTimeout(() => {
       if (!this.activeRooms.has(roomId)) return
-      this.io.to(roomId).emit('hold:end', {
+      const holdEndData = {
         type: 'hold:end',
         userId: config.userId,
         noteId: noteId,
         isVirtual: true,
         timestamp: Date.now()
-      })
+      }
+      // Only include trail halo data if all values are valid
+      if (this._isValidPosition(position) &&
+          this._isValidColor(config.color) &&
+          this._isValidDuration(tapDurationMs2)) {
+        holdEndData.position = position
+        holdEndData.userColor = config.color
+        holdEndData.duration = tapDurationMs2
+      }
+      this.io.to(roomId).emit('hold:end', holdEndData)
     }, tapDurationMs2)
   }
 
@@ -808,12 +851,24 @@ class VirtualUserService {
 
         setTimeout(() => {
           if (!this.activeRooms.has(roomId)) return
-          this.io.to(roomId).emit('hold:end', {
+          // Entry #81 FIX: Include position, userColor, duration for trail halo
+          // HIGH FIX #6: Validate all trail halo data before emitting
+          const holdEndData = {
             type: 'hold:end',
             userId: config.userId,
             noteId: note.noteId,
+            isVirtual: true,
             timestamp: Date.now()
-          })
+          }
+          // Only include trail halo data if all values are valid
+          if (this._isValidPosition(notePosition) &&
+              this._isValidColor(config.color) &&
+              this._isValidDuration(note.durationMs)) {
+            holdEndData.position = notePosition
+            holdEndData.userColor = config.color
+            holdEndData.duration = note.durationMs
+          }
+          this.io.to(roomId).emit('hold:end', holdEndData)
         }, note.durationMs)
       }, note.startDelayMs)
     })

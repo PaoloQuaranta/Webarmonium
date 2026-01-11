@@ -959,13 +959,11 @@ class WebarmoniumApp {
             synth = synthData.synth
             // Constrain frequency to virtual user's tessitura
             actualFrequency = this.audioService.userSynthManager.constrainFrequencyToTessitura(data.frequency, data.userId)
-            console.log(`🎵 Virtual HOLD: userId=${data.userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
           }
         }
 
         // Fallback to gestureSynth only if UserSynthManager failed
         if (!synth && this.audioService?.gestureSynth) {
-          console.warn(`⚠️ HOLD using gestureSynth fallback for virtual user ${data.userId}`)
           synth = this.audioService.gestureSynth
           actualFrequency = data.frequency
         }
@@ -1047,6 +1045,17 @@ class WebarmoniumApp {
             isActive: false
           })
         }
+
+        // Entry #81: Draw trail halo for virtual user hold:end
+        // CRITICAL FIX #1: Validate incoming socket data before rendering
+        if (data.position && data.userColor &&
+            typeof data.position.x === 'number' && typeof data.position.y === 'number' &&
+            isFinite(data.position.x) && isFinite(data.position.y)) {
+          // MEDIUM FIX #8: Use centralized intensity calculation
+          const intensity = this._calculateTrailIntensityFromDuration(data.duration)
+          const sanitizedColor = this._sanitizeColor(data.userColor) || '#00d4ff'
+          this._renderTrailHalo(data.position.x, data.position.y, intensity, sanitizedColor)
+        }
         return
       }
 
@@ -1085,10 +1094,8 @@ class WebarmoniumApp {
     // This replaces multiple individual hold:start visual triggers with a single emission
     // Entry #69: Bypass updateGestureData throttle - consolidation already limits rate
     this.socketService.on('virtual:phrase-visual', (data) => {
-      console.log('🎭 virtual:phrase-visual received:', data?.userId?.substring(0, 8), 'visualService:', !!this.visualService)
-
+      // HIGH FIX #4: Removed debug console.log statements
       if (!this.visualService) {
-        console.warn('⚠️ virtual:phrase-visual: visualService is null')
         return
       }
 
@@ -1102,14 +1109,7 @@ class WebarmoniumApp {
 
       // Scale particle count by note count (capped at 4)
       const noteCount = typeof data.noteCount === 'number' ? data.noteCount : 1
-      const velocity = data.velocity || 0.7
-
-      console.log('🎭 Emitting P&P:', {
-        wavePackets: !!this.visualService.wavePackets,
-        particles: !!this.visualService.particles,
-        noteCount,
-        velocity
-      })
+      const velocity = typeof data.velocity === 'number' && isFinite(data.velocity) ? data.velocity : 0.7
 
       // BYPASS THROTTLE: Directly emit P&P to subsystems (like landing page)
       // The consolidation from backend already limits emission rate
@@ -1337,6 +1337,23 @@ class WebarmoniumApp {
             })
           }
         }, 100)
+
+        // Entry #81: Draw trail halo for remote/virtual user tap
+        // Only for taps (single note, not streamed) or last note of phrase
+        // CRITICAL FIX #2: Validate position coordinates before rendering
+        const isLastNote = (noteIndex === totalNotes - 1)
+        if (gestureType === 'tap' || isLastNote) {
+          if (isFinite(remotePosition.x) && isFinite(remotePosition.y)) {
+            // Validate duration is numeric and finite
+            const rawDuration = event.properties?.duration
+            const duration = typeof rawDuration === 'number' && isFinite(rawDuration) ? rawDuration : 0.1
+            const tapIntensity = gestureType === 'tap'
+              ? Math.min(1, 0.3 + (duration * 0.7))
+              : Math.min(1, 0.3 + (totalNotes * 0.1))  // More notes = higher intensity
+            const sanitizedColor = this._sanitizeColor(userColor) || '#ff6b6b'
+            this._renderTrailHalo(remotePosition.x, remotePosition.y, tapIntensity, sanitizedColor)
+          }
+        }
       } else {
         // console.log('⚠️ Visual NOT triggered:', { hasVisualService: !!this.visualService, shouldTriggerVisual })
       }
@@ -1431,8 +1448,6 @@ class WebarmoniumApp {
 
     // Virtual user events for solo mode
     this.socketService.on('virtual-users-activated', (data) => {
-      console.log('🎭 Virtual users activated:', data.sources)
-
       // FIX: Track virtual users state to prevent race conditions
       this.virtualUsersActive = true
 
@@ -1451,7 +1466,6 @@ class WebarmoniumApp {
       }
 
       // Update UI to show web sources count
-      console.log('🎭 Updating UI with web sources:', data.sources?.length, 'uiManager:', !!this.uiManager)
       if (this.uiManager && data.sources) {
         this.uiManager.setVirtualSourceCount(data.sources.length)
       }
@@ -1463,8 +1477,6 @@ class WebarmoniumApp {
     })
 
     this.socketService.on('virtual-users-deactivated', (data) => {
-      console.log('🎭 Virtual users deactivated:', data.sources)
-
       // FIX: Track virtual users state BEFORE removing cursors to prevent race conditions
       this.virtualUsersActive = false
 
@@ -1514,8 +1526,6 @@ class WebarmoniumApp {
 
     // Mode transition notification
     this.socketService.on('mode-transition', (data) => {
-      console.log('🔄 Mode transition:', data.from, '→', data.to)
-
       if (window.NotificationService) {
         window.NotificationService.showModeTransition(data.message, data.duration || 3000)
       }
@@ -1616,7 +1626,6 @@ class WebarmoniumApp {
 
       // Handle redirect notification (overflow room)
       if (joinResponse && joinResponse.redirectedFrom) {
-        console.log(`🏠 Redirected from full room: ${joinResponse.redirectedFrom} → ${joinResponse.room?.roomId}`)
         if (window.NotificationService) {
           window.NotificationService.showModeTransition(joinResponse.redirectMessage, 5000)
         }
@@ -1624,7 +1633,6 @@ class WebarmoniumApp {
 
       // Handle virtual users from join response (backup for socket event timing)
       if (joinResponse && joinResponse.virtualUsers && joinResponse.virtualUsers.length > 0) {
-        console.log('🎭 Virtual users from join response:', joinResponse.virtualUsers.map(v => v.source))
         // FIX: Set state and enable before adding
         this.virtualUsersActive = true
         if (this.cursorManager) {
@@ -1740,7 +1748,6 @@ class WebarmoniumApp {
             this.pendingDrone = null
           } else if (this.socketService?.socket?.connected) {
             // Entry #27: No pending drone, request from backend
-            console.log('🎵 Requesting drone from backend (auto-start, no pendingDrone)')
             this.socketService.socket.emit('request-drone')
           }
 
@@ -1776,15 +1783,23 @@ class WebarmoniumApp {
   // - selectArticulationFromGesture()
 
   drawGestureTrail(gesture) {
+    // HIGH FIX #4: Removed debug console.log statements
     const { coordinates, intensity, action, duration } = gesture
+    if (!coordinates ||
+        !isFinite(coordinates.x) || !isFinite(coordinates.y)) {
+      return
+    }
+
     const userColor = this.currentUserColor || '#00d4ff'
 
-    // Entry #81: For taps, calculate intensity from duration (100ms→0.3, 2000ms→1.0)
+    // Entry #81: For taps/holds, calculate intensity from duration (100ms→0.3, 2000ms→1.0)
     // For drags, use the gesture intensity based on movement
-    let trailIntensity = intensity || 0.3
-    if (action === 'tap' && duration) {
-      // Duration-based intensity: 100ms = 0.3, 2000ms = 1.0
-      trailIntensity = Math.min(1, 0.3 + (duration / 2000) * 0.7)
+    // MEDIUM FIX #10: Consistent typeof + isFinite pattern
+    let trailIntensity = typeof intensity === 'number' && isFinite(intensity) ? intensity : 0.3
+    // Handle both 'tap' (quick) and 'hold' (sustained without movement) actions
+    // MEDIUM FIX #8: Use centralized intensity calculation
+    if (action === 'tap' || action === 'hold') {
+      trailIntensity = this._calculateTrailIntensityFromDuration(duration)
     }
 
     // Draw locally (always, no throttling)
@@ -1813,6 +1828,21 @@ class WebarmoniumApp {
   }
 
   /**
+   * MEDIUM FIX #8: Centralized intensity calculation from duration
+   * Converts hold/tap duration to trail intensity (0.3 to 1.0 range)
+   * @param {number} durationMs - Duration in milliseconds
+   * @returns {number} Intensity value clamped to 0.3-1.0
+   */
+  _calculateTrailIntensityFromDuration(durationMs) {
+    // Validate input
+    if (typeof durationMs !== 'number' || !isFinite(durationMs) || durationMs < 0) {
+      return 0.3 // Minimum intensity for invalid input
+    }
+    // Duration-based intensity: 0ms = 0.3 (minimum), 2000ms = 1.0 (maximum)
+    return Math.min(1, 0.3 + (durationMs / 2000) * 0.7)
+  }
+
+  /**
    * Render a trail halo at the given position
    * Used for both local and remote trails
    * Entry #80: Optimized with cached RGB conversion and simpler compositing
@@ -1822,18 +1852,31 @@ class WebarmoniumApp {
    * @param {string} color - Hex color string
    */
   _renderTrailHalo(normX, normY, intensity, color) {
+    // CRITICAL FIX #3: Validate all numeric inputs to prevent NaN propagation
+    if (!this.ctx ||
+        !isFinite(normX) || !isFinite(normY) || !isFinite(intensity)) {
+      return
+    }
+
     const x = normX * window.innerWidth
     const y = normY * window.innerHeight
 
     // Entry #80: Cache RGB conversion per color to avoid repeated parsing
+    // MEDIUM FIX #7: Validate color before caching
     if (!this._trailColorCache) {
       this._trailColorCache = new Map()
     }
 
-    let rgb = this._trailColorCache.get(color)
+    // Only cache valid color strings
+    const colorKey = typeof color === 'string' && color.length > 0 ? color : '#00d4ff'
+    let rgb = this._trailColorCache.get(colorKey)
     if (!rgb) {
-      rgb = window.VisualUtils?.hexToRgb(color) || { r: 0, g: 212, b: 255 }
-      this._trailColorCache.set(color, rgb)
+      rgb = window.VisualUtils?.hexToRgb(colorKey) || { r: 0, g: 212, b: 255 }
+      // Validate RGB values are finite
+      if (!isFinite(rgb.r) || !isFinite(rgb.g) || !isFinite(rgb.b)) {
+        rgb = { r: 0, g: 212, b: 255 }
+      }
+      this._trailColorCache.set(colorKey, rgb)
       // Keep cache size bounded (max 20 colors)
       if (this._trailColorCache.size > 20) {
         const firstKey = this._trailColorCache.keys().next().value
@@ -1841,8 +1884,9 @@ class WebarmoniumApp {
       }
     }
 
-    const alpha = Math.min(intensity, 1)
-    const size = 5 + (intensity * 15)
+    // HIGH FIX #5: Consistent fallback with clamp 0-1
+    const alpha = Math.max(0, Math.min(1, intensity))
+    const size = 5 + (alpha * 15)
 
     this.ctx.save()
 
