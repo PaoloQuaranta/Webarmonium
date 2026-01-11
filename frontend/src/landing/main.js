@@ -149,6 +149,11 @@ class LandingApp {
 
     // DRONE FIX: Pending drone composition (arrives before audio ready)
     this.pendingDrone = null
+
+    // Entry #81: Trail overlay canvas for virtual user gesture halos
+    this.trailCanvas = null
+    this.trailCtx = null
+    this._trailColorCache = new Map()
   }
 
   /**
@@ -200,6 +205,13 @@ class LandingApp {
       this.canvasContainer = document.getElementById('canvas-container')
       if (!this.canvasContainer) {
         throw new Error('Canvas container not found')
+      }
+
+      // Entry #81: Initialize trail overlay canvas
+      this.trailCanvas = document.getElementById('trail-overlay')
+      if (this.trailCanvas) {
+        this.trailCtx = this.trailCanvas.getContext('2d')
+        this._resizeTrailCanvas()
       }
 
       // Create visual service instance (but don't initialize yet - defer until container visible)
@@ -284,6 +296,8 @@ class LandingApp {
           this.visualService.resize(rect.width, rect.height)
         }
       }
+      // Entry #81: Resize trail canvas on window resize
+      this._resizeTrailCanvas()
     })
   }
 
@@ -798,14 +812,14 @@ class LandingApp {
 
   /**
    * Handle virtual hold:end event from backend
-   * Releases the sustained note
+   * Releases the sustained note and draws trail halo
    * @param {Object} data - hold:end data
    * @private
    */
   _handleVirtualHoldEnd(data) {
     if (!this.audioService) return
 
-    const { noteId } = data
+    const { noteId, userId, duration } = data
     const note = this.virtualNotes.get(noteId)
 
     if (note) {
@@ -815,6 +829,15 @@ class LandingApp {
         // console.log(`🎵 Virtual note released: ${note.userId}`)
       }
       this.virtualNotes.delete(noteId)
+
+      // Entry #81: Draw trail halo for virtual user drag end
+      const cursorData = this.currentCursors[userId || note.userId]
+      if (cursorData) {
+        // Calculate intensity from hold duration (same as real users)
+        const holdDuration = duration || 1000
+        const intensity = Math.min(1, 0.3 + (holdDuration / 2000) * 0.7)
+        this._renderTrailHalo(cursorData.x, cursorData.y, intensity, cursorData.color || '#00d4ff')
+      }
     }
   }
 
@@ -902,6 +925,14 @@ class LandingApp {
 
     if (this.visualService.wavePackets) {
       this.visualService.wavePackets.emitPulse(userId, userColor)
+    }
+
+    // Entry #81: Draw trail halo for virtual user tap
+    const cursorData = this.currentCursors[userId]
+    if (cursorData) {
+      // Tap intensity based on duration (100ms = 0.3, 500ms = ~0.5)
+      const intensity = Math.min(1, 0.3 + (tapDuration / 2) * 0.7)
+      this._renderTrailHalo(cursorData.x, cursorData.y, intensity, userColor || cursorData.color || '#00d4ff')
     }
 
     // Flash the corresponding meter
@@ -1063,6 +1094,81 @@ class LandingApp {
         harmonicDensity
       })
     }
+  }
+
+  // ============================================================
+  // Entry #81: Trail rendering for virtual users
+  // ============================================================
+
+  /**
+   * Resize trail canvas to match container
+   * @private
+   */
+  _resizeTrailCanvas() {
+    if (!this.trailCanvas || !this.canvasContainer) return
+    const rect = this.canvasContainer.getBoundingClientRect()
+    this.trailCanvas.width = rect.width
+    this.trailCanvas.height = rect.height
+  }
+
+  /**
+   * Render a trail halo for virtual users
+   * Similar to room main.js _renderTrailHalo
+   * @param {number} normX - Normalized X position (0-1)
+   * @param {number} normY - Normalized Y position (0-1)
+   * @param {number} intensity - Trail intensity (0-1)
+   * @param {string} color - Hex color string
+   * @private
+   */
+  _renderTrailHalo(normX, normY, intensity, color) {
+    if (!this.trailCtx || !this.trailCanvas) return
+
+    const x = normX * this.trailCanvas.width
+    const y = normY * this.trailCanvas.height
+
+    // Cache RGB conversion per color
+    let rgb = this._trailColorCache.get(color)
+    if (!rgb) {
+      rgb = this._hexToRgb(color) || { r: 0, g: 212, b: 255 }
+      this._trailColorCache.set(color, rgb)
+      if (this._trailColorCache.size > 20) {
+        const firstKey = this._trailColorCache.keys().next().value
+        this._trailColorCache.delete(firstKey)
+      }
+    }
+
+    const alpha = Math.min(intensity, 1)
+    const size = 5 + (intensity * 15)
+
+    this.trailCtx.save()
+
+    // Use globalAlpha + solid fill + shadowBlur for glow effect
+    this.trailCtx.globalAlpha = alpha * 0.8
+    this.trailCtx.fillStyle = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
+    this.trailCtx.shadowColor = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
+    this.trailCtx.shadowBlur = size * 0.6
+
+    this.trailCtx.beginPath()
+    this.trailCtx.arc(x, y, size * 0.5, 0, Math.PI * 2)
+    this.trailCtx.fill()
+
+    this.trailCtx.restore()
+  }
+
+  /**
+   * Convert hex color to RGB object
+   * @param {string} hex - Hex color string
+   * @returns {Object|null} RGB object or null
+   * @private
+   */
+  _hexToRgb(hex) {
+    if (!hex || typeof hex !== 'string') return null
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null
   }
 
   /**

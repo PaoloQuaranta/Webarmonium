@@ -1776,11 +1776,19 @@ class WebarmoniumApp {
   // - selectArticulationFromGesture()
 
   drawGestureTrail(gesture) {
-    const { coordinates, intensity } = gesture
+    const { coordinates, intensity, action, duration } = gesture
     const userColor = this.currentUserColor || '#00d4ff'
 
+    // Entry #81: For taps, calculate intensity from duration (100ms→0.3, 2000ms→1.0)
+    // For drags, use the gesture intensity based on movement
+    let trailIntensity = intensity || 0.3
+    if (action === 'tap' && duration) {
+      // Duration-based intensity: 100ms = 0.3, 2000ms = 1.0
+      trailIntensity = Math.min(1, 0.3 + (duration / 2000) * 0.7)
+    }
+
     // Draw locally (always, no throttling)
-    this._renderTrailHalo(coordinates.x, coordinates.y, intensity, userColor)
+    this._renderTrailHalo(coordinates.x, coordinates.y, trailIntensity, userColor)
 
     // Entry #80: Throttle network broadcast (~60fps max)
     const now = Date.now()
@@ -1795,7 +1803,7 @@ class WebarmoniumApp {
         this.socketService.socket.emit('gesture:trail', {
           x: coordinates.x,
           y: coordinates.y,
-          intensity,
+          intensity: trailIntensity,
           color: userColor
         })
       }

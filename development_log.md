@@ -2600,3 +2600,107 @@ _renderTrailHalo(normX, normY, intensity, color) {
 Updated to v1.0.60
 
 ---
+
+## Entry #81 - Duration-Based Tap Trail Size & Virtual User Trails
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Enhanced gesture trail halos with two improvements:
+1. Tap gesture trails now have size that grows based on tap duration (not just intensity)
+2. Virtual users on landing page now generate trail halos like real users
+
+---
+
+### Problem Statement
+
+1. Tap gestures had small fixed-size trails because `intensity` is based on movement, and taps have minimal movement
+2. Virtual users (Wikipedia, HackerNews, GitHub) on the landing page didn't generate trail halos when completing gestures
+
+---
+
+### Solution
+
+#### 1. Duration-Based Tap Trail Size (Room)
+
+**File:** `frontend/src/main.js`
+
+```javascript
+drawGestureTrail(gesture) {
+  const { coordinates, intensity, action, duration } = gesture
+  const userColor = this.currentUserColor || '#00d4ff'
+
+  // For taps, calculate intensity from duration (100ms→0.3, 2000ms→1.0)
+  // For drags, use the gesture intensity based on movement
+  let trailIntensity = intensity || 0.3
+  if (action === 'tap' && duration) {
+    trailIntensity = Math.min(1, 0.3 + (duration / 2000) * 0.7)
+  }
+
+  this._renderTrailHalo(coordinates.x, coordinates.y, trailIntensity, userColor)
+  // ... broadcast ...
+}
+```
+
+#### 2. Virtual User Trails (Landing Page)
+
+**File:** `frontend/index.html`
+- Added overlay canvas `#trail-overlay` for trail rendering
+
+**File:** `frontend/src/landing/main.js`
+
+Added trail infrastructure:
+- `this.trailCanvas` / `this.trailCtx` - Canvas and 2D context
+- `_resizeTrailCanvas()` - Resize on window resize
+- `_renderTrailHalo()` - Same rendering logic as room main.js
+- `_hexToRgb()` - Color conversion helper
+
+Added trail rendering to gesture handlers:
+```javascript
+// In _handleVirtualHoldEnd (drag end)
+const cursorData = this.currentCursors[userId || note.userId]
+if (cursorData) {
+  const holdDuration = duration || 1000
+  const intensity = Math.min(1, 0.3 + (holdDuration / 2000) * 0.7)
+  this._renderTrailHalo(cursorData.x, cursorData.y, intensity, cursorData.color)
+}
+
+// In _handleVirtualTapNote (tap)
+const cursorData = this.currentCursors[userId]
+if (cursorData) {
+  const intensity = Math.min(1, 0.3 + (tapDuration / 2) * 0.7)
+  this._renderTrailHalo(cursorData.x, cursorData.y, intensity, userColor)
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/main.js` | Duration-based trail intensity for taps |
+| `frontend/index.html` | Added `#trail-overlay` canvas |
+| `frontend/src/landing/main.js` | Trail canvas setup, `_renderTrailHalo`, `_hexToRgb`, handlers updated |
+
+---
+
+### Behavior
+
+| Gesture Type | Intensity Calculation |
+|--------------|----------------------|
+| Tap (real user) | `0.3 + (duration / 2000) * 0.7` → 100ms=0.3, 2s=1.0 |
+| Drag (real user) | Original intensity from movement |
+| Virtual tap | `0.3 + (tapDuration / 2) * 0.7` |
+| Virtual drag | `0.3 + (holdDuration / 2000) * 0.7` |
+
+---
+
+### Version
+
+Updated to v1.0.61
+
+---
