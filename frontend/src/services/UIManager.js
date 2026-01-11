@@ -278,6 +278,11 @@ class UIManager {
 
     // Create bottom sheet
     this._createMobileBottomSheet()
+
+    // Create central start button (only if audio not started)
+    if (!window.webarmoniumApp?.isAudioStarted) {
+      this._createMobileCentralStartButton()
+    }
   }
 
   /**
@@ -404,6 +409,18 @@ class UIManager {
       // Store reference for state sync
       this.mobileAudioBtn = mobileAudioBtn
       this.originalAudioToggle = audioToggle
+
+      // Hide central start button if audio starts via menu or auto-start
+      // Store observer reference for cleanup and use robust state check
+      this.audioToggleObserver = new MutationObserver(() => {
+        // Check actual audio state instead of relying on button text
+        if (window.webarmoniumApp?.isAudioStarted) {
+          this.hideMobileCentralStartButton()
+          // Disconnect after triggering - no longer needed
+          this.audioToggleObserver?.disconnect()
+        }
+      })
+      this.audioToggleObserver.observe(audioToggle, { childList: true, characterData: true, subtree: true })
     }
 
     // Create volume slider that directly controls audio service
@@ -442,6 +459,98 @@ class UIManager {
 
     document.getElementById('mobileAudioControls')?.appendChild(settingsBtn)
     this.mobileSettingsBtn = settingsBtn
+  }
+
+  /**
+   * Create central start button for mobile (visible until audio starts)
+   * Button appears centered on screen and disappears when audio starts.
+   * @private
+   */
+  _createMobileCentralStartButton() {
+    // Prevent duplicate creation
+    if (this.mobileCentralStartBtn || document.getElementById('mobileCentralStart')) {
+      return
+    }
+
+    this.mobileCentralStartBtn = document.createElement('button')
+    this.mobileCentralStartBtn.id = 'mobileCentralStart'
+    this.mobileCentralStartBtn.className = 'mobile-central-start'
+    this.mobileCentralStartBtn.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1000;
+      background: rgba(0, 212, 255, 0.95);
+      border: none;
+      border-radius: 50%;
+      width: 120px;
+      height: 120px;
+      font-size: 48px;
+      color: #0a0a0f;
+      cursor: pointer;
+      box-shadow: 0 0 40px rgba(0, 212, 255, 0.6);
+      transition: opacity 0.3s, transform 0.2s;
+    `
+    this.mobileCentralStartBtn.textContent = '▶'
+
+    // Accessibility attributes
+    this.mobileCentralStartBtn.setAttribute('aria-label', 'Start Audio')
+    this.mobileCentralStartBtn.setAttribute('role', 'button')
+
+    this.mobileCentralStartBtn.onclick = async () => {
+      if (window.webarmoniumApp?.toggleAudio) {
+        // Set loading state for accessibility
+        this.mobileCentralStartBtn.setAttribute('aria-busy', 'true')
+        this.mobileCentralStartBtn.style.pointerEvents = 'none'
+
+        try {
+          await window.webarmoniumApp.toggleAudio()
+          this.hideMobileCentralStartButton()
+        } catch (error) {
+          // Reset button state on error so user can retry
+          console.error('Failed to start audio:', error)
+          this.mobileCentralStartBtn.setAttribute('aria-busy', 'false')
+          this.mobileCentralStartBtn.style.pointerEvents = 'auto'
+        }
+      }
+    }
+
+    document.body.appendChild(this.mobileCentralStartBtn)
+  }
+
+  /**
+   * Hide and remove the central start button with fade animation
+   * Safe to call multiple times - checks if button exists before removal
+   * @public
+   */
+  hideMobileCentralStartButton() {
+    if (this.mobileCentralStartBtn) {
+      // Transfer focus to menu button before removing (accessibility)
+      if (document.activeElement === this.mobileCentralStartBtn) {
+        this.mobileMenuBtn?.focus()
+      }
+
+      this.mobileCentralStartBtn.style.opacity = '0'
+      this.mobileCentralStartBtn.style.pointerEvents = 'none'
+
+      // Store reference for cleanup in timeout
+      const btnToRemove = this.mobileCentralStartBtn
+      this.mobileCentralStartBtn = null
+
+      setTimeout(() => {
+        btnToRemove?.remove()
+      }, 300)
+    }
+
+    // Disconnect observer if still active
+    if (this.audioToggleObserver) {
+      this.audioToggleObserver.disconnect()
+      this.audioToggleObserver = null
+    }
   }
 
   // ==========================================
@@ -880,6 +989,18 @@ class UIManager {
     }
     if (this.mobileSheet) {
       this.mobileSheet.remove()
+    }
+
+    // Clean up mobile central start button
+    if (this.mobileCentralStartBtn) {
+      this.mobileCentralStartBtn.remove()
+      this.mobileCentralStartBtn = null
+    }
+
+    // Disconnect MutationObserver
+    if (this.audioToggleObserver) {
+      this.audioToggleObserver.disconnect()
+      this.audioToggleObserver = null
     }
 
     // Remove audio mode indicator (Entry #73)

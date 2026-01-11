@@ -2432,3 +2432,336 @@ if (window.visualService?.nebulas?.setGradientEnabled) {
 
 Updated to v1.0.74
 
+---
+
+## Entry #93 - Gradient Smoothness and Visibility Fixes
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed multiple issues with the spatial color gradients from Entry #92. Initial gradients were invisible due to low intensity, then too saturated after boosting. Normal rooms had choppy/jerky transitions while landing page was smooth. Root cause: interpolation happened at socket event rate (~20fps) instead of render loop (60fps). Solution: target-based interpolation in render loop.
+
+---
+
+### Problem Statement
+
+After implementing Entry #92, several issues emerged:
+
+1. **Gradients not visible**: With userCount=3 and spatialDensity=0.47, intensity was only 0.14, giving a mere 4° hue shift (imperceptible)
+2. **After boosting, too saturated**: Multiplying effect values 4x made colors overly vibrant
+3. **Normal room intensity near zero**: userFactor=0.1 × spatialDensity=0.017 = 0.0017, below the 0.01 threshold
+4. **Choppy transitions in normal rooms**: Updates came from socket events (every 5 seconds from backend, ~20fps from cursor events), causing visible "jumps" in color
+
+---
+
+### Root Cause Analysis
+
+**Landing page (smooth):**
+- `_updateSyntheticMetrics()` called every animation frame
+- Interpolation in `setInteractionMetrics()` ran at 60fps
+
+**Normal rooms (choppy):**
+- Metrics arrived via socket events at irregular intervals
+- Interpolation only happened when `setInteractionMetrics()` was called
+- Result: colors jumped 5-10% per update instead of smooth 0.15% per frame
+
+---
+
+### Solution
+
+#### 1. Target-Based Interpolation in Render Loop
+
+Separated target values (set by events) from actual values (interpolated every frame):
+
+```javascript
+// New target values for smooth interpolation
+this.targetDominantZone = { x: 0.5, y: 0.5 }
+this.targetGradientIntensity = 0
+
+// In setInteractionMetrics() - sets TARGETS only
+this.targetDominantZone.x = Math.max(0, Math.min(1, metrics.dominantZone.x))
+this.targetDominantZone.y = Math.max(0, Math.min(1, metrics.dominantZone.y))
+this.targetGradientIntensity = Math.min(1, baseIntensity + activityBoost * 0.7)
+
+// In render() - interpolate EVERY FRAME at 60fps
+const lerpSpeed = 0.15
+this.interactionMetrics.dominantZone.x +=
+  (this.targetDominantZone.x - this.interactionMetrics.dominantZone.x) * lerpSpeed
+this.interactionMetrics.dominantZone.y +=
+  (this.targetDominantZone.y - this.interactionMetrics.dominantZone.y) * lerpSpeed
+this.gradientIntensity +=
+  (this.targetGradientIntensity - this.gradientIntensity) * lerpSpeed
+```
+
+#### 2. Tuned Gradient Values
+
+Adjusted from aggressive 4x multipliers to balanced values:
+
+```javascript
+this.gradientConfig = {
+  hueShift: 80,        // Was 30→120→80
+  saturationBoost: 30, // Was 15→50→30
+  lightnessBoost: 20,  // Was 10→35→20
+  maxDiagonal: Math.sqrt(2),
+  maxUsers: 4          // Normal rooms have fewer users than landing
+}
+```
+
+#### 3. Additive Intensity Formula
+
+Changed from multiplicative (could be near-zero) to additive with baseline:
+
+```javascript
+// Old: gradientIntensity = userFactor * spatialDensity  // Could be 0.0017!
+// New:
+const baseIntensity = 0.3  // Always visible
+const activityBoost = userFactor * spatialDensity * 0.7
+this.targetGradientIntensity = Math.min(1, baseIntensity + activityBoost)
+```
+
+#### 4. Real-Time Metrics from Cursor Positions
+
+Added `_updateGradientMetricsFromCursors()` in main.js, called on every cursor event:
+
+```javascript
+_updateGradientMetricsFromCursors() {
+  // Throttle: max 30 updates per second
+  const now = Date.now()
+  if (this._lastGradientUpdate && now - this._lastGradientUpdate < 33) return
+  this._lastGradientUpdate = now
+
+  const cursorsMap = this.cursorManager.getAllCursors()
+  const allPositions = []
+  cursorsMap.forEach((cursor, userId) => {
+    if (cursor && typeof cursor.x === 'number') {
+      allPositions.push({ x: cursor.x, y: cursor.y })
+    }
+  })
+
+  // Calculate centroid and spatial density
+  // Forward to visualService.updateInteractionMetrics()
+}
+```
+
+#### 5. Virtual Users Contributing to Gradient
+
+Updated VirtualUserService.js to record virtual cursor positions as gestures:
+
+```javascript
+// In _interpolateCursorsForRoom(), after emitting cursors:
+if (this.roomManager) {
+  for (const source of roomState.sources) {
+    const config = this.virtualUserConfigs[source]
+    const pos = roomState.currentPositions[source]
+    if (config && pos) {
+      this.roomManager.recordGesture(roomId, {
+        action: 'drag',
+        coordinates: { x: pos.x, y: pos.y },
+        velocity: 0.3,
+        userId: config.userId
+      })
+    }
+  }
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/visual/NoiseTextureNebulaSystem.js` | Target-based interpolation in render loop, tuned gradient values, additive intensity formula |
+| `frontend/src/main.js` | Real-time gradient metrics from cursor positions, handler for virtual-cursors event |
+| `frontend/src/landing/main.js` | Synthetic metrics with maxUsers=3 for landing page |
+| `backend/src/services/CollectiveMetricsAnalyzer.js` | Added activeUsers to compositional parameters |
+| `backend/src/services/VirtualUserService.js` | Record virtual cursor positions as gestures |
+
+---
+
+### Key Technical Insight
+
+**The smoothness problem was about WHERE interpolation happens, not HOW FAST events arrive:**
+
+| Approach | Interpolation Rate | Smoothness |
+|----------|-------------------|------------|
+| Old: In setInteractionMetrics() | ~20fps (event-driven) | Choppy |
+| New: In render() | 60fps (frame-driven) | Smooth |
+
+Even with 30fps cursor events, the render loop interpolates toward targets 60 times per second, ensuring sub-pixel smooth transitions.
+
+---
+
+### Version
+
+Updated from v1.0.74 to v1.0.85
+
+---
+
+## Entry #94 - Mobile Central Start Button for Normal Rooms
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Added a prominent central "Start" button for mobile users in normal rooms. Previously, the Start Audio button was hidden inside the hamburger menu (closed by default), confusing new users who didn't know how to start audio. The new button appears centered on screen and disappears after being clicked.
+
+---
+
+### Problem Statement
+
+On mobile devices, when opening a normal room, the "Start Audio" button was hidden inside the hamburger menu. Users had to:
+1. Notice the hamburger menu icon
+2. Open it
+3. Find the Start Audio button
+
+This was not intuitive, especially for first-time users.
+
+---
+
+### Solution
+
+Added a large, centered play button (▶) that:
+- Appears only on mobile devices
+- Is visible only when audio is NOT started
+- Disappears with fade animation after being clicked
+- Triggers audio start via `toggleAudio()`
+
+---
+
+### Implementation
+
+**File:** `frontend/src/services/UIManager.js`
+
+#### 1. New method: `_createMobileCentralStartButton()`
+
+```javascript
+_createMobileCentralStartButton() {
+  // Prevent duplicate creation
+  if (this.mobileCentralStartBtn || document.getElementById('mobileCentralStart')) {
+    return
+  }
+
+  this.mobileCentralStartBtn = document.createElement('button')
+  this.mobileCentralStartBtn.id = 'mobileCentralStart'
+  this.mobileCentralStartBtn.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(0, 212, 255, 0.95);
+    font-size: 48px;
+    box-shadow: 0 0 40px rgba(0, 212, 255, 0.6);
+  `
+  this.mobileCentralStartBtn.textContent = '▶'
+
+  this.mobileCentralStartBtn.onclick = async () => {
+    try {
+      await window.webarmoniumApp.toggleAudio()
+      this.hideMobileCentralStartButton()
+    } catch (error) {
+      // Reset button on error so user can retry
+      this.mobileCentralStartBtn.style.pointerEvents = 'auto'
+    }
+  }
+}
+```
+
+#### 2. New method: `hideMobileCentralStartButton()`
+
+```javascript
+hideMobileCentralStartButton() {
+  if (this.mobileCentralStartBtn) {
+    // Transfer focus for accessibility
+    if (document.activeElement === this.mobileCentralStartBtn) {
+      this.mobileMenuBtn?.focus()
+    }
+
+    this.mobileCentralStartBtn.style.opacity = '0'
+    const btnToRemove = this.mobileCentralStartBtn
+    this.mobileCentralStartBtn = null
+    setTimeout(() => btnToRemove?.remove(), 300)
+  }
+
+  // Disconnect observer
+  if (this.audioToggleObserver) {
+    this.audioToggleObserver.disconnect()
+    this.audioToggleObserver = null
+  }
+}
+```
+
+#### 3. MutationObserver for audio state sync
+
+Watches the original audio toggle button text to hide central button when audio starts via any means:
+
+```javascript
+this.audioToggleObserver = new MutationObserver(() => {
+  if (window.webarmoniumApp?.isAudioStarted) {
+    this.hideMobileCentralStartButton()
+    this.audioToggleObserver?.disconnect()
+  }
+})
+```
+
+---
+
+### Code Review Fixes (6 Issues)
+
+| # | Issue | Priority | Fix |
+|---|-------|----------|-----|
+| 1 | Memory Leak - MutationObserver never disconnected | Critical | Store as `this.audioToggleObserver`, disconnect in `hideMobileCentralStartButton()` and `destroy()` |
+| 2 | Race Condition - duplicate button creation | Critical | Added guard: `if (this.mobileCentralStartBtn \|\| document.getElementById('mobileCentralStart')) return` |
+| 3 | Missing cleanup in `destroy()` | Critical | Added cleanup for `mobileCentralStartBtn` and `audioToggleObserver` |
+| 4 | Fragile text-based detection | High | Changed from `textContent.includes('Stop')` to `window.webarmoniumApp?.isAudioStarted` |
+| 5 | Missing error handling | High | Added try-catch in click handler, resets button on error |
+| 6 | Accessibility issues | High | Added `role="button"`, `aria-busy` during loading, focus management on hide |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/UIManager.js` | Added `_createMobileCentralStartButton()`, `hideMobileCentralStartButton()`, MutationObserver, cleanup in `destroy()` |
+
+---
+
+### Visual Design
+
+- Large circular button (120×120px) centered on screen
+- Cyan background (#00d4ff) matching app theme
+- Play icon (▶) for universal recognition
+- Glowing box-shadow for prominence
+- z-index: 1000 (below menu elements at 1001-1003)
+- Fades out smoothly (0.3s transition)
+
+---
+
+### Verification
+
+1. Open http://localhost:3000/rooms.html on mobile (or Chrome DevTools mobile emulation)
+2. Verify central Start button is visible and centered
+3. Click the button
+4. Verify:
+   - Audio starts playing
+   - Central button fades out and disappears
+   - Hamburger menu still works
+   - Audio control in menu shows "Stop Audio"
+5. Refresh page and verify button appears again
+
+---
+
+### Version
+
+Updated to v1.0.86
+
