@@ -366,17 +366,31 @@ class SettingsPanel {
       }
     })
 
+    // Debug: Log what we're working with
+    console.log('🔧 SettingsPanel._applySettings:', {
+      webarmoniumApp: !!window.webarmoniumApp,
+      landingApp: !!window.landingApp,
+      webarmoniumAudioService: !!window.webarmoniumApp?.audioService,
+      landingAudioService: !!window.landingApp?.audioService,
+      webarmoniumVisualService: !!window.webarmoniumApp?.visualService,
+      landingVisualService: !!window.landingApp?.visualService,
+      settings: UserSettings.getAll()
+    })
+
     // Fix #4: Try-catch for audio reload
     // Support both rooms (webarmoniumApp) and landing page (landingApp)
     const audioService = window.webarmoniumApp?.audioService || window.landingApp?.audioService
     if (audioService?.reloadAudioProfile) {
       try {
+        console.log('🔧 Calling audioService.reloadAudioProfile()...')
         audioService.reloadAudioProfile()
       } catch (error) {
         console.error('Failed to reload audio profile:', error)
         this._showCanvasNotification('Audio reload failed')
         return
       }
+    } else {
+      console.warn('⚠️ No audioService.reloadAudioProfile available')
     }
 
     // Fix #4: Try-catch for graphics reload
@@ -384,12 +398,15 @@ class SettingsPanel {
     const visualService = window.webarmoniumApp?.visualService || window.landingApp?.visualService
     if (visualService?.applyGraphicsQuality) {
       try {
+        console.log('🔧 Calling visualService.applyGraphicsQuality()...')
         visualService.applyGraphicsQuality()
       } catch (error) {
         console.error('Failed to apply graphics quality:', error)
         this._showCanvasNotification('Graphics update failed')
         return
       }
+    } else {
+      console.warn('⚠️ No visualService.applyGraphicsQuality available')
     }
 
     // Close panel first

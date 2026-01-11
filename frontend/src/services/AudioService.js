@@ -404,6 +404,7 @@ class AudioService {
       let baseProfile = null
       if (typeof PlatformDetection !== 'undefined') {
         baseProfile = PlatformDetection.getEffectiveAudioProfile()
+        console.log('🔧 _initializeAudioProfile: baseProfile from PlatformDetection:', baseProfile)
       } else {
         // Fallback profile
         baseProfile = {
@@ -418,10 +419,13 @@ class AudioService {
           tier: 'unknown',
           source: 'fallback'
         }
+        console.log('🔧 _initializeAudioProfile: using fallback baseProfile')
       }
 
       // Entry #74: Apply UserSettings overrides
       if (typeof UserSettings !== 'undefined') {
+        const userSettings = UserSettings.getAll()
+        console.log('🔧 _initializeAudioProfile: UserSettings.getAll():', userSettings)
         this.audioProfile = UserSettings.getEffectiveAudioProfile(baseProfile)
         console.log(`🔧 Audio Profile with UserSettings:`, {
           tier: this.audioProfile.tier,
@@ -434,7 +438,7 @@ class AudioService {
         })
       } else {
         this.audioProfile = baseProfile
-        console.log(`🔧 Audio Profile loaded:`, {
+        console.log(`🔧 Audio Profile loaded (no UserSettings):`, {
           tier: this.audioProfile.tier,
           source: this.audioProfile.source
         })
