@@ -1970,3 +1970,218 @@ With Audio Quality set to "minimal":
 ### Version
 
 Updated to v1.0.72
+
+---
+
+## Entry #91 - Code Review Security & Stability Fixes
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Applied 7 fixes identified by the code-reviewer agent after Entry #90. Addresses security vulnerabilities (XSS), race conditions, memory leaks, error handling gaps, and missing initialization that could cause crashes.
+
+---
+
+### Issues Fixed
+
+| # | Issue | Priority | File | Fix |
+|---|-------|----------|------|-----|
+| 1 | XSS risk in notifications | Critical | SettingsPanel.js | Added `_escapeHtml()` method to sanitize notification messages |
+| 2 | Race condition: graphics before p5 setup | Critical | GenerativeVisualService.js | Moved `applyGraphicsQuality()` to after `setup()` completes |
+| 3 | Memory leak: device cache never expires | Critical | DeviceCapabilities.js | Added 5-minute TTL + visibility change listener |
+| 4 | Settings rollback: save after fail | High | SettingsPanel.js | Save settings before application, continue on error |
+| 5 | No error handling for oscillator switch | High | AudioService.js | Added try-catch + disposed check |
+| 6 | activeVoices never initialized | High | AudioService.js | Added `activeVoices: new Map()` to generativeState |
+| 7 | Layer management unclear | Medium | AudioService.js | Added comprehensive JSDoc explaining ambient vs composition layers |
+
+---
+
+### Detailed Fixes
+
+#### 1. XSS Prevention in Notifications (Critical)
+
+**File:** `frontend/src/components/SettingsPanel.js`
+
+Added HTML entity escaping to prevent XSS via notification messages:
+
+```javascript
+_escapeHtml (str) {
+  const escapeMap = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }
+  return String(str).replace(/[&<>"']/g, char => escapeMap[char])
+}
+
+_showCanvasNotification (message, isWarning = false) {
+  // Escape HTML entities and truncate to prevent abuse
+  const sanitizedMessage = this._escapeHtml(message).slice(0, 200)
+  // ...
+}
+```
+
+#### 2. Race Condition Fix (Critical)
+
+**File:** `frontend/src/services/GenerativeVisualService.js`
+
+Graphics quality was being applied before p5.js setup completed, causing subsystems to not receive settings.
+
+**Before**: `applyGraphicsQuality()` called in `initialize()` before p5 setup
+**After**: `applyGraphicsQuality()` called at end of `setup()` after canvas is ready
+
+```javascript
+setup(p) {
+  // ... canvas creation, frame rate, background nodes ...
+
+  // RACE CONDITION FIX: Apply graphics quality settings AFTER p5 setup completes
+  try {
+    this.applyGraphicsQuality()
+    console.log('🎨 Graphics quality applied after p5 setup')
+  } catch (e) {
+    console.warn('🎨 Failed to apply graphics quality after setup:', e)
+  }
+}
+```
+
+#### 3. Device Cache TTL (Critical)
+
+**File:** `frontend/src/utils/DeviceCapabilities.js`
+
+Static caches were never invalidated, causing stale detection in long sessions or when device state changes (battery saver).
+
+**Added:**
+- `CACHE_TTL_MS = 5 * 60 * 1000` (5 minutes)
+- `_isCacheValid()` method checking timestamp
+- `_setupVisibilityListener()` to clear cache when page becomes visible
+
+```javascript
+static _setupVisibilityListener () {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      this.clearCache()  // Forces re-detection
+    }
+  })
+}
+```
+
+#### 4. Settings Save Strategy (High)
+
+**File:** `frontend/src/components/SettingsPanel.js`
+
+Settings are now saved to localStorage BEFORE attempting to apply. If application fails, user sees warning but settings are persisted for next page load.
+
+```javascript
+// ROLLBACK FIX: Save settings to localStorage BEFORE attempting to apply
+groups.forEach(group => {
+  if (newSettings[group]) {
+    UserSettings.set(group, newSettings[group])
+  }
+})
+
+// Try to apply audio settings (don't return on failure)
+try {
+  audioService.reloadAudioProfile()
+} catch (error) {
+  this._showCanvasNotification('Audio reload failed - will apply on refresh', true)
+}
+```
+
+#### 5. Oscillator Switch Error Handling (High)
+
+**File:** `frontend/src/services/AudioService.js`
+
+Oscillator type switching in Ultra-Low Power mode transitions now has error handling and disposed check:
+
+```javascript
+try {
+  if (this.gestureSynth && this.gestureSynth.oscillator && !this.gestureSynth.disposed) {
+    this.gestureSynth.oscillator.type = 'sine'
+    console.log('🔋 gestureSynth switched to sine oscillator')
+  }
+} catch (e) {
+  console.warn('🔋 Failed to switch gestureSynth oscillator:', e.message)
+}
+```
+
+#### 6. activeVoices Initialization (High)
+
+**File:** `frontend/src/services/AudioService.js`
+
+`generativeState.activeVoices` was used but never initialized, causing `managePolyphony()` to crash.
+
+```javascript
+this.generativeState = {
+  // INITIALIZATION FIX: activeVoices must be a Map for polyphony management
+  activeVoices: new Map(),
+
+  currentScale: [0, 2, 4, 7, 9],
+  // ...
+}
+```
+
+#### 7. Layer Architecture Documentation (Medium)
+
+**File:** `frontend/src/services/AudioService.js`
+
+Added comprehensive JSDoc explaining the two-type layer system:
+
+```javascript
+/**
+ * LAYER ARCHITECTURE:
+ * The audio system has TWO TYPES of background layers:
+ *
+ * 1. AMBIENT LAYERS (bass, pad, chords):
+ *    - Generated algorithmically by the local client
+ *    - Controlled by audioProfile.backgroundLayers array
+ *    - Progressively disabled as device tier decreases
+ *
+ * 2. COMPOSITION LAYERS (backgroundHigh, backgroundMid, backgroundLow):
+ *    - Received from the backend via WebSocket
+ *    - Always enabled EXCEPT in Ultra-Low Power mode
+ *    - Represent the shared musical composition across all users
+ */
+_isLayerEnabled(layerName) { ... }
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/components/SettingsPanel.js` | XSS prevention, settings save strategy |
+| `frontend/src/services/GenerativeVisualService.js` | Race condition fix |
+| `frontend/src/utils/DeviceCapabilities.js` | Cache TTL + visibility listener |
+| `frontend/src/services/AudioService.js` | Oscillator error handling, activeVoices init, JSDoc |
+
+---
+
+### Security Improvements
+
+- **XSS Prevention**: All notification messages are now HTML-escaped
+- **Input Truncation**: Messages limited to 200 characters
+
+### Stability Improvements
+
+- **Race Condition**: Graphics settings apply after canvas ready
+- **Memory Management**: Device detection cache expires after 5 minutes
+- **Error Recovery**: Settings persist even if runtime application fails
+- **Crash Prevention**: activeVoices Map initialized, oscillator switching wrapped in try-catch
+
+### Mobile Improvements
+
+- **Visibility Change**: Cache clears when page becomes visible (handles battery saver changes)
+- **Graceful Degradation**: Settings apply on page reload if runtime application fails
+
+---
+
+### Version
+
+Updated to v1.0.73
+
