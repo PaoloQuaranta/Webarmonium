@@ -505,6 +505,297 @@
       </table>
     </section>
 
+    <!-- Section 8: Background Composition System -->
+    <section class="tech-section">
+      <h2>8. Background Composition System</h2>
+
+      <h3>GenerativeMusicEngine: Three-Layer Architecture</h3>
+      <p>
+        The landing page generates continuous background music through three independent layers,
+        each with its own rhythm cycle and pattern system. The layers operate autonomously but share
+        a common harmonic context (current chord, scale, tonic).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Rhythm Cycle</th>
+            <th>Role</th>
+            <th>Pattern Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Bass</td>
+            <td>2000ms</td>
+            <td>Low frequency foundation</td>
+            <td>12 patterns</td>
+          </tr>
+          <tr>
+            <td>Pad</td>
+            <td>16000ms</td>
+            <td>Ethereal sustained tones</td>
+            <td>12 patterns</td>
+          </tr>
+          <tr>
+            <td>Chords</td>
+            <td>4000ms</td>
+            <td>Harmonic movement</td>
+            <td>12 patterns</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Harmonic Progressions</h3>
+      <p>
+        Seven chord progressions are available, each with a distinct mood. Progressions change
+        automatically after 3-7 cycles based on complexity level.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Progression</th>
+            <th>Degrees</th>
+            <th>Mood</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>I-V-vi-IV</td><td>0, 4, 5, 3</td><td>Uplifting</td></tr>
+          <tr><td>I-IV-V-IV</td><td>0, 3, 4, 3</td><td>Driving</td></tr>
+          <tr><td>i-VI-III-VII</td><td>0, 5, 2, 6</td><td>Dramatic</td></tr>
+          <tr><td>I-vi-IV-V</td><td>0, 5, 3, 4</td><td>Circular</td></tr>
+          <tr><td>I-V-vi-iii-IV</td><td>0, 4, 5, 2, 3</td><td>Flowing</td></tr>
+          <tr><td>I-iii-vi-IV</td><td>0, 2, 5, 3</td><td>Melancholic</td></tr>
+          <tr><td>I-VII-IV-V</td><td>0, 6, 3, 4</td><td>Mysterious</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <strong>Chord Changes:</strong> Current chord changes every 8 seconds, cycling through the active progression.
+        Progression selection is influenced by room complexity: high complexity favors driving/uplifting progressions,
+        low complexity favors melancholic/mysterious moods.
+      </div>
+    </section>
+
+    <!-- Section 9: Drone & Void Detection -->
+    <section class="tech-section">
+      <h2>9. Drone &amp; Void Detection</h2>
+
+      <p>
+        The DroneVoidController makes the ambient drone "emerge during activity voids"&mdash;filling silence
+        with atmospheric sound while fading out during active musical events.
+      </p>
+
+      <h3>DroneVoidController Parameters</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Value</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>voidTimeoutMin</td><td>5000ms</td><td>Minimum silence before drone emerges</td></tr>
+          <tr><td>voidTimeoutMax</td><td>10000ms</td><td>Full drone emergence time</td></tr>
+          <tr><td>fadeInTime</td><td>2.0s</td><td>Quick fade in to fill void</td></tr>
+          <tr><td>fadeOutTime</td><td>20.0s</td><td>Gradual fade out on activity</td></tr>
+          <tr><td>droneNominalDb</td><td>-3dB</td><td>Full drone level</td></tr>
+          <tr><td>droneSilentDb</td><td>-60dB</td><td>Effectively silent</td></tr>
+          <tr><td>updateInterval</td><td>100ms</td><td>Check frequency for smooth transitions</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Void Score Calculation</h3>
+      <p>Three factors are combined multiplicatively&mdash;any single factor can suppress the drone:</p>
+      <div class="formula">
+        voidScore = timeScore &times; influenceVoidScore &times; noteVoidScore<br><br>
+        timeScore = (timeSinceActivity - 5000) / (10000 - 5000)  [clamped 0-1]<br>
+        influenceVoidScore = 1 - userInfluence<br>
+        noteVoidScore = activeNotes &gt; 0 ? 0 : 1
+      </div>
+
+      <h3>LFO Modulation (Organic Breathing)</h3>
+      <p>
+        Two LFOs add subtle organic movement to the drone sound, with randomized phases to prevent
+        synchronized modulation patterns.
+      </p>
+      <table>
+        <thead>
+          <tr><th>LFO</th><th>Frequency</th><th>Cycle</th><th>Range</th><th>Effect</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Amplitude</td><td>0.03 Hz</td><td>~33s</td><td>-6dB to 0dB</td><td>Very slow volume breathing</td></tr>
+          <tr><td>Pitch</td><td>0.05 Hz</td><td>~20s</td><td>&plusmn;8 cents</td><td>Subtle organic detuning</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <strong>Dual Control:</strong> The DroneVoidController uses a dedicated gain node (droneAmplitudeGain)
+        for overall presence control, allowing the amplitude LFO to continue providing subtle breathing
+        modulation even while the drone fades in/out.
+      </div>
+    </section>
+
+    <!-- Section 10: Musical Scheduler -->
+    <section class="tech-section">
+      <h2>10. Musical Scheduler</h2>
+
+      <p>
+        The MusicalScheduler prioritizes clock consistency over low latency, ensuring perfect synchronization
+        between local and remote gestures. Remote events may wait but will always be scheduled in sync
+        with the local clock.
+      </p>
+
+      <h3>Clock Synchronization</h3>
+      <table>
+        <thead>
+          <tr><th>Parameter</th><th>Value</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Tick interval</td><td>25ms (40Hz)</td><td>Web Worker precision timer</td></tr>
+          <tr><td>Local lookahead</td><td>100ms</td><td>Immediate scheduling for local events</td></tr>
+          <tr><td>Remote lookahead</td><td>250ms</td><td>Schedule ahead for jitter tolerance</td></tr>
+          <tr><td>Default tempo</td><td>120 BPM</td><td>Base tempo (range: 60-140 BPM)</td></tr>
+          <tr><td>Time signature</td><td>4/4</td><td>Standard time signature</td></tr>
+          <tr><td>Grid resolution</td><td>16th note</td><td>Remote event quantization</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Beat Grid Assignment (Landing Page)</h3>
+      <p>Virtual user notes are distributed across the beat grid to create rhythmic variety:</p>
+      <div class="formula">
+        <span class="color-wikipedia">Wikipedia</span> notes: ticks 0, 4, 8, 12 (downbeats)<br>
+        <span class="color-hackernews">HackerNews</span> notes: ticks 2, 6, 10, 14 (off-beats)<br>
+        <span class="color-github">GitHub</span> notes: ticks 1, 5, 9, 13 (upbeats)
+      </div>
+
+      <div class="note">
+        <strong>Local vs Remote:</strong> Local events have 100ms lookahead for immediacy.
+        Remote events use 250ms lookahead and snap to the nearest sixteenth-note boundary
+        for global synchronization despite network jitter.
+      </div>
+    </section>
+
+    <!-- Section 11: Harmonic Engine & Voice Leading -->
+    <section class="tech-section">
+      <h2>11. Harmonic Engine &amp; Voice Leading</h2>
+
+      <h3>Available Scales</h3>
+      <p>Nine scales are available for melodic generation, with pentatonic as the default (safest for improvisation):</p>
+      <table>
+        <thead>
+          <tr><th>Scale</th><th>Intervals (semitones)</th><th>Character</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Pentatonic (default)</td><td>0, 2, 4, 7, 9</td><td>Safe, no dissonance</td></tr>
+          <tr><td>Major (Ionian)</td><td>0, 2, 4, 5, 7, 9, 11</td><td>Bright, happy</td></tr>
+          <tr><td>Minor (Aeolian)</td><td>0, 2, 3, 5, 7, 8, 10</td><td>Sad, introspective</td></tr>
+          <tr><td>Dorian</td><td>0, 2, 3, 5, 7, 9, 10</td><td>Jazz, modal</td></tr>
+          <tr><td>Mixolydian</td><td>0, 2, 4, 5, 7, 9, 10</td><td>Bluesy, rock</td></tr>
+          <tr><td>Blues</td><td>0, 3, 5, 6, 7, 10</td><td>Expressive, bent</td></tr>
+          <tr><td>Phrygian</td><td>0, 1, 3, 5, 7, 8, 10</td><td>Spanish, exotic</td></tr>
+          <tr><td>Lydian</td><td>0, 2, 4, 6, 7, 9, 11</td><td>Dreamy, floating</td></tr>
+          <tr><td>Chromatic</td><td>0-11 (all semitones)</td><td>Full spectrum</td></tr>
+        </tbody>
+      </table>
+
+      <h3>SATB Voice Ranges (CounterpointEngine)</h3>
+      <p>Multi-user compositions follow traditional SATB voice ranges for proper voice leading:</p>
+      <table>
+        <thead>
+          <tr><th>Voice</th><th>MIDI Range</th><th>Notes</th><th>Role</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Soprano</td><td>60-79</td><td>C4-G5</td><td>Melody (high density, staccato)</td></tr>
+          <tr><td>Alto</td><td>55-72</td><td>G3-C5</td><td>Harmony (medium density, normal)</td></tr>
+          <tr><td>Tenor</td><td>48-67</td><td>C3-G4</td><td>Pad (sparse, very long sustain)</td></tr>
+          <tr><td>Bass</td><td>36-55</td><td>C2-G3</td><td>Foundation (low density, legato)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Voice Leading Rules</h3>
+      <p>The CounterpointEngine validates voice leading to ensure musical coherence:</p>
+      <ul>
+        <li><strong>No parallel fifths/octaves:</strong> Consecutive voices cannot move in parallel perfect intervals</li>
+        <li><strong>No voice crossing:</strong> Lower voices must stay below upper voices</li>
+        <li><strong>Maximum spacing:</strong> Adjacent voices within one octave (12 semitones)</li>
+        <li><strong>Stepwise motion preferred:</strong> Leaps &gt; 5 semitones trigger octave alternatives</li>
+      </ul>
+
+      <h3>Consonant Intervals</h3>
+      <div class="formula">
+        Allowed intervals: Unison (0), Minor 3rd (3), Major 3rd (4), Perfect 5th (7), Major 6th (9), Octave (12)
+      </div>
+    </section>
+
+    <!-- Section 12: Metric-to-Gesture Classification -->
+    <section class="tech-section">
+      <h2>12. Metric-to-Gesture Classification</h2>
+
+      <p>
+        Virtual user gestures are classified based on which metric characteristic is dominant.
+        This uses <em>purely relative comparison</em>&mdash;no hardcoded thresholds.
+      </p>
+
+      <h3>Classification Metrics</h3>
+      <table>
+        <thead>
+          <tr><th>Metric</th><th>Formula / Source</th><th>Gesture</th><th>Audio Result</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Stability</td>
+            <td>1 - normalizedVelocity</td>
+            <td>TAP</td>
+            <td>Single note (50-300ms)</td>
+          </tr>
+          <tr>
+            <td>Density</td>
+            <td>Wiki: avgEditSize<br>HN: avgUpvotes<br>GH: createsPerMinute</td>
+            <td>DRAG</td>
+            <td>Phrase (3-8 notes, 300-3000ms)</td>
+          </tr>
+          <tr>
+            <td>Periodicity</td>
+            <td>Wiki: newArticles<br>HN: commentCount<br>GH: deletesPerMinute</td>
+            <td>HOVER</td>
+            <td>Filter modulation only (no sound)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Gesture Selection</h3>
+      <div class="formula">
+        gestureType = argmax(stability, density, periodicity)<br>
+        // Whichever metric is highest determines the gesture type
+      </div>
+
+      <h3>Intent Thresholding</h3>
+      <p>
+        Gestures are only generated when normalized velocity exceeds an activity-based threshold:
+      </p>
+      <div class="formula">
+        gestureIntent = 0.1 &times; (1 - activityLevel &times; 0.5)<br>
+        // High activity = lower threshold = more frequent gestures
+      </div>
+
+      <h3>Composition Frequency</h3>
+      <p>
+        The rate of background composition generation emerges from total metric activity:
+      </p>
+      <div class="formula">
+        beatsPerComposition = 12 - (totalActivity &times; 6)<br><br>
+        High activity &rarr; 6 beats (~2.5s @ 120 BPM)<br>
+        Low activity &rarr; 12 beats (~5s @ 120 BPM)
+      </div>
+
+      <div class="note">
+        <strong>Dynamic Normalization:</strong> All metric values use P10-P90 percentile-based normalization
+        from a rolling 2-minute sample window, preventing outliers from skewing the classification.
+      </div>
+    </section>
+
     <!-- Footer -->
     <footer style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #333;">
       <p><a href="index.html">&larr; Back to Landing Page</a> | <a href="rooms.html">Join a Room &rarr;</a></p>

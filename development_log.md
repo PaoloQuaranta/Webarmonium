@@ -1598,3 +1598,71 @@ A color cannot be assigned to two users simultaneously.
 ### Version
 
 Updated to v1.0.68
+
+---
+
+## Entry #88 - Background Composition System Documentation
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Added comprehensive documentation for the Background Composition System that was completely missing from both the landing page "How It Works" section and the Technical Appendix. Documentation covers the three-layer generative system, drone emergence, musical scheduler, harmonic progressions, scales, voice leading, and metric-to-gesture classification.
+
+---
+
+### Problem Statement
+
+The documentation in `index.html` and `technical-appendix.html` explained how virtual users generate notes from web metrics, but completely ignored how the **background music layer** works—the continuous ambient composition that plays underneath the virtual user notes.
+
+---
+
+### Solution
+
+#### 1. Added "Background Composition Layer" section to index.html (lines 222-249)
+
+New section between "Landing Page: Web Activity" and "Collaborative Rooms" covering:
+- **Three-layer generative system**: bass (2s), pad (16s), chords (4s)
+- **Drone emergence**: 5-10s void detection, 2s fade in, 20s fade out
+- **Musical scheduler**: 25ms tick, beat grid per source
+
+#### 2. Added 5 new sections to technical-appendix.html (lines 508-797)
+
+| Section | Content |
+|---------|---------|
+| 8. Background Composition System | GenerativeMusicEngine 3-layer architecture, 7 harmonic progressions |
+| 9. Drone & Void Detection | DroneVoidController params, void score formula, LFO modulation |
+| 10. Musical Scheduler | Clock sync (25ms/100ms/250ms), beat grid assignment |
+| 11. Harmonic Engine & Voice Leading | 9 scales, SATB ranges, counterpoint rules |
+| 12. Metric-to-Gesture Classification | stability→TAP, density→DRAG, periodicity→HOVER |
+
+---
+
+### Values Verified Against Source Code
+
+| Value | Source File |
+|-------|-------------|
+| Layer rhythms (2000/16000/4000ms) | GenerativeMusicEngine.js:50-81 |
+| Drone params (5s/10s/2s/20s/-3dB/-60dB) | DroneVoidController.js:29-37 |
+| LFO (0.03Hz/-6dB to 0dB, 0.05Hz/±8 cents) | AudioService.js:1368-1408 |
+| Scheduler (25ms tick, 120 BPM) | MusicalScheduler.js:15-18 |
+| 9 scales | MusicalScales.js:11-21 |
+| SATB ranges (corrected Alto: G3-C5) | CounterpointEngine.js:5-8 |
+| Beat grid (Wiki 0,4,8,12 / HN 2,6,10,14 / GH 1,5,9,13) | LandingCompositionService.js:1058-1060 |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/index.html` | Added "Background Composition Layer" section |
+| `frontend/technical-appendix.html` | Added sections 8-12 (5 new sections) |
+
+---
+
+### Version
+
+Updated to v1.0.69
