@@ -361,13 +361,14 @@ class NoiseTextureNebulaSystem {
         (clampedY - this.interactionMetrics.dominantZone.y) * lerpSpeed
     }
 
-    // Gradient intensity = user activity × spatial clustering
-    // - userFactor: scales with user count up to maxUsers (configurable)
-    // - spatialDensity: 0 when spread out, 1.0 when clustered
-    // - Product ensures gradient only visible with both activity AND clustering
+    // Gradient intensity = base + activity boost
+    // - Base intensity ensures gradient is always visible around dominantZone
+    // - Activity boost increases with user count and spatial clustering
     const maxUsers = this.gradientConfig.maxUsers || 10
     const userFactor = Math.min(1, this.interactionMetrics.userCount / maxUsers)
-    this.gradientIntensity = userFactor * this.interactionMetrics.spatialDensity
+    const baseIntensity = 0.3  // Always visible minimum
+    const activityBoost = userFactor * this.interactionMetrics.spatialDensity
+    this.gradientIntensity = Math.min(1, baseIntensity + activityBoost * 0.7)
 
     // Debug: log gradient intensity periodically
     if (!this._gradientDebugCounter) this._gradientDebugCounter = 0
