@@ -127,6 +127,14 @@ class LandingCompositionService {
     // Track pending timeouts for cleanup (prevents memory leaks)
     this.pendingTimeouts = new Set()
 
+    // Gesture counter per source for golden ratio position variation
+    // Increments with each gesture, creates optimal spacing in cursor positions
+    this.gestureCounters = {
+      wikipedia: 0,
+      hackernews: 0,
+      github: 0
+    }
+
     // Current cursor positions for smooth interpolation
     // Distributed initial positions across the canvas (left, center, right)
     this.currentPositions = {
@@ -145,7 +153,7 @@ class LandingCompositionService {
     // Interpolation timer for smooth cursor movement
     this.cursorInterpolationTimer = null
     this.interpolationInterval = 50  // 20fps for smooth movement
-    this.interpolationSpeed = 0.15   // How fast to approach target (0-1)
+    this.interpolationSpeed = 0.08   // How fast to approach target (lower = smoother/slower)
 
     // console.log('🎵 LandingCompositionService initialized (CompositionEngine mode)')
   }
@@ -712,13 +720,16 @@ class LandingCompositionService {
    * @private
    */
   generateVirtualHover(source) {
+    // Increment gesture counter for golden ratio position variation
+    this.gestureCounters[source] = (this.gestureCounters[source] || 0) + 1
+
     const periodicity = this.calculatePeriodicityMetric(source)
     const user = this.virtualUsers[source]
 
-    // Calculate position on FULL CANVAS (independent of tessitura)
-    // Hover has no audio, only modulation - cursor can move freely
+    // Calculate HYBRID position: golden ratio + metric modulation
+    // Hover has no audio, only modulation - cursor uses golden ratio for variety
     const fullCanvasFreq = 110 + (periodicity * 1100) // Full range: 110-1210Hz
-    const position = this.frequencyMapper.frequencyToPosition(fullCanvasFreq)
+    const position = this._calculateHybridPosition(source, fullCanvasFreq)
 
     // Emit cursor position for hover
     this._emitCursorAtPosition(source, user, position)
@@ -1118,6 +1129,9 @@ class LandingCompositionService {
    * @private
    */
   async emitTapNote(gesture, user, musicalContext) {
+    // Increment gesture counter for golden ratio position variation
+    this.gestureCounters[gesture.source] = (this.gestureCounters[gesture.source] || 0) + 1
+
     // 1. Calculate AUDIO frequency (constrained to tessitura)
     const activityLevel = this.calculateActivityLevel(gesture.source)
     const { min: freqMin, max: freqMax } = user.frequencyRange
@@ -1133,10 +1147,10 @@ class LandingCompositionService {
     // Ensure audio frequency stays within tessitura using octave wrapping
     frequency = this.frequencyMapper.enforceTessitura(frequency, freqMin, freqMax)
 
-    // 2. Calculate POSITION on FULL CANVAS (independent of tessitura)
-    // Cursor can move freely across entire canvas based on activity level
+    // 2. Calculate HYBRID position: golden ratio + metric modulation
+    // Cursor uses golden ratio distribution for variety across canvas
     const fullCanvasFreq = 110 + (activityLevel * 1100) // Full range: 110-1210Hz
-    const position = this.frequencyMapper.frequencyToPosition(fullCanvasFreq)
+    const position = this._calculateHybridPosition(gesture.source, fullCanvasFreq)
 
     // 3. Emit cursor position synchronized with note
     this._emitCursorAtPosition(gesture.source, user, position)
@@ -1172,6 +1186,9 @@ class LandingCompositionService {
    * @private
    */
   async emitDragPhrase(gesture, user, musicalContext) {
+    // Increment gesture counter for golden ratio position variation
+    this.gestureCounters[gesture.source] = (this.gestureCounters[gesture.source] || 0) + 1
+
     // Calculate metrics for gesture generation
     const absVelocity = Math.abs(gesture.velocity || 0)
     const normalizedVelocity = this.normalizeMetricDynamic(gesture.source, 'velocity', absVelocity)
@@ -1233,10 +1250,10 @@ class LandingCompositionService {
 
     if (noteData.length === 0) return
 
-    // 3. Calculate positions from RAW frequencies (full canvas movement)
+    // 3. Calculate HYBRID positions for trajectory
     const startFreq = noteData[0].positionFreq
     const endFreq = noteData[noteData.length - 1].positionFreq
-    const startPosition = this.frequencyMapper.frequencyToPosition(startFreq)
+    const startPosition = this._calculateHybridPosition(gesture.source, startFreq)
 
     // Emit phrase event for visual system
     this.io.to(this.landingRoomId).emit('musical:event', {
@@ -1248,10 +1265,8 @@ class LandingCompositionService {
       timestamp: Date.now()
     })
 
-    // 4. Calculate cursor trajectory (linear interpolation)
-    const trajectory = this.frequencyMapper.calculateDragTrajectory(
-      startFreq, endFreq, phraseDurationMs
-    )
+    // 4. Generate HYBRID trajectory (golden ratio + metric modulation)
+    const trajectory = this._generateHybridTrajectory(gesture.source, startFreq, endFreq, phraseDurationMs)
 
     // 5. Emit cursor positions along trajectory (synchronized with phrase duration)
     trajectory.forEach((pos) => {
@@ -1263,16 +1278,17 @@ class LandingCompositionService {
       this.pendingTimeouts.add(timeoutId)
     })
 
-    // 6. Emit notes with their positions
+    // 6. Emit notes with HYBRID positions
     // - audioFreq for sound (tessitura-constrained)
-    // - positionFreq for cursor (full canvas)
-    noteData.forEach((note) => {
+    // - positionFreq + golden ratio stepIndex for cursor variation
+    noteData.forEach((note, noteIndex) => {
       const noteTimeoutId = setTimeout(() => {
         this.pendingTimeouts.delete(noteTimeoutId)
         if (!this.io || !this.isRunning) return
 
-        // Get position from RAW frequency (full canvas movement)
-        const notePosition = this.frequencyMapper.frequencyToPosition(note.positionFreq)
+        // Get HYBRID position with noteIndex for golden ratio spacing
+        // Uses different step offset than trajectory for additional variation
+        const notePosition = this._calculateHybridPosition(gesture.source, note.positionFreq, noteIndex + 100)
 
         this.io.to(this.landingRoomId).emit('hold:start', {
           type: 'hold:start',
@@ -1451,6 +1467,116 @@ class LandingCompositionService {
     } else {
       return 'hover'  // modulation (no sound, only modulation)
     }
+  }
+
+  /**
+   * Golden ratio constant for optimal distribution
+   * φ = (1 + √5) / 2 ≈ 1.618033988749895
+   * Consecutive values n*φ mod 1 are maximally spread across [0,1]
+   * @private
+   */
+  static PHI = 1.618033988749895
+  static PHI_SQ = 2.618033988749895  // φ² for Y axis (different sequence)
+
+  /**
+   * Calculate cursor position using GOLDEN RATIO distribution:
+   * - Uses golden ratio for optimal spacing between consecutive positions
+   * - stepIndex adds variation within trajectories (different for each point)
+   * - Still data-derived: position emerges from gestureCount + metrics + step
+   *
+   * @param {string} source - Source name (wikipedia, hackernews, github)
+   * @param {number} baseFrequency - Audio frequency (encodes primary metric)
+   * @param {number} stepIndex - Optional step index within trajectory (default 0)
+   * @returns {{x: number, y: number}} Canvas position (always within 0.05-0.95)
+   * @private
+   */
+  _calculateHybridPosition(source, baseFrequency, stepIndex = 0) {
+    const MIN_BOUND = 0.05
+    const MAX_BOUND = 0.95
+    const RANGE = MAX_BOUND - MIN_BOUND  // 0.9
+
+    // Get gesture counter
+    const gestureCount = this.gestureCounters[source] || 0
+
+    // Source-specific offset to differentiate patterns (prime numbers)
+    const sourceOffset = source === 'wikipedia' ? 17 : source === 'hackernews' ? 53 : 97
+
+    // Get metrics for influence
+    const normalizedFreq = Math.max(0, Math.min(1, (baseFrequency - 110) / 1100))
+    let secondaryMetric = 0.5
+
+    const sourceMetrics = this.metrics[source]
+    if (sourceMetrics) {
+      switch (source) {
+        case 'wikipedia':
+          secondaryMetric = this.normalizeMetricDynamic(source, 'avgEditSize', sourceMetrics.avgEditSize || 0)
+          break
+        case 'hackernews':
+          secondaryMetric = this.normalizeMetricDynamic(source, 'avgUpvotes', sourceMetrics.avgUpvotes || 0)
+          break
+        case 'github':
+          secondaryMetric = this.normalizeMetricDynamic(source, 'createsPerMinute', sourceMetrics.createsPerMinute || 0)
+          break
+      }
+    }
+
+    // GOLDEN RATIO DISTRIBUTION
+    // Each axis uses different φ power for independent sequences
+    // stepIndex ensures trajectory points don't cluster
+    const combinedSeed = gestureCount + sourceOffset + stepIndex
+
+    // X: golden ratio sequence modulated by frequency
+    // Adding normalizedFreq shifts the sequence based on pitch
+    const xGolden = (combinedSeed * LandingCompositionService.PHI + normalizedFreq * 3.7) % 1
+
+    // Y: golden ratio squared sequence modulated by secondary metric
+    // Different multiplier (φ²) ensures X and Y are uncorrelated
+    const yGolden = (combinedSeed * LandingCompositionService.PHI_SQ + secondaryMetric * 5.3) % 1
+
+    // Map to canvas range
+    const x = MIN_BOUND + xGolden * RANGE
+    const y = MIN_BOUND + yGolden * RANGE
+
+    return { x, y }
+  }
+
+  /**
+   * Generate trajectory for drag gesture using GOLDEN RATIO distribution:
+   * - Interpolate frequency between start and end
+   * - Each step gets unique stepIndex for optimal position spacing
+   * - Reduced emission rate (100ms) to avoid trail spam
+   *
+   * @param {string} source - Source name
+   * @param {number} startFreq - Starting frequency
+   * @param {number} endFreq - Ending frequency
+   * @param {number} durationMs - Gesture duration
+   * @param {number} intervalMs - Update interval (default 100ms for reduced trail density)
+   * @returns {Array<{x: number, y: number, timeOffset: number}>} Trajectory positions
+   * @private
+   */
+  _generateHybridTrajectory(source, startFreq, endFreq, durationMs, intervalMs = 100) {
+    const steps = Math.max(1, Math.ceil(durationMs / intervalMs))
+    const positions = []
+
+    for (let i = 0; i <= steps; i++) {
+      const t = steps > 0 ? i / steps : 0
+      // Ease-in-out for natural feel
+      const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+
+      // Interpolate frequency
+      const currentFreq = startFreq + (endFreq - startFreq) * eased
+
+      // Pass stepIndex (i) for golden ratio variation within trajectory
+      const pos = this._calculateHybridPosition(source, currentFreq, i)
+
+      positions.push({
+        x: pos.x,
+        y: pos.y,
+        timeOffset: i * intervalMs
+      })
+    }
+
+    return positions
   }
 }
 
