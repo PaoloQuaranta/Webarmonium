@@ -1814,6 +1814,24 @@ After implementation, code-reviewer agent identified additional improvements:
 
 ---
 
+### Critical Fix: Landing Page Support
+
+After initial deployment, settings still weren't working on the landing page. Investigation revealed:
+
+**Problem**: SettingsPanel was looking for `window.webarmoniumApp` but landing page uses `window.landingApp`.
+
+**File:** `frontend/src/components/SettingsPanel.js`
+
+Fixed both `_applySettings()` and `_resetSettings()` to support both contexts:
+
+```javascript
+// Support both rooms (webarmoniumApp) and landing page (landingApp)
+const audioService = window.webarmoniumApp?.audioService || window.landingApp?.audioService
+const visualService = window.webarmoniumApp?.visualService || window.landingApp?.visualService
+```
+
+---
+
 ### Version
 
-Updated to v1.0.70
+Updated to v1.0.71

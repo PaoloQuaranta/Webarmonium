@@ -367,9 +367,11 @@ class SettingsPanel {
     })
 
     // Fix #4: Try-catch for audio reload
-    if (window.webarmoniumApp?.audioService?.reloadAudioProfile) {
+    // Support both rooms (webarmoniumApp) and landing page (landingApp)
+    const audioService = window.webarmoniumApp?.audioService || window.landingApp?.audioService
+    if (audioService?.reloadAudioProfile) {
       try {
-        window.webarmoniumApp.audioService.reloadAudioProfile()
+        audioService.reloadAudioProfile()
       } catch (error) {
         console.error('Failed to reload audio profile:', error)
         this._showCanvasNotification('Audio reload failed')
@@ -378,9 +380,11 @@ class SettingsPanel {
     }
 
     // Fix #4: Try-catch for graphics reload
-    if (window.webarmoniumApp?.visualService?.applyGraphicsQuality) {
+    // Support both rooms (webarmoniumApp) and landing page (landingApp)
+    const visualService = window.webarmoniumApp?.visualService || window.landingApp?.visualService
+    if (visualService?.applyGraphicsQuality) {
       try {
-        window.webarmoniumApp.visualService.applyGraphicsQuality()
+        visualService.applyGraphicsQuality()
       } catch (error) {
         console.error('Failed to apply graphics quality:', error)
         this._showCanvasNotification('Graphics update failed')
@@ -474,18 +478,22 @@ class SettingsPanel {
     this._loadCurrentSettings()
 
     // Fix #4: Try-catch for audio reload
-    if (window.webarmoniumApp?.audioService?.reloadAudioProfile) {
+    // Support both rooms (webarmoniumApp) and landing page (landingApp)
+    const audioService = window.webarmoniumApp?.audioService || window.landingApp?.audioService
+    if (audioService?.reloadAudioProfile) {
       try {
-        window.webarmoniumApp.audioService.reloadAudioProfile()
+        audioService.reloadAudioProfile()
       } catch (error) {
         console.error('Failed to reload audio profile:', error)
       }
     }
 
     // Fix #4: Try-catch for graphics reload
-    if (window.webarmoniumApp?.visualService?.applyGraphicsQuality) {
+    // Support both rooms (webarmoniumApp) and landing page (landingApp)
+    const visualService = window.webarmoniumApp?.visualService || window.landingApp?.visualService
+    if (visualService?.applyGraphicsQuality) {
       try {
-        window.webarmoniumApp.visualService.applyGraphicsQuality()
+        visualService.applyGraphicsQuality()
       } catch (error) {
         console.error('Failed to apply graphics quality:', error)
       }
