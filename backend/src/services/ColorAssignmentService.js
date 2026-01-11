@@ -1,23 +1,18 @@
+const { REAL_USER_COLOR_POOL } = require('../constants/colors')
+
 /**
  * ColorAssignmentService
- * Manages the 10-color pool for multi-user canvas
+ * Manages the color pool for real users in multi-user canvas
  * Constitutional requirement: Unique colors per user, predictable assignment
+ *
+ * IMPORTANT: Real user colors are completely separate from virtual user colors
+ * Virtual users use VIRTUAL_USER_COLORS from constants/colors.js
  */
 class ColorAssignmentService {
   constructor () {
-    // 10-color pool (ColorBrewer qualitative palette)
-    this.COLOR_POOL = [
-      '#e41a1c', // Red
-      '#377eb8', // Blue
-      '#4daf4a', // Green
-      '#984ea3', // Purple
-      '#ff7f00', // Orange
-      '#ffff33', // Yellow
-      '#a65628', // Brown
-      '#f781bf', // Pink
-      '#999999', // Gray
-      '#66c2a5' // Teal
-    ]
+    // Real user color pool - excludes virtual user colors (red, orange, blue)
+    // 7 colors for max 4 real users (buffer for race condition during refresh)
+    this.COLOR_POOL = REAL_USER_COLOR_POOL
 
     // Track available colors (Set for O(1) operations)
     this.availableColors = new Set(this.COLOR_POOL)
@@ -45,7 +40,7 @@ class ColorAssignmentService {
 
     // Check if colors available
     if (this.availableColors.size === 0) {
-      throw new Error('No colors available in pool (max 10 users)')
+      throw new Error(`No colors available in pool (max ${REAL_USER_COLOR_POOL.length} real users)`)
     }
 
     // Get first available color

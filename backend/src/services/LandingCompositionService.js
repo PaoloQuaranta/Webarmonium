@@ -20,6 +20,7 @@ const CompositionEngine = require('./CompositionEngine')
 const PhraseMorphology = require('./PhraseMorphology')
 const HoverOrchestrator = require('./HoverOrchestrator')
 const FrequencyPositionMapper = require('../utils/FrequencyPositionMapper')
+const { VIRTUAL_USER_COLORS } = require('../constants/colors')
 
 class LandingCompositionService {
   constructor() {
@@ -82,24 +83,25 @@ class LandingCompositionService {
 
     // Virtual user definitions (for cursor display and material generation)
     // Note: regions removed - cursor positions derived from generated frequencies
+    // Colors from VIRTUAL_USER_COLORS - exclusive, never overlap with real user colors
     this.virtualUsers = {
       wikipedia: {
         userId: 'wikipedia-metrics',
-        color: '#e41a1c',
+        color: VIRTUAL_USER_COLORS.wikipedia,
         baseFrequency: 130.81,
         tessitura: 'bass',
         frequencyRange: { min: 110, max: 220 }  // A2-A3
       },
       hackernews: {
         userId: 'hackernews-metrics',
-        color: '#ff7f00',
+        color: VIRTUAL_USER_COLORS.hackernews,
         baseFrequency: 293.66,
         tessitura: 'tenor',
         frequencyRange: { min: 196, max: 392 }  // G3-G4
       },
       github: {
         userId: 'github-metrics',
-        color: '#377eb8',
+        color: VIRTUAL_USER_COLORS.github,
         baseFrequency: 659.25,
         tessitura: 'soprano',
         frequencyRange: { min: 523, max: 1047 }  // C5-C6

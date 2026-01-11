@@ -15,6 +15,7 @@
 const HarmonicEngine = require('./HarmonicEngine')
 const PhraseMorphology = require('./PhraseMorphology')
 const FrequencyPositionMapper = require('../utils/FrequencyPositionMapper')
+const { VIRTUAL_USER_COLORS } = require('../constants/colors')
 
 class VirtualUserService {
   constructor() {
@@ -40,22 +41,23 @@ class VirtualUserService {
 
     // Virtual user configurations
     // Note: regions removed - cursor positions now derived from generated frequencies
+    // Colors from VIRTUAL_USER_COLORS - exclusive, never overlap with real user colors
     this.virtualUserConfigs = {
       wikipedia: {
         userId: 'wikipedia-metrics',
-        color: '#e41a1c',
+        color: VIRTUAL_USER_COLORS.wikipedia,
         tessitura: 'bass',
         frequencyRange: { min: 110, max: 220 }  // A2-A3
       },
       hackernews: {
         userId: 'hackernews-metrics',
-        color: '#ff7f00',
+        color: VIRTUAL_USER_COLORS.hackernews,
         tessitura: 'tenor',
         frequencyRange: { min: 196, max: 392 }  // G3-G4
       },
       github: {
         userId: 'github-metrics',
-        color: '#377eb8',
+        color: VIRTUAL_USER_COLORS.github,
         tessitura: 'soprano',
         frequencyRange: { min: 523, max: 1047 }  // C5-C6
       }

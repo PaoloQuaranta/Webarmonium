@@ -50,10 +50,12 @@ class AudioService {
     this.muted = false
     this.volume = 1.0 // 0-1 range
 
-    // Color-to-frequency mapping (10-color pool)
+    // Color-to-frequency mapping (10-color pool: 3 virtual + 7 real)
+    // Virtual user colors (exclusive): red, orange, blue
+    // Real user colors (exclusive): green, purple, yellow, brown, pink, gray, teal
     this.colorPool = [
-      '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00',
-      '#ffff33', '#a65628', '#f781bf', '#999999', '#66c2a5'
+      '#e41a1c', '#ff7f00', '#377eb8',  // Virtual users (Wikipedia, HackerNews, GitHub)
+      '#4daf4a', '#984ea3', '#ffff33', '#a65628', '#f781bf', '#999999', '#66c2a5'  // Real users
     ]
     this.colorFrequencyRange = { min: 200, max: 800 } // Hz
 

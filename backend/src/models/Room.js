@@ -1,3 +1,5 @@
+const { REAL_USER_COLOR_POOL } = require('../constants/colors')
+
 /**
  * Room Model
  * Virtual collaborative space with unique sonic personality
@@ -21,10 +23,9 @@ class Room {
     // Multi-user canvas state
     this.drawingStrokes = [] // Array of completed DrawingStroke objects
     this.cursorPositions = new Map() // userId -> CursorPosition object
-    this.availableColors = new Set([
-      '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00',
-      '#ffff33', '#a65628', '#f781bf', '#999999', '#66c2a5'
-    ]) // 10-color pool for user assignment
+    // Real user color pool - excludes virtual user colors (red, orange, blue)
+    // 7 colors for max 4 real users (buffer for race condition during refresh)
+    this.availableColors = new Set(REAL_USER_COLOR_POOL)
     // EXPANDED: 8-slot pool to handle race conditions when users refresh
     // (disconnect event may not process before new join, causing temporary slot exhaustion)
     // Patches cycle through 4 timbres via % 4, but having 8 slots prevents assignment failures

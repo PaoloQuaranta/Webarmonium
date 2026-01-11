@@ -1,8 +1,12 @@
 const ColorAssignmentService = require('../../src/services/ColorAssignmentService')
+const { REAL_USER_COLOR_POOL } = require('../../src/constants/colors')
 
 /**
  * Unit Test: ColorAssignmentService
  * Tests color pool management, assignment, and release logic
+ *
+ * UPDATED: Now uses 7-color pool for real users only
+ * Virtual user colors (red, orange, blue) are excluded
  */
 
 describe('ColorAssignmentService', () => {
@@ -13,20 +17,18 @@ describe('ColorAssignmentService', () => {
   })
 
   describe('Initialization', () => {
-    test('should initialize with 10 available colors', () => {
-      expect(service.getAvailableColorCount()).toBe(10)
+    test('should initialize with 7 available colors (real users only)', () => {
+      expect(service.getAvailableColorCount()).toBe(7)
       expect(service.getAssignedColorCount()).toBe(0)
     })
 
-    test('should have correct color pool', () => {
-      const expectedColors = [
-        '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00',
-        '#ffff33', '#a65628', '#f781bf', '#999999', '#66c2a5'
-      ]
+    test('should have correct color pool (excludes virtual user colors)', () => {
+      // Real user colors only - excludes red (#e41a1c), orange (#ff7f00), blue (#377eb8)
+      const expectedColors = REAL_USER_COLOR_POOL
 
       const state = service.getState()
       expect(state.availableColors).toEqual(expect.arrayContaining(expectedColors))
-      expect(state.availableColors.length).toBe(10)
+      expect(state.availableColors.length).toBe(7)
     })
 
     test('should not be full initially', () => {
@@ -43,7 +45,7 @@ describe('ColorAssignmentService', () => {
       const color = service.assignColor('user1')
 
       expect(color).toMatch(/^#[0-9a-f]{6}$/)
-      expect(service.getAvailableColorCount()).toBe(9)
+      expect(service.getAvailableColorCount()).toBe(6)
       expect(service.getAssignedColorCount()).toBe(1)
     })
 
@@ -56,7 +58,7 @@ describe('ColorAssignmentService', () => {
       expect(color1).not.toBe(color3)
       expect(color2).not.toBe(color3)
 
-      expect(service.getAvailableColorCount()).toBe(7)
+      expect(service.getAvailableColorCount()).toBe(4)
       expect(service.getAssignedColorCount()).toBe(3)
     })
 
@@ -85,19 +87,19 @@ describe('ColorAssignmentService', () => {
       }).toThrow('User ID is required')
     })
 
-    test('should throw error when pool is exhausted (10 users)', () => {
-      // Assign all 10 colors
-      for (let i = 1; i <= 10; i++) {
+    test('should throw error when pool is exhausted (7 users)', () => {
+      // Assign all 7 colors
+      for (let i = 1; i <= 7; i++) {
         service.assignColor(`user${i}`)
       }
 
       expect(service.isFull()).toBe(true)
       expect(service.getAvailableColorCount()).toBe(0)
 
-      // 11th user should fail
+      // 8th user should fail
       expect(() => {
-        service.assignColor('user11')
-      }).toThrow('No colors available in pool (max 10 users)')
+        service.assignColor('user8')
+      }).toThrow('No colors available in pool (max 7 real users)')
     })
 
     test('should not be empty after assignment', () => {
@@ -110,12 +112,12 @@ describe('ColorAssignmentService', () => {
     test('should release color back to pool', () => {
       const color = service.assignColor('user1')
 
-      expect(service.getAvailableColorCount()).toBe(9)
+      expect(service.getAvailableColorCount()).toBe(6)
 
       const released = service.releaseColor('user1')
 
       expect(released).toBe(color)
-      expect(service.getAvailableColorCount()).toBe(10)
+      expect(service.getAvailableColorCount()).toBe(7)
       expect(service.getAssignedColorCount()).toBe(0)
       expect(service.hasAssignedColor('user1')).toBe(false)
     })
@@ -133,7 +135,7 @@ describe('ColorAssignmentService', () => {
 
       // Color should be available again
       expect(color2).toMatch(/^#[0-9a-f]{6}$/)
-      expect(service.getAvailableColorCount()).toBe(9)
+      expect(service.getAvailableColorCount()).toBe(6)
     })
 
     test('should throw error if userId is missing', () => {
@@ -144,18 +146,18 @@ describe('ColorAssignmentService', () => {
   })
 
   describe('Color pool recycling', () => {
-    test('should allow 11th user after one leaves', () => {
-      // Fill pool with 10 users
+    test('should allow 8th user after one leaves', () => {
+      // Fill pool with 7 users
       const colors = []
-      for (let i = 1; i <= 10; i++) {
+      for (let i = 1; i <= 7; i++) {
         colors.push(service.assignColor(`user${i}`))
       }
 
       expect(service.isFull()).toBe(true)
 
-      // 11th user fails
+      // 8th user fails
       expect(() => {
-        service.assignColor('user11')
+        service.assignColor('user8')
       }).toThrow('No colors available')
 
       // User 1 leaves
@@ -163,9 +165,9 @@ describe('ColorAssignmentService', () => {
 
       expect(service.isFull()).toBe(false)
 
-      // 11th user can now join
-      const color11 = service.assignColor('user11')
-      expect(color11).toMatch(/^#[0-9a-f]{6}$/)
+      // 8th user can now join
+      const color8 = service.assignColor('user8')
+      expect(color8).toMatch(/^#[0-9a-f]{6}$/)
       expect(service.isFull()).toBe(true)
     })
 
@@ -179,8 +181,8 @@ describe('ColorAssignmentService', () => {
         service.releaseColor(`user${i}`)
       }
 
-      // Should have seen all 10 colors
-      expect(assignedColors.size).toBe(10)
+      // Should have seen all 7 colors
+      expect(assignedColors.size).toBe(7)
     })
   })
 
@@ -192,13 +194,13 @@ describe('ColorAssignmentService', () => {
       service.assignColor('user3')
 
       expect(service.getAssignedColorCount()).toBe(3)
-      expect(service.getAvailableColorCount()).toBe(7)
+      expect(service.getAvailableColorCount()).toBe(4)
 
       // Reset
       service.reset()
 
       expect(service.getAssignedColorCount()).toBe(0)
-      expect(service.getAvailableColorCount()).toBe(10)
+      expect(service.getAvailableColorCount()).toBe(7)
       expect(service.isEmpty()).toBe(true)
       expect(service.isFull()).toBe(false)
     })
@@ -211,10 +213,10 @@ describe('ColorAssignmentService', () => {
 
       const state = service.getState()
 
-      expect(state).toHaveProperty('totalColors', 10)
+      expect(state).toHaveProperty('totalColors', 7)
       expect(state).toHaveProperty('availableColors')
       expect(state).toHaveProperty('assignedColors')
-      expect(state).toHaveProperty('availableCount', 8)
+      expect(state).toHaveProperty('availableCount', 5)
       expect(state).toHaveProperty('assignedCount', 2)
 
       expect(state.assignedColors).toHaveProperty('user1')
@@ -239,13 +241,21 @@ describe('ColorAssignmentService', () => {
   })
 
   describe('isPoolColor()', () => {
-    test('should identify colors from pool', () => {
-      expect(service.isPoolColor('#e41a1c')).toBe(true)
-      expect(service.isPoolColor('#377eb8')).toBe(true)
-      expect(service.isPoolColor('#66c2a5')).toBe(true)
+    test('should identify colors from real user pool', () => {
+      // Real user colors (in pool)
+      expect(service.isPoolColor('#4daf4a')).toBe(true) // Green
+      expect(service.isPoolColor('#984ea3')).toBe(true) // Purple
+      expect(service.isPoolColor('#66c2a5')).toBe(true) // Teal
     })
 
-    test('should reject colors not in pool', () => {
+    test('should reject virtual user colors (not in pool)', () => {
+      // Virtual user colors are excluded from real user pool
+      expect(service.isPoolColor('#e41a1c')).toBe(false) // Red (Wikipedia)
+      expect(service.isPoolColor('#ff7f00')).toBe(false) // Orange (HackerNews)
+      expect(service.isPoolColor('#377eb8')).toBe(false) // Blue (GitHub)
+    })
+
+    test('should reject colors not in any pool', () => {
       expect(service.isPoolColor('#000000')).toBe(false)
       expect(service.isPoolColor('#ffffff')).toBe(false)
     })
@@ -259,7 +269,7 @@ describe('ColorAssignmentService', () => {
         service.releaseColor('user1')
       }
 
-      expect(service.getAvailableColorCount()).toBe(10)
+      expect(service.getAvailableColorCount()).toBe(7)
       expect(service.getAssignedColorCount()).toBe(0)
     })
 

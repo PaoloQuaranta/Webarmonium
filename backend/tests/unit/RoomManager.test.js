@@ -20,50 +20,51 @@ describe('RoomManager - Multi-User Canvas Extensions', () => {
     manager.shutdown()
   })
 
-  describe('Room Capacity (max 10 users)', () => {
-    test('should allow up to 10 users to join room', async () => {
+  describe('Room Capacity (max 4 users)', () => {
+    test('should allow up to 4 users to join room', async () => {
       const roomId = 'test-room'
 
-      for (let i = 1; i <= 10; i++) {
+      for (let i = 1; i <= 4; i++) {
         const result = await manager.joinRoom(`user${i}`, roomId, { device: 'desktop' })
         expect(result.success).toBe(true)
         expect(result.assignedColor).toMatch(/^#[0-9a-f]{6}$/)
       }
 
       const room = manager.getRoom(roomId)
-      expect(room.getUserCount()).toBe(10)
+      expect(room.getUserCount()).toBe(4)
       expect(room.isFull()).toBe(true)
     })
 
-    test('should reject 11th user with ROOM_FULL error', async () => {
+    test('should redirect 5th user to overflow room', async () => {
       const roomId = 'test-room'
 
-      // Fill room with 10 users
-      for (let i = 1; i <= 10; i++) {
+      // Fill room with 4 users
+      for (let i = 1; i <= 4; i++) {
         await manager.joinRoom(`user${i}`, roomId, { device: 'desktop' })
       }
 
-      // 11th user should be rejected
-      await expect(
-        manager.joinRoom('user11', roomId, { device: 'desktop' })
-      ).rejects.toThrow('ROOM_FULL')
+      // 5th user should be redirected to overflow room
+      const result = await manager.joinRoom('user5', roomId, { device: 'desktop' })
+      expect(result.success).toBe(true)
+      expect(result.room.roomId).toBe('test-room-2') // Overflow room
     })
 
-    test('should allow 11th user after one leaves', async () => {
+    test('should allow 5th user after one leaves', async () => {
       const roomId = 'test-room'
 
       // Fill room
-      for (let i = 1; i <= 10; i++) {
+      for (let i = 1; i <= 4; i++) {
         await manager.joinRoom(`user${i}`, roomId, { device: 'desktop' })
       }
 
       // User 1 leaves
       await manager.leaveRoom('user1')
 
-      // User 11 can now join
-      const result = await manager.joinRoom('user11', roomId, { device: 'desktop' })
+      // User 5 can now join original room
+      const result = await manager.joinRoom('user5', roomId, { device: 'desktop' })
       expect(result.success).toBe(true)
       expect(result.assignedColor).toMatch(/^#[0-9a-f]{6}$/)
+      expect(result.room.roomId).toBe(roomId)
     })
   })
 
@@ -72,12 +73,13 @@ describe('RoomManager - Multi-User Canvas Extensions', () => {
       const roomId = 'test-room'
       const colors = new Set()
 
-      for (let i = 1; i <= 5; i++) {
+      // Max 4 users per room
+      for (let i = 1; i <= 4; i++) {
         const result = await manager.joinRoom(`user${i}`, roomId, { device: 'desktop' })
         colors.add(result.assignedColor)
       }
 
-      expect(colors.size).toBe(5) // All unique
+      expect(colors.size).toBe(4) // All unique
     })
 
     test('should include assignedColor in join response', async () => {
@@ -106,18 +108,18 @@ describe('RoomManager - Multi-User Canvas Extensions', () => {
       const color1 = result1.assignedColor
 
       const colorService = manager.getColorService(roomId)
-      expect(colorService.getAvailableColorCount()).toBe(9)
+      expect(colorService.getAvailableColorCount()).toBe(6) // 7 colors, 1 assigned
 
       await manager.leaveRoom('user1')
 
       // Color should be back in pool
-      expect(colorService.getAvailableColorCount()).toBe(10)
+      expect(colorService.getAvailableColorCount()).toBe(7)
       expect(colorService.hasAssignedColor('user1')).toBe(false)
 
       // New user should get a valid color (not necessarily the same one)
       const result2 = await manager.joinRoom('user2', roomId, { device: 'desktop' })
       expect(result2.assignedColor).toMatch(/^#[0-9a-f]{6}$/)
-      expect(colorService.getAvailableColorCount()).toBe(9)
+      expect(colorService.getAvailableColorCount()).toBe(6)
     })
 
     test('should maintain color assignments across multiple rooms', async () => {
@@ -321,11 +323,11 @@ describe('RoomManager - Multi-User Canvas Extensions', () => {
       const color = result1.assignedColor
 
       const colorService = manager.getColorService('room1')
-      expect(colorService.getAvailableColorCount()).toBe(9)
+      expect(colorService.getAvailableColorCount()).toBe(6) // 7 colors, 1 assigned
 
       await manager.leaveRoom('user1')
 
-      expect(colorService.getAvailableColorCount()).toBe(10)
+      expect(colorService.getAvailableColorCount()).toBe(7) // All 7 colors back
       expect(colorService.hasAssignedColor('user1')).toBe(false)
     })
 
@@ -403,20 +405,21 @@ describe('RoomManager - Multi-User Canvas Extensions', () => {
 
       const colorService = manager.getColorService('room1')
       if (colorService) {
-        expect(colorService.getAvailableColorCount()).toBe(10)
+        expect(colorService.getAvailableColorCount()).toBe(7) // All 7 real user colors available
       }
     })
 
-    test('should handle multiple rooms with 10 users each', async () => {
+    test('should handle multiple rooms with max users each', async () => {
+      // Max 4 users per room
       for (let r = 1; r <= 3; r++) {
-        for (let u = 1; u <= 10; u++) {
+        for (let u = 1; u <= 4; u++) {
           await manager.joinRoom(`room${r}-user${u}`, `room${r}`, { device: 'desktop' })
         }
       }
 
-      expect(manager.getColorService('room1').getAssignedColorCount()).toBe(10)
-      expect(manager.getColorService('room2').getAssignedColorCount()).toBe(10)
-      expect(manager.getColorService('room3').getAssignedColorCount()).toBe(10)
+      expect(manager.getColorService('room1').getAssignedColorCount()).toBe(4)
+      expect(manager.getColorService('room2').getAssignedColorCount()).toBe(4)
+      expect(manager.getColorService('room3').getAssignedColorCount()).toBe(4)
     })
 
     test('should handle stroke history with 100 strokes', async () => {
@@ -437,7 +440,8 @@ describe('RoomManager - Multi-User Canvas Extensions', () => {
       const roomId = 'room1'
       const users = []
 
-      for (let i = 1; i <= 10; i++) {
+      // Max 4 users per room, 7 colors available for real users
+      for (let i = 1; i <= 4; i++) {
         users.push(manager.joinRoom(`user${i}`, roomId, { device: 'desktop' }))
       }
 
@@ -445,7 +449,7 @@ describe('RoomManager - Multi-User Canvas Extensions', () => {
       const colors = results.map(r => r.assignedColor)
       const uniqueColors = new Set(colors)
 
-      expect(uniqueColors.size).toBe(10) // All unique
+      expect(uniqueColors.size).toBe(4) // All unique
     })
   })
 })
