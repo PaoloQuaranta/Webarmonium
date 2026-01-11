@@ -110,6 +110,14 @@ class GenerativeVisualService {
       // PERF: Expose instance on window for subsystem stress factor access
       window.visualService = this
 
+      // Entry #90 FIX: Apply graphics quality settings at initialization
+      // This ensures user settings are respected on page load
+      try {
+        this.applyGraphicsQuality()
+      } catch (e) {
+        console.warn('🎨 Failed to apply graphics quality at init:', e)
+      }
+
       console.log('✅ GenerativeVisualService: Enhanced p5.js initialized with subsystems')
     } catch (error) {
       console.error('❌ Error during GenerativeVisualService initialization:', error)
@@ -600,13 +608,19 @@ class GenerativeVisualService {
       return
     }
 
-    // Get base profile (auto-detected or default)
-    const baseProfile = {
+    // Entry #90 FIX: Get base profile from device capabilities (not hardcoded full)
+    let baseProfile = {
       shadowBlur: true,
       particleCount: 120,
       attractorPoints: 1200,
       pulseGlow: true,
       cascadeEnabled: true
+    }
+
+    // Use device-detected profile if available
+    if (typeof DeviceCapabilities !== 'undefined') {
+      baseProfile = DeviceCapabilities.getGraphicsProfile()
+      console.log('🎨 Graphics baseProfile from DeviceCapabilities:', baseProfile)
     }
 
     // Get effective profile with user overrides

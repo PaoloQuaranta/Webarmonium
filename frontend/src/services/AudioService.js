@@ -840,6 +840,7 @@ class AudioService {
         // PERF: Entry #48/#59: Use platform-specific lookAhead for better scheduling buffer
         // Default is 0.05 (50ms), increase based on platform for stability
         // Chrome on Windows needs VERY aggressive settings (250ms)
+        // Entry #90 FIX: Respect user's audioProfile.lookAhead if set
         let targetLookAhead = typeof PlatformDetection !== 'undefined'
           ? PlatformDetection.getAudioLookAhead()
           : (this._isWindowsChrome ? 0.15 : 0.1)
@@ -850,6 +851,13 @@ class AudioService {
           : null
         if (chromeLookAhead !== null) {
           targetLookAhead = chromeLookAhead
+        }
+
+        // Entry #90 FIX: Use user's lookAhead setting if specified (via UserSettings)
+        // This takes priority over platform detection
+        if (this.audioProfile && this.audioProfile.lookAhead && this.audioProfile.source === 'user-settings') {
+          targetLookAhead = this.audioProfile.lookAhead
+          console.log(`🔊 Using user-specified lookAhead: ${targetLookAhead}s`)
         }
 
         const isWindowsChromePure = typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsChromePure()

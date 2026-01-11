@@ -272,6 +272,48 @@ class DeviceCapabilities {
   }
 
   /**
+   * Entry #90: Get graphics profile based on device tier
+   * @returns {Object} Graphics configuration profile
+   */
+  static getGraphicsProfile () {
+    const tier = this.getTier()
+
+    const profiles = {
+      'high': {
+        shadowBlur: true,
+        particleCount: 120,
+        attractorPoints: 1200,
+        pulseGlow: true,
+        cascadeEnabled: true
+      },
+      'medium': {
+        shadowBlur: true,
+        particleCount: 80,
+        attractorPoints: 800,
+        pulseGlow: true,
+        cascadeEnabled: true
+      },
+      'low': {
+        shadowBlur: false,
+        particleCount: 50,
+        attractorPoints: 500,
+        pulseGlow: false,
+        cascadeEnabled: true
+      },
+      'ultra-low': {
+        shadowBlur: false,
+        particleCount: 30,
+        attractorPoints: 300,
+        pulseGlow: false,
+        cascadeEnabled: false
+      }
+    }
+
+    const profile = profiles[tier] || profiles['medium']
+    return { ...profile, tier, source: 'device-capabilities' }
+  }
+
+  /**
    * Clear cached values (for testing)
    */
   static clearCache () {
