@@ -1164,11 +1164,13 @@ class WebarmoniumApp {
 
       // Forward interaction metrics to visual service for spatial gradient
       if (this.visualService && data.parameters) {
-        this.visualService.updateInteractionMetrics({
+        const metrics = {
           userCount: data.parameters.activeUsers || data.parameters.harmonicDensity || 1,
           spatialDensity: data.parameters.rhythmicDensity || 0,
           dominantZone: data.parameters.dominantZone || { x: 0.5, y: 0.5 }
-        })
+        }
+        console.log('🎨 Room gradient metrics:', metrics, 'hasNebulas:', !!this.visualService.nebulas)
+        this.visualService.updateInteractionMetrics(metrics)
       }
     })
 

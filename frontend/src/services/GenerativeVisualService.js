@@ -479,6 +479,11 @@ class GenerativeVisualService {
       } catch (error) {
         console.error('GenerativeVisualService: Error updating interaction metrics:', error)
       }
+    } else {
+      console.warn('🎨 updateInteractionMetrics: nebulas not available', {
+        hasNebulas: !!this.nebulas,
+        hasMethod: !!(this.nebulas && this.nebulas.setInteractionMetrics)
+      })
     }
   }
 
