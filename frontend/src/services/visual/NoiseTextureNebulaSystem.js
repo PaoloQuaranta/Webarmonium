@@ -63,7 +63,7 @@ class NoiseTextureNebulaSystem {
       saturationBoost: 30, // Percentage saturation increase at max effect
       lightnessBoost: 20,  // Percentage brightness increase at max effect
       maxDiagonal: Math.sqrt(2), // Max distance for normalized 0-1 coordinates
-      maxUsers: 10         // Divisor for userFactor (10 for rooms, 3 for landing)
+      maxUsers: 4          // Divisor for userFactor (4 for rooms, 3 for landing)
     }
 
     // Current and target noise scales (for morphing)
