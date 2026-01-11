@@ -1134,3 +1134,56 @@ Updated "How It Works" section and technical appendix to reflect the new Golden 
 Updated to v1.0.64
 
 ---
+
+## Entry #84 - Ghost "local" Cursor Fix
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed ghost cursor with label "local" that appeared intermittently on the canvas. The cursor persisted because it was created when socket.id was unavailable during connection/reconnection.
+
+---
+
+### Root Cause
+
+The pattern `socket.id || 'local'` was used as a fallback in 7 locations. When the socket was disconnected or connecting, the fallback `'local'` created a cursor that:
+1. Was rendered with label "local" (first 8 chars of userId)
+2. Was not tracked as virtual or remote cursor (no cleanup path)
+3. Had its timestamp reset by each gesture, preventing stale removal
+
+---
+
+### Solution
+
+Replaced `socket.id || 'local'` with early return when socket.id is unavailable:
+
+```javascript
+// BEFORE (broken)
+const userId = this.socketService.socket.id || 'local'
+this.visualService.updateCursorPosition(userId, x, y, color)
+
+// AFTER (fixed)
+const userId = this.socketService.socket.id
+if (!userId) return // Skip if socket not ready
+this.visualService.updateCursorPosition(userId, x, y, color)
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/main.js` | Fixed 5 occurrences (lines 692, 752, 796, 843, 1584) |
+| `frontend/src/handlers/SustainedHoldHandler.js` | Fixed 2 occurrences (lines 296, 315) |
+
+---
+
+### Version
+
+Updated to v1.0.65
+
+---

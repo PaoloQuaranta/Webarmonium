@@ -293,7 +293,8 @@ class SustainedHoldHandler {
   updateVisualOnHoldStart(position) {
     if (!this.visualService || !this.socketService || !this.socketService.socket) return
 
-    const userId = this.socketService.socket.id || 'local'
+    const userId = this.socketService.socket.id
+    if (!userId) return // Skip if socket not ready (prevents ghost "local" cursor)
     const color = this.currentUserColor || '#00ff00'
 
     this.visualService.updateCursorPosition(userId, position.x, position.y, color)
@@ -311,7 +312,8 @@ class SustainedHoldHandler {
   updateVisualOnHoldEnd() {
     if (!this.visualService || !this.socketService || !this.socketService.socket) return
 
-    const userId = this.socketService.socket.id || 'local'
+    const userId = this.socketService.socket.id
+    if (!userId) return // Skip if socket not ready (prevents ghost "local" cursor)
 
     this.visualService.updateGestureData(userId, {
       type: 'idle',

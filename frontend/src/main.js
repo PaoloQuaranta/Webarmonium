@@ -689,7 +689,8 @@ class WebarmoniumApp {
 
         // Update visual service with hold gesture
         if (this.visualService && this.socketService && this.socketService.socket) {
-          const userId = this.socketService.socket.id || 'local'
+          const userId = this.socketService.socket.id
+          if (!userId) return // Skip if socket not ready (prevents ghost "local" cursor)
           const color = this.currentUserColor || '#00ff00'
 
           this.visualService.updateCursorPosition(userId, holdData.position.x, holdData.position.y, color)
@@ -748,7 +749,8 @@ class WebarmoniumApp {
 
       // Update visual service with hold end
       if (this.visualService && this.socketService && this.socketService.socket) {
-        const userId = this.socketService.socket.id || 'local'
+        const userId = this.socketService.socket.id
+        if (!userId) return // Skip if socket not ready (prevents ghost "local" cursor)
 
         this.visualService.updateGestureData(userId, {
           type: 'idle',
@@ -791,7 +793,8 @@ class WebarmoniumApp {
 
       // Update visual service with local gesture start
       if (this.visualService && this.socketService && this.socketService.socket) {
-        const userId = this.socketService.socket.id || 'local'
+        const userId = this.socketService.socket.id
+        if (!userId) return // Skip if socket not ready (prevents ghost "local" cursor)
         const position = gesture.coordinates || gesture.startPosition || { x: 0.5, y: 0.5 }
         const color = this.currentUserColor || '#00ff00' // Default green for local user
 
@@ -837,7 +840,8 @@ class WebarmoniumApp {
 
       // Update visual service with local gesture end
       if (this.visualService && this.socketService && this.socketService.socket) {
-        const userId = this.socketService.socket.id || 'local'
+        const userId = this.socketService.socket.id
+        if (!userId) return // Skip if socket not ready (prevents ghost "local" cursor)
         const position = gesture.coordinates || gesture.endPosition || { x: 0.5, y: 0.5 }
 
         this.visualService.updateGestureData(userId, {
@@ -1577,7 +1581,8 @@ class WebarmoniumApp {
 
         // Update local visual service with cursor position
         if (this.visualService && this.socketService && this.socketService.socket) {
-          const userId = this.socketService.socket.id || 'local'
+          const userId = this.socketService.socket.id
+          if (!userId) return // Skip if socket not ready (prevents ghost "local" cursor)
           const color = this.currentUserColor || '#00ff00'
           this.visualService.updateCursorPosition(userId, x, y, color)
         }
