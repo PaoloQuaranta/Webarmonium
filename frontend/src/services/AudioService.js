@@ -2921,6 +2921,12 @@ class AudioService {
       const delay = index * 0.5
       const layerName = isDrone ? 'pad' : 'backgroundLow'
 
+      // Entry #90: Skip if layer is disabled by audio profile settings
+      if (!this._isLayerEnabled(layerName)) {
+        console.log(`🔇 Skipping ${layerName} - layer disabled by profile (backgroundLayers: ${JSON.stringify(this.audioProfile?.backgroundLayers)})`)
+        continue
+      }
+
       if (isDrone) {
         // Entry #27 FIX: For drones, trigger IMMEDIATELY using Tone.now() (AudioContext time)
         // Don't use Transport.schedule() which uses Transport time (can be out of sync after stop/start)
@@ -2943,6 +2949,10 @@ class AudioService {
         // PERFORMANCE FIX: Store ALL event IDs in array (was overwriting single ID, causing leak)
         const repeatStartTime = `+${duration + delay}`
         const repeatEventId = Tone.Transport.scheduleRepeat((audioTime) => {
+          // Entry #90: Check if layer is still enabled (user may have changed settings)
+          if (!this._isLayerEnabled('pad')) {
+            return  // Skip this repeat - layer was disabled
+          }
           if (this.ambientLayers && this.ambientLayers.pad) {
             // POLYPHONY FIX: Release ALL previous notes before triggering new one
             // This prevents voice accumulation in the PolySynth (max 3 voices)
@@ -3005,6 +3015,9 @@ class AudioService {
    * @param {number} velocity - Velocity 0-1
    */
   safeMonoSynthTrigger(layerName, frequency, duration, time, velocity) {
+    // Entry #90: Skip if layer is disabled by audio profile settings
+    if (!this._isLayerEnabled(layerName)) return
+
     const layer = this.ambientLayers && this.ambientLayers[layerName]
     if (!layer) return
 
@@ -3809,6 +3822,8 @@ class AudioService {
       // Force play notes on each layer using for loops (no allocation)
       for (let layerIdx = 0; layerIdx < layerNames.length; layerIdx++) {
         const layer = layerNames[layerIdx]
+        // Entry #90: Skip if layer is disabled by audio profile settings
+        if (!this._isLayerEnabled(layer)) continue
         const synth = this.ambientLayers[layer]
         if (!synth) continue
 
