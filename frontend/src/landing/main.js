@@ -675,8 +675,71 @@ class LandingApp {
     // EMIT VIRTUAL HOVER EVENTS for HoverOrchestrator
     this._emitVirtualHoverEvents()
 
+    // Calculate and forward synthetic interaction metrics for spatial gradient
+    this._updateSyntheticMetrics()
+
     // Store current cursors for next comparison
     this.previousCursors = { ...this.currentCursors }
+  }
+
+  /**
+   * Calculate synthetic interaction metrics from virtual cursor positions
+   * for spatial gradient effect on landing page
+   * @private
+   */
+  _updateSyntheticMetrics() {
+    if (!this.visualService) return
+
+    // Filter for valid cursors with finite coordinates (reject NaN, Infinity)
+    const cursors = Object.values(this.currentCursors).filter(
+      c => c &&
+           typeof c.x === 'number' && isFinite(c.x) &&
+           typeof c.y === 'number' && isFinite(c.y)
+    )
+    if (cursors.length === 0) return
+
+    // User count: number of active virtual cursors
+    const userCount = cursors.length
+
+    // Dominant zone: centroid of cursor positions
+    let sumX = 0, sumY = 0
+    let validCount = 0
+    for (const cursor of cursors) {
+      sumX += cursor.x
+      sumY += cursor.y
+      validCount++
+    }
+
+    // Safety check: avoid division by zero
+    if (validCount === 0) return
+
+    const dominantZone = {
+      x: sumX / validCount,
+      y: sumY / validCount
+    }
+
+    // Spatial density: based on cursor clustering (inverse of variance)
+    // Lower variance = higher density (cursors clustered together)
+    let variance = 0
+    for (const cursor of cursors) {
+      const dx = cursor.x - dominantZone.x
+      const dy = cursor.y - dominantZone.y
+      variance += dx * dx + dy * dy
+    }
+    variance /= validCount
+
+    // Normalize variance to 0-1 range for spatialDensity:
+    // - When cursors at opposite corners: max variance ≈ 0.5 (diagonal spread)
+    // - Multiplier 4 scales so variance 0.25 → spatialDensity 0
+    // - Math.min(1, ...) handles edge case of very tight clustering
+    const spatialDensity = Math.max(0, Math.min(1, 1 - variance * 4))
+
+    // Forward to visual service
+    this.visualService.updateInteractionMetrics({
+      userCount,
+      spatialDensity,
+      dominantZone
+    })
   }
 
   /**

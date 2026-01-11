@@ -463,6 +463,25 @@ class GenerativeVisualService {
     }
   }
 
+  /**
+   * Update interaction metrics for spatial gradient effects
+   * @param {Object} metrics - Interaction metrics from backend
+   * @param {number} [metrics.userCount] - Number of active users (1-10)
+   * @param {number} [metrics.spatialDensity] - Spatial clustering density (0-1)
+   * @param {Object} [metrics.dominantZone] - Activity center position {x: 0-1, y: 0-1}
+   */
+  updateInteractionMetrics(metrics) {
+    if (!metrics) return
+
+    if (this.nebulas && this.nebulas.setInteractionMetrics) {
+      try {
+        this.nebulas.setInteractionMetrics(metrics)
+      } catch (error) {
+        console.error('GenerativeVisualService: Error updating interaction metrics:', error)
+      }
+    }
+  }
+
   // =========================================================================
   // CONSOLIDATED CURSOR RENDERING (Fase 9 - Performance Optimization)
   // Eliminates separate CursorManager rAF loop by rendering cursors in p5.js

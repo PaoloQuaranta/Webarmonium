@@ -302,6 +302,10 @@ class MobileResourceManager {
       }
       if (window.visualService.nebulas) {
         window.visualService.nebulas.enabled = config.nebulasEnabled
+        // Disable gradient in lowPower and critical modes (same threshold as particles)
+        if (window.visualService.nebulas.setGradientEnabled) {
+          window.visualService.nebulas.setGradientEnabled(config.particlesEnabled)
+        }
       }
       if (window.visualService.attractors) {
         window.visualService.attractors.enabled = config.attractorsEnabled

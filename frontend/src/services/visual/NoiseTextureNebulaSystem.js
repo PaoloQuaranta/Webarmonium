@@ -48,6 +48,23 @@ class NoiseTextureNebulaSystem {
     // Time offset for noise animation
     this.time = 0
 
+    // Interaction-driven gradient state
+    this.interactionMetrics = {
+      userCount: 1,
+      spatialDensity: 0,
+      dominantZone: { x: 0.5, y: 0.5 }
+    }
+    this.gradientEnabled = true
+    this.gradientIntensity = 0
+
+    // Gradient effect configuration (tunable parameters)
+    this.gradientConfig = {
+      hueShift: 30,        // Degrees toward warm (red/orange) at max effect
+      saturationBoost: 15, // Percentage saturation increase at max effect
+      lightnessBoost: 10,  // Percentage brightness increase at max effect
+      maxDiagonal: Math.sqrt(2) // Max distance for normalized 0-1 coordinates
+    }
+
     // Current and target noise scales (for morphing)
     this.currentOctaves = JSON.parse(JSON.stringify(this.baseOctaves))
     this.targetOctaves = JSON.parse(JSON.stringify(this.baseOctaves))
@@ -109,9 +126,6 @@ class NoiseTextureNebulaSystem {
 
     // Composition pulses (for accent effects)
     this.pulses = [] // {x, y, intensity, age}
-
-    // Initialize
-    console.log('🌫️ NoiseTextureNebulaSystem initialized')
   }
 
   /**
@@ -136,9 +150,13 @@ class NoiseTextureNebulaSystem {
   }
 
   /**
-   * Map noise value to color from current palette
+   * Map noise value to color from current palette with spatial gradient
+   * @param {number} value - Noise value 0-1
+   * @param {p5} p - p5.js instance
+   * @param {number} cellX - Cell X position (normalized 0-1)
+   * @param {number} cellY - Cell Y position (normalized 0-1)
    */
-  mapToPalette(value, p) {
+  mapToPalette(value, p, cellX = 0.5, cellY = 0.5) {
     // Clamp value to 0-1
     value = Math.max(0, Math.min(1, value))
 
@@ -155,11 +173,37 @@ class NoiseTextureNebulaSystem {
     const color1 = palette[Math.min(index, numColors - 1)]
     const color2 = palette[Math.min(index + 1, numColors - 1)]
 
-    // Interpolate
-    const hue = color1.hue + (color2.hue - color1.hue) * t
-    const sat = color1.sat + (color2.sat - color1.sat) * t
-    const light = color1.light + (color2.light - color1.light) * t
+    // Interpolate base colors
+    let hue = color1.hue + (color2.hue - color1.hue) * t
+    let sat = color1.sat + (color2.sat - color1.sat) * t
+    let light = color1.light + (color2.light - color1.light) * t
     const alpha = color1.alpha + (color2.alpha - color1.alpha) * t
+
+    // Apply spatial gradient if enabled and has intensity
+    if (this.gradientEnabled && this.gradientIntensity > 0.01) {
+      const dz = this.interactionMetrics.dominantZone
+      const cfg = this.gradientConfig
+
+      // OPTIMIZED: Use squared distance to avoid expensive sqrt()
+      // For normalized 0-1 coordinates, max diagonal² = 2.0
+      const dx = cellX - dz.x
+      const dy = cellY - dz.y
+      const distanceSq = dx * dx + dy * dy
+      const maxDistSq = cfg.maxDiagonal * cfg.maxDiagonal // = 2.0
+
+      // Proximity factor: 1.0 at dominant zone, 0.0 at max distance
+      // Using squared distance: proximity = 1 - sqrt(distSq)/sqrt(maxDistSq)
+      // Approximation: proximity ≈ 1 - distSq/maxDistSq (faster, slightly different curve)
+      const proximity = Math.max(0, 1 - distanceSq / maxDistSq)
+
+      // Gradient effect strength scaled by intensity
+      const effect = proximity * this.gradientIntensity
+
+      // Apply configurable gradient effects
+      hue = (hue + effect * cfg.hueShift) % 360
+      sat = Math.min(100, sat + effect * cfg.saturationBoost)
+      light = Math.min(100, light + effect * cfg.lightnessBoost)
+    }
 
     return { hue, sat, light, alpha }
   }
@@ -277,6 +321,62 @@ class NoiseTextureNebulaSystem {
   }
 
   /**
+   * Update interaction metrics for spatial color gradient
+   * @param {Object} metrics - Interaction metrics from backend
+   * @param {number} metrics.userCount - Number of active users (1-10)
+   * @param {number} metrics.spatialDensity - Spatial clustering density (0-1)
+   * @param {Object} metrics.dominantZone - Activity center position
+   * @param {number} metrics.dominantZone.x - X coordinate (0-1)
+   * @param {number} metrics.dominantZone.y - Y coordinate (0-1)
+   */
+  setInteractionMetrics(metrics) {
+    if (!metrics) return
+
+    // Validate and clamp userCount (positive integer, max practical value)
+    if (typeof metrics.userCount === 'number' && isFinite(metrics.userCount)) {
+      this.interactionMetrics.userCount = Math.max(0, Math.floor(metrics.userCount))
+    }
+
+    // Validate and clamp spatialDensity to 0-1 range
+    if (typeof metrics.spatialDensity === 'number' && isFinite(metrics.spatialDensity)) {
+      this.interactionMetrics.spatialDensity = Math.max(0, Math.min(1, metrics.spatialDensity))
+    }
+
+    // Validate and interpolate dominantZone with bounds checking
+    if (metrics.dominantZone &&
+        typeof metrics.dominantZone.x === 'number' &&
+        typeof metrics.dominantZone.y === 'number' &&
+        isFinite(metrics.dominantZone.x) &&
+        isFinite(metrics.dominantZone.y)) {
+      // Clamp incoming values to valid 0-1 range before interpolation
+      const clampedX = Math.max(0, Math.min(1, metrics.dominantZone.x))
+      const clampedY = Math.max(0, Math.min(1, metrics.dominantZone.y))
+
+      // Smooth interpolation for dominant zone position
+      const lerpSpeed = 0.1
+      this.interactionMetrics.dominantZone.x +=
+        (clampedX - this.interactionMetrics.dominantZone.x) * lerpSpeed
+      this.interactionMetrics.dominantZone.y +=
+        (clampedY - this.interactionMetrics.dominantZone.y) * lerpSpeed
+    }
+
+    // Gradient intensity = user activity × spatial clustering
+    // - userFactor: 0 at 1 user, 1.0 at 10+ users (normalizes room capacity)
+    // - spatialDensity: 0 when spread out, 1.0 when clustered
+    // - Product ensures gradient only visible with both activity AND clustering
+    const userFactor = Math.min(1, this.interactionMetrics.userCount / 10)
+    this.gradientIntensity = userFactor * this.interactionMetrics.spatialDensity
+  }
+
+  /**
+   * Enable/disable gradient effect (for performance modes)
+   * @param {boolean} enabled
+   */
+  setGradientEnabled(enabled) {
+    this.gradientEnabled = enabled
+  }
+
+  /**
    * Trigger a localized pulse effect
    */
   triggerPulse(intensity = 0.5) {
@@ -334,8 +434,10 @@ class NoiseTextureNebulaSystem {
         // Apply pulse effects
         value = this.applyPulse(x, y, value)
 
-        // Map to palette color
-        const color = this.mapToPalette(value, p)
+        // Pass normalized cell position for spatial gradient
+        const cellX = centerX / width
+        const cellY = centerY / height
+        const color = this.mapToPalette(value, p, cellX, cellY)
 
         // Draw cell
         p.fill(color.hue, color.sat, color.light, color.alpha)
@@ -352,19 +454,30 @@ class NoiseTextureNebulaSystem {
   setPerformanceMode(mode) {
     this.performanceMode = mode
 
-    // Adjust cell size based on mode
+    // Adjust cell size and gradient based on mode
     if (mode === 'degraded') {
-      this.cellSize = 20 // Larger cells for performance, but still reasonable quality
+      this.cellSize = 20 // Larger cells for performance
+      this.gradientEnabled = true // Keep gradient but with larger cells
+    } else if (mode === 'disabled') {
+      this.cellSize = 12
+      this.gradientEnabled = false // Disable gradient entirely
     } else {
       this.cellSize = 12 // Fine resolution for smooth appearance
+      this.gradientEnabled = true
     }
   }
 
   /**
-   * Clear all state
+   * Clear all state (including gradient state for scene transitions)
    */
   clear() {
     this.pulses = []
+    this.gradientIntensity = 0
+    this.interactionMetrics = {
+      userCount: 1,
+      spatialDensity: 0,
+      dominantZone: { x: 0.5, y: 0.5 }
+    }
   }
 
   /**

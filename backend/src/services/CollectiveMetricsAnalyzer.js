@@ -249,7 +249,11 @@ class CollectiveMetricsAnalyzer {
 
       // Mode from tap/drag ratio
       mode: m.tapDragRatio > 0.6 ? 'major' :
-            m.tapDragRatio > 0.4 ? 'dorian' : 'minor'
+            m.tapDragRatio > 0.4 ? 'dorian' : 'minor',
+
+      // Spatial gradient data for visual effects
+      dominantZone: m.dominantZone,
+      activityLevel: m.activityLevel
     }
   }
 }

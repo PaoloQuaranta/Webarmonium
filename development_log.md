@@ -2185,3 +2185,250 @@ _isLayerEnabled(layerName) { ... }
 
 Updated to v1.0.73
 
+---
+
+## Entry #92 - Interaction-Driven Spatial Color Gradients
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Added spatial color gradients to the Perlin noise background that respond to room interaction metrics. Colors vary across the canvas based on `dominantZone` position, with intensity driven by `userCount` and `spatialDensity`. Works in both normal rooms (via backend metrics) and landing page (via synthetic metrics from virtual cursors). Includes comprehensive code review fixes for validation, performance, and stability.
+
+---
+
+### Problem Statement
+
+The Perlin noise background was visually uniform across the entire canvas regardless of where users were interacting. This missed an opportunity to create visual feedback that reflects spatial activity patterns, enhancing the connection between user interaction and visual output.
+
+---
+
+### Solution
+
+#### Data Flow
+
+**Room Mode:**
+```
+Backend CollectiveMetricsAnalyzer (every 5s)
+  → compositional-parameters event (with dominantZone)
+  → main.js listener
+  → GenerativeVisualService.updateInteractionMetrics()
+  → NoiseTextureNebulaSystem.setInteractionMetrics()
+  → Spatial gradient in render loop
+```
+
+**Landing Page:**
+```
+Virtual cursor positions
+  → Calculate synthetic metrics (centroid, clustering variance)
+  → GenerativeVisualService.updateInteractionMetrics()
+  → NoiseTextureNebulaSystem.setInteractionMetrics()
+```
+
+#### Gradient Effect
+
+Colors shift based on proximity to `dominantZone`:
+- **Hue**: Shifts toward warm tones (+30° max)
+- **Saturation**: Boost (+15% max)
+- **Lightness**: Boost (+10% max)
+
+Effect intensity = `(userCount / 10) * spatialDensity`
+
+---
+
+### Implementation Details
+
+#### 1. NoiseTextureNebulaSystem.js - Core Changes
+
+**Added interaction metrics state:**
+```javascript
+this.interactionMetrics = {
+  userCount: 1,
+  spatialDensity: 0,
+  dominantZone: { x: 0.5, y: 0.5 }
+}
+this.gradientEnabled = true
+this.gradientIntensity = 0
+
+// Configurable gradient parameters (avoid magic numbers)
+this.gradientConfig = {
+  hueShift: 30,        // Max hue shift in degrees
+  saturationBoost: 15, // Max saturation increase %
+  lightnessBoost: 10,  // Max lightness increase %
+  maxDiagonal: Math.sqrt(2)  // Normalized diagonal distance
+}
+```
+
+**Added setInteractionMetrics() with full validation:**
+```javascript
+setInteractionMetrics(metrics) {
+  if (!metrics) return
+
+  if (typeof metrics.userCount === 'number' && isFinite(metrics.userCount)) {
+    this.interactionMetrics.userCount = Math.max(0, Math.floor(metrics.userCount))
+  }
+  if (typeof metrics.spatialDensity === 'number' && isFinite(metrics.spatialDensity)) {
+    this.interactionMetrics.spatialDensity = Math.max(0, Math.min(1, metrics.spatialDensity))
+  }
+  if (metrics.dominantZone && isFinite(metrics.dominantZone.x) && isFinite(metrics.dominantZone.y)) {
+    // Clamp before interpolation to prevent edge cases
+    const clampedX = Math.max(0, Math.min(1, metrics.dominantZone.x))
+    const clampedY = Math.max(0, Math.min(1, metrics.dominantZone.y))
+    const lerpSpeed = 0.1
+    this.interactionMetrics.dominantZone.x += (clampedX - this.interactionMetrics.dominantZone.x) * lerpSpeed
+    this.interactionMetrics.dominantZone.y += (clampedY - this.interactionMetrics.dominantZone.y) * lerpSpeed
+  }
+
+  const userFactor = Math.min(1, this.interactionMetrics.userCount / 10)
+  this.gradientIntensity = userFactor * this.interactionMetrics.spatialDensity
+}
+```
+
+**Modified mapToPalette() with optimized squared distance:**
+```javascript
+// Apply spatial gradient effect (optimized: use squared distance to avoid sqrt)
+if (this.gradientEnabled && this.gradientIntensity > 0.01) {
+  const dz = this.interactionMetrics.dominantZone
+  const cfg = this.gradientConfig
+  const dx = cellX - dz.x
+  const dy = cellY - dz.y
+  const distanceSq = dx * dx + dy * dy
+  const maxDistSq = cfg.maxDiagonal * cfg.maxDiagonal
+  const proximity = Math.max(0, 1 - distanceSq / maxDistSq)
+  const effect = proximity * this.gradientIntensity
+  hue = (hue + effect * cfg.hueShift) % 360
+  sat = Math.min(100, sat + effect * cfg.saturationBoost)
+  light = Math.min(100, light + effect * cfg.lightnessBoost)
+}
+```
+
+#### 2. GenerativeVisualService.js - Forwarding Method
+
+```javascript
+updateInteractionMetrics(metrics) {
+  if (!metrics) return
+  if (this.nebulas && this.nebulas.setInteractionMetrics) {
+    try {
+      this.nebulas.setInteractionMetrics(metrics)
+    } catch (error) {
+      console.error('GenerativeVisualService: Error updating interaction metrics:', error)
+    }
+  }
+}
+```
+
+#### 3. CollectiveMetricsAnalyzer.js (Backend)
+
+Extended `getCompositionalParameters()` to include spatial data:
+```javascript
+// Spatial gradient data for visual effects
+dominantZone: m.dominantZone,
+activityLevel: m.activityLevel
+```
+
+#### 4. main.js - Connect Socket to Visual Service
+
+```javascript
+// Forward interaction metrics to visual service for spatial gradient
+if (this.visualService && data.parameters) {
+  this.visualService.updateInteractionMetrics({
+    userCount: data.parameters.harmonicDensity || 1,
+    spatialDensity: data.parameters.rhythmicDensity || 0,
+    dominantZone: data.parameters.dominantZone || { x: 0.5, y: 0.5 }
+  })
+}
+```
+
+#### 5. landing/main.js - Synthetic Metrics from Virtual Cursors
+
+```javascript
+_updateSyntheticMetrics() {
+  if (!this.visualService) return
+
+  const cursors = Object.values(this.currentCursors).filter(
+    c => c && typeof c.x === 'number' && isFinite(c.x) &&
+         typeof c.y === 'number' && isFinite(c.y)
+  )
+  if (cursors.length === 0) return
+
+  // Calculate centroid (dominant zone)
+  let sumX = 0, sumY = 0
+  for (const c of cursors) {
+    sumX += c.x
+    sumY += c.y
+  }
+  const centroidX = sumX / cursors.length
+  const centroidY = sumY / cursors.length
+
+  // Calculate spatial density from variance (lower variance = more clustered = higher density)
+  let variance = 0
+  for (const c of cursors) {
+    variance += (c.x - centroidX) ** 2 + (c.y - centroidY) ** 2
+  }
+  variance /= cursors.length
+  const spatialDensity = Math.max(0, Math.min(1, 1 - Math.sqrt(variance) * 2))
+
+  this.visualService.updateInteractionMetrics({
+    userCount: cursors.length,
+    spatialDensity: isFinite(spatialDensity) ? spatialDensity : 0,
+    dominantZone: { x: centroidX, y: centroidY }
+  })
+}
+```
+
+#### 6. MobileResourceManager.js - Performance Integration
+
+```javascript
+// Disable gradient effect in low power modes
+if (window.visualService?.nebulas?.setGradientEnabled) {
+  window.visualService.nebulas.setGradientEnabled(config.particlesEnabled)
+}
+```
+
+---
+
+### Code Review Fixes Applied
+
+| Priority | Issue | Fix |
+|----------|-------|-----|
+| Critical | Division by zero risk with diagonal distance | Used `Math.sqrt(2)` in config, squared distance comparison |
+| Critical | Missing NaN validation in landing page | Added `isFinite()` checks for all cursor coordinates |
+| Critical | Range validation missing | Added `Math.max/Math.min` clamping for all inputs |
+| High | Performance: sqrt in hot render path | Optimized with squared distance comparison |
+| High | Missing bounds check on interpolation | Clamp values before interpolation |
+| High | Memory leak in clear() | Reset gradient state in clear() method |
+| Medium | Magic numbers in gradient | Extracted to `gradientConfig` object |
+| Medium | Missing error handling | Added try-catch in forwarding method |
+| Low | Debug console.log in production | Removed from constructor |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/visual/NoiseTextureNebulaSystem.js` | Interaction metrics state, gradient logic, validation, performance optimization |
+| `frontend/src/services/GenerativeVisualService.js` | Forwarding method with error handling |
+| `frontend/src/main.js` | Socket event handler for metrics forwarding |
+| `frontend/src/landing/main.js` | Synthetic metrics calculation from virtual cursors |
+| `backend/src/services/CollectiveMetricsAnalyzer.js` | Added dominantZone to compositional parameters |
+| `frontend/src/services/MobileResourceManager.js` | Gradient enable/disable for power modes |
+
+---
+
+### Performance Characteristics
+
+- **Hot path optimization**: Uses squared distance to avoid `Math.sqrt()` per cell
+- **Early exit**: Skips gradient calculation when `gradientIntensity < 0.01`
+- **Smooth transitions**: 10% lerp speed for dominantZone prevents jarring shifts
+- **Power-aware**: Automatically disabled in low-power and critical modes
+- **Configurable**: All magic numbers extracted to editable config object
+
+---
+
+### Version
+
+Updated to v1.0.74
+
