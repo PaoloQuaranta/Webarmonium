@@ -551,6 +551,15 @@ class UIManager {
       this.audioToggleObserver.disconnect()
       this.audioToggleObserver = null
     }
+
+    // Sync mobile audio button text with original toggle
+    if (this.mobileAudioBtn && this.originalAudioToggle) {
+      setTimeout(() => {
+        if (this.mobileAudioBtn && this.originalAudioToggle) {
+          this.mobileAudioBtn.textContent = this.originalAudioToggle.textContent
+        }
+      }, 100)
+    }
   }
 
   // ==========================================
