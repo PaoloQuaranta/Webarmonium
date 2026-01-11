@@ -310,6 +310,22 @@ class VirtualUserService {
     // Only emit if any cursor actually moved
     if (anyMoved) {
       this._emitAllCursorsForRoom(roomId, roomState)
+
+      // Record virtual cursor positions as gestures for gradient metrics
+      if (this.roomManager) {
+        for (const source of roomState.sources) {
+          const config = this.virtualUserConfigs[source]
+          const pos = roomState.currentPositions[source]
+          if (config && pos) {
+            this.roomManager.recordGesture(roomId, {
+              action: 'drag',
+              coordinates: { x: pos.x, y: pos.y },
+              velocity: 0.3,  // Virtual users have moderate velocity
+              userId: config.userId
+            })
+          }
+        }
+      }
     }
   }
 
