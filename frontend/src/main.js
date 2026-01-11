@@ -1555,6 +1555,9 @@ class WebarmoniumApp {
           )
         }
       }
+
+      // Update gradient metrics from all cursor positions
+      this._updateGradientMetricsFromCursors()
     })
 
     // Mode transition notification
