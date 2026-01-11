@@ -3370,15 +3370,24 @@ class AudioService {
               actualFrequency = this.userSynthManager.constrainFrequencyToTessitura(eventFrequency, userId)
 
               // DEBUG: Log patch name for troubleshooting timbre issues
-              console.log(`🎹 PATCH: "${synthData.patch?.name}" | slot=${synthData.slot} | freq=${actualFrequency.toFixed(0)}Hz | dur=${eventDuration.toFixed(2)}s | vel=${eventVelocity.toFixed(2)}`)
+              console.log(`🎹 PATCH: "${synthData.patch?.name}" | slot=${synthData.slot} | freq=${actualFrequency.toFixed(0)}Hz | dur=${eventDuration.toFixed(2)}s | vel=${eventVelocity.toFixed(2)} | ultraLow=${this.isUltraLowPowerMode}`)
 
               // Apply oscillator config
-              const patchOsc = synthData.patch?.oscillator
-              if (patchOsc && patchOsc.type !== 'fmsine') {
+              // Entry #90 FIX: In Ultra-Low Power mode, force simple sine oscillator
+              if (this.isUltraLowPowerMode) {
                 try {
-                  synth.set({ oscillator: patchOsc })
+                  synth.set({ oscillator: { type: 'sine' } })
                 } catch (e) {
                   // Ignore oscillator set errors
+                }
+              } else {
+                const patchOsc = synthData.patch?.oscillator
+                if (patchOsc && patchOsc.type !== 'fmsine') {
+                  try {
+                    synth.set({ oscillator: patchOsc })
+                  } catch (e) {
+                    // Ignore oscillator set errors
+                  }
                 }
               }
             }
@@ -3387,8 +3396,10 @@ class AudioService {
           // Fallback to gestureSynth
           if (!synth) {
             synth = this.gestureSynth
+            // Entry #90 FIX: Use sine oscillator in Ultra-Low Power mode
+            const oscType = this.isUltraLowPowerMode ? 'sine' : 'sawtooth'
             this.gestureSynth.set({
-              oscillator: { type: 'sawtooth' },
+              oscillator: { type: oscType },
               envelope: {
                 attack: envAttack,
                 decay: envDecay,
