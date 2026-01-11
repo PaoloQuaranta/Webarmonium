@@ -253,7 +253,8 @@ class CollectiveMetricsAnalyzer {
 
       // Spatial gradient data for visual effects
       dominantZone: m.dominantZone,
-      activityLevel: m.activityLevel
+      activityLevel: m.activityLevel,
+      activeUsers: m.activeUsers  // Raw user count for gradient calculation
     }
   }
 }

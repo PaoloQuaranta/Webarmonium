@@ -58,11 +58,10 @@ class NoiseTextureNebulaSystem {
     this.gradientIntensity = 0
 
     // Gradient effect configuration (tunable parameters)
-    // Values boosted 4x for visible effect with low user counts
     this.gradientConfig = {
-      hueShift: 120,       // Degrees toward warm (red/orange) at max effect
-      saturationBoost: 50, // Percentage saturation increase at max effect
-      lightnessBoost: 35,  // Percentage brightness increase at max effect
+      hueShift: 80,        // Degrees toward warm (red/orange) at max effect
+      saturationBoost: 30, // Percentage saturation increase at max effect
+      lightnessBoost: 20,  // Percentage brightness increase at max effect
       maxDiagonal: Math.sqrt(2), // Max distance for normalized 0-1 coordinates
       maxUsers: 10         // Divisor for userFactor (10 for rooms, 3 for landing)
     }
