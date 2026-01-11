@@ -154,6 +154,10 @@ class LandingApp {
     this.trailCanvas = null
     this.trailCtx = null
     this._trailColorCache = new Map()
+
+    // Trail fade animation
+    this._trailFadeFrameId = null
+    this._trailFadeRate = 0.02  // Alpha reduction per frame (lower = slower fade)
   }
 
   /**
@@ -212,6 +216,7 @@ class LandingApp {
       if (this.trailCanvas) {
         this.trailCtx = this.trailCanvas.getContext('2d')
         this._resizeTrailCanvas()
+        this._startTrailFade()  // Start fade animation loop
       }
 
       // Create visual service instance (but don't initialize yet - defer until container visible)
@@ -835,9 +840,9 @@ class LandingApp {
       const cursorData = this._findCursorByUserId(userId || note.userId)
       console.log('🟢 Virtual hold:end trail attempt:', { userId, noteUserId: note.userId, hasCursor: !!cursorData, currentCursors: Object.keys(this.currentCursors) })
       if (cursorData) {
-        // Calculate intensity from hold duration (same as real users)
+        // FIX #6: Use centralized intensity calculation helper
         const holdDuration = duration || 1000
-        const intensity = Math.min(1, 0.3 + (holdDuration / 2000) * 0.7)
+        const intensity = this._calculateTrailIntensityFromDuration(holdDuration)
         this._renderTrailHalo(cursorData.x, cursorData.y, intensity, cursorData.color || '#00d4ff')
       }
     }
@@ -1198,6 +1203,23 @@ class LandingApp {
   }
 
   /**
+   * FIX #6: Centralized intensity calculation from duration
+   * Converts hold/tap duration to trail intensity (0.3 to 1.0 range)
+   * Matches the formula in main.js _calculateTrailIntensityFromDuration()
+   * @param {number} durationMs - Duration in milliseconds
+   * @returns {number} Intensity value clamped to 0.3-1.0
+   * @private
+   */
+  _calculateTrailIntensityFromDuration(durationMs) {
+    // Validate input
+    if (typeof durationMs !== 'number' || !isFinite(durationMs) || durationMs < 0) {
+      return 0.3 // Minimum intensity for invalid input
+    }
+    // Duration-based intensity: 0ms = 0.3 (minimum), 2000ms = 1.0 (maximum)
+    return Math.min(1, 0.3 + (durationMs / 2000) * 0.7)
+  }
+
+  /**
    * Convert hex color to RGB object
    * @param {string} hex - Hex color string
    * @returns {Object|null} RGB object or null
@@ -1214,12 +1236,76 @@ class LandingApp {
   }
 
   /**
+   * Start the trail fade animation loop
+   * Fades existing trails by drawing a semi-transparent overlay each frame
+   * @private
+   */
+  _startTrailFade() {
+    if (this._trailFadeFrameId) return  // Already running
+
+    const fade = () => {
+      this._fadeTrailCanvas()
+      this._trailFadeFrameId = requestAnimationFrame(fade)
+    }
+    this._trailFadeFrameId = requestAnimationFrame(fade)
+  }
+
+  /**
+   * Stop the trail fade animation loop
+   * @private
+   */
+  _stopTrailFade() {
+    if (this._trailFadeFrameId) {
+      cancelAnimationFrame(this._trailFadeFrameId)
+      this._trailFadeFrameId = null
+    }
+  }
+
+  /**
+   * Fade the trail canvas by drawing a semi-transparent black overlay
+   * This creates a natural decay effect for trail halos
+   * Uses delta time for frame-rate independent fading
+   * @private
+   */
+  _fadeTrailCanvas() {
+    // CRITICAL: Stop animation if canvas is gone
+    if (!this.trailCtx || !this.trailCanvas) {
+      this._stopTrailFade()
+      return
+    }
+
+    try {
+      // Frame-rate independent fading using delta time
+      const now = performance.now()
+      const deltaTime = now - (this._lastFadeTime || now)
+      this._lastFadeTime = now
+
+      // Target 60fps behavior: scale alpha by actual delta time
+      const targetDelta = 16.67  // 60fps target
+      const scaledAlpha = Math.min(1.0, this._trailFadeRate * (deltaTime / targetDelta))
+
+      // Use destination-out composite to fade existing content
+      this.trailCtx.save()
+      this.trailCtx.globalCompositeOperation = 'destination-out'
+      this.trailCtx.fillStyle = `rgba(0, 0, 0, ${scaledAlpha})`
+      this.trailCtx.fillRect(0, 0, this.trailCanvas.width, this.trailCanvas.height)
+      this.trailCtx.restore()
+    } catch (error) {
+      console.error('Trail fade error:', error)
+      this._stopTrailFade()  // Stop on error to prevent runaway animation
+    }
+  }
+
+  /**
    * Cleanup and dispose
    */
   dispose() {
     // console.log('🧹 Cleaning up LandingApp...')
 
     this.stop()
+
+    // Stop trail fade animation
+    this._stopTrailFade()
 
     // Dispose dashboard
     this.dashboardUI.dispose()

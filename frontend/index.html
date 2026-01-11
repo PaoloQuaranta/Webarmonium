@@ -213,8 +213,10 @@
         <span style="color: #e41a1c;">Wikipedia</span> plays in bass tessitura (110-220Hz, A2-A3) with sawtooth waves (rich harmonics),
         <span style="color: #ff7f00;">HackerNews</span> occupies the tenor range (196-392Hz, G3-G4) with pure sine tones,
         and <span style="color: #377eb8;">GitHub</span> sounds in soprano frequencies (523-1047Hz, C5-C6) with hollow triangle waves.
-        Cursor positions are <em>reverse-mapped</em> from generated audio frequencies&mdash;each cursor follows the music being played,
-        not raw metrics. Visual pulses and particle flows respond to the same gesture data that drives the audio.
+        Cursor positions are calculated using a <em>golden ratio distribution</em> system&mdash;each cursor's X and Y coordinates
+        are independently derived from gesture counters and multiple metrics, ensuring optimal spacing across the entire canvas.
+        The audio frequency modulates position but doesn't dictate it directly, breaking diagonal patterns while maintaining
+        data-driven coherence. Visual pulses and particle flows respond to the same gesture data that drives the audio.
       </p>
 
       <!-- Part 2: Collaborative Rooms -->
@@ -248,7 +250,7 @@
     <footer>
       <p>Powered by <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia API</a>, <a href="https://news.ycombinator.com" target="_blank" rel="noopener">HackerNews API</a>, and <a href="https://github.com" target="_blank" rel="noopener">GitHub API</a></p>
       <p class="footer-note">Data updates every 5-60 seconds depending on source. Rate limits are respected.</p>
-      <p class="version-tag">v1.0.62</p>
+      <p class="version-tag">v1.0.64</p>
     </footer>
   </main>
 

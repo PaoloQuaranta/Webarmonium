@@ -49,6 +49,10 @@ class WebarmoniumApp {
     // When user-left arrives, we add userId here. cursor-position events for these users are ignored.
     this.leftUsers = new Set()
 
+    // Trail fade animation for gesture trails
+    this._trailFadeFrameId = null
+    this._trailFadeRate = 0.02  // Alpha reduction per frame (lower = slower fade)
+
     // FIX: Track if virtual users are currently active
     this.virtualUsersActive = false
 
@@ -127,6 +131,9 @@ class WebarmoniumApp {
     this.canvas = canvasRefs.canvas
     this.ctx = canvasRefs.ctx
     this.cursorOverlayCanvas = canvasRefs.cursorOverlayCanvas
+
+    // Start trail fade animation loop
+    this._startTrailFade()
 
     // console.log('✅ Canvas setup delegated to CanvasManager')
   }
@@ -1905,6 +1912,67 @@ class WebarmoniumApp {
   }
 
   /**
+   * Start the trail fade animation loop
+   * Fades existing trails by drawing a semi-transparent overlay each frame
+   * @private
+   */
+  _startTrailFade() {
+    if (this._trailFadeFrameId) return  // Already running
+
+    const fade = () => {
+      this._fadeTrailCanvas()
+      this._trailFadeFrameId = requestAnimationFrame(fade)
+    }
+    this._trailFadeFrameId = requestAnimationFrame(fade)
+  }
+
+  /**
+   * Stop the trail fade animation loop
+   * @private
+   */
+  _stopTrailFade() {
+    if (this._trailFadeFrameId) {
+      cancelAnimationFrame(this._trailFadeFrameId)
+      this._trailFadeFrameId = null
+    }
+  }
+
+  /**
+   * Fade the trail canvas by drawing a semi-transparent black overlay
+   * This creates a natural decay effect for trail halos
+   * Uses delta time for frame-rate independent fading
+   * @private
+   */
+  _fadeTrailCanvas() {
+    // CRITICAL: Stop animation if canvas is gone
+    if (!this.ctx || !this.canvas) {
+      this._stopTrailFade()
+      return
+    }
+
+    try {
+      // Frame-rate independent fading using delta time
+      const now = performance.now()
+      const deltaTime = now - (this._lastFadeTime || now)
+      this._lastFadeTime = now
+
+      // Target 60fps behavior: scale alpha by actual delta time
+      const targetDelta = 16.67  // 60fps target
+      const scaledAlpha = Math.min(1.0, this._trailFadeRate * (deltaTime / targetDelta))
+
+      // Use destination-out composite to fade existing content
+      this.ctx.save()
+      this.ctx.globalCompositeOperation = 'destination-out'
+      this.ctx.fillStyle = `rgba(0, 0, 0, ${scaledAlpha})`
+      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+      this.ctx.restore()
+    } catch (error) {
+      console.error('Trail fade error:', error)
+      this._stopTrailFade()  // Stop on error to prevent runaway animation
+    }
+  }
+
+  /**
    * @deprecated DISABLED - Hold indicator rendering is now consolidated in p5.js draw() loop
    * See: visualService.setHoldReferences() and visualService.renderHoldIndicators()
    * This method is kept for reference but is no longer called.
@@ -2095,6 +2163,9 @@ class WebarmoniumApp {
    */
   destroy() {
     // console.log('🧹 Cleaning up Webarmonium app...')
+
+    // Stop trail fade animation
+    this._stopTrailFade()
 
     // Sprint 2: Delegate cleanup to extracted components
     if (this.canvasManager) {

@@ -184,7 +184,9 @@ Updated to v1.0.55
 
 **Date**: 2026-01-11
 **Author**: Claude Code (AI Assistant)
-**Status**: COMPLETED
+**Status**: SUPERSEDED by Entry #83
+
+> **Note**: The "reverse mapping" approach documented here has been replaced by a **Golden Ratio distribution** system in Entry #83. The new system uses φ and φ² sequences for independent X/Y calculation, breaking the diagonal clustering pattern.
 
 ### Summary
 
@@ -948,5 +950,187 @@ this._precomputeAttractors()
 ### Version
 
 Updated to v1.0.63
+
+---
+
+## Entry #83 - Golden Ratio Cursor Positioning & Code Review Fixes
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Replaced the "reverse mapping" cursor positioning system with a **Golden Ratio distribution** approach. Virtual user cursors now use φ (phi) and φ² sequences for X and Y axes independently, breaking the diagonal clustering pattern while maintaining data-driven coherence. Also applied 7 code review fixes for memory leaks, frame-rate independence, and validation.
+
+---
+
+### Problem Statement
+
+Virtual user cursors moved only along a diagonal line (bottom-left to top-right). The old "reverse mapping" system derived both X and Y from the same frequency value, creating a direct correlation that forced diagonal movement.
+
+---
+
+### Root Cause
+
+The old `FrequencyPositionMapper.frequencyToPosition()` calculated:
+- Y from normalized frequency
+- X from frequency residue
+
+This created: high frequency → top-right, low frequency → bottom-left, always diagonal.
+
+---
+
+### Solution: Golden Ratio Distribution
+
+New `_calculateHybridPosition()` method uses:
+
+```javascript
+// Golden ratio constants
+static PHI = 1.618033988749895     // φ for X axis
+static PHI_SQ = 2.618033988749895  // φ² for Y axis (different sequence)
+
+// Position calculation
+const combinedSeed = gestureCount + sourceOffset + stepIndex
+const xGolden = (combinedSeed * PHI + normalizedFreq * 3.7) % 1
+const yGolden = (combinedSeed * PHI_SQ + secondaryMetric * 5.3) % 1
+```
+
+**Key benefits:**
+- **Independent X/Y**: Different φ powers ensure uncorrelated sequences
+- **Optimal spacing**: Golden ratio provides maximum separation between consecutive positions
+- **Data-driven**: Metrics still modulate position (frequency → X, secondary metric → Y)
+- **Full canvas coverage**: Cursors spread across entire area, not just diagonal
+
+---
+
+### Code Review Fixes (7 Issues)
+
+#### Fix #1: Memory Leak - rAF Not Cancelled on Error (HIGH)
+
+**Problem**: `_fadeTrailCanvas()` didn't stop animation on error, could cause runaway loop.
+
+**Solution**: Added try/catch with `_stopTrailFade()` on error:
+```javascript
+try {
+  // ... fade logic
+} catch (error) {
+  console.error('Trail fade error:', error)
+  this._stopTrailFade()  // Stop on error
+}
+```
+
+#### Fix #2: Socket Data Validation Gaps (HIGH)
+
+**Problem**: `hold:start` emission didn't validate position/frequency.
+
+**Solution**: Added validation before emission:
+```javascript
+if (!this._isValidPosition(position)) {
+  console.warn(`Invalid position for ${source} tap gesture, skipping emission`)
+  return
+}
+if (!Number.isFinite(frequency) || frequency < 20 || frequency > 20000) {
+  console.warn(`Invalid frequency ${frequency} for ${source} tap gesture, skipping emission`)
+  return
+}
+```
+
+#### Fix #3: Golden Ratio Position Bounds (HIGH)
+
+**Problem**: Input/output validation missing could produce NaN or out-of-bounds.
+
+**Solution**: Input validation + explicit output clamping:
+```javascript
+// Input validation
+if (!Number.isFinite(baseFrequency) || baseFrequency < 0) {
+  return { x: 0.5, y: 0.5 }  // Safe fallback
+}
+
+// Output clamping
+const x = Math.max(0.05, Math.min(0.95, MIN_BOUND + xGolden * RANGE))
+const y = Math.max(0.05, Math.min(0.95, MIN_BOUND + yGolden * RANGE))
+```
+
+#### Fix #4: Fade Rate Not Frame-Rate Independent (MEDIUM)
+
+**Problem**: Fixed alpha per frame meant different fade speeds at 30fps vs 60fps vs 120Hz.
+
+**Solution**: Delta time scaling:
+```javascript
+const now = performance.now()
+const deltaTime = now - (this._lastFadeTime || now)
+this._lastFadeTime = now
+
+const targetDelta = 16.67  // 60fps target
+const scaledAlpha = Math.min(1.0, this._trailFadeRate * (deltaTime / targetDelta))
+```
+
+#### Fix #5: Interpolation Speed Mismatch (MEDIUM)
+
+**Problem**: `interpolationSpeed: 0.08` didn't match `intervalMs: 100` for trajectories.
+
+**Solution**: Increased speed from 0.08 to 0.15 for smoother 100ms interval movement.
+
+#### Fix #6: Trail Intensity Calculation Duplicated (LOW)
+
+**Problem**: Same duration→intensity formula in multiple places.
+
+**Solution**: Added centralized helper `_calculateTrailIntensityFromDuration()`:
+```javascript
+_calculateTrailIntensityFromDuration(durationMs) {
+  if (typeof durationMs !== 'number' || !isFinite(durationMs) || durationMs < 0) {
+    return 0.3  // Minimum for invalid input
+  }
+  return Math.min(1, 0.3 + (durationMs / 2000) * 0.7)
+}
+```
+
+#### Fix #7: Gesture Counter Overflow (LOW)
+
+**Problem**: Counter could overflow `Number.MAX_SAFE_INTEGER` after very long sessions.
+
+**Solution**: Added modulo protection:
+```javascript
+this.gestureCounters[source] = ((this.gestureCounters[source] || 0) + 1) % Number.MAX_SAFE_INTEGER
+```
+
+---
+
+### Documentation Updates
+
+Updated "How It Works" section and technical appendix to reflect the new Golden Ratio system instead of the old "reverse mapping" description.
+
+| File | Changes |
+|------|---------|
+| `frontend/index.html` | Updated "Audio-visual coherence" paragraph to describe golden ratio distribution |
+| `frontend/technical-appendix.html` | Updated Section 1 intro and Landing Page note with φ/φ² formula |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/VirtualUserService.js` | New `_calculateHybridPosition()`, `_generateHybridTrajectory()`, PHI constants, all 7 fixes |
+| `frontend/src/main.js` | Frame-rate independent fade, try/catch error handling |
+| `frontend/src/landing/main.js` | Frame-rate independent fade, `_calculateTrailIntensityFromDuration()` helper |
+| `frontend/index.html` | Documentation: golden ratio description |
+| `frontend/technical-appendix.html` | Documentation: φ/φ² formula, position calculation details |
+
+---
+
+### Verification
+
+1. **Visual test**: Watch virtual cursors in landing page - should cover full canvas, not just diagonal
+2. **Backend tests**: `cd backend && npm test` - 34/34 VirtualUserService tests pass
+3. **Trail fade**: Trails should fade consistently regardless of display refresh rate
+4. **Bounds check**: All cursors stay within 5%-95% canvas area
+
+---
+
+### Version
+
+Updated to v1.0.64
 
 ---

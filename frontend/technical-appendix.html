@@ -108,9 +108,9 @@
       <h2>1. Landing Page: Virtual User Mapping</h2>
       <p>
         The landing page generates music from three web activity sources, each mapped to a distinct
-        tessitura (frequency range) and oscillator type. Cursor positions are <em>reverse-mapped</em> from
-        generated audio frequencies&mdash;each cursor follows the music being played, ensuring perfect
-        audio-visual coherence.
+        tessitura (frequency range) and oscillator type. Cursor positions use a <em>golden ratio distribution</em>
+        system&mdash;X and Y coordinates are calculated independently using φ (phi) and φ² sequences, modulated
+        by metrics, ensuring optimal spacing across the canvas while maintaining data-driven coherence.
       </p>
       <table>
         <thead>
@@ -253,8 +253,9 @@
       </div>
 
       <div class="note">
-        <strong>Landing Page (Virtual Users):</strong> Cursor positions use <em>reverse mapping</em> from generated audio frequencies.
-        The full frequency range (110-1210Hz) maps to canvas position, so each virtual cursor follows the music it produces rather than raw metrics.
+        <strong>Landing Page (Virtual Users):</strong> Cursor positions use <em>golden ratio distribution</em> for optimal canvas coverage.
+        Each position is calculated as: X = (gestureCount × φ + normalizedFreq × 3.7) mod 1, Y = (gestureCount × φ² + secondaryMetric × 5.3) mod 1.
+        This ensures cursors are spread across the full canvas without diagonal clustering, while still being data-derived.
       </div>
     </section>
 
