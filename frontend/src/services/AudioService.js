@@ -679,14 +679,20 @@ class AudioService {
 
   /**
    * Entry #73: Check if a background layer should be played based on profile
-   * @param {string} layerName - 'bass', 'pad', or 'chords'
+   * @param {string} layerName - 'bass', 'pad', 'chords', or composition layers
    * @returns {boolean} True if layer should be played
    */
   _isLayerEnabled(layerName) {
-    // In Ultra-Low Power mode, no background layers
+    // In Ultra-Low Power mode, no background layers at all
     if (this.isUltraLowPowerMode) return false
 
-    // Check profile
+    // Entry #90 FIX: Composition layers (backgroundHigh/Mid/Low) are always enabled
+    // unless we're in Ultra-Low Power mode (handled above)
+    if (layerName === 'backgroundHigh' || layerName === 'backgroundMid' || layerName === 'backgroundLow') {
+      return true
+    }
+
+    // Check profile for ambient layers (bass, pad, chords)
     if (this.audioProfile && this.audioProfile.backgroundLayers) {
       return this.audioProfile.backgroundLayers.includes(layerName)
     }
