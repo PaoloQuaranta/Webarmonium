@@ -613,15 +613,27 @@ class GenerativeVisualService {
     const profile = UserSettings.getEffectiveGraphicsProfile(baseProfile)
 
     console.log('🎨 Applying graphics quality:', profile)
+    console.log('🎨 Visual subsystems available:', {
+      springMesh: !!this.springMesh,
+      wavePackets: !!this.wavePackets,
+      particles: !!this.particles,
+      attractors: !!this.attractors
+    })
 
     // Apply to SpringMeshNetwork (node glow)
     if (this.springMesh) {
       this.springMesh.setShadowBlurEnabled(profile.shadowBlur !== false)
+      console.log('🎨 SpringMesh shadowBlur set to:', profile.shadowBlur !== false)
+    } else {
+      console.warn('🎨 No springMesh available')
     }
 
     // Apply to WavePacketSystem (pulses)
     if (this.wavePackets) {
       this.wavePackets.setGlowEnabled(profile.pulseGlow !== false)
+      console.log('🎨 WavePackets glow set to:', profile.pulseGlow !== false)
+    } else {
+      console.warn('🎨 No wavePackets available')
     }
 
     // Apply to ParticleFlowManager
@@ -629,12 +641,18 @@ class GenerativeVisualService {
       this.particles.setCascadeEnabled(profile.cascadeEnabled !== false)
       if (profile.particleCount) {
         this.particles.setMaxParticles(profile.particleCount)
+        console.log('🎨 Particles maxCount set to:', profile.particleCount)
       }
+    } else {
+      console.warn('🎨 No particles available')
     }
 
     // Apply to PrecomputedAttractorSystem
     if (this.attractors && profile.attractorPoints) {
       this.attractors.setPointLimit(profile.attractorPoints)
+      console.log('🎨 Attractors pointLimit set to:', profile.attractorPoints)
+    } else if (!this.attractors) {
+      console.warn('🎨 No attractors available')
     }
 
     // Store current profile for reference

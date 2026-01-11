@@ -536,12 +536,19 @@ class AudioService {
       }
 
       // Handle transition to/from Ultra-Low Power mode
+      console.log(`🔋 Ultra-Low Power check: isUltraLow=${this.isUltraLowPowerMode}, wasUltraLow=${wasUltraLow}, UltraLowPowerAudio defined=${typeof UltraLowPowerAudio !== 'undefined'}`)
       if (this.isUltraLowPowerMode && !wasUltraLow) {
         // Switching TO Ultra-Low Power mode
+        console.log('🔋 Switching TO Ultra-Low Power mode...')
         if (typeof UltraLowPowerAudio !== 'undefined' && !this.ultraLowPowerAudio) {
           this.ultraLowPowerAudio = new UltraLowPowerAudio()
           this.ultraLowPowerAudio.initialize()
           console.log('🔋 Ultra-Low Power Audio activated')
+        } else {
+          console.warn('🔋 UltraLowPowerAudio not available or already exists:', {
+            defined: typeof UltraLowPowerAudio !== 'undefined',
+            exists: !!this.ultraLowPowerAudio
+          })
         }
         // Stop all background layers
         if (this.ambientLayers) {
@@ -2310,7 +2317,7 @@ class AudioService {
    * Check and manage polyphony to prevent audio overload
    */
   managePolyphony() {
-    if (!this.generativeState) return
+    if (!this.generativeState || !this.generativeState.activeVoices) return
 
     const totalActiveVoices = this.generativeState.activeVoices.size
 
