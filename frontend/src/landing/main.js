@@ -248,6 +248,10 @@ class LandingApp {
           if (rect.width > 0 && rect.height > 0) {
             this.visualService.initialize(this.canvasContainer)
             this._setupResizeHandler()
+            // Configure gradient for landing page (3 virtual cursors max)
+            if (this.visualService.nebulas?.setMaxUsers) {
+              this.visualService.nebulas.setMaxUsers(3)
+            }
             // console.log('✅ GenerativeVisualService initialized with dimensions:', rect.width, rect.height)
           } else {
             // Retry if dimensions still not available
@@ -255,6 +259,10 @@ class LandingApp {
               if (this.visualService && !this.visualService.p5Instance) {
                 this.visualService.initialize(this.canvasContainer)
                 this._setupResizeHandler()
+                // Configure gradient for landing page (3 virtual cursors max)
+                if (this.visualService.nebulas?.setMaxUsers) {
+                  this.visualService.nebulas.setMaxUsers(3)
+                }
               }
             }, LANDING_CONFIG.VISUAL_INIT_RETRY_MS)
           }

@@ -58,11 +58,13 @@ class NoiseTextureNebulaSystem {
     this.gradientIntensity = 0
 
     // Gradient effect configuration (tunable parameters)
+    // Values boosted 4x for visible effect with low user counts
     this.gradientConfig = {
-      hueShift: 30,        // Degrees toward warm (red/orange) at max effect
-      saturationBoost: 15, // Percentage saturation increase at max effect
-      lightnessBoost: 10,  // Percentage brightness increase at max effect
-      maxDiagonal: Math.sqrt(2) // Max distance for normalized 0-1 coordinates
+      hueShift: 120,       // Degrees toward warm (red/orange) at max effect
+      saturationBoost: 50, // Percentage saturation increase at max effect
+      lightnessBoost: 35,  // Percentage brightness increase at max effect
+      maxDiagonal: Math.sqrt(2), // Max distance for normalized 0-1 coordinates
+      maxUsers: 10         // Divisor for userFactor (10 for rooms, 3 for landing)
     }
 
     // Current and target noise scales (for morphing)
@@ -361,10 +363,11 @@ class NoiseTextureNebulaSystem {
     }
 
     // Gradient intensity = user activity × spatial clustering
-    // - userFactor: 0 at 1 user, 1.0 at 10+ users (normalizes room capacity)
+    // - userFactor: scales with user count up to maxUsers (configurable)
     // - spatialDensity: 0 when spread out, 1.0 when clustered
     // - Product ensures gradient only visible with both activity AND clustering
-    const userFactor = Math.min(1, this.interactionMetrics.userCount / 10)
+    const maxUsers = this.gradientConfig.maxUsers || 10
+    const userFactor = Math.min(1, this.interactionMetrics.userCount / maxUsers)
     this.gradientIntensity = userFactor * this.interactionMetrics.spatialDensity
 
     // Debug: log gradient intensity periodically
@@ -386,6 +389,17 @@ class NoiseTextureNebulaSystem {
    */
   setGradientEnabled(enabled) {
     this.gradientEnabled = enabled
+  }
+
+  /**
+   * Configure max users for gradient intensity calculation
+   * Landing page uses 3 (virtual cursors), rooms use 10
+   * @param {number} maxUsers
+   */
+  setMaxUsers(maxUsers) {
+    if (typeof maxUsers === 'number' && maxUsers > 0) {
+      this.gradientConfig.maxUsers = maxUsers
+    }
   }
 
   /**
