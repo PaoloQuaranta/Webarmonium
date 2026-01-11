@@ -1869,9 +1869,9 @@ class WebarmoniumApp {
   _updateGradientMetricsFromCursors() {
     if (!this.visualService || !this.cursorManager) return
 
-    // Throttle: max 10 updates per second
+    // Throttle: max 30 updates per second (like landing page frame rate)
     const now = Date.now()
-    if (this._lastGradientUpdate && now - this._lastGradientUpdate < 100) return
+    if (this._lastGradientUpdate && now - this._lastGradientUpdate < 33) return
     this._lastGradientUpdate = now
 
     // Get all cursor positions from cursorManager (returns Map)

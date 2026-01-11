@@ -354,7 +354,8 @@ class NoiseTextureNebulaSystem {
       const clampedY = Math.max(0, Math.min(1, metrics.dominantZone.y))
 
       // Smooth interpolation for dominant zone position
-      const lerpSpeed = 0.1
+      // Higher lerp = faster response, lower = smoother but slower
+      const lerpSpeed = 0.25
       this.interactionMetrics.dominantZone.x +=
         (clampedX - this.interactionMetrics.dominantZone.x) * lerpSpeed
       this.interactionMetrics.dominantZone.y +=
