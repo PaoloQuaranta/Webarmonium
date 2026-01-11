@@ -550,6 +550,11 @@ class AudioService {
             exists: !!this.ultraLowPowerAudio
           })
         }
+        // Entry #90 FIX: Switch gestureSynth to simple sine oscillator
+        if (this.gestureSynth && this.gestureSynth.oscillator) {
+          this.gestureSynth.oscillator.type = 'sine'
+          console.log('🔋 gestureSynth switched to sine oscillator')
+        }
         // Stop all background layers
         if (this.ambientLayers) {
           Object.keys(this.ambientLayers).forEach(layer => {
@@ -566,6 +571,11 @@ class AudioService {
           this.ultraLowPowerAudio.dispose()
           this.ultraLowPowerAudio = null
           console.log('🔋 Ultra-Low Power Audio deactivated')
+        }
+        // Entry #90 FIX: Restore gestureSynth to sawtooth oscillator
+        if (this.gestureSynth && this.gestureSynth.oscillator) {
+          this.gestureSynth.oscillator.type = 'sawtooth'
+          console.log('🔋 gestureSynth restored to sawtooth oscillator')
         }
         // Background layers will resume naturally via _isLayerEnabled checks
       }

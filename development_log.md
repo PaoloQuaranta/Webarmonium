@@ -1915,12 +1915,54 @@ for (let layerIdx = 0; layerIdx < layerNames.length; layerIdx++) {
 
 ---
 
+#### 5. gestureSynth oscillator switching (Additional Fix)
+
+When switching to/from Ultra-Low Power mode (`synthComplexity: 'mono-sine'`), the gestureSynth oscillator type is now changed at runtime:
+
+```javascript
+// Switching TO Ultra-Low Power mode
+if (this.gestureSynth && this.gestureSynth.oscillator) {
+  this.gestureSynth.oscillator.type = 'sine'
+  console.log('🔋 gestureSynth switched to sine oscillator')
+}
+
+// Switching FROM Ultra-Low Power mode
+if (this.gestureSynth && this.gestureSynth.oscillator) {
+  this.gestureSynth.oscillator.type = 'sawtooth'
+  console.log('🔋 gestureSynth restored to sawtooth oscillator')
+}
+```
+
+This ensures virtual user tap sounds use simple sine waves in minimal mode.
+
+#### 6. managePolyphony() null check fix
+
+Fixed crash when `activeVoices` is undefined:
+
+```javascript
+managePolyphony() {
+  if (!this.generativeState || !this.generativeState.activeVoices) return
+  // ...
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Added `_isLayerEnabled()` checks to 4 playback paths, gestureSynth oscillator switching, managePolyphony null check |
+
+---
+
 ### Testing
 
 With Audio Quality set to "minimal":
 - `backgroundLayers: []` - No layers enabled
 - Drone should not play
 - No background music at all
+- Virtual user taps use simple sine waves (not sawtooth)
 - Only user gesture sounds should be audible
 
 ---
