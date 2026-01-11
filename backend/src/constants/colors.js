@@ -19,7 +19,7 @@ const REAL_USER_COLOR_POOL = [
   '#4daf4a', // Verde
   '#984ea3', // Viola
   '#ffff33', // Giallo
-  '#a65628', // Marrone
+  '#e7298a', // Magenta
   '#f781bf', // Rosa
   '#999999', // Grigio
   '#66c2a5' // Teal

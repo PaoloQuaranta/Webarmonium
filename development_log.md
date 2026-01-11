@@ -1268,3 +1268,333 @@ This ensures the cleanup won't crash even if someone reintroduces the same bug i
 Updated to v1.0.66
 
 ---
+
+## Entry #86 - Systemd Services for Production Server
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented systemd services for the production server (DigitalOcean droplet) to enable automatic restart on crash and automatic startup on server reboot. Modified `auto-deploy.sh` to use kill-only approach since systemd handles restarts.
+
+---
+
+### Problem Statement
+
+The production server at webarmonium.net ran backend and frontend via `nohup npm start &` commands. This approach had issues:
+1. **No auto-restart on crash** - If the app crashed, it stayed down until manual intervention
+2. **No auto-start on reboot** - Server reboots required manually starting the services
+3. **Complex restart logic** - `auto-deploy.sh` had to kill processes AND restart them
+
+---
+
+### Solution
+
+#### 1. Created systemd service for backend
+
+**File:** `/etc/systemd/system/webarmonium-backend.service`
+
+```ini
+[Unit]
+Description=Webarmonium Backend Server
+After=network.target
+
+[Service]
+Type=simple
+User=polden
+WorkingDirectory=/home/polden/Webarmonium/backend
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### 2. Created systemd service for frontend
+
+**File:** `/etc/systemd/system/webarmonium-frontend.service`
+
+```ini
+[Unit]
+Description=Webarmonium Frontend Server
+After=network.target
+
+[Service]
+Type=simple
+User=polden
+WorkingDirectory=/home/polden/Webarmonium/frontend
+ExecStart=/usr/bin/npx http-server . -p 3000
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### 3. Simplified auto-deploy.sh
+
+Removed restart logic since `Restart=always` in systemd handles it automatically after kill:
+
+```bash
+#!/bin/bash
+# Auto-deploy script for Webarmonium
+# Runs git pull and kills services (systemd restarts them automatically)
+set -euo pipefail
+
+export PATH="/usr/bin:/usr/local/bin:$PATH"
+NPM="/usr/bin/npm"
+
+PROJECT_DIR="/home/polden/Webarmonium"
+LOG_FILE="$PROJECT_DIR/scripts/auto-deploy.log"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+}
+
+cd "$PROJECT_DIR"
+
+PULL_OUTPUT=$(git pull origin prod 2>&1)
+
+if echo "$PULL_OUTPUT" | grep -q "Already up to date."; then
+    log "=== NO UPDATES - Repository already up to date ==="
+    exit 0
+fi
+
+log "=== UPDATES PULLED - RESTARTING SERVICES ==="
+log "Git pull output: $PULL_OUTPUT"
+
+# Install dependencies
+cd "$PROJECT_DIR/backend"
+$NPM install --silent >> "$LOG_FILE" 2>&1 || true
+
+cd "$PROJECT_DIR/frontend"
+$NPM install --silent >> "$LOG_FILE" 2>&1 || true
+
+# Kill services (systemd will restart them automatically)
+log "Killing services (systemd will restart)..."
+fuser -k 3001/tcp 2>/dev/null || true
+fuser -k 3000/tcp 2>/dev/null || true
+
+log "=== DEPLOY COMPLETED ==="
+```
+
+---
+
+### Installation Commands
+
+```bash
+# Copy service files
+sudo cp /home/polden/webarmonium-backend.service /etc/systemd/system/
+sudo cp /home/polden/webarmonium-frontend.service /etc/systemd/system/
+
+# Reload systemd
+sudo systemctl daemon-reload
+
+# Enable services (auto-start on boot)
+sudo systemctl enable webarmonium-backend
+sudo systemctl enable webarmonium-frontend
+
+# Start services
+sudo systemctl start webarmonium-backend
+sudo systemctl start webarmonium-frontend
+```
+
+---
+
+### Useful Commands
+
+```bash
+# View live logs
+sudo journalctl -u webarmonium-backend -f
+sudo journalctl -u webarmonium-frontend -f
+
+# Manual restart
+sudo systemctl restart webarmonium-backend
+sudo systemctl restart webarmonium-frontend
+
+# Check status
+sudo systemctl status webarmonium-backend webarmonium-frontend
+```
+
+---
+
+### Files Modified
+
+| File | Location | Changes |
+|------|----------|---------|
+| `webarmonium-backend.service` | `/etc/systemd/system/` | New systemd service for Node.js backend |
+| `webarmonium-frontend.service` | `/etc/systemd/system/` | New systemd service for http-server frontend |
+| `auto-deploy.sh` | `/home/polden/` | Removed nohup restart logic, kept only fuser kill |
+
+---
+
+### Cron Configuration
+
+Cron job unchanged - runs every minute:
+```
+* * * * * /home/polden/auto-deploy.sh
+```
+
+The cron now relies on systemd's `Restart=always` directive to restart services after the kill command.
+
+---
+
+### Behavior
+
+| Event | Before | After |
+|-------|--------|-------|
+| App crash | Stays down | Auto-restart in 5 seconds |
+| Server reboot | Manual start needed | Auto-start on boot |
+| Git push to prod | Kill + nohup restart | Kill only (systemd restarts) |
+
+---
+
+### Version
+
+Infrastructure change - no version bump required
+
+---
+
+## Entry #87 - Separate Virtual User and Real User Color Pools
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Separated color pools for virtual users and real users to prevent color collisions. Virtual users (Wikipedia, HackerNews, GitHub) now have exclusive colors that real users can never receive. Created centralized color constants file as single source of truth.
+
+---
+
+### Problem Statement
+
+Virtual users had hardcoded colors (red, orange, blue) that were **also included** in the real user color pool. This could cause color collisions where a real user might receive the same color as a virtual user, breaking visual differentiation.
+
+| Virtual User | Color | Was in Real User Pool? |
+|-------------|-------|------------------------|
+| Wikipedia | `#e41a1c` (Red) | YES - collision risk |
+| HackerNews | `#ff7f00` (Orange) | YES - collision risk |
+| GitHub | `#377eb8` (Blue) | YES - collision risk |
+
+---
+
+### Solution
+
+Created two exclusive, non-overlapping color pools:
+
+**Virtual Users (3 colors - exclusive):**
+- `#e41a1c` - Wikipedia (Red)
+- `#ff7f00` - HackerNews (Orange)
+- `#377eb8` - GitHub (Blue)
+
+**Real Users (7 colors - exclusive):**
+- `#4daf4a` - Verde (Green)
+- `#984ea3` - Viola (Purple)
+- `#ffff33` - Giallo (Yellow)
+- `#e7298a` - Magenta
+- `#f781bf` - Rosa (Pink)
+- `#999999` - Grigio (Gray)
+- `#66c2a5` - Teal
+
+> **Race Condition Buffer**: 7 colors for max 4 real users provides a buffer of 3 extra colors.
+> This handles the race condition during page refresh where disconnect may not process
+> before new join, similar to the 8-slot system for 4 max timbres.
+
+---
+
+### Implementation
+
+#### 1. Created Centralized Constants File (NEW)
+
+**File:** `backend/src/constants/colors.js`
+
+```javascript
+const VIRTUAL_USER_COLORS = {
+  wikipedia: '#e41a1c',
+  hackernews: '#ff7f00',
+  github: '#377eb8'
+}
+
+const REAL_USER_COLOR_POOL = [
+  '#4daf4a', '#984ea3', '#ffff33', '#e7298a',
+  '#f781bf', '#999999', '#66c2a5'
+]
+
+module.exports = { VIRTUAL_USER_COLORS, REAL_USER_COLOR_POOL }
+```
+
+#### 2. Updated ColorAssignmentService
+
+- Imports `REAL_USER_COLOR_POOL` from constants
+- Uses 7-color pool instead of 10
+- Error message reflects "max 7 real users"
+
+#### 3. Updated VirtualUserService & LandingCompositionService
+
+- Import `VIRTUAL_USER_COLORS` from constants
+- Replace hardcoded colors with constants
+
+#### 4. Updated Room.js
+
+- `availableColors` now uses `REAL_USER_COLOR_POOL`
+
+#### 5. Updated Frontend Audio Services
+
+- `AudioService.js` and `GestureAudioMapper.js` colorPools updated
+- Include all 10 colors (3 virtual + 7 real) for audio frequency mapping
+
+---
+
+### Uniqueness Guarantee
+
+The existing Set operations already ensure no duplicate color assignments:
+
+```javascript
+// In ColorAssignmentService.assignColor()
+this.availableColors.delete(color)      // Remove from available
+this.assignedColors.set(userId, color)  // Track assignment
+
+// In ColorAssignmentService.releaseColor()
+this.availableColors.add(color)         // Return to pool
+this.assignedColors.delete(userId)      // Remove tracking
+```
+
+A color cannot be assigned to two users simultaneously.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/constants/colors.js` | **NEW** - Single source of truth for all colors |
+| `backend/src/services/ColorAssignmentService.js` | Uses REAL_USER_COLOR_POOL (7 colors) |
+| `backend/src/services/VirtualUserService.js` | Uses VIRTUAL_USER_COLORS constants |
+| `backend/src/services/LandingCompositionService.js` | Uses VIRTUAL_USER_COLORS constants |
+| `backend/src/models/Room.js` | Uses REAL_USER_COLOR_POOL for availableColors |
+| `frontend/src/services/AudioService.js` | Updated colorPool with all 10 colors |
+| `frontend/src/services/audio/GestureAudioMapper.js` | Updated colorPool with all 10 colors |
+| `backend/tests/unit/ColorAssignmentService.test.js` | Updated expectations for 7-color pool |
+| `backend/tests/unit/RoomManager.test.js` | Fixed for 4 max users per room |
+
+---
+
+### Verification
+
+1. `cd backend && npm test` - All tests pass
+2. Virtual users on landing page show: red, orange, blue
+3. Real users in rooms receive only: green, purple, yellow, magenta, pink, gray, teal
+4. No real user ever receives red, orange, or blue
+5. Page refresh doesn't cause color assignment errors
+
+---
+
+### Version
+
+Updated to v1.0.68

@@ -53,10 +53,10 @@ class GestureAudioMapper {
 
     // Color-to-frequency mapping (10-color pool: 3 virtual + 7 real)
     // Virtual user colors (exclusive): red, orange, blue
-    // Real user colors (exclusive): green, purple, yellow, brown, pink, gray, teal
+    // Real user colors (exclusive): green, purple, yellow, magenta, pink, gray, teal
     this.colorPool = colorPool || [
       '#e41a1c', '#ff7f00', '#377eb8',  // Virtual users (Wikipedia, HackerNews, GitHub)
-      '#4daf4a', '#984ea3', '#ffff33', '#a65628', '#f781bf', '#999999', '#66c2a5'  // Real users
+      '#4daf4a', '#984ea3', '#ffff33', '#e7298a', '#f781bf', '#999999', '#66c2a5'  // Real users
     ]
     this.colorFrequencyRange = { min: 200, max: 800 }
 

@@ -219,6 +219,35 @@
         data-driven coherence. Visual pulses and particle flows respond to the same gesture data that drives the audio.
       </p>
 
+      <!-- Part 1b: Background Composition Layer -->
+      <h3 class="explainer-section-title">Background Composition Layer</h3>
+      <p class="explainer-detail">
+        <strong>Three-layer generative system</strong>: Beyond virtual user notes, the landing page generates
+        continuous background music through three independent layers: <em>bass</em> (2-second cycles),
+        <em>pads</em> (16-second sustained chords), and <em>chords</em> (4-second harmonic movement).
+        Each layer follows one of seven harmonic progressions (I-V-vi-IV, i-VI-III-VII, etc.) and
+        automatically evolves when its current pattern completes. The system uses 12 rhythmic patterns
+        per layer, creating variety through pattern cycling and random evolution.
+      </p>
+
+      <p class="explainer-detail">
+        <strong>Drone emergence</strong>: When activity stops, a drone layer gradually emerges to fill
+        the void. The DroneVoidController monitors three factors: time since last gesture (5-10 seconds),
+        user influence level, and active note count. The drone fades in over 2 seconds when silence is
+        detected and fades out over 20 seconds when activity resumes, creating smooth transitions.
+        Subtle LFO modulation (33-second amplitude cycle at -6dB to 0dB, 20-second pitch drift at &plusmn;8 cents)
+        adds organic breathing to the sustained pad sound.
+      </p>
+
+      <p class="explainer-detail">
+        <strong>Musical scheduler</strong>: All notes are clock-synchronized using Tone.js Transport
+        with 25ms precision. Remote events snap to sixteenth-note boundaries, ensuring global
+        synchronization despite network latency. Virtual user notes are distributed across the beat
+        grid: <span style="color: #e41a1c;">Wikipedia</span> on beats (0,4,8,12),
+        <span style="color: #ff7f00;">HackerNews</span> on off-beats (2,6,10,14),
+        <span style="color: #377eb8;">GitHub</span> on upbeats (1,5,9,13).
+      </p>
+
       <!-- Part 2: Collaborative Rooms -->
       <h3 class="explainer-section-title">Collaborative Rooms: Real Users</h3>
       <p class="explainer-detail">
@@ -250,7 +279,7 @@
     <footer>
       <p>Powered by <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia API</a>, <a href="https://news.ycombinator.com" target="_blank" rel="noopener">HackerNews API</a>, and <a href="https://github.com" target="_blank" rel="noopener">GitHub API</a></p>
       <p class="footer-note">Data updates every 5-60 seconds depending on source. Rate limits are respected.</p>
-      <p class="version-tag">v1.0.68</p>
+      <p class="version-tag">v1.0.69</p>
     </footer>
   </main>
 
