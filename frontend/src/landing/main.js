@@ -734,6 +734,17 @@ class LandingApp {
     // - Math.min(1, ...) handles edge case of very tight clustering
     const spatialDensity = Math.max(0, Math.min(1, 1 - variance * 4))
 
+    // Debug: log values every 60 frames (~1 second at 60fps)
+    if (!this._metricsDebugCounter) this._metricsDebugCounter = 0
+    if (++this._metricsDebugCounter % 60 === 0) {
+      console.log('🌈 Synthetic metrics:', {
+        userCount,
+        spatialDensity: spatialDensity.toFixed(3),
+        variance: variance.toFixed(4),
+        dominantZone: { x: dominantZone.x.toFixed(2), y: dominantZone.y.toFixed(2) }
+      })
+    }
+
     // Forward to visual service
     this.visualService.updateInteractionMetrics({
       userCount,

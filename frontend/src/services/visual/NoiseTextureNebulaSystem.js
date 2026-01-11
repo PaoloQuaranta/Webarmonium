@@ -366,6 +366,18 @@ class NoiseTextureNebulaSystem {
     // - Product ensures gradient only visible with both activity AND clustering
     const userFactor = Math.min(1, this.interactionMetrics.userCount / 10)
     this.gradientIntensity = userFactor * this.interactionMetrics.spatialDensity
+
+    // Debug: log gradient intensity periodically
+    if (!this._gradientDebugCounter) this._gradientDebugCounter = 0
+    if (++this._gradientDebugCounter % 30 === 0) {
+      console.log('🌫️ Gradient:', {
+        userFactor: userFactor.toFixed(2),
+        spatialDensity: this.interactionMetrics.spatialDensity.toFixed(2),
+        intensity: this.gradientIntensity.toFixed(3),
+        enabled: this.gradientEnabled,
+        zone: `(${this.interactionMetrics.dominantZone.x.toFixed(2)}, ${this.interactionMetrics.dominantZone.y.toFixed(2)})`
+      })
+    }
   }
 
   /**
