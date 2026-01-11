@@ -592,29 +592,59 @@ const GestureHandler = {
   /**
    * Register gesture:trail event handler
    * Broadcasts visual trail halos to other users in the room
+   * Entry #80: Added comprehensive input validation, rate limiting, and cleanup
    * @param {Socket} socket - Socket instance
    */
   registerGestureTrailHandler (socket) {
+    // Rate limiting: max ~60 trail events per second per user
+    const TRAIL_RATE_LIMIT_MS = 16
+    let lastEmitTime = 0
+
     socket.on('gesture:trail', (data) => {
       try {
+        // Rate limiting check
+        const now = Date.now()
+        if (now - lastEmitTime < TRAIL_RATE_LIMIT_MS) {
+          return
+        }
+        lastEmitTime = now
+
         // Validate user is in a room
         if (!socket.userId || !socket.roomId) {
           return
         }
 
-        // Validate trail data
-        if (!data || typeof data.x !== 'number' || typeof data.y !== 'number') {
+        // Validate trail data structure
+        if (!data || typeof data !== 'object') {
           return
         }
 
-        // Broadcast trail to other users in the room
+        // Validate and sanitize coordinates (normalized 0-1 range)
+        const x = parseFloat(data.x)
+        const y = parseFloat(data.y)
+        if (isNaN(x) || isNaN(y) || x < 0 || x > 1 || y < 0 || y > 1) {
+          return
+        }
+
+        // Validate and clamp intensity (0-1 range)
+        const intensity = typeof data.intensity === 'number'
+          ? Math.max(0, Math.min(1, data.intensity))
+          : 0.5
+
+        // Validate color format (hex only, prevent XSS)
+        const hexPattern = /^#[0-9A-Fa-f]{6}$/
+        const color = typeof data.color === 'string' && hexPattern.test(data.color)
+          ? data.color
+          : '#00d4ff'
+
+        // Broadcast sanitized trail data to other users in the room
         socket.to(socket.roomId).emit('gesture:trail', {
           userId: socket.userId,
-          x: data.x,
-          y: data.y,
-          intensity: data.intensity || 0.5,
-          color: data.color || '#00d4ff',
-          timestamp: Date.now()
+          x,
+          y,
+          intensity,
+          color,
+          timestamp: now
         })
       } catch (error) {
         // Silent fail - don't break gesture handling

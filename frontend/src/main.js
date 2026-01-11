@@ -1779,23 +1779,35 @@ class WebarmoniumApp {
     const { coordinates, intensity } = gesture
     const userColor = this.currentUserColor || '#00d4ff'
 
-    // Draw locally
+    // Draw locally (always, no throttling)
     this._renderTrailHalo(coordinates.x, coordinates.y, intensity, userColor)
 
-    // Broadcast to other users in room
-    if (this.socketService?.socket?.connected) {
-      this.socketService.socket.emit('gesture:trail', {
-        x: coordinates.x,
-        y: coordinates.y,
-        intensity,
-        color: userColor
-      })
+    // Entry #80: Throttle network broadcast (~60fps max)
+    const now = Date.now()
+    if (now - (this._lastTrailEmitTime || 0) < 16) {
+      return
+    }
+    this._lastTrailEmitTime = now
+
+    // Broadcast to other users in room (with error handling)
+    try {
+      if (this.socketService?.socket?.connected) {
+        this.socketService.socket.emit('gesture:trail', {
+          x: coordinates.x,
+          y: coordinates.y,
+          intensity,
+          color: userColor
+        })
+      }
+    } catch (error) {
+      // Silent fail - trail emission is not critical
     }
   }
 
   /**
    * Render a trail halo at the given position
    * Used for both local and remote trails
+   * Entry #80: Optimized with cached RGB conversion and simpler compositing
    * @param {number} normX - Normalized X position (0-1)
    * @param {number} normY - Normalized Y position (0-1)
    * @param {number} intensity - Trail intensity (0-1)
@@ -1805,20 +1817,36 @@ class WebarmoniumApp {
     const x = normX * window.innerWidth
     const y = normY * window.innerHeight
 
-    this.ctx.save()
+    // Entry #80: Cache RGB conversion per color to avoid repeated parsing
+    if (!this._trailColorCache) {
+      this._trailColorCache = new Map()
+    }
+
+    let rgb = this._trailColorCache.get(color)
+    if (!rgb) {
+      rgb = window.VisualUtils?.hexToRgb(color) || { r: 0, g: 212, b: 255 }
+      this._trailColorCache.set(color, rgb)
+      // Keep cache size bounded (max 20 colors)
+      if (this._trailColorCache.size > 20) {
+        const firstKey = this._trailColorCache.keys().next().value
+        this._trailColorCache.delete(firstKey)
+      }
+    }
 
     const alpha = Math.min(intensity, 1)
     const size = 5 + (intensity * 15)
 
-    const rgb = window.VisualUtils?.hexToRgb(color) || { r: 0, g: 212, b: 255 }
+    this.ctx.save()
 
-    const gradient = this.ctx.createRadialGradient(x, y, 0, x, y, size)
-    gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`)
-    gradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`)
+    // Use globalAlpha + solid fill + shadowBlur for glow effect
+    // More performant than creating gradient every frame
+    this.ctx.globalAlpha = alpha * 0.8
+    this.ctx.fillStyle = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
+    this.ctx.shadowColor = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
+    this.ctx.shadowBlur = size * 0.6
 
-    this.ctx.fillStyle = gradient
     this.ctx.beginPath()
-    this.ctx.arc(x, y, size, 0, Math.PI * 2)
+    this.ctx.arc(x, y, size * 0.5, 0, Math.PI * 2)
     this.ctx.fill()
 
     this.ctx.restore()

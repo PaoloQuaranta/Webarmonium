@@ -2450,3 +2450,153 @@ this.socketService.on('gesture:trail', (data) => {
 Updated to v1.0.59
 
 ---
+
+## Entry #80 - Gesture Trail Security & Performance Fixes
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Applied 6 fixes from code review of Entry #79 gesture trail implementation. Addresses security vulnerabilities, performance bottlenecks, and reliability issues.
+
+---
+
+### Issues Fixed
+
+| # | Issue | Priority | Fix |
+|---|-------|----------|-----|
+| 1 | Input validation missing (bounds, NaN, Infinity) | Critical | Added parseFloat + range validation for x/y (0-1) |
+| 2 | XSS via color injection | Critical | Added hex color regex validation `/^#[0-9A-Fa-f]{6}$/` |
+| 3 | Rate limiting missing (potential DoS) | High | Added 16ms throttle (~60fps max) per socket |
+| 4 | Race condition on socket emit | High | Added try-catch around socket emission |
+| 5 | No frontend throttling | Medium | Added 16ms throttle on network broadcast (local render unthrottled) |
+| 6 | Gradient created every frame | Medium | Replaced with shadowBlur + cached RGB conversion |
+
+---
+
+### Backend Changes
+
+**File:** `backend/src/api/handlers/GestureHandler.js`
+
+```javascript
+registerGestureTrailHandler (socket) {
+  // Rate limiting: max ~60 trail events per second per user
+  const TRAIL_RATE_LIMIT_MS = 16
+  let lastEmitTime = 0
+
+  socket.on('gesture:trail', (data) => {
+    // Rate limiting check
+    const now = Date.now()
+    if (now - lastEmitTime < TRAIL_RATE_LIMIT_MS) return
+    lastEmitTime = now
+
+    // Validate coordinates (normalized 0-1 range)
+    const x = parseFloat(data.x)
+    const y = parseFloat(data.y)
+    if (isNaN(x) || isNaN(y) || x < 0 || x > 1 || y < 0 || y > 1) return
+
+    // Validate intensity (clamp 0-1)
+    const intensity = typeof data.intensity === 'number'
+      ? Math.max(0, Math.min(1, data.intensity))
+      : 0.5
+
+    // Validate color format (hex only, prevent XSS)
+    const hexPattern = /^#[0-9A-Fa-f]{6}$/
+    const color = hexPattern.test(data.color) ? data.color : '#00d4ff'
+
+    // Broadcast sanitized data
+    socket.to(socket.roomId).emit('gesture:trail', { userId, x, y, intensity, color, timestamp })
+  })
+}
+```
+
+Note: Rate limit uses local variable per socket, automatically cleaned up on disconnect.
+
+---
+
+### Frontend Changes
+
+**File:** `frontend/src/main.js`
+
+#### drawGestureTrail() - Throttling + Error Handling
+
+```javascript
+drawGestureTrail(gesture) {
+  // Draw locally (always, no throttling)
+  this._renderTrailHalo(coordinates.x, coordinates.y, intensity, userColor)
+
+  // Throttle network broadcast (~60fps max)
+  const now = Date.now()
+  if (now - (this._lastTrailEmitTime || 0) < 16) return
+  this._lastTrailEmitTime = now
+
+  // Broadcast with error handling
+  try {
+    if (this.socketService?.socket?.connected) {
+      this.socketService.socket.emit('gesture:trail', { ... })
+    }
+  } catch (error) {
+    // Silent fail - trail emission is not critical
+  }
+}
+```
+
+#### _renderTrailHalo() - Performance Optimization
+
+```javascript
+_renderTrailHalo(normX, normY, intensity, color) {
+  // Cache RGB conversion per color
+  if (!this._trailColorCache) this._trailColorCache = new Map()
+
+  let rgb = this._trailColorCache.get(color)
+  if (!rgb) {
+    rgb = window.VisualUtils?.hexToRgb(color) || { r: 0, g: 212, b: 255 }
+    this._trailColorCache.set(color, rgb)
+    // Keep cache bounded (max 20 colors)
+    if (this._trailColorCache.size > 20) {
+      this._trailColorCache.delete(this._trailColorCache.keys().next().value)
+    }
+  }
+
+  // Use shadowBlur instead of gradient (more performant)
+  this.ctx.globalAlpha = alpha * 0.8
+  this.ctx.fillStyle = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
+  this.ctx.shadowColor = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
+  this.ctx.shadowBlur = size * 0.6
+  this.ctx.arc(x, y, size * 0.5, 0, Math.PI * 2)
+  this.ctx.fill()
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/api/handlers/GestureHandler.js` | Input validation, rate limiting, color sanitization |
+| `frontend/src/main.js` | Throttling, error handling, RGB cache, shadowBlur rendering |
+
+---
+
+### Security Improvements
+
+- **Bounds checking**: Coordinates validated to 0-1 range, rejects NaN/Infinity
+- **XSS prevention**: Color validated against strict hex regex, rejects injection attempts
+- **DoS mitigation**: Rate limiting prevents flooding with trail events
+
+### Performance Improvements
+
+- **RGB caching**: Avoids repeated hexToRgb parsing (bounded Map with 20 entries)
+- **shadowBlur vs gradient**: Simpler compositing, no gradient creation per frame
+- **Dual throttling**: Backend + frontend both throttle at ~60fps
+
+---
+
+### Version
+
+Updated to v1.0.60
+
+---
