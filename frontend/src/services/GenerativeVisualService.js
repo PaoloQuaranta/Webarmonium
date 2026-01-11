@@ -110,13 +110,9 @@ class GenerativeVisualService {
       // PERF: Expose instance on window for subsystem stress factor access
       window.visualService = this
 
-      // Entry #90 FIX: Apply graphics quality settings at initialization
-      // This ensures user settings are respected on page load
-      try {
-        this.applyGraphicsQuality()
-      } catch (e) {
-        console.warn('🎨 Failed to apply graphics quality at init:', e)
-      }
+      // Note: Graphics quality is now applied in setup() after p5.js canvas is ready
+      // This prevents race conditions where settings are applied before subsystems
+      // are fully connected to the p5 rendering context
 
       console.log('✅ GenerativeVisualService: Enhanced p5.js initialized with subsystems')
     } catch (error) {
@@ -157,6 +153,15 @@ class GenerativeVisualService {
     // Initialize background nodes explicitly (prevents flickering on first frame)
     if (this.springMesh && !this.springMesh.backgroundNodesInitialized) {
       this.springMesh.initializeBackgroundNodes()
+    }
+
+    // RACE CONDITION FIX: Apply graphics quality settings AFTER p5 setup completes
+    // This ensures all subsystems are properly connected to the p5 rendering context
+    try {
+      this.applyGraphicsQuality()
+      console.log('🎨 Graphics quality applied after p5 setup')
+    } catch (e) {
+      console.warn('🎨 Failed to apply graphics quality after setup:', e)
     }
 
     console.log('✅ GenerativeVisualService: Canvas created', containerWidth, 'x', containerHeight, 'pixelDensity:', p.pixelDensity())

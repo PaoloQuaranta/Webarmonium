@@ -359,10 +359,12 @@ class SettingsPanel {
     const newSampleRate = sampleRateRadio?.value || 'auto'
     const sampleRateChanged = newSampleRate !== this._originalSampleRate
 
+    // Collect new settings values (but don't save yet)
+    const newSettings = {}
     groups.forEach(group => {
       const checked = this.panel.querySelector(`input[name="${group}"]:checked`)
       if (checked) {
-        UserSettings.set(group, checked.value)
+        newSettings[group] = checked.value
       }
     })
 
@@ -374,10 +376,19 @@ class SettingsPanel {
       landingAudioService: !!window.landingApp?.audioService,
       webarmoniumVisualService: !!window.webarmoniumApp?.visualService,
       landingVisualService: !!window.landingApp?.visualService,
-      settings: UserSettings.getAll()
+      newSettings
     })
 
-    // Fix #4: Try-catch for audio reload
+    // ROLLBACK FIX: Save settings to localStorage BEFORE attempting to apply
+    // This ensures settings are persisted even if application fails
+    // (User can fix the issue and retry, or settings will apply on next page load)
+    groups.forEach(group => {
+      if (newSettings[group]) {
+        UserSettings.set(group, newSettings[group])
+      }
+    })
+
+    // Try to apply audio settings
     // Support both rooms (webarmoniumApp) and landing page (landingApp)
     const audioService = window.webarmoniumApp?.audioService || window.landingApp?.audioService
     if (audioService?.reloadAudioProfile) {
@@ -386,14 +397,15 @@ class SettingsPanel {
         audioService.reloadAudioProfile()
       } catch (error) {
         console.error('Failed to reload audio profile:', error)
-        this._showCanvasNotification('Audio reload failed')
-        return
+        // Don't return - continue to graphics, settings are already saved
+        // They'll be applied correctly on next page load
+        this._showCanvasNotification('Audio reload failed - will apply on refresh', true)
       }
     } else {
       console.warn('⚠️ No audioService.reloadAudioProfile available')
     }
 
-    // Fix #4: Try-catch for graphics reload
+    // Try to apply graphics settings
     // Support both rooms (webarmoniumApp) and landing page (landingApp)
     const visualService = window.webarmoniumApp?.visualService || window.landingApp?.visualService
     if (visualService?.applyGraphicsQuality) {
@@ -402,8 +414,8 @@ class SettingsPanel {
         visualService.applyGraphicsQuality()
       } catch (error) {
         console.error('Failed to apply graphics quality:', error)
-        this._showCanvasNotification('Graphics update failed')
-        return
+        // Don't return - settings are saved and will apply on next page load
+        this._showCanvasNotification('Graphics update failed - will apply on refresh', true)
       }
     } else {
       console.warn('⚠️ No visualService.applyGraphicsQuality available')
@@ -412,7 +424,7 @@ class SettingsPanel {
     // Close panel first
     this.close()
 
-    // Fix #2: Delay notification until after panel close animation
+    // Delay notification until after panel close animation
     // Show special message if sample rate changed (requires reload)
     setTimeout(() => {
       if (sampleRateChanged) {
@@ -424,17 +436,34 @@ class SettingsPanel {
   }
 
   /**
+   * Escape HTML entities to prevent XSS
+   * @param {string} str - String to escape
+   * @returns {string} Escaped string
+   */
+  _escapeHtml (str) {
+    const escapeMap = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    }
+    return String(str).replace(/[&<>"']/g, char => escapeMap[char])
+  }
+
+  /**
    * Show a notification overlay on the canvas
    * @param {string} message - Message to display
    * @param {boolean} isWarning - If true, show as warning (longer display, different style)
    */
   _showCanvasNotification (message, isWarning = false) {
-    // Fix #3 (partial): Validate input
+    // Security: Validate and sanitize input to prevent XSS
     if (typeof message !== 'string') {
       console.warn('Invalid notification message:', message)
       return
     }
-    const sanitizedMessage = String(message).slice(0, 200)
+    // Escape HTML entities and truncate to prevent abuse
+    const sanitizedMessage = this._escapeHtml(message).slice(0, 200)
 
     // Fix #1: Clear any existing notification
     if (this.activeNotification && this.activeNotification.parentNode) {

@@ -551,9 +551,14 @@ class AudioService {
           })
         }
         // Entry #90 FIX: Switch gestureSynth to simple sine oscillator
-        if (this.gestureSynth && this.gestureSynth.oscillator) {
-          this.gestureSynth.oscillator.type = 'sine'
-          console.log('🔋 gestureSynth switched to sine oscillator')
+        // ERROR HANDLING: Wrap in try-catch to handle disposed synth or API changes
+        try {
+          if (this.gestureSynth && this.gestureSynth.oscillator && !this.gestureSynth.disposed) {
+            this.gestureSynth.oscillator.type = 'sine'
+            console.log('🔋 gestureSynth switched to sine oscillator')
+          }
+        } catch (e) {
+          console.warn('🔋 Failed to switch gestureSynth oscillator:', e.message)
         }
         // Stop all background layers
         if (this.ambientLayers) {
@@ -573,9 +578,14 @@ class AudioService {
           console.log('🔋 Ultra-Low Power Audio deactivated')
         }
         // Entry #90 FIX: Restore gestureSynth to sawtooth oscillator
-        if (this.gestureSynth && this.gestureSynth.oscillator) {
-          this.gestureSynth.oscillator.type = 'sawtooth'
-          console.log('🔋 gestureSynth restored to sawtooth oscillator')
+        // ERROR HANDLING: Wrap in try-catch to handle disposed synth or API changes
+        try {
+          if (this.gestureSynth && this.gestureSynth.oscillator && !this.gestureSynth.disposed) {
+            this.gestureSynth.oscillator.type = 'sawtooth'
+            console.log('🔋 gestureSynth restored to sawtooth oscillator')
+          }
+        } catch (e) {
+          console.warn('🔋 Failed to restore gestureSynth oscillator:', e.message)
         }
         // Background layers will resume naturally via _isLayerEnabled checks
       }
@@ -679,25 +689,47 @@ class AudioService {
 
   /**
    * Entry #73: Check if a background layer should be played based on profile
-   * @param {string} layerName - 'bass', 'pad', 'chords', or composition layers
+   *
+   * LAYER ARCHITECTURE:
+   * The audio system has TWO TYPES of background layers:
+   *
+   * 1. AMBIENT LAYERS (bass, pad, chords):
+   *    - Generated algorithmically by the local client
+   *    - Controlled by audioProfile.backgroundLayers array
+   *    - Progressively disabled as device tier decreases:
+   *      - high: ['bass', 'pad', 'chords']
+   *      - medium: ['bass', 'pad']
+   *      - low: ['bass']
+   *      - ultra-low: [] (none)
+   *
+   * 2. COMPOSITION LAYERS (backgroundHigh, backgroundMid, backgroundLow):
+   *    - Received from the backend via WebSocket
+   *    - Not controlled by audioProfile.backgroundLayers
+   *    - Always enabled EXCEPT in Ultra-Low Power mode
+   *    - These represent the shared musical composition across all users
+   *
+   * @param {string} layerName - 'bass', 'pad', 'chords', 'backgroundHigh', 'backgroundMid', or 'backgroundLow'
    * @returns {boolean} True if layer should be played
    */
   _isLayerEnabled(layerName) {
-    // In Ultra-Low Power mode, no background layers at all
+    // In Ultra-Low Power mode, ALL background audio is disabled
+    // This is the most aggressive power-saving mode for very limited devices
     if (this.isUltraLowPowerMode) return false
 
-    // Entry #90 FIX: Composition layers (backgroundHigh/Mid/Low) are always enabled
-    // unless we're in Ultra-Low Power mode (handled above)
+    // COMPOSITION LAYERS: Always enabled (except Ultra-Low Power, handled above)
+    // These are server-sent compositions that create the shared musical experience
+    // They use different synths (backgroundHigh/Mid/Low) than ambient layers
     if (layerName === 'backgroundHigh' || layerName === 'backgroundMid' || layerName === 'backgroundLow') {
       return true
     }
 
-    // Check profile for ambient layers (bass, pad, chords)
+    // AMBIENT LAYERS: Controlled by device profile
+    // Check audioProfile.backgroundLayers array for bass, pad, chords
     if (this.audioProfile && this.audioProfile.backgroundLayers) {
       return this.audioProfile.backgroundLayers.includes(layerName)
     }
 
-    // Default: all layers enabled
+    // Default: all layers enabled (for backwards compatibility)
     return true
   }
 
@@ -1076,6 +1108,10 @@ class AudioService {
 
     // Initialize generative composition state
     this.generativeState = {
+      // INITIALIZATION FIX: activeVoices must be a Map for polyphony management
+      // Without this, managePolyphony() would fail on first call
+      activeVoices: new Map(),
+
       currentScale: [0, 2, 4, 7, 9], // Pentatonic major
       currentTonic: 220, // A3
       harmonicProgression: 0,

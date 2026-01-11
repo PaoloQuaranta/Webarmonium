@@ -10,13 +10,25 @@
 class DeviceCapabilities {
   static _cache = null
   static _tierCache = null
+  static _cacheTimestamp = null
+  static CACHE_TTL_MS = 5 * 60 * 1000  // 5 minutes - allows re-detection on battery/performance changes
+
+  /**
+   * Check if cache is still valid
+   * @returns {boolean} True if cache is valid
+   */
+  static _isCacheValid () {
+    if (!this._cacheTimestamp) return false
+    return (Date.now() - this._cacheTimestamp) < this.CACHE_TTL_MS
+  }
 
   /**
    * Detect all device capabilities
    * @returns {Object} Device capability information
    */
   static detect () {
-    if (this._cache) return this._cache
+    // Return cached result if still valid
+    if (this._cache && this._isCacheValid()) return this._cache
 
     const capabilities = {
       cpuCores: this._getCpuCores(),
@@ -31,6 +43,7 @@ class DeviceCapabilities {
 
     capabilities.tier = this._calculateTier(capabilities)
     this._cache = capabilities
+    this._cacheTimestamp = Date.now()
 
     console.log(`🔧 DeviceCapabilities:`, capabilities)
     return capabilities
@@ -41,7 +54,8 @@ class DeviceCapabilities {
    * @returns {'high'|'medium'|'low'|'ultra-low'} Device tier
    */
   static getTier () {
-    if (this._tierCache) return this._tierCache
+    // Check cache validity - tier cache depends on main cache
+    if (this._tierCache && this._isCacheValid()) return this._tierCache
     this._tierCache = this.detect().tier
     return this._tierCache
   }
@@ -314,13 +328,36 @@ class DeviceCapabilities {
   }
 
   /**
-   * Clear cached values (for testing)
+   * Clear cached values (for testing or when device state changes)
    */
   static clearCache () {
     this._cache = null
     this._tierCache = null
+    this._cacheTimestamp = null
+  }
+
+  /**
+   * Set up visibility change listener to invalidate cache when page becomes visible
+   * This handles cases where device capabilities might change while page is hidden
+   * (e.g., battery saver mode activation)
+   */
+  static _setupVisibilityListener () {
+    if (typeof document === 'undefined') return
+    if (this._visibilityListenerAttached) return
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        // Clear cache when page becomes visible again
+        // This forces re-detection which may pick up changed device state
+        this.clearCache()
+      }
+    })
+    this._visibilityListenerAttached = true
   }
 }
+
+// Set up visibility listener when module loads
+DeviceCapabilities._setupVisibilityListener()
 
 // Export for both module systems
 if (typeof module !== 'undefined' && module.exports) {
