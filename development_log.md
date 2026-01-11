@@ -873,3 +873,80 @@ After implementation, code-reviewer agent identified 10 issues across 3 priority
 Updated to v1.0.62
 
 ---
+
+## Entry #82 - Fix PrecomputedAttractorSystem.setPointLimit() Error
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed a method naming error in `PrecomputedAttractorSystem.js` that caused "this.precompute is not a function" when applying graphics quality settings.
+
+---
+
+### Problem Statement
+
+When applying graphics quality from the Settings Panel, the first click on "Apply" threw an error:
+```
+Failed to apply graphics quality: TypeError: this.precompute is not a function
+    at PrecomputedAttractorSystem.setPointLimit (PrecomputedAttractorSystem.js:535:12)
+```
+
+The second click appeared to "work" but was actually just skipping the problematic code.
+
+---
+
+### Root Cause
+
+In `PrecomputedAttractorSystem.js` line 535, the `setPointLimit()` method called `this.precompute()`, but the actual method is named `_precomputeAttractors()` (with underscore prefix).
+
+**Why second click "worked":**
+1. First click: `setPointLimit()` → `this.precompute()` → Error thrown
+2. Error prevents `this.pointCount` from updating
+3. Second click: `newCount !== this.pointCount` evaluates FALSE → code block skipped
+4. Attractor points were never actually recalculated
+
+---
+
+### Solution
+
+Changed line 535 from:
+```javascript
+this.precompute()
+```
+
+To:
+```javascript
+this._precomputeAttractors()
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/visual/PrecomputedAttractorSystem.js:535` | Fixed method call from `precompute()` to `_precomputeAttractors()` |
+
+---
+
+### Verification
+
+1. Open http://localhost:3000
+2. Enter a room
+3. Open Settings Panel
+4. Select "Minimal" for Graphics Quality
+5. Click "Apply"
+6. Verify NO error in console
+7. Verify toast "Settings applied" appears
+8. Attractor points should now properly update (400 points in minimal vs 1200 in full)
+
+---
+
+### Version
+
+Updated to v1.0.63
+
+---

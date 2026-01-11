@@ -532,7 +532,7 @@ class PrecomputedAttractorSystem {
 
       // Regenerate precomputed frames with new point count
       // This is expensive so only do it if really changing
-      this.precompute()
+      this._precomputeAttractors()
     }
   }
 
