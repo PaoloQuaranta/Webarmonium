@@ -1835,3 +1835,96 @@ const visualService = window.webarmoniumApp?.visualService || window.landingApp?
 ### Version
 
 Updated to v1.0.71
+
+---
+
+## Entry #90 - Audio Profile Settings Fix
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed critical bug where audio settings (backgroundLayers, maxPolyphony) were saved but not actually applied during playback. Multiple audio playback methods bypassed the `_isLayerEnabled()` check.
+
+---
+
+### Problem Statement
+
+User reported that setting Audio Quality to "minimal" didn't change anything - background music still played. Investigation revealed that several audio playback methods directly accessed `ambientLayers` without checking the profile settings.
+
+---
+
+### Solution
+
+Added `_isLayerEnabled()` checks to all audio playback paths:
+
+#### 1. playAmbientComposition() - Initial scheduling
+
+```javascript
+// Entry #90: Skip if layer is disabled by audio profile settings
+if (!this._isLayerEnabled(layerName)) {
+  console.log(`🔇 Skipping ${layerName} - layer disabled by profile`)
+  continue
+}
+```
+
+#### 2. scheduleRepeat callback - Runtime check
+
+```javascript
+const repeatEventId = Tone.Transport.scheduleRepeat((audioTime) => {
+  // Entry #90: Check if layer is still enabled (user may have changed settings)
+  if (!this._isLayerEnabled('pad')) {
+    return  // Skip this repeat - layer was disabled
+  }
+  // ... play note
+})
+```
+
+This ensures that if user changes settings while drone is repeating, the repeats stop immediately.
+
+#### 3. safeMonoSynthTrigger() - MonoSynth helper
+
+```javascript
+safeMonoSynthTrigger(layerName, frequency, duration, time, velocity) {
+  // Entry #90: Skip if layer is disabled by audio profile settings
+  if (!this._isLayerEnabled(layerName)) return
+  // ... trigger note
+}
+```
+
+#### 4. forceStartBackground() - Layer loop
+
+```javascript
+for (let layerIdx = 0; layerIdx < layerNames.length; layerIdx++) {
+  const layer = layerNames[layerIdx]
+  // Entry #90: Skip if layer is disabled by audio profile settings
+  if (!this._isLayerEnabled(layer)) continue
+  // ... play layer
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Added `_isLayerEnabled()` checks to 4 playback paths |
+
+---
+
+### Testing
+
+With Audio Quality set to "minimal":
+- `backgroundLayers: []` - No layers enabled
+- Drone should not play
+- No background music at all
+- Only user gesture sounds should be audible
+
+---
+
+### Version
+
+Updated to v1.0.72
