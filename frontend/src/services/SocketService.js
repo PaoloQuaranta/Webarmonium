@@ -195,6 +195,11 @@ class SocketService {
       this.emit('musical:event', data)
     })
 
+    // Gesture trail halos from remote users
+    this.socket.on('gesture:trail', (data) => {
+      this.emit('gesture:trail', data)
+    })
+
     // Sustained hold events for remote note synchronization
     this.socket.on('hold:start', (data) => {
       // console.log('🎵 SocketService received hold:start:', {

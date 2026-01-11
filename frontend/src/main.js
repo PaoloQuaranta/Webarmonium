@@ -1370,6 +1370,21 @@ class WebarmoniumApp {
       }
     })
 
+    // Handle gesture trail halos from remote users
+    this.socketService.on('gesture:trail', (data) => {
+      if (!data || typeof data.x !== 'number' || typeof data.y !== 'number') {
+        return
+      }
+
+      // Ignore own trails (shouldn't happen, but safety check)
+      if (data.userId === this.socketService?.socket?.id) {
+        return
+      }
+
+      // Render remote user's trail halo
+      this._renderTrailHalo(data.x, data.y, data.intensity || 0.5, data.color || '#00d4ff')
+    })
+
     // Handle real-time note streaming from remote users (drag notes)
     this.socketService.on('note:stream', (data) => {
       if (!this.isAudioStarted || !data?.event) {
@@ -1762,21 +1777,41 @@ class WebarmoniumApp {
 
   drawGestureTrail(gesture) {
     const { coordinates, intensity } = gesture
-    const x = coordinates.x * window.innerWidth
-    const y = coordinates.y * window.innerHeight
+    const userColor = this.currentUserColor || '#00d4ff'
 
-    // Create visual feedback
+    // Draw locally
+    this._renderTrailHalo(coordinates.x, coordinates.y, intensity, userColor)
+
+    // Broadcast to other users in room
+    if (this.socketService?.socket?.connected) {
+      this.socketService.socket.emit('gesture:trail', {
+        x: coordinates.x,
+        y: coordinates.y,
+        intensity,
+        color: userColor
+      })
+    }
+  }
+
+  /**
+   * Render a trail halo at the given position
+   * Used for both local and remote trails
+   * @param {number} normX - Normalized X position (0-1)
+   * @param {number} normY - Normalized Y position (0-1)
+   * @param {number} intensity - Trail intensity (0-1)
+   * @param {string} color - Hex color string
+   */
+  _renderTrailHalo(normX, normY, intensity, color) {
+    const x = normX * window.innerWidth
+    const y = normY * window.innerHeight
+
     this.ctx.save()
 
-    // Set style based on intensity
     const alpha = Math.min(intensity, 1)
     const size = 5 + (intensity * 15)
 
-    // Use user's assigned color instead of hardcoded cyan
-    const userColor = this.currentUserColor || '#00d4ff'
-    const rgb = window.VisualUtils?.hexToRgb(userColor) || { r: 0, g: 212, b: 255 }
+    const rgb = window.VisualUtils?.hexToRgb(color) || { r: 0, g: 212, b: 255 }
 
-    // Create gradient with user color
     const gradient = this.ctx.createRadialGradient(x, y, 0, x, y, size)
     gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`)
     gradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`)

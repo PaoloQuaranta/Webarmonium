@@ -587,6 +587,39 @@ const GestureHandler = {
         // // console.error('❌ gesture-complete error:', error)
       }
     })
+  },
+
+  /**
+   * Register gesture:trail event handler
+   * Broadcasts visual trail halos to other users in the room
+   * @param {Socket} socket - Socket instance
+   */
+  registerGestureTrailHandler (socket) {
+    socket.on('gesture:trail', (data) => {
+      try {
+        // Validate user is in a room
+        if (!socket.userId || !socket.roomId) {
+          return
+        }
+
+        // Validate trail data
+        if (!data || typeof data.x !== 'number' || typeof data.y !== 'number') {
+          return
+        }
+
+        // Broadcast trail to other users in the room
+        socket.to(socket.roomId).emit('gesture:trail', {
+          userId: socket.userId,
+          x: data.x,
+          y: data.y,
+          intensity: data.intensity || 0.5,
+          color: data.color || '#00d4ff',
+          timestamp: Date.now()
+        })
+      } catch (error) {
+        // Silent fail - don't break gesture handling
+      }
+    })
   }
 }
 

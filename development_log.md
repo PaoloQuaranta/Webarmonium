@@ -2322,3 +2322,131 @@ Used existing `window.VisualUtils.hexToRgb()` utility (from VisualUtils.js:46) f
 Updated to v1.0.58
 
 ---
+
+## Entry #79 - Multi-User Gesture Trail Broadcasting & Tap Halos
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Extended gesture trail halos to broadcast to all users in the room via Socket.IO, and added halo rendering for tap gestures (not just drags). Previously halos were only visible locally.
+
+---
+
+### Problem Statement
+
+Entry #78 added user-colored halos, but they were only rendered locally. Other users in the room couldn't see each other's gesture trails, reducing the collaborative visual feedback.
+
+Additionally, tap gestures (quick click without drag) didn't trigger halos at all.
+
+---
+
+### Solution
+
+#### 1. Split drawGestureTrail into emitter + renderer
+
+**File:** `frontend/src/main.js`
+
+```javascript
+drawGestureTrail(gesture) {
+  const { coordinates, intensity } = gesture
+  const userColor = this.currentUserColor || '#00d4ff'
+
+  // Draw locally
+  this._renderTrailHalo(coordinates.x, coordinates.y, intensity, userColor)
+
+  // Broadcast to other users in room
+  if (this.socketService?.socket?.connected) {
+    this.socketService.socket.emit('gesture:trail', {
+      x: coordinates.x,
+      y: coordinates.y,
+      intensity,
+      color: userColor
+    })
+  }
+}
+
+_renderTrailHalo(normX, normY, intensity, color) {
+  // Canvas rendering logic (moved from drawGestureTrail)
+}
+```
+
+#### 2. Added tap gesture trail trigger
+
+**File:** `frontend/src/services/GestureProcessor.js`
+
+```javascript
+processClickGesture(gesture, sonicParams) {
+  // Draw gesture trail halo for tap
+  if (this.drawGestureTrailCallback) {
+    this.drawGestureTrailCallback(gesture)
+  }
+  // ... rest of function
+}
+```
+
+#### 3. Backend handler for broadcasting
+
+**File:** `backend/src/api/handlers/GestureHandler.js`
+
+```javascript
+registerGestureTrailHandler(socket) {
+  socket.on('gesture:trail', (data) => {
+    if (!socket.userId || !socket.roomId) return
+    if (!data || typeof data.x !== 'number' || typeof data.y !== 'number') return
+
+    socket.to(socket.roomId).emit('gesture:trail', {
+      userId: socket.userId,
+      x: data.x,
+      y: data.y,
+      intensity: data.intensity || 0.5,
+      color: data.color || '#00d4ff',
+      timestamp: Date.now()
+    })
+  })
+}
+```
+
+#### 4. Frontend listener for remote trails
+
+**File:** `frontend/src/main.js`
+
+```javascript
+this.socketService.on('gesture:trail', (data) => {
+  if (!data || typeof data.x !== 'number') return
+  if (data.userId === this.socketService?.socket?.id) return
+
+  this._renderTrailHalo(data.x, data.y, data.intensity || 0.5, data.color || '#00d4ff')
+})
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/main.js` | Split `drawGestureTrail()` into emitter + `_renderTrailHalo()`, added socket listener for remote trails |
+| `frontend/src/services/GestureProcessor.js` | Added trail callback to `processClickGesture()` for tap gestures |
+| `frontend/src/services/SocketService.js` | Added `gesture:trail` socket event forwarding |
+| `backend/src/api/handlers/GestureHandler.js` | Added `registerGestureTrailHandler()` for broadcasting |
+| `backend/src/api/socketHandlers.js` | Registered new gesture:trail handler |
+
+---
+
+### Verification
+
+1. Open two browser windows at http://localhost:3000
+2. Join the same room with both
+3. Perform drag or tap gestures in one window
+4. Halos should appear in both windows with the correct user color
+
+---
+
+### Version
+
+Updated to v1.0.59
+
+---

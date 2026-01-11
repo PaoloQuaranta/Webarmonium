@@ -158,6 +158,11 @@ class GestureProcessor {
   processClickGesture(gesture, sonicParams) {
     // console.log('🎵 Processing TAP gesture - single note')
 
+    // Draw gesture trail halo for tap
+    if (this.drawGestureTrailCallback) {
+      this.drawGestureTrailCallback(gesture)
+    }
+
     // Calculate frequency using BOTH X and Y for maximum variation
     // Y controls octave range, X controls frequency within octave
     const octaveBase = 110 + (1 - sonicParams.y) * 440 // 110-550Hz (A2 to C#5)
