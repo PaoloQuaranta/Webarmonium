@@ -770,6 +770,13 @@ class WebarmoniumApp {
       // console.log('🎯 Gesture callback triggered:', gesture)
       // console.log('🔊 Audio state when gesture received - started:', this.isAudioStarted, 'service exists:', !!this.audioService)
 
+      // Track local cursor position for gradient metrics
+      const pos = gesture.coordinates || gesture.currentPosition || gesture.startPosition
+      if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
+        this._localCursorPosition = { x: pos.x, y: pos.y }
+        this._updateGradientMetricsFromCursors()
+      }
+
       // Sprint 4: Delegate gesture action determination to GestureProcessor
       const gestureAction = this.gestureProcessor.determineGestureAction(gesture)
       const enhancedGesture = { ...gesture, action: gestureAction }
@@ -1201,6 +1208,9 @@ class WebarmoniumApp {
           data.color
         )
       }
+
+      // Update gradient metrics from cursor positions (throttled)
+      this._updateGradientMetricsFromCursors()
     })
 
     this.socketService.on('sonic-update', (update) => {
@@ -1849,6 +1859,74 @@ class WebarmoniumApp {
     } catch (error) {
       // Silent fail - trail emission is not critical
     }
+  }
+
+  /**
+   * Calculate gradient metrics from cursor positions (real-time, like landing page)
+   * Throttled to avoid excessive computation
+   * @private
+   */
+  _updateGradientMetricsFromCursors() {
+    if (!this.visualService || !this.cursorManager) return
+
+    // Throttle: max 10 updates per second
+    const now = Date.now()
+    if (this._lastGradientUpdate && now - this._lastGradientUpdate < 100) return
+    this._lastGradientUpdate = now
+
+    // Get all cursor positions from cursorManager (returns Map)
+    const cursorsMap = this.cursorManager.getAllCursors ? this.cursorManager.getAllCursors() : new Map()
+
+    // Convert Map to array of positions
+    const allPositions = []
+    cursorsMap.forEach((cursor, userId) => {
+      if (cursor && typeof cursor.x === 'number' && typeof cursor.y === 'number') {
+        allPositions.push({ x: cursor.x, y: cursor.y, userId })
+      }
+    })
+    if (this.socketService?.socket?.id) {
+      // Local user's last known position (from gesture or cursor tracking)
+      if (this._localCursorPosition) {
+        allPositions.push({
+          x: this._localCursorPosition.x,
+          y: this._localCursorPosition.y,
+          userId: this.socketService.socket.id
+        })
+      }
+    }
+
+    if (allPositions.length === 0) return
+
+    // Calculate centroid (dominant zone)
+    let sumX = 0, sumY = 0
+    for (const cursor of allPositions) {
+      if (typeof cursor.x === 'number' && isFinite(cursor.x) &&
+          typeof cursor.y === 'number' && isFinite(cursor.y)) {
+        sumX += cursor.x
+        sumY += cursor.y
+      }
+    }
+    const dominantZone = {
+      x: sumX / allPositions.length,
+      y: sumY / allPositions.length
+    }
+
+    // Calculate spatial density from variance
+    let variance = 0
+    for (const cursor of allPositions) {
+      if (typeof cursor.x === 'number' && typeof cursor.y === 'number') {
+        variance += (cursor.x - dominantZone.x) ** 2 + (cursor.y - dominantZone.y) ** 2
+      }
+    }
+    variance /= allPositions.length
+    const spatialDensity = Math.max(0, Math.min(1, 1 - variance * 4))
+
+    // Forward to visual service
+    this.visualService.updateInteractionMetrics({
+      userCount: allPositions.length,
+      spatialDensity: isFinite(spatialDensity) ? spatialDensity : 0,
+      dominantZone
+    })
   }
 
   /**
