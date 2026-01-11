@@ -552,13 +552,11 @@ class UIManager {
       this.audioToggleObserver = null
     }
 
-    // Sync mobile audio button text with original toggle
-    if (this.mobileAudioBtn && this.originalAudioToggle) {
-      setTimeout(() => {
-        if (this.mobileAudioBtn && this.originalAudioToggle) {
-          this.mobileAudioBtn.textContent = this.originalAudioToggle.textContent
-        }
-      }, 100)
+    // Sync mobile audio button text based on actual audio state
+    if (this.mobileAudioBtn) {
+      // Use audio state directly - more reliable than reading original toggle text
+      const isPlaying = window.webarmoniumApp?.isAudioStarted
+      this.mobileAudioBtn.textContent = isPlaying ? 'Stop Audio' : 'Start Audio'
     }
   }
 
