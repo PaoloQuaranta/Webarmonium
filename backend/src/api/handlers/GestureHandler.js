@@ -386,7 +386,7 @@ const GestureHandler = {
       room.gestureSyncBuffer = room.gestureSyncBuffer.slice(-100)
     }
 
-    room.lastActivity = Date.now()
+    room.updateActivity()
     room.totalGestures = (room.totalGestures || 0) + 1
   },
 

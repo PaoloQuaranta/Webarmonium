@@ -1187,3 +1187,84 @@ this.visualService.updateCursorPosition(userId, x, y, color)
 Updated to v1.0.65
 
 ---
+
+## Entry #85 - Production Server Crash Fix: lastActivity TypeError
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed production server crash caused by `TypeError: this.lastActivity.getTime is not a function` in the periodic room cleanup process. Three handlers were incorrectly assigning `Date.now()` (a number) instead of using `room.updateActivity()` (which creates a Date object).
+
+---
+
+### Root Cause
+
+In `Room.js`, `lastActivity` is initialized as `new Date()` and updated via `updateActivity()` method. However, three handlers bypassed this method and assigned `Date.now()` directly:
+
+```javascript
+// WRONG - assigns a number (timestamp)
+room.lastActivity = Date.now()
+
+// CORRECT - assigns a Date object
+room.updateActivity()  // internally does: this.lastActivity = new Date()
+```
+
+When the periodic cleanup ran `room.shouldCleanup()`, it called `this.lastActivity.getTime()` on a number instead of a Date object, causing the crash.
+
+---
+
+### Error Log
+
+```
+TypeError: this.lastActivity.getTime is not a function
+    at Room.shouldCleanup (Room.js:402:64)
+    at RoomManager.performCleanup (RoomManager.js:577:16)
+    at Timeout._onTimeout (RoomManager.js:546:12)
+```
+
+---
+
+### Solution
+
+#### 1. Fixed three handlers to use `room.updateActivity()`
+
+| File | Line | Before | After |
+|------|------|--------|-------|
+| `backend/src/api/handlers/CursorHandler.js` | 119 | `room.lastActivity = Date.now()` | `room.updateActivity()` |
+| `backend/src/api/handlers/MusicalHandler.js` | 455 | `room.lastActivity = Date.now()` | `room.updateActivity()` |
+| `backend/src/api/handlers/GestureHandler.js` | 389 | `room.lastActivity = Date.now()` | `room.updateActivity()` |
+
+#### 2. Added defensive check in `Room.shouldCleanup()`
+
+```javascript
+// Defensive check: handle case where lastActivity might be a timestamp number
+const lastActivityTime = this.lastActivity instanceof Date
+  ? this.lastActivity.getTime()
+  : (typeof this.lastActivity === 'number' ? this.lastActivity : Date.now())
+const hoursSinceActivity = (Date.now() - lastActivityTime) / (1000 * 60 * 60)
+return hoursSinceActivity > 48
+```
+
+This ensures the cleanup won't crash even if someone reintroduces the same bug in the future.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/api/handlers/CursorHandler.js` | Changed `room.lastActivity = Date.now()` to `room.updateActivity()` |
+| `backend/src/api/handlers/MusicalHandler.js` | Changed `room.lastActivity = Date.now()` to `room.updateActivity()` |
+| `backend/src/api/handlers/GestureHandler.js` | Changed `room.lastActivity = Date.now()` to `room.updateActivity()` |
+| `backend/src/models/Room.js` | Added defensive type check in `shouldCleanup()` |
+
+---
+
+### Version
+
+Updated to v1.0.66
+
+---

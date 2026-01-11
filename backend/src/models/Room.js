@@ -399,7 +399,11 @@ class Room {
       return true
     }
 
-    const hoursSinceActivity = (Date.now() - this.lastActivity.getTime()) / (1000 * 60 * 60)
+    // Defensive check: handle case where lastActivity might be a timestamp number
+    const lastActivityTime = this.lastActivity instanceof Date
+      ? this.lastActivity.getTime()
+      : (typeof this.lastActivity === 'number' ? this.lastActivity : Date.now())
+    const hoursSinceActivity = (Date.now() - lastActivityTime) / (1000 * 60 * 60)
     return hoursSinceActivity > 48
   }
 

@@ -452,7 +452,7 @@ const MusicalHandler = {
 
         this.sendToHoverOrchestrator(socket, hoverData)
 
-        room.lastActivity = Date.now()
+        room.updateActivity()
 
         const processingTime = Date.now() - startTime
         if (processingTime > 50) {

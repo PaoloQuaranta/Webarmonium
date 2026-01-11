@@ -116,7 +116,7 @@ const CursorHandler = {
 ////        })
 
         // Update room activity
-        room.lastActivity = Date.now()
+        room.updateActivity()
       } catch (error) {
         // console.error('❌ cursor-position error:', error)
       }
