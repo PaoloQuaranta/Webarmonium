@@ -9,6 +9,7 @@ class SettingsPanel {
   // Fix #7: Animation timing constants
   static ANIMATION_DURATION = 300 // ms - panel fade in/out
   static TOAST_DISPLAY_DURATION = 2000 // ms - how long toast is visible
+  static TOAST_WARNING_DURATION = 4000 // ms - warnings display longer
   static TOAST_DELAY_AFTER_CLOSE = 350 // ms - wait for panel close animation
 
   constructor () {
@@ -21,6 +22,9 @@ class SettingsPanel {
     this.activeNotification = null
     this.notificationTimeout = null
     this.notificationRemovalTimeout = null
+
+    // Track original sample rate to detect changes requiring reload
+    this._originalSampleRate = null
 
     // Bind methods
     this.open = this.open.bind(this)
@@ -242,6 +246,9 @@ class SettingsPanel {
 
     const settings = UserSettings.getAll()
 
+    // Track original sample rate for reload detection
+    this._originalSampleRate = settings.sampleRate
+
     Object.entries(settings).forEach(([key, value]) => {
       const radio = this.panel.querySelector(`input[name="${key}"][value="${value}"]`)
       if (radio) {
@@ -347,6 +354,11 @@ class SettingsPanel {
 
     const groups = ['audioQuality', 'sampleRate', 'audioBuffer', 'graphicsQuality']
 
+    // Check if sample rate changed (requires page reload)
+    const sampleRateRadio = this.panel.querySelector('input[name="sampleRate"]:checked')
+    const newSampleRate = sampleRateRadio?.value || 'auto'
+    const sampleRateChanged = newSampleRate !== this._originalSampleRate
+
     groups.forEach(group => {
       const checked = this.panel.querySelector(`input[name="${group}"]:checked`)
       if (checked) {
@@ -380,15 +392,22 @@ class SettingsPanel {
     this.close()
 
     // Fix #2: Delay notification until after panel close animation
+    // Show special message if sample rate changed (requires reload)
     setTimeout(() => {
-      this._showCanvasNotification('Settings applied')
+      if (sampleRateChanged) {
+        this._showCanvasNotification('Settings applied - Reload page for sample rate change', true)
+      } else {
+        this._showCanvasNotification('Settings applied')
+      }
     }, SettingsPanel.TOAST_DELAY_AFTER_CLOSE)
   }
 
   /**
    * Show a notification overlay on the canvas
+   * @param {string} message - Message to display
+   * @param {boolean} isWarning - If true, show as warning (longer display, different style)
    */
-  _showCanvasNotification (message) {
+  _showCanvasNotification (message, isWarning = false) {
     // Fix #3 (partial): Validate input
     if (typeof message !== 'string') {
       console.warn('Invalid notification message:', message)
@@ -408,7 +427,7 @@ class SettingsPanel {
     }
 
     const notification = document.createElement('div')
-    notification.className = 'settings-canvas-notification'
+    notification.className = 'settings-canvas-notification' + (isWarning ? ' warning' : '')
     notification.textContent = sanitizedMessage
 
     // Fix #6: Add ARIA live region for screen readers
@@ -427,6 +446,7 @@ class SettingsPanel {
     })
 
     // Remove after delay (Fix #7: use constants)
+    const displayDuration = isWarning ? SettingsPanel.TOAST_WARNING_DURATION : SettingsPanel.TOAST_DISPLAY_DURATION
     this.notificationTimeout = setTimeout(() => {
       notification.classList.remove('visible')
       this.notificationRemovalTimeout = setTimeout(() => {
@@ -438,7 +458,7 @@ class SettingsPanel {
           this.activeNotification = null
         }
       }, SettingsPanel.ANIMATION_DURATION)
-    }, SettingsPanel.TOAST_DISPLAY_DURATION)
+    }, displayDuration)
   }
 
   /**
@@ -735,6 +755,11 @@ settingsStyles.textContent = `
   .settings-canvas-notification.visible {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+  }
+
+  .settings-canvas-notification.warning {
+    background: rgba(255, 167, 38, 0.95);
+    box-shadow: 0 4px 20px rgba(255, 167, 38, 0.4);
   }
 `
 document.head.appendChild(settingsStyles)

@@ -462,6 +462,8 @@ class AudioService {
       console.log('🔧 AudioService: Reloading audio profile...')
 
       const wasUltraLow = this.isUltraLowPowerMode
+      // Entry #74 FIX: Track previous background layers to detect changes
+      const previousLayers = this.audioProfile?.backgroundLayers || ['bass', 'pad', 'chords']
 
       // Re-fetch base profile from PlatformDetection
       let baseProfile = null
@@ -484,6 +486,7 @@ class AudioService {
         tier: this.audioProfile.tier,
         source: this.audioProfile.source,
         maxPolyphony: this.audioProfile.maxPolyphony,
+        backgroundLayers: this.audioProfile.backgroundLayers,
         synthComplexity: this.audioProfile.synthComplexity,
         lookAhead: this.audioProfile.lookAhead,
         sampleRate: this.audioProfile.sampleRate
@@ -495,6 +498,39 @@ class AudioService {
         console.log(`🔊 Tone.context.lookAhead updated to ${this.audioProfile.lookAhead}s`)
       }
 
+      // Entry #74 FIX: Release notes on layers that are no longer enabled
+      const newLayers = this.audioProfile.backgroundLayers || []
+      const disabledLayers = previousLayers.filter(layer => !newLayers.includes(layer))
+      if (disabledLayers.length > 0 && this.ambientLayers) {
+        disabledLayers.forEach(layer => {
+          if (this.ambientLayers[layer] && !this.ambientLayers[layer].disposed) {
+            if (this.ambientLayers[layer].releaseAll) {
+              this.ambientLayers[layer].releaseAll(0.3)
+            } else if (this.ambientLayers[layer].triggerRelease) {
+              this.ambientLayers[layer].triggerRelease()
+            }
+            console.log(`🔊 Released notes on disabled layer: ${layer}`)
+          }
+        })
+      }
+
+      // Entry #74 FIX: Update maxPolyphony and release excess voices
+      if (this.audioProfile.maxPolyphony) {
+        const previousMax = this.maxTotalVoices
+        this.maxTotalVoices = this.audioProfile.maxPolyphony
+        if (this.maxTotalVoices !== previousMax) {
+          console.log(`🔊 Max polyphony updated: ${previousMax} → ${this.maxTotalVoices}`)
+          // Release excess voices if we reduced the limit
+          if (this.maxTotalVoices < previousMax) {
+            try {
+              this.managePolyphony()
+            } catch (error) {
+              console.warn('Failed to manage polyphony after limit reduction:', error)
+            }
+          }
+        }
+      }
+
       // Handle transition to/from Ultra-Low Power mode
       if (this.isUltraLowPowerMode && !wasUltraLow) {
         // Switching TO Ultra-Low Power mode
@@ -503,8 +539,16 @@ class AudioService {
           this.ultraLowPowerAudio.initialize()
           console.log('🔋 Ultra-Low Power Audio activated')
         }
-        // Stop complex audio components
-        this.stopBackground()
+        // Stop all background layers
+        if (this.ambientLayers) {
+          Object.keys(this.ambientLayers).forEach(layer => {
+            if (this.ambientLayers[layer] && !this.ambientLayers[layer].disposed) {
+              if (this.ambientLayers[layer].releaseAll) {
+                this.ambientLayers[layer].releaseAll(0.3)
+              }
+            }
+          })
+        }
       } else if (!this.isUltraLowPowerMode && wasUltraLow) {
         // Switching FROM Ultra-Low Power mode
         if (this.ultraLowPowerAudio) {
@@ -512,10 +556,7 @@ class AudioService {
           this.ultraLowPowerAudio = null
           console.log('🔋 Ultra-Low Power Audio deactivated')
         }
-        // Restart background if it was playing
-        if (this.isPlaying) {
-          this.startBackground()
-        }
+        // Background layers will resume naturally via _isLayerEnabled checks
       }
 
       // Dispatch event for UI update

@@ -106,6 +106,19 @@ class SpringMeshNetwork {
     // Store configs for use in methods
     this.EDGE_CONFIG = edgeConfig
     this.NODE_CONFIG = nodeConfig
+
+    // Entry #74: Shadow blur control for graphics quality settings
+    this._shadowBlurEnabled = true
+  }
+
+  /**
+   * Entry #74: Enable/disable shadow blur effect on nodes
+   * @param {boolean} enabled - Whether shadow blur is enabled
+   */
+  setShadowBlurEnabled (enabled) {
+    // Coerce to boolean for defensive programming
+    this._shadowBlurEnabled = Boolean(enabled)
+    console.log(`🎨 SpringMeshNetwork: Shadow blur ${this._shadowBlurEnabled ? 'enabled' : 'disabled'}`)
   }
 
   /**
@@ -707,8 +720,8 @@ class SpringMeshNetwork {
       size = (this.NODE_CONFIG.holdPulseMin + this.NODE_CONFIG.holdPulseMax) / 2 + pulse
     }
 
-    // Draw glow for active nodes
-    if (node.isActive) {
+    // Draw glow for active nodes (respects graphics quality setting)
+    if (node.isActive && this._shadowBlurEnabled) {
       p.fill(node.color)
       p.drawingContext.shadowBlur = this.NODE_CONFIG.glowBlur
       p.drawingContext.shadowColor = node.color

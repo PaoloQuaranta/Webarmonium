@@ -1666,3 +1666,154 @@ New section between "Landing Page: Web Activity" and "Collaborative Rooms" cover
 ### Version
 
 Updated to v1.0.69
+
+---
+
+## Entry #89 - Settings Menu Runtime Fixes
+
+**Date**: 2026-01-11
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed multiple issues with the Settings menu where settings weren't being applied correctly at runtime. Addressed 4 core issues: sample rate requiring page reload, shadowBlur not being applied to graphics, background layers not stopping when audio quality is reduced, and maxPolyphony not being enforced on existing synths.
+
+---
+
+### Problem Statement
+
+User reported that Settings menu wasn't working as expected. Analysis revealed:
+
+1. **Sample Rate**: Cannot be changed at runtime (AudioContext limitation) but no user feedback
+2. **shadowBlur**: Defined in graphics profiles but never applied to SpringMeshNetwork
+3. **backgroundLayers**: When audio quality is reduced, existing layer notes weren't being released
+4. **maxPolyphony**: Limit was read but not applied to release excess voices
+
+---
+
+### Solution
+
+#### 1. Sample Rate Warning Toast
+
+Added detection and warning when sample rate changes:
+
+```javascript
+// Track original sample rate on panel open
+this._originalSampleRate = settings.sampleRate
+
+// Show warning toast if changed
+if (sampleRateChanged) {
+  this._showCanvasNotification('Settings applied - Reload page for sample rate change', true)
+}
+```
+
+Added `TOAST_WARNING_DURATION = 4000` constant for longer warning display.
+Added `.warning` CSS class with orange background.
+
+#### 2. shadowBlur Implementation
+
+**File:** `frontend/src/services/visual/SpringMeshNetwork.js`
+
+```javascript
+// Added property and method
+this._shadowBlurEnabled = true
+
+setShadowBlurEnabled (enabled) {
+  this._shadowBlurEnabled = Boolean(enabled)
+}
+
+// Modified rendering to respect setting
+if (node.isActive && this._shadowBlurEnabled) {
+  p.drawingContext.shadowBlur = this.NODE_CONFIG.glowBlur
+}
+```
+
+**File:** `frontend/src/services/GenerativeVisualService.js`
+
+Wired shadowBlur in both `applyGraphicsQuality()` and `setGraphicsQuality()`:
+
+```javascript
+if (this.springMesh) {
+  this.springMesh.setShadowBlurEnabled(profile.shadowBlur !== false)
+}
+```
+
+#### 3. backgroundLayers Release on Quality Change
+
+**File:** `frontend/src/services/AudioService.js`
+
+```javascript
+// Track previous layers before profile update
+const previousLayers = this.audioProfile?.backgroundLayers || ['bass', 'pad', 'chords']
+
+// After profile update, release disabled layers
+const newLayers = this.audioProfile.backgroundLayers || []
+const disabledLayers = previousLayers.filter(layer => !newLayers.includes(layer))
+if (disabledLayers.length > 0 && this.ambientLayers) {
+  disabledLayers.forEach(layer => {
+    if (this.ambientLayers[layer]?.releaseAll) {
+      this.ambientLayers[layer].releaseAll(0.3)
+    }
+  })
+}
+```
+
+#### 4. maxPolyphony Enforcement
+
+**File:** `frontend/src/services/AudioService.js`
+
+```javascript
+// Update maxTotalVoices from profile
+if (this.audioProfile.maxPolyphony) {
+  const previousMax = this.maxTotalVoices
+  this.maxTotalVoices = this.audioProfile.maxPolyphony
+  if (this.maxTotalVoices < previousMax) {
+    try {
+      this.managePolyphony()  // Release excess voices
+    } catch (error) {
+      console.warn('Failed to manage polyphony after limit reduction:', error)
+    }
+  }
+}
+```
+
+---
+
+### Code Review Fixes
+
+After implementation, code-reviewer agent identified additional improvements:
+
+| Issue | Priority | Fix |
+|-------|----------|-----|
+| Magic number 4000ms | Medium | Added `TOAST_WARNING_DURATION` constant |
+| Missing try-catch for managePolyphony | High | Wrapped in try-catch |
+| Type coercion for setShadowBlurEnabled | Medium | Added `Boolean()` coercion |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/components/SettingsPanel.js` | Sample rate change detection, warning toast, `TOAST_WARNING_DURATION` constant |
+| `frontend/src/services/visual/SpringMeshNetwork.js` | Added `_shadowBlurEnabled` property and `setShadowBlurEnabled()` method |
+| `frontend/src/services/GenerativeVisualService.js` | Wired shadowBlur to springMesh in both quality methods |
+| `frontend/src/services/AudioService.js` | Layer release on quality change, maxPolyphony enforcement with try-catch |
+
+---
+
+### Settings Functionality Summary
+
+| Setting | Runtime Change | Notes |
+|---------|----------------|-------|
+| Audio Quality | YES | Layers released, polyphony enforced |
+| Sample Rate | NO | Warning toast, requires page reload |
+| Audio Buffer | YES | lookAhead updated immediately |
+| Graphics Quality | YES | All effects including shadowBlur |
+
+---
+
+### Version
+
+Updated to v1.0.70

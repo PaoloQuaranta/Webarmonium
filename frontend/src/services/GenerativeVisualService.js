@@ -614,6 +614,11 @@ class GenerativeVisualService {
 
     console.log('🎨 Applying graphics quality:', profile)
 
+    // Apply to SpringMeshNetwork (node glow)
+    if (this.springMesh) {
+      this.springMesh.setShadowBlurEnabled(profile.shadowBlur !== false)
+    }
+
     // Apply to WavePacketSystem (pulses)
     if (this.wavePackets) {
       this.wavePackets.setGlowEnabled(profile.pulseGlow !== false)
@@ -670,6 +675,10 @@ class GenerativeVisualService {
     console.log(`🎨 Setting graphics quality: ${quality}`, profile)
 
     // Apply to subsystems
+    if (this.springMesh) {
+      this.springMesh.setShadowBlurEnabled(profile.shadowBlur)
+    }
+
     if (this.wavePackets) {
       this.wavePackets.setGlowEnabled(profile.pulseGlow)
     }
