@@ -54,6 +54,9 @@ class NoiseTextureNebulaSystem {
       spatialDensity: 0,
       dominantZone: { x: 0.5, y: 0.5 }
     }
+    // Target values for smooth interpolation in render loop
+    this.targetDominantZone = { x: 0.5, y: 0.5 }
+    this.targetGradientIntensity = 0
     this.gradientEnabled = true
     this.gradientIntensity = 0
 
@@ -343,45 +346,22 @@ class NoiseTextureNebulaSystem {
       this.interactionMetrics.spatialDensity = Math.max(0, Math.min(1, metrics.spatialDensity))
     }
 
-    // Validate and interpolate dominantZone with bounds checking
+    // Set TARGET dominantZone (interpolation happens in render loop at 60fps)
     if (metrics.dominantZone &&
         typeof metrics.dominantZone.x === 'number' &&
         typeof metrics.dominantZone.y === 'number' &&
         isFinite(metrics.dominantZone.x) &&
         isFinite(metrics.dominantZone.y)) {
-      // Clamp incoming values to valid 0-1 range before interpolation
-      const clampedX = Math.max(0, Math.min(1, metrics.dominantZone.x))
-      const clampedY = Math.max(0, Math.min(1, metrics.dominantZone.y))
-
-      // Smooth interpolation for dominant zone position
-      // Higher lerp = faster response, lower = smoother but slower
-      const lerpSpeed = 0.25
-      this.interactionMetrics.dominantZone.x +=
-        (clampedX - this.interactionMetrics.dominantZone.x) * lerpSpeed
-      this.interactionMetrics.dominantZone.y +=
-        (clampedY - this.interactionMetrics.dominantZone.y) * lerpSpeed
+      this.targetDominantZone.x = Math.max(0, Math.min(1, metrics.dominantZone.x))
+      this.targetDominantZone.y = Math.max(0, Math.min(1, metrics.dominantZone.y))
     }
 
-    // Gradient intensity = base + activity boost
-    // - Base intensity ensures gradient is always visible around dominantZone
-    // - Activity boost increases with user count and spatial clustering
+    // Set TARGET gradient intensity (interpolation happens in render loop)
     const maxUsers = this.gradientConfig.maxUsers || 10
     const userFactor = Math.min(1, this.interactionMetrics.userCount / maxUsers)
-    const baseIntensity = 0.3  // Always visible minimum
+    const baseIntensity = 0.3
     const activityBoost = userFactor * this.interactionMetrics.spatialDensity
-    this.gradientIntensity = Math.min(1, baseIntensity + activityBoost * 0.7)
-
-    // Debug: log gradient intensity periodically
-    if (!this._gradientDebugCounter) this._gradientDebugCounter = 0
-    if (++this._gradientDebugCounter % 30 === 0) {
-      console.log('🌫️ Gradient:', {
-        userFactor: userFactor.toFixed(2),
-        spatialDensity: this.interactionMetrics.spatialDensity.toFixed(2),
-        intensity: this.gradientIntensity.toFixed(3),
-        enabled: this.gradientEnabled,
-        zone: `(${this.interactionMetrics.dominantZone.x.toFixed(2)}, ${this.interactionMetrics.dominantZone.y.toFixed(2)})`
-      })
-    }
+    this.targetGradientIntensity = Math.min(1, baseIntensity + activityBoost * 0.7)
   }
 
   /**
@@ -443,6 +423,15 @@ class NoiseTextureNebulaSystem {
   render(p) {
     const width = p.width
     const height = p.height
+
+    // Interpolate gradient values every frame for smooth transitions (60fps)
+    const lerpSpeed = 0.15  // ~6 frames to reach target
+    this.interactionMetrics.dominantZone.x +=
+      (this.targetDominantZone.x - this.interactionMetrics.dominantZone.x) * lerpSpeed
+    this.interactionMetrics.dominantZone.y +=
+      (this.targetDominantZone.y - this.interactionMetrics.dominantZone.y) * lerpSpeed
+    this.gradientIntensity +=
+      (this.targetGradientIntensity - this.gradientIntensity) * lerpSpeed
 
     // Use HSB mode
     p.push()
