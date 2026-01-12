@@ -53,7 +53,8 @@ class PrecomputedAttractorSystem {
 
     // Canvas-level rotation for scene orientation (preserves attractor geometry)
     // Rotates the entire rendered animation without altering the attractor's axis
-    this.rotationAngle = Math.PI / 2  // 90° (π/2 radians) for horizontal orientation
+    // Lorenz attractor wings naturally spread horizontally - no rotation needed for landscape canvas
+    this.rotationAngle = 0  // No rotation - attractor lies flat on landscape canvas
 
     // Vertical offset to center the attractor's inner loops on canvas
     // Lorenz attractor is not symmetric; needs upward shift after rotation
