@@ -3254,3 +3254,158 @@ Note: `technical-appendix.html` uses `styles.css`, so it's automatically covered
 ### Version
 
 Updated to v1.0.93
+
+---
+
+## Entry #99 - Attractor Morphing Event Type Fix
+
+**Date**: 2026-01-12
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed Lorenz↔Rossler attractor morphing that wasn't working due to event type mismatch. Backend emitted `type: 'phrase'` but frontend expected `type: 'phrase:change'`. Extended fix to normal rooms for both virtual users and local user drag gestures.
+
+---
+
+### Problem Statement
+
+User observed that the strange attractor animation was moving but never changed shape. The system was designed to morph between:
+- **Lorenz attractor**: Butterfly shape (two symmetric lobes)
+- **Rossler attractor**: Spiral shape (asymmetric single loop)
+
+The morphing should trigger on musical phrase events, but the shape remained constant (always Lorenz).
+
+---
+
+### Root Cause
+
+Event type mismatch between backend and frontend:
+
+| Component | Event Type |
+|-----------|------------|
+| Backend (`LandingCompositionService.js:1262`) | `type: 'phrase'` |
+| Backend (`VirtualUserService.js:840`) | `type: 'phrase'` |
+| Frontend (`PrecomputedAttractorSystem.js:459`) | `case 'phrase:change':` |
+
+The `switch` statement never matched, so `toggleAttractor()` was never called.
+
+---
+
+### Solution
+
+#### 1. Fixed event type in PrecomputedAttractorSystem.js
+
+**File:** `frontend/src/services/visual/PrecomputedAttractorSystem.js`
+
+```javascript
+// BEFORE
+case 'phrase:change':
+  this.toggleAttractor()
+  break
+
+// AFTER
+case 'phrase':
+  // Switch attractor on phrase changes (backend emits 'phrase' not 'phrase:change')
+  this.toggleAttractor()
+  break
+```
+
+#### 2. Added phrase event handling in normal rooms
+
+**File:** `frontend/src/main.js`
+
+Added handler for `type: 'phrase'` events from backend (virtual users):
+
+```javascript
+this.socketService.on('musical:event', (musicalEventWrapper) => {
+  // Entry #99: Handle phrase events for attractor morphing
+  // Backend sends phrase events directly: { type: 'phrase', userId, ... }
+  // These trigger Lorenz↔Rossler attractor transitions
+  if (musicalEventWrapper?.type === 'phrase') {
+    if (this.visualService && this.visualService.onMusicalEvent) {
+      this.visualService.onMusicalEvent({
+        type: 'phrase',
+        velocity: musicalEventWrapper.velocity || 0.5
+      })
+    }
+    return // Phrase events don't contain note data
+  }
+  // ... rest of handler
+})
+```
+
+#### 3. Added phrase trigger for local user drag gestures
+
+**File:** `frontend/src/main.js`
+
+When local user completes a drag gesture (phrase), trigger attractor morph:
+
+```javascript
+if (gestureAction === 'drag') {
+  // Entry #99: Trigger attractor morph when local user completes a drag (phrase)
+  if (this.visualService && this.visualService.onMusicalEvent) {
+    this.visualService.onMusicalEvent({
+      type: 'phrase',
+      velocity: gesture.velocity || 0.5
+    })
+  }
+  return
+}
+```
+
+---
+
+### Event Flow
+
+**Landing Page:**
+```
+Backend LandingCompositionService
+  → emits musical:event { type: 'phrase' }
+  → landing/main.js forwards to visualService.onMusicalEvent()
+  → PrecomputedAttractorSystem.toggleAttractor()
+```
+
+**Normal Rooms (Virtual Users):**
+```
+Backend VirtualUserService
+  → emits musical:event { type: 'phrase' }
+  → main.js detects type === 'phrase'
+  → forwards to visualService.onMusicalEvent()
+  → PrecomputedAttractorSystem.toggleAttractor()
+```
+
+**Normal Rooms (Local User):**
+```
+User completes drag gesture
+  → onGestureEnd callback
+  → gestureAction === 'drag'
+  → visualService.onMusicalEvent({ type: 'phrase' })
+  → PrecomputedAttractorSystem.toggleAttractor()
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/visual/PrecomputedAttractorSystem.js` | Changed `case 'phrase:change':` to `case 'phrase':` |
+| `frontend/src/main.js` | Added phrase event handler in `musical:event` listener, added morph trigger in drag gesture end |
+
+---
+
+### Verification
+
+1. Open landing page or normal room
+2. Watch the attractor animation
+3. Console should show: `🦋 Switching to rossler attractor` / `🦋 Switching to lorenz attractor`
+4. Visual: butterfly shape morphs to spiral and back
+5. In normal rooms, perform drag gestures to trigger morph manually
+
+---
+
+### Version
+
+Updated to v1.0.94
