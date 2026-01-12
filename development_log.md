@@ -3068,3 +3068,86 @@ Applied fixes from code-reviewer agent:
 
 Updated to v1.0.91
 
+---
+
+## Entry #97 - Strange Attractors: Canvas-Level Rotation Fix
+
+**Date**: 2026-01-12
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed strange attractors rotation to use canvas-level transformation instead of coordinate-level rotation. In Entry #74, the rotation was applied to the attractor's mathematical coordinates, altering the attractor's axis. The user intended to rotate only the rendered animation on the canvas while preserving the original attractor geometry.
+
+---
+
+### Problem Statement
+
+Entry #74 implemented a 90° rotation for strange attractors to distribute them horizontally. However, the rotation was applied at the coordinate level:
+
+```javascript
+// Entry #74 approach - rotates the attractor's axis
+const rotatedX = nx * cos - ny * sin
+const rotatedY = nx * sin + ny * cos
+```
+
+This changed the mathematical shape of the attractor. The user wanted to rotate only the **rendered scene** while keeping the attractor's original geometry intact.
+
+---
+
+### Solution
+
+Changed from coordinate-level rotation to canvas-level transformation using p5.js `translate()` and `rotate()`:
+
+**Before (Entry #74):**
+```javascript
+// Rotation applied to each point's coordinates
+const cos = this.rotationCos
+const sin = this.rotationSin
+const rotatedX = nx * cos - ny * sin
+const rotatedY = nx * sin + ny * cos
+const screenX = centerX + rotatedX * displaySize + this.fuzzyOffsetsX[i]
+const screenY = centerY + (rotatedY + this.centerOffsetY) * displaySize + this.fuzzyOffsetsY[i]
+```
+
+**After:**
+```javascript
+// Rotation applied at canvas level - preserves attractor geometry
+p.translate(centerX, centerY)
+p.rotate(this.rotationAngle)
+
+// Use original coordinates directly
+const nx = point.x - 0.5
+const ny = point.y - 0.5
+const screenX = nx * displaySize + this.fuzzyOffsetsX[i]
+const screenY = (ny + this.centerOffsetY) * displaySize + this.fuzzyOffsetsY[i]
+```
+
+Also updated constructor comments and removed unused precomputed `rotationCos`/`rotationSin` values.
+
+---
+
+### Technical Difference
+
+| Approach | Effect |
+|----------|--------|
+| Coordinate rotation | Rotates the attractor's mathematical axis, changing its shape orientation |
+| Canvas rotation | Rotates the entire rendered scene, preserving the attractor's original geometry |
+
+The canvas-level approach uses p5.js transformation matrix to rotate the entire drawing context, so the attractor maintains its natural Lorenz/Rossler shape while appearing rotated on screen.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/visual/PrecomputedAttractorSystem.js` | Changed from coordinate rotation to canvas `translate()`+`rotate()`, removed precomputed cos/sin, updated comments |
+
+---
+
+### Version
+
+Updated to v1.0.92
+

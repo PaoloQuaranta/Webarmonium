@@ -51,11 +51,9 @@ class PrecomputedAttractorSystem {
     this.targetScale = 2.2
     this.fuzzyOffset = 8      // Random offset in pixels for blur effect
 
-    // Rotation for horizontal distribution (precomputed for performance)
-    // Lorenz attractor is naturally vertical; rotate 90° to fit landscape canvas
+    // Canvas-level rotation for scene orientation (preserves attractor geometry)
+    // Rotates the entire rendered animation without altering the attractor's axis
     this.rotationAngle = Math.PI / 2  // 90° (π/2 radians) for horizontal orientation
-    this.rotationCos = Math.cos(this.rotationAngle)  // Precomputed: ~0
-    this.rotationSin = Math.sin(this.rotationAngle)  // Precomputed: 1
 
     // Vertical offset to center the attractor's inner loops on canvas
     // Lorenz attractor is not symmetric; needs upward shift after rotation
@@ -330,16 +328,17 @@ class PrecomputedAttractorSystem {
       points = this._getInterpolatedPoints(frames)
     }
 
-    // Render points
+    // Render points with canvas-level rotation (preserves attractor geometry)
     p.push()
     p.colorMode(p.HSB, 360, 100, 100, 100)
     p.noStroke()
 
-    // Use precomputed rotation values (Fix #1)
-    const cos = this.rotationCos
-    const sin = this.rotationSin
+    // Apply rotation at canvas level - rotates the entire rendered scene
+    // without altering the attractor's mathematical shape
+    p.translate(centerX, centerY)
+    p.rotate(this.rotationAngle)
 
-    // Hysteresis for step transitions (Fix #4) - prevents rapid oscillation
+    // Hysteresis for step transitions - prevents rapid oscillation
     const roundedStep = Math.round(this.currentStep)
     if (this.lastRenderedStep === 1 && this.currentStep < 1.7) {
       // Stay at step 1 until currentStep reaches 1.7
@@ -352,7 +351,7 @@ class PrecomputedAttractorSystem {
     }
     const step = Math.max(1, this.lastRenderedStep)
 
-    // Gradual glow opacity with easing (Fix #5)
+    // Gradual glow opacity with easing
     // Wider transition range (0.35 to 0.75) with cubic easing
     const glowFactor = Math.max(0, Math.min(1, (this.stressFactor - 0.35) / 0.4))
     const glowOpacity = this._easeInOutCubic(glowFactor)
@@ -360,16 +359,15 @@ class PrecomputedAttractorSystem {
     for (let i = 0; i < points.length; i += step) {
       const point = points[i]
 
-      // Apply rotation for diagonal distribution
+      // Use attractor coordinates directly (no axis rotation)
+      // Canvas rotation handles scene orientation
       const nx = point.x - 0.5
       const ny = point.y - 0.5
-      const rotatedX = nx * cos - ny * sin
-      const rotatedY = nx * sin + ny * cos
 
-      // Use precomputed fuzzy offsets (Fix #6) - eliminates 4800 trig calls/frame
+      // Use precomputed fuzzy offsets - eliminates 4800 trig calls/frame
       // Apply centerOffsetY to shift attractor's inner loops to canvas center
-      const screenX = centerX + rotatedX * displaySize + this.fuzzyOffsetsX[i]
-      const screenY = centerY + (rotatedY + this.centerOffsetY) * displaySize + this.fuzzyOffsetsY[i]
+      const screenX = nx * displaySize + this.fuzzyOffsetsX[i]
+      const screenY = (ny + this.centerOffsetY) * displaySize + this.fuzzyOffsetsY[i]
 
       // Depth-based appearance - closer points (higher z) are brighter and larger
       const depthFactor = 0.8 + point.z * 0.2
