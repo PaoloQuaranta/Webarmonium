@@ -15,7 +15,7 @@ Webarmonium enables multiple users to create music together through intuitive ge
 
 **Key Features:**
 - Real-time multi-user collaboration (5-10 users per room)
-- Gesture-to-music transformation with 6 generative algorithms
+- Gesture-to-music transformation with algorithmic composition
 - 60fps canvas rendering with cursor synchronization
 - Environmental memory for pattern learning (24-hour retention)
 - Cross-platform support (mouse, touch, gyroscope)
@@ -82,7 +82,8 @@ NODE_ENV=test npm test -- tests/integration/multiuser-sync.test.js
 **Core Services:**
 - `RoomManager.js` - Room lifecycle, user capacity, and session management
 - `GestureProcessor.js` - Gesture validation and classification
-- `SoundPatternGenerator.js` - Algorithmic music generation (6 algorithms)
+- `BackgroundCompositionService.js` - Algorithmic composition engine
+- `CompositionEngine.js` - Core musical form and voice generation
 - `EnvironmentalMemoryCoordinator.js` - Pattern learning and evolution
 - `HoverOrchestrator.js` - Cross-layer audio modulation
 - `DrawingSyncService.js` - Real-time drawing synchronization
@@ -150,13 +151,12 @@ Backend Processing → Sound Generation → Audio Output
 - Room state management with capacity limits
 
 ### Algorithmic Music Generation
-Six generative algorithms:
-1. **Cellular Automata** - Rule-based pattern evolution
-2. **Fractals** - Recursive geometric patterns
-3. **Markov Chains** - Probabilistic sequence generation
-4. **Neural Networks** - Learned pattern recognition
-5. **Fibonacci Sequences** - Mathematical proportion patterns
-6. **Chaos Theory** - Deterministic chaos patterns
+The composition system uses multiple engines:
+- **CompositionEngine** - Form structure (ABA, rondo, sonata), voice generation
+- **HarmonicEngine** - Progressions, voice leading, key/mode management
+- **StyleAnalyzer** - Gesture pattern analysis for tempo and energy
+- **MaterialLibrary** - Musical material organization by function/character
+- **PhraseMorphology** - Gesture-to-melodic contour conversion
 
 ## Common Development Tasks
 

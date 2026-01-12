@@ -179,11 +179,6 @@ function createServiceContainer (config = {}) {
     return new GestureProcessor(roomManager)
   }, { dependencies: ['roomManager'] })
 
-  container.register('soundPatternGenerator', () => {
-    const SoundPatternGenerator = require('./SoundPatternGenerator')
-    return new SoundPatternGenerator()
-  })
-
   container.register('environmentalMemoryCoordinator', (roomManager) => {
     const EnvironmentalMemoryCoordinator = require('./EnvironmentalMemoryCoordinator')
     return new EnvironmentalMemoryCoordinator(roomManager)

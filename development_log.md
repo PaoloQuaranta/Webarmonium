@@ -3565,3 +3565,102 @@ The reviewer noted a subtle issue: inverting `morphProgress` linearly while `ren
 ### Version
 
 Updated to v1.0.95
+
+---
+
+## Entry #101 - Remove SoundPatternGenerator Legacy Code
+
+**Date**: 2026-01-12
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Removed `SoundPatternGenerator.js` (868 lines) and its test files (~870 lines) from the codebase. This was legacy code containing 6 generative algorithms that were never called in production. The system uses `CompositionEngine` and `BackgroundCompositionService` instead.
+
+---
+
+### Problem Statement
+
+Audit in `AUDIT_COMPOSITIONAL_ALGORITHM.md` identified that SoundPatternGenerator contained 6 algorithmic music generators (Cellular Automata, Fractal, Markov Chain, Neural Network, Fibonacci, Chaos Theory) that were:
+- Registered in ServiceContainer but never invoked
+- Only `getGenerationStats()` was called for `/api/metrics` endpoint
+- Main method `generatePatterns()` had zero call sites
+- Comprehensive test coverage existed but tested dead code
+
+---
+
+### Solution
+
+Complete removal of the legacy system:
+
+#### 1. Deleted Files
+
+| File | Lines |
+|------|-------|
+| `backend/src/services/SoundPatternGenerator.js` | 868 |
+| `backend/tests/unit/SoundPatternGenerator.hash.test.js` | 182 |
+| `backend/tests/unit/test_sound_patterns.test.js` | 688 |
+| **Total removed** | **~1740** |
+
+#### 2. Updated ServiceContainer.js
+
+Removed registration:
+```javascript
+// REMOVED
+container.register('soundPatternGenerator', () => {
+  const SoundPatternGenerator = require('./SoundPatternGenerator')
+  return new SoundPatternGenerator()
+})
+```
+
+#### 3. Updated server.js
+
+Removed extraction and metrics reference:
+```javascript
+// REMOVED from line 70
+const soundPatternGenerator = container.get('soundPatternGenerator')
+
+// REMOVED from /api/metrics response
+patterns: soundPatternGenerator.getGenerationStats(),
+```
+
+#### 4. Updated Documentation
+
+| File | Changes |
+|------|---------|
+| `CLAUDE.md` | Replaced "6 algorithms" section with actual CompositionEngine architecture |
+| `README.md` | Updated "Adding New Algorithms" section to reference CompositionEngine |
+| `backend_plan.md` | Removed SoundPatternGenerator from file list |
+| `AUDIT_COMPOSITIONAL_ALGORITHM.md` | Marked SoundPatternGenerator issue as RISOLTO - RIMOSSO |
+
+---
+
+### Active Composition System
+
+The actual music generation uses:
+
+| Service | Purpose |
+|---------|---------|
+| `BackgroundCompositionService` | Orchestrates background music, manages drone/phrases |
+| `CompositionEngine` | Form structure (ABA, rondo), voice generation |
+| `HarmonicEngine` | Progressions, voice leading, key management |
+| `StyleAnalyzer` | Gesture pattern analysis for tempo/energy |
+| `MaterialLibrary` | Musical material by function/character |
+| `PhraseMorphology` | Gesture-to-melodic contour conversion |
+
+---
+
+### Verification
+
+1. ✅ Backend starts without errors
+2. ✅ `/api/health` returns healthy status
+3. ✅ `/api/metrics` works (without `patterns` field)
+4. ✅ No references to SoundPatternGenerator in source code
+5. ✅ Test suite runs (pre-existing WebSocket test failures unrelated)
+
+---
+
+### Version
+
+Updated to v1.0.96

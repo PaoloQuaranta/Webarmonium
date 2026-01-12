@@ -67,7 +67,6 @@ wireServices(container, { io })
 // Extract services for backward compatibility
 const roomManager = container.get('roomManager')
 const gestureProcessor = container.get('gestureProcessor')
-const soundPatternGenerator = container.get('soundPatternGenerator')
 const environmentalMemoryCoordinator = container.get('environmentalMemoryCoordinator')
 const backgroundCompositionService = container.get('backgroundCompositionService')
 const gestureToMusicService = container.get('gestureToMusicService')
@@ -156,7 +155,6 @@ app.get('/api/metrics', (req, res) => {
       },
       rooms: roomManager.getRoomStatistics(),
       gestures: gestureProcessor.getProcessingStats(),
-      patterns: soundPatternGenerator.getGenerationStats(),
       memory: environmentalMemoryCoordinator.getCoordinatorStats()
     })
   } catch (error) {

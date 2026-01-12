@@ -9,7 +9,7 @@ Webarmonium is a real-time collaborative platform where users control generative
 ## ✨ Features
 
 ### 🎹 **Generative Music Engine**
-- **6 Algorithmic Composers**: Cellular Automata, Fractals, Markov Chains, Neural Networks, Fibonacci Sequences, Chaos Theory
+- **Algorithmic Composition**: CompositionEngine with form structures (ABA, rondo, sonata) and multi-voice generation
 - **Genre-Agnostic Generation**: Creates music spanning classical, electronic, ambient, and experimental styles
 - **Real-Time Evolution**: Sound patterns adapt and evolve based on user interactions
 - **Environmental Memory**: Rooms develop unique sonic personalities over 24 hours
@@ -109,30 +109,27 @@ src/
 │   ├── RoomManager.js       # Room lifecycle coordination
 │   ├── GestureProcessor.js  # <200ms gesture → audio conversion
 │   ├── EnvironmentalMemoryCoordinator.js  # Memory evolution
-│   └── SoundPatternGenerator.js           # 6 generative algorithms
+│   └── CompositionEngine.js               # Algorithmic composition
 └── api/
     └── socketHandlers.js    # Real-time WebSocket API
 ```
 
-## 🎵 Musical Algorithms
+## 🎵 Composition System
 
-### **Cellular Automata**
-Conway-inspired rules create rhythmic patterns from gesture density
+### **CompositionEngine**
+Core form structure management (ABA, rondo, sonata) with multi-voice generation
 
-### **Fractal Generation**
-Golden ratio and self-similar structures for harmonic evolution
+### **HarmonicEngine**
+Harmonic progressions, voice leading, and key/mode management
 
-### **Markov Chains**
-Learn from gesture sequences to predict musical continuations
+### **StyleAnalyzer**
+Analyzes gesture patterns to determine musical style, tempo, and energy
 
-### **Neural Networks**
-Simple feed-forward networks map gestures to sonic parameters
+### **MaterialLibrary**
+Organizes and tracks musical material by harmonic function and character
 
-### **Fibonacci Sequences**
-Mathematical ratios create naturally pleasing harmonic intervals
-
-### **Chaos Theory**
-Lorenz attractors generate complex, unpredictable textures
+### **PhraseMorphology**
+Converts gesture contours into melodic phrases and rhythmic patterns
 
 ## 🔧 API Reference
 
@@ -284,22 +281,16 @@ npm run test:memory
 npm run test:latency
 ```
 
-### Adding New Algorithms
+### Adding New Composition Features
 ```javascript
-// Create new algorithm in SoundPatternGenerator
-class MyCustomAlgorithm extends GenerationAlgorithm {
-  constructor() {
-    super('mycustom')
-  }
+// Extend CompositionEngine for new form structures
+// See backend/src/services/CompositionEngine.js
 
-  generatePatterns(roomId, memoryState, strategy) {
-    // Your algorithm implementation
-    return patterns
-  }
-}
+// Add new harmonic progressions in HarmonicEngine
+// See backend/src/services/HarmonicEngine.js
 
-// Register in SoundPatternGenerator constructor
-this.generationAlgorithms.set('mycustom', new MyCustomAlgorithm())
+// Create new material types in MaterialLibrary
+// See backend/src/services/MaterialLibrary.js
 ```
 
 ## 🤝 Contributing

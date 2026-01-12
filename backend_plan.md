@@ -26,7 +26,6 @@
 | `backend/src/api/socketHandlers.js` | 1,795 | God object (6x soglia) |
 | `backend/src/server.js` | 1,000 | ~600 linee dead code Phase 3.3 |
 | `backend/src/services/HoverOrchestrator.js` | 853 | 4x duplicate LFO |
-| `backend/src/services/SoundPatternGenerator.js` | 819 | 6 algoritmi embedded |
 | `backend/src/services/CompositionEngine.js` | 774 | Mixed concerns |
 | `backend/src/services/RoomManager.js` | 724 | Multiple responsabilità |
 
@@ -81,7 +80,6 @@ if (!room) { return }
 **Azione**: Usare circular buffer o cleanup periodico
 
 ### 7. MEDIUM: Altri File Monolitici
-- `SoundPatternGenerator.js` (819 linee) - 6 classi algoritmo embedded → file separati
 - `CompositionEngine.js` (774 linee) - Mixed elaboration techniques e form management
 - `RoomManager.js` (724 linee) - Rooms, drawing, colors, metrics, hover
 
