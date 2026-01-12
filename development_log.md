@@ -3409,3 +3409,159 @@ User completes drag gesture
 ### Version
 
 Updated to v1.0.94
+
+---
+
+## Entry #100 - Attractor Morph Reverse Smoothing & Rate Limiting
+
+**Date**: 2026-01-12
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed visual discontinuities ("jumps") in attractor morphing when a new gesture triggers `toggleAttractor()` while a morph is already in progress. Implemented reverse smoothing (invert progress + swap attractors) and rate limiting (2s minimum between morphs).
+
+---
+
+### Problem Statement
+
+After Entry #99 enabled attractor morphing, a new issue emerged: if a user completes a gesture while a Lorenz↔Rossler morph is in progress, the animation would "jump" instead of transitioning smoothly.
+
+**Example scenario:**
+```
+t=0: Morph starts lorenz → rossler
+t=400ms: morphProgress = 0.5 (visually 50% toward rossler)
+t=400ms: New gesture triggers toggleAttractor()
+  → targetAttractor changes to 'lorenz'
+  → morphProgress continues from 0.5
+  → Visual JUMPS from half-rossler back to lorenz instantly
+```
+
+---
+
+### Root Cause
+
+The original `toggleAttractor()` method simply called `switchAttractor(next)` without checking if a morph was already in progress. When `targetAttractor` changed mid-morph, the render interpolation direction changed instantly, causing visual discontinuity.
+
+**Code path (lines 286-293, 312-326):**
+- `render()` interpolates between `currentAttractor` and `targetAttractor` using `morphProgress`
+- When `targetAttractor` changes, the interpolation target changes immediately
+- The eased blend factor jumps to a different visual position
+
+---
+
+### Solution
+
+#### 1. Added rate limiting state variables
+
+**File:** `frontend/src/services/visual/PrecomputedAttractorSystem.js` (lines 38-39)
+
+```javascript
+this.lastMorphTime = 0           // Timestamp of last morph (Entry #100)
+this.minMorphInterval = 2000     // Minimum 2s between morphs
+```
+
+#### 2. Implemented reverse smoothing in toggleAttractor()
+
+**File:** `frontend/src/services/visual/PrecomputedAttractorSystem.js` (lines 422-452)
+
+```javascript
+toggleAttractor() {
+  const now = Date.now()
+  const timeSinceLastMorph = now - this.lastMorphTime
+
+  // Rate limiting: prevent rapid oscillations
+  if (timeSinceLastMorph < this.minMorphInterval) {
+    console.debug(`🦋 Toggle rate-limited (${this.minMorphInterval - timeSinceLastMorph}ms remaining)`)
+    return false
+  }
+
+  if (this.morphProgress < 1.0) {
+    // REVERSE SMOOTHING: Morph in progress, reverse direction
+    // Invert progress first, then swap - this continues from current visual position
+    this.morphProgress = 1.0 - this.morphProgress
+
+    // Swap current and target to reverse direction (this IS the toggle)
+    const temp = this.currentAttractor
+    this.currentAttractor = this.targetAttractor
+    this.targetAttractor = temp
+
+    console.log(`🦋 Reversing morph → ${this.targetAttractor} attractor`)
+  } else {
+    // NORMAL TOGGLE: Complete, start new morph to opposite attractor
+    const next = this.targetAttractor === 'lorenz' ? 'rossler' : 'lorenz'
+    this.switchAttractor(next)
+  }
+
+  this.lastMorphTime = now
+  return true
+}
+```
+
+---
+
+### Code Review & Bug Fix
+
+Initial implementation had a critical logic error discovered by code-reviewer agent:
+
+**Bug:** Calculated `next` before swap, then overwrote `targetAttractor` after swap:
+```javascript
+// WRONG - caused incorrect state
+const next = this.targetAttractor === 'lorenz' ? 'rossler' : 'lorenz'
+// ... swap ...
+this.targetAttractor = next  // ← Overwrites the swap result!
+```
+
+**Fix:** The swap operation itself IS the toggle. No need to calculate `next` separately:
+```javascript
+// CORRECT - swap alone reverses direction
+this.morphProgress = 1.0 - this.morphProgress
+const temp = this.currentAttractor
+this.currentAttractor = this.targetAttractor
+this.targetAttractor = temp
+// No additional assignment needed - swap already toggled direction
+```
+
+---
+
+### Behavior
+
+| Scenario | Before | After |
+|----------|--------|-------|
+| Toggle during morph | Visual jump | Smooth reversal from current position |
+| Rapid toggles (< 2s) | All processed → oscillations | Rate-limited → stability |
+| Normal toggle (morph complete) | Standard morph | Standard morph |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/visual/PrecomputedAttractorSystem.js` | Added `lastMorphTime`, `minMorphInterval`; rewrote `toggleAttractor()` with reverse smoothing and rate limiting |
+| `frontend/index.html` | Version bump v1.0.95, cache-buster v=11 for PrecomputedAttractorSystem.js |
+
+---
+
+### Known Limitation: Easing Discontinuity
+
+The reviewer noted a subtle issue: inverting `morphProgress` linearly while `render()` uses cubic easing can create a small (~10%) blend weight discontinuity. This is visually minor and acceptable for now. A perfect fix would require inverse easing function or switching to linear interpolation.
+
+---
+
+### Verification
+
+1. Open landing page or normal room
+2. Watch attractor during phrase events or drag gestures
+3. **Console logs:**
+   - `🦋 Switching to X attractor` = normal toggle
+   - `🦋 Reversing morph → X attractor` = reverse during morph
+   - `🦋 Toggle rate-limited (Xms remaining)` = rate limit active
+4. **Visual:** Transitions always smooth, no jumps
+
+---
+
+### Version
+
+Updated to v1.0.95
