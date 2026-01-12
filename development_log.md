@@ -3963,12 +3963,39 @@ AGGREGATE METRICS (applyUnifiedModulation)
 
 ---
 
+### Critical Fix: Per-User Filters (added after initial deploy)
+
+Initial implementation only modulated `gestureFilter`, but remote/virtual user sounds use **per-user synths** with their own filters via `UserSynthManager`. These filters were not being modulated!
+
+**Root Cause**: Each user has a separate audio chain:
+```
+userSynth → userFilter → userVolume → userPan → master
+```
+
+The `gestureFilter` is only used by `gestureSynth` (fallback synth), not by per-user synths.
+
+**Fix**: Added `getAllFilters()` method to UserSynthManager and updated `handleHoverModulation()` to modulate ALL active per-user filters:
+
+```javascript
+// Entry #104 FIX: Also modulate ALL per-user filters
+if (this.userSynthManager) {
+  const userFilters = this.userSynthManager.getAllFilters()
+  for (const filter of userFilters) {
+    filter.frequency.linearRampToValueAtTime(cutoffFreq, currentTime + 0.05)
+    filter.Q.linearRampToValueAtTime(resonance, currentTime + 0.05)
+  }
+}
+```
+
+---
+
 ### Files Modified
 
 | File | Changes |
 |------|---------|
-| `frontend/src/services/AudioService.js` | Simplified `handleHoverModulation()` to local-only, added debug logs to `applyUnifiedModulation()` |
+| `frontend/src/services/AudioService.js` | Simplified `handleHoverModulation()` to local-only, added debug logs to `applyUnifiedModulation()`, **added per-user filter modulation** |
 | `frontend/src/services/SocketService.js` | Added debug log for `unified-modulation` events |
+| `frontend/src/services/audio/UserSynthManager.js` | **Added `getAllFilters()` method** |
 
 ---
 
@@ -3976,7 +4003,7 @@ AGGREGATE METRICS (applyUnifiedModulation)
 
 | Log | Location | Meaning |
 |-----|----------|---------|
-| `🎛️ LOCAL hover → gestureFilter` | AudioService | Your hover is modulating the gesture filter |
+| `🎛️ LOCAL hover → filters` | AudioService | Your hover is modulating gestureFilter + N user filters |
 | `📡 unified-modulation received` | SocketService | Server sent aggregate metrics |
 | `🎚️ AGGREGATE MODULATION received` | AudioService | Metrics being processed |
 | `🎚️ AGGREGATE → ambientFilters` | AudioService | Filter values being applied to ambient layers |
@@ -3985,4 +4012,4 @@ AGGREGATE METRICS (applyUnifiedModulation)
 
 ### Version
 
-Updated to v1.0.99
+Updated to v1.0.100

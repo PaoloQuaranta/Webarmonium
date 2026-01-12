@@ -605,6 +605,21 @@ class UserSynthManager {
     const slot = this.getUserSlot(userId)
     return this.patchDefinitions?.getPatchForUser(userId, slot) || null
   }
+
+  /**
+   * Entry #104: Get all active per-user filters for hover modulation
+   * Returns array of Tone.Filter objects that can be modulated
+   * @returns {Array<Tone.Filter>} Array of active filters
+   */
+  getAllFilters() {
+    const filters = []
+    for (const [userId, synthData] of this.userSynths) {
+      if (synthData.filter && !synthData.filter.disposed) {
+        filters.push(synthData.filter)
+      }
+    }
+    return filters
+  }
 }
 
 // Export for browser (window global)

@@ -5103,16 +5103,31 @@ class AudioService {
 
       const currentTime = Tone.context?.currentTime || Tone.now()
 
-      // Apply to gestureFilter - affects ALL sounds through gestureSynth
-      // including remote user notes and virtual user notes
-      if (this.gestureFilter.frequency?.linearRampToValueAtTime) {
+      // Apply to gestureFilter (fallback synth)
+      if (this.gestureFilter?.frequency?.linearRampToValueAtTime) {
         this.gestureFilter.frequency.linearRampToValueAtTime(cutoffFreq, currentTime + 0.05)
       }
-      if (this.gestureFilter.Q?.linearRampToValueAtTime) {
+      if (this.gestureFilter?.Q?.linearRampToValueAtTime) {
         this.gestureFilter.Q.linearRampToValueAtTime(resonance, currentTime + 0.05)
       }
 
-      console.log(`🎛️ LOCAL hover → gestureFilter: pos=(${originalX.toFixed(2)}, ${originalY.toFixed(2)}) → cutoff=${cutoffFreq.toFixed(0)}Hz, Q=${resonance.toFixed(2)}`)
+      // Entry #104 FIX: Also modulate ALL per-user filters
+      // This is where remote/virtual user sounds actually pass through!
+      let userFiltersModulated = 0
+      if (this.userSynthManager) {
+        const userFilters = this.userSynthManager.getAllFilters()
+        for (const filter of userFilters) {
+          if (filter?.frequency?.linearRampToValueAtTime) {
+            filter.frequency.linearRampToValueAtTime(cutoffFreq, currentTime + 0.05)
+          }
+          if (filter?.Q?.linearRampToValueAtTime) {
+            filter.Q.linearRampToValueAtTime(resonance, currentTime + 0.05)
+          }
+          userFiltersModulated++
+        }
+      }
+
+      console.log(`🎛️ LOCAL hover → filters: pos=(${originalX.toFixed(2)}, ${originalY.toFixed(2)}) → cutoff=${cutoffFreq.toFixed(0)}Hz, Q=${resonance.toFixed(2)} | gestureFilter + ${userFiltersModulated} user filters`)
 
     } catch (error) {
       console.warn('⚠️ Hover modulation error:', error.message)
