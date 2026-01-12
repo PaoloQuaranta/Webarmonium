@@ -31,6 +31,11 @@
   box-sizing: border-box;
 }
 
+/* Global visited link reset - maintain original colors */
+a:visited {
+  color: inherit;
+}
+
 html {
   scroll-behavior: smooth;
 }

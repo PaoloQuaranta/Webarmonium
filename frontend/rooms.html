@@ -33,6 +33,11 @@
             box-sizing: border-box;
         }
 
+        /* Global visited link reset - maintain original colors */
+        a:visited {
+            color: inherit;
+        }
+
         body {
             font-family: 'Archivo', -apple-system, BlinkMacSystemFont, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
@@ -431,10 +436,6 @@
                 text-decoration: none;
                 font-size: 14px;
                 padding: 8px 0;
-            }
-
-            .mobile-back-link:visited {
-                color: #00d4ff;
             }
 
             .mobile-instructions {

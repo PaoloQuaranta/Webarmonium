@@ -3139,11 +3139,59 @@ The canvas-level approach uses p5.js transformation matrix to rotate the entire 
 
 ---
 
+### Positioning Adjustments
+
+After the rotation fix, iterative adjustments were made to optimize the attractor's position on a landscape canvas:
+
+| Adjustment | Value | Purpose |
+|------------|-------|---------|
+| `rotationAngle` | `-Math.PI / 4` (-45°) | Counter-clockwise rotation for optimal landscape fit |
+| `offsetXPixels` | `80` | Shift right to center horizontally |
+| `offsetYPixels` | `100` | Shift down to center vertically |
+
+Final constructor values:
+```javascript
+this.rotationAngle = -Math.PI / 4  // -45° counter-clockwise rotation
+this.centerOffsetY = -0.08         // Shift up by 8% of displaySize
+this.offsetXPixels = 80            // Horizontal offset in pixels (positive = right)
+this.offsetYPixels = 100           // Vertical offset in pixels (positive = down)
+```
+
+---
+
+### Known Issue: Lorenz ↔ Rossler Interpolation
+
+**Status**: TO INVESTIGATE
+
+The system is designed to morph between Lorenz (butterfly) and Rossler (spiral) attractors on `phrase:change` musical events. However, visual testing suggests the interpolation may not be functioning correctly:
+
+- Attractor animation is visible and moving
+- Shape appears to remain constant (always Lorenz butterfly)
+- No visible morphing to Rossler spiral observed
+
+The morphing logic exists in `render()`:
+```javascript
+if (this.morphProgress < 1.0) {
+  // Interpolate between current and target attractor
+  const fromFrames = this.currentAttractor === 'lorenz' ? this.lorenzFrames : this.rosslerFrames
+  const toFrames = this.targetAttractor === 'lorenz' ? this.lorenzFrames : this.rosslerFrames
+  // ... interpolation code
+}
+```
+
+Possible causes to investigate:
+1. `phrase:change` events may not be firing
+2. `onMusicalEvent()` may not be called from the audio system
+3. Morphing speed (`morphSpeed: 0.02`) may be too fast to notice
+4. Visual difference between Lorenz and Rossler may be subtle at current scale
+
+---
+
 ### Files Modified
 
 | File | Changes |
 |------|---------|
-| `frontend/src/services/visual/PrecomputedAttractorSystem.js` | Changed from coordinate rotation to canvas `translate()`+`rotate()`, removed precomputed cos/sin, updated comments |
+| `frontend/src/services/visual/PrecomputedAttractorSystem.js` | Changed from coordinate rotation to canvas `translate()`+`rotate()`, removed precomputed cos/sin, updated comments, added pixel offsets |
 
 ---
 
