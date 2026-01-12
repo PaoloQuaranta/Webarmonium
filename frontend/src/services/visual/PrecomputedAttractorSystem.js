@@ -456,8 +456,8 @@ class PrecomputedAttractorSystem {
     if (!event || !event.type) return
 
     switch (event.type) {
-      case 'phrase:change':
-        // Switch attractor on phrase changes
+      case 'phrase':
+        // Switch attractor on phrase changes (backend emits 'phrase' not 'phrase:change')
         this.toggleAttractor()
         break
 
