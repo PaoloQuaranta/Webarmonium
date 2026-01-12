@@ -312,25 +312,8 @@ class SocketEventCoordinator {
       }
     })
 
-    // Hover updates
-    this.socketService.on('hover-update', (data) => {
-      if (this.isAudioStarted && this.audioService && this.audioService.handleHoverModulation) {
-        // console.log('🎛️ Remote hover update:', data)
-        this.audioService.handleHoverModulation({
-          position: data.position,
-          velocity: data.velocity,
-          intensity: data.intensity,
-          isRemote: true
-        })
-      }
-    })
-
-    // Unified modulation
-    this.socketService.on('unified-modulation', (modulationData) => {
-      if (this.isAudioStarted && modulationData && this.audioService && this.audioService.applyUnifiedModulation) {
-        this.audioService.applyUnifiedModulation(modulationData)
-      }
-    })
+    // Entry #105: hover-update and unified-modulation handlers removed
+    // Hover filter modulation system disabled for performance
   }
 
   /**

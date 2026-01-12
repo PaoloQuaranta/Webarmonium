@@ -1472,21 +1472,8 @@ class WebarmoniumApp {
       }
     })
 
-    // Handle unified modulation from HoverOrchestrator
-    this.socketService.on('unified-modulation', (modulationData) => {
-      if (this.isAudioStarted && modulationData) {
-        this.audioService.applyUnifiedModulation(modulationData)
-      }
-    })
-
-    // Debug: handle raw hover events in development
-    this.socketService.on('hover-update-raw', (hoverData) => {
-      if (process.env.NODE_ENV === 'development' && this.isAudioStarted && hoverData) {
-        // console.log('🐛 Debug: Processing raw hover event:', hoverData)
-        // Apply old-style hover modulation for comparison
-        this.audioService.handleHoverModulation(hoverData)
-      }
-    })
+    // Entry #105: unified-modulation and hover-update-raw handlers removed
+    // Hover filter modulation system disabled for performance
 
     this.socketService.on('connect_error', (error) => {
       // console.error('❌ Socket connection error:', error)

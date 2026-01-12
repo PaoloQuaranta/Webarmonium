@@ -4077,3 +4077,81 @@ PER-VOICE FILTERS (unchanged)
 ### Version
 
 Updated to v1.0.101
+
+---
+
+## Entry #105 - Remove Hover Filter Modulation System
+
+**Date**: 2026-01-13
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Completely removed the hover filter modulation system (both real-time and aggregate). The system was buggy, added overhead, and didn't improve the user experience.
+
+---
+
+### Problem Statement
+
+The hover filter modulation system had accumulated technical debt through multiple iterations:
+- Entry #103: Refactored to 1:1 mapping
+- Entry #104: Fixed per-user filter modulation
+- Entry #104 v2: Added master filter approach
+
+Despite multiple attempts to fix it, the system remained:
+1. **Buggy**: Conflicting modulation sources, unpredictable behavior
+2. **Heavy**: Continuous socket events, filter updates at 20Hz, backend processing
+3. **Imperceptible**: Effect was barely noticeable despite all the complexity
+
+User decision: Remove the entire system rather than continue debugging it.
+
+---
+
+### Removed Components
+
+#### Frontend
+
+| File | Removed |
+|------|---------|
+| `AudioService.js` | `masterFilter` creation/routing, `handleHoverModulation()` logic, `applyUnifiedModulation()` logic |
+| `SocketService.js` | `unified-modulation` socket listener |
+| `main.js` | `unified-modulation` and `hover-update-raw` handlers |
+| `landing/main.js` | `unified-modulation` handler |
+| `SocketEventCoordinator.js` | `hover-update` and `unified-modulation` handlers |
+| `FilterModulationSystem.js` | `handleHoverModulation()` logic |
+
+#### Backend
+
+| File | Removed |
+|------|---------|
+| `HoverOrchestrator.js` | `broadcastModulation()` - no longer emits `unified-modulation` events |
+
+---
+
+### What Remains
+
+- Methods kept as **no-ops** for API compatibility: `handleHoverModulation()`, `applyUnifiedModulation()`, `setupHoverTimeout()`, `broadcastModulation()`
+- HoverOrchestrator still tracks hover state (used for other features)
+- Per-voice ambient filters still exist (for potential future use)
+- gestureFilter still exists (for potential future use)
+
+---
+
+### Performance Impact
+
+**Before**:
+- Server emitting `unified-modulation` every 500ms
+- Frontend processing hover events at 20Hz
+- Multiple filter ramps per hover update
+
+**After**:
+- No `unified-modulation` events
+- No hover filter processing
+- Lighter CPU/memory footprint
+
+---
+
+### Version
+
+Updated to v1.0.102

@@ -215,59 +215,14 @@ class FilterModulationSystem {
   }
 
   /**
-   * Handle hover modulation for cross-layer effects
-   * @param {Object} hoverData - Hover data with position, velocity, intensity, and isRemote
+   * Handle hover modulation - DISABLED (Entry #105)
+   * Hover filter modulation system removed for performance and simplicity.
+   * Method kept as no-op for API compatibility.
+   * @param {Object} hoverData - Ignored
    */
   handleHoverModulation(hoverData) {
-    if (!this.isInitialized) return
-
-    const position = hoverData?.position || hoverData || { x: 0.5, y: 0.5 }
-    const userId = hoverData?.userId || 'unknown'
-    const isRemote = hoverData?.isRemote || false
-    const intensity = hoverData?.intensity || 0.5
-
-    if (intensity === 0) {
-      this.resetFiltersToSafeValues()
-      return
-    }
-
-    // Validate coordinates
-    const originalX = position?.x
-    const originalY = position?.y
-
-    if (typeof originalX !== 'number' || typeof originalY !== 'number' ||
-        isNaN(originalX) || isNaN(originalY) || !isFinite(originalX) || !isFinite(originalY) ||
-        originalX < 0 || originalX > 1 || originalY < 0 || originalY > 1) {
-      this.stopRemoteFilterLFO()
-      this.resetFiltersToSafeValues()
-      return
-    }
-
-    if (isRemote && userId !== 'unknown') {
-      this.updateActiveRemoteUser(userId, true)
-    }
-
-    this.lastHoverTime = Date.now()
-    this.setupHoverTimeout()
-
-    const sonicParams = {
-      x: originalX,
-      y: originalY,
-      intensity: intensity,
-      tier: isRemote ? 'remote' : 'local'
-    }
-
-    const filterParams = this.mapGestureToFilter(sonicParams)
-    const currentTime = typeof Tone !== 'undefined' ? Tone.context.currentTime : 0
-
-    if (filterParams.isRemoteLFO) {
-      // Remote hover: setup LFO
-      this.setupRemoteFilterLFO(filterParams.lfoSpeed, filterParams.lfoAmplitude)
-    } else {
-      // Local hover: direct filter modulation
-      this.stopRemoteFilterLFO()
-      this.applyLocalFilterModulation(filterParams, currentTime)
-    }
+    // Entry #105: Hover filter modulation completely removed
+    // No-op for API compatibility
   }
 
   /**

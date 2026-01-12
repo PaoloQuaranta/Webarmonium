@@ -225,11 +225,7 @@ class SocketService {
       this.emit('note:stream', data)
     })
 
-    // Unified modulation from HoverOrchestrator
-    this.socket.on('unified-modulation', (data) => {
-      console.log('📡 unified-modulation received from server:', data?.metrics ? 'with metrics' : 'legacy format')
-      this.emit('unified-modulation', data)
-    })
+    // Entry #105: unified-modulation handler removed (hover filter modulation disabled)
 
     // Collective compositional parameters
     this.socket.on('compositional-parameters', (data) => {

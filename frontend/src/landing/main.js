@@ -590,17 +590,7 @@ class LandingApp {
         }
       })
 
-      // Listen for unified modulation from HoverOrchestrator
-      this.socket.on('unified-modulation', (modulationData) => {
-        if (!this.isRunning) return
-
-        // console.log('🎵 Received unified modulation:', modulationData.modulation)
-
-        // Apply modulation to AudioService
-        if (this.audioService && this.audioService.applyUnifiedModulation) {
-          this.audioService.applyUnifiedModulation(modulationData)
-        }
-      })
+      // Entry #105: unified-modulation handler removed (hover filter modulation disabled)
 
     } catch (error) {
       console.error('❌ Error setting up socket connection:', error)

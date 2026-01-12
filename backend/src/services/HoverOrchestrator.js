@@ -441,24 +441,13 @@ class HoverOrchestrator {
   }
 
   /**
-   * Issue C-03 Refactor: Broadcast raw metrics to all clients
-   * Frontend handles 1:1 mapping from metrics to filter parameters
+   * Entry #105: Broadcast modulation DISABLED
+   * Hover filter modulation system removed for performance and simplicity.
+   * Method kept as no-op - no more unified-modulation events emitted.
    */
   broadcastModulation() {
-    const payload = {
-      roomId: this.roomId,
-      // NEW: Raw metrics for frontend 1:1 mapping
-      metrics: { ...this.rawMetrics },
-      // LEGACY: Keep modulation for backwards compatibility during transition
-      modulation: { ...this.unifiedModulation },
-      timestamp: Date.now()
-    }
-
-    // Broadcast to all clients in the room
-    this.socketIo.to(this.roomId).emit('unified-modulation', payload)
-
-    // Update metrics
-    this.performanceMetrics.modulationsGenerated++
+    // Entry #105: Hover filter modulation completely removed
+    // No-op - no more unified-modulation events emitted
   }
 
   /**

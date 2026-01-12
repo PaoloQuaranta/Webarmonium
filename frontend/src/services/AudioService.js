@@ -1051,20 +1051,7 @@ class AudioService {
     // console.log('🆕 Creating new synths (first time initialization)...')
 
     // Create master volume node for centralized control (FR-011)
-    this.masterVolume = new Tone.Volume(-10)
-
-    // Entry #104 v2: Master filter for hover modulation - affects ALL audio uniformly
-    // This sits after the mix, before output, so hover modulation doesn't conflict
-    // with per-voice filters or aggregate modulation
-    this.masterFilter = new Tone.Filter({
-      type: 'lowpass',
-      frequency: 8000,  // Neutral starting value (open)
-      Q: 0.7,           // Gentle resonance
-      rolloff: -12      // Moderate slope
-    }).toDestination()
-
-    // Connect masterVolume through masterFilter to destination
-    this.masterVolume.connect(this.masterFilter)
+    this.masterVolume = new Tone.Volume(-10).toDestination()
 
     // Pass masterVolume to VolumeController (Sprint 2 refactoring)
     this.volumeController.setMasterVolumeNode(this.masterVolume)
@@ -5051,102 +5038,22 @@ class AudioService {
   }
 
   /**
-   * Handle hover modulation for cross-layer effects
-   * Entry #104 v2: YOUR hover modulates the MASTER FILTER after the mix
-   * This affects ALL audio uniformly (background, remote users, local gestures)
-   * without conflicting with per-voice filters or aggregate modulation
-   * Remote hover events are ignored - only YOUR hover controls the master filter
-   * PERF: Throttled to 20Hz to prevent filter update conflicts
-   * @param {Object} hoverData - Hover data with position, velocity, intensity, and isRemote
+   * Handle hover modulation - DISABLED (Entry #105)
+   * Hover filter modulation system removed for performance and simplicity.
+   * Method kept as no-op for API compatibility.
+   * @param {Object} hoverData - Ignored
    */
   handleHoverModulation(hoverData) {
-    const isRemote = hoverData?.isRemote || false
-
-    // Entry #104: SKIP remote hover - only YOUR hover should modulate the master filter
-    if (isRemote) {
-      return
-    }
-
-    // Check for master filter initialization
-    if (!this.masterFilter) {
-      return
-    }
-
-    // PERF: Throttle filter updates to 20Hz max
-    const now = performance.now()
-    if (now - this.lastFilterUpdateTime < this.filterUpdateInterval) {
-      return
-    }
-    this.lastFilterUpdateTime = now
-
-    // Extract position with safety checks
-    const position = hoverData?.position || hoverData || { x: 0.5, y: 0.5 }
-    const intensity = hoverData?.intensity || 0.5
-
-    // Skip if intensity is 0
-    if (intensity === 0) {
-      return
-    }
-
-    try {
-      const originalX = position?.x
-      const originalY = position?.y
-
-      // Validate coordinates
-      if (typeof originalX !== 'number' || typeof originalY !== 'number' ||
-          isNaN(originalX) || isNaN(originalY) || !isFinite(originalX) || !isFinite(originalY) ||
-          originalX < 0 || originalX > 1 || originalY < 0 || originalY > 1) {
-        // Mouse outside canvas - reset filters to safe values
-        this.resetFiltersToSafeValues()
-        return
-      }
-
-      // Update last hover time and setup timeout
-      this.lastHoverTime = Date.now()
-      this.setupHoverTimeout()
-
-      // Entry #104 v2: Master filter modulation
-      // Y position → cutoff frequency (200-8000 Hz) - full spectrum control
-      // X position → resonance Q (0.5-6.0) - subtle to pronounced sweep
-      const cutoffFreq = 200 + (originalY * 7800)
-      const resonance = 0.5 + (originalX * 5.5)
-
-      const currentTime = Tone.context?.currentTime || Tone.now()
-
-      // Apply ONLY to masterFilter - this affects ALL audio uniformly
-      // No conflicts with per-voice filters or aggregate modulation
-      if (this.masterFilter?.frequency?.linearRampToValueAtTime) {
-        this.masterFilter.frequency.linearRampToValueAtTime(cutoffFreq, currentTime + 0.05)
-      }
-      if (this.masterFilter?.Q?.linearRampToValueAtTime) {
-        this.masterFilter.Q.linearRampToValueAtTime(resonance, currentTime + 0.05)
-      }
-
-      console.log(`🎛️ MASTER FILTER hover: pos=(${originalX.toFixed(2)}, ${originalY.toFixed(2)}) → cutoff=${cutoffFreq.toFixed(0)}Hz, Q=${resonance.toFixed(2)}`)
-
-    } catch (error) {
-      console.warn('⚠️ Hover modulation error:', error.message)
-    }
+    // Entry #105: Hover filter modulation completely removed
+    // No-op for API compatibility
   }
 
   /**
-   * Setup hover timeout to stop modulation after inactivity
+   * Setup hover timeout - DISABLED (Entry #105)
+   * @deprecated Hover modulation system removed
    */
   setupHoverTimeout() {
-    // Clear existing timeout
-    if (this.hoverTimeoutTimer) {
-      clearTimeout(this.hoverTimeoutTimer)
-    }
-
-    // Set new timeout
-    this.hoverTimeoutTimer = setTimeout(() => {
-      const timeSinceLastHover = Date.now() - this.lastHoverTime
-      if (timeSinceLastHover >= this.hoverTimeoutDuration) {
-        // console.log('⏰ Hover timeout - stopping modulation due to inactivity')
-        this.stopRemoteFilterLFO()
-        this.hoverTimeoutTimer = null
-      }
-    }, this.hoverTimeoutDuration)
+    // Entry #105: No-op - hover modulation removed
   }
 
   /**
@@ -5215,12 +5122,6 @@ class AudioService {
       // console.log('🔧 Gesture filter reset: 2000Hz, Q=3')
     }
 
-    // Entry #104 v2: Reset master filter to open/neutral position
-    if (this.masterFilter) {
-      this.masterFilter.frequency.linearRampToValueAtTime(8000, currentTime + 0.1)
-      this.masterFilter.Q.linearRampToValueAtTime(0.7, currentTime + 0.1)
-      // console.log('🔧 Master filter reset: 8000Hz, Q=0.7')
-    }
 
     // CRITICAL FIX: Reset gesture synth volume to prevent tremolo from persisting
     if (this.gestureSynth && this.gestureSynth.volume) {
@@ -5275,117 +5176,14 @@ class AudioService {
 
 
   /**
-   * Issue C-03 Refactor: Apply unified modulation from HoverOrchestrator
-   * Uses 1:1 mapping from raw metrics to ambient filter parameters
-   * Each metric controls a specific filter target for predictable, debuggable results
-   * @param {Object} modulationData - Unified modulation data from server (contains metrics)
+   * Apply unified modulation - DISABLED (Entry #105)
+   * Aggregate filter modulation system removed for performance and simplicity.
+   * Method kept as no-op for API compatibility.
+   * @param {Object} modulationData - Ignored
    */
   applyUnifiedModulation(modulationData) {
-    if (!modulationData) {
-      console.log('🔇 applyUnifiedModulation: no data received')
-      return
-    }
-
-    // Issue C-03 Refactor: Use raw metrics for 1:1 mapping
-    const m = modulationData.metrics
-    if (!m) {
-      console.log('🔇 applyUnifiedModulation: no metrics in payload, using legacy format')
-      // Fallback to legacy modulation format for backwards compatibility
-      if (modulationData.modulation) {
-        const mod = modulationData.modulation
-        if (this.gestureFilter && mod.filterCutoff !== undefined) {
-          this.gestureFilter.frequency.value = Math.max(200, Math.min(8000, mod.filterCutoff || 1000))
-        }
-        if (this.gestureFilter && mod.filterResonance !== undefined) {
-          this.gestureFilter.Q.value = Math.max(0.5, Math.min(10, mod.filterResonance || 1.0))
-        }
-      }
-      return
-    }
-
-    // Skip if ambient filters not initialized
-    if (!this.ambientFilters) {
-      console.log('🔇 applyUnifiedModulation: ambientFilters not initialized')
-      return
-    }
-
-    // Entry #104: Debug log for aggregate modulation
-    console.log(`🎚️ AGGREGATE MODULATION received:`, {
-      density: m.density?.toFixed(2),
-      hoverCount: m.hoverCount,
-      spatialVariance: m.spatialVariance?.toFixed(2),
-      uniqueUsers: m.uniqueUsers,
-      flowDirection: m.flowDirection ? `(${m.flowDirection.x?.toFixed(2)}, ${m.flowDirection.y?.toFixed(2)})` : 'none'
-    })
-
-    // Constants for safe ranges (lowpass filters - keep min high enough to hear the voice)
-    const RAMP_TIME = 0.3 // 300ms ramp for smooth transitions
-    const Q_RANGE = { min: 0.5, max: 6.0 }
-
-    // Cutoff ranges per voice (safe minimums ensure voice stays audible)
-    const CUTOFF_RANGES = {
-      bass:   { min: 80,   max: 400   },
-      pad:    { min: 300,  max: 3000  },
-      chords: { min: 1000, max: 10000 }
-    }
-
-    // Helper: linear mapping with clamp
-    const mapRange = (value, inMin, inMax, outMin, outMax) => {
-      if (value === undefined || value === null || isNaN(value)) return (outMin + outMax) / 2
-      const normalized = Math.max(0, Math.min(1, (value - inMin) / (inMax - inMin)))
-      return outMin + normalized * (outMax - outMin)
-    }
-
-    // Helper: apply filter modulation with ramping
-    const applyFilter = (filter, cutoffValue, qValue, voiceName) => {
-      if (!filter || !filter.frequency || !filter.Q) return
-      const range = CUTOFF_RANGES[voiceName]
-      if (!range) return
-
-      const safeCutoff = Math.max(range.min, Math.min(range.max, cutoffValue))
-      const safeQ = Math.max(Q_RANGE.min, Math.min(Q_RANGE.max, qValue))
-
-      filter.frequency.rampTo(safeCutoff, RAMP_TIME)
-      filter.Q.rampTo(safeQ, RAMP_TIME)
-    }
-
-    // ============ 1:1 MAPPING: Metrics → Filter Targets ============
-    // Each metric drives a specific filter parameter for predictable behavior
-
-    // BASS: density → cutoff, hoverCount → Q
-    // Logic: More activity = bass opens up (brighter), more hovers = more punch
-    if (this.ambientFilters.bass) {
-      const bassCutoff = mapRange(m.density, 0, 10, 80, 400)
-      const bassQ = mapRange(m.hoverCount, 0, 100, 0.5, 4.0)
-      applyFilter(this.ambientFilters.bass, bassCutoff, bassQ, 'bass')
-    }
-
-    // PAD: spatialVariance → cutoff, uniqueUsers → Q
-    // Logic: Scattered hovers = brighter pad, more users = more resonance (social)
-    if (this.ambientFilters.pad) {
-      const padCutoff = mapRange(m.spatialVariance, 0, 1, 300, 3000)
-      const padQ = mapRange(m.uniqueUsers, 1, 10, 0.5, 5.0)
-      applyFilter(this.ambientFilters.pad, padCutoff, padQ, 'pad')
-    }
-
-    // CHORDS: flowDirection.y → cutoff, flowDirection.x → Q
-    // Logic: Upward flow = brighter chords, horizontal flow = resonance
-    if (this.ambientFilters.chords) {
-      const flowY = m.flowDirection?.y || 0
-      const flowX = m.flowDirection?.x || 0
-      const chordsCutoff = mapRange(flowY, -1, 1, 1000, 10000)
-      const chordsQ = mapRange(Math.abs(flowX), 0, 1, 0.5, 4.0)
-      applyFilter(this.ambientFilters.chords, chordsCutoff, chordsQ, 'chords')
-    }
-
-    // Entry #104: Log applied filter values
-    const bassCutoff = this.ambientFilters.bass?.frequency?.value
-    const padCutoff = this.ambientFilters.pad?.frequency?.value
-    const chordsCutoff = this.ambientFilters.chords?.frequency?.value
-    console.log(`🎚️ AGGREGATE → ambientFilters: bass=${bassCutoff?.toFixed(0)}Hz, pad=${padCutoff?.toFixed(0)}Hz, chords=${chordsCutoff?.toFixed(0)}Hz`)
-
-    // Store metrics for debugging
-    this.currentModulation = m
+    // Entry #105: Aggregate filter modulation completely removed
+    // No-op for API compatibility
   }
 
   cleanup() {
