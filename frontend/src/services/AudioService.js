@@ -1051,7 +1051,20 @@ class AudioService {
     // console.log('🆕 Creating new synths (first time initialization)...')
 
     // Create master volume node for centralized control (FR-011)
-    this.masterVolume = new Tone.Volume(-10).toDestination()
+    this.masterVolume = new Tone.Volume(-10)
+
+    // Entry #104 v2: Master filter for hover modulation - affects ALL audio uniformly
+    // This sits after the mix, before output, so hover modulation doesn't conflict
+    // with per-voice filters or aggregate modulation
+    this.masterFilter = new Tone.Filter({
+      type: 'lowpass',
+      frequency: 8000,  // Neutral starting value (open)
+      Q: 0.7,           // Gentle resonance
+      rolloff: -12      // Moderate slope
+    }).toDestination()
+
+    // Connect masterVolume through masterFilter to destination
+    this.masterVolume.connect(this.masterFilter)
 
     // Pass masterVolume to VolumeController (Sprint 2 refactoring)
     this.volumeController.setMasterVolumeNode(this.masterVolume)
@@ -5039,26 +5052,23 @@ class AudioService {
 
   /**
    * Handle hover modulation for cross-layer effects
-   * Entry #104: YOUR hover modulates gestureFilter, affecting remote/virtual user sounds
-   * Remote hover events are ignored - only YOUR hover should modulate the filter
+   * Entry #104 v2: YOUR hover modulates the MASTER FILTER after the mix
+   * This affects ALL audio uniformly (background, remote users, local gestures)
+   * without conflicting with per-voice filters or aggregate modulation
+   * Remote hover events are ignored - only YOUR hover controls the master filter
    * PERF: Throttled to 20Hz to prevent filter update conflicts
    * @param {Object} hoverData - Hover data with position, velocity, intensity, and isRemote
    */
   handleHoverModulation(hoverData) {
     const isRemote = hoverData?.isRemote || false
 
-    // Entry #104: SKIP remote hover - only YOUR hover should modulate the filter
-    // Your hover affects sounds from remote users and virtual users playing through gestureSynth
+    // Entry #104: SKIP remote hover - only YOUR hover should modulate the master filter
     if (isRemote) {
       return
     }
 
-    // Force initialization if needed
-    if (!this.isInitialized && this.gestureSynth) {
-      this.isInitialized = true
-    }
-
-    if (!this.gestureSynth || !this.gestureFilter) {
+    // Check for master filter initialization
+    if (!this.masterFilter) {
       return
     }
 
@@ -5095,39 +5105,24 @@ class AudioService {
       this.lastHoverTime = Date.now()
       this.setupHoverTimeout()
 
-      // Entry #104: Simple 1:1 mapping for local hover
-      // Y position → cutoff frequency (200-6000 Hz)
-      // X position → resonance Q (0.5-5.0)
-      const cutoffFreq = 200 + (originalY * 5800)
-      const resonance = 0.5 + (originalX * 4.5)
+      // Entry #104 v2: Master filter modulation
+      // Y position → cutoff frequency (200-8000 Hz) - full spectrum control
+      // X position → resonance Q (0.5-6.0) - subtle to pronounced sweep
+      const cutoffFreq = 200 + (originalY * 7800)
+      const resonance = 0.5 + (originalX * 5.5)
 
       const currentTime = Tone.context?.currentTime || Tone.now()
 
-      // Apply to gestureFilter (fallback synth)
-      if (this.gestureFilter?.frequency?.linearRampToValueAtTime) {
-        this.gestureFilter.frequency.linearRampToValueAtTime(cutoffFreq, currentTime + 0.05)
+      // Apply ONLY to masterFilter - this affects ALL audio uniformly
+      // No conflicts with per-voice filters or aggregate modulation
+      if (this.masterFilter?.frequency?.linearRampToValueAtTime) {
+        this.masterFilter.frequency.linearRampToValueAtTime(cutoffFreq, currentTime + 0.05)
       }
-      if (this.gestureFilter?.Q?.linearRampToValueAtTime) {
-        this.gestureFilter.Q.linearRampToValueAtTime(resonance, currentTime + 0.05)
-      }
-
-      // Entry #104 FIX: Also modulate ALL per-user filters
-      // This is where remote/virtual user sounds actually pass through!
-      let userFiltersModulated = 0
-      if (this.userSynthManager) {
-        const userFilters = this.userSynthManager.getAllFilters()
-        for (const filter of userFilters) {
-          if (filter?.frequency?.linearRampToValueAtTime) {
-            filter.frequency.linearRampToValueAtTime(cutoffFreq, currentTime + 0.05)
-          }
-          if (filter?.Q?.linearRampToValueAtTime) {
-            filter.Q.linearRampToValueAtTime(resonance, currentTime + 0.05)
-          }
-          userFiltersModulated++
-        }
+      if (this.masterFilter?.Q?.linearRampToValueAtTime) {
+        this.masterFilter.Q.linearRampToValueAtTime(resonance, currentTime + 0.05)
       }
 
-      console.log(`🎛️ LOCAL hover → filters: pos=(${originalX.toFixed(2)}, ${originalY.toFixed(2)}) → cutoff=${cutoffFreq.toFixed(0)}Hz, Q=${resonance.toFixed(2)} | gestureFilter + ${userFiltersModulated} user filters`)
+      console.log(`🎛️ MASTER FILTER hover: pos=(${originalX.toFixed(2)}, ${originalY.toFixed(2)}) → cutoff=${cutoffFreq.toFixed(0)}Hz, Q=${resonance.toFixed(2)}`)
 
     } catch (error) {
       console.warn('⚠️ Hover modulation error:', error.message)
@@ -5218,6 +5213,13 @@ class AudioService {
       this.gestureFilter.frequency.linearRampToValueAtTime(2000, currentTime + 0.1)
       this.gestureFilter.Q.linearRampToValueAtTime(3, currentTime + 0.1)
       // console.log('🔧 Gesture filter reset: 2000Hz, Q=3')
+    }
+
+    // Entry #104 v2: Reset master filter to open/neutral position
+    if (this.masterFilter) {
+      this.masterFilter.frequency.linearRampToValueAtTime(8000, currentTime + 0.1)
+      this.masterFilter.Q.linearRampToValueAtTime(0.7, currentTime + 0.1)
+      // console.log('🔧 Master filter reset: 8000Hz, Q=0.7')
     }
 
     // CRITICAL FIX: Reset gesture synth volume to prevent tremolo from persisting

@@ -4003,13 +4003,77 @@ if (this.userSynthManager) {
 
 | Log | Location | Meaning |
 |-----|----------|---------|
-| `🎛️ LOCAL hover → filters` | AudioService | Your hover is modulating gestureFilter + N user filters |
+| `🎛️ MASTER FILTER hover` | AudioService | Your hover is modulating the master filter (affects ALL audio) |
 | `📡 unified-modulation received` | SocketService | Server sent aggregate metrics |
 | `🎚️ AGGREGATE MODULATION received` | AudioService | Metrics being processed |
 | `🎚️ AGGREGATE → ambientFilters` | AudioService | Filter values being applied to ambient layers |
 
 ---
 
+### Critical Fix v2: Master Filter Approach (supersedes per-user filter fix)
+
+After testing, the per-user filter + ambient filter modulation approach caused **conflicting modulation** between aggregate and real-time hover (the original C-03 problem). Solution: create a **master filter** after the mix.
+
+**Problem with previous approach**:
+- Hover modulated per-user filters AND ambient filters
+- Aggregate modulation also modulated ambient filters
+- Result: two sources competing to set the same filter parameters
+
+**Solution**: Create `masterFilter` that sits AFTER the mix, BEFORE output:
+
+```
+All audio sources → masterVolume → masterFilter → toDestination()
+```
+
+**Implementation**:
+
+```javascript
+// In synth initialization:
+this.masterVolume = new Tone.Volume(-10)
+this.masterFilter = new Tone.Filter({
+  type: 'lowpass',
+  frequency: 8000,  // Neutral (open)
+  Q: 0.7,           // Gentle resonance
+  rolloff: -12
+}).toDestination()
+this.masterVolume.connect(this.masterFilter)
+
+// In handleHoverModulation():
+// ONLY modulate masterFilter - affects ALL audio uniformly
+this.masterFilter.frequency.linearRampToValueAtTime(cutoffFreq, currentTime + 0.05)
+this.masterFilter.Q.linearRampToValueAtTime(resonance, currentTime + 0.05)
+```
+
+**Benefits**:
+1. **No conflicts**: Master filter is separate from per-voice filters and aggregate modulation targets
+2. **Affects everything**: Background, remote users, local gestures all filtered uniformly
+3. **Highly audible**: Sweeping the master filter creates clear, dramatic timbral changes
+4. **Simple mental model**: Your hover = your audio perspective
+
+---
+
+### Modulation Architecture (Post-Entry #104 v2)
+
+```
+YOUR HOVER (handleHoverModulation)
+└── masterFilter → affects ALL mixed audio before output
+    └── Y position → cutoff (200-8000Hz)
+    └── X position → Q (0.5-6.0)
+
+AGGREGATE METRICS (applyUnifiedModulation)
+└── ambientFilters → bass, pad, chords (individual voices)
+    └── Triggered by HoverOrchestrator every 500ms
+    └── Uses 1:1 mapping from Entry #103
+    └── DOES NOT conflict with masterFilter
+
+PER-VOICE FILTERS (unchanged)
+└── Each layer has its own filter for timbral shaping
+└── userFilter per-user synth
+└── gestureFilter for fallback synth
+```
+
+---
+
 ### Version
 
-Updated to v1.0.100
+Updated to v1.0.101
