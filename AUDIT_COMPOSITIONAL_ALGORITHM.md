@@ -16,7 +16,7 @@ Questo audit analizza l'algoritmo compositivo di Webarmonium, verificando l'arch
 |----------|-------|---------|-------|
 | ~~CRITICO~~ | ~~SoundPatternGenerator (868 linee, 6 algoritmi) mai usato~~ | ~~Codice legacy~~ | **RISOLTO - RIMOSSO** |
 | ~~CRITICO~~ | ~~Duplicazione note DRAG per remote users~~ | ~~Audio doppio~~ | **RISOLTO** |
-| ~~CRITICO~~ | ~~HoverOrchestrator genera 25+ parametri, frontend ne usa 3~~ | ~~Sistema LFO inutilizzato~~ | **RISOLTO - REFACTORED** |
+| ~~CRITICO~~ | ~~HoverOrchestrator modulation system (25+ parametri)~~ | ~~Buggy, overhead, impercettibile~~ | **RISOLTO - RIMOSSO (Entry #105)** |
 | ALTO | Three-tier audio system non implementato | Config ignorata |
 | ALTO | Range frequenze inconsistenti TAP vs DRAG | Incoerenza timbrica |
 | MEDIO | Parametri backend inutilizzati | Contesto musicale perso |
@@ -64,13 +64,11 @@ BACKGROUND:
 
   Frontend → CompositionPlayer
 
-HOVER:
-  Backend HoverOrchestrator (802 linee)
-  → genera 25+ parametri modulazione
-  → socket.emit('unified-modulation')
-
-  Frontend applyUnifiedModulation()
-  → USA SOLO: filterCutoff, filterResonance, spatialPan
+HOVER FILTER MODULATION: **RIMOSSO (Entry #105)**
+  Sistema completamente disabilitato il 2026-01-13
+  - handleHoverModulation() → no-op
+  - applyUnifiedModulation() → no-op
+  - unified-modulation event → non più emesso
 ```
 
 ---
@@ -135,114 +133,54 @@ const shouldRebroadcastNotes = gesture.streamedNotes &&
 
 ---
 
-## 5. Issue C-03: HoverOrchestrator Parametri Ignorati - **RISOLTO**
+## 5. Issue C-03: HoverOrchestrator Filter Modulation - **RIMOSSO**
 
-> **FIX APPLICATA**: 2026-01-12 - Refactoring completo del sistema di modulazione.
-> - HoverOrchestrator ora invia metriche raw invece di parametri LFO pre-calcolati
-> - Frontend (`applyUnifiedModulation`) applica mapping 1:1 diretto ai filtri ambient
-> - Separazione chiara: `handleHoverModulation` → gestureFilter, `applyUnifiedModulation` → ambientFilters
+> **SISTEMA COMPLETAMENTE RIMOSSO**: 2026-01-13 (Entry #105)
+>
+> Dopo multiple iterazioni di refactoring (Entry #103, #104, #104 v2), il sistema di modulazione
+> hover dei filtri è stato **completamente rimosso** perché:
+> - **Buggy**: Conflitti tra modulazione real-time e aggregata
+> - **Overhead**: Eventi socket ogni 500ms, processing hover a 20Hz
+> - **Impercettibile**: Effetto audio appena udibile nonostante la complessità
 
-### 5.0 Architettura Refactored
+### 5.0 Stato Attuale (Post Entry #105)
 
 ```
-MODULAZIONE REAL-TIME (handleHoverModulation)
-└── gestureFilter → gestureSynth
-    └── Trigger: ogni hover event (20Hz max)
-    └── Sorgenti: posizione diretta del singolo hover
+MODULAZIONE HOVER FILTRI: DISABILITATA
 
-MODULAZIONE AGGREGATA (applyUnifiedModulation)
-└── ambientFilters.* → bass, pad, chords
-    └── Trigger: ogni 500ms da HoverOrchestrator
-    └── Sorgenti: metriche aggregate (mapping 1:1)
+handleHoverModulation()  → No-op (API compatibility)
+applyUnifiedModulation() → No-op (API compatibility)
+broadcastModulation()    → No-op (nessun evento emesso)
+unified-modulation event → Non più emesso/ascoltato
 ```
 
-### 5.0.1 Mapping 1:1 Implementato
+### 5.1 Componenti Rimossi
 
-| Target | Sorgente | Range Sorgente | Range Target |
-|--------|----------|----------------|--------------|
-| bass.cutoff | density | 0-10 | 80-400 Hz |
-| bass.Q | hoverCount | 0-100 | 0.5-4.0 |
-| pad.cutoff | spatialVariance | 0-1 | 300-3000 Hz |
-| pad.Q | uniqueUsers | 1-10 | 0.5-5.0 |
-| chords.cutoff | flowDirection.y | -1 to 1 | 1000-10000 Hz |
-| chords.Q | flowDirection.x | -1 to 1 | 0.5-4.0 |
+**Frontend**:
+- `masterFilter` rimosso dalla catena audio
+- `handleHoverModulation()` → no-op
+- `applyUnifiedModulation()` → no-op
+- `unified-modulation` socket listener rimosso
+- Handler in main.js, landing/main.js, SocketEventCoordinator rimossi
 
----
+**Backend**:
+- `broadcastModulation()` in HoverOrchestrator → no-op
+- Nessun evento `unified-modulation` emesso
 
-### 5.1 Parametri Generati dal Backend (HoverOrchestrator.js) - LEGACY
+### 5.2 Cosa Rimane (per altri usi)
 
-**4 LFO Layers** (linee 41-92):
-```javascript
-// PRIMARY LFO
-lfoFrequency: 0.01,     // 0.001-0.15Hz
-lfoAmplitude: 0.3,
-lfoShape: 'sine',
+- HoverOrchestrator continua a tracciare stato hover (usato per altre feature)
+- Filtri per-voce ambient esistono ancora (bass, pad, chords)
+- gestureFilter esiste ancora (per potenziale uso futuro)
 
-// SECONDARY LFO
-lfo2Frequency: 0.005,   // 0.002-0.05Hz
-lfo2Amplitude: 0.15,
-lfo2Shape: 'triangle',
+### 5.3 Storico Tentativi (per riferimento)
 
-// TERTIARY LFO
-lfo3Frequency: 0.001,   // 0.0005-0.02Hz
-lfo3Amplitude: 0.1,
-lfo3Shape: 'sine',
-
-// QUATERNARY LFO
-lfo4Frequency: 0.002,   // 0.001-0.01Hz
-lfo4Amplitude: 0.05,
-lfo4Shape: 'sawtooth',
-```
-
-**Parametri Filtro Avanzati**:
-- filterCutoff, filterResonance, filterSlope
-- filterFreqModDepth, filterResModDepth
-
-**Parametri Spaziali**:
-- spatialPan, spatialWidth, spatialRotateSpeed
-
-**Parametri Effetti**:
-- reverbMix, delayTime, distortionAmount
-
-**Modulazione Carattere**:
-- modulationDepth, modulationRate, vibratoDepth, tremoloDepth
-
-**Evoluzione**:
-- evolutionSpeed, complexity
-
-### 5.2 Parametri USATI dal Frontend (AudioService.js:5464-5499)
-
-```javascript
-applyUnifiedModulation(modulationData) {
-  const mod = modulationData.modulation
-
-  // SOLO QUESTI 3:
-  this.gestureFilter.frequency.value = mod.filterCutoff
-  this.gestureFilter.Q.value = mod.filterResonance
-  this.gesturePan.pan.value = mod.spatialPan
-
-  // reverbMix - codice presente ma non funziona
-}
-```
-
-### 5.3 Parametri RIMOSSI (refactoring C-03)
-
-> **AGGIORNAMENTO 2026-01-12**: I seguenti parametri sono stati rimossi dal backend.
-> HoverOrchestrator ora invia solo metriche raw che il frontend mappa 1:1 ai filtri.
-
-~~- lfoFrequency, lfoAmplitude, lfoShape~~
-~~- lfo2Frequency, lfo2Amplitude, lfo2Shape~~
-~~- lfo3Frequency, lfo3Amplitude, lfo3Shape~~
-~~- lfo4Frequency, lfo4Amplitude, lfo4Shape~~
-~~- filterSlope~~
-~~- filterFreqModDepth, filterResModDepth~~
-~~- spatialWidth, spatialRotateSpeed~~
-~~- delayTime, distortionAmount~~
-~~- modulationDepth, modulationRate~~
-~~- vibratoDepth, tremoloDepth~~
-~~- evolutionSpeed, complexity~~
-
-Metriche raw ora inviate: `density`, `hoverCount`, `spatialVariance`, `uniqueUsers`, `flowDirection`, `rhythmAnalysis`, `clusterCount`, `hotspotCount`, `intensity`
+| Entry | Approccio | Problema |
+|-------|-----------|----------|
+| #103 | Mapping 1:1 metriche raw → filtri ambient | Effetto impercettibile |
+| #104 | Modula per-user filters + gestureFilter | Ancora impercettibile |
+| #104 v2 | Master filter dopo il mix | Conflitti modulation |
+| **#105** | **RIMOSSO COMPLETAMENTE** | **Soluzione definitiva** |
 
 ---
 
@@ -445,7 +383,7 @@ Note locali e remote suonano con timbri diversi anche per stessi parametri music
 |------|-------|-------|------|
 | ~~SoundPatternGenerator.js~~ | ~~868~~ | **RIMOSSO** | Eliminato il 2026-01-12 |
 | GestureToMusicService.js | ~500 | ATTIVO | Genera TAP, parametri extra ignorati |
-| HoverOrchestrator.js | 802 | PARZIALE | 25+ parametri generati, 3 usati |
+| HoverOrchestrator.js | 802 | PARZIALE | Filter modulation disabilitata (Entry #105), hover tracking attivo |
 | VirtualUserService.js | ~1370 | ATTIVO | Gesture generation corretta |
 | BackgroundCompositionService.js | ~620 | ATTIVO | CompositionEngine integration |
 | CompositionEngine.js | 775 | ATTIVO | Sistema compositivo principale |
@@ -477,10 +415,10 @@ Note locali e remote suonano con timbri diversi anche per stessi parametri music
 
 ### Priorità Alta
 
-3. ~~**Implementare utilizzo parametri HoverOrchestrator**~~ - **COMPLETATO**
-   - ✅ Refactoring completo: metriche raw invece di LFO pre-calcolati
-   - ✅ Mapping 1:1 implementato in AudioService.applyUnifiedModulation()
-   - ✅ Separazione domini: handleHoverModulation → gesture, applyUnifiedModulation → ambient
+3. ~~**Implementare utilizzo parametri HoverOrchestrator**~~ - **RIMOSSO (Entry #105)**
+   - ✅ Sistema hover filter modulation completamente rimosso il 2026-01-13
+   - ✅ Motivo: buggy, overhead, effetto impercettibile
+   - ✅ Metodi mantenuti come no-op per compatibilità API
 
 4. **Standardizzare range frequenze**
    - TAP e DRAG dovrebbero usare stesso calcolo
@@ -516,9 +454,7 @@ Note locali e remote suonano con timbri diversi anche per stessi parametri music
    - Fare drag in uno
    - Verificare se l'altro riceve note duplicate (contare in console)
 
-3. **Hover LFO**:
-   - Log in `applyUnifiedModulation()` per vedere tutti i parametri ricevuti
-   - Verificare che lfoFrequency etc. sono presenti ma ignorati
+3. ~~**Hover LFO**~~: **N/A - Sistema rimosso (Entry #105)**
 
 4. **Three-tier**:
    - Verificare se waveform cambia tra note locali/remote
@@ -528,7 +464,7 @@ Note locali e remote suonano con timbri diversi anche per stessi parametri music
 
 ## 15. Conclusione
 
-L'algoritmo compositivo di Webarmonium ha un'architettura sofisticata con sistemi avanzati (4 LFO layers, three-tier audio) che **non sono attualmente utilizzati** o sono **parzialmente implementati**.
+L'algoritmo compositivo di Webarmonium ha un'architettura più snella dopo la rimozione di sistemi non funzionanti.
 
 Il sistema funziona principalmente grazie a:
 - CompositionEngine per composizioni background
@@ -537,4 +473,6 @@ Il sistema funziona principalmente grazie a:
 
 > **AGGIORNAMENTO 2026-01-12**: Il codice legacy SoundPatternGenerator.js (868 linee con 6 algoritmi mai utilizzati) è stato **rimosso** dal codebase, eliminando ~1800 linee di dead code (inclusi i test).
 
-La duplicazione note DRAG e i 25+ parametri hover ignorati rappresentano le inconsistenze più significative che impattano l'esperienza musicale.
+> **AGGIORNAMENTO 2026-01-13 (Entry #105)**: Il sistema di modulazione hover filtri è stato **completamente rimosso** perché buggy, con overhead e effetto impercettibile. Questo include: masterFilter, handleHoverModulation, applyUnifiedModulation, e l'evento unified-modulation.
+
+Le issue rimanenti sono: three-tier audio non implementato e range frequenze inconsistenti TAP vs DRAG.
