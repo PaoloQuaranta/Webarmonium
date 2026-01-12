@@ -41,7 +41,6 @@ class AudioServiceFacade {
       this.generativeMusicEngine = new (window.GenerativeMusicEngine || GenerativeMusicEngine)()
       this.filterModulationSystem = new (window.FilterModulationSystem || FilterModulationSystem)()
       this.parameterController = new (window.ParameterController || ParameterController)(this.gestureAudioMapper)
-      this.threeTierAudioSystem = new (window.ThreeTierAudioSystem || ThreeTierAudioSystem)()
 
       this.modulesInitialized = true
       // console.log('✅ AudioServiceFacade modules initialized')
@@ -485,92 +484,6 @@ class AudioServiceFacade {
   }
 
   // =============================================
-  // THREE-TIER AUDIO (delegates to ThreeTierAudioSystem)
-  // =============================================
-
-  /**
-   * Play three-tier note
-   * @param {number} frequency - Note frequency
-   * @param {string} tier - Audio tier
-   * @param {number} velocity - Gesture velocity
-   * @param {Object} options - Note options
-   */
-  playThreeTierNote(frequency, tier, velocity, options) {
-    if (this.threeTierAudioSystem) {
-      this.threeTierAudioSystem.playThreeTierNote(frequency, tier, velocity, options)
-    }
-  }
-
-  /**
-   * Handle three-tier gesture
-   * @param {Object} gestureData - Gesture data
-   */
-  handleThreeTierGesture(gestureData) {
-    if (this.threeTierAudioSystem) {
-      this.threeTierAudioSystem.handleThreeTierGesture(gestureData)
-    }
-  }
-
-  /**
-   * Apply cross-layer hover modulation
-   * @param {Object} hoverData - Hover data
-   */
-  applyCrossLayerHoverModulation(hoverData) {
-    if (this.threeTierAudioSystem) {
-      this.threeTierAudioSystem.applyCrossLayerHoverModulation(hoverData)
-    }
-  }
-
-  /**
-   * Update collaborative patterns
-   * @param {Array} patterns - Patterns from remote users
-   */
-  updatePatterns(patterns) {
-    if (this.threeTierAudioSystem) {
-      this.threeTierAudioSystem.updatePatterns(patterns, (pos) => {
-        if (this.filterModulationSystem) {
-          this.filterModulationSystem.updateBackgroundFilters(pos)
-        }
-      })
-    }
-  }
-
-  /**
-   * Initialize musical architecture
-   * @param {Object} audioServiceContext - AudioService context
-   */
-  initializeNewMusicalArchitecture(audioServiceContext) {
-    if (this.threeTierAudioSystem) {
-      return this.threeTierAudioSystem.initializeNewMusicalArchitecture(audioServiceContext)
-    }
-    return false
-  }
-
-  /**
-   * Schedule musical event
-   * @param {Function} callback - Event callback
-   * @param {Object} data - Event data
-   * @param {boolean} isRemote - Whether from remote user
-   * @param {number} timestamp - Event timestamp
-   */
-  scheduleMusicalEvent(callback, data, isRemote, timestamp) {
-    if (this.threeTierAudioSystem) {
-      return this.threeTierAudioSystem.scheduleMusicalEvent(callback, data, isRemote, timestamp)
-    }
-    callback(data)
-  }
-
-  /**
-   * Get tier configuration
-   * @param {string} tier - Tier name
-   * @returns {Object} Tier config
-   */
-  getTierConfig(tier) {
-    if (!this.threeTierAudioSystem) return {}
-    return this.threeTierAudioSystem.getTierConfig(tier)
-  }
-
-  // =============================================
   // CLEANUP
   // =============================================
 
@@ -598,10 +511,6 @@ class AudioServiceFacade {
 
     if (this.filterModulationSystem) {
       this.filterModulationSystem.cleanup()
-    }
-
-    if (this.threeTierAudioSystem) {
-      this.threeTierAudioSystem.cleanup()
     }
 
     this.isInitialized = false

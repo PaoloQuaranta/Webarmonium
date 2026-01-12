@@ -21,7 +21,7 @@ describe('GestureProcessor', () => {
   // ============================================================================
 
   const createMockAudioService = () => ({
-    playThreeTierNote: jest.fn(),
+    playSimpleNote: jest.fn(),
     playMusicalEvent: jest.fn(),
     gestureSynth: {
       set: jest.fn(),
@@ -159,7 +159,7 @@ describe('GestureProcessor', () => {
       const gesture = createTapGesture()
       processor.processGesture(gesture, false)
 
-      expect(mockAudioService.playThreeTierNote).not.toHaveBeenCalled()
+      expect(mockAudioService.playSimpleNote).not.toHaveBeenCalled()
     })
 
     test('should delegate to processClickGesture for tap gestures', () => {
@@ -1054,31 +1054,25 @@ describe('GestureProcessor', () => {
   // ============================================================================
 
   describe('processGestureByAction()', () => {
-    test('should play fallback note at 440Hz', () => {
+    test('should play fallback note at 440Hz with 0.3s duration and 0.5 volume', () => {
       const gesture = createTapGesture()
       const sonicParams = createSonicParams()
 
       processor.processGestureByAction(gesture, sonicParams)
 
-      expect(mockAudioService.playThreeTierNote).toHaveBeenCalledWith(
-        440,
-        'local',
-        100,
-        { volume: 0.5 }
-      )
+      expect(mockAudioService.playSimpleNote).toHaveBeenCalledWith(440, 0.3, 0.5)
     })
 
-    test('should use local tier', () => {
+    test('should use correct frequency', () => {
       const gesture = createTapGesture()
       const sonicParams = createSonicParams()
 
       processor.processGestureByAction(gesture, sonicParams)
 
-      expect(mockAudioService.playThreeTierNote).toHaveBeenCalledWith(
+      expect(mockAudioService.playSimpleNote).toHaveBeenCalledWith(
+        440,
         expect.any(Number),
-        'local',
-        expect.any(Number),
-        expect.any(Object)
+        expect.any(Number)
       )
     })
 
@@ -1088,11 +1082,10 @@ describe('GestureProcessor', () => {
 
       processor.processGestureByAction(gesture, sonicParams)
 
-      expect(mockAudioService.playThreeTierNote).toHaveBeenCalledWith(
+      expect(mockAudioService.playSimpleNote).toHaveBeenCalledWith(
         expect.any(Number),
-        expect.any(String),
         expect.any(Number),
-        { volume: 0.5 }
+        0.5
       )
     })
   })

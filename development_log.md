@@ -4155,3 +4155,87 @@ User decision: Remove the entire system rather than continue debugging it.
 ### Version
 
 Updated to v1.0.102
+
+---
+
+## Entry #106 - Remove Three-Tier Audio System (Dead Code)
+
+**Date**: 2026-01-13
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Removed the entire three-tier audio system (background/remote/local) which was defined but never integrated into the main audio flow. This cleanup removed ~1120 lines of dead code and fixed a bug where frequency parameters were being ignored.
+
+---
+
+### Problem Statement
+
+The three-tier audio system was identified in AUDIT_COMPOSITIONAL_ALGORITHM.md as Issue C-04:
+
+1. **Never integrated**: `threeTierConfig` defined waveform/volume/frequency per tier, but `playMusicalEvent()` never used it
+2. **Bug in frequency calculation**: `calculateThreeTierFrequency()` ignored the passed frequency and always used `tierConfig.baseFrequency`
+3. **Duplicated code**: ThreeTierAudioSystem.js was a ~850 line legacy class never called
+4. **Dead tier logic**: GestureAudioMapper.mapGestureToFilter() had branches for remote/background tiers that were never executed
+
+---
+
+### Removed Components
+
+| File | Lines Removed | Description |
+|------|---------------|-------------|
+| `ThreeTierAudioSystem.js` | ~850 | Entire file deleted |
+| `AudioService.js` | ~150 | `threeTierConfig`, `playThreeTierNote()`, `calculateThreeTier*()`, `handleThreeTierGesture()` |
+| `AudioServiceFacade.js` | ~25 | ThreeTierAudioSystem instantiation and delegate methods |
+| `GestureAudioMapper.js` | ~70 | `threeTierConfig`, `calculateThreeTier*()`, `parseDuration()`, tier branches in `mapGestureToFilter()` |
+| `rooms.html` | 1 | Script include for ThreeTierAudioSystem.js |
+| `GestureProcessor.test.js` | ~20 | Mock updates |
+| **Total** | **~1120** | |
+
+---
+
+### Replacement
+
+Added simple `playSimpleNote()` method in AudioService.js:
+
+```javascript
+playSimpleNote(frequency, duration = 0.3, volume = 0.5) {
+  if (!this.isInitialized || !this.gestureSynth) return
+  this.safeGestureSynthTrigger(frequency, duration, undefined, volume)
+}
+```
+
+Updated callers:
+- `GestureProcessor.js`: `playThreeTierNote(440, 'local', 100, { volume: 0.5 })` → `playSimpleNote(440, 0.3, 0.5)`
+- `MetricsToGestureAdapter.js`: Same pattern, now correctly uses the calculated frequency (bug fix)
+
+---
+
+### Simplified mapGestureToFilter()
+
+Before: Three branches for local/remote/background tiers (only local ever executed)
+
+After:
+```javascript
+mapGestureToFilter(sonicParams) {
+  // Entry #106: Simplified - tier logic removed (was never used dynamically)
+  const y = sonicParams.y || 0.5
+  const x = sonicParams.x || 0.5
+  const cutoff = 200 + ((1 - y) * 3800)
+  const resonance = 0.5 + (x * 4.5)
+  return { cutoffFrequency: cutoff, resonance, tremoloAmount: 0 }
+}
+```
+
+---
+
+### Collateral Bug Fix
+
+MetricsToGestureAdapter was calling `playThreeTierNote(frequency, tier, velocity)` but the frequency was being ignored inside `calculateThreeTierFrequency()` which always used `tierConfig.baseFrequency`. Now `playSimpleNote(frequency, 0.3, volume)` correctly uses the calculated frequency from metrics.
+
+---
+
+### Version
+
+Updated to v1.0.103

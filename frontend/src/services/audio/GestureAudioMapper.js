@@ -4,7 +4,7 @@
  * Extracted from AudioService.js for Phase 2 refactoring
  */
 class GestureAudioMapper {
-  constructor(parameterMappings = null, threeTierConfig = null, colorPool = null) {
+  constructor(parameterMappings = null, colorPool = null) {
     // Parameter mapping configuration (can be overridden)
     this.parameterMappings = parameterMappings || {
       frequency: {
@@ -26,28 +26,6 @@ class GestureAudioMapper {
         range: [-1, 1],
         curve: 'linear',
         smoothing: 0.05
-      }
-    }
-
-    // Three-tier audio architecture parameters
-    this.threeTierConfig = threeTierConfig || {
-      background: {
-        waveform: 'triangle',
-        volumeMultiplier: 0.7,
-        baseFrequency: 110,
-        color: '#4a9eff'
-      },
-      remote: {
-        waveform: 'square',
-        volumeMultiplier: 1.5,
-        baseFrequency: 440,
-        color: '#ff6b6b'
-      },
-      local: {
-        waveform: 'sawtooth',
-        volumeMultiplier: 2.0,
-        baseFrequency: 880,
-        color: '#6bcf7f'
       }
     }
 
@@ -91,47 +69,18 @@ class GestureAudioMapper {
    * @returns {Object} Filter parameters
    */
   mapGestureToFilter(sonicParams) {
-    const tier = sonicParams.tier || 'local'
+    // Entry #106: Simplified - tier logic removed (was never used dynamically)
+    // Y controls cutoff, X controls resonance
+    const y = sonicParams.y || 0.5
+    const x = sonicParams.x || 0.5
 
-    if (tier === 'local') {
-      // LOCAL MODULATION: Y controls cutoff, X controls resonance
-      const y = sonicParams.y || 0.5
-      const x = sonicParams.x || 0.5
+    const cutoff = 200 + ((1 - y) * 3800) // 200Hz to 4000Hz, inverted Y axis
+    const resonance = 0.5 + (x * 4.5) // 0.5 to 5.0 Q range
 
-      const cutoff = 200 + ((1 - y) * 3800) // 200Hz to 4000Hz, inverted Y axis
-      const resonance = 0.5 + (x * 4.5) // 0.5 to 5.0 Q range
-
-      return {
-        cutoffFrequency: cutoff,
-        resonance: resonance,
-        tremoloAmount: 0
-      }
-    } else if (tier === 'remote') {
-      // REMOTE MODULATION: X = LFO speed, Y = LFO amplitude
-      const y = sonicParams.y || 0.5
-      const x = sonicParams.x || 0.5
-
-      const lfoSpeed = 0.05 + (x * 9.95) // 0.05Hz to 10Hz
-      const lfoAmplitude = y // 0.0 to 1.0
-
-      return {
-        lfoSpeed: lfoSpeed,
-        lfoAmplitude: lfoAmplitude,
-        isRemoteLFO: true
-      }
-    } else {
-      // Background/default modulation
-      const movement = sonicParams?.z ?? sonicParams?.movement ?? sonicParams?.y ?? 0.5
-      const validMovement = typeof movement === 'number' && !isNaN(movement) ? movement : 0.5
-      const clampedMovement = Math.max(0, Math.min(1, validMovement))
-
-      const filterFreq = 200 + (clampedMovement * 2000)
-
-      return {
-        cutoffFrequency: filterFreq,
-        resonance: 1.0,
-        tremoloAmount: 0
-      }
+    return {
+      cutoffFrequency: cutoff,
+      resonance: resonance,
+      tremoloAmount: 0
     }
   }
 
@@ -422,82 +371,6 @@ class GestureAudioMapper {
   calculateFilterResonance(sonicParams) {
     const x = sonicParams.x || 0.5
     return 0.5 + (x * 4.5)
-  }
-
-  /**
-   * Calculate frequency for three-tier architecture
-   * @param {number} baseFrequency - Base frequency
-   * @param {string} tier - Tier name
-   * @param {number} velocity - Gesture velocity
-   * @returns {number} Adjusted frequency
-   */
-  calculateThreeTierFrequency(baseFrequency, tier, velocity) {
-    const tierConfig = this.threeTierConfig[tier]
-    if (!tierConfig) return baseFrequency
-
-    const tierFrequency = tierConfig.baseFrequency
-
-    let velocityMultiplier = 1
-    if (velocity < 150) {
-      velocityMultiplier = 0.5 + (velocity / 150) * 0.3
-    } else if (velocity < 400) {
-      velocityMultiplier = 0.8 + ((velocity - 150) / 250) * 0.4
-    } else {
-      velocityMultiplier = 1.2 + Math.min((velocity - 400) / 400, 0.8)
-    }
-
-    return tierFrequency * velocityMultiplier
-  }
-
-  /**
-   * Calculate volume for three-tier architecture
-   * @param {string} tier - Tier name
-   * @param {number} baseVolume - Base volume
-   * @param {number} masterVolume - Master volume level
-   * @returns {number} Adjusted volume
-   */
-  calculateThreeTierVolume(tier, baseVolume, masterVolume = 1.0) {
-    const tierConfig = this.threeTierConfig[tier]
-    if (!tierConfig) return baseVolume
-    return baseVolume * tierConfig.volumeMultiplier * masterVolume
-  }
-
-  /**
-   * Calculate duration for three-tier architecture based on velocity
-   * @param {number} velocity - Gesture velocity
-   * @param {string} baseDuration - Base duration string
-   * @returns {number} Duration in seconds
-   */
-  calculateThreeTierDuration(velocity, baseDuration) {
-    let durationMultiplier = 1
-
-    if (velocity < 150) {
-      durationMultiplier = 2 + Math.random() * 2
-    } else if (velocity < 400) {
-      durationMultiplier = 0.2 + Math.random() * 0.3
-    } else {
-      durationMultiplier = 0.05 + Math.random() * 0.15
-    }
-
-    const baseMs = this.parseDuration(baseDuration) || 500
-    return (baseMs * durationMultiplier) / 1000
-  }
-
-  /**
-   * Parse duration string to milliseconds
-   * @param {string|number} duration - Duration value
-   * @returns {number} Duration in milliseconds
-   */
-  parseDuration(duration) {
-    if (typeof duration === 'number') return duration
-    if (typeof duration !== 'string') return 500
-
-    const durationMap = {
-      '1n': 4000, '2n': 2000, '4n': 1000, '8n': 500, '16n': 250,
-      '1m': 60000, '2m': 30000, '4m': 15000
-    }
-
-    return durationMap[duration] || 500
   }
 
   /**

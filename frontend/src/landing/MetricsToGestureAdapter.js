@@ -498,14 +498,13 @@ export class MetricsToGestureAdapter {
 
     // console.log('🔊 Generating audio:', user.userId, 'freq:', frequency.toFixed(0), 'Hz', 'intensity:', intensity.toFixed(2))
 
-    // Trigger sound through existing AudioService API
-    // Use playThreeTierNote directly as it actually generates sound
-    if (typeof this.audioService.playThreeTierNote === 'function') {
-      const velocity = intensity * 200
-      // console.log('🔊 Calling playThreeTierNote:', audioParams.tier || 'remote', frequency.toFixed(0), 'Hz, velocity:', velocity)
-      this.audioService.playThreeTierNote(frequency, audioParams.tier || 'remote', velocity)
+    // Trigger sound through AudioService
+    // Entry #106: Using playSimpleNote (three-tier system removed)
+    // Now uses the calculated frequency directly (was ignored before - bug fix!)
+    if (typeof this.audioService.playSimpleNote === 'function') {
+      const volume = intensity * 0.5
+      this.audioService.playSimpleNote(frequency, 0.3, volume)
     } else if (typeof this.audioService.processGestureAudio === 'function') {
-      // console.log('🔊 Calling processGestureAudio')
       this.audioService.processGestureAudio(audioParams)
     } else {
       console.warn('⚠️ No audio input method found on AudioService')

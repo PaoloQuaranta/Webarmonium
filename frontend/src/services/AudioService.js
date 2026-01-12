@@ -83,29 +83,6 @@ class AudioService {
       }
     }
 
-    // Three-tier audio architecture parameters
-    // Volume hierarchy: background < remote < local
-    this.threeTierConfig = {
-      background: {
-        waveform: 'triangle',
-        volumeMultiplier: 0.7,  // Background quieter
-        baseFrequency: 110,      // A2 - warm foundation
-        color: '#4a9eff'
-      },
-      remote: {
-        waveform: 'square',
-        volumeMultiplier: 1.5,  // Slightly above background
-        baseFrequency: 440,      // A4 - mid range
-        color: '#ff6b6b'
-      },
-      local: {
-        waveform: 'sawtooth',
-        volumeMultiplier: 2.0,  // Most prominent (local gestures)
-        baseFrequency: 880,      // A5 - bright upper register
-        color: '#6bcf7f'
-      }
-    }
-
     // Real-time parameter state (maintained for backward compatibility)
     this.currentParameters = {
       frequency: 440,
@@ -4887,154 +4864,15 @@ class AudioService {
   }
 
   /**
-   * Play note with three-tier architecture support
+   * Play a simple note with frequency, duration and volume
+   * Entry #106: Simplified replacement for removed three-tier system
    * @param {number} frequency - Note frequency in Hz
-   * @param {string} tier - Which tier to play on ('background', 'remote', 'local')
-   * @param {number} velocity - Gesture velocity for expressive control
-   * @param {Object} options - Additional note options
+   * @param {number} duration - Duration in seconds (default 0.3)
+   * @param {number} volume - Volume 0-1 (default 0.5)
    */
-  playThreeTierNote(frequency, tier = 'local', velocity = 200, options = {}) {
+  playSimpleNote(frequency, duration = 0.3, volume = 0.5) {
     if (!this.isInitialized || !this.gestureSynth) return
-
-    const tierConfig = this.threeTierConfig[tier]
-    if (!tierConfig) {
-      // console.warn(`Unknown tier: ${tier}, falling back to local`)
-      return this.playNote(frequency, options)
-    }
-
-    // Calculate frequency based on tier and velocity
-    const adjustedFrequency = this.calculateThreeTierFrequency(frequency, tier, velocity)
-    const adjustedVolume = this.calculateThreeTierVolume(tier, options.volume || 0.5)
-    const adjustedDuration = this.calculateThreeTierDuration(velocity, options.duration || '8n')
-
-    // console.log(`🎵 Playing ${tierConfig.waveform} note on ${tier} tier: ${adjustedFrequency}Hz, velocity: ${velocity}`)
-
-    // CRITICAL DEBUG: Stack trace to identify where this call comes from
-    // console.trace('🔍 Stack trace for playThreeTierNote call:')
-
-    // Configure synth with tier-specific waveform
-    this.gestureSynth.set({
-      oscillator: { type: tierConfig.waveform },
-      envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 0.3 }
-    })
-
-    // Play note with tier-specific parameters
-    // console.log('🔍 About to trigger single note:', adjustedFrequency.toFixed(1) + 'Hz, tier:', tier)
-    // Use safe trigger for MonoSynth timing compliance
-    this.safeGestureSynthTrigger(adjustedFrequency, adjustedDuration, undefined, adjustedVolume)
-    // console.log('🔍 Note triggered successfully')
-  }
-
-  /**
-   * Calculate frequency for three-tier architecture
-   */
-  calculateThreeTierFrequency(baseFrequency, tier, velocity) {
-    const tierConfig = this.threeTierConfig[tier]
-
-    // Base frequency adjustment for tier
-    const tierFrequency = tierConfig.baseFrequency
-
-    // Velocity-based exponential mapping
-    let velocityMultiplier = 1
-    if (velocity < 150) {
-      // Slow drags: lower frequency range
-      velocityMultiplier = 0.5 + (velocity / 150) * 0.3
-    } else if (velocity < 400) {
-      // Medium drags: mid frequency range
-      velocityMultiplier = 0.8 + ((velocity - 150) / 250) * 0.4
-    } else {
-      // Fast drags: higher frequency range
-      velocityMultiplier = 1.2 + Math.min((velocity - 400) / 400, 0.8)
-    }
-
-    return tierFrequency * velocityMultiplier
-  }
-
-  /**
-   * Calculate volume for three-tier architecture
-   */
-  calculateThreeTierVolume(tier, baseVolume) {
-    const tierConfig = this.threeTierConfig[tier]
-    return baseVolume * tierConfig.volumeMultiplier * this.volume
-  }
-
-  /**
-   * Calculate duration for three-tier architecture based on velocity
-   */
-  calculateThreeTierDuration(velocity, baseDuration) {
-    let durationMultiplier = 1
-
-    if (velocity < 150) {
-      // Slow drags: longer notes (0.5-2.0s)
-      durationMultiplier = 2 + Math.random() * 2
-    } else if (velocity < 400) {
-      // Medium drags: medium notes (0.2-0.5s)
-      durationMultiplier = 0.2 + Math.random() * 0.3
-    } else {
-      // Fast drags: shorter notes (0.05-0.2s)
-      durationMultiplier = 0.05 + Math.random() * 0.15
-    }
-
-    // Apply to base duration
-    const baseMs = this.parseDuration(baseDuration) || 500
-    return (baseMs * durationMultiplier) / 1000 // Convert to seconds
-  }
-
-  /**
-   * Parse duration string to milliseconds
-   */
-  parseDuration(duration) {
-    if (typeof duration === 'number') return duration
-    if (typeof duration !== 'string') return 500
-
-    const durationMap = {
-      '1n': 4000, '2n': 2000, '4n': 1000, '8n': 500, '16n': 250,
-      '1m': 60000, '2m': 30000, '4m': 15000
-    }
-
-    return durationMap[duration] || 500
-  }
-
-  /**
-   * Handle gesture with three-tier velocity mapping
-   */
-  handleThreeTierGesture(gestureData) {
-    if (!gestureData) return
-
-    // Determine tier based on gesture context
-    let tier = 'local' // default
-    if (gestureData.isRemote) {
-      tier = 'remote'
-    } else if (gestureData.isBackground) {
-      tier = 'background'
-    }
-
-    // Apply hysteresis for tier switching
-    if (this.currentParameters.velocity !== undefined) {
-      const velocityDiff = Math.abs(gestureData.velocity - this.currentParameters.velocity)
-      const hysteresisRatio = velocityDiff / this.currentParameters.velocity
-
-      if (hysteresisRatio < this.currentParameters.hysteresisThreshold) {
-        // Stay in current tier
-        tier = this.currentParameters.tier
-      }
-    }
-
-    // Update current parameters
-    this.currentParameters.tier = tier
-    this.currentParameters.velocity = gestureData.velocity
-
-    // Calculate frequency based on gesture position
-    const baseFreq = this.parameterMappings.frequency.range[0] +
-                      (gestureData.position?.y || 0.5) *
-                      (this.parameterMappings.frequency.range[1] - this.parameterMappings.frequency.range[0])
-
-    // Play three-tier note
-    this.playThreeTierNote(baseFreq, tier, gestureData.velocity, {
-      volume: gestureData.intensity || 0.5
-    })
-
-    // console.log(`🎹 Three-tier gesture: tier=${tier}, velocity=${gestureData.velocity}, freq=${baseFreq}`)
+    this.safeGestureSynthTrigger(frequency, duration, undefined, volume)
   }
 
   /**

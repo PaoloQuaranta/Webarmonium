@@ -264,9 +264,8 @@ class GestureProcessor {
     // console.log('🚨 This should not happen for tap/drag - check logic!')
 
     // Simple fallback - generate single note
-    if (this.audioService && this.audioService.playThreeTierNote) {
-      const frequency = 440 // Simple fallback frequency
-      this.audioService.playThreeTierNote(frequency, 'local', 100, { volume: 0.5 })
+    if (this.audioService && this.audioService.playSimpleNote) {
+      this.audioService.playSimpleNote(440, 0.3, 0.5)
     }
   }
 

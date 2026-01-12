@@ -17,7 +17,7 @@ Questo audit analizza l'algoritmo compositivo di Webarmonium, verificando l'arch
 | ~~CRITICO~~ | ~~SoundPatternGenerator (868 linee, 6 algoritmi) mai usato~~ | ~~Codice legacy~~ | **RISOLTO - RIMOSSO** |
 | ~~CRITICO~~ | ~~Duplicazione note DRAG per remote users~~ | ~~Audio doppio~~ | **RISOLTO** |
 | ~~CRITICO~~ | ~~HoverOrchestrator modulation system (25+ parametri)~~ | ~~Buggy, overhead, impercettibile~~ | **RISOLTO - RIMOSSO (Entry #105)** |
-| ALTO | Three-tier audio system non implementato | Config ignorata |
+| ~~ALTO~~ | ~~Three-tier audio system non implementato~~ | ~~Config ignorata~~ | **RISOLTO - RIMOSSO (Entry #106)** |
 | ALTO | Range frequenze inconsistenti TAP vs DRAG | Incoerenza timbrica |
 | MEDIO | Parametri backend inutilizzati | Contesto musicale perso |
 
@@ -184,44 +184,47 @@ unified-modulation event → Non più emesso/ascoltato
 
 ---
 
-## 6. Issue C-04: Three-Tier Audio System Non Implementato
+## 6. Issue C-04: Three-Tier Audio System - **RIMOSSO**
 
-### 6.1 Configurazione Definita (AudioService.js:86-107)
+> **SISTEMA COMPLETAMENTE RIMOSSO**: 2026-01-13 (Entry #106)
+>
+> Il sistema three-tier audio (threeTierConfig, calculateThreeTier*, playThreeTierNote)
+> è stato **rimosso** perché:
+> - **Mai utilizzato**: playMusicalEvent() non chiamava mai questi metodi
+> - **Bug critico**: calculateThreeTierFrequency ignorava la frequenza passata
+> - **Overhead**: ~1100 linee di codice legacy inutilizzato
 
+### 6.1 Componenti Rimossi
+
+**File eliminato:**
+- `ThreeTierAudioSystem.js` (~850 linee)
+
+**Da AudioService.js:**
+- `threeTierConfig` (config background/remote/local)
+- `playThreeTierNote()`, `handleThreeTierGesture()`
+- `calculateThreeTierFrequency()`, `calculateThreeTierVolume()`, `calculateThreeTierDuration()`
+
+**Da GestureAudioMapper.js:**
+- `threeTierConfig` (duplicato)
+- `calculateThreeTier*()` metodi duplicati
+- `mapGestureToFilter()` semplificato (tier mai usato)
+
+**Da AudioServiceFacade.js:**
+- Istanziazione e deleghe a ThreeTierAudioSystem
+
+### 6.2 Sostituzione
+
+Nuovo metodo semplificato in AudioService.js:
 ```javascript
-this.threeTierConfig = {
-  background: {
-    waveform: 'triangle',
-    volumeMultiplier: 0.7,
-    baseFrequency: 110
-  },
-  remote: {
-    waveform: 'square',
-    volumeMultiplier: 1.5,
-    baseFrequency: 440
-  },
-  local: {
-    waveform: 'sawtooth',
-    volumeMultiplier: 2.0,
-    baseFrequency: 880
-  }
+playSimpleNote(frequency, duration = 0.3, volume = 0.5) {
+  if (!this.isInitialized || !this.gestureSynth) return
+  this.safeGestureSynthTrigger(frequency, duration, undefined, volume)
 }
 ```
 
-### 6.2 Metodi Definiti ma Non Usati
+### 6.3 Fix Collaterale
 
-```javascript
-// AudioService.js:5009
-calculateThreeTierFrequency(baseFrequency, tier, velocity)
-
-// AudioService.js:5034
-calculateThreeTierVolume(tier, baseVolume)
-```
-
-### 6.3 Evidenza Non-Utilizzo
-
-`playMusicalEvent()` (linee 3248-3500) **non chiama mai** questi metodi.
-Le note vengono suonate tutte con lo stesso synth indipendentemente dal tier.
+MetricsToGestureAdapter.js ora usa la frequenza calcolata invece che ignorarla (era un bug).
 
 ---
 
@@ -393,9 +396,9 @@ Note locali e remote suonano con timbri diversi anche per stessi parametri music
 
 | File | Linee | Stato | Note |
 |------|-------|-------|------|
-| AudioService.js | ~5600 | PARZIALE | threeTierConfig ignorata, parametri ignorati |
-| ThreeTierAudioSystem.js | ~200 | LEGACY | Mai usato |
-| GestureAudioMapper.js | ~150 | LEGACY | Metodi orfani |
+| AudioService.js | ~5450 | ATTIVO | threeTierConfig rimosso (Entry #106), playSimpleNote aggiunto |
+| ~~ThreeTierAudioSystem.js~~ | ~~850~~ | **RIMOSSO** | Eliminato il 2026-01-13 (Entry #106) |
+| GestureAudioMapper.js | ~390 | ATTIVO | Metodi three-tier rimossi, mapGestureToFilter semplificato |
 | DragStreamingHandler.js | 316 | ATTIVO | Generazione locale OK |
 | SocketEventCoordinator.js | ~600 | ATTIVO | Event handling OK |
 
@@ -420,13 +423,14 @@ Note locali e remote suonano con timbri diversi anche per stessi parametri music
    - ✅ Motivo: buggy, overhead, effetto impercettibile
    - ✅ Metodi mantenuti come no-op per compatibilità API
 
-4. **Standardizzare range frequenze**
+4. ~~**Implementare three-tier audio routing**~~ - **RIMOSSO (Entry #106)**
+   - ✅ Sistema three-tier completamente rimosso il 2026-01-13
+   - ✅ Motivo: mai utilizzato, bug critico, ~1100 linee di dead code
+   - ✅ Sostituito con playSimpleNote()
+
+5. **Standardizzare range frequenze**
    - TAP e DRAG dovrebbero usare stesso calcolo
    - Allineare con virtual users
-
-5. **Implementare three-tier audio routing**
-   - playMusicalEvent() deve chiamare calculateThreeTierFrequency/Volume
-   - O rimuovere config non usata
 
 ### Priorità Media
 
@@ -436,12 +440,6 @@ Note locali e remote suonano con timbri diversi anche per stessi parametri music
 
 7. **Uniformare filter processing locale/remoto**
    - Remote audio dovrebbe passare per gestureFilter
-
-### Priorità Bassa
-
-8. **Cleanup codice legacy**
-   - Rimuovere metodi orfani GestureAudioMapper
-   - Consolidare ThreeTierAudioSystem
 
 ---
 
@@ -475,4 +473,6 @@ Il sistema funziona principalmente grazie a:
 
 > **AGGIORNAMENTO 2026-01-13 (Entry #105)**: Il sistema di modulazione hover filtri è stato **completamente rimosso** perché buggy, con overhead e effetto impercettibile. Questo include: masterFilter, handleHoverModulation, applyUnifiedModulation, e l'evento unified-modulation.
 
-Le issue rimanenti sono: three-tier audio non implementato e range frequenze inconsistenti TAP vs DRAG.
+> **AGGIORNAMENTO 2026-01-13 (Entry #106)**: Il sistema three-tier audio è stato **completamente rimosso** perché mai utilizzato e con bug critico (frequenza passata ignorata). Rimossi ~1100 linee di dead code inclusi: ThreeTierAudioSystem.js, threeTierConfig, calculateThreeTier*, playThreeTierNote. Sostituito con playSimpleNote().
+
+Le issue rimanenti sono: range frequenze inconsistenti TAP vs DRAG e parametri backend inutilizzati.
