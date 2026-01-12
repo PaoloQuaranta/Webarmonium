@@ -5039,176 +5039,83 @@ class AudioService {
 
   /**
    * Handle hover modulation for cross-layer effects
+   * Entry #104: YOUR hover modulates gestureFilter, affecting remote/virtual user sounds
+   * Remote hover events are ignored - only YOUR hover should modulate the filter
    * PERF: Throttled to 20Hz to prevent filter update conflicts
    * @param {Object} hoverData - Hover data with position, velocity, intensity, and isRemote
    */
   handleHoverModulation(hoverData) {
-    // PHASE 1 FIX: Re-enabled hover modulation (was disabled for debugging)
-    // console.log('🎛️ handleHoverModulation ACTIVE', { hasData: !!hoverData, isRemote: hoverData?.isRemote })
+    const isRemote = hoverData?.isRemote || false
 
-    // Force initialization if needed
-    if (!this.isInitialized && this.gestureSynth) {
-      // console.log('🔇 Forcing initialization - setting isInitialized = true')
-      this.isInitialized = true
-    }
-
-    // SIMPLIFIED HOVER MODULATION - Direct synth filter control
-    if (!this.gestureSynth) {
-      // console.warn('🔇 handleHoverModulation blocked - no gestureSynth')
+    // Entry #104: SKIP remote hover - only YOUR hover should modulate the filter
+    // Your hover affects sounds from remote users and virtual users playing through gestureSynth
+    if (isRemote) {
       return
     }
 
-    // PERF: Throttle filter updates to prevent audio stuttering (20Hz max)
-    // Shares throttle with updateBackgroundFilters to limit total filter updates
+    // Force initialization if needed
+    if (!this.isInitialized && this.gestureSynth) {
+      this.isInitialized = true
+    }
+
+    if (!this.gestureSynth || !this.gestureFilter) {
+      return
+    }
+
+    // PERF: Throttle filter updates to 20Hz max
     const now = performance.now()
     if (now - this.lastFilterUpdateTime < this.filterUpdateInterval) {
-      return // Skip this update
+      return
     }
     this.lastFilterUpdateTime = now
 
-    // Extract position and data with safety checks
+    // Extract position with safety checks
     const position = hoverData?.position || hoverData || { x: 0.5, y: 0.5 }
-    const userId = hoverData?.userId || 'unknown'
-    const isRemote = hoverData?.isRemote || false
     const intensity = hoverData?.intensity || 0.5
 
-    // CRITICAL FIX: If intensity is 0, don't apply any modulation (but don't stop background audio)
-    // EXCEPTION: If coordinates are outside canvas, we still need to reset filters
+    // Skip if intensity is 0
     if (intensity === 0) {
-      const isOutsideCanvas = typeof originalX !== 'number' || typeof originalY !== 'number' ||
-                             isNaN(originalX) || isNaN(originalY) || !isFinite(originalX) || !isFinite(originalY) ||
-                             originalX < 0 || originalX > 1 || originalY < 0 || originalY > 1
-
-      if (isOutsideCanvas) {
-        // console.log('🚫 Mouse left canvas with intensity=0 - resetting filters to prevent audio issues')
-        this.stopRemoteFilterLFO()
-        this.resetFiltersToSafeValues()
-        return
-      } else {
-        // console.log('🚫 Hover intensity is 0 on canvas - skipping modulation but keeping background audio')
-        return
-      }
-    }
-
-    // Track active remote users for dynamic scaling
-    if (isRemote && userId !== 'unknown') {
-      this.updateActiveRemoteUser(userId, true)
+      return
     }
 
     try {
-      // CRITICAL: Check if mouse is outside canvas (invalid coordinates)
       const originalX = position?.x
       const originalY = position?.y
-      let isOutsideCanvas = false
 
-      // Check for invalid or undefined coordinates (mouse outside canvas)
+      // Validate coordinates
       if (typeof originalX !== 'number' || typeof originalY !== 'number' ||
-          isNaN(originalX) || isNaN(originalY) || !isFinite(originalX) || !isFinite(originalY)) {
-        isOutsideCanvas = true
-      }
-
-      // Check if coordinates are outside reasonable canvas bounds
-      if (originalX < 0 || originalX > 1 || originalY < 0 || originalY > 1) {
-        isOutsideCanvas = true
-      }
-
-      // If mouse is outside canvas, DO NOT apply any HOVER modulation
-      if (isOutsideCanvas) {
-        // console.log(`🚫 Mouse outside canvas detected (${originalX?.toFixed(2) || 'undefined'}, ${originalY?.toFixed(2) || 'undefined'}) - NO HOVER MODULATION APPLIED`)
-
-        // Stop only HOVER modulation, NOT background music
-        this.stopRemoteFilterLFO()
-
-        // CRITICAL FIX: Reset filters to safe values that allow audio passage
+          isNaN(originalX) || isNaN(originalY) || !isFinite(originalX) || !isFinite(originalY) ||
+          originalX < 0 || originalX > 1 || originalY < 0 || originalY > 1) {
+        // Mouse outside canvas - reset filters to safe values
         this.resetFiltersToSafeValues()
-
         return
       }
-
-      // Mouse is inside canvas, proceed with modulation
-      const safeX = originalX
-      const safeY = originalY
 
       // Update last hover time and setup timeout
       this.lastHoverTime = Date.now()
       this.setupHoverTimeout()
 
-      // console.log(`🎛️ ${isRemote ? 'REMOTE' : 'LOCAL'} hover modulation: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)}), userId=${userId}, users=${this.activeRemoteUsers.size}`)
+      // Entry #104: Simple 1:1 mapping for local hover
+      // Y position → cutoff frequency (200-6000 Hz)
+      // X position → resonance Q (0.5-5.0)
+      const cutoffFreq = 200 + (originalY * 5800)
+      const resonance = 0.5 + (originalX * 4.5)
 
-      // Create sonic parameters with tier information
-      const sonicParams = {
-        x: safeX,
-        y: safeY,
-        intensity: hoverData?.intensity || 0.5,
-        velocity: hoverData?.velocity || 100,
-        tier: isRemote ? 'remote' : 'local' // Set tier based on remote/local
+      const currentTime = Tone.context?.currentTime || Tone.now()
+
+      // Apply to gestureFilter - affects ALL sounds through gestureSynth
+      // including remote user notes and virtual user notes
+      if (this.gestureFilter.frequency?.linearRampToValueAtTime) {
+        this.gestureFilter.frequency.linearRampToValueAtTime(cutoffFreq, currentTime + 0.05)
+      }
+      if (this.gestureFilter.Q?.linearRampToValueAtTime) {
+        this.gestureFilter.Q.linearRampToValueAtTime(resonance, currentTime + 0.05)
       }
 
-      // Use our new three-tier modulation system
-      const filterParams = this.mapGestureToFilter(sonicParams)
-      // console.log(`🎛️ Three-tier hover modulation: tier=${sonicParams.tier}, cutoff=${filterParams.cutoffFrequency?.toFixed(1)}Hz, resonance=${filterParams.resonance?.toFixed(2)}, tremolo=${filterParams.tremoloAmount?.toFixed(2)}`)
-
-      // Apply filter parameters based on tier
-      const currentTime = Tone.context && Tone.context.currentTime ? Tone.context.currentTime : Tone.now()
-
-      // Issue C-03 Refactor: handleHoverModulation now ONLY affects gestureFilter
-      // Ambient filters are controlled by applyUnifiedModulation via HoverOrchestrator metrics
-
-      if (filterParams.isRemoteLFO) {
-        // REMOTE HOVER: Setup LFO for gesture filter cutoff modulation
-        this.setupRemoteFilterLFO(filterParams.lfoSpeed, filterParams.lfoAmplitude)
-
-        // Apply resonance from X position for remote hover (gestureFilter only)
-        if (this.gestureFilter && this.gestureFilter.Q && this.gestureFilter.Q.linearRampToValueAtTime) {
-          const resonance = 0.5 + ((sonicParams.x || 0.5) * 4.5) // 0.5 to 5.0 Q range
-          const clampedQ = Math.max(0.1, Math.min(10, resonance))
-          this.gestureFilter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
-        }
-
-        // REMOVED: Ambient filter modulation - now handled by applyUnifiedModulation
-
-      } else {
-        // LOCAL HOVER: Direct gesture filter modulation (no LFO)
-        // Stop any remote LFO if we're in local mode
-        this.stopRemoteFilterLFO()
-
-        // Apply to gesture filter only (not ambient filters)
-        if (this.gestureFilter && this.gestureFilter.frequency && this.gestureFilter.Q) {
-          // Apply cutoff frequency
-          if (filterParams.cutoffFrequency && this.gestureFilter.frequency.linearRampToValueAtTime) {
-            const clampedFreq = Math.max(100, Math.min(8000, filterParams.cutoffFrequency))
-            this.gestureFilter.frequency.linearRampToValueAtTime(clampedFreq, currentTime + 0.05)
-          }
-
-          // Apply resonance
-          if (filterParams.resonance && this.gestureFilter.Q.linearRampToValueAtTime) {
-            const clampedQ = Math.max(0.1, Math.min(10, filterParams.resonance))
-            this.gestureFilter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
-          }
-        }
-
-        // REMOVED: Ambient filter modulation - now handled by applyUnifiedModulation
-      }
-
-      if (isRemote) {
-        // console.log(`🌐 Remote hover modulation applied: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)})`)
-      } else {
-        // console.log(`🏠 Local hover modulation applied: position=(${safeX.toFixed(2)}, ${safeY.toFixed(2)})`)
-      }
+      console.log(`🎛️ LOCAL hover → gestureFilter: pos=(${originalX.toFixed(2)}, ${originalY.toFixed(2)}) → cutoff=${cutoffFreq.toFixed(0)}Hz, Q=${resonance.toFixed(2)}`)
 
     } catch (error) {
-      // console.error('❌ Hover modulation failed:', error)
-      // console.error('🐛 Error details:', {
-//        message: error.message,
-//        stack: error.stack,
-//        position: position,
-//        safeX: typeof safeX !== 'undefined' ? safeX : 'undefined',
-//        safeY: typeof safeY !== 'undefined' ? safeY : 'undefined',
-//        isRemote: isRemote,
-//        gestureSynth: !!this.gestureSynth,
-//        gestureFilter: !!this.gestureFilter,
-//        tremoloLFO: !!this.tremoloLFO
-////      })
+      console.warn('⚠️ Hover modulation error:', error.message)
     }
   }
 
@@ -5357,11 +5264,15 @@ class AudioService {
    * @param {Object} modulationData - Unified modulation data from server (contains metrics)
    */
   applyUnifiedModulation(modulationData) {
-    if (!modulationData) return
+    if (!modulationData) {
+      console.log('🔇 applyUnifiedModulation: no data received')
+      return
+    }
 
     // Issue C-03 Refactor: Use raw metrics for 1:1 mapping
     const m = modulationData.metrics
     if (!m) {
+      console.log('🔇 applyUnifiedModulation: no metrics in payload, using legacy format')
       // Fallback to legacy modulation format for backwards compatibility
       if (modulationData.modulation) {
         const mod = modulationData.modulation
@@ -5376,7 +5287,19 @@ class AudioService {
     }
 
     // Skip if ambient filters not initialized
-    if (!this.ambientFilters) return
+    if (!this.ambientFilters) {
+      console.log('🔇 applyUnifiedModulation: ambientFilters not initialized')
+      return
+    }
+
+    // Entry #104: Debug log for aggregate modulation
+    console.log(`🎚️ AGGREGATE MODULATION received:`, {
+      density: m.density?.toFixed(2),
+      hoverCount: m.hoverCount,
+      spatialVariance: m.spatialVariance?.toFixed(2),
+      uniqueUsers: m.uniqueUsers,
+      flowDirection: m.flowDirection ? `(${m.flowDirection.x?.toFixed(2)}, ${m.flowDirection.y?.toFixed(2)})` : 'none'
+    })
 
     // Constants for safe ranges (lowpass filters - keep min high enough to hear the voice)
     const RAMP_TIME = 0.3 // 300ms ramp for smooth transitions
@@ -5437,6 +5360,12 @@ class AudioService {
       const chordsQ = mapRange(Math.abs(flowX), 0, 1, 0.5, 4.0)
       applyFilter(this.ambientFilters.chords, chordsCutoff, chordsQ, 'chords')
     }
+
+    // Entry #104: Log applied filter values
+    const bassCutoff = this.ambientFilters.bass?.frequency?.value
+    const padCutoff = this.ambientFilters.pad?.frequency?.value
+    const chordsCutoff = this.ambientFilters.chords?.frequency?.value
+    console.log(`🎚️ AGGREGATE → ambientFilters: bass=${bassCutoff?.toFixed(0)}Hz, pad=${padCutoff?.toFixed(0)}Hz, chords=${chordsCutoff?.toFixed(0)}Hz`)
 
     // Store metrics for debugging
     this.currentModulation = m

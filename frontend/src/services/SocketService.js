@@ -227,7 +227,7 @@ class SocketService {
 
     // Unified modulation from HoverOrchestrator
     this.socket.on('unified-modulation', (data) => {
-      // console.log('🎛️ SocketService received unified-modulation:', data)
+      console.log('📡 unified-modulation received from server:', data?.metrics ? 'with metrics' : 'legacy format')
       this.emit('unified-modulation', data)
     })
 

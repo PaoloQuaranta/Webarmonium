@@ -3859,3 +3859,130 @@ Removed individual `hover-update` emissions for virtual users - they now only co
 ### Version
 
 Updated to v1.0.98
+
+---
+
+## Entry #104 - Hover Modulation Logic Fix + Debug Logs
+
+**Date**: 2026-01-12
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed hover modulation logic in AudioService. Previously, both local and remote hover events modulated the `gestureFilter`, which didn't make conceptual sense. Now only YOUR hover modulates the filter, affecting sounds from remote users and virtual users. Also added debug logs for aggregate modulation to diagnose unified-modulation event flow.
+
+---
+
+### Problem Statement
+
+After Entry #103 refactor, hover modulation wasn't audible because:
+1. **Local hover modulation was pointless**: If you're making gestures, you can't hover simultaneously, so you'd never hear the filter change on your own notes
+2. **Remote hover modulation was backwards**: Others' hover events modulating YOUR filter doesn't match the interaction model
+3. **No debug visibility**: `unified-modulation` and `applyUnifiedModulation()` had no logging to verify the event flow
+
+The correct mental model: YOUR hover should modulate sounds from OTHER users (remote + virtual), since all sounds pass through the shared `gestureSynth` → `gestureFilter` chain.
+
+---
+
+### Solution
+
+#### 1. Simplified `handleHoverModulation()` (~100 lines removed)
+
+**Before**: Complex three-tier system processing both local and remote hover, with LFO setup for remote.
+
+**After**: Simple local-only hover modulation with direct 1:1 mapping:
+
+```javascript
+handleHoverModulation(hoverData) {
+  const isRemote = hoverData?.isRemote || false
+
+  // Entry #104: SKIP remote hover - only YOUR hover should modulate the filter
+  if (isRemote) {
+    return
+  }
+
+  // ... validation ...
+
+  // Simple 1:1 mapping:
+  // Y position → cutoff frequency (200-6000 Hz)
+  // X position → resonance Q (0.5-5.0)
+  const cutoffFreq = 200 + (originalY * 5800)
+  const resonance = 0.5 + (originalX * 4.5)
+
+  // Apply to gestureFilter - affects ALL sounds through gestureSynth
+  // including remote user notes and virtual user notes
+  this.gestureFilter.frequency.linearRampToValueAtTime(cutoffFreq, currentTime + 0.05)
+  this.gestureFilter.Q.linearRampToValueAtTime(resonance, currentTime + 0.05)
+
+  console.log(`🎛️ LOCAL hover → gestureFilter: pos=(${originalX}, ${originalY}) → cutoff=${cutoffFreq}Hz, Q=${resonance}`)
+}
+```
+
+#### 2. Added Debug Logs for Aggregate Modulation
+
+**SocketService.js**:
+```javascript
+this.socket.on('unified-modulation', (data) => {
+  console.log('📡 unified-modulation received from server:', data?.metrics ? 'with metrics' : 'legacy format')
+  this.emit('unified-modulation', data)
+})
+```
+
+**AudioService.js** - `applyUnifiedModulation()`:
+```javascript
+// Entry point log
+console.log(`🎚️ AGGREGATE MODULATION received:`, {
+  density: m.density?.toFixed(2),
+  hoverCount: m.hoverCount,
+  spatialVariance: m.spatialVariance?.toFixed(2),
+  uniqueUsers: m.uniqueUsers,
+  flowDirection: m.flowDirection ? `(${x}, ${y})` : 'none'
+})
+
+// After applying filters
+console.log(`🎚️ AGGREGATE → ambientFilters: bass=${bassCutoff}Hz, pad=${padCutoff}Hz, chords=${chordsCutoff}Hz`)
+```
+
+---
+
+### Modulation Architecture (Post-Entry #104)
+
+```
+YOUR HOVER (handleHoverModulation)
+└── gestureFilter → affects gestureSynth sounds
+    └── Remote user notes pass through here
+    └── Virtual user notes pass through here
+    └── Mapping: Y→cutoff (200-6000Hz), X→Q (0.5-5.0)
+
+AGGREGATE METRICS (applyUnifiedModulation)
+└── ambientFilters → bass, pad, chords
+    └── Triggered by HoverOrchestrator every 500ms
+    └── Uses 1:1 mapping from Entry #103
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Simplified `handleHoverModulation()` to local-only, added debug logs to `applyUnifiedModulation()` |
+| `frontend/src/services/SocketService.js` | Added debug log for `unified-modulation` events |
+
+---
+
+### Debug Log Reference
+
+| Log | Location | Meaning |
+|-----|----------|---------|
+| `🎛️ LOCAL hover → gestureFilter` | AudioService | Your hover is modulating the gesture filter |
+| `📡 unified-modulation received` | SocketService | Server sent aggregate metrics |
+| `🎚️ AGGREGATE MODULATION received` | AudioService | Metrics being processed |
+| `🎚️ AGGREGATE → ambientFilters` | AudioService | Filter values being applied to ambient layers |
+
+---
+
+### Version
+
+Updated to v1.0.99
