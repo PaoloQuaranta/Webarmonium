@@ -3733,3 +3733,129 @@ if (shouldRebroadcastNotes) {
 ### Version
 
 Updated to v1.0.97
+
+---
+
+## Entry #103 - Direct 1:1 Modulation Mapping Refactor (Issue C-03)
+
+**Date**: 2026-01-12
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Major refactor of the audio modulation system from complex LFO-based generation to direct 1:1 mapping from hover metrics. Removed ~300 lines of LFO calculation code from HoverOrchestrator and disabled conflicting gesture-based ambient filter modulation in AudioService. The system now uses a cleaner architecture where each filter parameter is driven by a specific interaction metric.
+
+---
+
+### Problem Statement
+
+Audit Issue C-03 identified conflicting modulation sources:
+1. **Real-time gestures** modulated ambient filters via `handleHoverModulation()` and `triggerBackgroundFilterResponse()`
+2. **Aggregated metrics** modulated the same filters via `applyUnifiedModulation()`
+3. Backend HoverOrchestrator generated complex LFO parameters that were difficult to debug
+4. Virtual users emitted individual `hover-update` events that cluttered the modulation
+
+---
+
+### Solution
+
+#### New Architecture
+
+```
+MODULAZIONE REAL-TIME (handleHoverModulation)
+└── gestureFilter → gestureSynth ONLY
+    └── Trigger: ogni hover event (20Hz max)
+
+MODULAZIONE AGGREGATA (applyUnifiedModulation)
+└── ambientFilters.* → bass, pad, chords, backgroundHigh/Mid/Low
+    └── Trigger: ogni 500ms da HoverOrchestrator
+    └── Sorgenti: metriche aggregate (mapping 1:1)
+```
+
+#### 1:1 Mapping Table
+
+| Target | Source Metric | Source Range | Target Range |
+|--------|---------------|--------------|--------------|
+| **bass.cutoff** | density | 0-10 | 80-400 Hz |
+| **bass.Q** | hoverCount | 0-100 | 0.5-4.0 |
+| **pad.cutoff** | spatialVariance | 0-1 | 300-3000 Hz |
+| **pad.Q** | uniqueUsers | 1-10 | 0.5-5.0 |
+| **chords.cutoff** | flowDirection.y | -1 to 1 | 1000-10000 Hz |
+| **chords.Q** | flowDirection.x | -1 to 1 | 0.5-4.0 |
+| **bgHigh.cutoff** | rhythmAnalysis.regularity | 0-1 | 1500-8000 Hz |
+| **bgMid.cutoff** | intensityDistribution.max | 0-1 | 800-6000 Hz |
+| **bgLow.cutoff** | rhythmAnalysis.period | 0-2000 ms | 200-3000 Hz |
+
+---
+
+### Implementation Changes
+
+#### Backend: HoverOrchestrator.js (~290 lines removed)
+
+**Removed:**
+- 4 LFO configurations (primary, secondary, tertiary, quaternary)
+- Complex LFO generation in `generateUnifiedModulation()`
+- Smoothing calculator imports
+- Pre-calculated modulation parameters
+
+**Simplified to:**
+```javascript
+this.rawMetrics = {
+  density: 0,
+  hoverCount: 0,
+  spatialVariance: 0,
+  uniqueUsers: 0,
+  averagePosition: { x: 0.5, y: 0.5 },
+  flowDirection: { x: 0, y: 0 },
+  rhythmAnalysis: { period: 0, regularity: 0 },
+  clusterCount: 0,
+  hotspotCount: 0,
+  intensity: { min: 0, avg: 0.5, max: 1 }
+}
+```
+
+#### Backend: VirtualUserService.js
+
+Removed individual `hover-update` emissions for virtual users - they now only contribute to aggregated metrics:
+```javascript
+// REMOVED: this.io.to(roomId).emit('hover-update', hoverData)
+// KEPT: hoverOrchestrator.addHoverEvent(hoverData)
+```
+
+#### Frontend: AudioService.js (~120 lines removed/disabled)
+
+**Disabled methods (kept for API compatibility):**
+- `updateBackgroundFilters()` - now returns immediately
+- `triggerBackgroundFilterResponse()` - now returns immediately
+
+**Reason:** Ambient filters are now controlled exclusively by `applyUnifiedModulation()` which uses the 1:1 mapping from aggregated metrics. Direct gesture modulation on ambient filters created conflicts.
+
+---
+
+### Benefits
+
+1. **Core concept respected**: Every audio parameter derives from a specific interaction metric
+2. **No autonomous LFOs**: Sound emerges only from user actions
+3. **Timbral variety**: Each voice responds to different metrics
+4. **Easy debugging**: 1:1 mapping makes it clear what causes what
+5. **Performance**: Less backend computation (no LFO generation)
+6. **Cleaner architecture**: Single source of truth for ambient modulation
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/HoverOrchestrator.js` | Removed ~290 lines of LFO code, simplified to raw metrics output |
+| `backend/src/services/VirtualUserService.js` | Removed individual hover-update emissions for virtual users |
+| `frontend/src/services/AudioService.js` | Disabled `updateBackgroundFilters()` and `triggerBackgroundFilterResponse()` |
+| `AUDIT_COMPOSITIONAL_ALGORITHM.md` | Updated Issue C-03 status |
+| `modulation_refactor_plan.md` | Created detailed refactor plan (untracked) |
+
+---
+
+### Version
+
+Updated to v1.0.98

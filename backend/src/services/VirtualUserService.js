@@ -950,6 +950,8 @@ class VirtualUserService {
     }
 
     // Send to HoverOrchestrator for modulation processing
+    // Virtual users contribute ONLY to aggregate metrics, NOT individual hover events
+    // Issue C-03 Refactor: Virtual users should not emit 'hover-update' directly
     if (this.roomManager) {
       let hoverOrchestrator = this.roomManager.getHoverOrchestrator(roomId)
 
@@ -963,8 +965,9 @@ class VirtualUserService {
       hoverOrchestrator.addHoverEvent(hoverData)
     }
 
-    // Emit to clients for visual feedback
-    this.io.to(roomId).emit('hover-update', hoverData)
+    // REMOVED: this.io.to(roomId).emit('hover-update', hoverData)
+    // Issue C-03 Refactor: Virtual users contribute only to aggregate metrics via HoverOrchestrator
+    // Individual hover-update events are only emitted by real users for visual cursor feedback
   }
 
   /**

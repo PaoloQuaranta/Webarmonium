@@ -16,7 +16,7 @@ Questo audit analizza l'algoritmo compositivo di Webarmonium, verificando l'arch
 |----------|-------|---------|-------|
 | ~~CRITICO~~ | ~~SoundPatternGenerator (868 linee, 6 algoritmi) mai usato~~ | ~~Codice legacy~~ | **RISOLTO - RIMOSSO** |
 | ~~CRITICO~~ | ~~Duplicazione note DRAG per remote users~~ | ~~Audio doppio~~ | **RISOLTO** |
-| CRITICO | HoverOrchestrator genera 25+ parametri, frontend ne usa 3 | Sistema LFO inutilizzato | APERTO |
+| ~~CRITICO~~ | ~~HoverOrchestrator genera 25+ parametri, frontend ne usa 3~~ | ~~Sistema LFO inutilizzato~~ | **RISOLTO - REFACTORED** |
 | ALTO | Three-tier audio system non implementato | Config ignorata |
 | ALTO | Range frequenze inconsistenti TAP vs DRAG | Incoerenza timbrica |
 | MEDIO | Parametri backend inutilizzati | Contesto musicale perso |
@@ -135,9 +135,41 @@ const shouldRebroadcastNotes = gesture.streamedNotes &&
 
 ---
 
-## 5. Issue C-03: HoverOrchestrator Parametri Ignorati
+## 5. Issue C-03: HoverOrchestrator Parametri Ignorati - **RISOLTO**
 
-### 5.1 Parametri Generati dal Backend (HoverOrchestrator.js)
+> **FIX APPLICATA**: 2026-01-12 - Refactoring completo del sistema di modulazione.
+> - HoverOrchestrator ora invia metriche raw invece di parametri LFO pre-calcolati
+> - Frontend (`applyUnifiedModulation`) applica mapping 1:1 diretto ai filtri ambient
+> - Separazione chiara: `handleHoverModulation` → gestureFilter, `applyUnifiedModulation` → ambientFilters
+
+### 5.0 Architettura Refactored
+
+```
+MODULAZIONE REAL-TIME (handleHoverModulation)
+└── gestureFilter → gestureSynth
+    └── Trigger: ogni hover event (20Hz max)
+    └── Sorgenti: posizione diretta del singolo hover
+
+MODULAZIONE AGGREGATA (applyUnifiedModulation)
+└── ambientFilters.* → bass, pad, chords
+    └── Trigger: ogni 500ms da HoverOrchestrator
+    └── Sorgenti: metriche aggregate (mapping 1:1)
+```
+
+### 5.0.1 Mapping 1:1 Implementato
+
+| Target | Sorgente | Range Sorgente | Range Target |
+|--------|----------|----------------|--------------|
+| bass.cutoff | density | 0-10 | 80-400 Hz |
+| bass.Q | hoverCount | 0-100 | 0.5-4.0 |
+| pad.cutoff | spatialVariance | 0-1 | 300-3000 Hz |
+| pad.Q | uniqueUsers | 1-10 | 0.5-5.0 |
+| chords.cutoff | flowDirection.y | -1 to 1 | 1000-10000 Hz |
+| chords.Q | flowDirection.x | -1 to 1 | 0.5-4.0 |
+
+---
+
+### 5.1 Parametri Generati dal Backend (HoverOrchestrator.js) - LEGACY
 
 **4 LFO Layers** (linee 41-92):
 ```javascript
@@ -193,20 +225,24 @@ applyUnifiedModulation(modulationData) {
 }
 ```
 
-### 5.3 Parametri COMPLETAMENTE IGNORATI (25+)
+### 5.3 Parametri RIMOSSI (refactoring C-03)
 
-- lfoFrequency, lfoAmplitude, lfoShape
-- lfo2Frequency, lfo2Amplitude, lfo2Shape
-- lfo3Frequency, lfo3Amplitude, lfo3Shape
-- lfo4Frequency, lfo4Amplitude, lfo4Shape
-- filterSlope
-- filterFreqModDepth, filterResModDepth
-- spatialWidth, spatialRotateSpeed
-- delayTime, distortionAmount
-- modulationDepth, modulationRate
-- vibratoDepth, tremoloDepth
-- evolutionSpeed, complexity
-- analysis.patterns (clusters, flow, ritmo, hotspots)
+> **AGGIORNAMENTO 2026-01-12**: I seguenti parametri sono stati rimossi dal backend.
+> HoverOrchestrator ora invia solo metriche raw che il frontend mappa 1:1 ai filtri.
+
+~~- lfoFrequency, lfoAmplitude, lfoShape~~
+~~- lfo2Frequency, lfo2Amplitude, lfo2Shape~~
+~~- lfo3Frequency, lfo3Amplitude, lfo3Shape~~
+~~- lfo4Frequency, lfo4Amplitude, lfo4Shape~~
+~~- filterSlope~~
+~~- filterFreqModDepth, filterResModDepth~~
+~~- spatialWidth, spatialRotateSpeed~~
+~~- delayTime, distortionAmount~~
+~~- modulationDepth, modulationRate~~
+~~- vibratoDepth, tremoloDepth~~
+~~- evolutionSpeed, complexity~~
+
+Metriche raw ora inviate: `density`, `hoverCount`, `spatialVariance`, `uniqueUsers`, `flowDirection`, `rhythmAnalysis`, `clusterCount`, `hotspotCount`, `intensity`
 
 ---
 
@@ -441,9 +477,10 @@ Note locali e remote suonano con timbri diversi anche per stessi parametri music
 
 ### Priorità Alta
 
-3. **Implementare utilizzo parametri HoverOrchestrator**
-   - Frontend deve applicare LFO layers a background audio
-   - O rimuovere generazione parametri non usati
+3. ~~**Implementare utilizzo parametri HoverOrchestrator**~~ - **COMPLETATO**
+   - ✅ Refactoring completo: metriche raw invece di LFO pre-calcolati
+   - ✅ Mapping 1:1 implementato in AudioService.applyUnifiedModulation()
+   - ✅ Separazione domini: handleHoverModulation → gesture, applyUnifiedModulation → ambient
 
 4. **Standardizzare range frequenze**
    - TAP e DRAG dovrebbero usare stesso calcolo

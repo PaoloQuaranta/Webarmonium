@@ -4,7 +4,8 @@
  * Constitutional requirement: <100ms processing latency, unified modulation synthesis
  */
 
-const { applySmoothingInPlace, applySmoothing } = require('../utils/SmoothingCalculator')
+// Issue C-03 Refactor: Removed smoothing imports - frontend now handles ramping via Tone.js
+// const { applySmoothingInPlace, applySmoothing } = require('../utils/SmoothingCalculator')
 const { DEFAULT_POSITION, DEFAULT_INTENSITY } = require('../constants/MusicConstants')
 
 class HoverOrchestrator {
@@ -36,59 +37,30 @@ class HoverOrchestrator {
       }
     }
 
-    // Modulazione unificata output
-    this.unifiedModulation = {
-      // PRIMARY LFO - ULTRA LENTO per modulazione principale
-      lfoFrequency: 0.01,     // range 0.001-0.15Hz (6-1000 secondi!)
-      lfoAmplitude: 0.3,      // ampiezza ridotta per effetto molto subtle
-      lfoShape: 'sine',       // forma d'onda smooth
-
-      // SECONDARY LFO - Molto lento per texture profonda
-      lfo2Frequency: 0.005,   // range 0.002-0.05Hz (20-500 secondi!)
-      lfo2Amplitude: 0.15,    // ampiezza molto ridotta
-      lfo2Shape: 'triangle',  // forma d'onda lineare
-
-      // TERTIARY LFO - Ultra lento per evoluzione strutturale
-      lfo3Frequency: 0.001,   // range 0.0005-0.02Hz (50-2000 secondi!)
-      lfo3Amplitude: 0.1,     // ampiezza minima per cambiamenti strutturali
-      lfo3Shape: 'sine',      // evoluzione organica
-
-      // QUATERNARY LFO - Micro-modulazioni quasi impercettibili
-      lfo4Frequency: 0.002,   // range 0.001-0.01Hz (100-1000 secondi!)
-      lfo4Amplitude: 0.05,    // micro-variazioni
-      lfo4Shape: 'sawtooth',  // cambiamenti direzionali molto lenti
-
-      // Filter parameters
-      filterCutoff: 1000,     // cutoff frequenza filtro (Hz)
-      filterResonance: 1.0,   // risonanza filtro (Q)
-      filterSlope: 12,        // pendenza filtro (dB/octave)
-
-      // Filter modulation depth parameters
-      filterFreqModDepth: 0.3,  // profondità modulazione frequenza (0-1)
-      filterResModDepth: 0.2,   // profondità modulazione risonanza (0-1)
-
-      // Spatial parameters
-      spatialPan: 0,          // pan spaziale (-1 a 1)
-      spatialWidth: 0.5,      // larghezza stereo (0-1)
-      spatialRotateSpeed: 0.05, // velocità rotazione spaziale (Hz)
-
-      // Effect parameters
-      reverbMix: 0.2,         // mix riverbero
-      delayTime: 0,          // tempo delay (ms)
-      distortionAmount: 0,    // quantità distorsione
-
-      // Modulation character parameters
-      modulationDepth: 0.4,    // profondità generale modulazione (0-1)
-      modulationRate: 0.3,     // velocità generale modulazione (0-1)
-      vibratoDepth: 0.1,       // profondità vibrato (0-1)
-      tremoloDepth: 0.05,      // profondità tremolo (0-1) - molto ridotta
-
-      // Evolution parameters
-      evolutionSpeed: 0.5,    // velocità evoluzione parametri
-      complexity: 0.5,        // complessità modulazione
-
+    // Issue C-03 Refactor: Simplified metrics output (no LFO generation)
+    // Frontend now handles 1:1 mapping from raw metrics to filter parameters
+    this.rawMetrics = {
+      density: 0,
+      hoverCount: 0,
+      spatialVariance: 0,
+      uniqueUsers: 0,
+      averagePosition: { x: 0.5, y: 0.5 },
+      flowDirection: { x: 0, y: 0 },
+      rhythmAnalysis: { period: 0, regularity: 0 },
+      clusterCount: 0,
+      hotspotCount: 0,
+      intensity: { min: 0, avg: 0.5, max: 1 },
       timestamp: Date.now(),
-      generation: 0           // versione modulazione
+      generation: 0
+    }
+
+    // Legacy: kept for backwards compatibility during transition
+    this.unifiedModulation = {
+      filterCutoff: 1000,
+      filterResonance: 1.0,
+      spatialPan: 0,
+      timestamp: Date.now(),
+      generation: 0
     }
 
     // Intervallo aggiornamento - RIDOTTO per prevenire tremolo
@@ -104,21 +76,9 @@ class HoverOrchestrator {
       averageLatency: 0
     }
 
-    // Smoothing parameters for gradual transitions - ULTRA CONSERVATIVE
-    this.smoothingParams = {
-      lfoFrequencySmoothing: 0.95,    // smoothing factor (0.95-0.99) - MOLTO conservativo
-      lfoAmplitudeSmoothing: 0.97,    // very smooth amplitude changes
-      lfo2FrequencySmoothing: 0.98,   // ultra-smooth secondary LFO
-      lfo3FrequencySmoothing: 0.99,   // estremamente smooth tertiary LFO
-      lfo4FrequencySmoothing: 0.995,  // quasi impercettibile per micro LFO
-      filterSmoothing: 0.96,          // very gradual filter changes
-      spatialSmoothing: 0.94,         // very smooth spatial movement
-      effectsSmoothing: 0.92          // slow effect transitions
-    }
-
-    // Previous values for smoothing calculation
-    this.previousModulation = { ...this.unifiedModulation }
-    this.isFirstModulation = true
+    // Issue C-03 Refactor: Simplified - no smoothing needed for raw metrics
+    // Frontend handles ramping via Tone.js rampTo()
+    this.previousMetrics = { ...this.rawMetrics }
   }
 
   /**
@@ -437,322 +397,68 @@ class HoverOrchestrator {
   }
 
   /**
-   * Genera modulazione unificata basata su analisi aggregata
+   * Issue C-03 Refactor: Simplified metrics collection
+   * Collects raw metrics from aggregate state - no LFO generation
+   * Frontend handles 1:1 mapping from metrics to filter parameters
    */
   generateUnifiedModulation() {
     const state = this.aggregateState
     const patterns = state.patterns
 
-    // LFO Frequency - FIXED: Strictly sub-audible range to prevent tremolo
-    // CRITICAL: Keep ALL LFO frequencies below 20Hz to prevent audible tremolo
-    // OPTIMAL: Use 0.1-5Hz range for musical modulation without tremolo
-    const baseFrequency = 0.2 + (state.density / 50) // 0.2-0.4Hz base (2.5-5 secondi!)
+    // Collect raw metrics for frontend 1:1 mapping
+    this.rawMetrics = {
+      // Core activity metrics
+      density: state.density,
+      hoverCount: state.hoverCount,
+      spatialVariance: state.spatialVariance,
+      uniqueUsers: state.uniqueUsers.size,
+      averagePosition: { ...state.averagePosition },
 
-    // Range selection strictly sub-audible
-    let frequencyRange, frequencyMultiplier
+      // Flow and rhythm analysis
+      flowDirection: { ...patterns.flowDirection },
+      rhythmAnalysis: { ...patterns.rhythmAnalysis },
 
-    if (state.uniqueUsers.size >= 4) {
-      // Molto utenti: modulazioni lente e profonde
-      frequencyRange = 'very-slow'
-      frequencyMultiplier = 0.5 // range 0.1-0.2Hz (5-10 secondi)
-    } else if (state.uniqueUsers.size >= 2) {
-      // Pochi utenti: modulazioni percepibili ma senza tremolo
-      frequencyRange = 'slow-musical'
-      frequencyMultiplier = 0.75 // range 0.15-0.3Hz (3.3-6.6 secondi)
-    } else {
-      // Un solo utente: modulazioni più veloci ma sempre sotto 5Hz
-      frequencyRange = 'medium-slow'
-      frequencyMultiplier = 1.0 // range 0.2-0.4Hz (2.5-5 secondi)
+      // Pattern counts
+      clusterCount: patterns.clusterCenters.length,
+      hotspotCount: patterns.hotspotZones.length,
+
+      // Intensity distribution
+      intensity: { ...state.intensityDistribution },
+
+      // Metadata
+      timestamp: Date.now(),
+      generation: this.rawMetrics.generation + 1
     }
 
-    // Applica pattern rhythmical con range STRETTAMENTE sub-audibile
-    const rhythmModifier = patterns.rhythmAnalysis.period > 0 ?
-      Math.min(0.3, 50 / patterns.rhythmAnalysis.period) : 0.05 // max 0.3Hz (3.3 secondi)
-
-    // Calcolo finale con range ASSOLUTAMENTE sicuro (0.1-5Hz per evitare tremolo)
-    this.unifiedModulation.lfoFrequency = Math.max(0.1, Math.min(5.0, // range 0.1-5Hz (0.2-10 secondi!)
-      baseFrequency * frequencyMultiplier + rhythmModifier * 0.1
-    ))
-
-    // Log range selection
-// console.log(`🎛️ LFO Range: ${frequencyRange}, freq=${this.unifiedModulation.lfoFrequency.toFixed(4)}Hz (${(1/this.unifiedModulation.lfoFrequency).toFixed(0)}s period)`)
-
-    // LFO Amplitude basata su varianza spaziale e intensità
-    this.unifiedModulation.lfoAmplitude = Math.max(0.1, Math.min(1.0,
-      (state.spatialVariance * 2) * 0.5 + (state.intensityDistribution.avg * 0.5)
-    ))
-
-    // LFO Shape basata su regolarità ritmica
-    if (patterns.rhythmAnalysis.regularity > 0.7) {
-      this.unifiedModulation.lfoShape = 'sine' // molto regolare
-      this.unifiedModulation.lfo2Shape = 'sine' // anche LFO2 regolare
-    } else if (patterns.rhythmAnalysis.regularity > 0.4) {
-      this.unifiedModulation.lfoShape = 'triangle' // moderatamente regolare
-      this.unifiedModulation.lfo2Shape = 'triangle' // LFO2 moderatamente regolare
-    } else {
-      this.unifiedModulation.lfoShape = 'sawtooth' // irregolare
-      this.unifiedModulation.lfo2Shape = 'sine' // LFO2 rimane smooth per contrasto
-    }
-
-    // SECONDARY LFO parameters - texture profonda ma SEMPRE sub-audibile
-    this.unifiedModulation.lfo2Frequency = Math.max(0.05, Math.min(1.0, // 0.05-1.0Hz (1-20 secondi)
-      this.unifiedModulation.lfoFrequency * 0.25 // LFO2 è ~25% della frequenza primaria
-    ))
-    this.unifiedModulation.lfo2Amplitude = Math.max(0.03, Math.min(0.2,
-      this.unifiedModulation.lfoAmplitude * 0.5 // LFO2 ha ampiezza ulteriormente ridotta
-    ))
-
-    // TERTIARY LFO parameters - evoluzione strutturale molto lenta ma safe
-    const evolutionFactor = state.uniqueUsers.size / 10 + state.density / 100
-    this.unifiedModulation.lfo3Frequency = Math.max(0.01, Math.min(0.5, // 0.01-0.5Hz (2-100 secondi)
-      0.02 + evolutionFactor * 0.005 // range molto lento ma sempre sopra 0.01Hz
-    ))
-    this.unifiedModulation.lfo3Amplitude = Math.max(0.02, Math.min(0.15,
-      evolutionFactor * 0.1 // ampiezza minima per evoluzione percepibile solo a lungo termine
-    ))
-
-    // QUATERNARY LFO parameters - micro-modulazioni impercettibili e sicure
-    const spatialActivity = patterns.flowDirection.x ** 2 + patterns.flowDirection.y ** 2
-    this.unifiedModulation.lfo4Frequency = Math.max(0.02, Math.min(0.2, // 0.02-0.2Hz (5-50 secondi)
-      0.05 + spatialActivity * 0.01 // micro-variazioni basate su attività spaziale
-    ))
-    this.unifiedModulation.lfo4Amplitude = Math.max(0.01, Math.min(0.08,
-      0.02 + patterns.hotspotZones.length * 0.02 // variazioni minime basate su hotspot
-    ))
-
-    // Shape assignment basata su regolarità ritmica per tutti gli LFO
-    if (patterns.rhythmAnalysis.regularity > 0.8) {
-      this.unifiedModulation.lfo2Shape = 'sine'      // molto regolare
-      this.unifiedModulation.lfo3Shape = 'sine'      // evoluzione organica
-      this.unifiedModulation.lfo4Shape = 'triangle'  // micro-variazioni lineari
-    } else if (patterns.rhythmAnalysis.regularity > 0.5) {
-      this.unifiedModulation.lfo2Shape = 'triangle'  // moderatamente regolare
-      this.unifiedModulation.lfo3Shape = 'sine'      // evoluzione comunque fluida
-      this.unifiedModulation.lfo4Shape = 'sine'      // micro-variazioni smooth
-    } else {
-      this.unifiedModulation.lfo2Shape = 'sine'      // texture rimane fluida
-      this.unifiedModulation.lfo3Shape = 'sawtooth'  // evoluzione direzionale lenta
-      this.unifiedModulation.lfo4Shape = 'sine'      // micro-variazioni sempre gentili
-    }
-
-    // Filter Cutoff basato su posizione media e cluster
-    const positionInfluence = (1 - state.averagePosition.y) // posizione Y influisce su cutoff
-    const clusterInfluence = patterns.clusterCenters.length > 0 ?
-      patterns.clusterCenters.length / 3 : 0
-
-    this.unifiedModulation.filterCutoff = Math.max(200, Math.min(4000,
-      200 + (positionInfluence * 2000) + (clusterInfluence * 1000)
-    ))
-
-    // Filter Resonance basata su intensità e flusso
-    const flowMagnitude = Math.sqrt(
-      patterns.flowDirection.x ** 2 + patterns.flowDirection.y ** 2
-    )
-
-    this.unifiedModulation.filterResonance = Math.max(0.5, Math.min(8.0,
-      1 + (state.intensityDistribution.avg * 3) + (flowMagnitude * 2)
-    ))
-
-    // Spatial Pan basato su posizione media
-    this.unifiedModulation.spatialPan = Math.max(-1, Math.min(1,
-      (state.averagePosition.x - 0.5) * 2
-    ))
-
-    // Spatial Width basato su numero di utenti e varianza
-    this.unifiedModulation.spatialWidth = Math.max(0, Math.min(1,
-      Math.min(state.uniqueUsers.size / 5, 1) * 0.5 +
-      (state.spatialVariance * 0.5)
-    ))
-
-    // Effect parameters basati su hotspot e complessità
-    const hotspotIntensity = patterns.hotspotZones.reduce((sum, hs) => sum + hs.intensity, 0)
-    this.unifiedModulation.reverbMix = Math.max(0, Math.min(0.8, hotspotIntensity * 0.3))
-
-    // Delay basato su ritmo
-    this.unifiedModulation.delayTime = patterns.rhythmAnalysis.period > 0 ?
-      Math.min(500, patterns.rhythmAnalysis.period / 4) : 0
-
-    // Evolution parameters
-    this.unifiedModulation.evolutionSpeed = Math.max(0.1, Math.min(1.0,
-      state.density / 5 // più densità = più evoluzione
-    ))
-
-    this.unifiedModulation.complexity = Math.max(0.1, Math.min(1.0,
-      (state.uniqueUsers.size / 10) * 0.6 + (patterns.clusterCenters.length / 3) * 0.4
-    ))
-
-    // NUOVI: Filter modulation depth parameters
-    this.unifiedModulation.filterFreqModDepth = Math.max(0.1, Math.min(0.6,
-      state.spatialVariance * 1.5 // più varianza = più modulazione frequenza
-    ))
-    this.unifiedModulation.filterResModDepth = Math.max(0.05, Math.min(0.4,
-      state.intensityDistribution.avg * 0.8 // più intensità = più modulazione risonanza
-    ))
-
-    // NUOVI: Spatial rotation speed
-    this.unifiedModulation.spatialRotateSpeed = Math.max(0.01, Math.min(0.2,
-      patterns.flowDirection.x !== 0 || patterns.flowDirection.y !== 0 ?
-        Math.sqrt(patterns.flowDirection.x ** 2 + patterns.flowDirection.y ** 2) * 0.1 : 0.02
-    ))
-
-    // NUOVI: Modulation character parameters
-    this.unifiedModulation.modulationDepth = Math.max(0.1, Math.min(0.8,
-      (state.uniqueUsers.size / 5) * 0.6 + (state.spatialVariance * 0.4)
-    ))
-    this.unifiedModulation.modulationRate = Math.max(0.1, Math.min(0.6,
-      this.unifiedModulation.lfoFrequency / 3.0 // rate basato su LFO primario
-    ))
-    this.unifiedModulation.vibratoDepth = Math.max(0.02, Math.min(0.15,
-      patterns.rhythmAnalysis.regularity * this.unifiedModulation.modulationDepth * 0.3
-    ))
-    this.unifiedModulation.tremoloDepth = Math.max(0.01, Math.min(0.08,
-      this.unifiedModulation.modulationDepth * 0.1 // tremolo molto ridotto
-    ))
-
-    // Apply smoothing for gradual transitions
-    if (!this.isFirstModulation) {
-      this.applySmoothing()
-    } else {
-      this.isFirstModulation = false
-    }
-
-    // Update timestamp e generation
+    // Legacy: minimal backwards compatibility (will be removed in future)
+    this.unifiedModulation.filterCutoff = 200 + (state.averagePosition.y * 2000)
+    this.unifiedModulation.filterResonance = 0.5 + (state.intensityDistribution.avg * 3)
+    this.unifiedModulation.spatialPan = (state.averagePosition.x - 0.5) * 2
     this.unifiedModulation.timestamp = Date.now()
-    this.unifiedModulation.generation++
+    this.unifiedModulation.generation = this.rawMetrics.generation
 
-    // Store current values for next smoothing iteration
-    this.previousModulation = { ...this.unifiedModulation }
-
-    // Log dettagliato con tutti gli LFO ultra-lenti
-// console.log(`🎛️ ULTRA-SLOW modulation generated (${frequencyRange}):`, {
-//      roomId: this.roomId,
-//      generation: this.unifiedModulation.generation,
-      // PRIMARY LFO
-//      lfo1Freq: this.unifiedModulation.lfoFrequency.toFixed(4),
-//      lfo1Period: `${(1/this.unifiedModulation.lfoFrequency).toFixed(0)}s`,
-//      lfo1Amp: this.unifiedModulation.lfoAmplitude.toFixed(3),
-//      lfo1Shape: this.unifiedModulation.lfoShape,
-      // SECONDARY LFO
-//      lfo2Freq: this.unifiedModulation.lfo2Frequency?.toFixed(5) || 'N/A',
-//      lfo2Period: this.unifiedModulation.lfo2Frequency ? `${(1/this.unifiedModulation.lfo2Frequency).toFixed(0)}s` : 'N/A',
-//      lfo2Amp: this.unifiedModulation.lfo2Amplitude?.toFixed(4) || 'N/A',
-//      lfo2Shape: this.unifiedModulation.lfo2Shape,
-      // TERTIARY LFO
-//      lfo3Freq: this.unifiedModulation.lfo3Frequency?.toFixed(5) || 'N/A',
-//      lfo3Period: this.unifiedModulation.lfo3Frequency ? `${(1/this.unifiedModulation.lfo3Frequency).toFixed(0)}s` : 'N/A',
-//      lfo3Amp: this.unifiedModulation.lfo3Amplitude?.toFixed(4) || 'N/A',
-//      lfo3Shape: this.unifiedModulation.lfo3Shape,
-      // QUATERNARY LFO
-//      lfo4Freq: this.unifiedModulation.lfo4Frequency?.toFixed(5) || 'N/A',
-//      lfo4Period: this.unifiedModulation.lfo4Frequency ? `${(1/this.unifiedModulation.lfo4Frequency).toFixed(0)}s` : 'N/A',
-//      lfo4Amp: this.unifiedModulation.lfo4Amplitude?.toFixed(4) || 'N/A',
-//      lfo4Shape: this.unifiedModulation.lfo4Shape,
-      // Context info
-//      range: frequencyRange,
-//      users: state.uniqueUsers.size,
-//      density: state.density.toFixed(1),
-//      smoothed: !this.isFirstModulation
-////    })
+    this.previousMetrics = { ...this.rawMetrics }
   }
 
   /**
-   * Apply smoothing to gradual parameter transitions
-   * Uses exponential moving average for smooth changes
-   * Refactored to use SmoothingCalculator utility
-   */
-  applySmoothing() {
-    const sp = this.smoothingParams
-    const prev = this.previousModulation
-    const curr = this.unifiedModulation
-
-    // Primary LFO smoothing
-    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
-      lfoFrequency: sp.lfoFrequencySmoothing,
-      lfoAmplitude: sp.lfoAmplitudeSmoothing
-    })
-
-    // Secondary LFO smoothing - ULTRA SMOOTH
-    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
-      lfo2Frequency: sp.lfo2FrequencySmoothing,
-      lfo2Amplitude: sp.lfoAmplitudeSmoothing
-    })
-
-    // Tertiary LFO smoothing - ESTREMAMENTE GRADUALE
-    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
-      lfo3Frequency: sp.lfo3FrequencySmoothing,
-      lfo3Amplitude: sp.lfoAmplitudeSmoothing
-    })
-
-    // Quaternary LFO smoothing - QUASI IMPERCETTIBILE
-    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
-      lfo4Frequency: sp.lfo4FrequencySmoothing,
-      lfo4Amplitude: sp.lfoAmplitudeSmoothing
-    })
-
-    // Filter parameters smoothing
-    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
-      filterCutoff: sp.filterSmoothing,
-      filterResonance: sp.filterSmoothing,
-      filterFreqModDepth: sp.filterSmoothing,
-      filterResModDepth: sp.filterSmoothing
-    })
-
-    // Spatial parameters smoothing
-    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
-      spatialPan: sp.spatialSmoothing,
-      spatialWidth: sp.spatialSmoothing,
-      spatialRotateSpeed: sp.spatialSmoothing
-    })
-
-    // Effects parameters smoothing (slow transitions)
-    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
-      reverbMix: sp.effectsSmoothing,
-      delayTime: sp.effectsSmoothing
-    })
-
-    // Modulation character parameters - using fixed factors (previously hardcoded)
-    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
-      modulationDepth: 0.9,
-      modulationRate: sp.lfoFrequencySmoothing,
-      vibratoDepth: 0.95,
-      tremoloDepth: 0.97
-    })
-
-    // Evolution and complexity parameters
-    applySmoothingInPlace(this.unifiedModulation, prev, curr, {
-      evolutionSpeed: 0.9,
-      complexity: 0.85
-    })
-  }
-
-  /**
-   * Broadcast modulazione unificata a tutti i client nella room
+   * Issue C-03 Refactor: Broadcast raw metrics to all clients
+   * Frontend handles 1:1 mapping from metrics to filter parameters
    */
   broadcastModulation() {
     const payload = {
       roomId: this.roomId,
+      // NEW: Raw metrics for frontend 1:1 mapping
+      metrics: { ...this.rawMetrics },
+      // LEGACY: Keep modulation for backwards compatibility during transition
       modulation: { ...this.unifiedModulation },
-      analysis: {
-        hoverCount: this.aggregateState.hoverCount,
-        uniqueUsers: this.aggregateState.uniqueUsers.size,
-        density: this.aggregateState.density,
-        spatialVariance: this.aggregateState.spatialVariance,
-        patterns: this.aggregateState.patterns
-      },
       timestamp: Date.now()
     }
 
-    // Broadcast a tutti i client nella room
+    // Broadcast to all clients in the room
     this.socketIo.to(this.roomId).emit('unified-modulation', payload)
 
     // Update metrics
     this.performanceMetrics.modulationsGenerated++
-
-// console.log(`📡 Broadcast unified modulation to room ${this.roomId}:`, {
-//      generation: this.unifiedModulation.generation,
-//      lfoFreq: this.unifiedModulation.lfoFrequency.toFixed(2),
-//      lfoAmp: this.unifiedModulation.lfoAmplitude.toFixed(2)
-////    })
   }
 
   /**
@@ -776,7 +482,8 @@ class HoverOrchestrator {
         ...this.aggregateState,
         uniqueUsers: this.aggregateState.uniqueUsers.size
       },
-      unifiedModulation: { ...this.unifiedModulation },
+      // Issue C-03 Refactor: Return raw metrics instead of LFO parameters
+      rawMetrics: { ...this.rawMetrics },
       performanceMetrics: { ...this.performanceMetrics }
     }
   }

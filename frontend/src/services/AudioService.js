@@ -2181,60 +2181,19 @@ class AudioService {
 
   /**
    * Update background filters with gesture-based modulation
-   * FIX: Restored this missing functionality
-   * Entry #60 FIX: Separate slower throttle for ambient filters (3Hz for Chrome, 10Hz default)
-   * Entry #60 FIX: Longer ramp times (0.3s) for smoother, more musical transitions
-   * @param {Object} sonicParams - Sonic parameters from gesture
+   *
+   * Issue C-03 Refactor: DISABLED
+   * Ambient filters are now controlled exclusively by applyUnifiedModulation()
+   * which uses 1:1 mapping from HoverOrchestrator aggregated metrics.
+   * This prevents conflicts between real-time gesture modulation and aggregated metrics.
+   *
+   * @deprecated Use applyUnifiedModulation() for ambient filter control
+   * @param {Object} sonicParams - Sonic parameters from gesture (unused)
    */
   updateBackgroundFilters(sonicParams) {
-    if (!this.ambientFilters) return
-
-    // Entry #60: Use separate slower throttle for ambient filters
-    // These are background effects - they don't need rapid updates
-    const now = performance.now()
-    if (now - this.lastAmbientFilterUpdateTime < this.ambientFilterUpdateInterval) {
-      return // Skip this update
-    }
-    this.lastAmbientFilterUpdateTime = now
-
-    // Calculate filter modulation based on gesture coordinates
-    const filterFreq = this.calculateFilterFrequency(sonicParams)
-    const filterQ = this.calculateFilterResonance(sonicParams)
-
-    // Entry #60: Longer ramp times (0.3s) for smoother musical transitions
-    // Short ramps (0.05s) cause audio glitches on Chrome without audible benefit
-    const rampTime = 0.3
-
-    // Apply modulation to ambient filters with much stronger intensities
-    if (this.ambientFilters.chords) {
-      // Strongest modulation on chords layer
-      const chordsFreq = filterFreq * 2.5 // Increased multiplier
-      this.ambientFilters.chords.frequency.linearRampToValueAtTime(
-        Math.min(8000, Math.max(100, chordsFreq)), // Much wider range
-        Tone.context.currentTime + rampTime
-      )
-      this.ambientFilters.chords.Q.linearRampToValueAtTime(filterQ * 2, Tone.context.currentTime + rampTime)
-    }
-
-    if (this.ambientFilters.pad) {
-      // Moderate modulation on pad layer
-      const padFreq = filterFreq * 1.8 // Increased multiplier
-      this.ambientFilters.pad.frequency.linearRampToValueAtTime(
-        Math.min(4000, Math.max(100, padFreq)), // Wider range
-        Tone.context.currentTime + rampTime
-      )
-      this.ambientFilters.pad.Q.linearRampToValueAtTime(filterQ * 1.5, Tone.context.currentTime + rampTime)
-    }
-
-    if (this.ambientFilters.bass) {
-      // Less subtle modulation on bass layer
-      const bassFreq = filterFreq * 0.6 // Increased multiplier
-      this.ambientFilters.bass.frequency.linearRampToValueAtTime(
-        Math.min(1000, Math.max(30, bassFreq)), // Wider range for bass
-        Tone.context.currentTime + rampTime
-      )
-      this.ambientFilters.bass.Q.linearRampToValueAtTime(filterQ * 1.2, Tone.context.currentTime + rampTime)
-    }
+    // Issue C-03 Refactor: Disabled - ambient filters controlled by applyUnifiedModulation only
+    // Keep method signature for API compatibility, but do nothing
+    return
   }
 
   /**
@@ -3653,57 +3612,20 @@ class AudioService {
 
   /**
    * Trigger immediate background filter response to user input
-   * @param {number} frequency - User input frequency
-   * @param {number} duration - User input duration
+   *
+   * Issue C-03 Refactor: DISABLED
+   * Ambient filters are now controlled exclusively by applyUnifiedModulation()
+   * which uses 1:1 mapping from HoverOrchestrator aggregated metrics.
+   * Individual gesture events should not directly modulate ambient filters.
+   *
+   * @deprecated Use applyUnifiedModulation() for ambient filter control
+   * @param {number} frequency - User input frequency (unused)
+   * @param {number} duration - User input duration (unused)
    */
   triggerBackgroundFilterResponse(frequency, duration) {
-    if (!this.ambientFilters || !Tone.context) return
-
-    // console.log(`🎛️ Triggering background filter response: ${frequency.toFixed(1)}Hz, ${duration.toFixed(3)}s`)
-
-    // Calculate filter modulation based on user input
-    const normalizedFreq = Math.max(100, Math.min(8000, frequency))
-    const modulationIntensity = Math.min(1.0, duration * 2) // Longer notes = stronger modulation
-
-    // Apply immediate filter changes to show background response
-    if (this.ambientFilters.bass) {
-      const bassFreq = normalizedFreq * 0.3
-      this.ambientFilters.bass.frequency.linearRampToValueAtTime(
-        Math.max(50, Math.min(500, bassFreq)),
-        Tone.context.currentTime + 0.2
-      )
-      this.ambientFilters.bass.Q.linearRampToValueAtTime(
-        1 + modulationIntensity * 3,
-        Tone.context.currentTime + 0.2
-      )
-      // console.log(`🎛️ Bass filter response: ${Math.max(50, Math.min(500, bassFreq)).toFixed(1)}Hz`)
-    }
-
-    if (this.ambientFilters.pad) {
-      const padFreq = normalizedFreq * 0.8
-      this.ambientFilters.pad.frequency.linearRampToValueAtTime(
-        Math.max(150, Math.min(2000, padFreq)),
-        Tone.context.currentTime + 0.15
-      )
-      this.ambientFilters.pad.Q.linearRampToValueAtTime(
-        2 + modulationIntensity * 4,
-        Tone.context.currentTime + 0.15
-      )
-      // console.log(`🎛️ Pad filter response: ${Math.max(150, Math.min(2000, padFreq)).toFixed(1)}Hz`)
-    }
-
-    if (this.ambientFilters.chords) {
-      const chordsFreq = normalizedFreq * 1.5
-      this.ambientFilters.chords.frequency.linearRampToValueAtTime(
-        Math.max(200, Math.min(4000, chordsFreq)),
-        Tone.context.currentTime + 0.1
-      )
-      this.ambientFilters.chords.Q.linearRampToValueAtTime(
-        3 + modulationIntensity * 5,
-        Tone.context.currentTime + 0.1
-      )
-      // console.log(`🎛️ Chords filter response: ${Math.max(200, Math.min(4000, chordsFreq)).toFixed(1)}Hz`)
-    }
+    // Issue C-03 Refactor: Disabled - ambient filters controlled by applyUnifiedModulation only
+    // Keep method signature for API compatibility, but do nothing
+    return
   }
 
   
@@ -5229,35 +5151,28 @@ class AudioService {
       // Apply filter parameters based on tier
       const currentTime = Tone.context && Tone.context.currentTime ? Tone.context.currentTime : Tone.now()
 
+      // Issue C-03 Refactor: handleHoverModulation now ONLY affects gestureFilter
+      // Ambient filters are controlled by applyUnifiedModulation via HoverOrchestrator metrics
+
       if (filterParams.isRemoteLFO) {
-        // REMOTE HOVER: Setup LFO for filter cutoff modulation
+        // REMOTE HOVER: Setup LFO for gesture filter cutoff modulation
         this.setupRemoteFilterLFO(filterParams.lfoSpeed, filterParams.lfoAmplitude)
 
-        // Also apply resonance from X position for remote hover
+        // Apply resonance from X position for remote hover (gestureFilter only)
         if (this.gestureFilter && this.gestureFilter.Q && this.gestureFilter.Q.linearRampToValueAtTime) {
           const resonance = 0.5 + ((sonicParams.x || 0.5) * 4.5) // 0.5 to 5.0 Q range
           const clampedQ = Math.max(0.1, Math.min(10, resonance))
           this.gestureFilter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
         }
 
-        // Apply resonance to ambient filters too
-        if (this.ambientFilters) {
-          Object.keys(this.ambientFilters).forEach(layerName => {
-            const filter = this.ambientFilters[layerName]
-            if (filter && filter.Q && filter.Q.linearRampToValueAtTime) {
-              const resonance = 0.5 + ((sonicParams.x || 0.5) * 4.5)
-              const clampedQ = Math.max(0.1, Math.min(10, resonance))
-              filter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
-            }
-          })
-        }
+        // REMOVED: Ambient filter modulation - now handled by applyUnifiedModulation
 
       } else {
-        // LOCAL HOVER: Direct filter modulation (no LFO)
+        // LOCAL HOVER: Direct gesture filter modulation (no LFO)
         // Stop any remote LFO if we're in local mode
         this.stopRemoteFilterLFO()
 
-        // Apply to gesture filter
+        // Apply to gesture filter only (not ambient filters)
         if (this.gestureFilter && this.gestureFilter.frequency && this.gestureFilter.Q) {
           // Apply cutoff frequency
           if (filterParams.cutoffFrequency && this.gestureFilter.frequency.linearRampToValueAtTime) {
@@ -5272,28 +5187,7 @@ class AudioService {
           }
         }
 
-        // Apply to ambient filters for audible effect
-        if (this.ambientFilters) {
-          Object.keys(this.ambientFilters).forEach(layerName => {
-            const filter = this.ambientFilters[layerName]
-            if (filter && filter.frequency && filter.Q) {
-              // Apply cutoff with layer-specific multipliers
-              const layerMultiplier = {
-                bass: 0.5,
-                pad: 0.8,
-                chords: 1.2
-              }[layerName] || 1.0
-
-              const clampedFreq = Math.max(100, Math.min(8000, filterParams.cutoffFrequency * layerMultiplier))
-              filter.frequency.linearRampToValueAtTime(clampedFreq, currentTime + 0.05)
-
-              // Apply resonance
-              const clampedQ = Math.max(0.1, Math.min(10, filterParams.resonance))
-              filter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
-            }
-          })
-          // console.log('🎛️ Applied local filter modulation to ambient layers')
-        }
+        // REMOVED: Ambient filter modulation - now handled by applyUnifiedModulation
       }
 
       if (isRemote) {
@@ -5457,45 +5351,95 @@ class AudioService {
 
 
   /**
-   * Apply unified modulation from HoverOrchestrator
-   * Applies filter modulation to gesture synth based on virtual hover events
-   * @param {Object} modulationData - Unified modulation data from server
+   * Issue C-03 Refactor: Apply unified modulation from HoverOrchestrator
+   * Uses 1:1 mapping from raw metrics to ambient filter parameters
+   * Each metric controls a specific filter target for predictable, debuggable results
+   * @param {Object} modulationData - Unified modulation data from server (contains metrics)
    */
   applyUnifiedModulation(modulationData) {
-    if (!modulationData || !modulationData.modulation) return
+    if (!modulationData) return
 
-    const mod = modulationData.modulation
-
-    // Apply filter cutoff modulation
-    if (this.gestureFilter && mod.filterCutoff !== undefined) {
-      const validFreq = mod.filterCutoff && !isNaN(mod.filterCutoff) ? mod.filterCutoff : 1000
-      const clampedFreq = Math.max(200, Math.min(8000, validFreq))
-      this.gestureFilter.frequency.value = clampedFreq
+    // Issue C-03 Refactor: Use raw metrics for 1:1 mapping
+    const m = modulationData.metrics
+    if (!m) {
+      // Fallback to legacy modulation format for backwards compatibility
+      if (modulationData.modulation) {
+        const mod = modulationData.modulation
+        if (this.gestureFilter && mod.filterCutoff !== undefined) {
+          this.gestureFilter.frequency.value = Math.max(200, Math.min(8000, mod.filterCutoff || 1000))
+        }
+        if (this.gestureFilter && mod.filterResonance !== undefined) {
+          this.gestureFilter.Q.value = Math.max(0.5, Math.min(10, mod.filterResonance || 1.0))
+        }
+      }
+      return
     }
 
-    // Apply filter resonance (Q) modulation
-    if (this.gestureFilter && mod.filterResonance !== undefined) {
-      const validQ = mod.filterResonance && !isNaN(mod.filterResonance) ? mod.filterResonance : 1.0
-      const clampedQ = Math.max(0.5, Math.min(10, validQ))
-      this.gestureFilter.Q.value = clampedQ
+    // Skip if ambient filters not initialized
+    if (!this.ambientFilters) return
+
+    // Constants for safe ranges (lowpass filters - keep min high enough to hear the voice)
+    const RAMP_TIME = 0.3 // 300ms ramp for smooth transitions
+    const Q_RANGE = { min: 0.5, max: 6.0 }
+
+    // Cutoff ranges per voice (safe minimums ensure voice stays audible)
+    const CUTOFF_RANGES = {
+      bass:   { min: 80,   max: 400   },
+      pad:    { min: 300,  max: 3000  },
+      chords: { min: 1000, max: 10000 }
     }
 
-    // Apply spatial pan modulation
-    if (this.gesturePan && mod.spatialPan !== undefined) {
-      const validPan = mod.spatialPan && !isNaN(mod.spatialPan) ? mod.spatialPan : 0
-      const clampedPan = Math.max(-1, Math.min(1, validPan))
-      this.gesturePan.pan.value = clampedPan
+    // Helper: linear mapping with clamp
+    const mapRange = (value, inMin, inMax, outMin, outMax) => {
+      if (value === undefined || value === null || isNaN(value)) return (outMin + outMax) / 2
+      const normalized = Math.max(0, Math.min(1, (value - inMin) / (inMax - inMin)))
+      return outMin + normalized * (outMax - outMin)
     }
 
-    // Apply reverb mix modulation (if reverb exists)
-    if (this.reverb && mod.reverbMix !== undefined) {
-      const validMix = mod.reverbMix && !isNaN(mod.reverbMix) ? mod.reverbMix : 0.2
-      const clampedMix = Math.max(0, Math.min(0.8, validMix))
-      // Reverb send level is controlled via sends
+    // Helper: apply filter modulation with ramping
+    const applyFilter = (filter, cutoffValue, qValue, voiceName) => {
+      if (!filter || !filter.frequency || !filter.Q) return
+      const range = CUTOFF_RANGES[voiceName]
+      if (!range) return
+
+      const safeCutoff = Math.max(range.min, Math.min(range.max, cutoffValue))
+      const safeQ = Math.max(Q_RANGE.min, Math.min(Q_RANGE.max, qValue))
+
+      filter.frequency.rampTo(safeCutoff, RAMP_TIME)
+      filter.Q.rampTo(safeQ, RAMP_TIME)
     }
 
-    // Store modulation parameters for reference
-    this.currentModulation = mod
+    // ============ 1:1 MAPPING: Metrics → Filter Targets ============
+    // Each metric drives a specific filter parameter for predictable behavior
+
+    // BASS: density → cutoff, hoverCount → Q
+    // Logic: More activity = bass opens up (brighter), more hovers = more punch
+    if (this.ambientFilters.bass) {
+      const bassCutoff = mapRange(m.density, 0, 10, 80, 400)
+      const bassQ = mapRange(m.hoverCount, 0, 100, 0.5, 4.0)
+      applyFilter(this.ambientFilters.bass, bassCutoff, bassQ, 'bass')
+    }
+
+    // PAD: spatialVariance → cutoff, uniqueUsers → Q
+    // Logic: Scattered hovers = brighter pad, more users = more resonance (social)
+    if (this.ambientFilters.pad) {
+      const padCutoff = mapRange(m.spatialVariance, 0, 1, 300, 3000)
+      const padQ = mapRange(m.uniqueUsers, 1, 10, 0.5, 5.0)
+      applyFilter(this.ambientFilters.pad, padCutoff, padQ, 'pad')
+    }
+
+    // CHORDS: flowDirection.y → cutoff, flowDirection.x → Q
+    // Logic: Upward flow = brighter chords, horizontal flow = resonance
+    if (this.ambientFilters.chords) {
+      const flowY = m.flowDirection?.y || 0
+      const flowX = m.flowDirection?.x || 0
+      const chordsCutoff = mapRange(flowY, -1, 1, 1000, 10000)
+      const chordsQ = mapRange(Math.abs(flowX), 0, 1, 0.5, 4.0)
+      applyFilter(this.ambientFilters.chords, chordsCutoff, chordsQ, 'chords')
+    }
+
+    // Store metrics for debugging
+    this.currentModulation = m
   }
 
   cleanup() {
