@@ -35,6 +35,8 @@ class PrecomputedAttractorSystem {
     this.targetAttractor = 'lorenz'
     this.morphProgress = 1.0  // 0 = transitioning, 1 = complete
     this.morphSpeed = 0.02
+    this.lastMorphTime = 0           // Timestamp of last morph (Entry #100)
+    this.minMorphInterval = 2000     // Minimum 2s between morphs
 
     // Animation
     this.time = 0
@@ -413,11 +415,40 @@ class PrecomputedAttractorSystem {
   }
 
   /**
-   * Toggle between attractors
+   * Toggle between attractors with reverse smoothing (Entry #100)
+   * - Rate-limited to prevent oscillations from rapid gestures
+   * - If morph in progress, smoothly reverses direction instead of jumping
+   * @returns {boolean} True if toggle accepted, false if rate-limited
    */
   toggleAttractor() {
-    const next = this.targetAttractor === 'lorenz' ? 'rossler' : 'lorenz'
-    this.switchAttractor(next)
+    const now = Date.now()
+    const timeSinceLastMorph = now - this.lastMorphTime
+
+    // Rate limiting: prevent rapid oscillations
+    if (timeSinceLastMorph < this.minMorphInterval) {
+      console.debug(`🦋 Toggle rate-limited (${this.minMorphInterval - timeSinceLastMorph}ms remaining)`)
+      return false
+    }
+
+    if (this.morphProgress < 1.0) {
+      // REVERSE SMOOTHING: Morph in progress, reverse direction
+      // Invert progress first, then swap - this continues from current visual position
+      this.morphProgress = 1.0 - this.morphProgress
+
+      // Swap current and target to reverse direction (this IS the toggle)
+      const temp = this.currentAttractor
+      this.currentAttractor = this.targetAttractor
+      this.targetAttractor = temp
+
+      console.log(`🦋 Reversing morph → ${this.targetAttractor} attractor`)
+    } else {
+      // NORMAL TOGGLE: Complete, start new morph to opposite attractor
+      const next = this.targetAttractor === 'lorenz' ? 'rossler' : 'lorenz'
+      this.switchAttractor(next)
+    }
+
+    this.lastMorphTime = now
+    return true
   }
 
   /**
