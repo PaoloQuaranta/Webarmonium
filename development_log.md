@@ -2697,6 +2697,12 @@ hideMobileCentralStartButton() {
     this.audioToggleObserver.disconnect()
     this.audioToggleObserver = null
   }
+
+  // Sync mobile audio button text based on actual audio state
+  if (this.mobileAudioBtn) {
+    const isPlaying = window.webarmoniumApp?.isAudioStarted
+    this.mobileAudioBtn.textContent = isPlaying ? 'Stop Audio' : 'Start Audio'
+  }
 }
 ```
 
@@ -2725,6 +2731,63 @@ this.audioToggleObserver = new MutationObserver(() => {
 | 4 | Fragile text-based detection | High | Changed from `textContent.includes('Stop')` to `window.webarmoniumApp?.isAudioStarted` |
 | 5 | Missing error handling | High | Added try-catch in click handler, resets button on error |
 | 6 | Accessibility issues | High | Added `role="button"`, `aria-busy` during loading, focus management on hide |
+
+---
+
+### Additional Fix: Menu Button Text Sync
+
+After initial deployment, a bug was reported where the mobile menu showed "Start Audio" instead of "Stop Audio" after clicking the central start button.
+
+**Root Cause:** The original fix tried to sync by reading `this.originalAudioToggle.textContent` after a 100ms timeout, but the original toggle hadn't updated its text yet at that point.
+
+**Solution:** Instead of reading from the original toggle (which has timing issues), directly set the text based on the actual audio state:
+
+```javascript
+// Sync mobile audio button text based on actual audio state
+if (this.mobileAudioBtn) {
+  const isPlaying = window.webarmoniumApp?.isAudioStarted
+  this.mobileAudioBtn.textContent = isPlaying ? 'Stop Audio' : 'Start Audio'
+}
+```
+
+This is more reliable because `isAudioStarted` is updated synchronously when audio starts.
+
+---
+
+### Additional Fix: Intermittent Button Display + iPad Support
+
+**Issue 1: Button sometimes not appearing**
+
+Race condition where `attemptAutoStartAudio()` could set `isAudioStarted=true` before `_createMobileCentralStartButton()` was called, causing the button to never be created.
+
+**Solution:** Always create the button, then immediately hide if audio already started:
+```javascript
+// Create central start button always - it will hide itself if audio already started
+this._createMobileCentralStartButton()
+
+// If audio already started (rare race condition), hide immediately
+if (window.webarmoniumApp?.isAudioStarted) {
+  this.hideMobileCentralStartButton()
+}
+```
+
+**Issue 2: iPad not showing mobile UI**
+
+iPads have screens > 768px, so they weren't detected as mobile by `(hasTouch && isSmallScreen)`.
+
+**Solution:** Updated `_isMobileDevice()` to detect tablets via multi-touch (5+ touch points):
+```javascript
+_isMobileDevice() {
+  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+  const isSmallScreen = window.innerWidth <= 768
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+
+  // Tablet detection: multi-touch with 5+ touch points (iPad/Android tablets)
+  const isTablet = navigator.maxTouchPoints >= 5
+
+  return (hasTouch && isSmallScreen) || isMobileUA || isTablet
+}
+```
 
 ---
 
@@ -2763,5 +2826,5 @@ this.audioToggleObserver = new MutationObserver(() => {
 
 ### Version
 
-Updated to v1.0.86
+Updated to v1.0.89
 

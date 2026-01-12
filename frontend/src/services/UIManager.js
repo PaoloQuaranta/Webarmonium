@@ -279,9 +279,13 @@ class UIManager {
     // Create bottom sheet
     this._createMobileBottomSheet()
 
-    // Create central start button (only if audio not started)
-    if (!window.webarmoniumApp?.isAudioStarted) {
-      this._createMobileCentralStartButton()
+    // Create central start button always - it will hide itself if audio already started
+    // This avoids race condition with attemptAutoStartAudio()
+    this._createMobileCentralStartButton()
+
+    // If audio already started (rare race condition), hide immediately
+    if (window.webarmoniumApp?.isAudioStarted) {
+      this.hideMobileCentralStartButton()
     }
   }
 
@@ -961,18 +965,22 @@ class UIManager {
 
   /**
    * Check if current device is mobile/tablet (should use mobile menu, not edge hover)
-   * Includes detection for iPadOS 13+ which reports as "MacIntel" but has touch
+   * Includes phones, tablets (iPad, Android), but excludes laptops with touchscreens
    */
   _isMobileDevice() {
     const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
     const isSmallScreen = window.innerWidth <= 768
     const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
-    // iPadOS 13+ detection: reports as Mac but has touch capability
-    // navigator.maxTouchPoints > 1 indicates multi-touch (iPad has 5+)
-    const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+    // Tablet detection: multi-touch with 5+ touch points (iPad/Android tablets)
+    // Laptops with touchscreen typically have 1-2 touch points
+    const isTablet = navigator.maxTouchPoints >= 5
 
-    return (hasTouch && isSmallScreen) || isMobileUA || isIPadOS
+    // Mobile UI for:
+    // - Small screens with touch (phones)
+    // - Mobile user agents (older iOS/Android)
+    // - Tablets with multi-touch (iPad, Android tablets regardless of screen size)
+    return (hasTouch && isSmallScreen) || isMobileUA || isTablet
   }
 
   /**
