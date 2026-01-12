@@ -2828,3 +2828,128 @@ _isMobileDevice() {
 
 Updated to v1.0.89
 
+---
+
+## Entry #95 - API Fetch Error Handling & Server Swap Configuration
+
+**Date**: 2026-01-12
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed API fetch errors in WebMetricsPoller where Wikipedia and HackerNews APIs returning HTML error pages caused JSON parse failures. Also configured 2GB swap on production server to prevent OOM crashes.
+
+---
+
+### Problem Statement
+
+Production server logs showed repeated errors:
+1. `Wikipedia fetch error: Unexpected token < in JSON at position 0` - API returning HTML instead of JSON
+2. `HackerNews fetch error: fetch failed` - Network errors not gracefully handled
+3. Multiple `Killed` entries (398 total) from OOM killer terminating Node.js process
+
+---
+
+### Solution
+
+#### 1. Wikipedia Fetch Validation
+
+Added response validation before JSON parsing:
+
+```javascript
+async _fetchWikipedia() {
+  try {
+    const response = await fetch(this.sources.wikipedia.url)
+
+    if (!response.ok) {
+      console.warn(`Wikipedia fetch error: HTTP ${response.status}`)
+      return
+    }
+
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      console.warn(`Wikipedia fetch error: unexpected content-type ${contentType}`)
+      return
+    }
+
+    const data = await response.json()
+    // ... process data
+  } catch (error) {
+    console.warn('Wikipedia fetch error:', error.message)
+  }
+}
+```
+
+#### 2. HackerNews Fetch Validation
+
+Added response and format validation:
+
+```javascript
+async _fetchHackerNews() {
+  try {
+    const storiesResponse = await fetch(this.sources.hackernews.storiesUrl)
+
+    if (!storiesResponse.ok) {
+      console.warn(`HackerNews fetch error: HTTP ${storiesResponse.status}`)
+      return
+    }
+
+    const storyIds = await storiesResponse.json()
+
+    if (!Array.isArray(storyIds)) {
+      console.warn('HackerNews fetch error: unexpected response format')
+      return
+    }
+
+    // ... process stories
+  } catch (error) {
+    console.warn('HackerNews fetch error:', error.message)
+  }
+}
+```
+
+Also improved individual story fetches:
+```javascript
+fetch(this.sources.hackernews.itemUrl(id))
+  .then(r => r.ok ? r.json() : null)  // Added r.ok check
+  .catch(() => null)
+```
+
+#### 3. Production Server Swap
+
+Configured 2GB swap on production server (webarmonium.net) to prevent OOM crashes:
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+**Before**: 961MB RAM, 0B swap → frequent OOM kills
+**After**: 961MB RAM, 2GB swap → OOM protection
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/WebMetricsPoller.js` | Added `response.ok` and `content-type` validation for Wikipedia, `response.ok` and array format validation for HackerNews |
+
+### Server Configuration
+
+| Change | Value |
+|--------|-------|
+| Swap file | `/swapfile` (2GB) |
+| Permissions | 600 |
+| Persistence | Added to `/etc/fstab` |
+
+---
+
+### Version
+
+Updated to v1.0.90
+

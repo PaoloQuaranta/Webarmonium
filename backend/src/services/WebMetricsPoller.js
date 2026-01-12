@@ -218,6 +218,18 @@ class WebMetricsPoller {
   async _fetchWikipedia() {
     try {
       const response = await fetch(this.sources.wikipedia.url)
+
+      if (!response.ok) {
+        console.warn(`Wikipedia fetch error: HTTP ${response.status}`)
+        return
+      }
+
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        console.warn(`Wikipedia fetch error: unexpected content-type ${contentType}`)
+        return
+      }
+
       const data = await response.json()
 
       if (data.query?.recentchanges) {
@@ -268,7 +280,18 @@ class WebMetricsPoller {
   async _fetchHackerNews() {
     try {
       const storiesResponse = await fetch(this.sources.hackernews.storiesUrl)
+
+      if (!storiesResponse.ok) {
+        console.warn(`HackerNews fetch error: HTTP ${storiesResponse.status}`)
+        return
+      }
+
       const storyIds = await storiesResponse.json()
+
+      if (!Array.isArray(storyIds)) {
+        console.warn('HackerNews fetch error: unexpected response format')
+        return
+      }
 
       // Find new stories (not in our last list)
       const newStoryIds = storyIds.filter(
@@ -280,7 +303,7 @@ class WebMetricsPoller {
         const detailedStories = await Promise.all(
           newStoryIds.slice(0, 10).map(id =>
             fetch(this.sources.hackernews.itemUrl(id))
-              .then(r => r.json())
+              .then(r => r.ok ? r.json() : null)
               .catch(() => null)
           )
         )
