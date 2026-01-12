@@ -15,7 +15,7 @@ Questo audit analizza l'algoritmo compositivo di Webarmonium, verificando l'arch
 | Severita | Issue | Impatto | Stato |
 |----------|-------|---------|-------|
 | ~~CRITICO~~ | ~~SoundPatternGenerator (868 linee, 6 algoritmi) mai usato~~ | ~~Codice legacy~~ | **RISOLTO - RIMOSSO** |
-| CRITICO | Duplicazione note DRAG per remote users | Audio doppio | APERTO |
+| ~~CRITICO~~ | ~~Duplicazione note DRAG per remote users~~ | ~~Audio doppio~~ | **RISOLTO** |
 | CRITICO | HoverOrchestrator genera 25+ parametri, frontend ne usa 3 | Sistema LFO inutilizzato | APERTO |
 | ALTO | Three-tier audio system non implementato | Config ignorata |
 | ALTO | Range frequenze inconsistenti TAP vs DRAG | Incoerenza timbrica |
@@ -92,11 +92,14 @@ HOVER:
 
 ---
 
-## 4. Issue C-02: Duplicazione Note DRAG
+## 4. Issue C-02: Duplicazione Note DRAG - **RISOLTO**
 
-### 4.1 Problema Verificato
+> **FIX APPLICATA**: 2026-01-12 - Il flag `notesAlreadyStreamed` viene ora controllato in `GestureHandler.js`.
+> Le note DRAG sono inviate via `note:stream` in real-time e **non** ri-broadcast a `gesture:end`.
 
-I remote users ricevono ogni nota DRAG **DUE VOLTE**:
+### 4.1 Problema (Risolto)
+
+I remote users ricevevano ogni nota DRAG **DUE VOLTE**:
 
 **Percorso 1 - Real-time** (durante il drag):
 ```
@@ -104,25 +107,31 @@ Frontend → note:stream → Backend → socket.to(roomId).emit('note:stream')
 → Altri utenti ricevono e suonano
 ```
 
-**Percorso 2 - Batch** (a gesture:end):
+**Percorso 2 - Batch** (a gesture:end) - **ORA SALTATO SE notesAlreadyStreamed=true**:
 ```
-Frontend invia gesture con streamedNotes array
-→ GestureHandler.js:426-460 ri-broadcast come musical:event
-→ Altri utenti ricevono e suonano DI NUOVO
+Frontend invia gesture con streamedNotes array + notesAlreadyStreamed=true
+→ GestureHandler.js controlla il flag → SKIP re-broadcast
 ```
 
-### 4.2 Evidenza dal Codice (GestureHandler.js:424-425)
+### 4.2 Fix Applicata (GestureHandler.js:423-432)
 
 ```javascript
-// NOTE: notesAlreadyStreamed flag is currently ignored - note:stream may not be reliable
-// This ensures remote users always receive notes, even if duplicated
+// FIX: Check notesAlreadyStreamed flag to prevent duplicate playback (Issue C-02)
+if (gesture.notesAlreadyStreamed && gesture.streamedNotes?.length > 0) {
+  console.log(`[GestureHandler] Skipping re-broadcast for ${gesture.streamedNotes.length} notes`)
+}
+
+const shouldRebroadcastNotes = gesture.streamedNotes &&
+  Array.isArray(gesture.streamedNotes) &&
+  gesture.streamedNotes.length > 0 &&
+  !gesture.notesAlreadyStreamed  // ← NEW CHECK
 ```
 
-### 4.3 Impatto
+### 4.3 Impatto (Risolto)
 
-- Remote users sentono ogni nota drag due volte
-- Possibile "strum effect" non intenzionale
-- Confusione timbrica
+- ~~Remote users sentono ogni nota drag due volte~~ ✅
+- ~~Possibile "strum effect" non intenzionale~~ ✅
+- ~~Confusione timbrica~~ ✅
 
 ---
 
@@ -404,7 +413,7 @@ Note locali e remote suonano con timbri diversi anche per stessi parametri music
 | VirtualUserService.js | ~1370 | ATTIVO | Gesture generation corretta |
 | BackgroundCompositionService.js | ~620 | ATTIVO | CompositionEngine integration |
 | CompositionEngine.js | 775 | ATTIVO | Sistema compositivo principale |
-| GestureHandler.js | ~550 | BUG | Duplicazione note drag |
+| GestureHandler.js | ~550 | **FIXED** | Duplicazione note drag risolta (C-02) |
 
 ### Frontend
 
@@ -422,9 +431,9 @@ Note locali e remote suonano con timbri diversi anche per stessi parametri music
 
 ### Priorità Critica
 
-1. **Rimuovere duplicazione note DRAG**
-   - Modificare GestureHandler.js per non ri-broadcast streamedNotes come musical:event
-   - Oppure implementare flag `notesAlreadyStreamed` correttamente
+1. ~~**Rimuovere duplicazione note DRAG**~~ - **COMPLETATO**
+   - ✅ GestureHandler.js ora controlla flag `notesAlreadyStreamed`
+   - ✅ Note DRAG non più ri-broadcast a gesture:end se già stremate
 
 2. ~~**Documentare SoundPatternGenerator come DEPRECATED**~~ - **COMPLETATO**
    - ✅ File rimosso completamente dal codebase il 2026-01-12

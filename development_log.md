@@ -3664,3 +3664,72 @@ The actual music generation uses:
 ### Version
 
 Updated to v1.0.96
+
+---
+
+## Entry #102 - Fix DRAG Note Duplication for Remote Users (Issue C-02)
+
+**Date**: 2026-01-12
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed bug where remote users received each DRAG note twice: once via real-time `note:stream` and again via batch `musical:event` at gesture end. The fix enables the existing `notesAlreadyStreamed` flag that was previously ignored.
+
+---
+
+### Problem Statement
+
+Audit issue C-02 identified that remote users heard every DRAG note duplicated:
+
+1. **Path 1 - Real-time**: During drag, notes sent via `note:stream` → backend broadcasts → remote users play
+2. **Path 2 - Batch**: At `gesture:end`, same notes re-broadcast as `musical:event` → remote users play again
+
+The `notesAlreadyStreamed` flag was sent from frontend but explicitly ignored in backend with comment: "note:stream may not be reliable".
+
+---
+
+### Solution
+
+Modified `GestureHandler.js` to check the `notesAlreadyStreamed` flag before re-broadcasting:
+
+```javascript
+// FIX: Check notesAlreadyStreamed flag to prevent duplicate playback (Issue C-02)
+if (gesture.notesAlreadyStreamed && gesture.streamedNotes?.length > 0) {
+  console.log(`[GestureHandler] Skipping re-broadcast for ${gesture.streamedNotes.length} notes`)
+}
+
+const shouldRebroadcastNotes = gesture.streamedNotes &&
+  Array.isArray(gesture.streamedNotes) &&
+  gesture.streamedNotes.length > 0 &&
+  !gesture.notesAlreadyStreamed  // ← NEW CHECK
+
+if (shouldRebroadcastNotes) {
+  // ... broadcast notes
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/api/handlers/GestureHandler.js` | Added `notesAlreadyStreamed` check, logging for skipped re-broadcasts |
+| `AUDIT_COMPOSITIONAL_ALGORITHM.md` | Marked Issue C-02 as RISOLTO, updated recommendations |
+
+---
+
+### Verification
+
+1. Open 2 browsers in same room
+2. Perform DRAG gesture in browser A
+3. Backend logs: `[GestureHandler] Skipping re-broadcast for X notes`
+4. Browser B receives each note only once (via `note:stream`)
+
+---
+
+### Version
+
+Updated to v1.0.97

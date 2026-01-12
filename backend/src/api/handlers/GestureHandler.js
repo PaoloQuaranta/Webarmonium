@@ -420,10 +420,19 @@ const GestureHandler = {
         //   holdWasActive: gesture.holdWasActive
         // })
 
-        // CRITICAL: If streamedNotes present, broadcast for remote replication
-        // NOTE: notesAlreadyStreamed flag is currently ignored - note:stream may not be reliable
-        // This ensures remote users always receive notes, even if duplicated
-        if (gesture.streamedNotes && Array.isArray(gesture.streamedNotes) && gesture.streamedNotes.length > 0) {
+        // CRITICAL: If streamedNotes present and NOT already streamed, broadcast for remote replication
+        // FIX: Check notesAlreadyStreamed flag to prevent duplicate playback (Issue C-02)
+        // Notes are already sent via note:stream in real-time during drag - skip re-broadcast
+        if (gesture.notesAlreadyStreamed && gesture.streamedNotes?.length > 0) {
+          console.log(`[GestureHandler] Skipping re-broadcast for ${gesture.streamedNotes.length} notes - already streamed via note:stream`)
+        }
+
+        const shouldRebroadcastNotes = gesture.streamedNotes &&
+          Array.isArray(gesture.streamedNotes) &&
+          gesture.streamedNotes.length > 0 &&
+          !gesture.notesAlreadyStreamed
+
+        if (shouldRebroadcastNotes) {
           const firstNoteTime = gesture.streamedNotes[0].timestamp
           const broadcastTime = Date.now()
 
