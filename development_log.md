@@ -3199,3 +3199,58 @@ Possible causes to investigate:
 
 Updated to v1.0.92
 
+
+---
+
+## Entry #98 - Global Visited Link Color Reset
+
+**Date**: 2026-01-12
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed visited link colors appearing as illegible dark violet across the entire app. Added global CSS reset to maintain original link colors even after being visited.
+
+---
+
+### Problem Statement
+
+Visited links throughout the app appeared in the browser's default violet color, which was hard to read against dark backgrounds. This affected:
+- Mobile hamburger menu "Back to main page" link
+- CTA links on landing page
+- Footer links
+- Navigation links in technical appendix
+
+Root cause: No `:visited` pseudo-class was defined anywhere, so browsers used their default purple/violet.
+
+---
+
+### Solution
+
+Added global CSS reset rule to all stylesheets:
+
+```css
+a:visited {
+  color: inherit;
+}
+```
+
+This makes visited links inherit their original color from their `:link` or parent styling, maintaining visual consistency.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/styles.css` | Added global `a:visited { color: inherit; }` after reset block |
+| `frontend/rooms.html` | Added global `a:visited { color: inherit; }` in inline styles |
+
+Note: `technical-appendix.html` uses `styles.css`, so it's automatically covered.
+
+---
+
+### Version
+
+Updated to v1.0.93
