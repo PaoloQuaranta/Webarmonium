@@ -838,7 +838,13 @@ class WebarmoniumApp {
       // The phrase was already generated and played during the drag gesture
       // Calling processDragGesture again here would create a duplicate "slow arpeggio"
       if (gestureAction === 'drag') {
-        // console.log('🎵 DRAG gesture in onGestureEnd - SKIPPING (already processed during onGesture)')
+        // Entry #99: Trigger attractor morph when local user completes a drag (phrase)
+        if (this.visualService && this.visualService.onMusicalEvent) {
+          this.visualService.onMusicalEvent({
+            type: 'phrase',
+            velocity: gesture.velocity || 0.5
+          })
+        }
         return
       }
 
@@ -1274,6 +1280,19 @@ class WebarmoniumApp {
     // CRITICAL FIX: Schedule notes based on timestamp to avoid cluster playback
     // VISUAL FIX: Add visual feedback (pulses + particles) for remote gestures
     this.socketService.on('musical:event', (musicalEventWrapper) => {
+      // Entry #99: Handle phrase events for attractor morphing
+      // Backend sends phrase events directly: { type: 'phrase', userId, ... }
+      // These trigger Lorenz↔Rossler attractor transitions
+      if (musicalEventWrapper?.type === 'phrase') {
+        if (this.visualService && this.visualService.onMusicalEvent) {
+          this.visualService.onMusicalEvent({
+            type: 'phrase',
+            velocity: musicalEventWrapper.velocity || 0.5
+          })
+        }
+        return // Phrase events don't contain note data
+      }
+
       if (!this.isAudioStarted || !musicalEventWrapper?.event) {
         return
       }
