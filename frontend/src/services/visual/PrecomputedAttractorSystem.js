@@ -59,6 +59,7 @@ class PrecomputedAttractorSystem {
     // Lorenz attractor is not symmetric; needs upward shift after rotation
     this.centerOffsetY = -0.08  // Shift up by 8% of displaySize
     this.offsetXPixels = 80     // Horizontal offset in pixels (positive = right)
+    this.offsetYPixels = 100    // Vertical offset in pixels (positive = down)
 
     // Adaptive point reduction (smooth transitions)
     // Stress factor constants
@@ -368,7 +369,7 @@ class PrecomputedAttractorSystem {
       // Use precomputed fuzzy offsets - eliminates 4800 trig calls/frame
       // Apply offsets to position attractor on canvas
       const screenX = nx * displaySize + this.fuzzyOffsetsX[i] + this.offsetXPixels
-      const screenY = (ny + this.centerOffsetY) * displaySize + this.fuzzyOffsetsY[i]
+      const screenY = (ny + this.centerOffsetY) * displaySize + this.fuzzyOffsetsY[i] + this.offsetYPixels
 
       // Depth-based appearance - closer points (higher z) are brighter and larger
       const depthFactor = 0.8 + point.z * 0.2
