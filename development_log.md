@@ -2953,3 +2953,118 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 
 Updated to v1.0.90
 
+
+---
+
+## Entry #96 - Mobile UI: Notifications Position & Room Info Overlay
+
+**Date**: 2026-01-12
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed two mobile UI issues: (1) notification messages overlapping with the central play button, and (2) users/rooms display hidden inside hamburger menu instead of being visible on the scene.
+
+---
+
+### Problem Statement
+
+1. **Notification overlap**: Both notifications and the central play button were positioned at center screen (`top: 50%`, `left: 50%`), causing overlap on mobile.
+
+2. **Hidden room info**: User count and room ID were only visible inside the hamburger menu bottom sheet. Users had to open the menu just to see basic room information.
+
+---
+
+### Solution
+
+#### 1. Moved Notifications to Top of Screen
+
+**File:** `frontend/src/services/NotificationService.js`
+
+Changed notification container position from center to top:
+
+```javascript
+// Before
+top: 50%;
+left: 50%;
+transform: translate(-50%, -50%);
+
+// After
+top: max(80px, calc(env(safe-area-inset-top, 12px) + 70px));
+left: 50%;
+transform: translateX(-50%);
+```
+
+Notifications now appear below the hamburger menu button (positioned at ~12px + 52px height), avoiding overlap with the central play button.
+
+#### 2. Created Mobile Room Info Overlay
+
+**File:** `frontend/src/services/UIManager.js`
+
+Added persistent overlay in top-left corner showing user count and room ID:
+
+- New `_createMobileRoomInfoOverlay()` method
+- Position: Fixed top-left with safe-area-inset support
+- z-index: 1001 (below hamburger button at 1002, above backdrop at 1000)
+- Semi-transparent with backdrop blur for visibility
+- ARIA attributes for accessibility: `role="status"`, `aria-live="polite"`
+
+```javascript
+_createMobileRoomInfoOverlay() {
+  this.mobileRoomInfoOverlay = document.createElement('div')
+  this.mobileRoomInfoOverlay.style.cssText = `
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top, 12px));
+    left: max(12px, env(safe-area-inset-left, 12px));
+    z-index: 1001;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(10px);
+    ...
+  `
+  // Accessibility
+  this.mobileRoomInfoOverlay.setAttribute('role', 'status')
+  this.mobileRoomInfoOverlay.setAttribute('aria-live', 'polite')
+}
+```
+
+#### 3. Removed Room Info from Hamburger Menu
+
+Removed user count and room ID from the bottom sheet since they're now always visible on the scene.
+
+#### 4. Fixed z-index Layering
+
+Changed backdrop z-index from 1001 to 1000 to ensure the room info overlay remains visible when the menu is open.
+
+**Z-index hierarchy:**
+- mobileBackdrop: 1000
+- mobileRoomInfoOverlay: 1001 (visible above backdrop)
+- mobileMenuBtn: 1002
+- mobileSheet: 1003
+- Notifications: 10000
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/NotificationService.js` | Moved container to top of screen |
+| `frontend/src/services/UIManager.js` | Added `_createMobileRoomInfoOverlay()`, `_syncMobileOverlay()`, removed room info from bottom sheet, fixed backdrop z-index, added cleanup in `destroy()` |
+| `frontend/rooms.html` | Added CSS for `.mobile-overlay-user-count` and `.mobile-overlay-room-id` |
+
+---
+
+### Code Review Fixes
+
+Applied fixes from code-reviewer agent:
+
+1. **ARIA accessibility**: Added `role="status"`, `aria-live="polite"`, `aria-label="Room information"` to mobile overlay
+2. **z-index coordination**: Fixed backdrop z-index to prevent covering the overlay when menu is open
+
+---
+
+### Version
+
+Updated to v1.0.91
+

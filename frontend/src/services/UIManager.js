@@ -51,6 +51,7 @@ class UIManager {
     this.mobileMenuBtn = null
     this.mobileBackdrop = null
     this.mobileSheet = null
+    this.mobileRoomInfoOverlay = null
 
     // Entry #74: Settings panel
     this.settingsPanel = null
@@ -90,6 +91,11 @@ class UIManager {
     if (roomIdEl && this.currentRoom) {
       const roomId = this.currentRoom.id || this.currentRoom.roomId
       roomIdEl.textContent = `Room: ${roomId}`
+    }
+
+    // Sync mobile overlay if in mobile mode
+    if (this.isMobile && this.mobileRoomInfoOverlay) {
+      this._syncMobileOverlay()
     }
   }
 
@@ -273,6 +279,9 @@ class UIManager {
     if (roomInterface) roomInterface.classList.add('mobile-hidden')
     if (instructions) instructions.classList.add('mobile-hidden')
 
+    // Create room info overlay (top-left corner)
+    this._createMobileRoomInfoOverlay()
+
     // Create menu button
     this._createMobileMenuButton()
 
@@ -323,6 +332,61 @@ class UIManager {
   }
 
   /**
+   * Create mobile room info overlay (top-left corner)
+   * Shows user count and room ID directly on the scene
+   */
+  _createMobileRoomInfoOverlay() {
+    this.mobileRoomInfoOverlay = document.createElement('div')
+    this.mobileRoomInfoOverlay.className = 'mobile-room-info-overlay'
+    this.mobileRoomInfoOverlay.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top, 12px));
+      left: max(12px, env(safe-area-inset-left, 12px));
+      z-index: 1001;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 8px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    `
+    this.mobileRoomInfoOverlay.innerHTML = `
+      <span class="mobile-overlay-user-count" id="mobileOverlayUserCount">👥 1 user</span>
+      <span class="mobile-overlay-room-id" id="mobileOverlayRoomId">Room: connecting...</span>
+    `
+
+    // Accessibility attributes
+    this.mobileRoomInfoOverlay.setAttribute('role', 'status')
+    this.mobileRoomInfoOverlay.setAttribute('aria-live', 'polite')
+    this.mobileRoomInfoOverlay.setAttribute('aria-label', 'Room information')
+
+    document.body.appendChild(this.mobileRoomInfoOverlay)
+
+    // Initial sync with main UI
+    this._syncMobileOverlay()
+  }
+
+  /**
+   * Sync mobile overlay with main UI state
+   */
+  _syncMobileOverlay() {
+    const mobileUserCount = document.getElementById('mobileOverlayUserCount')
+    const mobileRoomId = document.getElementById('mobileOverlayRoomId')
+    const mainUserCount = document.getElementById('userCount')
+    const mainRoomId = document.getElementById('roomId')
+
+    if (mobileUserCount && mainUserCount) {
+      mobileUserCount.textContent = mainUserCount.textContent
+    }
+    if (mobileRoomId && mainRoomId) {
+      mobileRoomId.textContent = mainRoomId.textContent
+    }
+  }
+
+  /**
    * Create mobile bottom sheet with all controls
    */
   _createMobileBottomSheet() {
@@ -337,7 +401,7 @@ class UIManager {
       right: 0;
       bottom: 0;
       background: rgba(0, 0, 0, 0.5);
-      z-index: 1001;
+      z-index: 1000;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.3s ease;
@@ -368,12 +432,6 @@ class UIManager {
     this.mobileSheet.innerHTML = `
       <div class="mobile-sheet-handle"></div>
       <div class="mobile-sheet-content">
-        <div class="mobile-sheet-section">
-          <div class="mobile-sheet-row">
-            <span class="mobile-user-count" id="mobileUserCount">👥 1 user</span>
-            <span class="mobile-room-id" id="mobileRoomId">Room: connecting...</span>
-          </div>
-        </div>
         <div class="mobile-sheet-section">
           <a href="index.html" class="mobile-back-link">← Back to main page</a>
         </div>
@@ -752,9 +810,6 @@ class UIManager {
       this.mobileMenuBtn.style.background = 'rgba(255, 100, 100, 0.9)'
     }
     this.mobileMenuBtn.innerHTML = '&#10005;' // X icon
-
-    // Sync user count and room ID
-    this._syncMobileDisplay()
   }
 
   /**
@@ -777,23 +832,6 @@ class UIManager {
       this.mobileMenuBtn.style.background = 'rgba(0, 212, 255, 0.9)'
     }
     this.mobileMenuBtn.innerHTML = '&#9776;' // Hamburger icon
-  }
-
-  /**
-   * Sync mobile display with main UI state
-   */
-  _syncMobileDisplay() {
-    const mobileUserCount = document.getElementById('mobileUserCount')
-    const mobileRoomId = document.getElementById('mobileRoomId')
-    const mainUserCount = document.getElementById('userCount')
-    const mainRoomId = document.getElementById('roomId')
-
-    if (mobileUserCount && mainUserCount) {
-      mobileUserCount.textContent = mainUserCount.textContent
-    }
-    if (mobileRoomId && mainRoomId) {
-      mobileRoomId.textContent = mainRoomId.textContent
-    }
   }
 
   /**
@@ -1004,6 +1042,10 @@ class UIManager {
     }
     if (this.mobileSheet) {
       this.mobileSheet.remove()
+    }
+    if (this.mobileRoomInfoOverlay) {
+      this.mobileRoomInfoOverlay.remove()
+      this.mobileRoomInfoOverlay = null
     }
 
     // Clean up mobile central start button

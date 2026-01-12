@@ -37,9 +37,9 @@ class NotificationService {
     this.container.id = 'notification-container'
     this.container.style.cssText = `
       position: fixed;
-      top: 50%;
+      top: max(80px, calc(env(safe-area-inset-top, 12px) + 70px));
       left: 50%;
-      transform: translate(-50%, -50%);
+      transform: translateX(-50%);
       z-index: 10000;
       pointer-events: none;
       display: flex;

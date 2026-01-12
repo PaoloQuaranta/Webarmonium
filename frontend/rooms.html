@@ -532,6 +532,19 @@
                 cursor: pointer;
                 border: none;
             }
+
+            /* Mobile room info overlay (top-left corner) */
+            .mobile-overlay-user-count {
+                color: #00d4ff;
+                font-size: 13px;
+                font-weight: 500;
+            }
+
+            .mobile-overlay-room-id {
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
+                color: #888;
+            }
         }
 
         /* Accelerometer calibration button (mobile only) */
@@ -721,7 +734,7 @@
     <script src="src/services/SocketService.js?v=12"></script> <!-- Fix: Add virtual:phrase-visual handler -->
     <!-- Sprint 2 refactoring: Extracted components -->
     <script src="src/services/CanvasManager.js?v=1"></script>
-    <script src="src/services/UIManager.js?v=10"></script> <!-- Entry #74: Settings panel integration -->
+    <script src="src/services/UIManager.js?v=11"></script> <!-- Mobile room info overlay -->
     <script src="src/services/UserSettings.js?v=1"></script> <!-- Entry #74: User settings storage -->
     <script src="src/components/SettingsPanel.js?v=2"></script> <!-- Entry #74: Settings panel UI -->
     <script src="src/services/VolumeController.js?v=1"></script>
