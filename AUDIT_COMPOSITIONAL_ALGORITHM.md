@@ -18,7 +18,7 @@ Questo audit analizza l'algoritmo compositivo di Webarmonium, verificando l'arch
 | ~~CRITICO~~ | ~~Duplicazione note DRAG per remote users~~ | ~~Audio doppio~~ | **RISOLTO** |
 | ~~CRITICO~~ | ~~HoverOrchestrator modulation system (25+ parametri)~~ | ~~Buggy, overhead, impercettibile~~ | **RISOLTO - RIMOSSO (Entry #105)** |
 | ~~ALTO~~ | ~~Three-tier audio system non implementato~~ | ~~Config ignorata~~ | **RISOLTO - RIMOSSO (Entry #106)** |
-| ALTO | Range frequenze inconsistenti TAP vs DRAG | Incoerenza timbrica |
+| ~~ALTO~~ | ~~Range frequenze inconsistenti TAP vs DRAG~~ | ~~Incoerenza timbrica~~ | **RISOLTO (Entry #107)** |
 | MEDIO | Parametri backend inutilizzati | Contesto musicale perso |
 
 ---
@@ -228,7 +228,11 @@ MetricsToGestureAdapter.js ora usa la frequenza calcolata invece che ignorarla (
 
 ---
 
-## 7. Issue C-05: Range Frequenze Inconsistenti
+## 7. Issue C-05: Range Frequenze Inconsistenti - **RISOLTO**
+
+> **FIX APPLICATA**: 2026-01-13 (Entry #107)
+>
+> DRAG ora usa lo stesso comportamento Y-axis di TAP (alto=acuto) e range espanso a 5 ottave.
 
 ### 7.1 TAP (Backend - GestureToMusicService.js:185-187)
 
@@ -238,13 +242,18 @@ const withinOctave = x * 660            // 0-660Hz
 const frequency = octaveBase + withinOctave  // 110-1210Hz (A2-D6)
 ```
 
-### 7.2 DRAG (Frontend - DragStreamingHandler.js:102-106)
+### 7.2 DRAG (Frontend - DragStreamingHandler.js:83) - **AGGIORNATO**
 
 ```javascript
-const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))  // 3-5
-const midiNote = 60 + (baseOctave - 4) * 12 + scaleNote + octaveOffset * 12
-const frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
-// Range effettivo: ~130-1050Hz (C3-C6)
+// PRIMA (problema):
+const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
+// y=0 (alto) → ottava 3 (BASSA) ❌ - INVERTITO rispetto a TAP!
+
+// DOPO (fix Entry #107):
+const baseOctave = params.baseOctave || (2 + Math.floor((1 - y) * 4))
+// y=0 (alto) → ottava 6 (ALTA) ✓
+// y=1 (basso) → ottava 2 (BASSA) ✓
+// Range: ~110-1200Hz (allineato a TAP)
 ```
 
 ### 7.3 Virtual Users (VirtualUserService.js)
@@ -255,13 +264,17 @@ const frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
 | HackerNews | Tenor | 196-392Hz |
 | GitHub | Soprano | 523-1047Hz |
 
-### 7.4 Impatto
+**Nota**: I Virtual Users mantengono tessiture fisse by design (sono "voci caratteristiche").
 
-- TAP real user: 110-1210Hz
-- DRAG real user: 130-1050Hz
-- Virtual users: range fissi per tessitura
+### 7.4 Stato Attuale (Post Fix)
 
-Gesti simili producono range diversi, compromettendo coerenza timbrica.
+| Gesto | Y-axis | Range |
+|-------|--------|-------|
+| TAP | ✅ y=0 → alto | 110-1210Hz |
+| DRAG | ✅ y=0 → alto | ~110-1200Hz |
+| Virtual | N/A (fisso) | Per tessitura |
+
+**Coerenza timbrica ripristinata**: stesso punto sul canvas produce frequenze simili per TAP e DRAG.
 
 ---
 
@@ -475,4 +488,6 @@ Il sistema funziona principalmente grazie a:
 
 > **AGGIORNAMENTO 2026-01-13 (Entry #106)**: Il sistema three-tier audio è stato **completamente rimosso** perché mai utilizzato e con bug critico (frequenza passata ignorata). Rimossi ~1100 linee di dead code inclusi: ThreeTierAudioSystem.js, threeTierConfig, calculateThreeTier*, playThreeTierNote. Sostituito con playSimpleNote().
 
-Le issue rimanenti sono: range frequenze inconsistenti TAP vs DRAG e parametri backend inutilizzati.
+> **AGGIORNAMENTO 2026-01-13 (Entry #107)**: Il range frequenze DRAG è stato **allineato a TAP**. Modificato DragStreamingHandler.js:83 per invertire Y-axis (alto=acuto) e espandere a 5 ottave (110-1200Hz). Coerenza timbrica ripristinata.
+
+L'unica issue rimanente è: parametri backend inutilizzati (C-06).

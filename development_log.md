@@ -4239,3 +4239,101 @@ MetricsToGestureAdapter was calling `playThreeTierNote(frequency, tier, velocity
 ### Version
 
 Updated to v1.0.103
+
+---
+
+## Entry #107 - Standardize DRAG Frequency Range to Match TAP (Issue C-05)
+
+**Date**: 2026-01-13
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed frequency range inconsistency between TAP and DRAG gestures (Issue C-05 from AUDIT_COMPOSITIONAL_ALGORITHM.md). DRAG now uses the same Y-axis mapping as TAP (alto=acuto) and covers the full 110-1210Hz range (5 octaves).
+
+---
+
+### Problem Statement
+
+TAP and DRAG used **different algorithms** for frequency calculation:
+
+| Aspect | TAP (Backend) | DRAG (Frontend) |
+|--------|---------------|-----------------|
+| Y-axis | y=0 → high freq | y=0 → **low freq** (INVERTED!) |
+| Range | 110-1210Hz (5 oct) | 130-1050Hz (3 oct) |
+| Algorithm | Linear Hz | MIDI-based |
+
+Same position on canvas produced different frequencies depending on gesture type, breaking user expectation.
+
+---
+
+### Root Cause
+
+**DragStreamingHandler.js:83**:
+```javascript
+const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
+// y=0 (top) → octave 3 (LOW) ❌
+// y=1 (bottom) → octave 5 (HIGH) ❌
+```
+
+This was the opposite of TAP's behavior where y=0 produces high frequencies.
+
+---
+
+### Solution
+
+Changed the formula to invert Y-axis and expand to 5 octaves:
+
+**File:** `frontend/src/handlers/DragStreamingHandler.js` (line 83)
+
+```javascript
+// BEFORE:
+const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
+
+// AFTER:
+const baseOctave = params.baseOctave || (2 + Math.floor((1 - y) * 4))
+```
+
+**New behavior:**
+- y=0 (top) → octave 6 (HIGH) ✓
+- y=0.25 → octave 5
+- y=0.5 → octave 4 (MIDDLE)
+- y=0.75 → octave 3
+- y=1 (bottom) → octave 2 (LOW) ✓
+
+**Range:** ~110-1200Hz (aligned with TAP's 110-1210Hz)
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/handlers/DragStreamingHandler.js` | Single-line fix at line 83 |
+| `AUDIT_COMPOSITIONAL_ALGORITHM.md` | Updated Issue C-05 as RESOLVED, added Entry #107 notes |
+
+---
+
+### Impact
+
+- **Y-axis coherence**: Top of canvas = high pitch for both TAP and DRAG
+- **Range alignment**: Both gestures now cover ~5 octaves (110-1200Hz)
+- **Scale quantization**: Both use scale-based note selection (unchanged)
+- **Virtual Users**: Unchanged - they keep fixed tessiture by design (bass/tenor/soprano)
+
+---
+
+### Verification
+
+1. Open app in browser
+2. TAP at top of canvas → high pitch note
+3. DRAG at top of canvas → high pitch note (same range)
+4. TAP at bottom → low pitch note
+5. DRAG at bottom → low pitch note (same range)
+
+---
+
+### Version
+
+Updated to v1.0.104

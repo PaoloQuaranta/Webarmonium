@@ -80,7 +80,7 @@ class DragStreamingHandler {
     // Get scale and octave from parameters
     const params = this.compositionalParameters || {}
     const scale = this.getScale()
-    const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
+    const baseOctave = params.baseOctave || (2 + Math.floor((1 - y) * 4))
 
     // Calculate gesture direction
     const prevY = this.lastDragY || y
