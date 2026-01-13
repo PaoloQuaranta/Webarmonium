@@ -1782,47 +1782,73 @@ class WebarmoniumApp {
       const style = document.createElement('style')
       style.id = 'audio-recovery-styles'
       style.textContent = `
-        .audio-recovery-prompt {
+        .audio-recovery-overlay {
           position: fixed;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          background: rgba(0, 0, 0, 0.85);
-          color: white;
-          padding: 24px 32px;
-          border-radius: 12px;
-          z-index: 10000;
-          text-align: center;
-          font-family: system-ui, -apple-system, sans-serif;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.7);
+          z-index: 9999;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
           animation: audio-recovery-fade-in 0.3s ease-out;
         }
         @keyframes audio-recovery-fade-in {
-          from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
-          to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
-        .audio-recovery-prompt p:first-child {
-          margin: 0 0 8px 0;
-          font-size: 18px;
-          font-weight: 500;
+        .audio-recovery-play-btn {
+          width: 100px;
+          height: 100px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 30px rgba(99, 102, 241, 0.5);
+          transition: transform 0.2s, box-shadow 0.2s;
         }
-        .audio-recovery-prompt p:last-child {
-          margin: 0;
-          font-size: 14px;
-          opacity: 0.8;
+        .audio-recovery-play-btn:hover {
+          transform: scale(1.1);
+          box-shadow: 0 6px 40px rgba(99, 102, 241, 0.7);
+        }
+        .audio-recovery-play-btn:active {
+          transform: scale(0.95);
+        }
+        .audio-recovery-play-btn svg {
+          width: 40px;
+          height: 40px;
+          fill: white;
+          margin-left: 6px; /* Visual centering for play triangle */
+        }
+        .audio-recovery-text {
+          margin-top: 20px;
+          color: white;
+          font-family: system-ui, -apple-system, sans-serif;
+          font-size: 16px;
+          opacity: 0.9;
         }
       `
       document.head.appendChild(style)
     }
 
-    const prompt = document.createElement('div')
-    prompt.id = 'audio-recovery-prompt'
-    prompt.className = 'audio-recovery-prompt'
-    prompt.innerHTML = `
-      <p>Audio paused</p>
-      <p>Tap anywhere to resume</p>
+    const overlay = document.createElement('div')
+    overlay.id = 'audio-recovery-prompt'
+    overlay.className = 'audio-recovery-overlay'
+    overlay.innerHTML = `
+      <button class="audio-recovery-play-btn" aria-label="Resume audio">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </button>
+      <p class="audio-recovery-text">Tap to resume audio</p>
     `
-    document.body.appendChild(prompt)
+    document.body.appendChild(overlay)
   }
 
   /**
