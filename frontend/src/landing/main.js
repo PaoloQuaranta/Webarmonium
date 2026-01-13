@@ -1552,8 +1552,6 @@ class LandingApp {
 
   /**
    * Handle click/touch for audio recovery
-   * Landing page specific: Also re-requests drone from backend since
-   * landing uses playComposition(drone) instead of startEvolvingGeneration()
    */
   async _handleAudioRecoveryClick() {
     const prompt = document.getElementById('audio-recovery-prompt')
@@ -1564,13 +1562,6 @@ class LandingApp {
 
       if (this.audioService && this.audioService.handleUserGestureForRecovery) {
         await this.audioService.handleUserGestureForRecovery()
-      }
-
-      // Landing page specific: Request drone from backend to restore audio
-      // AudioService recovery restarts Transport but landing needs drone to play
-      if (this.socket?.connected) {
-        console.log('🎵 Landing: Requesting drone after audio recovery')
-        this.socket.emit('request-drone')
       }
     }
   }
