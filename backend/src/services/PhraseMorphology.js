@@ -52,7 +52,7 @@ class PhraseMorphology {
     const pitches = this.contourToPitches(contour, scale, key)
 
     // 5. Generate rhythm that fits EXACTLY in phraseDurationBeats
-    const rhythm = this.generateRhythmForDuration(velocity, acceleration, phraseLength, phraseDurationBeats, tempo)
+    const rhythm = this.generateRhythmForDuration(velocity, acceleration, phraseLength, phraseDurationBeats, tempo, curvature)
 
     // 6. Add ornamentation based on gesture character
     const ornamented = this.applyOrnamentation(pitches, rhythm, gestureData)
@@ -163,8 +163,9 @@ class PhraseMorphology {
 
   /**
    * Generate rhythm that fits exactly in the target duration
+   * DETERMINISTIC: variations derived from acceleration and position, not random
    */
-  generateRhythmForDuration(velocity, acceleration, noteCount, targetDurationBeats, tempo) {
+  generateRhythmForDuration(velocity, acceleration, noteCount, targetDurationBeats, tempo, curvature = 0.5) {
     // Start with base durations
     let baseDuration
     if (velocity > 80) baseDuration = 0.25
@@ -176,16 +177,25 @@ class PhraseMorphology {
     const rhythm = []
     let totalDuration = 0
 
-    // Generate rhythm with variation
+    // Generate rhythm with DETERMINISTIC variation
     for (let i = 0; i < noteCount; i++) {
-      // Add rhythmic variation
-      const variation = (Math.random() - 0.5) * Math.abs(acceleration) * 0.02
+      // DERIVATION: variation from acceleration and position
+      // Positive acceleration → notes get shorter (rushing)
+      // Negative acceleration → notes get longer (dragging)
+      const positionFactor = (i / noteCount) - 0.5 // -0.5 to 0.5
+      const variation = (acceleration / 100) * positionFactor * 0.4
       let duration = baseDuration * (1 + variation)
 
-      // Occasionally add syncopation
-      if (Math.random() < 0.15) {
+      // DERIVATION: syncopation from curvature
+      // High curvature → more syncopation at phrase midpoint
+      const syncopationThreshold = 1 - curvature // High curvature = low threshold
+      const phrasePosition = i / noteCount
+
+      if (phrasePosition > syncopationThreshold && phrasePosition < (1 - syncopationThreshold / 2)) {
+        // Apply syncopation - device index derived from position
         const rhythmicDevices = [0.5, 0.75, 1.5, 0.33, 0.67]
-        duration = baseDuration * rhythmicDevices[Math.floor(Math.random() * rhythmicDevices.length)]
+        const deviceIndex = Math.floor((phrasePosition - syncopationThreshold) * rhythmicDevices.length * 2) % rhythmicDevices.length
+        duration = baseDuration * rhythmicDevices[deviceIndex]
       }
 
       duration = Math.max(0.125, Math.min(4.0, duration))
@@ -197,25 +207,30 @@ class PhraseMorphology {
     const scaleFactor = targetDurationBeats / totalDuration
     const scaledRhythm = rhythm.map(dur => dur * scaleFactor)
 
-// console.log('🎵 Rhythm scaled:', {
-//      originalTotal: totalDuration.toFixed(2),
-//      targetDuration: targetDurationBeats,
-//      scaleFactor: scaleFactor.toFixed(3),
-//      finalTotal: scaledRhythm.reduce((sum, d) => sum + d, 0).toFixed(2)
-////    })
-
     return scaledRhythm
   }
 
-  calculatePhraseLength(velocity) {
+  calculatePhraseLength(velocity, intensity = 0.5) {
     // Faster gestures = shorter, more active phrases
     // Slower gestures = longer, more lyrical phrases
+    // DERIVATION: intensity determines position within velocity-based range
 
-    if (velocity > 80) return 3 + Math.floor(Math.random() * 3)      // 3-5 notes
-    if (velocity > 60) return 4 + Math.floor(Math.random() * 4)      // 4-7 notes
-    if (velocity > 40) return 5 + Math.floor(Math.random() * 5)      // 5-9 notes
-    if (velocity > 20) return 6 + Math.floor(Math.random() * 6)      // 6-11 notes
-    return 7 + Math.floor(Math.random() * 7)                         // 7-13 notes
+    const ranges = {
+      veryFast: { min: 3, max: 5 },   // velocity > 80
+      fast: { min: 4, max: 7 },       // velocity > 60
+      medium: { min: 5, max: 9 },     // velocity > 40
+      slow: { min: 6, max: 11 },      // velocity > 20
+      verySlow: { min: 7, max: 13 }   // velocity <= 20
+    }
+
+    const range = velocity > 80 ? ranges.veryFast :
+                  velocity > 60 ? ranges.fast :
+                  velocity > 40 ? ranges.medium :
+                  velocity > 20 ? ranges.slow : ranges.verySlow
+
+    // DERIVATION: intensity → position in range
+    const normalizedIntensity = Math.max(0, Math.min(1, intensity))
+    return Math.round(range.min + normalizedIntensity * (range.max - range.min))
   }
 
   selectScale(mode, gestureData) {
@@ -240,8 +255,12 @@ class PhraseMorphology {
 
     const selectedScale = scaleMap[mood]?.primary || mode
 
-    // Occasionally use secondary scale for variety
-    if (Math.random() < 0.2 && scaleMap[mood]) {
+    // DERIVATION: use secondary scale based on curvature+velocity threshold
+    // High curvature + slow velocity → more chromatic/secondary scales
+    const secondaryThreshold = (curvature * 0.3) + ((100 - velocity) / 100 * 0.2) // 0-0.5 range
+    const scaleSelector = (curvature + velocity / 100) % 1 // Deterministic 0-1 value
+
+    if (scaleSelector < secondaryThreshold && scaleMap[mood]) {
       return this.scales[scaleMap[mood].secondary] || this.scales[selectedScale]
     }
 
@@ -286,26 +305,39 @@ class PhraseMorphology {
     return this.createContour(contourType, length, curvature)
   }
 
-  generateDefaultContour(length) {
+  generateDefaultContour(length, curvature = 0.5) {
     // Generate a balanced default contour
-    const contourTypes = ['arch', 'wave', 'ascending_descending', 'level']
-    const contourType = contourTypes[Math.floor(Math.random() * contourTypes.length)]
-    return this.createContour(contourType, length, 0.5)
+    // DERIVATION: contour type from length and curvature
+    const contourTypes = ['level', 'wave', 'arch', 'ascending_descending'] // Ordered by complexity
+
+    // Use length and curvature to derive contour type deterministically
+    const contourIndex = Math.floor((length % 4 + curvature * 2) % contourTypes.length)
+    const contourType = contourTypes[contourIndex]
+    return this.createContour(contourType, length, curvature)
   }
 
   createContour(type, length, curvature) {
     const contour = []
 
+    // DERIVATION: deterministic variation based on position and curvature
+    // Uses sine wave modulation for natural-sounding variation
+    const positionVariation = (i, amplitude) => {
+      const phaseOffset = curvature * Math.PI * 2
+      return Math.sin((i / length) * Math.PI * 3 + phaseOffset) * amplitude
+    }
+
     switch (type) {
       case 'ascending':
         for (let i = 0; i < length; i++) {
-          contour.push(1 - (i / length) + (Math.random() - 0.5) * 0.2)
+          const variation = positionVariation(i, 0.1 * curvature)
+          contour.push(1 - (i / length) + variation)
         }
         break
 
       case 'descending':
         for (let i = 0; i < length; i++) {
-          contour.push(i / length + (Math.random() - 0.5) * 0.2)
+          const variation = positionVariation(i, 0.1 * curvature)
+          contour.push(i / length + variation)
         }
         break
 
@@ -313,7 +345,8 @@ class PhraseMorphology {
         for (let i = 0; i < length; i++) {
           const peak = 0.5
           const distance = Math.abs(i / length - peak)
-          contour.push(1 - distance * 2 + (Math.random() - 0.5) * 0.2)
+          const variation = positionVariation(i, 0.1 * curvature)
+          contour.push(1 - distance * 2 + variation)
         }
         break
 
@@ -337,13 +370,17 @@ class PhraseMorphology {
 
       case 'level':
         for (let i = 0; i < length; i++) {
-          contour.push(0.5 + (Math.random() - 0.5) * 0.1)
+          // DERIVATION: subtle variation from position and curvature
+          const variation = positionVariation(i, 0.05)
+          contour.push(0.5 + variation)
         }
         break
 
       default:
         for (let i = 0; i < length; i++) {
-          contour.push(0.5 + (Math.random() - 0.5) * 0.3)
+          // DERIVATION: moderate variation for default case
+          const variation = positionVariation(i, 0.15 * curvature)
+          contour.push(0.5 + variation)
         }
     }
 
@@ -365,7 +402,9 @@ class PhraseMorphology {
       const targetDegree = Math.floor(height * (scale.length - 1))
 
       // Prefer stepwise motion (voice leading)
-      const intervalType = this.selectIntervalType(currentDegree, targetDegree)
+      // DERIVATION: pass note position for deterministic interval selection
+      const notePosition = i / contour.length
+      const intervalType = this.selectIntervalType(currentDegree, targetDegree, notePosition)
 
       let newDegree = currentDegree
       switch (intervalType) {
@@ -396,19 +435,22 @@ class PhraseMorphology {
     return pitches
   }
 
-  selectIntervalType(currentDegree, targetDegree) {
+  selectIntervalType(currentDegree, targetDegree, notePosition = 0) {
     const distance = Math.abs(targetDegree - currentDegree)
 
-    // Musical interval distribution: 70% steps, 20% skips, 10% leaps
-    const rand = Math.random()
+    // DERIVATION: interval type based on distance and phrase position
+    // Beginning and end of phrases prefer steps (voice leading)
+    // Middle allows more skips/leaps for contour
+    const isEdge = notePosition < 0.2 || notePosition > 0.8
 
-    if (rand < 0.7 || distance <= 1) return 'step'
-    if (rand < 0.9 || distance <= 3) return 'skip'
+    if (distance <= 1 || isEdge) return 'step'
+    if (distance <= 3) return 'skip'
     return 'leap'
   }
 
-  generateRhythm(velocity, acceleration, noteCount, tempo) {
+  generateRhythm(velocity, acceleration, noteCount, tempo, curvature = 0.5) {
     // Generate rhythm based on gesture velocity and acceleration
+    // DETERMINISTIC: uses position and acceleration for variation
 
     // Base note duration inversely proportional to velocity
     let baseDuration
@@ -422,14 +464,19 @@ class PhraseMorphology {
     let currentTime = 0
 
     for (let i = 0; i < noteCount; i++) {
-      // Add rhythmic variation based on acceleration
-      const variation = (Math.random() - 0.5) * Math.abs(acceleration) * 0.02
+      // DERIVATION: variation from acceleration and position (same as generateRhythmForDuration)
+      const positionFactor = (i / noteCount) - 0.5 // -0.5 to 0.5
+      const variation = (acceleration / 100) * positionFactor * 0.4
       let duration = baseDuration * (1 + variation)
 
-      // Occasionally add syncopation or rhythmic interest
-      if (Math.random() < 0.15) {
-        const rhythmicDevices = [0.5, 0.75, 1.5, 0.33, 0.67] // Various divisions
-        duration = baseDuration * rhythmicDevices[Math.floor(Math.random() * rhythmicDevices.length)]
+      // DERIVATION: syncopation from curvature and phrase position
+      const syncopationThreshold = 1 - curvature
+      const phrasePosition = i / noteCount
+
+      if (phrasePosition > syncopationThreshold && phrasePosition < (1 - syncopationThreshold / 2)) {
+        const rhythmicDevices = [0.5, 0.75, 1.5, 0.33, 0.67]
+        const deviceIndex = Math.floor((phrasePosition - syncopationThreshold) * rhythmicDevices.length * 2) % rhythmicDevices.length
+        duration = baseDuration * rhythmicDevices[deviceIndex]
       }
 
       // Ensure reasonable duration bounds
@@ -469,10 +516,15 @@ class PhraseMorphology {
     pitches.forEach((pitch, i) => {
       ornamented.push(pitch) // Always include the original note
 
+      // DERIVATION: ornament placement based on phrase position
+      // Ornaments occur at specific positions for each style
+      const phrasePosition = i / pitches.length
+      const pitchClass = pitch % 12 // 0-11
+
       switch (style) {
         case 'baroque':
-          if (Math.random() < 0.3 && i < pitches.length - 1) {
-            // Add trill (rapid alternation with note above)
+          // Trills on strong beats (positions 0.0, 0.25, 0.5, 0.75) for certain pitch classes
+          if ((pitchClass % 3 === 0) && phrasePosition < 0.9 && i < pitches.length - 1) {
             const trillNote = pitch + 2 // Major second above
             ornamented.push(trillNote)
             rhythm[i] = rhythm[i] * 0.7 // Shorten main note
@@ -480,24 +532,24 @@ class PhraseMorphology {
           break
 
         case 'jazz':
-          if (Math.random() < 0.4 && i < pitches.length - 1) {
-            // Add approach note from below
+          // Approach notes on weak beats (positions 0.1-0.4, 0.6-0.9)
+          if ((pitchClass % 4 < 2) && phrasePosition > 0.1 && phrasePosition < 0.9 && i < pitches.length - 1) {
             const approachNote = pitch - 1
             ornamented.splice(ornamented.length - 1, 0, approachNote)
           }
           break
 
         case 'blues':
-          if (Math.random() < 0.3) {
-            // Add blue note (flat 3, 5, or 7)
+          // Blue notes on off-beat positions for certain pitch classes
+          if ((pitchClass === 0 || pitchClass === 5 || pitchClass === 7) && phrasePosition > 0.2 && phrasePosition < 0.8) {
             const blueNote = pitch - 3 // Flat 3rd
             ornamented.push(blueNote)
           }
           break
 
         case 'romantic':
-          if (Math.random() < 0.2 && i < pitches.length - 2) {
-            // Add simple arpeggio fragment
+          // Arpeggios near phrase midpoint
+          if ((pitchClass % 5 === 0) && phrasePosition > 0.3 && phrasePosition < 0.6 && i < pitches.length - 2) {
             const third = pitch + 4
             const fifth = pitch + 7
             ornamented.push(third, fifth)
@@ -509,29 +561,42 @@ class PhraseMorphology {
     return ornamented
   }
 
-  generateDynamics(acceleration, velocity, noteCount = 5) {
+  generateDynamics(acceleration, velocity, noteCount = 5, intensity = 0.5) {
     // Generate dynamic contour based on gesture acceleration
+    // DETERMINISTIC: uses position and intensity for variation instead of random
     const baseVel = Array.isArray(velocity) ? velocity[0] || 50 : velocity
-    // Use provided noteCount instead of deriving from velocity
     const dynamics = []
+
+    // DERIVATION: variation based on position using sine wave for natural feel
+    const dynamicVariation = (position, amplitude) => {
+      return Math.sin(position * Math.PI * 2 * intensity + intensity * Math.PI) * amplitude
+    }
 
     if (acceleration > 5) {
       // Positive acceleration = crescendo
       for (let i = 0; i < noteCount; i++) {
-        const crescendo = 60 + (i / noteCount) * 60 // pp to ff
-        dynamics.push(Math.round(crescendo + (Math.random() - 0.5) * 10))
+        const position = i / noteCount
+        const crescendo = 60 + position * 60 // pp to ff
+        // DERIVATION: variation from position and intensity
+        const variation = dynamicVariation(position, 5 * intensity)
+        dynamics.push(Math.round(crescendo + variation))
       }
     } else if (acceleration < -5) {
       // Negative acceleration = diminuendo
       for (let i = 0; i < noteCount; i++) {
-        const diminuendo = 120 - (i / noteCount) * 60 // ff to pp
-        dynamics.push(Math.round(diminuendo + (Math.random() - 0.5) * 10))
+        const position = i / noteCount
+        const diminuendo = 120 - position * 60 // ff to pp
+        const variation = dynamicVariation(position, 5 * intensity)
+        dynamics.push(Math.round(diminuendo + variation))
       }
     } else {
-      // Stable dynamics with small variations
+      // Stable dynamics with position-based variations
       const baseVelocity = Math.max(40, Math.min(100, baseVel || 70))
       for (let i = 0; i < noteCount; i++) {
-        dynamics.push(Math.round(baseVelocity + (Math.random() - 0.5) * 15))
+        const position = i / noteCount
+        // DERIVATION: subtle wave variation based on position
+        const variation = dynamicVariation(position, 7.5 * intensity)
+        dynamics.push(Math.round(baseVelocity + variation))
       }
     }
 

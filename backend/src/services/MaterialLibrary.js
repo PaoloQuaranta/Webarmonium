@@ -1,5 +1,8 @@
 class MaterialLibrary {
   constructor() {
+    // Deterministic ID counter
+    this.materialCounter = 0
+
     // Organize materials by harmonic function
     this.materials = {
       tonic: [],      // Stable, resolving material
@@ -36,8 +39,10 @@ class MaterialLibrary {
       const character = this.analyzeCharacter(material)
 
       // Create material entry with metadata
+      // DERIVATION: use counter-based ID instead of random
+      this.materialCounter++
       const materialEntry = {
-        id: material.id || `material_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: material.id || `material_${this.materialCounter}_${Date.now()}`,
         content: material,
         metadata: {
           harmonicFunction,

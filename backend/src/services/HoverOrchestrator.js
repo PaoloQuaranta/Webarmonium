@@ -13,6 +13,9 @@ class HoverOrchestrator {
     this.roomId = roomId
     this.socketIo = socketIo
 
+    // Deterministic ID counter for hover events
+    this.eventCounter = 0
+
     // Buffer hover per analisi
     this.hoverBuffer = []
     this.maxBufferSize = 100 // keep last 100 hover events
@@ -119,11 +122,13 @@ class HoverOrchestrator {
    * @param {Object} hoverEvent - Evento hover ricevuto
    */
   addHoverEvent(hoverEvent) {
+    // DERIVATION: use counter-based ID instead of random for deterministic behavior
+    this.eventCounter++
     const enrichedEvent = {
       ...hoverEvent,
       timestamp: Date.now(),
       roomId: this.roomId,
-      id: `hover_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      id: `hover_${this.roomId}_${this.eventCounter}`
     }
 
     // Aggiungi al buffer
@@ -264,6 +269,7 @@ class HoverOrchestrator {
 
   /**
    * Rileva cluster di hover
+   * DERIVATION: uses deterministic grid-based initialization instead of random centers
    */
   detectClusters(hovers) {
     const positions = hovers.map(h => h.position || DEFAULT_POSITION)
@@ -273,9 +279,13 @@ class HoverOrchestrator {
     const k = Math.min(3, Math.ceil(positions.length / 2))
 
     for (let i = 0; i < k; i++) {
+      // DERIVATION: deterministic initial centers based on grid position
+      // Evenly space centers across the canvas based on cluster index
+      const gridX = k === 1 ? 0.5 : (i / (k - 1))
+      const gridY = k === 1 ? 0.5 : (i % 2 === 0 ? 0.33 : 0.67)
       const center = {
-        x: Math.random(),
-        y: Math.random(),
+        x: gridX,
+        y: gridY,
         weight: 0
       }
 

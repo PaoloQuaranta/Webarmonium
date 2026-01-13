@@ -41,47 +41,54 @@ class HarmonicEngine {
 
   generateProgression(styleAnalysis, phraseLength) {
     const { genreWeights, harmonicComplexity } = styleAnalysis
+    // Extract complexity value (0-1), default to 0.5
+    const complexity = harmonicComplexity?.modalFlavor === 'minor' ? 0.6 :
+                       harmonicComplexity?.modalFlavor === 'major' ? 0.4 :
+                       typeof harmonicComplexity === 'number' ? harmonicComplexity : 0.5
 
-    // Select progression type based on dominant genre
+    // Select progression type based on dominant genre, passing complexity
     if (genreWeights.jazz > 0.7) {
-      return this.generateJazzProgression(phraseLength)
+      return this.generateJazzProgression(phraseLength, complexity)
     } else if (genreWeights.classical > 0.7) {
-      return this.generateClassicalProgression(phraseLength)
+      return this.generateClassicalProgression(phraseLength, complexity)
     } else if (genreWeights.electronic > 0.7) {
-      return this.generateElectronicProgression(phraseLength)
+      return this.generateElectronicProgression(phraseLength, complexity)
     } else if (genreWeights.rock > 0.7) {
-      return this.generateRockProgression(phraseLength)
+      return this.generateRockProgression(phraseLength, complexity)
     } else {
-      return this.generatePopProgression(phraseLength)
+      return this.generatePopProgression(phraseLength, complexity)
     }
   }
 
-  generateJazzProgression(bars) {
-    // Jazz progressions often use ii-V-I, turnarounds, and extended chords
+  generateJazzProgression(bars, complexity = 0.5) {
+    // Jazz progressions ordered by complexity (simple → complex)
     const progressions = [
-      // Classic ii-V-I progression
+      // Simple: Classic ii-V-I progression (complexity ~0.3)
       [
         { chord: 'Dm7', function: 'subdominant', bars: 1, extension: 'ii7' },
         { chord: 'G7', function: 'dominant', bars: 1, extension: 'V7' },
         { chord: 'Cmaj7', function: 'tonic', bars: 2, extension: 'Imaj7' }
       ],
-      // Jazz turnaround with vi
-      [
-        { chord: 'Imaj7', function: 'tonic', bars: 1, extension: 'Imaj7' },
-        { chord: 'VI7', function: 'subdominant', bars: 1, extension: 'VI7' },
-        { chord: 'ii7', function: 'subdominant', bars: 1, extension: 'ii7' },
-        { chord: 'V7', function: 'dominant', bars: 1, extension: 'V7' }
-      ],
-      // Minor blues progression
+      // Medium: Minor blues progression (complexity ~0.5)
       [
         { chord: 'Cm7', function: 'tonic', bars: 1, extension: 'Im7' },
         { chord: 'Fm7', function: 'subdominant', bars: 1, extension: 'IVm7' },
         { chord: 'Cm7', function: 'tonic', bars: 1, extension: 'Im7' },
         { chord: 'Cm7', function: 'tonic', bars: 1, extension: 'Im7' }
+      ],
+      // Complex: Jazz turnaround with vi (complexity ~0.8)
+      [
+        { chord: 'Imaj7', function: 'tonic', bars: 1, extension: 'Imaj7' },
+        { chord: 'VI7', function: 'subdominant', bars: 1, extension: 'VI7' },
+        { chord: 'ii7', function: 'subdominant', bars: 1, extension: 'ii7' },
+        { chord: 'V7', function: 'dominant', bars: 1, extension: 'V7' }
       ]
     ]
 
-    const selected = progressions[Math.floor(Math.random() * progressions.length)]
+    // DERIVATION: complexity determines progression selection
+    const index = Math.min(Math.floor(complexity * progressions.length), progressions.length - 1)
+    const selected = progressions[index]
+
     return selected.map(chord => ({
       ...chord,
       root: this.getChordRoot(chord.chord),
@@ -90,21 +97,21 @@ class HarmonicEngine {
     }))
   }
 
-  generateClassicalProgression(bars) {
-    // Classical progressions follow functional harmony
+  generateClassicalProgression(bars, complexity = 0.5) {
+    // Classical progressions ordered by complexity (simple → complex)
     const progressions = [
-      // Perfect authentic cadence preparation
+      // Simple: Plagal cadence (complexity ~0.2)
+      [
+        { chord: 'IV', function: 'subdominant', bars: 2 },
+        { chord: 'I', function: 'tonic', bars: 2 }
+      ],
+      // Medium: Perfect authentic cadence preparation (complexity ~0.5)
       [
         { chord: 'IV', function: 'subdominant', bars: 1 },
         { chord: 'V', function: 'dominant', bars: 1 },
         { chord: 'I', function: 'tonic', bars: 2 }
       ],
-      // Plagal cadence
-      [
-        { chord: 'IV', function: 'subdominant', bars: 2 },
-        { chord: 'I', function: 'tonic', bars: 2 }
-      ],
-      // Deceptive cadence followed by authentic
+      // Complex: Deceptive cadence followed by authentic (complexity ~0.8)
       [
         { chord: 'V', function: 'dominant', bars: 1 },
         { chord: 'vi', function: 'tonic', bars: 1 },
@@ -113,7 +120,10 @@ class HarmonicEngine {
       ]
     ]
 
-    const selected = progressions[Math.floor(Math.random() * progressions.length)]
+    // DERIVATION: complexity determines progression selection
+    const index = Math.min(Math.floor(complexity * progressions.length), progressions.length - 1)
+    const selected = progressions[index]
+
     return selected.map(chord => ({
       ...chord,
       root: this.getChordRoot(chord.chord),
@@ -122,29 +132,32 @@ class HarmonicEngine {
     }))
   }
 
-  generateElectronicProgression(bars) {
-    // Electronic music often uses repetitive, hypnotic progressions
+  generateElectronicProgression(bars, complexity = 0.5) {
+    // Electronic progressions ordered by complexity (simple → complex)
     const progressions = [
-      // Basic house progression
+      // Simple: Ambient pads - single chord (complexity ~0.2)
+      [
+        { chord: 'Cmaj7', function: 'tonic', bars: 4 }
+      ],
+      // Medium: Basic house progression (complexity ~0.5)
       [
         { chord: 'Cm', function: 'tonic', bars: 2 },
         { chord: 'Ab', function: 'subdominant', bars: 1 },
         { chord: 'G', function: 'dominant', bars: 1 }
       ],
-      // Techno minor progression
+      // Complex: Techno minor progression (complexity ~0.8)
       [
         { chord: 'Am', function: 'tonic', bars: 1 },
         { chord: 'G', function: 'dominant', bars: 1 },
         { chord: 'F', function: 'subdominant', bars: 1 },
         { chord: 'E', function: 'dominant', bars: 1 }
-      ],
-      // Ambient pads
-      [
-        { chord: 'Cmaj7', function: 'tonic', bars: 4 }
       ]
     ]
 
-    const selected = progressions[Math.floor(Math.random() * progressions.length)]
+    // DERIVATION: complexity determines progression selection
+    const index = Math.min(Math.floor(complexity * progressions.length), progressions.length - 1)
+    const selected = progressions[index]
+
     return selected.map(chord => ({
       ...chord,
       root: this.getChordRoot(chord.chord),
@@ -153,31 +166,34 @@ class HarmonicEngine {
     }))
   }
 
-  generateRockProgression(bars) {
-    // Rock progressions are often driving and use power chords
+  generateRockProgression(bars, complexity = 0.5) {
+    // Rock progressions ordered by complexity (simple → complex)
     const progressions = [
-      // Classic rock progression
+      // Simple: Power chord progression (complexity ~0.2)
+      [
+        { chord: 'E5', function: 'tonic', bars: 2 },
+        { chord: 'A5', function: 'subdominant', bars: 1 },
+        { chord: 'B5', function: 'dominant', bars: 1 }
+      ],
+      // Medium: Classic rock progression (complexity ~0.5)
       [
         { chord: 'G', function: 'tonic', bars: 1 },
         { chord: 'C', function: 'subdominant', bars: 1 },
         { chord: 'D', function: 'dominant', bars: 1 },
         { chord: 'G', function: 'tonic', bars: 1 }
       ],
-      // 12-bar blues variation
+      // Complex: 12-bar blues variation (complexity ~0.8)
       [
         { chord: 'I7', function: 'tonic', bars: 1 },
         { chord: 'IV7', function: 'subdominant', bars: 1 },
         { chord: 'I7', function: 'tonic', bars: 2 }
-      ],
-      // Power chord progression
-      [
-        { chord: 'E5', function: 'tonic', bars: 2 },
-        { chord: 'A5', function: 'subdominant', bars: 1 },
-        { chord: 'B5', function: 'dominant', bars: 1 }
       ]
     ]
 
-    const selected = progressions[Math.floor(Math.random() * progressions.length)]
+    // DERIVATION: complexity determines progression selection
+    const index = Math.min(Math.floor(complexity * progressions.length), progressions.length - 1)
+    const selected = progressions[index]
+
     return selected.map(chord => ({
       ...chord,
       root: this.getChordRoot(chord.chord),
@@ -186,32 +202,35 @@ class HarmonicEngine {
     }))
   }
 
-  generatePopProgression(bars) {
-    // Pop progressions are predictable and catchy
+  generatePopProgression(bars, complexity = 0.5) {
+    // Pop progressions ordered by complexity (simple → complex)
     const progressions = [
-      // Classic I-V-vi-IV
-      [
-        { chord: 'C', function: 'tonic', bars: 1 },
-        { chord: 'G', function: 'dominant', bars: 1 },
-        { chord: 'Am', function: 'tonic', bars: 1 },
-        { chord: 'F', function: 'subdominant', bars: 1 }
-      ],
-      // Vieni-qua progression
+      // Simple: Vieni-qua progression (complexity ~0.2)
       [
         { chord: 'C', function: 'tonic', bars: 2 },
         { chord: 'G', function: 'dominant', bars: 1 },
         { chord: 'Am', function: 'tonic', bars: 1 }
       ],
-      // 50s progression
+      // Medium: 50s progression (complexity ~0.5)
       [
         { chord: 'C', function: 'tonic', bars: 1 },
         { chord: 'Am', function: 'tonic', bars: 1 },
         { chord: 'F', function: 'subdominant', bars: 1 },
         { chord: 'G', function: 'dominant', bars: 1 }
+      ],
+      // Complex: Classic I-V-vi-IV (complexity ~0.8)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 },
+        { chord: 'Am', function: 'tonic', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 }
       ]
     ]
 
-    const selected = progressions[Math.floor(Math.random() * progressions.length)]
+    // DERIVATION: complexity determines progression selection
+    const index = Math.min(Math.floor(complexity * progressions.length), progressions.length - 1)
+    const selected = progressions[index]
+
     return selected.map(chord => ({
       ...chord,
       root: this.getChordRoot(chord.chord),

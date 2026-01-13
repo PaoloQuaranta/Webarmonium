@@ -1,4 +1,5 @@
 const CounterpointEngine = require('./CounterpointEngine')
+const SeededRandom = require('../utils/SeededRandom')
 
 class CompositionEngine {
   constructor(materialLibrary, styleAnalyzer, harmonicEngine) {
@@ -85,25 +86,34 @@ class CompositionEngine {
 
   selectForm(style) {
     const genreWeights = style.genreWeights || {}
+    // Normalize energy to 0-1 range to prevent out-of-bounds access
+    const rawEnergy = style.energy || 0.5
+    const energy = Math.max(0, Math.min(1, rawEnergy))
 
-    // Select form based on dominant genre
-    if (genreWeights.classical > 0.7) {
-      const classicalForms = ['ABA', 'rondo', 'sonata', 'theme_and_variations']
-      return classicalForms[Math.floor(Math.random() * classicalForms.length)]
-    } else if (genreWeights.electronic > 0.7) {
-      const electronicForms = ['build_drop', 'verse_chorus', 'strophic', 'through_composed']
-      return electronicForms[Math.floor(Math.random() * electronicForms.length)]
-    } else if (genreWeights.jazz > 0.7) {
-      const jazzForms = ['AABA', 'blues', 'rhythm_changes', 'modal']
-      return jazzForms[Math.floor(Math.random() * jazzForms.length)]
-    } else if (genreWeights.rock > 0.7) {
-      const rockForms = ['verse_chorus', 'AABA', 'strophic', 'intro_verse_chorus_bridge_outro']
-      return rockForms[Math.floor(Math.random() * rockForms.length)]
-    } else {
-      // Default to simple forms for mixed styles
-      const defaultForms = ['ABA', 'verse_chorus', 'strophic']
-      return defaultForms[Math.floor(Math.random() * defaultForms.length)]
+    // Forms ordered by energy level (low to high)
+    // DERIVATION: energy level determines form selection within genre
+    const formsByEnergy = {
+      classical: ['theme_and_variations', 'ABA', 'rondo', 'sonata'],
+      electronic: ['through_composed', 'strophic', 'verse_chorus', 'build_drop'],
+      jazz: ['modal', 'AABA', 'blues', 'rhythm_changes'],
+      rock: ['strophic', 'AABA', 'verse_chorus', 'intro_verse_chorus_bridge_outro'],
+      default: ['strophic', 'ABA', 'verse_chorus']
     }
+
+    // Determine dominant genre
+    let genre = 'default'
+    if (genreWeights.classical > 0.7) genre = 'classical'
+    else if (genreWeights.electronic > 0.7) genre = 'electronic'
+    else if (genreWeights.jazz > 0.7) genre = 'jazz'
+    else if (genreWeights.rock > 0.7) genre = 'rock'
+
+    const forms = formsByEnergy[genre]
+
+    // DETERMINISTIC: energy maps directly to form index
+    // Low energy (0.0-0.25) → contemplative forms (first in array)
+    // High energy (0.75-1.0) → energetic forms (last in array)
+    const index = Math.min(Math.floor(energy * forms.length), forms.length - 1)
+    return forms[index]
   }
 
   initializeFormStructure(form) {
@@ -350,8 +360,11 @@ class CompositionEngine {
     }
 
     // Old material: advanced techniques
+    // DERIVATION: usage count determines which technique
+    // Higher usage → more complex transformation
     const advancedTechniques = ['augment', 'diminish', 'invert', 'retrograde']
-    return advancedTechniques[Math.floor(Math.random() * advancedTechniques.length)]
+    const techniqueIndex = usage % advancedTechniques.length
+    return advancedTechniques[techniqueIndex]
   }
 
   // Material elaboration techniques
@@ -380,13 +393,33 @@ class CompositionEngine {
   varyMaterial(material, progression) {
     if (!material.content?.notes) return material
 
-    // Apply variations to rhythm, pitch, and dynamics
-    const variedNotes = material.content.notes.map((note, i) => ({
-      ...note,
-      duration: note.duration * (0.8 + Math.random() * 0.4), // ±20% rhythm variation
-      velocity: Math.max(40, Math.min(120, note.velocity + (Math.random() - 0.5) * 20)), // Dynamic variation
-      pitch: Math.random() < 0.3 ? note.pitch + (Math.random() > 0.5 ? 2 : -2) : note.pitch // Occasional pitch variation
-    }))
+    const notes = material.content.notes
+    const noteCount = notes.length
+
+    // Apply variations derived from note properties
+    // DERIVATION: position in phrase determines variation amount
+    const variedNotes = notes.map((note, i) => {
+      // Position factor: notes at phrase boundaries get more variation
+      const positionFactor = Math.sin((i / noteCount) * Math.PI) // Peak in middle
+
+      // Duration variation: derived from note's velocity (louder = more stable)
+      const velocityFactor = (note.velocity || 80) / 127
+      const durationVariation = 0.8 + (1 - velocityFactor) * 0.4 // 0.8-1.2
+
+      // Velocity variation: derived from position in phrase (phrase contour)
+      const velocityChange = (positionFactor - 0.5) * 20 // -10 to +10
+
+      // Pitch variation: only at specific phrase positions (every 3rd note after position 0.5)
+      const shouldVaryPitch = i > noteCount * 0.5 && i % 3 === 0
+      const pitchVariation = shouldVaryPitch ? (i % 2 === 0 ? 2 : -2) : 0
+
+      return {
+        ...note,
+        duration: note.duration * durationVariation,
+        velocity: Math.max(40, Math.min(120, note.velocity + velocityChange)),
+        pitch: note.pitch + pitchVariation
+      }
+    })
 
     return {
       ...material.content,
@@ -428,8 +461,14 @@ class CompositionEngine {
 
     const originalNotes = material.content.notes
     const fragmentSize = Math.max(2, Math.floor(originalNotes.length / 2))
-    const fragmentStart = Math.floor(Math.random() * (originalNotes.length - fragmentSize))
-    const fragment = originalNotes.slice(fragmentStart, fragmentStart + fragmentSize)
+
+    // DERIVATION: fragment start position from average pitch of material
+    // Higher average pitch → start later in phrase (more varied fragments)
+    const avgPitch = originalNotes.reduce((sum, n) => sum + (n.pitch || 60), 0) / originalNotes.length
+    const normalizedPitch = (avgPitch - 48) / 48 // Normalize around middle C range
+    const fragmentStart = Math.floor(normalizedPitch * (originalNotes.length - fragmentSize))
+    const safeStart = Math.max(0, Math.min(fragmentStart, originalNotes.length - fragmentSize))
+    const fragment = originalNotes.slice(safeStart, safeStart + fragmentSize)
 
     // Repeat fragment with variations
     const fragmentedNotes = []

@@ -9,6 +9,10 @@ class GestureToMusicService {
     this.lastGestureTime = {}
     this.gestureCount = {}
 
+    // Deterministic ID counters
+    this.materialIdCounter = 0
+    this.musicalIdCounter = 0
+
     // Initialize musical components
     this.styleAnalyzer = new StyleAnalyzer()
     this.phraseMorphology = new PhraseMorphology()
@@ -284,8 +288,10 @@ class GestureToMusicService {
 
   storeMaterial(gestureData, musicalPhrase) {
     // Store the generated musical material for future composition
+    // DERIVATION: use counter-based ID instead of random
+    this.materialIdCounter++
     const material = {
-      id: `material_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `material_${this.materialIdCounter}_${Date.now()}`,
       userId: gestureData.userId,
       gestureData: gestureData,
       content: musicalPhrase,
@@ -307,8 +313,10 @@ class GestureToMusicService {
       // Convert note duration from beats to seconds
       const durationSeconds = (note.duration || 0.25) * beatDuration
 
+      // DERIVATION: use counter-based ID instead of random
+      this.musicalIdCounter++
       const event = {
-        id: `musical_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`,
+        id: `musical_${this.musicalIdCounter}_${Date.now()}_${index}`,
         eventType: 'note',
         userId: gestureData.userId,
         timestamp: Date.now() + (cumulativeTime * 1000), // Convert seconds to ms

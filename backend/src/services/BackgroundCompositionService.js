@@ -468,8 +468,19 @@ class BackgroundCompositionService {
     const currentStyle = this.styleAnalyzer.getCurrentStyle()
     const tempo = currentStyle.tempo || 120
 
-    // Generate new composition every 8-16 beats (musically natural phrase length)
-    const beatsPerComposition = 8 + Math.random() * 8  // 8-16 beats
+    // Get room state for deterministic calculation
+    const roomState = this.roomCompositions.get(roomId)
+    const compositionCount = roomState?.compositionCount || 0
+
+    // DERIVATION: beats per composition based on energy and composition count
+    // Higher energy → shorter compositions, lower energy → longer compositions
+    // Cycle through 8, 12, 16 beats based on composition count for variety
+    const energy = currentStyle.energy || 0.5
+    const baseBeats = [8, 12, 16, 10, 14] // Ordered phrase lengths
+    const beatIndex = compositionCount % baseBeats.length
+    const energyModifier = 1 - (energy * 0.3) // High energy shortens (0.7-1.0)
+    const beatsPerComposition = baseBeats[beatIndex] * energyModifier
+
     const beatDuration = 60000 / tempo  // milliseconds per beat
     const interval = beatsPerComposition * beatDuration
 

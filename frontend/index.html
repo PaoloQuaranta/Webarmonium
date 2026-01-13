@@ -197,9 +197,12 @@
       <p class="explainer-detail">
         <strong>Monitored parameters</strong> include: edit rate, velocity (rate of change), edit size, new article count,
         post frequency, upvote averages, comment counts, push frequency, repository creates, and deletes. These metrics
-        generate <em>virtual gestures</em> that feed into the same composition engine used in collaborative rooms, employing
-        six generative algorithms. Four are purely deterministic (cellular automata, fractals, Fibonacci sequences, and chaos
-        theory), while two (Markov chains and neural patterns) use bounded probabilistic transitions intrinsic to their design.
+        generate <em>virtual gestures</em> that feed into a <strong>deterministic composition system</strong>&mdash;every
+        musical decision derives directly from input data. The <em>CompositionEngine</em> selects musical forms based on
+        <em>energy level</em> (low energy &rarr; contemplative forms like theme_and_variations, high energy &rarr; energetic
+        forms like sonata). <em>PhraseMorphology</em> transforms gesture acceleration into rhythm variation (positive
+        acceleration = rushing, negative = dragging) and curvature into syncopation. The <em>HarmonicEngine</em> selects
+        progressions by complexity level, ensuring tonal coherence through voice leading.
       </p>
 
       <p class="explainer-detail">
@@ -226,8 +229,9 @@
         continuous background music through three independent layers: <em>bass</em> (2-second cycles),
         <em>pads</em> (16-second sustained chords), and <em>chords</em> (4-second harmonic movement).
         Each layer follows one of seven harmonic progressions (I-V-vi-IV, i-VI-III-VII, etc.) and
-        automatically evolves when its current pattern completes. The system uses 12 rhythmic patterns
-        per layer, creating variety through pattern cycling and random evolution.
+        automatically evolves when its current pattern completes. Composition timing is derived from
+        <em>energy level</em> and composition count&mdash;high energy produces shorter phrases (8-10 beats),
+        while low energy produces longer phrases (14-16 beats), cycling deterministically through pattern lengths.
       </p>
 
       <p class="explainer-detail">
@@ -252,7 +256,7 @@
       <h3 class="explainer-section-title">Collaborative Rooms: Real Users</h3>
       <p class="explainer-detail">
         In <a href="rooms.html">collaborative rooms</a>, real users create music through gestures:
-        <strong>tap</strong> for percussive notes, <strong>drag</strong> for melodic phrases, and <strong>hover</strong> for filter modulation.
+        <strong>tap</strong> for percussive notes and <strong>drag</strong> for melodic phrases.
         Each input device produces distinctive characteristics&mdash;touch gestures have fast attacks (50ms), mouse gestures create
         smooth envelopes (100-300ms), and gyroscope gestures produce extended sustains with octave shifts from orientation.
       </p>
@@ -265,7 +269,9 @@
 
       <p class="explainer-detail">
         <strong>Environmental memory</strong>: The room learns from gesture patterns over time, with 24-hour retention.
-        Initial gestures have high influence (1.5&times;), while mature rooms evolve more slowly (0.8&times;), creating a unique
+        Initial gestures have high influence (1.5&times;), while mature rooms evolve more slowly (0.8&times;). Pattern
+        creation and evolution are derived from gesture characteristics&mdash;high-intensity gestures at unique positions
+        create new patterns, while moderate-intensity gestures evolve existing dormant patterns, creating a deterministic
         &ldquo;room personality&rdquo; that shapes future compositions.
       </p>
 
@@ -279,7 +285,7 @@
     <footer>
       <p>Powered by <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia API</a>, <a href="https://news.ycombinator.com" target="_blank" rel="noopener">HackerNews API</a>, and <a href="https://github.com" target="_blank" rel="noopener">GitHub API</a></p>
       <p class="footer-note">Data updates every 5-60 seconds depending on source. Rate limits are respected.</p>
-      <p class="version-tag">v1.0.106</p>
+      <p class="version-tag">v1.0.108</p>
     </footer>
   </main>
 

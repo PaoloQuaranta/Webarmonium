@@ -177,9 +177,13 @@ class EnvironmentalMemoryCoordinator {
       return true
     }
 
-    // Probabilistic creation for mature memory states
+    // DERIVATION: pattern creation for mature memory states based on gesture characteristics
+    // Instead of 10% random chance, use deterministic threshold based on gesture intensity and position
     if (memoryState.determineLearningPhase() === 'mature') {
-      return Math.random() < 0.1 // 10% chance
+      // Create pattern when gesture intensity + position uniqueness exceeds threshold
+      const positionUniqueness = Math.abs(gesture.coordinates.x - 0.5) + Math.abs(gesture.coordinates.y - 0.5)
+      const creationScore = (gesture.intensity * 0.7) + (positionUniqueness * 0.3)
+      return creationScore > 0.85 // ~10% of gestures exceed this threshold
     }
 
     return false
@@ -277,9 +281,11 @@ class EnvironmentalMemoryCoordinator {
       return true
     }
 
-    // Evolve dormant patterns occasionally
+    // DERIVATION: evolve dormant patterns based on gesture intensity
+    // Instead of 30% random chance, use gesture intensity threshold
     if (pattern.state === 'dormant') {
-      return Math.random() < 0.3 // 30% chance
+      // Dormant patterns evolve when gesture intensity is moderate or higher
+      return gesture.intensity > 0.4 // ~30% of gestures exceed this
     }
 
     // Emerging patterns evolve based on gesture intensity

@@ -4593,3 +4593,70 @@ Audit Section 10.3 identified orphan methods in GestureAudioMapper.js that were 
 Updated to v1.0.107
 
 ---
+
+## Entry #111 - Documentation: Deterministic Derivation System
+
+**Date**: 2026-01-13
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Updated user-facing documentation in `index.html` and `technical-appendix.html` to accurately describe the deterministic derivation system. All music parameters now derive directly from input data without random number generation.
+
+---
+
+### Problem Statement
+
+After completing the deterministic derivation refactor (replacing ~50 Math.random() calls with data-driven formulas), the documentation still described the old random-based system. Users reading the explainer pages would not understand how the algorithm actually works.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/index.html` | Updated "Monitored parameters" section (deterministic composition system), "Background Composition Layer" (timing formula), "Environmental memory" (pattern thresholds) |
+| `frontend/technical-appendix.html` | Rewrote Section 5 (Form Selection by Energy), added Section 5b (Data-to-Music Derivation Table), updated Section 4 (Deterministic Pattern Thresholds), updated Section 12 (Composition Frequency formula) |
+
+---
+
+### Key Documentation Updates
+
+**Section 5 - Composition System (Rewritten)**:
+- Form selection based on energy level: low energy → contemplative forms (theme_and_variations), high energy → energetic forms (sonata)
+- Energy-to-form mapping: `index = floor(energy × forms.length)`
+
+**Section 5b - Data-to-Music Derivation Table (New)**:
+Three reference tables documenting complete mapping:
+1. Macro-Level Derivations (form, progression, phrase length)
+2. Note-Level Derivations (dynamics, rhythm variation, syncopation)
+3. Environmental Memory Derivations (pattern creation/evolution thresholds)
+
+**Section 12 - Composition Frequency (Updated)**:
+```
+baseBeats = [8, 12, 16, 10, 14]
+beatIndex = compositionCount % 5
+energyModifier = 1 - (energy × 0.3)
+beatsPerComposition = baseBeats[beatIndex] × energyModifier
+```
+
+---
+
+### Verification Against Codebase
+
+All documented formulas verified against actual implementation:
+- `CompositionEngine.js:95-115` - formsByEnergy ✓
+- `BackgroundCompositionService.js:479-482` - baseBeats ✓
+- `EnvironmentalMemoryCoordinator.js:185-186` - creationScore ✓
+- `EnvironmentalMemoryCoordinator.js:288,293` - intensity thresholds ✓
+- `HarmonicEngine.js:89,124,158,194,231` - complexity→progression ✓
+- `CounterpointEngine.js:334,422` - sin(position) contours ✓
+
+---
+
+### Version
+
+Updated to v1.0.108
+
+---

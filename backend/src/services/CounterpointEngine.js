@@ -175,7 +175,9 @@ class CounterpointEngine {
         })
 
         // Accumulate timing: next note starts after this one plus optional gap
-        currentBeat += duration + (Math.random() * 0.5) // Small random gap
+        // DERIVATION: gap based on note position in phrase
+        const gapFactor = (i / material.notes.length) * 0.25 + 0.125 // 0.125-0.375 based on position
+        currentBeat += duration + gapFactor
       })
     } else {
       // Generate new voice based on ROLE (not just activity)
@@ -201,13 +203,13 @@ class CounterpointEngine {
         voiceNotes.push({
           pitch,
           duration: duration,
-          velocity: this.generateVelocity(profile.activity),
-          articulation: this.generateArticulationByRole(role),
+          velocity: this.generateVelocity(profile.activity, i, noteCount),
+          articulation: this.generateArticulationByRole(role, i),
           startBeat: currentBeat
         })
 
         // Gap based on role
-        const gap = this.generateGapByRole(role)
+        const gap = this.generateGapByRole(role, i, noteCount)
         currentBeat += duration + gap
       }
     }
@@ -259,8 +261,9 @@ class CounterpointEngine {
         break
 
       default:
-        // Random but controlled
-        basePitch = min + rangeSize * 0.3 + Math.random() * rangeSize * 0.4
+        // DERIVATION: pitch based on position in phrase (center-weighted distribution)
+        const positionOffset = Math.sin((index / total) * Math.PI) * rangeSize * 0.2
+        basePitch = min + rangeSize * 0.5 + positionOffset
     }
 
     // Snap to diatonic notes for more musical result
@@ -298,76 +301,104 @@ class CounterpointEngine {
 
   generateDuration(activity, index, total) {
     // Generate note duration with variation based on activity level
-    const random = Math.random()
+    // DERIVATION: uses note position and total for deterministic variation
 
     switch (activity) {
       case 'high':
         // Fast, varied: mix of 16th, 8th, quarter notes
         const fastDurations = [0.25, 0.5, 0.75, 1.0]
-        return fastDurations[Math.floor(random * fastDurations.length)]
+        // DERIVATION: position determines duration selection
+        return fastDurations[index % fastDurations.length]
       case 'low':
         // Long, sustained: half notes and whole notes with variation
-        return 1.5 + (random * 2.5) // 1.5 to 4.0 beats
+        // DERIVATION: position within phrase determines length
+        const lowPosition = index / total
+        return 1.5 + (lowPosition * 2.5) // 1.5 to 4.0 beats based on position
       default:
         // Medium: quarter and half notes with syncopation
         const mediumDurations = [0.5, 0.75, 1.0, 1.5, 2.0]
-        return mediumDurations[Math.floor(random * mediumDurations.length)]
+        // DERIVATION: position determines duration selection
+        return mediumDurations[index % mediumDurations.length]
     }
   }
 
-  generateVelocity(activity) {
+  generateVelocity(activity, noteIndex = 0, totalNotes = 1) {
     // Generate velocity based on activity
+    // DERIVATION: uses position to create natural dynamic contour
+
+    // Guard against divide-by-zero
+    if (totalNotes === 0) return 80 // Default velocity
+
+    const position = noteIndex / totalNotes
+    // Create arch-like dynamic contour (louder in middle of phrase)
+    const dynamicCurve = Math.sin(position * Math.PI) * 0.5 + 0.5 // 0.5 to 1.0
+
     switch (activity) {
-      case 'high': return 90 + Math.random() * 30
-      case 'low': return 60 + Math.random() * 20
-      default: return 75 + Math.random() * 25
+      case 'high':
+        // Base 90-120, modulated by position
+        return Math.round(90 + dynamicCurve * 30)
+      case 'low':
+        // Base 60-80, modulated by position
+        return Math.round(60 + dynamicCurve * 20)
+      default:
+        // Base 75-100, modulated by position
+        return Math.round(75 + dynamicCurve * 25)
     }
   }
 
-  generateArticulation(activity) {
+  generateArticulation(activity, noteIndex = 0) {
     // Generate articulation based on activity
+    // DERIVATION: uses note index for deterministic alternation
     switch (activity) {
-      case 'high': return Math.random() > 0.5 ? 'staccato' : 'marcato'
+      case 'high':
+        // Alternate between staccato and marcato based on position
+        return noteIndex % 2 === 0 ? 'staccato' : 'marcato'
       case 'low': return 'legato'
       default: return 'normal'
     }
   }
 
   generateDurationByRole(role, index, total) {
-    // Role-specific duration generation with RANDOMIZATION for variety
-    const random = Math.random()
+    // Role-specific duration generation
+    // DERIVATION: uses note index for deterministic pattern-based selection
 
     switch (role) {
       case 'melody':
         // Fast, varied: 8th and 16th notes with variation
         const melodyOptions = [0.25, 0.5, 0.25, 0.75, 0.375, 0.625]
-        return melodyOptions[Math.floor(random * melodyOptions.length)]
+        // DERIVATION: cycle through options based on note position
+        return melodyOptions[index % melodyOptions.length]
 
       case 'harmony':
         // Medium: quarter and half notes with variation
         const harmonyOptions = [1.0, 1.5, 0.75, 1.0, 1.25, 0.5]
-        return harmonyOptions[Math.floor(random * harmonyOptions.length)]
+        return harmonyOptions[index % harmonyOptions.length]
 
       case 'bass':
         // Long: whole notes and half notes with variation
         const bassOptions = [3.0, 4.0, 2.0, 2.5, 3.5]
-        return bassOptions[Math.floor(random * bassOptions.length)]
+        return bassOptions[index % bassOptions.length]
 
       case 'pad':
         // Very long: sustained notes with variation
         const padOptions = [6.0, 8.0, 7.0, 5.0, 9.0]
-        return padOptions[Math.floor(random * padOptions.length)]
+        return padOptions[index % padOptions.length]
 
       default:
-        return 0.5 + random * 1.5  // 0.5 to 2.0 random
+        // DERIVATION: duration based on position in phrase
+        const position = index / total
+        return 0.5 + position * 1.5  // 0.5 to 2.0 based on position
     }
   }
 
-  generateArticulationByRole(role) {
+  generateArticulationByRole(role, noteIndex = 0) {
     // Role-specific articulation for TIMBRAL DISTINCTION
+    // DERIVATION: uses note index for deterministic variation where needed
     switch (role) {
       case 'melody':
-        return Math.random() < 0.7 ? 'staccato' : 'normal'  // Bright, detached
+        // DERIVATION: pattern-based articulation (70% staccato equivalent)
+        // Staccato on notes 0,1,2 of every 3, normal on note 3
+        return (noteIndex % 4) < 3 ? 'staccato' : 'normal'  // Bright, detached
       case 'harmony':
         return 'normal'                                      // Standard
       case 'bass':
@@ -379,19 +410,33 @@ class CounterpointEngine {
     }
   }
 
-  generateGapByRole(role) {
+  generateGapByRole(role, noteIndex = 0, totalNotes = 1) {
     // Role-specific gaps for PIENI/VUOTI (full/empty sections)
+    // DERIVATION: uses note position for deterministic pattern-based gaps
+
+    // Guard against divide-by-zero
+    if (totalNotes === 0) return 0
+
+    const position = noteIndex / totalNotes
+    // Create variation using sine wave based on position
+    const variationFactor = Math.sin(position * Math.PI * 2) * 0.5 + 0.5 // 0-1
+
     switch (role) {
       case 'melody':
-        return Math.random() * 0.25  // Tight spacing - continuous
+        // Tight spacing - continuous (0-0.25)
+        return variationFactor * 0.25
       case 'harmony':
-        return 0.5 + Math.random() * 0.5  // Medium spacing
+        // Medium spacing (0.5-1.0)
+        return 0.5 + variationFactor * 0.5
       case 'bass':
-        return 1.0 + Math.random() * 2.0  // Wide spacing - allows silence
+        // Wide spacing - allows silence (1.0-3.0)
+        return 1.0 + variationFactor * 2.0
       case 'pad':
-        return 2.0 + Math.random() * 4.0  // Very wide spacing - creates vuoti
+        // Very wide spacing - creates vuoti (2.0-6.0)
+        return 2.0 + variationFactor * 4.0
       default:
-        return Math.random() * 1.0
+        // Default (0-1.0)
+        return variationFactor * 1.0
     }
   }
 

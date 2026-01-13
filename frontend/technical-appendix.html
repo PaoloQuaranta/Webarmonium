@@ -203,12 +203,6 @@
             <td>Multi-note melodic phrase</td>
             <td>Particle trail</td>
           </tr>
-          <tr>
-            <td>Hover</td>
-            <td>Stationary position</td>
-            <td>Filter modulation only</td>
-            <td>Glow effect</td>
-          </tr>
         </tbody>
       </table>
 
@@ -345,66 +339,264 @@
         <li><strong>Spatial:</strong> Z coordinate present (gyroscope)</li>
       </ul>
 
+      <h3>Deterministic Pattern Thresholds</h3>
+      <p>Pattern creation and evolution use deterministic thresholds derived from gesture characteristics:</p>
+      <div class="formula">
+        <strong>Pattern Creation (mature phase):</strong><br>
+        creationScore = (intensity &times; 0.7) + (positionUniqueness &times; 0.3)<br>
+        positionUniqueness = |x - 0.5| + |y - 0.5|<br>
+        Create new pattern when creationScore &gt; 0.85<br><br>
+        <strong>Pattern Evolution:</strong><br>
+        Dormant patterns &rarr; evolve when gesture.intensity &gt; 0.4<br>
+        Emerging patterns &rarr; evolve when gesture.intensity &gt; 0.3
+      </div>
+
       <div class="note">
         <strong>Pattern Retention:</strong> 24 hours. Rooms develop a unique "personality" from accumulated gestures.
+        Pattern creation favors high-intensity gestures at unique positions (far from center), while evolution
+        thresholds ensure moderate-intensity gestures contribute to existing patterns.
       </div>
     </section>
 
-    <!-- Section 5: Generative Algorithms -->
+    <!-- Section 5: Composition System -->
     <section class="tech-section">
-      <h2>5. Generative Algorithms</h2>
+      <h2>5. Composition System</h2>
+      <p>
+        Webarmonium uses a <strong>fully deterministic</strong> composition architecture. Every musical
+        decision&mdash;from form selection to individual note dynamics&mdash;derives directly from input
+        data. Given the same gesture sequence, the system produces identical compositions.
+      </p>
+
+      <h3>Core Components</h3>
       <table>
         <thead>
           <tr>
-            <th>Algorithm</th>
-            <th>Type</th>
-            <th>Randomness</th>
-            <th>How Gestures Influence</th>
+            <th>Component</th>
+            <th>Role</th>
+            <th>How Input Data Maps to Music</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Fibonacci</td>
-            <td><span class="badge badge-deterministic">Deterministic</span></td>
-            <td>None</td>
-            <td>Golden ratio timing from gesture duration</td>
+            <td>CompositionEngine</td>
+            <td>Musical form selection</td>
+            <td>Energy level &rarr; form (low=contemplative, high=energetic)</td>
           </tr>
           <tr>
-            <td>Cellular Automata</td>
-            <td><span class="badge badge-deterministic">Deterministic</span></td>
-            <td>None</td>
-            <td>Conway-like rules from gesture frequency patterns</td>
+            <td>PhraseMorphology</td>
+            <td>Melodic generation</td>
+            <td>Acceleration &rarr; rhythm; Curvature &rarr; syncopation; Intensity &rarr; phrase length</td>
           </tr>
           <tr>
-            <td>Chaos Theory</td>
-            <td><span class="badge badge-deterministic">Deterministic</span></td>
-            <td>None</td>
-            <td>Lorenz attractor seeded by gesture intensity</td>
+            <td>HarmonicEngine</td>
+            <td>Tonal management</td>
+            <td>Harmonic complexity &rarr; progression (simple to complex)</td>
           </tr>
           <tr>
-            <td>Fractal</td>
-            <td><span class="badge badge-deterministic">Deterministic</span></td>
-            <td>None</td>
-            <td>Augment/diminish patterns from gesture material</td>
+            <td>CounterpointEngine</td>
+            <td>Voice leading</td>
+            <td>Note position &rarr; velocity contour, duration, gap patterns</td>
           </tr>
           <tr>
-            <td>Markov Chain</td>
-            <td><span class="badge badge-probabilistic">Probabilistic</span></td>
-            <td>Intrinsic to algorithm</td>
-            <td>Transition probabilities learned from gesture history</td>
+            <td>StyleAnalyzer</td>
+            <td>Pattern recognition</td>
+            <td>Extracts tempo, energy, density from gesture history</td>
           </tr>
           <tr>
-            <td>Neural</td>
-            <td><span class="badge badge-probabilistic">Probabilistic</span></td>
-            <td>Intrinsic to algorithm</td>
-            <td>Weights trained on gesture mood/energy patterns</td>
+            <td>MaterialLibrary</td>
+            <td>Musical material storage</td>
+            <td>Organizes motifs, themes by function and character</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Form Selection by Genre and Energy</h3>
+      <p>
+        Forms within each genre are ordered by energy level. The style's energy value (0.0-1.0)
+        directly selects the form: low energy chooses contemplative forms (first in array),
+        high energy chooses energetic forms (last in array).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Genre Weight</th>
+            <th>Forms (Low Energy &rarr; High Energy)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Classical (&gt;0.7)</td>
+            <td>theme_and_variations &rarr; ABA &rarr; rondo &rarr; sonata</td>
+          </tr>
+          <tr>
+            <td>Electronic (&gt;0.7)</td>
+            <td>through_composed &rarr; strophic &rarr; verse_chorus &rarr; build_drop</td>
+          </tr>
+          <tr>
+            <td>Jazz (&gt;0.7)</td>
+            <td>modal &rarr; AABA &rarr; blues &rarr; rhythm_changes</td>
+          </tr>
+          <tr>
+            <td>Rock (&gt;0.7)</td>
+            <td>strophic &rarr; AABA &rarr; verse_chorus &rarr; intro_verse_chorus_bridge_outro</td>
+          </tr>
+          <tr>
+            <td>Mixed/Default</td>
+            <td>strophic &rarr; ABA &rarr; verse_chorus</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="formula">
+        formIndex = floor(energy &times; formCount)<br>
+        selectedForm = genreForms[formIndex]
+      </div>
+
+      <div class="note">
+        <strong>Deterministic Selection:</strong> All composition parameters derive from input data.
+        Form selection uses energy, progression selection uses harmonic complexity, and note-level
+        details (velocity, duration, articulation) derive from position within the phrase using
+        sine-wave contours for natural musical expression.
+      </div>
+    </section>
+
+    <!-- Section 5b: Data-to-Music Derivation Table -->
+    <section class="tech-section">
+      <h2>5b. Data-to-Music Derivation Table</h2>
+      <p>
+        Every musical parameter derives from a specific input data source. This table documents the
+        complete mapping from gesture/metric data to musical output.
+      </p>
+
+      <h3>Macro-Level Derivations</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Musical Parameter</th>
+            <th>Input Data</th>
+            <th>Derivation Formula</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Form selection</td>
+            <td>style.energy</td>
+            <td>forms[floor(energy &times; formCount)]</td>
+          </tr>
+          <tr>
+            <td>Chord progression</td>
+            <td>harmonicComplexity</td>
+            <td>progressions[floor(complexity &times; progCount)]</td>
+          </tr>
+          <tr>
+            <td>Phrase length</td>
+            <td>velocity + intensity</td>
+            <td>rangeMin + intensity &times; (rangeMax - rangeMin)</td>
+          </tr>
+          <tr>
+            <td>Composition timing</td>
+            <td>energy + compositionCount</td>
+            <td>baseBeats[count % 5] &times; (1 - energy &times; 0.3)</td>
+          </tr>
+          <tr>
+            <td>Scale selection</td>
+            <td>mood (from gesture)</td>
+            <td>scaleMap[mood].primary or secondary based on curvature</td>
+          </tr>
+          <tr>
+            <td>Contour type</td>
+            <td>trajectory.angle + curvature</td>
+            <td>angle &rarr; ascending/descending; curvature &rarr; arch/wave</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Note-Level Derivations</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Musical Parameter</th>
+            <th>Input Data</th>
+            <th>Derivation Formula</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Rhythm variation</td>
+            <td>acceleration</td>
+            <td>baseDuration &times; (1 + (acceleration/100) &times; position &times; 0.4)</td>
+          </tr>
+          <tr>
+            <td>Syncopation</td>
+            <td>curvature</td>
+            <td>Apply rhythmic device when phrasePosition &gt; (1 - curvature)</td>
+          </tr>
+          <tr>
+            <td>Velocity contour</td>
+            <td>notePosition</td>
+            <td>baseVel + sin(position &times; &pi;) &times; range (arch shape)</td>
+          </tr>
+          <tr>
+            <td>Note duration</td>
+            <td>role + noteIndex</td>
+            <td>durationOptions[role][index % optionCount]</td>
+          </tr>
+          <tr>
+            <td>Inter-note gaps</td>
+            <td>role + notePosition</td>
+            <td>baseGap + sin(position &times; 2&pi;) &times; gapRange</td>
+          </tr>
+          <tr>
+            <td>Interval type</td>
+            <td>phrasePosition</td>
+            <td>Edges (&lt;0.2, &gt;0.8) prefer steps; center allows skips/leaps</td>
+          </tr>
+          <tr>
+            <td>Articulation</td>
+            <td>role + noteIndex</td>
+            <td>Pattern-based: melody=staccato on 3/4 notes, bass=legato</td>
+          </tr>
+          <tr>
+            <td>Ornaments</td>
+            <td>pitchClass + phrasePosition</td>
+            <td>Style-specific placement based on pitch%12 and position</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Environmental Memory Derivations</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Decision</th>
+            <th>Input Data</th>
+            <th>Derivation Formula</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Pattern creation</td>
+            <td>intensity + position</td>
+            <td>Create when (intensity &times; 0.7) + (positionUniqueness &times; 0.3) &gt; 0.85</td>
+          </tr>
+          <tr>
+            <td>Pattern evolution</td>
+            <td>gesture.intensity</td>
+            <td>Evolve dormant patterns when intensity &gt; 0.4</td>
+          </tr>
+          <tr>
+            <td>Position uniqueness</td>
+            <td>coordinates</td>
+            <td>|x - 0.5| + |y - 0.5| (distance from center)</td>
           </tr>
         </tbody>
       </table>
 
       <div class="note">
-        <strong>Algorithm Selection:</strong> Deterministic, based on room ID and complexity level.
-        The same room with the same complexity will always select the same algorithm.
+        <strong>Position-Based Variation:</strong> Note-level parameters use sine-wave functions
+        based on position within the phrase (sin(position &times; &pi;)) to create natural musical
+        contours. This produces arch-like dynamics (louder in middle), voice-leading preference
+        at phrase edges, and organic duration/gap variations&mdash;all without random number generation.
       </div>
     </section>
 
@@ -434,34 +626,34 @@
     <section class="tech-section">
       <h2>7. Audio Architecture</h2>
 
-      <h3>Three-Tier System</h3>
+      <h3>Unified Audio Chain</h3>
+      <p>
+        All audio sources share a common routing architecture with independent volume control
+        and stereo panning. Each source connects to a master bus with optional effects sends.
+      </p>
       <table>
         <thead>
           <tr>
-            <th>Tier</th>
-            <th>Purpose</th>
-            <th>Volume Multiplier</th>
-            <th>Base Frequency</th>
+            <th>Source</th>
+            <th>Synth Type</th>
+            <th>Routing</th>
           </tr>
         </thead>
         <tbody>
           <tr>
+            <td>Local gestures</td>
+            <td>MonoSynth (gestureSynth)</td>
+            <td>synth &rarr; pan &rarr; volume &rarr; master + FX</td>
+          </tr>
+          <tr>
+            <td>Remote users</td>
+            <td>Per-user PolySynth (UserSynthManager)</td>
+            <td>synth &rarr; pan &rarr; volume &rarr; master + FX</td>
+          </tr>
+          <tr>
             <td>Background</td>
-            <td>Ambient algorithmic music</td>
-            <td>0.7&times;</td>
-            <td>110Hz</td>
-          </tr>
-          <tr>
-            <td>Remote</td>
-            <td>Other users' contributions</td>
-            <td>1.5&times;</td>
-            <td>440Hz</td>
-          </tr>
-          <tr>
-            <td>Local</td>
-            <td>User's own gestures</td>
-            <td>2.0&times;</td>
-            <td>880Hz</td>
+            <td>Ambient layers (bass, pad, chords)</td>
+            <td>layer &rarr; filter &rarr; volume &rarr; master + FX</td>
           </tr>
         </tbody>
       </table>
@@ -756,19 +948,13 @@
             <td>DRAG</td>
             <td>Phrase (3-8 notes, 300-3000ms)</td>
           </tr>
-          <tr>
-            <td>Periodicity</td>
-            <td>Wiki: newArticles<br>HN: commentCount<br>GH: deletesPerMinute</td>
-            <td>HOVER</td>
-            <td>Filter modulation only (no sound)</td>
-          </tr>
         </tbody>
       </table>
 
       <h3>Gesture Selection</h3>
       <div class="formula">
-        gestureType = argmax(stability, density, periodicity)<br>
-        // Whichever metric is highest determines the gesture type
+        gestureType = stability &gt; density ? TAP : DRAG<br>
+        // Higher stability produces single notes, higher density produces phrases
       </div>
 
       <h3>Intent Thresholding</h3>
@@ -782,12 +968,16 @@
 
       <h3>Composition Frequency</h3>
       <p>
-        The rate of background composition generation emerges from total metric activity:
+        Composition timing derives from energy level and composition count, cycling through
+        predetermined phrase lengths for variety:
       </p>
       <div class="formula">
-        beatsPerComposition = 12 - (totalActivity &times; 6)<br><br>
-        High activity &rarr; 6 beats (~2.5s @ 120 BPM)<br>
-        Low activity &rarr; 12 beats (~5s @ 120 BPM)
+        baseBeats = [8, 12, 16, 10, 14]  // Cycles through these lengths<br>
+        beatIndex = compositionCount % 5<br>
+        energyModifier = 1 - (energy &times; 0.3)  // 0.7-1.0<br>
+        beatsPerComposition = baseBeats[beatIndex] &times; energyModifier<br><br>
+        High energy &rarr; 5.6-11.2 beats (shorter phrases)<br>
+        Low energy &rarr; 8-16 beats (longer phrases)
       </div>
 
       <div class="note">
