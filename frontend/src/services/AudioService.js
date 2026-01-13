@@ -263,6 +263,10 @@ class AudioService {
     if (event.persisted) {
       console.log('🔊 Page restored from BFCache - forcing audio recovery')
       await this._performAudioRecovery('pageshow-cached')
+    } else if (this._isIOS && this.isInitialized && Tone.context?.state !== 'running') {
+      // iOS Safari: Even non-persisted pageshow may need recovery after device wake
+      console.log('🔊 iOS pageshow with suspended context - attempting recovery')
+      await this._performAudioRecovery('pageshow-ios')
     } else {
       console.log('🔊 Page shown (fresh load)')
     }
@@ -379,7 +383,9 @@ class AudioService {
 
     const config = this._recoveryConfig
     const rawContext = Tone.context?.rawContext || Tone.context?._context || Tone.context
-    const maxAttempts = this._needsAggressiveResume
+    // iOS and Android both need aggressive resume
+    const needsAggressiveResume = this._needsAggressiveResume || this._isIOS
+    const maxAttempts = needsAggressiveResume
       ? config.MAX_RESUME_ATTEMPTS_AGGRESSIVE
       : config.MAX_RESUME_ATTEMPTS
 
@@ -392,6 +398,17 @@ class AudioService {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
+        // iOS CRITICAL: "interrupted" state requires Tone.start(), not just resume()
+        // This can only work if called from a user gesture context
+        if (this._isIOS && (Tone.context?.state === 'interrupted' || Tone.context?.state === 'suspended')) {
+          console.log(`🔊 iOS: Trying Tone.start() on attempt ${attempt}`)
+          try {
+            await Tone.start()
+          } catch (startError) {
+            console.log('🔊 iOS Tone.start() failed (expected if not in gesture):', startError.message)
+          }
+        }
+
         // Try all available resume methods
         if (rawContext?.resume) {
           await rawContext.resume()
@@ -493,9 +510,21 @@ class AudioService {
     // Respect user's explicit stop - don't attempt recovery if user stopped audio
     if (this._userStoppedAudio) return
 
-    // Check 1: Context state
-    if (Tone.context?.state !== 'running') {
-      console.warn('🔊 Health check: AudioContext not running')
+    const contextState = Tone.context?.state
+
+    // Check 1: Context state - must be "running"
+    // iOS Safari can have "interrupted" state after device sleep
+    if (contextState !== 'running') {
+      console.warn('🔊 Health check: AudioContext not running', {
+        state: contextState,
+        isIOS: this._isIOS
+      })
+      // iOS "interrupted" state requires user gesture - request it
+      if (contextState === 'interrupted') {
+        console.warn('🔊 iOS interrupted state detected - requesting user gesture')
+        this._requestUserGestureForAudio()
+        return
+      }
       this._attemptSilentRecovery()
       return
     }
@@ -559,24 +588,43 @@ class AudioService {
    * Includes iOS-specific handling (very quiet tone instead of silent)
    */
   async handleUserGestureForRecovery() {
-    console.log('🔊 User gesture received for audio recovery')
+    console.log('🔊 User gesture received for audio recovery', {
+      platform: this._isIOS ? 'iOS' : (this._isMobile ? 'mobile' : 'desktop'),
+      contextState: Tone.context?.state
+    })
     this._wakeRecoveryAttempts = 0
     this._userStoppedAudio = false // Clear user stop flag on explicit gesture
 
     const config = this._recoveryConfig
 
-    // Play buffer to "unlock" audio on mobile
+    // iOS CRITICAL: Must call Tone.start() FIRST from user gesture
+    // This is the only way to unlock AudioContext on iOS Safari after sleep
+    // Tone.start() internally handles the iOS-specific unlock mechanism
+    if (this._isIOS || Tone.context?.state === 'interrupted' || Tone.context?.state === 'suspended') {
+      try {
+        console.log('🔊 Calling Tone.start() from user gesture...')
+        await Tone.start()
+        console.log('🔊 After Tone.start():', Tone.context?.state)
+      } catch (e) {
+        console.warn('🔊 Tone.start() failed:', e.message)
+      }
+    }
+
+    // Play buffer to "unlock" audio on mobile (additional unlock mechanism)
     // iOS requires very quiet (not silent) audio, other platforms can use silent
     let player = null
     try {
-      player = new Tone.Player().toDestination()
-      player.volume.value = this._isIOS ? config.IOS_UNLOCK_VOLUME_DB : -Infinity
-      player.start()
+      // Only create player if context is running now
+      if (Tone.context?.state === 'running') {
+        player = new Tone.Player().toDestination()
+        player.volume.value = this._isIOS ? config.IOS_UNLOCK_VOLUME_DB : -Infinity
+        player.start()
 
-      const unlockDuration = this._isIOS ? config.IOS_UNLOCK_DURATION_MS : 50
-      await new Promise(resolve => setTimeout(resolve, unlockDuration))
+        const unlockDuration = this._isIOS ? config.IOS_UNLOCK_DURATION_MS : 50
+        await new Promise(resolve => setTimeout(resolve, unlockDuration))
 
-      player.stop()
+        player.stop()
+      }
     } catch (e) {
       console.warn('🔊 Buffer unlock failed:', e.message)
     } finally {

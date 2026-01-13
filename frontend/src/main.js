@@ -1834,10 +1834,17 @@ class WebarmoniumApp {
     if (this._audioRecoveryClickHandler) return
 
     this._audioRecoveryClickHandler = () => this._handleAudioRecoveryClick()
-    this._audioRecoveryTouchHandler = () => this._handleAudioRecoveryClick()
+    this._audioRecoveryTouchHandler = (e) => {
+      // Prevent default to ensure the event is captured on iOS Safari
+      // and triggers proper user gesture context for audio unlock
+      e.preventDefault()
+      this._handleAudioRecoveryClick()
+    }
 
     document.addEventListener('click', this._audioRecoveryClickHandler, { once: true })
-    document.addEventListener('touchstart', this._audioRecoveryTouchHandler, { once: true })
+    // iOS Safari requires passive: false to allow preventDefault() and ensure
+    // the touchstart is treated as a user gesture for audio context unlock
+    document.addEventListener('touchstart', this._audioRecoveryTouchHandler, { once: true, passive: false })
   }
 
   /**
