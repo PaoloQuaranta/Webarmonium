@@ -4665,11 +4665,13 @@ Updated to v1.0.108
 
 **Date**: 2026-01-13
 **Author**: Claude Code (AI Assistant)
-**Status**: COMPLETED
+**Status**: PARTIALLY COMPLETED
 
 ### Summary
 
 Fixed audio muting issue when returning to the app after device sleep mode. Audio previously remained muted requiring page reload, especially noticeable on mobile devices. Implemented comprehensive recovery system with multiple event listeners, health monitoring, and user gesture fallback.
+
+**Current Status**: Works on PC and in normal rooms on iOS. Still broken on iOS Safari landing page - Play button appears but pressing it doesn't restore audio.
 
 ---
 
@@ -4796,8 +4798,40 @@ this._recoveryConfig = {
 
 ---
 
+### iOS Landing Page Issue (Unresolved)
+
+**Symptom**: On iOS Safari, after device sleep, the landing page shows the Play button overlay but pressing it doesn't restore audio. Normal rooms work correctly (audio auto-recovers without showing button).
+
+**Investigation**:
+1. Both landing page and normal rooms use the same AudioService with identical recovery code
+2. Both have identical `_setupProactiveRecoveryCheck()` implementations
+3. Both have identical `_handleAudioRecoveryClick()` implementations
+4. The proactive check correctly detects audio needs recovery (button appears)
+5. But pressing the button doesn't successfully restore audio
+
+**Attempted Fixes**:
+1. Added `Tone.start()` call from user gesture (iOS requirement) - no effect
+2. Added iOS "interrupted" state detection - no effect
+3. Added Transport state check (`Tone.Transport?.state !== 'started'`) - no effect
+4. Moved listener registration to `initialize()` method (before audio init) - button now appears
+5. Added `socket.emit('request-drone')` after recovery - wrong approach (both rooms use same audio system)
+
+**Key Differences Between Landing and Rooms**:
+- Landing: Uses `isAudioReady` flag
+- Rooms: Uses `isAudioStarted` flag
+- Both use same AudioService.handleUserGestureForRecovery()
+
+**Root Cause**: Unknown. Code review confirmed implementations are identical. The difference in behavior suggests a state or timing issue not yet identified.
+
+**Next Steps**:
+- Need to investigate AudioService internal state during recovery
+- May need iOS Safari remote debugging to capture console logs
+- Consider if `_userStoppedAudio` flag is incorrectly set on landing page
+
+---
+
 ### Version
 
-Updated to v1.0.109
+Updated to v1.0.114
 
 ---
