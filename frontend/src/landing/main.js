@@ -1398,13 +1398,19 @@ class LandingApp {
     const contextState = Tone.context?.state
     // Audio needs recovery if context is not running
     if (contextState !== 'running') {
-      console.log('🔊 Landing: Proactive check - audio needs recovery, state:', contextState)
+      console.log('🔊 Landing: Proactive check - context not running:', contextState)
       return true
     }
 
     // Also check if masterVolume is stuck at -Infinity (silent)
     if (this.audioService.masterVolume?.volume?.value === -Infinity) {
       console.log('🔊 Landing: Proactive check - masterVolume stuck at -Infinity')
+      return true
+    }
+
+    // iOS Safari: Transport can be stopped even if context reports "running"
+    if (Tone.Transport?.state !== 'started') {
+      console.log('🔊 Landing: Proactive check - Transport not started:', Tone.Transport?.state)
       return true
     }
 
