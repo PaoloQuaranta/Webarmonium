@@ -225,42 +225,6 @@ class FilterModulationSystem {
   }
 
   /**
-   * Map gesture to filter parameters
-   * @param {Object} sonicParams - Sonic parameters
-   * @returns {Object} Filter parameters
-   */
-  mapGestureToFilter(sonicParams) {
-    const tier = sonicParams.tier || 'local'
-
-    if (tier === 'local') {
-      const y = sonicParams.y || 0.5
-      const x = sonicParams.x || 0.5
-
-      return {
-        cutoffFrequency: 200 + ((1 - y) * 3800),
-        resonance: 0.5 + (x * 4.5),
-        tremoloAmount: 0
-      }
-    } else if (tier === 'remote') {
-      const y = sonicParams.y || 0.5
-      const x = sonicParams.x || 0.5
-
-      return {
-        lfoSpeed: 0.05 + (x * 9.95),
-        lfoAmplitude: y,
-        isRemoteLFO: true
-      }
-    } else {
-      const movement = sonicParams?.z ?? sonicParams?.y ?? 0.5
-      return {
-        cutoffFrequency: 200 + (movement * 2000),
-        resonance: 1.0,
-        tremoloAmount: 0
-      }
-    }
-  }
-
-  /**
    * Apply local filter modulation
    * @param {Object} filterParams - Filter parameters
    * @param {number} currentTime - Current audio time

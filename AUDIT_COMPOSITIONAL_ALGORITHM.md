@@ -347,18 +347,19 @@ Nota → UserSynthManager.getSynthForUser() → patch synth → pan → volume �
 > File eliminato il 2026-01-12 insieme ai relativi test (870 linee totali).
 > Era codice legacy mai utilizzato in produzione.
 
-### 10.2 ThreeTierAudioSystem.js
+### 10.2 ~~ThreeTierAudioSystem.js~~ - **RIMOSSO**
 
-- **Stato**: Classe definita, config presente, mai usata
-- **Metodi orfani**: `setSynths()`, `setAmbientFilters()`, `setMasterVolume()`
+> File eliminato il 2026-01-13 (Entry #106).
+> Era codice legacy mai utilizzato (~850 linee).
 
-### 10.3 GestureAudioMapper.js
+### 10.3 ~~GestureAudioMapper.js metodi orfani~~ - **RIMOSSI**
 
-- **Metodi orfani**:
-  - `mapGestureToFrequency()`
-  - `mapGestureToVolume()`
-  - `mapGestureToFilter()`
-- **Stato**: playMusicalEvent() usa math diretto invece
+> Metodi rimossi il 2026-01-13 (Entry #110):
+> - `mapGestureToFrequency()` - duplicato, AudioService ha la sua versione
+> - `mapGestureToVolume()` - duplicato, AudioService ha la sua versione
+> - `mapGestureToFilter()` - duplicato in GestureAudioMapper, AudioServiceFacade, FilterModulationSystem
+>
+> Tutti rimossi insieme alle deleghe in AudioServiceFacade.js e FilterModulationSystem.js.
 
 ### 10.4 HoverOrchestrator LFO System (linee 41-92)
 
@@ -503,5 +504,7 @@ Il sistema funziona principalmente grazie a:
 > **AGGIORNAMENTO 2026-01-13 (Entry #108)**: I 6 parametri backend inutilizzati sono stati **rimossi** da GestureToMusicService.js: gestureAction, gestureType, noteIndex, totalNotes, mood, scale. Motivo: mai usati dal frontend, ~40% riduzione payload per nota.
 
 > **AGGIORNAMENTO 2026-01-13 (Entry #109)**: Il `gestureFilter` è stato **rimosso** dalla catena audio locale. Motivo: dopo Entry #105 era statico (8000Hz, Q=0.5), non aggiungeva valore timbrico. Ora local e remote usano la stessa architettura (synth → pan → volume). File modificati: AudioService.js, AudioServiceFacade.js, FilterModulationSystem.js, landing/main.js.
+
+> **AGGIORNAMENTO 2026-01-13 (Entry #110)**: Rimossi metodi orfani `mapGestureToFrequency`, `mapGestureToVolume`, `mapGestureToFilter` da GestureAudioMapper.js (duplicati non usati - AudioService.js ha le versioni attive). Rimosse anche deleghe in AudioServiceFacade.js e FilterModulationSystem.js. ~70 linee di dead code eliminate.
 
 **Tutte le issue identificate sono state risolte.** L'architettura audio è ora semplificata e uniforme.

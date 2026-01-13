@@ -4550,3 +4550,46 @@ gestureSynth → gesturePan → gestureVolume → masterVolume
 Updated to v1.0.106
 
 ---
+
+## Entry #110 - Remove Orphan Methods from GestureAudioMapper
+
+**Date**: 2026-01-13
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Removed orphan methods `mapGestureToFrequency`, `mapGestureToVolume`, `mapGestureToFilter` from GestureAudioMapper.js and related delegation methods from AudioServiceFacade.js and FilterModulationSystem.js. These were duplicates never called - AudioService.js has the active versions.
+
+---
+
+### Problem Statement
+
+Audit Section 10.3 identified orphan methods in GestureAudioMapper.js that were duplicates of methods in AudioService.js. The `updateSonicParams()` method calls `this.mapGestureToFrequency()` etc. on the AudioService instance, not on GestureAudioMapper.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/audio/GestureAudioMapper.js` | Removed `mapGestureToFrequency()`, `mapGestureToVolume()`, `mapGestureToFilter()` |
+| `frontend/src/services/audio/AudioServiceFacade.js` | Removed `mapGestureToFrequency()`, `mapGestureToFilter()` delegation methods |
+| `frontend/src/services/audio/FilterModulationSystem.js` | Removed `mapGestureToFilter()` |
+| `AUDIT_COMPOSITIONAL_ALGORITHM.md` | Updated Section 10.2/10.3 as RIMOSSI, added Entry #110 note |
+
+---
+
+### Code Removed (~70 lines)
+
+- GestureAudioMapper.js: 3 methods (36 lines)
+- AudioServiceFacade.js: 2 delegation methods (14 lines)
+- FilterModulationSystem.js: 1 method (30 lines)
+
+---
+
+### Version
+
+Updated to v1.0.107
+
+---

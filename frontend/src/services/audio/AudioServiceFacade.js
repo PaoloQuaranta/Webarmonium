@@ -182,26 +182,6 @@ class AudioServiceFacade {
   }
 
   /**
-   * Map gesture to frequency
-   * @param {Object} sonicParams - Sonic parameters
-   * @returns {number} Frequency in Hz
-   */
-  mapGestureToFrequency(sonicParams) {
-    if (!this.gestureAudioMapper) return 440
-    return this.gestureAudioMapper.mapGestureToFrequency(sonicParams)
-  }
-
-  /**
-   * Map gesture to filter
-   * @param {Object} sonicParams - Sonic parameters
-   * @returns {Object} Filter parameters
-   */
-  mapGestureToFilter(sonicParams) {
-    if (!this.gestureAudioMapper) return { cutoffFrequency: 1000, resonance: 1 }
-    return this.gestureAudioMapper.mapGestureToFilter(sonicParams)
-  }
-
-  /**
    * Convert color to frequency
    * @param {string} color - Hex color string
    * @returns {number} Frequency in Hz

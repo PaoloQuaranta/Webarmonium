@@ -43,48 +43,6 @@ class GestureAudioMapper {
   }
 
   /**
-   * Map gesture coordinates to frequency per FR-002
-   * @param {Object} sonicParams - Sonic parameters from gesture
-   * @returns {number} Frequency in Hz
-   */
-  mapGestureToFrequency(sonicParams) {
-    const x = sonicParams.x || sonicParams.frequency || 0.5
-    return 100 + (x * 1000) // 100Hz to 1100Hz range
-  }
-
-  /**
-   * Map gesture intensity to volume per FR-002
-   * @param {Object} sonicParams - Sonic parameters
-   * @returns {number} Volume (0-1)
-   */
-  mapGestureToVolume(sonicParams) {
-    const intensity = sonicParams.y || sonicParams.amplitude || sonicParams.intensity || 0.5
-    return Math.max(0.1, Math.min(0.8, intensity))
-  }
-
-  /**
-   * Map gesture movement to filter parameters per FR-002
-   * Implements three-tier modulation system
-   * @param {Object} sonicParams - Sonic parameters
-   * @returns {Object} Filter parameters
-   */
-  mapGestureToFilter(sonicParams) {
-    // Entry #106: Simplified - tier logic removed (was never used dynamically)
-    // Y controls cutoff, X controls resonance
-    const y = sonicParams.y || 0.5
-    const x = sonicParams.x || 0.5
-
-    const cutoff = 200 + ((1 - y) * 3800) // 200Hz to 4000Hz, inverted Y axis
-    const resonance = 0.5 + (x * 4.5) // 0.5 to 5.0 Q range
-
-    return {
-      cutoffFrequency: cutoff,
-      resonance: resonance,
-      tremoloAmount: 0
-    }
-  }
-
-  /**
    * Map gesture data to complete audio parameters
    * @param {Object} gestureData - Gesture data
    * @returns {Object} Audio parameters
