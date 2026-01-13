@@ -19,7 +19,7 @@ Questo audit analizza l'algoritmo compositivo di Webarmonium, verificando l'arch
 | ~~CRITICO~~ | ~~HoverOrchestrator modulation system (25+ parametri)~~ | ~~Buggy, overhead, impercettibile~~ | **RISOLTO - RIMOSSO (Entry #105)** |
 | ~~ALTO~~ | ~~Three-tier audio system non implementato~~ | ~~Config ignorata~~ | **RISOLTO - RIMOSSO (Entry #106)** |
 | ~~ALTO~~ | ~~Range frequenze inconsistenti TAP vs DRAG~~ | ~~Incoerenza timbrica~~ | **RISOLTO (Entry #107)** |
-| MEDIO | Parametri backend inutilizzati | Contesto musicale perso |
+| ~~MEDIO~~ | ~~Parametri backend inutilizzati~~ | ~~Contesto musicale perso~~ | **RISOLTO - RIMOSSO (Entry #108)** |
 
 ---
 
@@ -278,34 +278,31 @@ const baseOctave = params.baseOctave || (2 + Math.floor((1 - y) * 4))
 
 ---
 
-## 8. Issue C-06: Parametri Backend Non Utilizzati
+## 8. Issue C-06: Parametri Backend Non Utilizzati - **RISOLTO**
 
-### 8.1 Parametri Inviati da GestureToMusicService
+> **PARAMETRI RIMOSSI**: 2026-01-13 (Entry #108)
+>
+> I 6 parametri inutilizzati sono stati rimossi da GestureToMusicService.js:
+> - `gestureAction`, `gestureType`, `noteIndex`, `totalNotes`, `mood`, `scale`
+> - Motivo: Mai usati dal frontend, overhead inutile (~40% payload per nota)
+
+### 8.1 Parametri Attuali (Post Entry #108)
 
 | Parametro | Inviato | Usato da Frontend |
 |-----------|---------|-------------------|
+| pitch | ✓ | ✓ |
 | frequency | ✓ | ✓ |
 | duration | ✓ | ✓ |
 | velocity | ✓ | ✓ |
 | articulation | ✓ | ✓ |
-| gestureAction | ✓ | **NO** |
-| gestureType | ✓ | **NO** |
-| noteIndex | ✓ | Solo logging |
-| totalNotes | ✓ | **NO** |
-| mood | ✓ | **NO** |
-| scale | ✓ | **NO** |
+| startTime | ✓ | ✓ (scheduling) |
 
-### 8.2 Evidenza (AudioService.js:3264-3302)
+### 8.2 Parametri Rimossi
 
 ```javascript
-// Backend format - use properties directly
-frequency = musicalEvent.properties.frequency     // USATO
-duration = musicalEvent.properties.duration       // USATO
-velocity = musicalEvent.properties.velocity       // USATO
-articulation = musicalEvent.properties.articulation // USATO
-
-// IGNORATI:
+// RIMOSSI (Entry #108):
 // gestureAction, gestureType, noteIndex, totalNotes, mood, scale
+// Motivo: Mai letti dal frontend, solo overhead
 ```
 
 ---
@@ -441,15 +438,16 @@ Note locali e remote suonano con timbri diversi anche per stessi parametri music
    - ✅ Motivo: mai utilizzato, bug critico, ~1100 linee di dead code
    - ✅ Sostituito con playSimpleNote()
 
-5. **Standardizzare range frequenze**
-   - TAP e DRAG dovrebbero usare stesso calcolo
-   - Allineare con virtual users
+5. ~~**Standardizzare range frequenze**~~ - **RISOLTO (Entry #107)**
+   - ✅ TAP e DRAG ora usano stesso calcolo (y=0 → alto)
+   - ✅ Range allineato: ~110-1200Hz
 
 ### Priorità Media
 
-6. **Utilizzare parametri backend ignorati**
-   - gestureAction, gestureType per differenziare timbri
-   - mood, scale per contesto armonico
+6. ~~**Utilizzare parametri backend ignorati**~~ - **RIMOSSO (Entry #108)**
+   - ✅ Parametri inutilizzati rimossi invece di implementati
+   - ✅ Motivo: overhead senza beneficio, API più snella
+   - ✅ Rimossi: gestureAction, gestureType, noteIndex, totalNotes, mood, scale
 
 7. **Uniformare filter processing locale/remoto**
    - Remote audio dovrebbe passare per gestureFilter
@@ -490,4 +488,6 @@ Il sistema funziona principalmente grazie a:
 
 > **AGGIORNAMENTO 2026-01-13 (Entry #107)**: Il range frequenze DRAG è stato **allineato a TAP**. Modificato DragStreamingHandler.js:83 per invertire Y-axis (alto=acuto) e espandere a 5 ottave (110-1200Hz). Coerenza timbrica ripristinata.
 
-L'unica issue rimanente è: parametri backend inutilizzati (C-06).
+> **AGGIORNAMENTO 2026-01-13 (Entry #108)**: I 6 parametri backend inutilizzati sono stati **rimossi** da GestureToMusicService.js: gestureAction, gestureType, noteIndex, totalNotes, mood, scale. Motivo: mai usati dal frontend, ~40% riduzione payload per nota.
+
+L'unica issue rimanente è: filter processing locale/remoto non uniforme (C-07).

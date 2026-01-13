@@ -319,12 +319,6 @@ class GestureToMusicService {
           duration: durationSeconds,  // CRITICAL: Duration in SECONDS for Tone.js
           velocity: note.velocity || 80,
           articulation: note.articulation || 'normal',
-          gestureAction: gestureData.gestureAction,
-          gestureType: gestureData.gestureType,
-          noteIndex: index,
-          totalNotes: musicalPhrase.notes.length,
-          mood: musicalPhrase.metadata.gestureMood,
-          scale: musicalPhrase.metadata.scale,
           startTime: cumulativeTime
         }
       }
