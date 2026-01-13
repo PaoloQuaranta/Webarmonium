@@ -235,6 +235,18 @@ class LandingApp {
       // Wait for user interaction to initialize audio (browser policy)
       this._setupAudioInitialization()
 
+      // iOS Safari sleep recovery: Register listeners EARLY (before audio init)
+      // This is critical - must be done during app init, not inside audio init callback
+      this._audioGestureRequiredHandler = (event) => {
+        console.log('🔊 Landing: Audio requires user gesture:', event.detail)
+        this._showAudioRecoveryPrompt()
+        this._attachRecoveryClickHandlers()
+      }
+      window.addEventListener('audio:gesture-required', this._audioGestureRequiredHandler)
+
+      // iOS Safari: Setup proactive check on any interaction (works even before audio init)
+      this._setupProactiveRecoveryCheck()
+
       // Initialize dashboard UI
       this.dashboardUI.initialize({
         onStart: () => this.start(),
@@ -366,16 +378,8 @@ class LandingApp {
             this.socket.emit('request-drone')
           }
 
-          // iOS Safari sleep recovery: Listen for audio gesture required event
-          this._audioGestureRequiredHandler = (event) => {
-            console.log('🔊 Landing: Audio requires user gesture:', event.detail)
-            this._showAudioRecoveryPrompt()
-            this._attachRecoveryClickHandlers()
-          }
-          window.addEventListener('audio:gesture-required', this._audioGestureRequiredHandler)
-
-          // iOS Safari: Setup proactive check on any interaction (fallback for event failures)
-          this._setupProactiveRecoveryCheck()
+          // Note: audio:gesture-required listener and proactive check are registered
+          // during initialize() - before audio init - to ensure they're always available
         }
       } catch (error) {
         console.error('❌ Error initializing audio:', error)
