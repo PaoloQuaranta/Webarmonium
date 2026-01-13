@@ -56,6 +56,11 @@ class WebarmoniumApp {
     // FIX: Track if virtual users are currently active
     this.virtualUsersActive = false
 
+    // SLEEP RECOVERY: Handler references for cleanup
+    this._audioGestureRequiredHandler = null
+    this._audioRecoveryClickHandler = null
+    this._audioRecoveryTouchHandler = null
+
     // Initialize the application
     this.init()
   }
@@ -875,7 +880,14 @@ class WebarmoniumApp {
     const audioToggle = document.getElementById('audioToggle')
     audioToggle.addEventListener('click', () => this.toggleAudio())
 
-    
+    // SLEEP RECOVERY: Listen for audio gesture required event (store reference for cleanup)
+    this._audioGestureRequiredHandler = (event) => {
+      console.log('🔊 Audio requires user gesture:', event.detail)
+      this._showAudioRecoveryPrompt()
+      this._attachRecoveryClickHandlers() // Add click handlers only when needed
+    }
+    window.addEventListener('audio:gesture-required', this._audioGestureRequiredHandler)
+
     // Canvas drawing interaction
     this.setupDrawingEvents()
 
@@ -1752,6 +1764,132 @@ class WebarmoniumApp {
       button.textContent = '🔊 Start Audio'
       // console.log('🔇 Audio stopped')
     }
+  }
+
+  /**
+   * Show visual prompt for user to tap to recover audio
+   * Called when AudioService dispatches 'audio:gesture-required' event
+   */
+  _showAudioRecoveryPrompt() {
+    // Only show if audio was previously started
+    if (!this.isAudioStarted) return
+
+    // Check if prompt already exists
+    if (document.getElementById('audio-recovery-prompt')) return
+
+    // Inject CSS if not already present
+    if (!document.getElementById('audio-recovery-styles')) {
+      const style = document.createElement('style')
+      style.id = 'audio-recovery-styles'
+      style.textContent = `
+        .audio-recovery-prompt {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: rgba(0, 0, 0, 0.85);
+          color: white;
+          padding: 24px 32px;
+          border-radius: 12px;
+          z-index: 10000;
+          text-align: center;
+          font-family: system-ui, -apple-system, sans-serif;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+          animation: audio-recovery-fade-in 0.3s ease-out;
+        }
+        @keyframes audio-recovery-fade-in {
+          from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+          to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+        .audio-recovery-prompt p:first-child {
+          margin: 0 0 8px 0;
+          font-size: 18px;
+          font-weight: 500;
+        }
+        .audio-recovery-prompt p:last-child {
+          margin: 0;
+          font-size: 14px;
+          opacity: 0.8;
+        }
+      `
+      document.head.appendChild(style)
+    }
+
+    const prompt = document.createElement('div')
+    prompt.id = 'audio-recovery-prompt'
+    prompt.className = 'audio-recovery-prompt'
+    prompt.innerHTML = `
+      <p>Audio paused</p>
+      <p>Tap anywhere to resume</p>
+    `
+    document.body.appendChild(prompt)
+  }
+
+  /**
+   * Attach click/touch handlers for audio recovery (only when prompt is shown)
+   * Uses once: true to automatically remove after first interaction
+   */
+  _attachRecoveryClickHandlers() {
+    // Don't attach if already attached
+    if (this._audioRecoveryClickHandler) return
+
+    this._audioRecoveryClickHandler = () => this._handleAudioRecoveryClick()
+    this._audioRecoveryTouchHandler = () => this._handleAudioRecoveryClick()
+
+    document.addEventListener('click', this._audioRecoveryClickHandler, { once: true })
+    document.addEventListener('touchstart', this._audioRecoveryTouchHandler, { once: true })
+  }
+
+  /**
+   * Remove recovery click handlers (called after recovery or cleanup)
+   */
+  _removeRecoveryClickHandlers() {
+    if (this._audioRecoveryClickHandler) {
+      document.removeEventListener('click', this._audioRecoveryClickHandler)
+      this._audioRecoveryClickHandler = null
+    }
+    if (this._audioRecoveryTouchHandler) {
+      document.removeEventListener('touchstart', this._audioRecoveryTouchHandler)
+      this._audioRecoveryTouchHandler = null
+    }
+  }
+
+  /**
+   * Handle click/touch for audio recovery
+   * Removes prompt and triggers AudioService recovery
+   */
+  async _handleAudioRecoveryClick() {
+    const prompt = document.getElementById('audio-recovery-prompt')
+    if (prompt) {
+      prompt.remove()
+
+      // Clear handler references (they auto-remove with once: true, but clear refs)
+      this._audioRecoveryClickHandler = null
+      this._audioRecoveryTouchHandler = null
+
+      // Trigger audio recovery via AudioService
+      if (this.audioService && this.audioService.handleUserGestureForRecovery) {
+        await this.audioService.handleUserGestureForRecovery()
+      }
+    }
+  }
+
+  /**
+   * Cleanup audio recovery listeners (call on app teardown)
+   */
+  _cleanupAudioRecoveryListeners() {
+    // Remove gesture-required listener
+    if (this._audioGestureRequiredHandler) {
+      window.removeEventListener('audio:gesture-required', this._audioGestureRequiredHandler)
+      this._audioGestureRequiredHandler = null
+    }
+
+    // Remove click/touch handlers
+    this._removeRecoveryClickHandlers()
+
+    // Remove prompt if visible
+    const prompt = document.getElementById('audio-recovery-prompt')
+    if (prompt) prompt.remove()
   }
 
   /**

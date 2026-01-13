@@ -4660,3 +4660,144 @@ All documented formulas verified against actual implementation:
 Updated to v1.0.108
 
 ---
+
+## Entry #112 - Audio Sleep Recovery System
+
+**Date**: 2026-01-13
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed audio muting issue when returning to the app after device sleep mode. Audio previously remained muted requiring page reload, especially noticeable on mobile devices. Implemented comprehensive recovery system with multiple event listeners, health monitoring, and user gesture fallback.
+
+---
+
+### Problem Statement
+
+When the device went to sleep and the user returned to the app, audio remained muted. The existing `visibilitychange` handler had several issues:
+1. **Async timing bug**: Transport state checked before `context.resume()` completed
+2. **Missing event handlers**: No `focus/blur` or `pageshow/pagehide` listeners for device sleep scenarios
+3. **MasterVolume stuck at -Infinity**: `stop()` set volume to -Infinity but recovery didn't restore it
+4. **No audio health monitoring**: No mechanism to detect silent audio state after recovery
+5. **No user gesture handling**: Mobile browsers may require tap after prolonged sleep
+
+---
+
+### Solution
+
+#### AudioService.js Changes
+
+**Constructor additions:**
+- Added `focus/blur` window event listeners for device sleep scenarios
+- Added `pageshow/pagehide` listeners (Page Lifecycle API for iOS/BFCache)
+- Added `_recoveryConfig` object with all timing constants
+- Added concurrency guard (`_recoveryInProgress`, `_pendingRecoveryTrigger`)
+- Added platform detection (`_isIOS`, `_isMobile`)
+- Added user stop flag (`_userStoppedAudio`)
+
+**New/refactored methods:**
+- `_handleVisibilityChange()` - Refactored to use async/await and centralized recovery
+- `_handleWindowFocus()` - Catches device wake scenarios
+- `_handleWindowBlur()` - Prepares for sleep
+- `_handlePageShow()` - Handles BFCache restoration (iOS Safari)
+- `_handlePageHide()` - Prepares for cache/sleep
+- `_performAudioRecovery(trigger)` - Centralized recovery with:
+  - Concurrency guard to prevent racing recovery attempts
+  - User stop state respect (won't auto-resume if user stopped audio)
+  - Error cleanup on failure
+  - Queued recovery processing
+- `_resumeAudioContext(trigger)` - Resume with retry logic and improved logging
+- `_startAudioHealthCheck()` - Adaptive intervals (5s mobile, 3s desktop)
+- `_checkAudioHealth()` - Respects user stop state and mute state
+- `_attemptSilentRecovery()` - With exponential backoff
+- `_requestUserGestureForAudio()` - Dispatches custom event
+- `handleUserGestureForRecovery()` - iOS-specific handling (quiet tone instead of silent)
+
+**Other changes:**
+- `start()` - Clears `_userStoppedAudio` flag
+- `stop()` - Sets `_userStoppedAudio` flag, stops health monitoring
+- `cleanup()` - Removes all event listeners
+
+#### main.js Changes
+
+**Constructor additions:**
+- Handler references for cleanup (`_audioGestureRequiredHandler`, `_audioRecoveryClickHandler`, `_audioRecoveryTouchHandler`)
+
+**setupEventListeners() changes:**
+- `audio:gesture-required` listener with stored reference
+- Dynamic click/touch handlers (only added when prompt shows)
+
+**New methods:**
+- `_showAudioRecoveryPrompt()` - CSS injected dynamically with fade-in animation
+- `_attachRecoveryClickHandlers()` - Adds handlers with `once: true`
+- `_removeRecoveryClickHandlers()` - Cleanup
+- `_handleAudioRecoveryClick()` - Removes prompt and triggers recovery
+- `_cleanupAudioRecoveryListeners()` - Full cleanup method
+
+---
+
+### Code Review Fixes Applied
+
+| # | Issue | Priority | Fix |
+|---|-------|----------|-----|
+| 1 | Race condition: capture-phase click handlers | Critical | Made handlers dynamic, only added when prompt shows |
+| 2 | Memory leak: health check not cleared on error | Critical | Added cleanup in catch/finally blocks |
+| 3 | Memory leak: Tone.Player not disposed | Critical | Used try/finally pattern for disposal |
+| 4 | Health check too aggressive (2s) | High | Adaptive: 5s mobile, 3s desktop |
+| 5 | Race condition: concurrent recovery attempts | High | Added `_recoveryInProgress` concurrency guard |
+| 6 | User stop state not respected | High | Added `_userStoppedAudio` flag |
+| 7 | Hardcoded timing values | Medium | Extracted to `_recoveryConfig` object |
+| 8 | Poor error logging | Medium | Added context (platform, trigger, attempt) |
+| 9 | No iOS-specific handling | Medium | iOS uses -60dB instead of -Infinity for unlock |
+| 10 | Inline styles | Low | CSS injected dynamically with class |
+
+---
+
+### Configuration Constants
+
+```javascript
+this._recoveryConfig = {
+  MAX_WAKE_RECOVERY_ATTEMPTS: 3,
+  MAX_RESUME_ATTEMPTS: 3,
+  MAX_RESUME_ATTEMPTS_AGGRESSIVE: 5,
+  RESUME_POLL_TIMEOUT_MS: 300,
+  RESUME_POLL_INTERVAL_MS: 20,
+  ANDROID_SUSPEND_RESUME_DELAY_MS: 50,
+  ANDROID_SUSPEND_RESUME_WAIT_MS: 100,
+  HEALTH_CHECK_INTERVAL_MOBILE_MS: 5000,
+  HEALTH_CHECK_INTERVAL_DESKTOP_MS: 3000,
+  HEALTH_CHECK_INITIAL_DELAY_MS: 1000,
+  FOCUS_STABILIZATION_DELAY_MS: 100,
+  IOS_UNLOCK_VOLUME_DB: -60,
+  IOS_UNLOCK_DURATION_MS: 100
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Config constants, event handlers, recovery methods, health monitoring, iOS handling |
+| `frontend/src/main.js` | Dynamic click handlers, recovery UI with CSS animation, cleanup methods |
+
+---
+
+### Verification
+
+1. **Short sleep (<30s)**: Audio resumes automatically
+2. **Long sleep (>5min)**: May show "Tap to resume" prompt
+3. **User stop then sleep**: Does NOT auto-resume (respects user intent)
+4. **Multiple rapid wake events**: Concurrency guard prevents race condition
+5. **iOS Safari**: BFCache restoration works via pageshow event
+6. **Android 13+**: Aggressive resume strategy with suspend/resume cycle
+
+---
+
+### Version
+
+Updated to v1.0.109
+
+---

@@ -166,43 +166,431 @@ class AudioService {
     // When Chrome tab loses focus, AudioContext may suspend and timing gets stale
     this._boundVisibilityHandler = this._handleVisibilityChange.bind(this)
     document.addEventListener('visibilitychange', this._boundVisibilityHandler)
+
+    // SLEEP RECOVERY FIX: Additional event handlers for device sleep scenarios
+    // window focus/blur catches cases where visibilitychange doesn't fire (especially mobile)
+    this._boundFocusHandler = this._handleWindowFocus.bind(this)
+    this._boundBlurHandler = this._handleWindowBlur.bind(this)
+    window.addEventListener('focus', this._boundFocusHandler)
+    window.addEventListener('blur', this._boundBlurHandler)
+
+    // Page Lifecycle API for iOS (freeze/resume) and cache scenarios (pageshow/pagehide)
+    this._boundPageShowHandler = this._handlePageShow.bind(this)
+    this._boundPageHideHandler = this._handlePageHide.bind(this)
+    window.addEventListener('pageshow', this._boundPageShowHandler)
+    window.addEventListener('pagehide', this._boundPageHideHandler)
+
+    // Audio recovery configuration constants
+    this._recoveryConfig = {
+      MAX_WAKE_RECOVERY_ATTEMPTS: 3,
+      MAX_RESUME_ATTEMPTS: 3,
+      MAX_RESUME_ATTEMPTS_AGGRESSIVE: 5,
+      RESUME_POLL_TIMEOUT_MS: 300,
+      RESUME_POLL_INTERVAL_MS: 20,
+      ANDROID_SUSPEND_RESUME_DELAY_MS: 50,
+      ANDROID_SUSPEND_RESUME_WAIT_MS: 100,
+      HEALTH_CHECK_INTERVAL_MOBILE_MS: 5000,  // 5 seconds on mobile (battery saving)
+      HEALTH_CHECK_INTERVAL_DESKTOP_MS: 3000, // 3 seconds on desktop
+      HEALTH_CHECK_INITIAL_DELAY_MS: 1000,
+      FOCUS_STABILIZATION_DELAY_MS: 100,
+      IOS_UNLOCK_VOLUME_DB: -60,  // Very quiet on iOS (not silent)
+      IOS_UNLOCK_DURATION_MS: 100
+    }
+
+    // Audio health monitoring state
+    this._audioHealthCheckInterval = null
+    this._wakeRecoveryAttempts = 0
+    this._maxWakeRecoveryAttempts = this._recoveryConfig.MAX_WAKE_RECOVERY_ATTEMPTS
+
+    // Concurrency guard for recovery
+    this._recoveryInProgress = false
+    this._pendingRecoveryTrigger = null
+
+    // Platform detection for recovery behavior
+    this._isIOS = typeof PlatformDetection !== 'undefined' && PlatformDetection.isIOS
+      ? PlatformDetection.isIOS()
+      : /iPad|iPhone|iPod/.test(navigator.userAgent)
+    this._isMobile = typeof PlatformDetection !== 'undefined' && PlatformDetection.isMobile
+      ? PlatformDetection.isMobile()
+      : /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+
+    // Track if audio was intentionally stopped by user (not just suspended)
+    this._userStoppedAudio = false
   }
 
   /**
    * Handle visibility change - reset synth states when tab becomes visible
    * Fixes issues with notes skipping or having wrong envelopes after window switch
+   * REFACTORED: Now properly awaits context resume before checking Transport state
    */
-  _handleVisibilityChange() {
+  async _handleVisibilityChange() {
     if (document.hidden) {
-      // Tab is being hidden - nothing to do
       console.log('🔇 Tab hidden - AudioContext may suspend')
+      this._stopAudioHealthCheck()
       return
     }
 
-    // Tab is becoming visible again
-    console.log('🔊 Tab visible - checking audio state...')
+    console.log('🔊 Tab visible - initiating audio recovery...')
+    await this._performAudioRecovery('visibility')
+  }
 
-    // 1. Resume AudioContext if suspended
-    if (Tone.context?.state === 'suspended') {
-      console.log('🔊 Resuming suspended AudioContext...')
-      Tone.context.resume().then(() => {
-        console.log('🔊 AudioContext resumed, state:', Tone.context.state)
-      }).catch(e => {
-        console.warn('🔊 Failed to resume AudioContext:', e)
-      })
+  /**
+   * Handle window focus - catches device wake scenarios that miss visibilitychange
+   * Mobile devices especially may not fire visibilitychange after sleep
+   */
+  async _handleWindowFocus() {
+    console.log('🔊 Window focus received - checking audio state...')
+
+    // Small delay to let the system stabilize after wake
+    await new Promise(resolve => setTimeout(resolve, this._recoveryConfig.FOCUS_STABILIZATION_DELAY_MS))
+
+    await this._performAudioRecovery('focus')
+  }
+
+  /**
+   * Handle window blur - prepare for potential sleep
+   */
+  _handleWindowBlur() {
+    console.log('🔇 Window blur - preparing for potential sleep')
+    this._stopAudioHealthCheck()
+  }
+
+  /**
+   * Handle pageshow - catches BFCache restoration and iOS resume
+   * @param {PageTransitionEvent} event
+   */
+  async _handlePageShow(event) {
+    if (event.persisted) {
+      console.log('🔊 Page restored from BFCache - forcing audio recovery')
+      await this._performAudioRecovery('pageshow-cached')
+    } else {
+      console.log('🔊 Page shown (fresh load)')
+    }
+  }
+
+  /**
+   * Handle pagehide - prepare for potential cache/sleep
+   * @param {PageTransitionEvent} event
+   */
+  _handlePageHide(event) {
+    console.log('🔇 Page hiding, persisted:', event.persisted)
+    this._stopAudioHealthCheck()
+  }
+
+  /**
+   * Centralized audio recovery logic - called by all wake/visibility handlers
+   * Properly sequences: context resume -> masterVolume restore -> Transport restart -> health check
+   * Includes concurrency guard to prevent racing recovery attempts
+   * @param {string} trigger - What triggered this recovery ('visibility', 'focus', 'pageshow', etc.)
+   */
+  async _performAudioRecovery(trigger) {
+    // Concurrency guard - prevent multiple simultaneous recovery attempts
+    if (this._recoveryInProgress) {
+      console.log(`🔊 Recovery already in progress, queueing trigger: ${trigger}`)
+      this._pendingRecoveryTrigger = trigger
+      return
     }
 
-    // 2. Restart Transport if stopped
-    if (Tone.Transport?.state !== 'started' && Tone.context?.state === 'running') {
-      console.log('🔊 Restarting Tone.Transport...')
+    this._recoveryInProgress = true
+    console.log(`🔊 Audio recovery triggered by: ${trigger}`)
+
+    if (!this.isInitialized) {
+      console.log('🔊 Audio not initialized, skipping recovery')
+      this._recoveryInProgress = false
+      return
+    }
+
+    // Respect user's explicit stop - don't auto-resume if user stopped audio
+    if (this._userStoppedAudio) {
+      console.log('🔊 User intentionally stopped audio, skipping recovery')
+      this._recoveryInProgress = false
+      return
+    }
+
+    try {
+      // STEP 1: Resume AudioContext if suspended (with retry logic)
+      const contextResumed = await this._resumeAudioContext(trigger)
+
+      if (!contextResumed) {
+        console.warn('🔊 AudioContext resume failed - may need user gesture')
+        this._stopAudioHealthCheck() // Cleanup on failure
+        this._requestUserGestureForAudio()
+        this._recoveryInProgress = false
+        return
+      }
+
+      // STEP 2: Restore masterVolume if stuck at -Infinity (critical fix!)
+      if (this.masterVolume && this.masterVolume.volume.value === -Infinity) {
+        console.log('🔊 Restoring masterVolume from -Infinity to -10dB')
+        this.masterVolume.volume.value = -10
+      }
+
+      // STEP 3: Restart Transport if needed (AFTER context is confirmed running)
+      if (Tone.Transport?.state !== 'started' && Tone.context?.state === 'running') {
+        console.log('🔊 Restarting Tone.Transport...')
+        Tone.Transport.start()
+      }
+
+      // STEP 4: Reset UserSynthManager states to clear stale timing
+      if (this.userSynthManager) {
+        this.userSynthManager.resetAllSynthStates()
+        console.log('🔊 UserSynthManager states reset')
+      }
+
+      // STEP 5: Restart evolving generation if it was stopped (and not muted)
+      if (!this.evolvingGenerationActive && this.isInitialized && !this.muted) {
+        console.log('🔊 Restarting evolving generation...')
+        this.startEvolvingGeneration()
+      }
+
+      // STEP 6: Start audio health monitoring to detect silent state
+      this._startAudioHealthCheck()
+      this._wakeRecoveryAttempts = 0
+
+      console.log('🔊 Audio recovery complete')
+
+      // Check if another recovery was requested during this one
+      if (this._pendingRecoveryTrigger) {
+        const pendingTrigger = this._pendingRecoveryTrigger
+        this._pendingRecoveryTrigger = null
+        this._recoveryInProgress = false
+        console.log(`🔊 Processing queued recovery: ${pendingTrigger}`)
+        await this._performAudioRecovery(pendingTrigger)
+        return
+      }
+    } catch (error) {
+      console.error('🔊 Audio recovery failed:', error)
+      this._stopAudioHealthCheck() // Cleanup on error
+      this._requestUserGestureForAudio() // Request user help after failure
+    } finally {
+      this._recoveryInProgress = false
+    }
+  }
+
+  /**
+   * Resume AudioContext with platform-specific retry logic
+   * @param {string} trigger - What triggered this resume attempt (for logging)
+   * @returns {Promise<boolean>} True if context is now running
+   */
+  async _resumeAudioContext(trigger = 'unknown') {
+    if (Tone.context?.state === 'running') {
+      return true
+    }
+
+    const config = this._recoveryConfig
+    const rawContext = Tone.context?.rawContext || Tone.context?._context || Tone.context
+    const maxAttempts = this._needsAggressiveResume
+      ? config.MAX_RESUME_ATTEMPTS_AGGRESSIVE
+      : config.MAX_RESUME_ATTEMPTS
+
+    console.log('🔊 Attempting to resume AudioContext:', {
+      currentState: Tone.context?.state,
+      trigger,
+      maxAttempts,
+      platform: this._isIOS ? 'iOS' : (this._needsAggressiveResume ? 'Android' : 'other')
+    })
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        // Try all available resume methods
+        if (rawContext?.resume) {
+          await rawContext.resume()
+        }
+        if (Tone.context?.resume) {
+          await Tone.context.resume()
+        }
+
+        // Poll for state change with timeout
+        const startTime = Date.now()
+
+        while (Tone.context.state !== 'running' && Date.now() - startTime < config.RESUME_POLL_TIMEOUT_MS) {
+          await new Promise(resolve => setTimeout(resolve, config.RESUME_POLL_INTERVAL_MS))
+        }
+
+        if (Tone.context.state === 'running') {
+          console.log(`🔊 AudioContext resumed on attempt ${attempt}/${maxAttempts}`)
+          return true
+        }
+
+        // Android-specific: Try suspend/resume cycle
+        if (this._needsAggressiveResume && Tone.context.state !== 'running') {
+          console.log(`🔊 Android: Trying suspend/resume cycle on attempt ${attempt}`)
+          if (rawContext?.suspend) {
+            await rawContext.suspend()
+            await new Promise(resolve => setTimeout(resolve, config.ANDROID_SUSPEND_RESUME_DELAY_MS))
+          }
+          if (rawContext?.resume) {
+            await rawContext.resume()
+          }
+          await new Promise(resolve => setTimeout(resolve, config.ANDROID_SUSPEND_RESUME_WAIT_MS))
+
+          if (Tone.context.state === 'running') {
+            console.log('🔊 Android suspend/resume cycle succeeded')
+            return true
+          }
+        }
+
+      } catch (error) {
+        console.warn(`🔊 Resume attempt ${attempt}/${maxAttempts} failed:`, {
+          error: error.message,
+          contextState: Tone.context?.state,
+          trigger
+        })
+      }
+
+      // Wait before next attempt (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, 50 * attempt))
+    }
+
+    console.warn('🔊 All resume attempts exhausted:', {
+      finalState: Tone.context?.state,
+      attempts: maxAttempts,
+      trigger
+    })
+    return false
+  }
+
+  /**
+   * Start periodic audio health checks to detect silent state
+   * This catches cases where context is "running" but audio is actually silent
+   * Uses adaptive intervals: longer on mobile to save battery
+   */
+  _startAudioHealthCheck() {
+    this._stopAudioHealthCheck() // Clear any existing
+
+    const config = this._recoveryConfig
+
+    // Use longer interval on mobile to save battery
+    const checkInterval = this._isMobile
+      ? config.HEALTH_CHECK_INTERVAL_MOBILE_MS
+      : config.HEALTH_CHECK_INTERVAL_DESKTOP_MS
+
+    this._audioHealthCheckInterval = setInterval(() => {
+      this._checkAudioHealth()
+    }, checkInterval)
+
+    // Initial check after delay
+    setTimeout(() => this._checkAudioHealth(), config.HEALTH_CHECK_INITIAL_DELAY_MS)
+  }
+
+  /**
+   * Stop audio health monitoring
+   */
+  _stopAudioHealthCheck() {
+    if (this._audioHealthCheckInterval) {
+      clearInterval(this._audioHealthCheckInterval)
+      this._audioHealthCheckInterval = null
+    }
+  }
+
+  /**
+   * Check if audio is actually producing sound (not just context running)
+   * Respects user's explicit stop state - won't restart if user stopped audio
+   */
+  _checkAudioHealth() {
+    if (!this.isInitialized) return
+
+    // Respect user's explicit stop - don't attempt recovery if user stopped audio
+    if (this._userStoppedAudio) return
+
+    // Check 1: Context state
+    if (Tone.context?.state !== 'running') {
+      console.warn('🔊 Health check: AudioContext not running')
+      this._attemptSilentRecovery()
+      return
+    }
+
+    // Check 2: MasterVolume not stuck at -Infinity (only if not muted)
+    if (this.masterVolume && this.masterVolume.volume.value === -Infinity && !this.muted) {
+      console.warn('🔊 Health check: MasterVolume stuck at -Infinity')
+      this.masterVolume.volume.value = -10
+    }
+
+    // Check 3: Transport should be running
+    if (Tone.Transport?.state !== 'started') {
+      console.warn('🔊 Health check: Transport not started')
       Tone.Transport.start()
     }
 
-    // 3. Reset UserSynthManager states to clear stale timing
-    if (this.userSynthManager) {
-      this.userSynthManager.resetAllSynthStates()
-      console.log('🔊 UserSynthManager states reset')
+    // Check 4: Evolving generation should be active (only if not muted)
+    if (!this.evolvingGenerationActive && !this.muted) {
+      console.log('🔊 Health check: Restarting evolving generation')
+      this.startEvolvingGeneration()
     }
+  }
+
+  /**
+   * Attempt recovery when audio is suspected silent
+   */
+  async _attemptSilentRecovery() {
+    this._wakeRecoveryAttempts++
+
+    if (this._wakeRecoveryAttempts > this._maxWakeRecoveryAttempts) {
+      console.warn('🔊 Max recovery attempts reached - requesting user interaction')
+      this._stopAudioHealthCheck() // Stop checking after max attempts
+      this._requestUserGestureForAudio()
+      return
+    }
+
+    console.log(`🔊 Attempting silent recovery (attempt ${this._wakeRecoveryAttempts}/${this._maxWakeRecoveryAttempts})`)
+    await this._performAudioRecovery('health-check')
+  }
+
+  /**
+   * Request user gesture when automatic recovery fails
+   * Mobile browsers often require explicit user interaction after sleep
+   */
+  _requestUserGestureForAudio() {
+    // Dispatch custom event that main.js can listen to
+    const event = new CustomEvent('audio:gesture-required', {
+      detail: {
+        reason: 'recovery-failed',
+        attempts: this._wakeRecoveryAttempts
+      }
+    })
+    window.dispatchEvent(event)
+
+    console.log('🔊 Dispatched audio:gesture-required event')
+  }
+
+  /**
+   * Called when user interacts with the page after gesture-required event
+   * Should be connected to a touch/click handler in main.js
+   * Includes iOS-specific handling (very quiet tone instead of silent)
+   */
+  async handleUserGestureForRecovery() {
+    console.log('🔊 User gesture received for audio recovery')
+    this._wakeRecoveryAttempts = 0
+    this._userStoppedAudio = false // Clear user stop flag on explicit gesture
+
+    const config = this._recoveryConfig
+
+    // Play buffer to "unlock" audio on mobile
+    // iOS requires very quiet (not silent) audio, other platforms can use silent
+    let player = null
+    try {
+      player = new Tone.Player().toDestination()
+      player.volume.value = this._isIOS ? config.IOS_UNLOCK_VOLUME_DB : -Infinity
+      player.start()
+
+      const unlockDuration = this._isIOS ? config.IOS_UNLOCK_DURATION_MS : 50
+      await new Promise(resolve => setTimeout(resolve, unlockDuration))
+
+      player.stop()
+    } catch (e) {
+      console.warn('🔊 Buffer unlock failed:', e.message)
+    } finally {
+      // Ensure player is always disposed to prevent memory leak
+      if (player) {
+        try {
+          player.dispose()
+        } catch (disposeError) {
+          // Ignore disposal errors
+        }
+      }
+    }
+
+    await this._performAudioRecovery('user-gesture')
   }
 
   /**
@@ -731,6 +1119,9 @@ class AudioService {
    */
   async start() {
     try {
+      // Clear user-stopped flag when explicitly starting audio
+      this._userStoppedAudio = false
+
       // Initialize Tone.js audio context
       if (window.Tone) {
         // PERF: Configure AudioContext BEFORE starting for optimal buffer size
@@ -1906,7 +2297,13 @@ class AudioService {
     if (this.isInitialized) {
       // console.log('🛑 Stopping AudioService - immediate silence...')
 
-      // STEP 0: MUTE EVERYTHING IMMEDIATELY (before anything else)
+      // Mark that user intentionally stopped audio (prevents auto-recovery)
+      this._userStoppedAudio = true
+
+      // STEP 0: Stop health monitoring (prevent recovery attempts during stop)
+      this._stopAudioHealthCheck()
+
+      // STEP 0b: MUTE EVERYTHING IMMEDIATELY (before anything else)
       if (this.masterVolume) {
         this.masterVolume.volume.value = -Infinity
         // console.log('🔇 Master volume set to -Infinity (immediate silence)')
@@ -4984,6 +5381,24 @@ class AudioService {
       // console.log('🛑 Cleaning up UserSynthManager')
       this.userSynthManager.cleanupAll()
       this.userSynthManager = null
+    }
+
+    // SLEEP RECOVERY FIX: Remove event listeners added in constructor
+    this._stopAudioHealthCheck()
+    if (this._boundVisibilityHandler) {
+      document.removeEventListener('visibilitychange', this._boundVisibilityHandler)
+    }
+    if (this._boundFocusHandler) {
+      window.removeEventListener('focus', this._boundFocusHandler)
+    }
+    if (this._boundBlurHandler) {
+      window.removeEventListener('blur', this._boundBlurHandler)
+    }
+    if (this._boundPageShowHandler) {
+      window.removeEventListener('pageshow', this._boundPageShowHandler)
+    }
+    if (this._boundPageHideHandler) {
+      window.removeEventListener('pagehide', this._boundPageHideHandler)
     }
 
     this.gestureBuffer = []
