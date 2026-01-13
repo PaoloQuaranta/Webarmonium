@@ -307,25 +307,36 @@ const baseOctave = params.baseOctave || (2 + Math.floor((1 - y) * 4))
 
 ---
 
-## 9. Issue C-07: Audio Remoto Senza Filter Processing
+## 9. Issue C-07: Audio Remoto Senza Filter Processing - **RISOLTO**
 
-### 9.1 Audio Locale (proprio gesto)
+> **SISTEMA UNIFICATO**: 2026-01-13 (Entry #109)
+>
+> Il `gestureFilter` è stato **rimosso** dalla catena audio locale perché:
+> - **Non più modulato**: Dopo Entry #105 (rimozione hover filter modulation), era statico a 8000Hz/Q=0.5
+> - **Uniformità**: Ora local e remote usano la stessa architettura (synth → pan → volume)
+> - **Semplificazione**: ~80 linee di codice rimosse
+
+### 9.1 Audio Locale (proprio gesto) - **AGGIORNATO**
 
 ```
-Nota → gestureSynth → gestureFilter (cutoff, Q) → gesturePan → LFO modulation → output
+PRIMA (pre-Entry #109):
+Nota → gestureSynth → gestureFilter (statico) → gesturePan → output
+
+DOPO (Entry #109):
+Nota → gestureSynth → gesturePan → gestureVolume → masterVolume
 ```
 
 ### 9.2 Audio Remoto (altri utenti)
 
 ```
-Nota → UserSynthManager.getSynthForUser() → patch synth → output
+Nota → UserSynthManager.getSynthForUser() → patch synth → pan → volume → masterVolume
 ```
 
-**Manca**: gestureFilter, LFO modulation
+### 9.3 Stato Attuale
 
-### 9.3 Impatto
-
-Note locali e remote suonano con timbri diversi anche per stessi parametri musicali.
+- ✅ Architettura unificata tra local e remote
+- ✅ gestureFilter rimosso (era statico, non aggiungeva valore)
+- ✅ Unica differenza: velocity scaling (local ×1.15, remote ×1.0)
 
 ---
 
@@ -449,8 +460,9 @@ Note locali e remote suonano con timbri diversi anche per stessi parametri music
    - ✅ Motivo: overhead senza beneficio, API più snella
    - ✅ Rimossi: gestureAction, gestureType, noteIndex, totalNotes, mood, scale
 
-7. **Uniformare filter processing locale/remoto**
-   - Remote audio dovrebbe passare per gestureFilter
+7. ~~**Uniformare filter processing locale/remoto**~~ - **RISOLTO (Entry #109)**
+   - ✅ gestureFilter rimosso (era statico dopo Entry #105)
+   - ✅ Local e remote ora usano stessa architettura audio
 
 ---
 
@@ -490,4 +502,6 @@ Il sistema funziona principalmente grazie a:
 
 > **AGGIORNAMENTO 2026-01-13 (Entry #108)**: I 6 parametri backend inutilizzati sono stati **rimossi** da GestureToMusicService.js: gestureAction, gestureType, noteIndex, totalNotes, mood, scale. Motivo: mai usati dal frontend, ~40% riduzione payload per nota.
 
-L'unica issue rimanente è: filter processing locale/remoto non uniforme (C-07).
+> **AGGIORNAMENTO 2026-01-13 (Entry #109)**: Il `gestureFilter` è stato **rimosso** dalla catena audio locale. Motivo: dopo Entry #105 era statico (8000Hz, Q=0.5), non aggiungeva valore timbrico. Ora local e remote usano la stessa architettura (synth → pan → volume). File modificati: AudioService.js, AudioServiceFacade.js, FilterModulationSystem.js, landing/main.js.
+
+**Tutte le issue identificate sono state risolte.** L'architettura audio è ora semplificata e uniforme.

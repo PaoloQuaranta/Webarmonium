@@ -4438,3 +4438,115 @@ properties: {
 ### Version
 
 Updated to v1.0.105
+
+---
+
+## Entry #109 - Remove gestureFilter from Audio Chain (Issue C-07)
+
+**Date**: 2026-01-13
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Removed the `gestureFilter` from the local audio chain to unify local and remote audio processing. After Entry #105 disabled hover filter modulation, the gestureFilter was static (8000Hz, Q=0.5) and served no purpose. This simplifies the architecture and closes the final audit issue.
+
+---
+
+### Problem Statement
+
+Audit Issue C-07 noted that local and remote audio had different processing chains:
+
+| Aspect | Local | Remote |
+|--------|-------|--------|
+| Chain | gestureSynth → gestureFilter → gesturePan | userSynth → pan → volume |
+| Filter | Present (static 8000Hz) | None (patch-defined) |
+| Modulation | Disabled (Entry #105) | Never existed |
+
+After Entry #105 removed hover filter modulation, the gestureFilter was:
+- **Static**: Fixed at 8000Hz cutoff, Q=0.5
+- **Not modulated**: All modulation code was disabled
+- **Adding overhead**: Extra audio node in chain for no benefit
+
+---
+
+### Solution
+
+Removed `gestureFilter` completely from the audio system:
+
+**New Audio Chain:**
+```
+BEFORE:
+gestureSynth → gestureFilter (static) → gesturePan → gestureVolume → masterVolume
+
+AFTER:
+gestureSynth → gesturePan → gestureVolume → masterVolume
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Removed gestureFilter creation, connections, and ~8 modulation blocks |
+| `frontend/src/services/audio/AudioServiceFacade.js` | Removed gestureFilter property and setSynths parameter |
+| `frontend/src/services/audio/FilterModulationSystem.js` | Removed gestureFilter references from setFilters, modulation, and cleanup |
+| `frontend/src/landing/main.js` | Removed gestureFilter application in hover handler |
+| `AUDIT_COMPOSITIONAL_ALGORITHM.md` | Marked Issue C-07 as RISOLTO, added Entry #109 notes |
+
+---
+
+### Code Removed (~80 lines)
+
+1. **AudioService.js:**
+   - gestureFilter creation (lines 1360-1365)
+   - Audio chain connection through filter (line 1371-1372)
+   - Filter modulation in updateSonicParams (lines 2034-2063)
+   - LFO connections to gestureFilter (lines 3662-3667, 3690-3696)
+   - Filter sweep test (lines 3759-3764)
+   - applyRemoteFilterModulation method body
+   - Filter application in composition playback (lines 4747-4760)
+   - Filter reset in resetFilterValues (lines 4884-4889)
+
+2. **AudioServiceFacade.js:**
+   - gestureFilter property
+   - setSynths() parameter and assignments
+   - Calls to filterModulationSystem.setGestureFilter()
+
+3. **FilterModulationSystem.js:**
+   - gestureFilter property
+   - setFilters() parameter
+   - Modulation blocks in applyLocalFilterModulation, applyFilterModulation
+   - Reset block in resetFiltersToSafeValues
+
+4. **landing/main.js:**
+   - gestureFilter frequency/Q application
+
+---
+
+### Impact
+
+- **Semplificazione**: ~80 linee di codice rimosse
+- **Uniformità**: Local e remote audio ora usano stessa architettura
+- **Performance**: Un nodo audio in meno nella catena
+- **Timbro**: Minima differenza (sawtooth leggermente più brillante senza lowpass a 8000Hz)
+- **All audit issues resolved**: C-07 era l'ultima issue aperta
+
+---
+
+### Verification
+
+1. Start application: `cd backend && npm run dev` + `cd frontend && npm start`
+2. Test TAP gesture → should play sound
+3. Test DRAG gesture → should play sound
+4. Test with 2 browsers → remote notes should play
+5. Check console for audio errors → none expected
+
+---
+
+### Version
+
+Updated to v1.0.106
+
+---

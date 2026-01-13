@@ -7,7 +7,7 @@ class FilterModulationSystem {
   constructor() {
     // References to filters (set by AudioService)
     this.ambientFilters = null
-    this.gestureFilter = null
+    // Entry #109: gestureFilter removed
     this.gestureSynth = null
 
     // Remote LFO for filter cutoff modulation
@@ -88,12 +88,11 @@ class FilterModulationSystem {
   /**
    * Set filter references
    * @param {Object} ambientFilters - Ambient layer filters
-   * @param {Object} gestureFilter - Gesture synth filter
    * @param {Object} gestureSynth - Gesture synth
    */
-  setFilters(ambientFilters, gestureFilter, gestureSynth) {
+  setFilters(ambientFilters, gestureSynth) {
     this.ambientFilters = ambientFilters
-    this.gestureFilter = gestureFilter
+    // Entry #109: gestureFilter removed
     this.gestureSynth = gestureSynth
     this.isInitialized = true
   }
@@ -267,17 +266,7 @@ class FilterModulationSystem {
    * @param {number} currentTime - Current audio time
    */
   applyLocalFilterModulation(filterParams, currentTime) {
-    if (this.gestureFilter && this.gestureFilter.frequency && this.gestureFilter.Q) {
-      if (filterParams.cutoffFrequency) {
-        const clampedFreq = Math.max(100, Math.min(8000, filterParams.cutoffFrequency))
-        this.gestureFilter.frequency.linearRampToValueAtTime(clampedFreq, currentTime + 0.05)
-      }
-
-      if (filterParams.resonance) {
-        const clampedQ = Math.max(0.1, Math.min(10, filterParams.resonance))
-        this.gestureFilter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
-      }
-    }
+    // Entry #109: gestureFilter removed
 
     if (this.ambientFilters) {
       Object.keys(this.ambientFilters).forEach(layerName => {
@@ -359,10 +348,7 @@ class FilterModulationSystem {
         })
       }
 
-      if (this.gestureFilter && this.gestureFilter.frequency) {
-        const cutoffRange = cutoffFrequency * 80 + 200
-        this.gestureFilter.frequency.setValueAtTime(cutoffRange, currentTime)
-      }
+      // Entry #109: gestureFilter removed
 
     } catch (error) {
       // console.error('❌ Filter modulation failed:', error)
@@ -437,10 +423,7 @@ class FilterModulationSystem {
       this.ambientFilters.chords.Q.linearRampToValueAtTime(2, currentTime + 0.1)
     }
 
-    if (this.gestureFilter) {
-      this.gestureFilter.frequency.linearRampToValueAtTime(2000, currentTime + 0.1)
-      this.gestureFilter.Q.linearRampToValueAtTime(3, currentTime + 0.1)
-    }
+    // Entry #109: gestureFilter removed
   }
 
   /**
@@ -531,7 +514,7 @@ class FilterModulationSystem {
   cleanup() {
     this.forceStopAllLFO()
     this.ambientFilters = null
-    this.gestureFilter = null
+    // Entry #109: gestureFilter removed
     this.gestureSynth = null
     this.activeRemoteUsers.clear()
     this.isInitialized = false

@@ -634,13 +634,9 @@ class LandingApp {
         // Calculate filter resonance from Y position
         const baseQ = FILTER_Q_MIN + (y * (FILTER_Q_MAX - FILTER_Q_MIN))
 
-        // Apply to gestureFilter (virtual gesture notes)
-        if (this.audioService.gestureFilter) {
-          this.audioService.gestureFilter.frequency.rampTo(baseFreq, 0.2)
-          this.audioService.gestureFilter.Q.rampTo(baseQ, 0.2)
-        }
+        // Entry #109: gestureFilter removed
 
-        // CRITICAL: Also apply to ambientFilters (background composition) for AUDIBLE modulation
+        // CRITICAL: Apply to ambientFilters (background composition) for AUDIBLE modulation
         if (this.audioService.ambientFilters) {
           // Bass: lower frequency range
           if (this.audioService.ambientFilters.bass) {

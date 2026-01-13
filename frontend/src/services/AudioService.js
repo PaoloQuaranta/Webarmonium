@@ -1357,19 +1357,12 @@ class AudioService {
     // MONOSYNTH TIMING FIX: Track last trigger time for gesture synth
     this.gestureSynthLastTrigger = 0
 
-    // Add filter to gesture synth for hover modulation - OPEN FILTER for sawtooth harmonics
-    this.gestureFilter = new Tone.Filter({
-      type: 'lowpass',
-      frequency: 8000,  // Increased from 2000 to preserve sawtooth harmonics
-      Q: 0.5  // Lower Q for more open sound
-    })
-
     // Add pan node for gesture synth spatial control
     this.gesturePan = new Tone.Panner(0)
 
-    // SEND/RETURN routing: synth -> filter -> pan -> [dry to master + sends to FX]
-    this.gestureSynth.connect(this.gestureFilter)
-    this.gestureFilter.connect(this.gesturePan)
+    // SEND/RETURN routing: synth -> pan -> [dry to master + sends to FX]
+    // Entry #109: gestureFilter removed (was static, never modulated after Entry #105)
+    this.gestureSynth.connect(this.gesturePan)
 
     // Create volume node for gesture dry signal (increased for prominence)
     this.gestureVolume = new Tone.Volume(+6) // +6dB - gesture prominence over background
@@ -2038,41 +2031,10 @@ class AudioService {
         tremoloAmount = 0
       }
 
-      // FIX: Apply real-time parameters to gesture filter for hover modulation
-      if (this.gestureFilter && this.gestureFilter.frequency && this.gestureFilter.Q) {
-        // FIX: Validate filter frequency to prevent null errors
-        const validFreq = cutoffFrequency && !isNaN(cutoffFrequency) ? cutoffFrequency : 1000
-        const clampedFreq = Math.max(100, Math.min(8000, validFreq))
-
-        // Additional validation to prevent null errors
+      // Entry #109: gestureFilter removed - tremolo still available if needed
+      if (tremoloAmount > 0 && this.gestureSynth) {
         const currentTime = Tone.context && Tone.context.currentTime ? Tone.context.currentTime : Tone.now()
-
-        if (this.gestureFilter.frequency.linearRampToValueAtTime) {
-          this.gestureFilter.frequency.linearRampToValueAtTime(clampedFreq, currentTime + 0.05)
-        }
-
-        // Use resonance from our new filter mapping system
-        const filterQ = resonance || (1 + (sonicParams.z || 0.5) * 3)
-        const clampedQ = Math.max(0.1, Math.min(10, filterQ))
-
-        if (this.gestureFilter.Q.linearRampToValueAtTime) {
-          this.gestureFilter.Q.linearRampToValueAtTime(clampedQ, currentTime + 0.05)
-        }
-
-        // Apply tremolo if present (remote modulation high range)
-        if (tremoloAmount > 0 && this.gestureSynth) {
-          this.applyTremolo(tremoloAmount, currentTime)
-        }
-
-        // console.log(`🎛️ Applied gesture filter: ${clampedFreq.toFixed(1)}Hz, Q=${clampedQ.toFixed(2)}, tremolo=${tremoloAmount.toFixed(2)}`)
-      } else {
-        // console.warn('🔇 Gesture filter not available for modulation')
-      }
-
-      // Apply filter frequency to gesture synth with immediate effect
-      if (this.gestureSynth && this.gestureSynth.filter) {
-        this.gestureSynth.filter.frequency.linearRampToValueAtTime(filterFreq, Tone.now() + 0.05)
-        // console.log(`🎛️ Applied gesture filter: ${filterFreq.toFixed(1)}Hz (ramp 50ms)`)
+        this.applyTremolo(tremoloAmount, currentTime)
       }
 
       // Calculate three-tier duration based on gesture velocity
@@ -3666,12 +3628,7 @@ class AudioService {
     // Clear existing connections
     this.remoteLFOTargetFilters.clear()
 
-    // Connect directly to gesture filter frequency
-    if (this.gestureFilter && this.gestureFilter.frequency) {
-      this.remoteFilterLFO.connect(this.gestureFilter.frequency)
-      this.remoteLFOTargetFilters.add('gestureFilter')
-      // console.log('🔗 Remote LFO connected directly to gesture filter')
-    }
+    // Entry #109: gestureFilter removed
 
     // Connect directly to ambient filter frequencies
     if (this.ambientFilters) {
@@ -3694,13 +3651,7 @@ class AudioService {
   connectLFOToFilters() {
     if (!this.remoteFilterLFO) return
 
-    // Connect to gesture filter
-    if (this.gestureFilter) {
-      // Create a signal for the LFO modulation
-      const lfoGain = new Tone.Gain(1).connect(this.gestureFilter.frequency)
-      this.remoteFilterLFO.connect(lfoGain)
-      this.remoteLFOTargetFilters.add(lfoGain)
-    }
+    // Entry #109: gestureFilter removed
 
     // Connect to ambient filters
     if (this.ambientFilters) {
@@ -3763,12 +3714,7 @@ class AudioService {
       // console.log(`🧪 ${layerName} filter sweep: 100Hz → 5000Hz over 2 seconds`)
     })
 
-    // Also sweep the gesture filter
-    if (this.gestureFilter) {
-      this.gestureFilter.frequency.setValueAtTime(100, startTime)
-      this.gestureFilter.frequency.linearRampToValueAtTime(8000, endTime)
-      // console.log('🧪 Gesture filter sweep: 100Hz → 8000Hz over 2 seconds')
-    }
+    // Entry #109: gestureFilter removed
 
     // console.log('🧪 Filter test initiated - you should hear dramatic filter sweeps opening up')
   }
@@ -4541,12 +4487,7 @@ class AudioService {
    * Apply remote filter modulation
    */
   applyRemoteFilterModulation(amount) {
-    if (this.gestureFilter && this.gestureFilter.frequency) {
-      const currentFreq = this.gestureFilter.frequency.value;
-      const modulationRange = currentFreq * 0.3; // 30% modulation range
-      const newFreq = currentFreq + (amount * modulationRange);
-      this.gestureFilter.frequency.rampTo(newFreq, 0.1);
-    }
+    // Entry #109: gestureFilter removed - no-op for API compatibility
   }
 
   /**
@@ -4803,20 +4744,7 @@ class AudioService {
         // console.log('✨ Applied filter to gesture voices')
       }
 
-      // Apply to main gesture synth filter
-      if (this.gestureFilter && this.gestureFilter.frequency && typeof this.gestureFilter.frequency.setValueAtTime === 'function') {
-        const cutoffRange = cutoffFrequency * 80 + 200 // 0-1 to 200-8000Hz
-        this.gestureFilter.frequency.setValueAtTime(cutoffRange, Tone.context.currentTime)
-        // console.log(`✨ Applied gesture filter cutoff: ${cutoffRange.toFixed(1)}Hz`)
-
-        let resonanceRange = 0
-        if (this.gestureFilter.Q && resonance && typeof this.gestureFilter.Q.setValueAtTime === 'function') {
-          resonanceRange = resonance * 15 // 0-1 to 0-15
-          this.gestureFilter.Q.setValueAtTime(resonanceRange, Tone.context.currentTime)
-          // console.log(`✨ Applied gesture filter resonance: ${resonanceRange.toFixed(2)}`)
-        }
-        // console.log('✨ Applied filter to gesture synth:', { cutoff: cutoffRange, resonance: resonanceRange })
-      }
+      // Entry #109: gestureFilter removed
 
       // Also apply to collaborative pattern voices if they exist
       if (this.audioEngine && this.audioEngine.collaborativePatterns) {
@@ -4953,13 +4881,7 @@ class AudioService {
       // console.log('🔧 Chords filter reset: 2000Hz, Q=2')
     }
 
-    // Reset gesture filter to open position
-    if (this.gestureFilter) {
-      this.gestureFilter.frequency.linearRampToValueAtTime(2000, currentTime + 0.1)
-      this.gestureFilter.Q.linearRampToValueAtTime(3, currentTime + 0.1)
-      // console.log('🔧 Gesture filter reset: 2000Hz, Q=3')
-    }
-
+    // Entry #109: gestureFilter removed
 
     // CRITICAL FIX: Reset gesture synth volume to prevent tremolo from persisting
     if (this.gestureSynth && this.gestureSynth.volume) {

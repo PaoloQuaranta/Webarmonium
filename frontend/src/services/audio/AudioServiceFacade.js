@@ -16,7 +16,7 @@ class AudioServiceFacade {
 
     // Core audio references (set by AudioService)
     this.gestureSynth = null
-    this.gestureFilter = null
+    // Entry #109: gestureFilter removed
     this.ambientLayers = null
     this.ambientFilters = null
     this.masterVolume = null
@@ -55,11 +55,10 @@ class AudioServiceFacade {
   /**
    * Set synth references for all modules
    * @param {Object} gestureSynth - Gesture synth instance
-   * @param {Object} gestureFilter - Gesture filter instance
    */
-  setSynths(gestureSynth, gestureFilter) {
+  setSynths(gestureSynth) {
     this.gestureSynth = gestureSynth
-    this.gestureFilter = gestureFilter
+    // Entry #109: gestureFilter removed
 
     if (this.polyphonyManager) {
       this.polyphonyManager.setSynth(gestureSynth)
@@ -69,16 +68,14 @@ class AudioServiceFacade {
       this.compositionPlayer.setGestureSynth(gestureSynth)
     }
 
-    if (this.filterModulationSystem) {
-      this.filterModulationSystem.setGestureFilter(gestureFilter)
-    }
+    // Entry #109: filterModulationSystem.setGestureFilter removed
 
     if (this.threeTierAudioSystem) {
-      this.threeTierAudioSystem.setSynths(gestureSynth, gestureFilter)
+      this.threeTierAudioSystem.setSynths(gestureSynth)
     }
 
     if (this.parameterController) {
-      this.parameterController.setAudioEngine({ gestureSynth, gestureFilter })
+      this.parameterController.setAudioEngine({ gestureSynth })
     }
   }
 
