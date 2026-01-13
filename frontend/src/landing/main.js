@@ -158,6 +158,11 @@ class LandingApp {
     // Trail fade animation
     this._trailFadeFrameId = null
     this._trailFadeRate = 0.02  // Alpha reduction per frame (lower = slower fade)
+
+    // Audio recovery handlers (iOS Safari sleep recovery)
+    this._audioGestureRequiredHandler = null
+    this._audioRecoveryClickHandler = null
+    this._audioRecoveryTouchHandler = null
   }
 
   /**
@@ -360,6 +365,14 @@ class LandingApp {
             console.log('🎵 Requesting drone from backend (no pendingDrone)')
             this.socket.emit('request-drone')
           }
+
+          // iOS Safari sleep recovery: Listen for audio gesture required event
+          this._audioGestureRequiredHandler = (event) => {
+            console.log('🔊 Landing: Audio requires user gesture:', event.detail)
+            this._showAudioRecoveryPrompt()
+            this._attachRecoveryClickHandlers()
+          }
+          window.addEventListener('audio:gesture-required', this._audioGestureRequiredHandler)
         }
       } catch (error) {
         console.error('❌ Error initializing audio:', error)
@@ -1364,6 +1377,151 @@ class LandingApp {
     }
   }
 
+  // ========================
+  // Audio Recovery Methods (iOS Safari sleep recovery)
+  // ========================
+
+  /**
+   * Show Play button overlay for audio recovery
+   */
+  _showAudioRecoveryPrompt() {
+    // Only show if audio was previously started
+    if (!this.isAudioReady) return
+
+    // Check if prompt already exists
+    if (document.getElementById('audio-recovery-prompt')) return
+
+    // Inject CSS if not already present
+    if (!document.getElementById('audio-recovery-styles')) {
+      const style = document.createElement('style')
+      style.id = 'audio-recovery-styles'
+      style.textContent = `
+        .audio-recovery-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.7);
+          z-index: 9999;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          animation: audio-recovery-fade-in 0.3s ease-out;
+        }
+        @keyframes audio-recovery-fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .audio-recovery-play-btn {
+          width: 100px;
+          height: 100px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 30px rgba(99, 102, 241, 0.5);
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .audio-recovery-play-btn:hover {
+          transform: scale(1.1);
+          box-shadow: 0 6px 40px rgba(99, 102, 241, 0.7);
+        }
+        .audio-recovery-play-btn:active {
+          transform: scale(0.95);
+        }
+        .audio-recovery-play-btn svg {
+          width: 40px;
+          height: 40px;
+          fill: white;
+          margin-left: 6px;
+        }
+        .audio-recovery-text {
+          margin-top: 20px;
+          color: white;
+          font-family: system-ui, -apple-system, sans-serif;
+          font-size: 16px;
+          opacity: 0.9;
+        }
+      `
+      document.head.appendChild(style)
+    }
+
+    const overlay = document.createElement('div')
+    overlay.id = 'audio-recovery-prompt'
+    overlay.className = 'audio-recovery-overlay'
+    overlay.innerHTML = `
+      <button class="audio-recovery-play-btn" aria-label="Resume audio">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </button>
+      <p class="audio-recovery-text">Tap to resume audio</p>
+    `
+    document.body.appendChild(overlay)
+  }
+
+  /**
+   * Attach click/touch handlers for audio recovery
+   */
+  _attachRecoveryClickHandlers() {
+    if (this._audioRecoveryClickHandler) return
+
+    this._audioRecoveryClickHandler = () => this._handleAudioRecoveryClick()
+    this._audioRecoveryTouchHandler = (e) => {
+      e.preventDefault()
+      this._handleAudioRecoveryClick()
+    }
+
+    document.addEventListener('click', this._audioRecoveryClickHandler, { once: true })
+    document.addEventListener('touchstart', this._audioRecoveryTouchHandler, { once: true, passive: false })
+  }
+
+  /**
+   * Remove recovery click handlers
+   */
+  _removeRecoveryClickHandlers() {
+    if (this._audioRecoveryClickHandler) {
+      document.removeEventListener('click', this._audioRecoveryClickHandler)
+      this._audioRecoveryClickHandler = null
+    }
+    if (this._audioRecoveryTouchHandler) {
+      document.removeEventListener('touchstart', this._audioRecoveryTouchHandler)
+      this._audioRecoveryTouchHandler = null
+    }
+  }
+
+  /**
+   * Handle click/touch for audio recovery
+   */
+  async _handleAudioRecoveryClick() {
+    const prompt = document.getElementById('audio-recovery-prompt')
+    if (prompt) {
+      prompt.remove()
+      this._audioRecoveryClickHandler = null
+      this._audioRecoveryTouchHandler = null
+
+      if (this.audioService && this.audioService.handleUserGestureForRecovery) {
+        await this.audioService.handleUserGestureForRecovery()
+      }
+    }
+  }
+
+  /**
+   * Cleanup audio recovery listeners
+   */
+  _cleanupAudioRecoveryListeners() {
+    if (this._audioGestureRequiredHandler) {
+      window.removeEventListener('audio:gesture-required', this._audioGestureRequiredHandler)
+      this._audioGestureRequiredHandler = null
+    }
+    this._removeRecoveryClickHandlers()
+  }
+
   /**
    * Cleanup and dispose
    */
@@ -1371,6 +1529,9 @@ class LandingApp {
     // console.log('🧹 Cleaning up LandingApp...')
 
     this.stop()
+
+    // Cleanup audio recovery listeners
+    this._cleanupAudioRecoveryListeners()
 
     // Stop trail fade animation
     this._stopTrailFade()
