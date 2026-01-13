@@ -888,6 +888,9 @@ class WebarmoniumApp {
     }
     window.addEventListener('audio:gesture-required', this._audioGestureRequiredHandler)
 
+    // iOS Safari: Setup proactive check on any interaction (fallback for event failures)
+    this._setupProactiveRecoveryCheck()
+
     // Canvas drawing interaction
     this.setupDrawingEvents()
 
@@ -1764,6 +1767,45 @@ class WebarmoniumApp {
       button.textContent = '🔊 Start Audio'
       // console.log('🔇 Audio stopped')
     }
+  }
+
+  /**
+   * Proactively check if audio needs recovery on any user interaction
+   * This catches cases where the event-based system fails (iOS quirks)
+   */
+  _checkAudioNeedsRecovery() {
+    if (!this.isAudioStarted || !this.audioService) return false
+
+    const contextState = Tone.context?.state
+    // Audio needs recovery if context is not running
+    if (contextState !== 'running') {
+      console.log('🔊 Rooms: Proactive check - audio needs recovery, state:', contextState)
+      return true
+    }
+
+    // Also check if masterVolume is stuck at -Infinity (silent)
+    if (this.audioService.masterVolume?.volume?.value === -Infinity) {
+      console.log('🔊 Rooms: Proactive check - masterVolume stuck at -Infinity')
+      return true
+    }
+
+    return false
+  }
+
+  /**
+   * Setup proactive audio recovery check on user interaction
+   * iOS Safari may not fire visibility/focus events correctly after sleep
+   */
+  _setupProactiveRecoveryCheck() {
+    const checkAndRecover = async (e) => {
+      if (this._checkAudioNeedsRecovery()) {
+        this._showAudioRecoveryPrompt()
+        this._attachRecoveryClickHandlers()
+      }
+    }
+
+    document.addEventListener('touchstart', checkAndRecover, { passive: true })
+    document.addEventListener('click', checkAndRecover)
   }
 
   /**

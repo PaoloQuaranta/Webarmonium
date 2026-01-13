@@ -373,6 +373,9 @@ class LandingApp {
             this._attachRecoveryClickHandlers()
           }
           window.addEventListener('audio:gesture-required', this._audioGestureRequiredHandler)
+
+          // iOS Safari: Setup proactive check on any interaction (fallback for event failures)
+          this._setupProactiveRecoveryCheck()
         }
       } catch (error) {
         console.error('❌ Error initializing audio:', error)
@@ -1380,6 +1383,48 @@ class LandingApp {
   // ========================
   // Audio Recovery Methods (iOS Safari sleep recovery)
   // ========================
+
+  /**
+   * Proactively check if audio needs recovery on any user interaction
+   * This catches cases where the event-based system fails (iOS quirks)
+   */
+  _checkAudioNeedsRecovery() {
+    if (!this.isAudioReady || !this.audioService) return false
+
+    const contextState = Tone.context?.state
+    // Audio needs recovery if context is not running
+    if (contextState !== 'running') {
+      console.log('🔊 Landing: Proactive check - audio needs recovery, state:', contextState)
+      return true
+    }
+
+    // Also check if masterVolume is stuck at -Infinity (silent)
+    if (this.audioService.masterVolume?.volume?.value === -Infinity) {
+      console.log('🔊 Landing: Proactive check - masterVolume stuck at -Infinity')
+      return true
+    }
+
+    return false
+  }
+
+  /**
+   * Setup proactive audio recovery check on user interaction
+   * iOS Safari may not fire visibility/focus events correctly after sleep
+   */
+  _setupProactiveRecoveryCheck() {
+    // Check on any touch/click if audio needs recovery
+    const checkAndRecover = async (e) => {
+      if (this._checkAudioNeedsRecovery()) {
+        // Show prompt immediately
+        this._showAudioRecoveryPrompt()
+        this._attachRecoveryClickHandlers()
+      }
+    }
+
+    // Add listeners (these stay for the lifetime of the page)
+    document.addEventListener('touchstart', checkAndRecover, { passive: true })
+    document.addEventListener('click', checkAndRecover)
+  }
 
   /**
    * Show Play button overlay for audio recovery
