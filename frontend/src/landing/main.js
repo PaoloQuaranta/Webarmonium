@@ -1556,42 +1556,13 @@ class LandingApp {
   async _handleAudioRecoveryClick() {
     const prompt = document.getElementById('audio-recovery-prompt')
     if (prompt) {
-      console.log('🔊 Landing: Recovery button pressed', {
-        hasAudioService: !!this.audioService,
-        hasRecoveryMethod: !!this.audioService?.handleUserGestureForRecovery,
-        contextState: Tone.context?.state,
-        transportState: Tone.Transport?.state,
-        isAudioReady: this.isAudioReady
-      })
+      prompt.remove()
+      this._audioRecoveryClickHandler = null
+      this._audioRecoveryTouchHandler = null
 
       if (this.audioService && this.audioService.handleUserGestureForRecovery) {
         await this.audioService.handleUserGestureForRecovery()
-
-        // Check if recovery succeeded
-        const success = Tone.context?.state === 'running' && Tone.Transport?.state === 'started'
-        console.log('🔊 Landing: Recovery result', {
-          success,
-          contextState: Tone.context?.state,
-          transportState: Tone.Transport?.state,
-          masterVolume: this.audioService.masterVolume?.volume?.value
-        })
-
-        if (success) {
-          prompt.remove()
-        } else {
-          console.warn('🔊 Landing: Recovery failed, keeping prompt')
-          // Re-attach handlers for retry
-          this._audioRecoveryClickHandler = null
-          this._audioRecoveryTouchHandler = null
-          this._attachRecoveryClickHandlers()
-          return
-        }
-      } else {
-        prompt.remove()
       }
-
-      this._audioRecoveryClickHandler = null
-      this._audioRecoveryTouchHandler = null
     }
   }
 
