@@ -1592,6 +1592,23 @@ class LandingApp {
         console.warn('Context resume failed:', e)
       }
 
+      // iOS FIX: Play a sound IMMEDIATELY from user gesture to "prime" audio output
+      // This mimics what happens in rooms when user gestures trigger sounds
+      try {
+        const rawCtx = Tone.context?.rawContext || Tone.context?._context
+        if (rawCtx) {
+          const osc = rawCtx.createOscillator()
+          const gain = rawCtx.createGain()
+          gain.gain.value = 0.01 // Very quiet
+          osc.connect(gain)
+          gain.connect(rawCtx.destination)
+          osc.start()
+          osc.stop(rawCtx.currentTime + 0.05) // 50ms blip
+        }
+      } catch (e) {
+        console.warn('Immediate sound failed:', e)
+      }
+
       // DEBUG: Capture state AFTER immediate unlock attempt
       const stateAfterUnlock = this._captureAudioDebugState('AFTER_UNLOCK')
 
@@ -1603,31 +1620,39 @@ class LandingApp {
       // DEBUG: Capture state AFTER full recovery
       const stateAfter = this._captureAudioDebugState('AFTER_RECOVERY')
 
-      // DEBUG: Play test tone using RAW Web Audio API (bypasses Tone.js completely)
+      // DEBUG: Play test tone using FRESH AudioContext (completely new, not Tone.js)
       let testToneResult = 'not_attempted'
       try {
-        // Get the raw AudioContext (not Tone.js wrapper)
-        const rawCtx = Tone.context?.rawContext || Tone.context?._context || new AudioContext()
+        // Create a BRAND NEW AudioContext (not using Tone.context at all)
+        const freshCtx = new AudioContext()
 
-        if (rawCtx.state === 'running') {
+        // Resume the fresh context (required by iOS)
+        await freshCtx.resume()
+
+        if (freshCtx.state === 'running') {
           // Create oscillator directly with Web Audio API
-          const osc = rawCtx.createOscillator()
-          const gain = rawCtx.createGain()
+          const osc = freshCtx.createOscillator()
+          const gain = freshCtx.createGain()
 
           osc.type = 'sine'
           osc.frequency.value = 523.25 // C5
-          gain.gain.value = 0.3
+          gain.gain.value = 0.5 // Louder to be sure
 
-          // Connect directly to rawContext.destination (bypasses Tone.Destination)
+          // Connect to FRESH context's destination
           osc.connect(gain)
-          gain.connect(rawCtx.destination)
+          gain.connect(freshCtx.destination)
 
           osc.start()
-          osc.stop(rawCtx.currentTime + 0.3) // 300ms beep
+          osc.stop(freshCtx.currentTime + 0.5) // 500ms beep
 
-          testToneResult = 'RAW_played'
+          testToneResult = 'FRESH_played'
+
+          // Cleanup after beep
+          setTimeout(() => {
+            try { freshCtx.close() } catch (e) {}
+          }, 1000)
         } else {
-          testToneResult = 'rawCtx_' + rawCtx.state
+          testToneResult = 'freshCtx_' + freshCtx.state
         }
       } catch (e) {
         testToneResult = 'error: ' + e.message
@@ -1698,7 +1723,7 @@ class LandingApp {
     const toneColor = testToneResult === 'played' ? '#0f0' : '#f00'
     overlay.innerHTML = `
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v123</span>
+        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v124</span>
         <button onclick="this.parentElement.parentElement.remove()" style="background:#f00;color:#fff;border:none;padding:2px 8px;border-radius:4px">✕</button>
       </div>
       ${formatState(before)}
