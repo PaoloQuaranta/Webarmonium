@@ -1518,22 +1518,29 @@ class LandingApp {
       <p class="audio-recovery-text">Tap to resume audio</p>
     `
     document.body.appendChild(overlay)
+
+    // FIX: Attach handler directly to overlay, not document
+    // This prevents the handler from being consumed by the same event that shows the prompt
+    overlay.addEventListener('click', (e) => {
+      e.stopPropagation()
+      this._handleAudioRecoveryClick()
+    }, { once: true })
+
+    // iOS Safari: Also handle touchend (more reliable than touchstart for user intent)
+    overlay.addEventListener('touchend', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      this._handleAudioRecoveryClick()
+    }, { once: true, passive: false })
   }
 
   /**
    * Attach click/touch handlers for audio recovery
+   * NOTE: Now handled directly in _showAudioRecoveryPrompt for reliability
    */
   _attachRecoveryClickHandlers() {
-    if (this._audioRecoveryClickHandler) return
-
-    this._audioRecoveryClickHandler = () => this._handleAudioRecoveryClick()
-    this._audioRecoveryTouchHandler = (e) => {
-      e.preventDefault()
-      this._handleAudioRecoveryClick()
-    }
-
-    document.addEventListener('click', this._audioRecoveryClickHandler, { once: true })
-    document.addEventListener('touchstart', this._audioRecoveryTouchHandler, { once: true, passive: false })
+    // Handlers are now attached directly to overlay in _showAudioRecoveryPrompt
+    // This method kept for backward compatibility but does nothing
   }
 
   /**
