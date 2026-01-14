@@ -1660,7 +1660,8 @@ class LandingApp {
           (key === 'muted' && val === true) ||
           (key === 'masterVolumeMute' && val === true) ||
           (key === 'sameContext' && val !== 'same') ||
-          (key === 'masterConnected' && val !== 'yes')
+          (key === 'masterConnected' && val !== 'yes') ||
+          (key === 'synthsOK' && val !== 'OK')
         return bad ? `<span style="color:#f00">${val}</span>` : `<span style="color:#0f0">${val}</span>`
       }
       return `
@@ -1668,7 +1669,7 @@ class LandingApp {
           <div style="color:#ff0;font-weight:bold">${state.label} (${state.timestamp})</div>
           <div>ctx: ${highlight('contextState', state.contextState)} | trsp: ${highlight('transportState', state.transportState)}</div>
           <div>sameCtx: ${highlight('sameContext', state.sameContext)} | masterConn: ${highlight('masterConnected', state.masterConnected)}</div>
-          <div>muted: ${highlight('muted', state.muted)} | vol: ${state.masterVolumeValue}dB</div>
+          <div>synths: ${highlight('synthsOK', state.synthsOK)} | muted: ${highlight('muted', state.muted)} | vol: ${state.masterVolumeValue}dB</div>
         </div>
       `
     }
@@ -1676,7 +1677,7 @@ class LandingApp {
     const toneColor = testToneResult === 'played' ? '#0f0' : '#f00'
     overlay.innerHTML = `
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v120</span>
+        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v121</span>
         <button onclick="this.parentElement.parentElement.remove()" style="background:#f00;color:#fff;border:none;padding:2px 8px;border-radius:4px">✕</button>
       </div>
       ${formatState(before)}
@@ -1705,6 +1706,12 @@ class LandingApp {
     // Check if masterVolume is connected to current context
     const masterConnected = as?.masterVolume?.context === Tone.context ? 'yes' : 'NO!'
 
+    // Check if synths are disposed (critical!)
+    const bassDisposed = as?.ambientLayers?.bass?.disposed ? 'YES!' : 'no'
+    const padDisposed = as?.ambientLayers?.pad?.disposed ? 'YES!' : 'no'
+    const chordsDisposed = as?.ambientLayers?.chords?.disposed ? 'YES!' : 'no'
+    const synthsOK = (bassDisposed === 'no' && padDisposed === 'no' && chordsDisposed === 'no') ? 'OK' : 'DISPOSED!'
+
     return {
       label,
       timestamp: new Date().toLocaleTimeString(),
@@ -1713,6 +1720,7 @@ class LandingApp {
       transportState: Tone.Transport?.state || 'N/A',
       sameContext, // Is it the same Tone.context object?
       masterConnected, // Is masterVolume connected to current context?
+      synthsOK, // Are synths not disposed?
       // AudioService flags
       isInitialized: as?.isInitialized ?? 'N/A',
       muted: as?.muted ?? 'N/A',
