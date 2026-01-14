@@ -1603,19 +1603,31 @@ class LandingApp {
       // DEBUG: Capture state AFTER full recovery
       const stateAfter = this._captureAudioDebugState('AFTER_RECOVERY')
 
-      // DEBUG: Play a test tone to verify audio chain works
+      // DEBUG: Play test tone using RAW Web Audio API (bypasses Tone.js completely)
       let testToneResult = 'not_attempted'
       try {
-        if (Tone.context?.state === 'running') {
-          const testSynth = new Tone.Synth().toDestination()
-          testSynth.triggerAttackRelease('C5', '8n')
-          testToneResult = 'played'
-          // Cleanup after 1 second
-          setTimeout(() => {
-            try { testSynth.dispose() } catch (e) {}
-          }, 1000)
+        // Get the raw AudioContext (not Tone.js wrapper)
+        const rawCtx = Tone.context?.rawContext || Tone.context?._context || new AudioContext()
+
+        if (rawCtx.state === 'running') {
+          // Create oscillator directly with Web Audio API
+          const osc = rawCtx.createOscillator()
+          const gain = rawCtx.createGain()
+
+          osc.type = 'sine'
+          osc.frequency.value = 523.25 // C5
+          gain.gain.value = 0.3
+
+          // Connect directly to rawContext.destination (bypasses Tone.Destination)
+          osc.connect(gain)
+          gain.connect(rawCtx.destination)
+
+          osc.start()
+          osc.stop(rawCtx.currentTime + 0.3) // 300ms beep
+
+          testToneResult = 'RAW_played'
         } else {
-          testToneResult = 'ctx_not_running'
+          testToneResult = 'rawCtx_' + rawCtx.state
         }
       } catch (e) {
         testToneResult = 'error: ' + e.message
@@ -1686,7 +1698,7 @@ class LandingApp {
     const toneColor = testToneResult === 'played' ? '#0f0' : '#f00'
     overlay.innerHTML = `
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v122</span>
+        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v123</span>
         <button onclick="this.parentElement.parentElement.remove()" style="background:#f00;color:#fff;border:none;padding:2px 8px;border-radius:4px">✕</button>
       </div>
       ${formatState(before)}
