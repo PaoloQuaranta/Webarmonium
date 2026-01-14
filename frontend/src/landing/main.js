@@ -1570,16 +1570,99 @@ class LandingApp {
       // DEBUG: Capture state BEFORE recovery
       const stateBefore = this._captureAudioDebugState('BEFORE')
 
+      // iOS CRITICAL: Call Tone.start() IMMEDIATELY in the click handler
+      // iOS Safari requires this to be synchronous with the user gesture
+      // Cannot be deferred to async function or the gesture context is lost
+      try {
+        Tone.start()  // Synchronous call - do NOT await here
+      } catch (e) {
+        console.warn('Tone.start() sync call failed:', e)
+      }
+
+      // Also try to resume the raw context directly
+      try {
+        const rawCtx = Tone.context?.rawContext || Tone.context?._context
+        if (rawCtx?.resume) {
+          rawCtx.resume()  // Synchronous call
+        }
+        if (Tone.context?.resume) {
+          Tone.context.resume()  // Synchronous call
+        }
+      } catch (e) {
+        console.warn('Context resume failed:', e)
+      }
+
+      // DEBUG: Capture state AFTER immediate unlock attempt
+      const stateAfterUnlock = this._captureAudioDebugState('AFTER_UNLOCK')
+
+      // Now proceed with full recovery (async is OK now, context should be unlocked)
       if (this.audioService && this.audioService.handleUserGestureForRecovery) {
         await this.audioService.handleUserGestureForRecovery()
       }
 
-      // DEBUG: Capture state AFTER recovery
-      const stateAfter = this._captureAudioDebugState('AFTER')
+      // DEBUG: Capture state AFTER full recovery
+      const stateAfter = this._captureAudioDebugState('AFTER_RECOVERY')
 
-      // DEBUG: Show overlay with both states
-      this._showDebugOverlay(stateBefore, stateAfter)
+      // DEBUG: Show overlay with all states
+      this._showDebugOverlay3(stateBefore, stateAfterUnlock, stateAfter)
     }
+  }
+
+  /**
+   * DEBUG: Show overlay with 3 states
+   */
+  _showDebugOverlay3(before, afterUnlock, afterRecovery) {
+    const existing = document.getElementById('audio-debug-overlay')
+    if (existing) existing.remove()
+
+    const overlay = document.createElement('div')
+    overlay.id = 'audio-debug-overlay'
+    overlay.style.cssText = `
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.95);
+      color: #0f0;
+      font-family: monospace;
+      font-size: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      z-index: 99999;
+      max-height: 85vh;
+      overflow-y: auto;
+      border: 2px solid #0f0;
+    `
+
+    const formatState = (state) => {
+      const highlight = (key, val) => {
+        const bad =
+          (key === 'contextState' && val !== 'running') ||
+          (key === 'transportState' && val !== 'started') ||
+          (key === 'muted' && val === true) ||
+          (key === 'masterVolumeMute' && val === true)
+        return bad ? `<span style="color:#f00">${val}</span>` : `<span style="color:#0f0">${val}</span>`
+      }
+      return `
+        <div style="margin-bottom:6px;padding:6px;background:rgba(255,255,255,0.1);border-radius:4px">
+          <div style="color:#ff0;font-weight:bold">${state.label} (${state.timestamp})</div>
+          <div>ctx: ${highlight('contextState', state.contextState)} | trsp: ${highlight('transportState', state.transportState)}</div>
+          <div>muted: ${highlight('muted', state.muted)} | vol: ${state.masterVolumeValue}dB</div>
+          <div>evolving: ${state.evolvingGenerationActive} | iOS: ${state.isIOS}</div>
+        </div>
+      `
+    }
+
+    overlay.innerHTML = `
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v117</span>
+        <button onclick="this.parentElement.parentElement.remove()" style="background:#f00;color:#fff;border:none;padding:2px 8px;border-radius:4px">✕</button>
+      </div>
+      ${formatState(before)}
+      ${formatState(afterUnlock)}
+      ${formatState(afterRecovery)}
+    `
+    document.body.appendChild(overlay)
   }
 
   /**
