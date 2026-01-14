@@ -1658,15 +1658,17 @@ class LandingApp {
           (key === 'contextState' && val !== 'running') ||
           (key === 'transportState' && val !== 'started') ||
           (key === 'muted' && val === true) ||
-          (key === 'masterVolumeMute' && val === true)
+          (key === 'masterVolumeMute' && val === true) ||
+          (key === 'sameContext' && val !== 'same') ||
+          (key === 'masterConnected' && val !== 'yes')
         return bad ? `<span style="color:#f00">${val}</span>` : `<span style="color:#0f0">${val}</span>`
       }
       return `
         <div style="margin-bottom:6px;padding:6px;background:rgba(255,255,255,0.1);border-radius:4px">
           <div style="color:#ff0;font-weight:bold">${state.label} (${state.timestamp})</div>
           <div>ctx: ${highlight('contextState', state.contextState)} | trsp: ${highlight('transportState', state.transportState)}</div>
+          <div>sameCtx: ${highlight('sameContext', state.sameContext)} | masterConn: ${highlight('masterConnected', state.masterConnected)}</div>
           <div>muted: ${highlight('muted', state.muted)} | vol: ${state.masterVolumeValue}dB</div>
-          <div>evolving: ${state.evolvingGenerationActive} | iOS: ${state.isIOS}</div>
         </div>
       `
     }
@@ -1674,7 +1676,7 @@ class LandingApp {
     const toneColor = testToneResult === 'played' ? '#0f0' : '#f00'
     overlay.innerHTML = `
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v119</span>
+        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v120</span>
         <button onclick="this.parentElement.parentElement.remove()" style="background:#f00;color:#fff;border:none;padding:2px 8px;border-radius:4px">✕</button>
       </div>
       ${formatState(before)}
@@ -1693,12 +1695,24 @@ class LandingApp {
    */
   _captureAudioDebugState(label) {
     const as = this.audioService
+    // Check if context is the same object (critical for iOS sleep debug)
+    // Store reference on first call
+    if (!this._initialContext && Tone.context) {
+      this._initialContext = Tone.context
+    }
+    const sameContext = this._initialContext === Tone.context ? 'same' : 'DIFFERENT!'
+
+    // Check if masterVolume is connected to current context
+    const masterConnected = as?.masterVolume?.context === Tone.context ? 'yes' : 'NO!'
+
     return {
       label,
       timestamp: new Date().toLocaleTimeString(),
       // Tone.js state
       contextState: Tone.context?.state || 'N/A',
       transportState: Tone.Transport?.state || 'N/A',
+      sameContext, // Is it the same Tone.context object?
+      masterConnected, // Is masterVolume connected to current context?
       // AudioService flags
       isInitialized: as?.isInitialized ?? 'N/A',
       muted: as?.muted ?? 'N/A',
