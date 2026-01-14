@@ -341,9 +341,13 @@ class AudioService {
         console.log('🔊 UserSynthManager states reset')
       }
 
-      // STEP 5: Restart evolving generation if it was stopped (and not muted)
-      if (!this.evolvingGenerationActive && this.isInitialized && !this.muted) {
-        console.log('🔊 Restarting evolving generation...')
+      // STEP 5: FORCE restart evolving generation after sleep recovery
+      // Even if evolvingGenerationActive is true, the scheduled events may be stale
+      // after iOS sleep, so we must restart to re-register Transport events
+      if (this.isInitialized && !this.muted) {
+        console.log('🔊 Force restarting evolving generation after recovery...')
+        // Reset flag to allow startEvolvingGeneration to run
+        this.evolvingGenerationActive = false
         this.startEvolvingGeneration()
       }
 
