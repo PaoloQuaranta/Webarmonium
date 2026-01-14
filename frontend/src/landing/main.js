@@ -1603,15 +1603,33 @@ class LandingApp {
       // DEBUG: Capture state AFTER full recovery
       const stateAfter = this._captureAudioDebugState('AFTER_RECOVERY')
 
+      // DEBUG: Play a test tone to verify audio chain works
+      let testToneResult = 'not_attempted'
+      try {
+        if (Tone.context?.state === 'running') {
+          const testSynth = new Tone.Synth().toDestination()
+          testSynth.triggerAttackRelease('C5', '8n')
+          testToneResult = 'played'
+          // Cleanup after 1 second
+          setTimeout(() => {
+            try { testSynth.dispose() } catch (e) {}
+          }, 1000)
+        } else {
+          testToneResult = 'ctx_not_running'
+        }
+      } catch (e) {
+        testToneResult = 'error: ' + e.message
+      }
+
       // DEBUG: Show overlay with all states
-      this._showDebugOverlay3(stateBefore, stateAfterUnlock, stateAfter)
+      this._showDebugOverlay3(stateBefore, stateAfterUnlock, stateAfter, testToneResult)
     }
   }
 
   /**
-   * DEBUG: Show overlay with 3 states
+   * DEBUG: Show overlay with 3 states + test tone result
    */
-  _showDebugOverlay3(before, afterUnlock, afterRecovery) {
+  _showDebugOverlay3(before, afterUnlock, afterRecovery, testToneResult = 'N/A') {
     const existing = document.getElementById('audio-debug-overlay')
     if (existing) existing.remove()
 
@@ -1653,14 +1671,19 @@ class LandingApp {
       `
     }
 
+    const toneColor = testToneResult === 'played' ? '#0f0' : '#f00'
     overlay.innerHTML = `
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v117</span>
+        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v119</span>
         <button onclick="this.parentElement.parentElement.remove()" style="background:#f00;color:#fff;border:none;padding:2px 8px;border-radius:4px">✕</button>
       </div>
       ${formatState(before)}
       ${formatState(afterUnlock)}
       ${formatState(afterRecovery)}
+      <div style="margin-top:8px;padding:6px;background:rgba(255,255,0,0.2);border-radius:4px">
+        <span style="color:#ff0">🔔 TEST TONE:</span> <span style="color:${toneColor};font-weight:bold">${testToneResult}</span>
+        <div style="color:#888;font-size:9px">Se dice "played" dovresti aver sentito un beep C5</div>
+      </div>
     `
     document.body.appendChild(overlay)
   }
