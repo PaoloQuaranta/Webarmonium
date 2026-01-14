@@ -232,7 +232,15 @@ class LandingApp {
         console.warn('⚠️ GenerativeVisualService not available - visuals disabled')
       }
 
-      // Wait for user interaction to initialize audio (browser policy)
+      // CRITICAL FIX: Create AudioService EARLY (like normal rooms do)
+      // This registers the visibility/focus/pageshow handlers early
+      // Audio will only START on user click, but the service exists before
+      if (typeof AudioService !== 'undefined' && !this.audioService) {
+        this.audioService = new AudioService()
+        console.log('🔊 AudioService created early (like normal rooms)')
+      }
+
+      // Wait for user interaction to START audio (browser policy)
       this._setupAudioInitialization()
 
       // iOS Safari sleep recovery: Register listeners EARLY (before audio init)
@@ -340,18 +348,19 @@ class LandingApp {
     let isInitializing = false // Mutex to prevent race conditions
 
     const initAudio = async () => {
-      // CRITICAL: Check both audioService AND isInitializing to prevent race conditions
-      if (this.audioService || isInitializing) return
+      // CRITICAL: Check if audio already started (not just if audioService exists)
+      // AudioService is now created early in initialize(), so check isAudioReady instead
+      if (this.isAudioReady || isInitializing) return
 
       isInitializing = true
 
       try {
-        // Start Tone.js context
+        // Start Tone.js context (requires user gesture)
         await Tone.start()
 
-        // Initialize AudioService (from global scope)
-        if (typeof AudioService !== 'undefined') {
-          this.audioService = new AudioService()
+        // AudioService was created early in initialize()
+        // Now we just need to initialize and start it
+        if (this.audioService) {
           await this.audioService.initialize()
           // console.log('✅ AudioService initialized')
 
@@ -1723,7 +1732,7 @@ class LandingApp {
     const toneColor = testToneResult === 'played' ? '#0f0' : '#f00'
     overlay.innerHTML = `
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v124</span>
+        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v125</span>
         <button onclick="this.parentElement.parentElement.remove()" style="background:#f00;color:#fff;border:none;padding:2px 8px;border-radius:4px">✕</button>
       </div>
       ${formatState(before)}
