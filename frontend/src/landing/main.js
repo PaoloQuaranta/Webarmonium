@@ -1623,6 +1623,13 @@ class LandingApp {
 
       // DEBUG: Show overlay with all states
       this._showDebugOverlay3(stateBefore, stateAfterUnlock, stateAfter, testToneResult)
+
+      // CRITICAL: Re-request drone after iOS sleep recovery
+      // The drone that was playing before sleep is lost - need to get a new one
+      if (this.socket?.connected && Tone.context?.state === 'running') {
+        console.log('🎵 Landing: Re-requesting drone after iOS sleep recovery')
+        this.socket.emit('request-drone')
+      }
     }
   }
 
@@ -1661,7 +1668,8 @@ class LandingApp {
           (key === 'masterVolumeMute' && val === true) ||
           (key === 'sameContext' && val !== 'same') ||
           (key === 'masterConnected' && val !== 'yes') ||
-          (key === 'synthsOK' && val !== 'OK')
+          (key === 'synthsOK' && val !== 'OK') ||
+          (key === 'masterVolumeMute' && val === true)
         return bad ? `<span style="color:#f00">${val}</span>` : `<span style="color:#0f0">${val}</span>`
       }
       return `
@@ -1669,7 +1677,8 @@ class LandingApp {
           <div style="color:#ff0;font-weight:bold">${state.label} (${state.timestamp})</div>
           <div>ctx: ${highlight('contextState', state.contextState)} | trsp: ${highlight('transportState', state.transportState)}</div>
           <div>sameCtx: ${highlight('sameContext', state.sameContext)} | masterConn: ${highlight('masterConnected', state.masterConnected)}</div>
-          <div>synths: ${highlight('synthsOK', state.synthsOK)} | muted: ${highlight('muted', state.muted)} | vol: ${state.masterVolumeValue}dB</div>
+          <div>synths: ${highlight('synthsOK', state.synthsOK)} | muted: ${highlight('muted', state.muted)} | masterMute: ${highlight('masterVolumeMute', state.masterVolumeMute)}</div>
+          <div>vol: ${state.masterVolumeValue}dB | evolving: ${state.evolvingGenerationActive}</div>
         </div>
       `
     }
@@ -1677,7 +1686,7 @@ class LandingApp {
     const toneColor = testToneResult === 'played' ? '#0f0' : '#f00'
     overlay.innerHTML = `
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v121</span>
+        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v122</span>
         <button onclick="this.parentElement.parentElement.remove()" style="background:#f00;color:#fff;border:none;padding:2px 8px;border-radius:4px">✕</button>
       </div>
       ${formatState(before)}
