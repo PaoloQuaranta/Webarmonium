@@ -1560,10 +1560,121 @@ class LandingApp {
       this._audioRecoveryClickHandler = null
       this._audioRecoveryTouchHandler = null
 
+      // DEBUG: Capture state BEFORE recovery
+      const stateBefore = this._captureAudioDebugState('BEFORE')
+
       if (this.audioService && this.audioService.handleUserGestureForRecovery) {
         await this.audioService.handleUserGestureForRecovery()
       }
+
+      // DEBUG: Capture state AFTER recovery
+      const stateAfter = this._captureAudioDebugState('AFTER')
+
+      // DEBUG: Show overlay with both states
+      this._showDebugOverlay(stateBefore, stateAfter)
     }
+  }
+
+  /**
+   * DEBUG: Capture current audio state for debugging
+   */
+  _captureAudioDebugState(label) {
+    const as = this.audioService
+    return {
+      label,
+      timestamp: new Date().toLocaleTimeString(),
+      // Tone.js state
+      contextState: Tone.context?.state || 'N/A',
+      transportState: Tone.Transport?.state || 'N/A',
+      // AudioService flags
+      isInitialized: as?.isInitialized ?? 'N/A',
+      muted: as?.muted ?? 'N/A',
+      _userStoppedAudio: as?._userStoppedAudio ?? 'N/A',
+      evolvingGenerationActive: as?.evolvingGenerationActive ?? 'N/A',
+      // Volume state
+      masterVolumeValue: as?.masterVolume?.volume?.value?.toFixed(1) ?? 'N/A',
+      masterVolumeMute: as?.masterVolume?.mute ?? 'N/A',
+      // VolumeController state
+      vcMuted: as?.volumeController?.muted ?? 'N/A',
+      vcVolume: as?.volumeController?.volume?.toFixed(2) ?? 'N/A',
+      // Platform
+      isIOS: as?._isIOS ?? 'N/A',
+    }
+  }
+
+  /**
+   * DEBUG: Show visual debug overlay on screen
+   */
+  _showDebugOverlay(before, after) {
+    // Remove existing overlay
+    const existing = document.getElementById('audio-debug-overlay')
+    if (existing) existing.remove()
+
+    const overlay = document.createElement('div')
+    overlay.id = 'audio-debug-overlay'
+    overlay.style.cssText = `
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.95);
+      color: #0f0;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 10px;
+      border-radius: 8px;
+      z-index: 99999;
+      max-height: 80vh;
+      overflow-y: auto;
+      border: 2px solid #0f0;
+    `
+
+    const formatState = (state) => {
+      const highlight = (key, val) => {
+        // Highlight problematic values in red
+        const bad =
+          (key === 'contextState' && val !== 'running') ||
+          (key === 'transportState' && val !== 'started') ||
+          (key === 'muted' && val === true) ||
+          (key === '_userStoppedAudio' && val === true) ||
+          (key === 'masterVolumeMute' && val === true) ||
+          (key === 'vcMuted' && val === true) ||
+          (key === 'masterVolumeValue' && val === '-Infinity') ||
+          (key === 'evolvingGenerationActive' && val === false)
+        return bad ? `<span style="color:#f00;font-weight:bold">${val}</span>` : val
+      }
+
+      return `
+        <div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,0.1);border-radius:4px">
+          <div style="color:#ff0;font-weight:bold;margin-bottom:4px">═══ ${state.label} (${state.timestamp}) ═══</div>
+          <div>contextState: ${highlight('contextState', state.contextState)}</div>
+          <div>transportState: ${highlight('transportState', state.transportState)}</div>
+          <div>isInitialized: ${state.isInitialized}</div>
+          <div>muted: ${highlight('muted', state.muted)}</div>
+          <div>_userStoppedAudio: ${highlight('_userStoppedAudio', state._userStoppedAudio)}</div>
+          <div>evolvingGenerationActive: ${highlight('evolvingGenerationActive', state.evolvingGenerationActive)}</div>
+          <div>masterVolume.value: ${highlight('masterVolumeValue', state.masterVolumeValue)}dB</div>
+          <div>masterVolume.mute: ${highlight('masterVolumeMute', state.masterVolumeMute)}</div>
+          <div>volumeController.muted: ${highlight('vcMuted', state.vcMuted)}</div>
+          <div>volumeController.volume: ${state.vcVolume}</div>
+          <div>isIOS: ${state.isIOS}</div>
+        </div>
+      `
+    }
+
+    overlay.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="color:#ff0;font-weight:bold">🔊 AUDIO DEBUG</span>
+        <button onclick="this.parentElement.parentElement.remove()" style="background:#f00;color:#fff;border:none;padding:4px 8px;border-radius:4px;cursor:pointer">✕ CLOSE</button>
+      </div>
+      ${formatState(before)}
+      ${formatState(after)}
+      <div style="margin-top:8px;color:#888;font-size:10px">
+        Red = problematic value. Tap CLOSE to dismiss.
+      </div>
+    `
+
+    document.body.appendChild(overlay)
   }
 
   /**
