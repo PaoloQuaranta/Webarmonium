@@ -1,14 +1,17 @@
 /**
  * MusicalHandler - Musical event handlers
  * Handles: hold:start, hold:end, musical:event, composition:update, clock:sync, hover-update
+ * Entry #Security: Uses centralized rate limiter (tracks by userId/IP, not per-socket)
  */
 
 const ValidationHandler = require('./ValidationHandler')
 const { LATENCY } = require('../../constants/MusicConstants')
+const RateLimiter = require('../../utils/RateLimiter')
 
 const MusicalHandler = {
   /**
    * Register hold:start event handler
+   * Entry #Security: Uses centralized rate limiter (tracks by userId/IP, not per-socket)
    * @param {Socket} socket - Socket instance
    */
   registerHoldStartHandler (socket) {
@@ -16,6 +19,12 @@ const MusicalHandler = {
       const startTime = Date.now()
 
       try {
+        // Centralized rate limiting
+        const limitResult = RateLimiter.checkLimit('hold:start', socket)
+        if (!limitResult.allowed) {
+          return ValidationHandler.sendError(callback, 'RATE_LIMITED', 'Too many requests')
+        }
+
         if (!socket.userId || !socket.roomId) {
           return ValidationHandler.sendError(callback, 'NO_ACTIVE_SESSION', 'No active room session')
         }
@@ -85,6 +94,7 @@ const MusicalHandler = {
 
   /**
    * Register hold:end event handler
+   * Entry #Security: Uses centralized rate limiter (tracks by userId/IP, not per-socket)
    * @param {Socket} socket - Socket instance
    */
   registerHoldEndHandler (socket) {
@@ -92,6 +102,12 @@ const MusicalHandler = {
       const startTime = Date.now()
 
       try {
+        // Centralized rate limiting
+        const limitResult = RateLimiter.checkLimit('hold:end', socket)
+        if (!limitResult.allowed) {
+          return ValidationHandler.sendError(callback, 'RATE_LIMITED', 'Too many requests')
+        }
+
         if (!socket.userId || !socket.roomId) {
           return ValidationHandler.sendError(callback, 'NO_ACTIVE_SESSION', 'No active room session')
         }
@@ -137,13 +153,11 @@ const MusicalHandler = {
   /**
    * Register note:stream event handler for real-time drag note streaming
    * Receives notes as they're played during drag gestures and broadcasts to other users
+   * Entry #Security: Uses centralized rate limiter (tracks by userId/IP, not per-socket)
    * @param {Socket} socket - Socket instance with userId and roomId
    * @fires note:stream - Broadcasts note to other users in room
    */
   registerNoteStreamHandler (socket) {
-    // Rate limiting: minimum 40ms between notes (25 notes/sec max)
-    const MIN_NOTE_INTERVAL = 40
-
     socket.on('note:stream', async (data, callback) => {
       try {
         // Validate session
@@ -154,13 +168,12 @@ const MusicalHandler = {
           return
         }
 
-        // Rate limiting per user
-        const now = Date.now()
-        if (socket._lastNoteStreamTime && (now - socket._lastNoteStreamTime) < MIN_NOTE_INTERVAL) {
+        // Centralized rate limiting (tracks by userId/IP, not per-socket)
+        const limitResult = RateLimiter.checkLimit('note:stream', socket)
+        if (!limitResult.allowed) {
           // Silent drop - don't error, just skip this note
           return
         }
-        socket._lastNoteStreamTime = now
 
         // Validate required fields
         if (!data || data.frequency === undefined || !data.position) {
@@ -424,12 +437,19 @@ const MusicalHandler = {
 
   /**
    * Register hover-update event handler
+   * Entry #Security: Uses centralized rate limiter (tracks by userId/IP, not per-socket)
    * @param {Socket} socket - Socket instance
    */
   registerHoverUpdateHandler (socket) {
     socket.on('hover-update', async (data) => {
       const startTime = Date.now()
       try {
+        // Centralized rate limiting (tracks by userId/IP, not per-socket)
+        const limitResult = RateLimiter.checkLimit('hover-update', socket)
+        if (!limitResult.allowed) {
+          return // Drop event - rate limited
+        }
+
         if (!data || !socket.roomId || !socket.userId) {
           // // console.warn('⚠️ hover-update validation failed - missing required fields')
           return

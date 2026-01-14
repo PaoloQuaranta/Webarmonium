@@ -1,10 +1,14 @@
 /**
  * AuthHandler - Session management handlers
  * Handles: join-room, leave-room, heartbeat, disconnect
+ * Entry #Security: Uses Logger and centralized RateLimiter
  */
 
 const ValidationHandler = require('./ValidationHandler')
 const { LATENCY } = require('../../constants/MusicConstants')
+const { loggers } = require('../../utils/Logger')
+const RateLimiter = require('../../utils/RateLimiter')
+const logger = loggers.auth
 
 const AuthHandler = {
   /**
@@ -32,7 +36,7 @@ const AuthHandler = {
         if (socket.services.connectionTracker) {
           socket.services.connectionTracker.onUserConnected(socket.id, landingRoomId)
         } else {
-          console.warn('⚠️ join-landing: connectionTracker unavailable - polling lifecycle not managed')
+          logger.warn('join-landing: connectionTracker unavailable - polling lifecycle not managed')
         }
 
 // console.log(`✅ User joined landing room:`, {
@@ -52,7 +56,7 @@ const AuthHandler = {
             socket.services.landingCompositionService.emitDroneToSocket(socket)
           }, 600)
         } else {
-          console.warn('⚠️ landingCompositionService not available in socket.services')
+          logger.warn('landingCompositionService not available in socket.services')
         }
 
         // Get initial cursor positions
@@ -119,7 +123,7 @@ const AuthHandler = {
         const roomId = socket.roomId
 
         if (!roomId) {
-          console.warn('⚠️ request-drone: socket not in a room')
+          logger.warn('request-drone: socket not in a room')
           if (callback) callback({ success: false, error: 'Not in a room' })
           return
         }
@@ -131,7 +135,7 @@ const AuthHandler = {
             socket.services.landingCompositionService.emitDroneToSocket(socket)
             if (callback) callback({ success: true })
           } else {
-            console.error('❌ Landing service unavailable')
+            logger.error('Landing service unavailable')
             if (callback) callback({ success: false, error: 'Landing service unavailable' })
           }
           return
@@ -143,11 +147,11 @@ const AuthHandler = {
           socket.services.backgroundCompositionService.emitDroneToSocket(socket, roomId)
           if (callback) callback({ success: true })
         } else {
-          console.error('❌ Background service unavailable')
+          logger.error('Background service unavailable')
           if (callback) callback({ success: false, error: 'Background service unavailable' })
         }
       } catch (error) {
-        console.error('request-drone error:', error)
+        logger.error('request-drone error', { error: error.message })
         if (callback) callback({ success: false, error: error.message })
       }
     })
@@ -174,6 +178,25 @@ const AuthHandler = {
           return ValidationHandler.sendError(callback, 'INVALID_ROOM_ID', 'Invalid room ID format')
         }
 
+        // Check if this is a new room creation (rate limit only for new rooms)
+        const existingRoom = socket.services.roomManager.getRoom(roomId)
+        if (!existingRoom) {
+          // Rate limit room creation per IP using centralized RateLimiter
+          const ip = RateLimiter.getIP(socket)
+          const limitResult = RateLimiter.checkLimitByIP('room-creation', ip, {
+            windowMs: parseInt(process.env.ROOM_CREATION_WINDOW_MS) || 3600000, // 1 hour
+            maxRequests: parseInt(process.env.MAX_ROOMS_PER_IP) || 5
+          })
+
+          if (!limitResult.allowed) {
+            logger.warn(`Room creation limit exceeded for IP ${ip}`, {
+              remaining: limitResult.remaining,
+              retryAfter: limitResult.retryAfter
+            })
+            return ValidationHandler.sendError(callback, 'ROOM_CREATION_LIMIT', 'Room creation limit exceeded. Please wait before creating more rooms.')
+          }
+        }
+
         // Generate anonymous user ID if not already set
         if (!socket.userId) {
           socket.userId = ValidationHandler.generateUserId()
@@ -192,7 +215,7 @@ const AuthHandler = {
           socket.services.connectionTracker.onUserConnected(socket.id, roomId)
           socket.services.connectionTracker.updateActivity()
         } else {
-          console.warn('⚠️ join-room: connectionTracker unavailable - polling lifecycle not managed')
+          logger.warn('join-room: connectionTracker unavailable - polling lifecycle not managed')
         }
 
         // Attempt to join room (this may emit virtual-users-activated)
@@ -231,7 +254,7 @@ const AuthHandler = {
               }
             }
           } catch (reEmitError) {
-            console.error(`⚠️ Failed to re-emit virtual-users-activated for overflow room ${actualRoomId}:`, reEmitError.message)
+            logger.error(`Failed to re-emit virtual-users-activated for overflow room ${actualRoomId}`, { error: reEmitError.message })
             // Non-fatal: user will still be in room, just without virtual cursor display initially
           }
         }
@@ -507,7 +530,7 @@ const AuthHandler = {
     if (socket.services.connectionTracker) {
       socket.services.connectionTracker.onUserDisconnected(socket.id)
     } else {
-      console.warn('⚠️ disconnect: connectionTracker unavailable - polling lifecycle not managed')
+      logger.warn('disconnect: connectionTracker unavailable - polling lifecycle not managed')
     }
 
     if (socket.userId && socket.roomId) {

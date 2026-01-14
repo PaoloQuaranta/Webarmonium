@@ -7,6 +7,13 @@ const { v4: uuidv4 } = require('uuid')
 const { MIDI, TEMPO } = require('../../constants/MusicConstants')
 const { AppError, ErrorCodes } = require('../../utils/AppError')
 
+// Maximum array lengths for security (prevents memory abuse)
+const MAX_ARRAY_LENGTHS = {
+  streamedNotes: 500,
+  points: 1000,
+  trailPoints: 200
+}
+
 const ValidationHandler = {
   /**
    * Generate anonymous user ID (UUID v4 format)
@@ -286,6 +293,39 @@ const ValidationHandler = {
     const estimatedOffset = roundTripTime / 2
 
     return estimatedOffset
+  },
+
+  /**
+   * Validate array length against maximum limits (security: prevents memory abuse)
+   * @param {Array} array - Array to validate
+   * @param {string} fieldName - Name of the field for error messaging
+   * @returns {Object} Validation result { isValid, error, truncated }
+   */
+  validateArrayLength (array, fieldName) {
+    if (!Array.isArray(array)) {
+      return { isValid: false, error: `${fieldName} must be an array` }
+    }
+
+    const maxLength = MAX_ARRAY_LENGTHS[fieldName] || 1000 // Default limit
+
+    if (array.length > maxLength) {
+      return {
+        isValid: false,
+        error: `${fieldName} exceeds maximum length: ${array.length} > ${maxLength}`,
+        truncated: array.slice(0, maxLength)
+      }
+    }
+
+    return { isValid: true }
+  },
+
+  /**
+   * Get maximum array length for a field
+   * @param {string} fieldName - Name of the field
+   * @returns {number} Maximum length
+   */
+  getMaxArrayLength (fieldName) {
+    return MAX_ARRAY_LENGTHS[fieldName] || 1000
   }
 }
 

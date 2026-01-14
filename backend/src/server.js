@@ -12,16 +12,35 @@ const rateLimit = require('express-rate-limit')
 // Import service container for dependency injection
 const { createServiceContainer, wireServices } = require('./services/ServiceContainer')
 const socketHandlers = require('./api/socketHandlers')
+const RateLimiter = require('./utils/RateLimiter')
+const { createLogger } = require('./utils/Logger')
 
 
 // Configuration
 const PORT = process.env.PORT || 3001
 const NODE_ENV = process.env.NODE_ENV || 'development'
 
-// Rate limiting
+// CORS configuration from environment
+// In production, CORS_ORIGIN should be set to allowed domains (comma-separated)
+// Example: CORS_ORIGIN=https://webarmonium.com,https://www.webarmonium.com
+const corsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
+  : '*'
+
+// Rate limiting with health check bypass
+// Entry #Security: Skip rate limiting for health checks to allow monitoring
+// Entry #Security: Add rate limit headers to responses
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 100, // limit each IP to 100 requests per windowMs
+  skip: (req) => req.path === '/health', // Bypass for health checks
+  standardHeaders: true, // Return rate limit info in RateLimit-* headers
+  legacyHeaders: false, // Disable X-RateLimit-* headers (deprecated)
+  message: {
+    success: false,
+    error: 'RATE_LIMITED',
+    message: 'Too many requests, please try again later.'
+  }
 })
 
 const app = express()
@@ -31,23 +50,120 @@ const server = http.createServer(app)
 // Fixes ERR_ERL_UNEXPECTED_X_FORWARDED_FOR error
 app.set('trust proxy', 1)
 
-// Socket.IO configuration
+// Socket.IO configuration with CORS from environment
+// Entry #Security: Added maxHttpBufferSize to prevent memory exhaustion attacks
+const MAX_PAYLOAD_SIZE = parseInt(process.env.MAX_PAYLOAD_SIZE) || 1e6 // 1MB default
 const io = socketIo(server, {
   cors: {
-    origin: "*",
+    origin: corsOrigins,
     methods: ["GET", "POST"]
+  },
+  // Limit payload size BEFORE parsing to prevent memory exhaustion
+  maxHttpBufferSize: MAX_PAYLOAD_SIZE,
+  // Limit number of event listeners per socket
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+    skipMiddlewares: false
   }
+})
+
+// Connection rate limiting per IP (prevents connection flood attacks)
+// Entry #Security: Using centralized RateLimiter to prevent race conditions
+const serverLogger = createLogger('server')
+const adminLogger = createLogger('admin')
+
+// Entry #Security: Environment variable validation on startup
+function validateEnvironment () {
+  const warnings = []
+  const errors = []
+
+  // Production-required variables
+  if (NODE_ENV === 'production') {
+    if (!process.env.CORS_ORIGIN || process.env.CORS_ORIGIN === '*') {
+      warnings.push('CORS_ORIGIN is not set or is wildcard (*) in production')
+    }
+    if (!process.env.ADMIN_API_KEY) {
+      warnings.push('ADMIN_API_KEY is not set - admin endpoints will be disabled')
+    }
+  }
+
+  // Log warnings
+  warnings.forEach(w => serverLogger.warn(`Environment: ${w}`))
+  errors.forEach(e => serverLogger.error(`Environment: ${e}`))
+
+  if (errors.length > 0 && NODE_ENV === 'production') {
+    throw new Error(`Critical environment configuration errors: ${errors.join(', ')}`)
+  }
+
+  return { warnings, errors }
+}
+
+// Validate environment on startup (non-blocking in development)
+try {
+  validateEnvironment()
+} catch (error) {
+  serverLogger.error('Environment validation failed', { error: error.message })
+  if (NODE_ENV === 'production') {
+    process.exit(1)
+  }
+}
+
+// Start RateLimiter cleanup (cleanup stale entries periodically)
+RateLimiter.startCleanup(60000) // Every minute
+
+io.use((socket, next) => {
+  const ip = RateLimiter.getIP(socket)
+
+  // Use centralized rate limiter with custom config for connections
+  const limitResult = RateLimiter.checkLimitByIP('connection', ip, {
+    windowMs: parseInt(process.env.CONNECTION_WINDOW_MS) || 60000,
+    maxRequests: parseInt(process.env.MAX_CONNECTIONS_PER_IP) || 10
+  })
+
+  if (!limitResult.allowed) {
+    serverLogger.warn(`Connection rate limit exceeded for IP ${ip}`, {
+      remaining: limitResult.remaining,
+      retryAfter: limitResult.retryAfter
+    })
+    return next(new Error('Too many connections from this IP'))
+  }
+
+  next()
 })
 
 // Middleware
 app.use(limiter)
 app.use(cors({
-  origin: '*', // Allow all origins for development
+  origin: corsOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key']
 }))
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
+
+// Entry #Security: Add security headers including CSP
+app.use((req, res, next) => {
+  // Content-Security-Policy
+  const cspDirectives = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "connect-src 'self' wss: ws:",
+    "font-src 'self'",
+    "media-src 'self' blob:",
+    "worker-src 'self' blob:"
+  ]
+  res.setHeader('Content-Security-Policy', cspDirectives.join('; '))
+
+  // Other security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN')
+  res.setHeader('X-XSS-Protection', '1; mode=block')
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+
+  next()
+})
 
 // Serve static files from frontend directory
 app.use(express.static('../frontend'))
@@ -227,12 +343,76 @@ app.get('/api/rooms/:id/stats', (req, res) => {
   }
 })
 
-// Room cleanup endpoint
-app.delete('/api/rooms/:id', (req, res) => {
+// Admin authentication middleware for protected endpoints
+// Entry #Security: Logs failed attempts and successful admin actions
+const adminAuth = (req, res, next) => {
+  const apiKey = req.headers['x-admin-key']
+  const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+                   req.socket?.remoteAddress ||
+                   'unknown'
+
+  // In production, ADMIN_API_KEY must be set
+  if (!process.env.ADMIN_API_KEY) {
+    if (NODE_ENV === 'production') {
+      adminLogger.warn('Admin endpoint access attempted without ADMIN_API_KEY configured', {
+        ip: clientIP,
+        path: req.path,
+        method: req.method
+      })
+      return res.status(403).json({
+        success: false,
+        error: 'admin_disabled',
+        message: 'Admin endpoint disabled in production (ADMIN_API_KEY not configured)'
+      })
+    }
+    // Allow in development without key
+    adminLogger.debug('Admin access allowed in development mode without API key', {
+      ip: clientIP,
+      path: req.path
+    })
+    return next()
+  }
+
+  // Validate API key
+  if (apiKey !== process.env.ADMIN_API_KEY) {
+    adminLogger.warn('Admin authentication failed - invalid API key', {
+      ip: clientIP,
+      path: req.path,
+      method: req.method,
+      hasKey: !!apiKey
+    })
+    return res.status(401).json({
+      success: false,
+      error: 'unauthorized',
+      message: 'Invalid or missing admin API key'
+    })
+  }
+
+  // Log successful authentication
+  adminLogger.info('Admin authentication successful', {
+    ip: clientIP,
+    path: req.path,
+    method: req.method
+  })
+
+  next()
+}
+
+// Room cleanup endpoint (protected)
+// Entry #Security: Audit logging for admin actions
+app.delete('/api/rooms/:id', adminAuth, (req, res) => {
+  const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+                   req.socket?.remoteAddress ||
+                   'unknown'
+
   try {
     const { id } = req.params
 
     if (!roomManager.rooms.has(id)) {
+      adminLogger.info('Room deletion attempted - room not found', {
+        ip: clientIP,
+        roomId: id
+      })
       return res.status(404).json({
         success: false,
         error: 'room_not_found',
@@ -240,14 +420,30 @@ app.delete('/api/rooms/:id', (req, res) => {
       })
     }
 
+    // Get room info for audit log
+    const room = roomManager.rooms.get(id)
+    const userCount = room?.users?.size || 0
+
     // Clean up room resources
     roomManager.rooms.delete(id)
+
+    adminLogger.info('Room deleted successfully', {
+      ip: clientIP,
+      roomId: id,
+      userCount,
+      timestamp: Date.now()
+    })
 
     res.json({
       success: true,
       message: `Room ${id} deleted successfully`
     })
   } catch (error) {
+    adminLogger.error('Room deletion failed', {
+      ip: clientIP,
+      roomId: req.params.id,
+      error: error.message
+    })
     res.status(500).json({
       success: false,
       error: 'room_deletion_failed',
@@ -300,25 +496,29 @@ app.use('*', (req, res) => {
 })
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  // console.log('SIGTERM signal received: closing HTTP server')
-  server.close(() => {
-    // console.log('HTTP server closed')
-    // Clean up all rooms
-    roomManager.rooms.clear()
-    process.exit(0)
-  })
-})
+// Entry #Security: Stop RateLimiter cleanup on shutdown
+function gracefulShutdown (signal) {
+  serverLogger.info(`${signal} signal received: closing HTTP server`)
 
-process.on('SIGINT', () => {
-  // console.log('SIGINT signal received: closing HTTP server')
+  // Stop rate limiter cleanup
+  RateLimiter.stopCleanup()
+
   server.close(() => {
-    // console.log('HTTP server closed')
+    serverLogger.info('HTTP server closed')
     // Clean up all rooms
     roomManager.rooms.clear()
     process.exit(0)
   })
-})
+
+  // Force exit after timeout
+  setTimeout(() => {
+    serverLogger.error('Forced shutdown after timeout')
+    process.exit(1)
+  }, 10000)
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))
 
 // Helper function to generate room IDs
 function generateRoomId () {

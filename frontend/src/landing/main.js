@@ -159,10 +159,6 @@ class LandingApp {
     this._trailFadeFrameId = null
     this._trailFadeRate = 0.02  // Alpha reduction per frame (lower = slower fade)
 
-    // Audio recovery handlers (iOS Safari sleep recovery)
-    this._audioGestureRequiredHandler = null
-    this._audioRecoveryClickHandler = null
-    this._audioRecoveryTouchHandler = null
   }
 
   /**
@@ -237,23 +233,14 @@ class LandingApp {
       // Audio will only START on user click, but the service exists before
       if (typeof AudioService !== 'undefined' && !this.audioService) {
         this.audioService = new AudioService()
-        console.log('🔊 AudioService created early (like normal rooms)')
       }
 
       // Wait for user interaction to START audio (browser policy)
       this._setupAudioInitialization()
 
-      // iOS Safari sleep recovery: Register listeners EARLY (before audio init)
-      // This is critical - must be done during app init, not inside audio init callback
-      this._audioGestureRequiredHandler = (event) => {
-        console.log('🔊 Landing: Audio requires user gesture:', event.detail)
-        this._showAudioRecoveryPrompt()
-        this._attachRecoveryClickHandlers()
-      }
-      window.addEventListener('audio:gesture-required', this._audioGestureRequiredHandler)
-
-      // iOS Safari: Setup proactive check on any interaction (works even before audio init)
-      this._setupProactiveRecoveryCheck()
+      // NOTE: iOS Safari sleep recovery is now handled automatically by AudioService
+      // via visibility/focus/pageshow handlers (same as normal rooms).
+      // The key fix was creating AudioService EARLY in initialize() (line 238-241).
 
       // Initialize dashboard UI
       this.dashboardUI.initialize({
@@ -757,17 +744,6 @@ class LandingApp {
     // - Math.min(1, ...) handles edge case of very tight clustering
     const spatialDensity = Math.max(0, Math.min(1, 1 - variance * 4))
 
-    // Debug: log values every 60 frames (~1 second at 60fps)
-    if (!this._metricsDebugCounter) this._metricsDebugCounter = 0
-    if (++this._metricsDebugCounter % 60 === 0) {
-      console.log('🌈 Synthetic metrics:', {
-        userCount,
-        spatialDensity: spatialDensity.toFixed(3),
-        variance: variance.toFixed(4),
-        dominantZone: { x: dominantZone.x.toFixed(2), y: dominantZone.y.toFixed(2) }
-      })
-    }
-
     // Forward to visual service
     this.visualService.updateInteractionMetrics({
       userCount,
@@ -935,7 +911,6 @@ class LandingApp {
       // Entry #81: Draw trail halo for virtual user drag end
       // FIX: Use helper to find cursor by userId (keys are 'wikipedia' not 'wikipedia-metrics')
       const cursorData = this._findCursorByUserId(userId || note.userId)
-      console.log('🟢 Virtual hold:end trail attempt:', { userId, noteUserId: note.userId, hasCursor: !!cursorData, currentCursors: Object.keys(this.currentCursors) })
       if (cursorData) {
         // FIX #6: Use centralized intensity calculation helper
         const holdDuration = duration || 1000
@@ -1034,7 +1009,6 @@ class LandingApp {
     // Entry #81: Draw trail halo for virtual user tap
     // FIX: Use helper to find cursor by userId (keys are 'wikipedia' not 'wikipedia-metrics')
     const cursorData = this._findCursorByUserId(userId)
-    console.log('🟢 Virtual tap trail attempt:', { userId, hasCursor: !!cursorData, currentCursors: Object.keys(this.currentCursors) })
     if (cursorData) {
       // Tap intensity based on duration (100ms = 0.3, 500ms = ~0.5)
       const intensity = Math.min(1, 0.3 + (tapDuration / 2) * 0.7)
@@ -1259,9 +1233,6 @@ class LandingApp {
    * @private
    */
   _renderTrailHalo(normX, normY, intensity, color) {
-    // DEBUG: Verify rendering is called
-    console.log('🔴 Landing _renderTrailHalo called:', { normX, normY, intensity, color, hasCtx: !!this.trailCtx, hasCanvas: !!this.trailCanvas })
-
     if (!this.trailCtx || !this.trailCanvas) {
       console.warn('⚠️ Landing trail halo: no canvas context available')
       return
@@ -1394,294 +1365,45 @@ class LandingApp {
   }
 
   // ========================
-  // Audio Recovery Methods (iOS Safari sleep recovery)
+  // DEBUG: Audio Debug Methods (commented out - kept for future debugging)
   // ========================
+  // NOTE: These methods were used to debug iOS Safari sleep recovery.
+  // The fix was creating AudioService EARLY in initialize() (Entry #112).
+  // Uncomment these methods if you need to debug audio issues in the future.
 
-  /**
-   * Proactively check if audio needs recovery on any user interaction
-   * This catches cases where the event-based system fails (iOS quirks)
-   */
-  _checkAudioNeedsRecovery() {
-    if (!this.isAudioReady || !this.audioService) return false
-
-    const contextState = Tone.context?.state
-    // Audio needs recovery if context is not running
-    if (contextState !== 'running') {
-      console.log('🔊 Landing: Proactive check - context not running:', contextState)
-      return true
+  /*
+  _captureAudioDebugState(label) {
+    const as = this.audioService
+    if (!this._initialContext && Tone.context) {
+      this._initialContext = Tone.context
     }
+    const sameContext = this._initialContext === Tone.context ? 'same' : 'DIFFERENT!'
+    const masterConnected = as?.masterVolume?.context === Tone.context ? 'yes' : 'NO!'
+    const bassDisposed = as?.ambientLayers?.bass?.disposed ? 'YES!' : 'no'
+    const padDisposed = as?.ambientLayers?.pad?.disposed ? 'YES!' : 'no'
+    const chordsDisposed = as?.ambientLayers?.chords?.disposed ? 'YES!' : 'no'
+    const synthsOK = (bassDisposed === 'no' && padDisposed === 'no' && chordsDisposed === 'no') ? 'OK' : 'DISPOSED!'
 
-    // Also check if masterVolume is stuck at -Infinity (silent)
-    if (this.audioService.masterVolume?.volume?.value === -Infinity) {
-      console.log('🔊 Landing: Proactive check - masterVolume stuck at -Infinity')
-      return true
-    }
-
-    // iOS Safari: Transport can be stopped even if context reports "running"
-    if (Tone.Transport?.state !== 'started') {
-      console.log('🔊 Landing: Proactive check - Transport not started:', Tone.Transport?.state)
-      return true
-    }
-
-    return false
-  }
-
-  /**
-   * Setup proactive audio recovery check on user interaction
-   * iOS Safari may not fire visibility/focus events correctly after sleep
-   */
-  _setupProactiveRecoveryCheck() {
-    // Check on any touch/click if audio needs recovery
-    const checkAndRecover = async (e) => {
-      if (this._checkAudioNeedsRecovery()) {
-        // Show prompt immediately
-        this._showAudioRecoveryPrompt()
-        this._attachRecoveryClickHandlers()
-      }
-    }
-
-    // Add listeners (these stay for the lifetime of the page)
-    document.addEventListener('touchstart', checkAndRecover, { passive: true })
-    document.addEventListener('click', checkAndRecover)
-  }
-
-  /**
-   * Show Play button overlay for audio recovery
-   */
-  _showAudioRecoveryPrompt() {
-    // Only show if audio was previously started
-    if (!this.isAudioReady) return
-
-    // Check if prompt already exists
-    if (document.getElementById('audio-recovery-prompt')) return
-
-    // Inject CSS if not already present
-    if (!document.getElementById('audio-recovery-styles')) {
-      const style = document.createElement('style')
-      style.id = 'audio-recovery-styles'
-      style.textContent = `
-        .audio-recovery-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.7);
-          z-index: 9999;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          animation: audio-recovery-fade-in 0.3s ease-out;
-        }
-        @keyframes audio-recovery-fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        .audio-recovery-play-btn {
-          width: 100px;
-          height: 100px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #6366f1, #8b5cf6);
-          border: none;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 4px 30px rgba(99, 102, 241, 0.5);
-          transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .audio-recovery-play-btn:hover {
-          transform: scale(1.1);
-          box-shadow: 0 6px 40px rgba(99, 102, 241, 0.7);
-        }
-        .audio-recovery-play-btn:active {
-          transform: scale(0.95);
-        }
-        .audio-recovery-play-btn svg {
-          width: 40px;
-          height: 40px;
-          fill: white;
-          margin-left: 6px;
-        }
-        .audio-recovery-text {
-          margin-top: 20px;
-          color: white;
-          font-family: system-ui, -apple-system, sans-serif;
-          font-size: 16px;
-          opacity: 0.9;
-        }
-      `
-      document.head.appendChild(style)
-    }
-
-    const overlay = document.createElement('div')
-    overlay.id = 'audio-recovery-prompt'
-    overlay.className = 'audio-recovery-overlay'
-    overlay.innerHTML = `
-      <button class="audio-recovery-play-btn" aria-label="Resume audio">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M8 5v14l11-7z"/>
-        </svg>
-      </button>
-      <p class="audio-recovery-text">Tap to resume audio</p>
-    `
-    document.body.appendChild(overlay)
-
-    // FIX: Attach handler directly to overlay, not document
-    // This prevents the handler from being consumed by the same event that shows the prompt
-    overlay.addEventListener('click', (e) => {
-      e.stopPropagation()
-      this._handleAudioRecoveryClick()
-    }, { once: true })
-
-    // iOS Safari: Also handle touchend (more reliable than touchstart for user intent)
-    overlay.addEventListener('touchend', (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      this._handleAudioRecoveryClick()
-    }, { once: true, passive: false })
-  }
-
-  /**
-   * Attach click/touch handlers for audio recovery
-   * NOTE: Now handled directly in _showAudioRecoveryPrompt for reliability
-   */
-  _attachRecoveryClickHandlers() {
-    // Handlers are now attached directly to overlay in _showAudioRecoveryPrompt
-    // This method kept for backward compatibility but does nothing
-  }
-
-  /**
-   * Remove recovery click handlers
-   */
-  _removeRecoveryClickHandlers() {
-    if (this._audioRecoveryClickHandler) {
-      document.removeEventListener('click', this._audioRecoveryClickHandler)
-      this._audioRecoveryClickHandler = null
-    }
-    if (this._audioRecoveryTouchHandler) {
-      document.removeEventListener('touchstart', this._audioRecoveryTouchHandler)
-      this._audioRecoveryTouchHandler = null
+    return {
+      label,
+      timestamp: new Date().toLocaleTimeString(),
+      contextState: Tone.context?.state || 'N/A',
+      transportState: Tone.Transport?.state || 'N/A',
+      sameContext,
+      masterConnected,
+      synthsOK,
+      isInitialized: as?.isInitialized ?? 'N/A',
+      muted: as?.muted ?? 'N/A',
+      _userStoppedAudio: as?._userStoppedAudio ?? 'N/A',
+      evolvingGenerationActive: as?.evolvingGenerationActive ?? 'N/A',
+      masterVolumeValue: as?.masterVolume?.volume?.value?.toFixed(1) ?? 'N/A',
+      masterVolumeMute: as?.masterVolume?.mute ?? 'N/A',
+      vcMuted: as?.volumeController?.muted ?? 'N/A',
+      vcVolume: as?.volumeController?.volume?.toFixed(2) ?? 'N/A',
+      isIOS: as?._isIOS ?? 'N/A',
     }
   }
 
-  /**
-   * Handle click/touch for audio recovery
-   */
-  async _handleAudioRecoveryClick() {
-    const prompt = document.getElementById('audio-recovery-prompt')
-    if (prompt) {
-      prompt.remove()
-      this._audioRecoveryClickHandler = null
-      this._audioRecoveryTouchHandler = null
-
-      // DEBUG: Capture state BEFORE recovery
-      const stateBefore = this._captureAudioDebugState('BEFORE')
-
-      // iOS CRITICAL: Call Tone.start() IMMEDIATELY in the click handler
-      // iOS Safari requires this to be synchronous with the user gesture
-      // Cannot be deferred to async function or the gesture context is lost
-      try {
-        Tone.start()  // Synchronous call - do NOT await here
-      } catch (e) {
-        console.warn('Tone.start() sync call failed:', e)
-      }
-
-      // Also try to resume the raw context directly
-      try {
-        const rawCtx = Tone.context?.rawContext || Tone.context?._context
-        if (rawCtx?.resume) {
-          rawCtx.resume()  // Synchronous call
-        }
-        if (Tone.context?.resume) {
-          Tone.context.resume()  // Synchronous call
-        }
-      } catch (e) {
-        console.warn('Context resume failed:', e)
-      }
-
-      // iOS FIX: Play a sound IMMEDIATELY from user gesture to "prime" audio output
-      // This mimics what happens in rooms when user gestures trigger sounds
-      try {
-        const rawCtx = Tone.context?.rawContext || Tone.context?._context
-        if (rawCtx) {
-          const osc = rawCtx.createOscillator()
-          const gain = rawCtx.createGain()
-          gain.gain.value = 0.01 // Very quiet
-          osc.connect(gain)
-          gain.connect(rawCtx.destination)
-          osc.start()
-          osc.stop(rawCtx.currentTime + 0.05) // 50ms blip
-        }
-      } catch (e) {
-        console.warn('Immediate sound failed:', e)
-      }
-
-      // DEBUG: Capture state AFTER immediate unlock attempt
-      const stateAfterUnlock = this._captureAudioDebugState('AFTER_UNLOCK')
-
-      // Now proceed with full recovery (async is OK now, context should be unlocked)
-      if (this.audioService && this.audioService.handleUserGestureForRecovery) {
-        await this.audioService.handleUserGestureForRecovery()
-      }
-
-      // DEBUG: Capture state AFTER full recovery
-      const stateAfter = this._captureAudioDebugState('AFTER_RECOVERY')
-
-      // DEBUG: Play test tone using FRESH AudioContext (completely new, not Tone.js)
-      let testToneResult = 'not_attempted'
-      try {
-        // Create a BRAND NEW AudioContext (not using Tone.context at all)
-        const freshCtx = new AudioContext()
-
-        // Resume the fresh context (required by iOS)
-        await freshCtx.resume()
-
-        if (freshCtx.state === 'running') {
-          // Create oscillator directly with Web Audio API
-          const osc = freshCtx.createOscillator()
-          const gain = freshCtx.createGain()
-
-          osc.type = 'sine'
-          osc.frequency.value = 523.25 // C5
-          gain.gain.value = 0.5 // Louder to be sure
-
-          // Connect to FRESH context's destination
-          osc.connect(gain)
-          gain.connect(freshCtx.destination)
-
-          osc.start()
-          osc.stop(freshCtx.currentTime + 0.5) // 500ms beep
-
-          testToneResult = 'FRESH_played'
-
-          // Cleanup after beep
-          setTimeout(() => {
-            try { freshCtx.close() } catch (e) {}
-          }, 1000)
-        } else {
-          testToneResult = 'freshCtx_' + freshCtx.state
-        }
-      } catch (e) {
-        testToneResult = 'error: ' + e.message
-      }
-
-      // DEBUG: Show overlay with all states
-      this._showDebugOverlay3(stateBefore, stateAfterUnlock, stateAfter, testToneResult)
-
-      // CRITICAL: Re-request drone after iOS sleep recovery
-      // The drone that was playing before sleep is lost - need to get a new one
-      if (this.socket?.connected && Tone.context?.state === 'running') {
-        console.log('🎵 Landing: Re-requesting drone after iOS sleep recovery')
-        this.socket.emit('request-drone')
-      }
-    }
-  }
-
-  /**
-   * DEBUG: Show overlay with 3 states + test tone result
-   */
   _showDebugOverlay3(before, afterUnlock, afterRecovery, testToneResult = 'N/A') {
     const existing = document.getElementById('audio-debug-overlay')
     if (existing) existing.remove()
@@ -1689,20 +1411,11 @@ class LandingApp {
     const overlay = document.createElement('div')
     overlay.id = 'audio-debug-overlay'
     overlay.style.cssText = `
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      right: 10px;
-      background: rgba(0,0,0,0.95);
-      color: #0f0;
-      font-family: monospace;
-      font-size: 10px;
-      padding: 10px;
-      border-radius: 8px;
-      z-index: 99999;
-      max-height: 85vh;
-      overflow-y: auto;
-      border: 2px solid #0f0;
+      position: fixed; top: 10px; left: 10px; right: 10px;
+      background: rgba(0,0,0,0.95); color: #0f0;
+      font-family: monospace; font-size: 10px; padding: 10px;
+      border-radius: 8px; z-index: 99999; max-height: 85vh;
+      overflow-y: auto; border: 2px solid #0f0;
     `
 
     const formatState = (state) => {
@@ -1714,8 +1427,7 @@ class LandingApp {
           (key === 'masterVolumeMute' && val === true) ||
           (key === 'sameContext' && val !== 'same') ||
           (key === 'masterConnected' && val !== 'yes') ||
-          (key === 'synthsOK' && val !== 'OK') ||
-          (key === 'masterVolumeMute' && val === true)
+          (key === 'synthsOK' && val !== 'OK')
         return bad ? `<span style="color:#f00">${val}</span>` : `<span style="color:#0f0">${val}</span>`
       }
       return `
@@ -1732,7 +1444,7 @@ class LandingApp {
     const toneColor = testToneResult === 'played' ? '#0f0' : '#f00'
     overlay.innerHTML = `
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-        <span style="color:#ff0;font-weight:bold">🔊 DEBUG v125</span>
+        <span style="color:#ff0;font-weight:bold">🔊 DEBUG</span>
         <button onclick="this.parentElement.parentElement.remove()" style="background:#f00;color:#fff;border:none;padding:2px 8px;border-radius:4px">✕</button>
       </div>
       ${formatState(before)}
@@ -1740,143 +1452,11 @@ class LandingApp {
       ${formatState(afterRecovery)}
       <div style="margin-top:8px;padding:6px;background:rgba(255,255,0,0.2);border-radius:4px">
         <span style="color:#ff0">🔔 TEST TONE:</span> <span style="color:${toneColor};font-weight:bold">${testToneResult}</span>
-        <div style="color:#888;font-size:9px">Se dice "played" dovresti aver sentito un beep C5</div>
       </div>
     `
     document.body.appendChild(overlay)
   }
-
-  /**
-   * DEBUG: Capture current audio state for debugging
-   */
-  _captureAudioDebugState(label) {
-    const as = this.audioService
-    // Check if context is the same object (critical for iOS sleep debug)
-    // Store reference on first call
-    if (!this._initialContext && Tone.context) {
-      this._initialContext = Tone.context
-    }
-    const sameContext = this._initialContext === Tone.context ? 'same' : 'DIFFERENT!'
-
-    // Check if masterVolume is connected to current context
-    const masterConnected = as?.masterVolume?.context === Tone.context ? 'yes' : 'NO!'
-
-    // Check if synths are disposed (critical!)
-    const bassDisposed = as?.ambientLayers?.bass?.disposed ? 'YES!' : 'no'
-    const padDisposed = as?.ambientLayers?.pad?.disposed ? 'YES!' : 'no'
-    const chordsDisposed = as?.ambientLayers?.chords?.disposed ? 'YES!' : 'no'
-    const synthsOK = (bassDisposed === 'no' && padDisposed === 'no' && chordsDisposed === 'no') ? 'OK' : 'DISPOSED!'
-
-    return {
-      label,
-      timestamp: new Date().toLocaleTimeString(),
-      // Tone.js state
-      contextState: Tone.context?.state || 'N/A',
-      transportState: Tone.Transport?.state || 'N/A',
-      sameContext, // Is it the same Tone.context object?
-      masterConnected, // Is masterVolume connected to current context?
-      synthsOK, // Are synths not disposed?
-      // AudioService flags
-      isInitialized: as?.isInitialized ?? 'N/A',
-      muted: as?.muted ?? 'N/A',
-      _userStoppedAudio: as?._userStoppedAudio ?? 'N/A',
-      evolvingGenerationActive: as?.evolvingGenerationActive ?? 'N/A',
-      // Volume state
-      masterVolumeValue: as?.masterVolume?.volume?.value?.toFixed(1) ?? 'N/A',
-      masterVolumeMute: as?.masterVolume?.mute ?? 'N/A',
-      // VolumeController state
-      vcMuted: as?.volumeController?.muted ?? 'N/A',
-      vcVolume: as?.volumeController?.volume?.toFixed(2) ?? 'N/A',
-      // Platform
-      isIOS: as?._isIOS ?? 'N/A',
-    }
-  }
-
-  /**
-   * DEBUG: Show visual debug overlay on screen
-   */
-  _showDebugOverlay(before, after) {
-    // Remove existing overlay
-    const existing = document.getElementById('audio-debug-overlay')
-    if (existing) existing.remove()
-
-    const overlay = document.createElement('div')
-    overlay.id = 'audio-debug-overlay'
-    overlay.style.cssText = `
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      right: 10px;
-      background: rgba(0,0,0,0.95);
-      color: #0f0;
-      font-family: monospace;
-      font-size: 11px;
-      padding: 10px;
-      border-radius: 8px;
-      z-index: 99999;
-      max-height: 80vh;
-      overflow-y: auto;
-      border: 2px solid #0f0;
-    `
-
-    const formatState = (state) => {
-      const highlight = (key, val) => {
-        // Highlight problematic values in red
-        const bad =
-          (key === 'contextState' && val !== 'running') ||
-          (key === 'transportState' && val !== 'started') ||
-          (key === 'muted' && val === true) ||
-          (key === '_userStoppedAudio' && val === true) ||
-          (key === 'masterVolumeMute' && val === true) ||
-          (key === 'vcMuted' && val === true) ||
-          (key === 'masterVolumeValue' && val === '-Infinity') ||
-          (key === 'evolvingGenerationActive' && val === false)
-        return bad ? `<span style="color:#f00;font-weight:bold">${val}</span>` : val
-      }
-
-      return `
-        <div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,0.1);border-radius:4px">
-          <div style="color:#ff0;font-weight:bold;margin-bottom:4px">═══ ${state.label} (${state.timestamp}) ═══</div>
-          <div>contextState: ${highlight('contextState', state.contextState)}</div>
-          <div>transportState: ${highlight('transportState', state.transportState)}</div>
-          <div>isInitialized: ${state.isInitialized}</div>
-          <div>muted: ${highlight('muted', state.muted)}</div>
-          <div>_userStoppedAudio: ${highlight('_userStoppedAudio', state._userStoppedAudio)}</div>
-          <div>evolvingGenerationActive: ${highlight('evolvingGenerationActive', state.evolvingGenerationActive)}</div>
-          <div>masterVolume.value: ${highlight('masterVolumeValue', state.masterVolumeValue)}dB</div>
-          <div>masterVolume.mute: ${highlight('masterVolumeMute', state.masterVolumeMute)}</div>
-          <div>volumeController.muted: ${highlight('vcMuted', state.vcMuted)}</div>
-          <div>volumeController.volume: ${state.vcVolume}</div>
-          <div>isIOS: ${state.isIOS}</div>
-        </div>
-      `
-    }
-
-    overlay.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span style="color:#ff0;font-weight:bold">🔊 AUDIO DEBUG</span>
-        <button onclick="this.parentElement.parentElement.remove()" style="background:#f00;color:#fff;border:none;padding:4px 8px;border-radius:4px;cursor:pointer">✕ CLOSE</button>
-      </div>
-      ${formatState(before)}
-      ${formatState(after)}
-      <div style="margin-top:8px;color:#888;font-size:10px">
-        Red = problematic value. Tap CLOSE to dismiss.
-      </div>
-    `
-
-    document.body.appendChild(overlay)
-  }
-
-  /**
-   * Cleanup audio recovery listeners
-   */
-  _cleanupAudioRecoveryListeners() {
-    if (this._audioGestureRequiredHandler) {
-      window.removeEventListener('audio:gesture-required', this._audioGestureRequiredHandler)
-      this._audioGestureRequiredHandler = null
-    }
-    this._removeRecoveryClickHandlers()
-  }
+  */
 
   /**
    * Cleanup and dispose
@@ -1885,9 +1465,6 @@ class LandingApp {
     // console.log('🧹 Cleaning up LandingApp...')
 
     this.stop()
-
-    // Cleanup audio recovery listeners
-    this._cleanupAudioRecoveryListeners()
 
     // Stop trail fade animation
     this._stopTrailFade()

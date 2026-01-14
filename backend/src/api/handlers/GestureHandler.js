@@ -1,9 +1,11 @@
 /**
  * GestureHandler - Gesture processing handlers
  * Handles: gesture, gesture:record
+ * Entry #Security: Uses centralized rate limiter (tracks by userId/IP, not per-socket)
  */
 
 const ValidationHandler = require('./ValidationHandler')
+const RateLimiter = require('../../utils/RateLimiter')
 
 const GestureHandler = {
   /**
@@ -13,6 +15,15 @@ const GestureHandler = {
   registerGestureHandler (socket) {
     socket.on('gesture', async (data, callback) => {
       const startTime = Date.now()
+
+      // Rate limiting check (except for gesture completion/end actions)
+      const isCompletionAction = data && (data.action === 'end' || data.action === 'release')
+      if (!isCompletionAction) {
+        const limitResult = RateLimiter.checkLimit('gesture', socket)
+        if (!limitResult.allowed) {
+          return // Drop event - rate limited
+        }
+      }
 
       // Ensure callback exists and provide timeout safety
       const timeoutId = setTimeout(() => {
@@ -66,6 +77,16 @@ const GestureHandler = {
           // // console.log(`⏭️ [gesture handler] Skipping GestureToMusicService - hold system was active (already handled via hold:start/hold:end)`)
           musicalResult = null
         } else if (data.streamedNotes && Array.isArray(data.streamedNotes) && data.streamedNotes.length > 0) {
+          // Security: Validate array length to prevent memory abuse
+          const arrayValidation = ValidationHandler.validateArrayLength(data.streamedNotes, 'streamedNotes')
+          if (!arrayValidation.isValid) {
+            // Truncate to max length instead of rejecting entirely
+            if (arrayValidation.truncated) {
+              data.streamedNotes = arrayValidation.truncated
+            } else {
+              return ValidationHandler.sendError(callback, 'ARRAY_TOO_LARGE', arrayValidation.error)
+            }
+          }
           // // console.log('🔍 Processing streamedNotes from frontend:', data.streamedNotes.length, 'notes')
 
           const startTime = Date.now()
@@ -420,11 +441,19 @@ const GestureHandler = {
         //   holdWasActive: gesture.holdWasActive
         // })
 
+        // Security: Validate array length if streamedNotes present
+        if (gesture.streamedNotes && Array.isArray(gesture.streamedNotes)) {
+          const arrayValidation = ValidationHandler.validateArrayLength(gesture.streamedNotes, 'streamedNotes')
+          if (!arrayValidation.isValid && arrayValidation.truncated) {
+            gesture.streamedNotes = arrayValidation.truncated
+          }
+        }
+
         // CRITICAL: If streamedNotes present and NOT already streamed, broadcast for remote replication
         // FIX: Check notesAlreadyStreamed flag to prevent duplicate playback (Issue C-02)
         // Notes are already sent via note:stream in real-time during drag - skip re-broadcast
         if (gesture.notesAlreadyStreamed && gesture.streamedNotes?.length > 0) {
-          console.log(`[GestureHandler] Skipping re-broadcast for ${gesture.streamedNotes.length} notes - already streamed via note:stream`)
+          // Skipping re-broadcast - already streamed via note:stream
         }
 
         const shouldRebroadcastNotes = gesture.streamedNotes &&
@@ -602,21 +631,17 @@ const GestureHandler = {
    * Register gesture:trail event handler
    * Broadcasts visual trail halos to other users in the room
    * Entry #80: Added comprehensive input validation, rate limiting, and cleanup
+   * Entry #Security: Uses centralized rate limiter (tracks by userId/IP, not per-socket)
    * @param {Socket} socket - Socket instance
    */
   registerGestureTrailHandler (socket) {
-    // Rate limiting: max ~60 trail events per second per user
-    const TRAIL_RATE_LIMIT_MS = 16
-    let lastEmitTime = 0
-
     socket.on('gesture:trail', (data) => {
       try {
-        // Rate limiting check
-        const now = Date.now()
-        if (now - lastEmitTime < TRAIL_RATE_LIMIT_MS) {
-          return
+        // Centralized rate limiting (cursor-move config: ~60/sec for 60fps)
+        const limitResult = RateLimiter.checkLimit('cursor-move', socket)
+        if (!limitResult.allowed) {
+          return // Rate limited
         }
-        lastEmitTime = now
 
         // Validate user is in a room
         if (!socket.userId || !socket.roomId) {

@@ -1,7 +1,10 @@
 /**
  * CursorHandler - Multi-user cursor tracking handlers
  * Handles: cursor-move, cursor-position
+ * Entry #Security: Uses centralized rate limiter (tracks by userId/IP, not per-socket)
  */
+
+const RateLimiter = require('../../utils/RateLimiter')
 
 const CursorHandler = {
   /**
@@ -11,7 +14,11 @@ const CursorHandler = {
   registerCursorMoveHandler (socket) {
     socket.on('cursor-move', async (data) => {
       try {
-        // console.log(`👆 cursor-move received from ${socket.userId?.substring(0, 8)}`, data)
+        // Centralized rate limiting (tracks by userId/IP, not per-socket)
+        const limitResult = RateLimiter.checkLimit('cursor-move', socket)
+        if (!limitResult.allowed) {
+          return // Drop event - rate limited
+        }
 
         // Validate user is in a room
         if (!socket.userId || !socket.roomId) {

@@ -4663,15 +4663,15 @@ Updated to v1.0.108
 
 ## Entry #112 - Audio Sleep Recovery System
 
-**Date**: 2026-01-13
+**Date**: 2026-01-13 (Completed: 2026-01-14)
 **Author**: Claude Code (AI Assistant)
-**Status**: PARTIALLY COMPLETED
+**Status**: COMPLETED
 
 ### Summary
 
 Fixed audio muting issue when returning to the app after device sleep mode. Audio previously remained muted requiring page reload, especially noticeable on mobile devices. Implemented comprehensive recovery system with multiple event listeners, health monitoring, and user gesture fallback.
 
-**Current Status**: Works on PC and in normal rooms on iOS. Still broken on iOS Safari landing page - Play button appears but pressing it doesn't restore audio.
+**Final Status**: FULLY WORKING on all platforms (PC, iOS Safari normal rooms, iOS Safari landing page).
 
 ---
 
@@ -4798,40 +4798,174 @@ this._recoveryConfig = {
 
 ---
 
-### iOS Landing Page Issue (Unresolved)
+### iOS Landing Page Issue - RESOLVED
 
-**Symptom**: On iOS Safari, after device sleep, the landing page shows the Play button overlay but pressing it doesn't restore audio. Normal rooms work correctly (audio auto-recovers without showing button).
+**Symptom**: On iOS Safari, after device sleep, the landing page showed the Play button overlay but pressing it didn't restore audio. Normal rooms worked correctly (audio auto-recovered without showing button).
 
-**Investigation**:
-1. Both landing page and normal rooms use the same AudioService with identical recovery code
-2. Both have identical `_setupProactiveRecoveryCheck()` implementations
-3. Both have identical `_handleAudioRecoveryClick()` implementations
-4. The proactive check correctly detects audio needs recovery (button appears)
-5. But pressing the button doesn't successfully restore audio
+**Root Cause Found**:
+The key difference was **when AudioService was created**:
+- **Normal rooms**: AudioService created in constructor (`this.audioService = new AudioService()`) **before** any user interaction
+- **Landing page**: AudioService created **during first click** handler in `_setupAudioInitialization()`
 
-**Attempted Fixes**:
-1. Added `Tone.start()` call from user gesture (iOS requirement) - no effect
-2. Added iOS "interrupted" state detection - no effect
-3. Added Transport state check (`Tone.Transport?.state !== 'started'`) - no effect
-4. Moved listener registration to `initialize()` method (before audio init) - button now appears
-5. Added `socket.emit('request-drone')` after recovery - wrong approach (both rooms use same audio system)
+This timing difference affected iOS Safari's audio session handling. When AudioService is created early, its visibility/focus/pageshow handlers are registered early, allowing iOS to properly track the audio session from the start.
 
-**Key Differences Between Landing and Rooms**:
-- Landing: Uses `isAudioReady` flag
-- Rooms: Uses `isAudioStarted` flag
-- Both use same AudioService.handleUserGestureForRecovery()
+**The Fix** (v1.0.125):
+Create AudioService early in `initialize()` **before** any user gesture, matching normal room behavior:
 
-**Root Cause**: Unknown. Code review confirmed implementations are identical. The difference in behavior suggests a state or timing issue not yet identified.
+```javascript
+// In initialize() method:
+// CRITICAL FIX: Create AudioService EARLY (like normal rooms do)
+// This registers the visibility/focus/pageshow handlers early
+// Audio will only START on user click, but the service exists before
+if (typeof AudioService !== 'undefined' && !this.audioService) {
+  this.audioService = new AudioService()
+  console.log('🔊 AudioService created early (like normal rooms)')
+}
+```
 
-**Next Steps**:
-- Need to investigate AudioService internal state during recovery
-- May need iOS Safari remote debugging to capture console logs
-- Consider if `_userStoppedAudio` flag is incorrectly set on landing page
+**Files Modified**:
+- `frontend/src/landing/main.js` - Create AudioService early, check `isAudioReady` instead of `audioService` existence
+- `frontend/index.html` - Version bump
+
+**Cleanup** (v1.0.126):
+- Removed the recovery button/prompt code (no longer needed - audio auto-recovers)
+- Removed all debug code and beeps
+- Commented out debug overlay methods for potential future use
+- Code is now clean with same behavior as normal rooms
 
 ---
 
 ### Version
 
-Updated to v1.0.114
+Updated to v1.0.126
+
+---
+
+## Entry #113 - Backend Security Hardening (16 Fixes)
+
+**Date**: 2026-01-14
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented comprehensive security hardening for the backend based on code review findings. Created centralized rate limiting system that tracks by userId/IP (not per-socket), added environment variable validation, CSP headers, audit logging, and graceful shutdown handling.
+
+---
+
+### Issues Fixed (16 Total)
+
+| # | Priority | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | Critical | Rate limiting per-socket allows bypass via multiple connections | Created centralized `RateLimiter.js` that tracks by userId/IP |
+| 2 | Critical | No `.env.example` for required environment variables | Created `.env.example` with all security variables |
+| 3 | Critical | No pre-parse array size validation | Added `maxHttpBufferSize` to Socket.io config |
+| 4 | Critical | Race condition in connection rate limiter | Fixed using centralized RateLimiter with atomic operations |
+| 5 | High | `roomCreationsByIP` Map has no cleanup | Now uses centralized RateLimiter with automatic cleanup |
+| 6 | High | No audit logging for admin endpoints | Added adminLogger with IP, path, method logging |
+| 7 | High | No environment variable validation on startup | Added `validateEnvironment()` function |
+| 8 | High | No graceful shutdown for cleanup intervals | Added `gracefulShutdown()` with `RateLimiter.stopCleanup()` |
+| 9 | Medium | Magic numbers scattered through code | Created `SecurityConstants.js` with named constants |
+| 10 | Medium | No rate limit headers in responses | Added `standardHeaders: true` to express-rate-limit |
+| 11 | Medium | Failed admin auth attempts not logged | Added logging for invalid API key attempts |
+| 12 | Medium | Missing JSDoc for security functions | Added comprehensive documentation |
+| 13 | Low | Inconsistent error codes | Added security error codes to `AppError.js` ErrorCodes |
+| 14 | Low | No tests for RateLimiter | Created `RateLimiter.test.js` with 20 unit tests |
+| 15 | Low | Rate limit bypass for health checks | Added `skip: (req) => req.path === '/health'` |
+| 16 | Low | Missing CSP headers | Added Content-Security-Policy middleware |
+
+---
+
+### Files Created
+
+| File | Description |
+|------|-------------|
+| `backend/src/utils/RateLimiter.js` | Centralized rate limiting by userId/IP with sliding window algorithm |
+| `backend/.env.example` | Template for required environment variables |
+| `backend/src/constants/SecurityConstants.js` | Security configuration constants |
+| `backend/tests/unit/RateLimiter.test.js` | 20 comprehensive unit tests |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/server.js` | maxHttpBufferSize, validateEnvironment(), CSP headers, centralized connection rate limiting, gracefulShutdown() |
+| `backend/src/api/handlers/CursorHandler.js` | Use centralized RateLimiter |
+| `backend/src/api/handlers/GestureHandler.js` | Use centralized RateLimiter |
+| `backend/src/api/handlers/MusicalHandler.js` | Use centralized RateLimiter |
+| `backend/src/api/handlers/AuthHandler.js` | Use centralized RateLimiter for room creation |
+| `backend/src/utils/AppError.js` | Added security error codes (RATE_LIMITED, UNAUTHORIZED, etc.) |
+
+---
+
+### Centralized Rate Limiter Architecture
+
+The new `RateLimiter.js` tracks requests by userId (if authenticated) or IP address, preventing bypass via multiple socket connections:
+
+```javascript
+// Key: "eventType:user:userId" or "eventType:ip:address"
+const RATE_LIMIT_CONFIG = {
+  'cursor-move': { windowMs: 1000, maxRequests: 60 },   // 60fps
+  'gesture': { windowMs: 1000, maxRequests: 20 },       // 20/sec
+  'hover-update': { windowMs: 1000, maxRequests: 20 },  // 20/sec
+  'note:stream': { windowMs: 1000, maxRequests: 25 },   // 25/sec
+  'hold:start': { windowMs: 1000, maxRequests: 30 },    // 30/sec
+  'hold:end': { windowMs: 1000, maxRequests: 30 },      // 30/sec
+  'room-creation': { windowMs: 3600000, maxRequests: 5 }, // 5/hour
+  'connection': { windowMs: 60000, maxRequests: 10 }    // 10/min
+}
+```
+
+---
+
+### Environment Variables (Production Required)
+
+```bash
+# Required in production
+CORS_ORIGIN=https://webarmonium.net
+ADMIN_API_KEY=<generate with: openssl rand -hex 32>
+
+# Optional (have defaults)
+MAX_CONNECTIONS_PER_IP=10
+MAX_ROOMS_PER_IP=5
+MAX_PAYLOAD_SIZE=1000000
+```
+
+---
+
+### Security Headers Added
+
+```javascript
+// Content-Security-Policy
+"default-src 'self'"
+"script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+"style-src 'self' 'unsafe-inline'"
+"img-src 'self' data: blob:"
+"connect-src 'self' wss: ws:"
+"font-src 'self'"
+"media-src 'self' blob:"
+"worker-src 'self' blob:"
+
+// Other headers
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+```
+
+---
+
+### Test Results
+
+- 20 new RateLimiter tests: All passing
+- Existing test suite: 301 passed, 84 failed (TDD placeholders)
+
+---
+
+### Version
+
+Updated to v1.0.127
 
 ---

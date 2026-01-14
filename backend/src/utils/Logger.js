@@ -43,7 +43,7 @@ class Logger {
   error (message, data) {
     if (!this.enabled) return
     if (this.level >= LOG_LEVELS.ERROR) {
-// console.error(this.format('ERROR', message, data))
+      console.error(this.format('ERROR', message, data))
     }
   }
 
@@ -55,7 +55,7 @@ class Logger {
   warn (message, data) {
     if (!this.enabled) return
     if (this.level >= LOG_LEVELS.WARN) {
-// console.warn(this.format('WARN', message, data))
+      console.warn(this.format('WARN', message, data))
     }
   }
 
@@ -67,19 +67,19 @@ class Logger {
   info (message, data) {
     if (!this.enabled) return
     if (this.level >= LOG_LEVELS.INFO) {
-// console.log(this.format('INFO', message, data))
+      console.info(this.format('INFO', message, data))
     }
   }
 
   /**
-   * Log debug message (disabled in production)
+   * Log debug message (disabled in production by default log level)
    * @param {string} message - Debug message
    * @param {Object} data - Additional data
    */
   debug (message, data) {
     if (!this.enabled) return
     if (this.level >= LOG_LEVELS.DEBUG) {
-// console.log(this.format('DEBUG', message, data))
+      console.log(this.format('DEBUG', message, data))
     }
   }
 
@@ -92,7 +92,7 @@ class Logger {
   trace (message, data) {
     if (!this.enabled) return
     if (this.level >= LOG_LEVELS.TRACE) {
-// console.log(this.format('TRACE', message, data))
+      console.log(this.format('TRACE', message, data))
     }
   }
 
@@ -105,7 +105,7 @@ class Logger {
   perf (operation, duration, data) {
     if (!this.enabled) return
     if (this.level >= LOG_LEVELS.DEBUG) {
-// console.log(this.format('PERF', `${operation} completed in ${duration}ms`, data))
+      console.log(this.format('PERF', `${operation} completed in ${duration}ms`, data))
     }
   }
 
