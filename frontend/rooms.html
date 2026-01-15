@@ -7,6 +7,45 @@
     <title>🎵 Webarmonium - Collaborative Generative Music</title>
     <meta name="description" content="Real-time collaborative platform for gesture-controlled generative music">
 
+    <!-- Entry #115: Frontend domain protection - MUST be first script -->
+    <script>
+    (function() {
+      var ALLOWED = ['localhost','127.0.0.1','webarmonium.com','www.webarmonium.com','webarmonium.net','www.webarmonium.net'];
+      var host = window.location.hostname.toLowerCase();
+      var isAllowed = ALLOWED.some(function(d) { return host === d || host.endsWith('.' + d); });
+
+      if (!isAllowed) {
+        window.WEBARMONIUM_BLOCKED = true;
+        document.addEventListener('DOMContentLoaded', function() {
+          // Create blocking overlay
+          var overlay = document.createElement('div');
+          overlay.id = 'unauthorized-domain-overlay';
+          overlay.innerHTML = [
+            '<div style="position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;font-family:system-ui,sans-serif;">',
+            '<div style="background:#dc2626;color:white;padding:15px 30px;border-radius:8px;font-size:18px;font-weight:bold;margin-bottom:30px;">',
+            'UNAUTHORIZED MIRROR SITE',
+            '</div>',
+            '<div style="color:#fff;font-size:24px;margin-bottom:20px;">',
+            'This is not the official Webarmonium website.',
+            '</div>',
+            '<div style="color:#ccc;font-size:16px;margin-bottom:30px;max-width:500px;">',
+            'You are viewing an unauthorized copy. The official site is:',
+            '</div>',
+            '<a href="https://webarmonium.net" style="background:#22c55e;color:white;padding:15px 40px;border-radius:8px;font-size:20px;font-weight:bold;text-decoration:none;">',
+            'Go to webarmonium.net',
+            '</a>',
+            '<div style="color:#888;font-size:12px;margin-top:40px;">',
+            'This mirror site has been reported for copyright infringement.',
+            '</div>',
+            '</div>'
+          ].join('');
+          document.body.innerHTML = '';
+          document.body.appendChild(overlay);
+        });
+      }
+    })();
+    </script>
+
     <!-- Google Fonts - Archivo -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
