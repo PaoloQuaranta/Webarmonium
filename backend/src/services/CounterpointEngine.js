@@ -525,10 +525,14 @@ class CounterpointEngine {
   generateDurationByRole(role, index, total) {
     // Role-specific duration generation
     // DERIVATION: golden ratio stepping breaks predictable cycles
+    // Entry #117: Added compositionCount temporal variation for different rhythms each composition
 
-    // Helper: golden ratio index for non-repeating sequences (with null guard)
+    // Helper: golden ratio index with temporal offset for non-repeating sequences
     const safeIndex = index || 0
-    const phiIndex = (arr) => Math.floor((safeIndex * PHI) % 1 * arr.length)
+    const compCount = this._currentCompositionCount || 0
+    const temporalOffset = (compCount * PHI) % 1
+    // Combine note index + temporal offset for variety across compositions
+    const phiIndex = (arr) => Math.floor(((safeIndex * PHI) + temporalOffset) % 1 * arr.length)
 
     switch (role) {
       case 'melody':
@@ -580,15 +584,20 @@ class CounterpointEngine {
   generateGapByRole(role, noteIndex = 0, totalNotes = 1) {
     // Role-specific gaps for PIENI/VUOTI (full/empty sections)
     // DERIVATION: role-specific frequencies create varied gap patterns
+    // Entry #117: Added compositionCount temporal variation for different spacing each composition
 
     // Guard against divide-by-zero
     if (totalNotes === 0) return 0
 
     const position = noteIndex / totalNotes
+    // Entry #117: Add temporal offset to vary gaps across compositions
+    const compCount = this._currentCompositionCount || 0
+    const temporalOffset = (compCount * PHI) % 1
     // Role-specific frequencies prevent identical patterns across voices
     const roleFreq = { melody: 2, harmony: 3, bass: 1.5, pad: 1 }
     const freq = roleFreq[role] || 2
-    const variationFactor = Math.sin(position * Math.PI * freq) * 0.5 + 0.5 // 0-1
+    // Combine position + temporal offset for variation
+    const variationFactor = Math.sin((position + temporalOffset) * Math.PI * freq) * 0.5 + 0.5 // 0-1
 
     switch (role) {
       case 'melody':
