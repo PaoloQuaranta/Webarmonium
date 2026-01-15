@@ -232,63 +232,23 @@
           <tr>
             <td>Tap</td>
             <td>Click/touch &lt;100ms</td>
-            <td>Single percussive note</td>
+            <td>Single percussive note (10-110ms attack)</td>
             <td>Pulse emission</td>
+          </tr>
+          <tr>
+            <td>Long Tap (Hold)</td>
+            <td>Click/touch held without motion</td>
+            <td>Sustained note (gate opens on hold, closes on release)</td>
+            <td>Growing pulse</td>
           </tr>
           <tr>
             <td>Drag</td>
             <td>Continuous motion</td>
-            <td>Multi-note melodic phrase</td>
+            <td>Multi-note melodic phrase (50-250ms attack based on Y position)</td>
             <td>Particle trail</td>
           </tr>
         </tbody>
       </table>
-
-      <h3>Device Characteristics</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Device</th>
-            <th>Attack Time</th>
-            <th>Sustain</th>
-            <th>Characteristic</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Touch</td>
-            <td>50ms (fast)</td>
-            <td>Short</td>
-            <td>Percussive, pressure-sensitive dynamics</td>
-          </tr>
-          <tr>
-            <td>Mouse</td>
-            <td>100-300ms</td>
-            <td>Medium</td>
-            <td>Smooth, continuous parameter modulation</td>
-          </tr>
-          <tr>
-            <td>Gyroscope</td>
-            <td>200ms</td>
-            <td>600-1000ms (extended)</td>
-            <td>Octave shifts from orientation</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <h3>Coordinate Mapping (Collaborative Rooms)</h3>
-      <div class="formula">
-        X coordinate (0.0-1.0) &rarr; Base frequency: 220Hz + (X &times; 660Hz) = 220-880Hz<br>
-        Y coordinate (0.0-1.0) &rarr; Harmonic shift: &gt;0.7 = &times;1.5 (5th up), &lt;0.3 = &times;0.75 (4th down)<br>
-        Y coordinate (0.0-1.0) &rarr; Amplitude: &gt;0.8 = &times;1.2 (boost), &lt;0.2 = &times;0.6 (reduce)<br>
-        Z coordinate (gyro)    &rarr; Octave shift: &gt;0.8 = &times;2 (up), &lt;0.2 = &times;0.5 (down)
-      </div>
-
-      <div class="note">
-        <strong>Landing Page (Virtual Users):</strong> Cursor positions use <em>golden ratio distribution</em> for optimal canvas coverage.
-        Each position is calculated as: X = (gestureCount × φ + normalizedFreq × 3.7) mod 1, Y = (gestureCount × φ² + secondaryMetric × 5.3) mod 1.
-        This ensures cursors are spread across the full canvas without diagonal clustering, while still being data-derived.
-      </div>
     </section>
 
     <!-- Section 3: Multi-User Composition Engine -->
@@ -304,24 +264,19 @@
         </thead>
         <tbody>
           <tr>
-            <td>Max voices</td>
+            <td>Max users</td>
             <td>4</td>
-            <td>melody, harmony, bass, pad</td>
+            <td>Each user receives a unique timbre/patch</td>
           </tr>
           <tr>
-            <td>Voice assignment</td>
-            <td>Sequential</td>
-            <td>First user &rarr; melody, subsequent &rarr; harmony/bass/pad</td>
+            <td>Timbre assignment</td>
+            <td>Sequential (slots 0-3)</td>
+            <td>Retro Square, Nasal Reed, Warm Chorus, Bell Chime</td>
           </tr>
           <tr>
-            <td>Counterpoint validation</td>
-            <td>Enabled</td>
-            <td>No parallel fifths, no voice crossing</td>
-          </tr>
-          <tr>
-            <td>Material selection</td>
-            <td>Top 3</td>
-            <td>Scored by key compatibility &times; mood match</td>
+            <td>Color assignment</td>
+            <td>From 7-color pool</td>
+            <td>Visual differentiation between users</td>
           </tr>
         </tbody>
       </table>
@@ -374,7 +329,6 @@
         <li><strong>Rhythmic:</strong> High intensity, touch input</li>
         <li><strong>Melodic:</strong> X coordinate in center range (0.3-0.7)</li>
         <li><strong>Intense:</strong> Intensity &gt; 0.8</li>
-        <li><strong>Spatial:</strong> Z coordinate present (gyroscope)</li>
       </ul>
 
       <h3>Deterministic Pattern Thresholds</h3>
@@ -486,15 +440,17 @@
       </table>
 
       <div class="formula">
-        formIndex = floor(energy &times; formCount)<br>
-        selectedForm = genreForms[formIndex]
+        temporalOffset = (compositionCount &times; &phi;) mod 1<br>
+        historyVariation = (historyLength &times; &phi;) mod 1<br>
+        combinedIndex = (energy &times; 0.4) + (temporalOffset &times; 0.4) + (historyVariation &times; 0.2)<br>
+        selectedForm = genreForms[floor(combinedIndex &times; formCount)]
       </div>
 
       <div class="note">
-        <strong>Deterministic Selection:</strong> All composition parameters derive from input data.
-        Form selection uses energy, progression selection uses harmonic complexity, and note-level
-        details (velocity, duration, articulation) derive from position within the phrase using
-        sine-wave contours for natural musical expression.
+        <strong>Golden Ratio (&phi;) Stepping:</strong> All composition parameters use &phi; (1.618...) to create
+        low-discrepancy sequences that avoid predictable repetition. Form selection combines energy (40%),
+        temporal offset (40%), and history variation (20%). Note-level details (velocity, duration,
+        articulation) derive from position within the phrase using sine-wave contours.
       </div>
     </section>
 
@@ -930,17 +886,17 @@
         </tbody>
       </table>
 
-      <h3>SATB Voice Ranges (CounterpointEngine)</h3>
-      <p>Multi-user compositions follow traditional SATB voice ranges for proper voice leading:</p>
+      <h3>SATB Voice Ranges (Background Composition)</h3>
+      <p>Background composition uses traditional SATB voice ranges for proper voice leading:</p>
       <table>
         <thead>
-          <tr><th>Voice</th><th>MIDI Range</th><th>Notes</th><th>Role</th></tr>
+          <tr><th>Voice</th><th>MIDI Range</th><th>Notes</th><th>Character</th></tr>
         </thead>
         <tbody>
-          <tr><td>Soprano</td><td>60-79</td><td>C4-G5</td><td>Melody (high density, staccato)</td></tr>
-          <tr><td>Alto</td><td>55-72</td><td>G3-C5</td><td>Harmony (medium density, normal)</td></tr>
-          <tr><td>Tenor</td><td>48-67</td><td>C3-G4</td><td>Pad (sparse, very long sustain)</td></tr>
-          <tr><td>Bass</td><td>36-55</td><td>C2-G3</td><td>Foundation (low density, legato)</td></tr>
+          <tr><td>Soprano</td><td>60-79</td><td>C4-G5</td><td>High density, staccato</td></tr>
+          <tr><td>Alto</td><td>55-72</td><td>G3-C5</td><td>Medium density</td></tr>
+          <tr><td>Tenor</td><td>48-67</td><td>C3-G4</td><td>Sparse, long sustain</td></tr>
+          <tr><td>Bass</td><td>36-55</td><td>C2-G3</td><td>Low density, legato</td></tr>
         </tbody>
       </table>
 

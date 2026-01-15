@@ -5818,3 +5818,43 @@ The actual code differentiates by **gesture type** (tap/drag/hover), not by inpu
 v1.0.139 (no version bump - cleanup)
 
 ---
+
+## Entry #121 - Technical Appendix Documentation Accuracy Fixes
+
+**Date**: 2026-01-15
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Comprehensive verification and correction of `technical-appendix.html` against actual codebase. Fixed inaccurate claims about gyroscope, voice roles, and outdated formulas. All 12 sections now verified against current implementation.
+
+---
+
+### Fixes Applied
+
+| Section | Fix |
+|---------|-----|
+| 2. Gesture Types | Added Long Tap gesture; removed Device Characteristics table and Coordinate Mapping section (gyroscope references) |
+| 3. Multi-User | Changed "voice roles" (melody/harmony/bass/pad) to "timbres" (Retro Square, Nasal Reed, Warm Chorus, Bell Chime) |
+| 4. Environmental Memory | Removed gyroscope from pattern compatibility criteria |
+| 5. Form Selection | Updated formula to Golden Ratio (φ) stepping: `combinedIndex = (energy × 0.4) + (temporalOffset × 0.4) + (historyVariation × 0.2)` |
+| 11. Voice Ranges | Clarified SATB ranges are for background composition, not user assignment |
+| 12. Virtual Users | Simplified to TAP/DRAG only (hover modulation disabled in Entry #105) |
+
+---
+
+### Verified as Accurate
+
+- **Section 8**: GenerativeMusicEngine three-layer architecture (bass 2000ms, pad 16000ms, chords 4000ms)
+- **Section 9**: DroneVoidController parameters (5-10s void timeout, 2s fade in, 20s fade out)
+- **Section 9**: LFO parameters (amplitude 0.03Hz/-6 to 0dB, pitch 0.05Hz/±8 cents)
+- **Sections 5-7, 10**: All formulas verified against CompositionEngine.js and HarmonicEngine.js
+
+---
+
+### Version
+
+v1.0.139 (no version bump - documentation only)
+
+---
