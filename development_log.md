@@ -5714,3 +5714,53 @@ This ensures:
 Updated to v1.0.139
 
 ---
+
+## Entry #119 - Landing Page UI Refinements
+
+**Date**: 2026-01-15
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Two UI improvements to the landing page: moved user count inside the "Join a Room" button to prevent layout overflow, and added footer credits.
+
+---
+
+### Changes
+
+#### 1. User Count Inside Button
+
+**Problem**: When the user count appeared to the right of "Join a Room" button, the controls bar became too narrow on smaller screens, causing the button to wrap to a new line.
+
+**Solution**: Moved `#rooms-activity` span inside the `.room-link` anchor, displayed below the button text using flexbox column layout.
+
+**Files:**
+- `frontend/index.html` - Moved span inside anchor tag
+- `frontend/styles.css` - Updated `.room-link` to use `flex-direction: column`, adjusted `.rooms-activity` to `display: block`
+
+#### 2. Footer Credits
+
+Added credits line above version tag in footer:
+```html
+<p class="footer-credits">Made by Paolo Quaranta, with so much needed help from Patrick De Marta</p>
+```
+
+Added `.footer-credits` CSS class with italic styling.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/index.html` | User count span inside button, footer credits line |
+| `frontend/styles.css` | `.room-link` flex column, `.rooms-activity` block display, `.footer-credits` style |
+
+---
+
+### Version
+
+v1.0.139 (no version bump - minor UI change)
+
+---
