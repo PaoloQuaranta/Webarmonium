@@ -44,16 +44,21 @@ class HarmonicEngine {
   /**
    * Select progression by complexity with golden ratio context variation
    * WEIGHTING: Complexity dominates (70%) for harmonic appropriateness, bars provide drift (30%)
+   * Entry #117: Added compositionCount for temporal variation across compositions
    * @param {Array} progressions - Array of progression options
    * @param {number} complexity - 0-1 complexity value
    * @param {number} bars - Number of bars for context variation
+   * @param {number} compositionCount - Composition counter for temporal variation
    * @returns {Array} Selected progression
    */
-  _selectProgressionByComplexity(progressions, complexity, bars) {
+  _selectProgressionByComplexity(progressions, complexity, bars, compositionCount = 0) {
     const safeComplexity = complexity || 0.5
     const safeBars = bars || 4
-    const contextVariation = ((safeBars * PHI) % 1) * 0.3
-    const combinedIndex = safeComplexity * 0.7 + contextVariation
+    // Entry #117: Add compositionCount to temporal variation
+    // This ensures different progressions are selected across compositions
+    const temporalOffset = ((compositionCount * PHI) % 1) * 0.4
+    const contextVariation = ((safeBars * PHI) % 1) * 0.2
+    const combinedIndex = safeComplexity * 0.5 + contextVariation + temporalOffset
     const index = Math.min(
       Math.floor(combinedIndex * progressions.length),
       progressions.length - 1
@@ -61,28 +66,36 @@ class HarmonicEngine {
     return progressions[index]
   }
 
-  generateProgression(styleAnalysis, phraseLength) {
+  /**
+   * Generate harmonic progression based on style analysis
+   * Entry #117: Added compositionCount for temporal variation
+   * @param {Object} styleAnalysis - Style analysis with genreWeights and harmonicComplexity
+   * @param {number} phraseLength - Length in bars
+   * @param {number} compositionCount - Composition counter for variation
+   * @returns {Array} Chord progression
+   */
+  generateProgression(styleAnalysis, phraseLength, compositionCount = 0) {
     const { genreWeights, harmonicComplexity } = styleAnalysis
     // Extract complexity value (0-1), default to 0.5
     const complexity = harmonicComplexity?.modalFlavor === 'minor' ? 0.6 :
                        harmonicComplexity?.modalFlavor === 'major' ? 0.4 :
                        typeof harmonicComplexity === 'number' ? harmonicComplexity : 0.5
 
-    // Select progression type based on dominant genre, passing complexity
+    // Select progression type based on dominant genre, passing complexity and compositionCount
     if (genreWeights.jazz > 0.7) {
-      return this.generateJazzProgression(phraseLength, complexity)
+      return this.generateJazzProgression(phraseLength, complexity, compositionCount)
     } else if (genreWeights.classical > 0.7) {
-      return this.generateClassicalProgression(phraseLength, complexity)
+      return this.generateClassicalProgression(phraseLength, complexity, compositionCount)
     } else if (genreWeights.electronic > 0.7) {
-      return this.generateElectronicProgression(phraseLength, complexity)
+      return this.generateElectronicProgression(phraseLength, complexity, compositionCount)
     } else if (genreWeights.rock > 0.7) {
-      return this.generateRockProgression(phraseLength, complexity)
+      return this.generateRockProgression(phraseLength, complexity, compositionCount)
     } else {
-      return this.generatePopProgression(phraseLength, complexity)
+      return this.generatePopProgression(phraseLength, complexity, compositionCount)
     }
   }
 
-  generateJazzProgression(bars, complexity = 0.5) {
+  generateJazzProgression(bars, complexity = 0.5, compositionCount = 0) {
     // Jazz progressions ordered by complexity (simple → complex)
     const progressions = [
       // Simple: Classic ii-V-I progression (complexity ~0.3)
@@ -107,7 +120,7 @@ class HarmonicEngine {
       ]
     ]
 
-    const selected = this._selectProgressionByComplexity(progressions, complexity, bars)
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
 
     return selected.map(chord => ({
       ...chord,
@@ -117,7 +130,7 @@ class HarmonicEngine {
     }))
   }
 
-  generateClassicalProgression(bars, complexity = 0.5) {
+  generateClassicalProgression(bars, complexity = 0.5, compositionCount = 0) {
     // Classical progressions ordered by complexity (simple → complex)
     const progressions = [
       // Simple: Plagal cadence (complexity ~0.2)
@@ -140,7 +153,7 @@ class HarmonicEngine {
       ]
     ]
 
-    const selected = this._selectProgressionByComplexity(progressions, complexity, bars)
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
 
     return selected.map(chord => ({
       ...chord,
@@ -150,7 +163,7 @@ class HarmonicEngine {
     }))
   }
 
-  generateElectronicProgression(bars, complexity = 0.5) {
+  generateElectronicProgression(bars, complexity = 0.5, compositionCount = 0) {
     // Electronic progressions ordered by complexity (simple → complex)
     const progressions = [
       // Simple: Ambient pads - single chord (complexity ~0.2)
@@ -172,7 +185,7 @@ class HarmonicEngine {
       ]
     ]
 
-    const selected = this._selectProgressionByComplexity(progressions, complexity, bars)
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
 
     return selected.map(chord => ({
       ...chord,
@@ -182,7 +195,7 @@ class HarmonicEngine {
     }))
   }
 
-  generateRockProgression(bars, complexity = 0.5) {
+  generateRockProgression(bars, complexity = 0.5, compositionCount = 0) {
     // Rock progressions ordered by complexity (simple → complex)
     const progressions = [
       // Simple: Power chord progression (complexity ~0.2)
@@ -206,7 +219,7 @@ class HarmonicEngine {
       ]
     ]
 
-    const selected = this._selectProgressionByComplexity(progressions, complexity, bars)
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
 
     return selected.map(chord => ({
       ...chord,
@@ -216,7 +229,7 @@ class HarmonicEngine {
     }))
   }
 
-  generatePopProgression(bars, complexity = 0.5) {
+  generatePopProgression(bars, complexity = 0.5, compositionCount = 0) {
     // Pop progressions ordered by complexity (simple → complex)
     const progressions = [
       // Simple: Vieni-qua progression (complexity ~0.2)
@@ -241,7 +254,7 @@ class HarmonicEngine {
       ]
     ]
 
-    const selected = this._selectProgressionByComplexity(progressions, complexity, bars)
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
 
     return selected.map(chord => ({
       ...chord,

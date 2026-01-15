@@ -213,7 +213,8 @@ class CompositionEngine {
     const sectionLength = this.sectionLengths[sectionLabel] || 8
 
     // Generate harmonic progression for the section
-    const progression = this.harmonicEngine.generateProgression(style, sectionLength)
+    // Entry #117: Pass compositionCount for temporal variation in progression selection
+    const progression = this.harmonicEngine.generateProgression(style, sectionLength, this.compositionCount)
 
     // Compose based on material availability and user count
     if (material.length > 1) {

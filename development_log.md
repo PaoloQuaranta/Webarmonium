@@ -5419,3 +5419,109 @@ This creates a smooth transition - the old drone note releases naturally while t
 Updated to v1.0.131
 
 ---
+
+## Entry #117 - Harmonic Progression Temporal Variation Fix
+
+**Date**: 2026-01-15
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed a bug where melodies were always identical because `_selectProgressionByComplexity()` didn't use `compositionCount` for temporal variation. The progression selection was deterministic based only on `bars` and `complexity`, which rarely changed, resulting in the same chord progression → same chord tones → same melody every time.
+
+---
+
+### Problem Statement
+
+User reported that the high voice (melody/soprano) always played **exactly the same note sequence** despite `compositionCount` incrementing. Investigation revealed:
+
+1. `CounterpointEngine.generatePitchFromChordTones()` correctly used `compositionCount` for note selection
+2. BUT the chord tones were always identical because the harmonic progression never changed
+3. ROOT CAUSE: `HarmonicEngine._selectProgressionByComplexity()` didn't use `compositionCount`
+
+The old formula:
+```javascript
+// contextVariation was ALWAYS the same (bars=4 → 0.1416)
+const contextVariation = ((safeBars * PHI) % 1) * 0.3
+const combinedIndex = safeComplexity * 0.7 + contextVariation
+// With complexity=0.5: combinedIndex = 0.4916 → index=1 (ALWAYS)
+```
+
+---
+
+### Solution
+
+Two fixes were required:
+
+#### Fix 1: Progression Selection Temporal Variation
+
+Added `compositionCount` to `_selectProgressionByComplexity()`:
+
+```javascript
+const temporalOffset = ((compositionCount * PHI) % 1) * 0.4
+const contextVariation = ((safeBars * PHI) % 1) * 0.2
+const combinedIndex = safeComplexity * 0.5 + contextVariation + temporalOffset
+```
+
+#### Fix 2: CRITICAL - Missing Base Pitch in Chord Tone Extraction
+
+The REAL bug was in `_extractChordTonesFromProgression()`. The default case (no progression) correctly added base pitch 60:
+
+```javascript
+// Default case - CORRECT:
+const pitch = 60 + tone + (octave * 12)  // C4 = 60 as base
+```
+
+But the progression case forgot the base:
+
+```javascript
+// Progression case - BUG:
+const pitch = note + (octave * 12)  // No base! Never reaches MIDI 60+
+```
+
+With chord notes like `[0, 4, 7]` (pitch classes) and octaves -3 to 3:
+- Max pitch = 0 + 3×12 = **36** (way below soprano range 60-79)
+- Result: **EMPTY chord tones** → melody generation fell back to default
+
+**Fixed by adding base pitch 60:**
+
+```javascript
+// Entry #117 FIX:
+const pitchClass = note % 12
+const pitch = 60 + pitchClass + (octave * 12)  // Now reaches 60-79!
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/HarmonicEngine.js` | Added `compositionCount` to progression selection |
+| `backend/src/services/CompositionEngine.js` | Pass `this.compositionCount` to `generateProgression()` |
+| `backend/src/services/CounterpointEngine.js` | **CRITICAL FIX**: Added `60 +` base pitch to chord tone extraction |
+
+---
+
+### Verification
+
+Melody now changes with each composition:
+
+| Comp# | Melody Pitches |
+|-------|----------------|
+| 0 | 60,76,74,79,60,72,62,60 |
+| 1 | 72,69,67,69,76,65,77,74 |
+| 2 | 64,79,79,79,67,77,72,67 |
+| 3 | 77,72,72,74,79,69,60,60 |
+| 4 | 69,65,65,67,72,60,76,72 |
+
+- Backend tests: 301 passed, 84 failed (TDD placeholders - unchanged)
+
+---
+
+### Version
+
+Updated to v1.0.132
+
+---

@@ -248,12 +248,15 @@ class CounterpointEngine {
       })
     } else {
       // Extract all chord tones from progression
+      // Entry #117 FIX: Notes are pitch classes (0-11), need to add base octave (C4=60)
       progression.forEach(chord => {
         if (chord.notes && Array.isArray(chord.notes)) {
           chord.notes.forEach(note => {
-            // Transpose note to all octaves within range
-            for (let octave = -3; octave <= 3; octave++) {
-              const pitch = note + (octave * 12)
+            // Normalize note to pitch class (0-11)
+            const pitchClass = note % 12
+            // Transpose to all octaves within range, starting from C4 (MIDI 60)
+            for (let octave = -2; octave <= 2; octave++) {
+              const pitch = 60 + pitchClass + (octave * 12)
               if (pitch >= range.min && pitch <= range.max) {
                 chordTones.add(pitch)
               }
