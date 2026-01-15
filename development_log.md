@@ -5764,3 +5764,57 @@ Added `.footer-credits` CSS class with italic styling.
 v1.0.139 (no version bump - minor UI change)
 
 ---
+
+## Entry #120 - Remove Dead Accelerometer/Gyroscope Hover Code
+
+**Date**: 2026-01-15
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Removed dead accelerometer/gyroscope hover modulation code. Entry #105 disabled `handleHoverModulation()` as a no-op, but the AccelerometerHoverService infrastructure was still running on mobile devices - consuming CPU for orientation calculations and sending socket events that did nothing.
+
+---
+
+### Problem
+
+AccelerometerHoverService was:
+- Listening to `deviceorientation` events on mobile
+- Calculating tilt-based positions
+- Calling `handleHoverModulation()` which was a no-op (Entry #105)
+- Emitting `hover:update` to server for no effect
+
+Additionally, the documentation incorrectly claimed device-specific audio characteristics that didn't exist in code.
+
+---
+
+### Removed
+
+| File | Change |
+|------|--------|
+| `frontend/src/services/AccelerometerHoverService.js` | **DELETED** - entire file |
+| `frontend/rooms.html` | Removed script tag |
+| `frontend/src/services/EnhancedGestureCapture.js` | Removed accelerometer initialization and cleanup |
+| `frontend/src/main.js` | Removed iOS permission request code |
+| `frontend/index.html` | Fixed documentation - removed false device-specific claims |
+
+---
+
+### Documentation Fix
+
+**Before (incorrect):**
+> Each input device produces distinctive characteristics—touch gestures have fast attacks (50ms), mouse gestures create smooth envelopes (100-300ms), and gyroscope gestures produce extended sustains with octave shifts from orientation.
+
+**After (accurate):**
+> tap for percussive notes (10-110ms attack based on intensity) and drag for melodic phrases (50-250ms attack based on vertical position).
+
+The actual code differentiates by **gesture type** (tap/drag/hover), not by input device (touch/mouse/gyro).
+
+---
+
+### Version
+
+v1.0.139 (no version bump - cleanup)
+
+---

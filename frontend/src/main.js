@@ -212,42 +212,6 @@ class WebarmoniumApp {
     this.gestureCapture.start()
     // console.log('🎯 EnhancedGestureCapture started')
 
-    // Entry #48: Request accelerometer permission on first user interaction (mobile only)
-    // iOS 13+ requires explicit permission request triggered by user gesture
-    if (typeof PlatformDetection !== 'undefined' &&
-        PlatformDetection.isMobile() &&
-        this.gestureCapture.accelerometerHover) {
-
-      // Flag to prevent duplicate requests (touchstart + click can both fire)
-      let permissionRequested = false
-
-      const requestAccelerometer = async () => {
-        if (permissionRequested) return
-        permissionRequested = true
-
-        try {
-          const success = await this.gestureCapture.accelerometerHover.requestPermission()
-          if (success) {
-            this.gestureCapture.accelerometerHover.start()
-            console.log('📱 Accelerometer hover started')
-          }
-        } catch (e) {
-          console.warn('📱 Accelerometer permission request failed:', e)
-          permissionRequested = false // Allow retry on error
-        }
-      }
-
-      // Request on first user interaction
-      const triggerAccelerometer = () => {
-        if (permissionRequested) return
-        requestAccelerometer()
-        document.removeEventListener('touchstart', triggerAccelerometer)
-        document.removeEventListener('click', triggerAccelerometer)
-      }
-      document.addEventListener('touchstart', triggerAccelerometer, { once: true })
-      document.addEventListener('click', triggerAccelerometer, { once: true })
-    }
-
     // Initialize multi-user canvas services
     // DISABLED: DrawingRenderer replaced by p5.js generative graphics
     // this.drawingRenderer = new DrawingRenderer(this.canvas)
