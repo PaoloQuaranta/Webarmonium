@@ -44,8 +44,6 @@ const MUSICAL_EVENTS = {
   MUSICAL_EVENT: 'musical:event',
   COMPOSITION_UPDATE: 'composition:update',
   CLOCK_SYNC: 'clock:sync',
-  HOVER_UPDATE: 'hover-update',
-  UNIFIED_MODULATION: 'unified-modulation',
   SONIC_UPDATE: 'sonic-update',
   COMPOSITIONAL_PARAMETERS: 'compositional-parameters'
 }

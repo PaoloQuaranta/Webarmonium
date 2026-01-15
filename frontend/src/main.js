@@ -1225,34 +1225,6 @@ class WebarmoniumApp {
     // Backend never emits this event - it uses 'musical:event' instead
     // Logic for remote gestures now handled by 'musical:event' listener above
 
-    // Handle hover events from backend for cross-layer modulation
-    this.socketService.on('hover-update', (data) => {
-      // console.log('🎛️ REMOTE HOVER UPDATE RECEIVED:', {
-//        isAudioStarted: this.isAudioStarted,
-//        hasAudioService: !!this.audioService,
-//        hasHandleHoverModulation: !!(this.audioService && this.audioService.handleHoverModulation),
-//        data: data,
-//        timestamp: Date.now()
-////      })
-
-      if (this.isAudioStarted && this.audioService && this.audioService.handleHoverModulation) {
-        // console.log('🎛️ CALLING handleHoverModulation for remote hover...')
-        this.audioService.handleHoverModulation({
-          position: data.position,
-          velocity: data.velocity,
-          intensity: data.intensity,
-          isRemote: true // Remote hover
-        })
-        // console.log('✅ Remote hover modulation completed')
-      } else {
-        // console.warn('⚠️ Remote hover blocked - audio not ready:', {
-//          isAudioStarted: this.isAudioStarted,
-//          hasAudioService: !!this.audioService,
-//          hasHandleHoverModulation: !!(this.audioService && this.audioService.handleHoverModulation)
-////        })
-      }
-    })
-
     // Handle musical events from backend (drag phrases, etc.)
     // PHASE 4 FIX: Changed from 'musical-event' (dash) to 'musical:event' (colon) to match backend
     // PHASE 7 FIX: Extract actual event from wrapper (backend sends { event: {...} })
@@ -1450,9 +1422,6 @@ class WebarmoniumApp {
         this.audioService.playMusicalEvent(eventWithUserId)
       }
     })
-
-    // Entry #105: unified-modulation and hover-update-raw handlers removed
-    // Hover filter modulation system disabled for performance
 
     this.socketService.on('connect_error', (error) => {
       // console.error('❌ Socket connection error:', error)

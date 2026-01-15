@@ -311,9 +311,6 @@ class SocketEventCoordinator {
         this.audioService.playComposition(data.composition, data.isDrone)
       }
     })
-
-    // Entry #105: hover-update and unified-modulation handlers removed
-    // Hover filter modulation system disabled for performance
   }
 
   /**

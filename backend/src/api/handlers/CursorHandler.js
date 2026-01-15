@@ -62,17 +62,6 @@ const CursorHandler = {
         const payload = cursorPosition.toEventPayload(user.assignedColor)
         // console.log(`✅ Broadcasting cursor-position to room ${socket.roomId}:`, payload)
         socket.to(socket.roomId).emit('cursor-position', payload)
-
-        // Generate hover-update event for remote audio modulation (three-tier architecture)
-        const hoverData = {
-          position: { x: data.x, y: data.y },
-          velocity: data.velocity || 50,
-          intensity: data.intensity || 0.5,
-          userId: socket.userId,
-          isRemote: true
-        }
-        // console.log(`✅ Broadcasting hover-update to room ${socket.roomId}:`, hoverData)
-        socket.broadcast.to(socket.roomId).emit('hover-update', hoverData)
       } catch (error) {
         // console.error('cursor-move error:', error)
       }

@@ -1,7 +1,6 @@
 /**
  * Smoothing Calculator Utilities
  * Provides exponential moving average smoothing for audio parameters
- * Extracted from HoverOrchestrator.js
  */
 
 /**

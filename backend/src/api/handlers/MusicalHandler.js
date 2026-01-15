@@ -1,6 +1,6 @@
 /**
  * MusicalHandler - Musical event handlers
- * Handles: hold:start, hold:end, musical:event, composition:update, clock:sync, hover-update
+ * Handles: hold:start, hold:end, musical:event, composition:update, clock:sync
  * Entry #Security: Uses centralized rate limiter (tracks by userId/IP, not per-socket)
  */
 
@@ -433,85 +433,6 @@ const MusicalHandler = {
         ValidationHandler.sendError(callback, 'processing_error', error.message)
       }
     })
-  },
-
-  /**
-   * Register hover-update event handler
-   * Entry #Security: Uses centralized rate limiter (tracks by userId/IP, not per-socket)
-   * @param {Socket} socket - Socket instance
-   */
-  registerHoverUpdateHandler (socket) {
-    socket.on('hover-update', async (data) => {
-      const startTime = Date.now()
-      try {
-        // Centralized rate limiting (tracks by userId/IP, not per-socket)
-        const limitResult = RateLimiter.checkLimit('hover-update', socket)
-        if (!limitResult.allowed) {
-          return // Drop event - rate limited
-        }
-
-        if (!data || !socket.roomId || !socket.userId) {
-          // // console.warn('⚠️ hover-update validation failed - missing required fields')
-          return
-        }
-
-        const room = socket.services.roomManager.getRoom(socket.roomId)
-        if (!room) {
-          // // console.warn('⚠️ hover-update failed - room not found:', socket.roomId)
-          return
-        }
-
-        const hoverData = {
-          position: data.position || { x: 0.5, y: 0.5 },
-          velocity: data.velocity || 50,
-          intensity: data.intensity || 0.5,
-          userId: data.userId || socket.userId,
-          isRemote: data.isRemote || false,
-          timestamp: data.timestamp || Date.now()
-        }
-
-        this.sendToHoverOrchestrator(socket, hoverData)
-
-        room.updateActivity()
-
-        const processingTime = Date.now() - startTime
-        if (processingTime > 50) {
-          // // console.warn(`⚠️ Hover processing time ${processingTime}ms exceeds 50ms target`)
-        }
-      } catch (error) {
-        // // console.error('❌ hover-update error:', error)
-      }
-    })
-  },
-
-  /**
-   * Send hover data to HoverOrchestrator for centralized processing
-   * @param {Socket} socket - Socket instance
-   * @param {Object} hoverData - Hover event data
-   */
-  sendToHoverOrchestrator (socket, hoverData) {
-    try {
-      let hoverOrchestrator = socket.services.roomManager.getHoverOrchestrator(socket.roomId)
-
-      if (!hoverOrchestrator) {
-        const HoverOrchestrator = require('../../services/HoverOrchestrator')
-        const io = socket.server || socket.nsp.server
-        hoverOrchestrator = new HoverOrchestrator(socket.roomId, io)
-
-        socket.services.roomManager.setHoverOrchestrator(socket.roomId, hoverOrchestrator)
-        hoverOrchestrator.start()
-      }
-
-      hoverOrchestrator.addHoverEvent(hoverData)
-    } catch (error) {
-      // // console.error('❌ Failed to send hover to orchestrator:', error)
-
-      const io = socket.server || socket.nsp.server
-      if (io) {
-        io.to(socket.roomId).emit('hover-update', hoverData)
-        // // console.log(`🔄 Fallback: Broadcasted raw hover due to orchestrator error`)
-      }
-    }
   }
 }
 

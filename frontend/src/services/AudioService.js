@@ -1911,8 +1911,7 @@ class AudioService {
       this.droneAmplitudeLFO.start()
 
       // REMOVED: droneFilterLFO (was 50 second cycle on pad.frequency)
-      // Reason: Conflicts with updateBackgroundFilters and handleHoverModulation
-      // which also modify pad.frequency. Keeping only amplitude LFO for volume modulation.
+      // Reason: Conflicts with updateBackgroundFilters. Keeping only amplitude LFO for volume modulation.
     } catch (e) {
       console.warn('Drone amplitude modulation setup failed:', e.message)
     }
@@ -2568,20 +2567,13 @@ class AudioService {
 
 
   /**
-   * Update background filters with gesture-based modulation
-   *
-   * Issue C-03 Refactor: DISABLED
-   * Ambient filters are now controlled exclusively by applyUnifiedModulation()
-   * which uses 1:1 mapping from HoverOrchestrator aggregated metrics.
-   * This prevents conflicts between real-time gesture modulation and aggregated metrics.
-   *
-   * @deprecated Use applyUnifiedModulation() for ambient filter control
-   * @param {Object} sonicParams - Sonic parameters from gesture (unused)
+   * Update background filters - DISABLED
+   * Ambient filters controlled by composition system only.
+   * @deprecated
+   * @param {Object} sonicParams - Unused
    */
   updateBackgroundFilters(sonicParams) {
-    // Issue C-03 Refactor: Disabled - ambient filters controlled by applyUnifiedModulation only
-    // Keep method signature for API compatibility, but do nothing
-    return
+    // Disabled - ambient filters controlled by composition only
   }
 
   /**
@@ -4001,21 +3993,14 @@ class AudioService {
   }
 
   /**
-   * Trigger immediate background filter response to user input
-   *
-   * Issue C-03 Refactor: DISABLED
-   * Ambient filters are now controlled exclusively by applyUnifiedModulation()
-   * which uses 1:1 mapping from HoverOrchestrator aggregated metrics.
-   * Individual gesture events should not directly modulate ambient filters.
-   *
-   * @deprecated Use applyUnifiedModulation() for ambient filter control
-   * @param {number} frequency - User input frequency (unused)
-   * @param {number} duration - User input duration (unused)
+   * Trigger background filter response - DISABLED
+   * Ambient filters controlled by composition system only.
+   * @deprecated
+   * @param {number} frequency - Unused
+   * @param {number} duration - Unused
    */
   triggerBackgroundFilterResponse(frequency, duration) {
-    // Issue C-03 Refactor: Disabled - ambient filters controlled by applyUnifiedModulation only
-    // Keep method signature for API compatibility, but do nothing
-    return
+    // Disabled - ambient filters controlled by composition only
   }
 
   
@@ -5252,25 +5237,6 @@ class AudioService {
   playSimpleNote(frequency, duration = 0.3, volume = 0.5) {
     if (!this.isInitialized || !this.gestureSynth) return
     this.safeGestureSynthTrigger(frequency, duration, undefined, volume)
-  }
-
-  /**
-   * Handle hover modulation - DISABLED (Entry #105)
-   * Hover filter modulation system removed for performance and simplicity.
-   * Method kept as no-op for API compatibility.
-   * @param {Object} hoverData - Ignored
-   */
-  handleHoverModulation(hoverData) {
-    // Entry #105: Hover filter modulation completely removed
-    // No-op for API compatibility
-  }
-
-  /**
-   * Setup hover timeout - DISABLED (Entry #105)
-   * @deprecated Hover modulation system removed
-   */
-  setupHoverTimeout() {
-    // Entry #105: No-op - hover modulation removed
   }
 
   /**

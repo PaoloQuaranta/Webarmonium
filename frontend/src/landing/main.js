@@ -606,8 +606,6 @@ class LandingApp {
         }
       })
 
-      // Entry #105: unified-modulation handler removed (hover filter modulation disabled)
-
     } catch (error) {
       console.error('❌ Error setting up socket connection:', error)
       this.dashboardUI.showError('Socket setup failed')
@@ -682,9 +680,6 @@ class LandingApp {
       }
     }
 
-    // EMIT VIRTUAL HOVER EVENTS for HoverOrchestrator
-    this._emitVirtualHoverEvents()
-
     // Calculate and forward synthetic interaction metrics for spatial gradient
     this._updateSyntheticMetrics()
 
@@ -750,46 +745,6 @@ class LandingApp {
       spatialDensity,
       dominantZone
     })
-  }
-
-  /**
-   * Emit virtual hover events to backend for HoverOrchestrator processing
-   * Sends hover events for all virtual cursors
-   * @private
-   */
-  _emitVirtualHoverEvents() {
-    if (!this.socket || !this.socket.connected) return
-
-    for (const [source, cursor] of Object.entries(this.currentCursors)) {
-      const userId = cursor.userId || `${source}-metrics`
-
-      // Calculate velocity from cursor movement
-      const prevCursor = this.previousCursors?.[source]
-      let velocity = 50  // Default velocity
-      let intensity = 0.5  // Default intensity
-
-      if (prevCursor) {
-        const dx = cursor.x - prevCursor.x
-        const dy = cursor.y - prevCursor.y
-        const distance = Math.sqrt(dx * dx + dy * dy)
-        velocity = Math.min(distance * 1000, 100)  // Scale to 0-100
-        intensity = Math.min(distance, 1.0)
-      }
-
-      // Emit hover-update event (NORMAL ROOM FORMAT)
-      // See: frontend/src/services/gesture/HoverProcessor.js:169-184
-      this.socket.emit('hover-update', {
-        userId: userId,
-        roomId: 'landing-room',
-        position: {
-          x: cursor.x,
-          y: cursor.y
-        },
-        velocity: velocity,
-        intensity: intensity,
-        timestamp: Date.now()
-      })
-    }
   }
 
   /**

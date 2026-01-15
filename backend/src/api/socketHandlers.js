@@ -46,7 +46,6 @@ const socketHandlers = {
     MusicalHandler.registerMusicalEventHandler(socket)
     MusicalHandler.registerCompositionUpdateHandler(socket)
     MusicalHandler.registerClockSyncHandler(socket)
-    MusicalHandler.registerHoverUpdateHandler(socket)
 
     // Drawing handlers (multi-user canvas)
     DrawingHandler.registerDrawStartHandler(socket)

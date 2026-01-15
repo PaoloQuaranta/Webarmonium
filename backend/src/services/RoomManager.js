@@ -21,9 +21,6 @@ class RoomManager {
     this.colorServices = new Map() // roomId -> ColorAssignmentService
     this.drawingServices = new Map() // roomId -> DrawingSyncService
 
-    // Hover orchestration services (per-room)
-    this.hoverOrchestrators = new Map() // roomId -> HoverOrchestrator
-
     // Collective metrics analyzers (per-room)
     this.metricsAnalyzers = new Map() // roomId -> CollectiveMetricsAnalyzer
 
@@ -597,9 +594,6 @@ class RoomManager {
       this.colorServices.delete(roomId)
       this.drawingServices.delete(roomId)
 
-      // Cleanup HoverOrchestrator
-      this.removeHoverOrchestrator(roomId)
-
       // Cleanup CollectiveMetricsAnalyzer
       const metricsAnalyzer = this.metricsAnalyzers.get(roomId)
       if (metricsAnalyzer) {
@@ -741,37 +735,6 @@ class RoomManager {
   }
 
   /**
-   * Get HoverOrchestrator for a room
-   * @param {string} roomId - Room ID
-   * @returns {HoverOrchestrator|null} HoverOrchestrator instance or null
-   */
-  getHoverOrchestrator (roomId) {
-    return this.hoverOrchestrators.get(roomId) || null
-  }
-
-  /**
-   * Set HoverOrchestrator for a room
-   * @param {string} roomId - Room ID
-   * @param {HoverOrchestrator} hoverOrchestrator - HoverOrchestrator instance
-   */
-  setHoverOrchestrator (roomId, hoverOrchestrator) {
-    this.hoverOrchestrators.set(roomId, hoverOrchestrator)
-  }
-
-  /**
-   * Remove HoverOrchestrator for a room
-   * @param {string} roomId - Room ID
-   */
-  removeHoverOrchestrator (roomId) {
-    const orchestrator = this.hoverOrchestrators.get(roomId)
-    if (orchestrator) {
-      orchestrator.stop()
-      this.hoverOrchestrators.delete(roomId)
-      // console.log(`🗑️ Removed HoverOrchestrator for room ${roomId}`)
-    }
-  }
-
-  /**
    * Shutdown room manager gracefully
    */
   shutdown () {
@@ -785,16 +748,6 @@ class RoomManager {
       } catch (error) {
         // Log error but continue shutdown
         // console.warn(`Error disconnecting user ${userId} during shutdown:`, error.message)
-      }
-    })
-
-    // Stop all HoverOrchestrators
-    this.hoverOrchestrators.forEach((orchestrator, roomId) => {
-      try {
-        orchestrator.stop()
-        // console.log(`🛑 Stopped HoverOrchestrator for room ${roomId}`)
-      } catch (error) {
-        // console.warn(`Error stopping HoverOrchestrator for room ${roomId}:`, error.message)
       }
     })
 
@@ -818,7 +771,6 @@ class RoomManager {
     this.userRoomMap.clear()
     this.colorServices.clear()
     this.drawingServices.clear()
-    this.hoverOrchestrators.clear()
     this.metricsAnalyzers.clear()
   }
 

@@ -5858,3 +5858,64 @@ Comprehensive verification and correction of `technical-appendix.html` against a
 v1.0.139 (no version bump - documentation only)
 
 ---
+
+## Entry #122 - Remove Dead Hover/HoverOrchestrator Code
+
+**Date**: 2026-01-15
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Removed all dead hover-related code after Entry #105 disabled hover modulation. HoverOrchestrator was still running but broadcastModulation() was a no-op. Virtual users were still classifying 'hover' gestures and sending events to backend that did nothing.
+
+---
+
+### Removed
+
+**Backend:**
+| File | Removed |
+|------|---------|
+| `HoverOrchestrator.js` | **DELETED** - entire file (508 lines) |
+| `LandingCompositionService.js` | HoverOrchestrator import, hover gesture generation, periodicity classification |
+| `VirtualUserService.js` | _emitHoverGesture, _calculatePeriodicityMetric, hover classification |
+| `RoomManager.js` | hoverOrchestrators Map and all related methods |
+| `MusicalHandler.js` | registerHoverUpdateHandler, sendToHoverOrchestrator |
+| `CursorHandler.js` | hover-update broadcast on cursor move |
+| `socketHandlers.js` | registerHoverUpdateHandler call |
+| `SocketEvents.js` | HOVER_UPDATE, UNIFIED_MODULATION constants |
+| `RateLimiter.js` | hover-update rate limit config |
+
+**Frontend:**
+| File | Removed |
+|------|---------|
+| `SocketService.js` | hover-update, hover-update-raw listeners |
+| `main.js` | hover-update listener that called handleHoverModulation |
+| `landing/main.js` | _emitVirtualHoverEvents method |
+| `HoverProcessor.js` | emitHoverUpdate now no-op |
+| `EnhancedGestureCapture.js` | emitHoverUpdate now no-op |
+| `AudioService.js` | handleHoverModulation, setupHoverTimeout removed |
+| `SocketEventCoordinator.js` | Removed hover/unified-modulation comments |
+
+---
+
+### Gesture Classification Simplified
+
+Both LandingCompositionService and VirtualUserService now use simple stability vs density comparison:
+
+```javascript
+// Before: three-way comparison
+maxMetric = max(stability, density, periodicity)
+return maxMetric === stability ? 'tap' : maxMetric === density ? 'drag' : 'hover'
+
+// After: two-way comparison
+return stability > density ? 'tap' : 'drag'
+```
+
+---
+
+### Version
+
+v1.0.140
+
+---

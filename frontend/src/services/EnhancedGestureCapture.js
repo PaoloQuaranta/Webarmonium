@@ -1212,33 +1212,11 @@ class EnhancedGestureCapture {
   }
 
   /**
-   * Emit hover update to server
+   * Emit hover update - DISABLED (Entry #122)
+   * Backend hover handler removed; no-op for API compatibility
    */
   emitHoverUpdate() {
-    // console.log('🛸 emitHoverUpdate called:', {
-//      hasSocketService: !!this.socketService,
-//      hasSocket: !!(this.socketService && this.socketService.socket),
-//      isHovering: this.hoverState.isHovering,
-//      currentRoom: this.currentRoom,
-//      localUserId: this.localUserId,
-//      hoverState: this.hoverState
-////    })
-
-    if (this.socketService && this.socketService.socket && this.hoverState.isHovering) {
-      const hoverData = {
-        userId: this.localUserId,
-        roomId: this.currentRoom,
-        position: this.hoverState.position,
-        velocity: this.hoverState.hoverVelocity,
-        intensity: this.hoverState.hoverIntensity,
-        timestamp: Date.now()
-      }
-
-      // console.log('🛸 Emitting hover-update:', hoverData)
-      this.socketService.socket.emit('hover-update', hoverData)
-    } else {
-      // console.log('❌ emitHoverUpdate blocked - conditions not met')
-    }
+    // Entry #122: hover-update backend handler removed
   }
 
   /**
@@ -1264,7 +1242,7 @@ class EnhancedGestureCapture {
       y: position.y,
       isDrawing: this.isCapturing,
       timestamp: Date.now(),
-      userId: this.localUserId  // Use same user ID as hover-update events
+      userId: this.localUserId
     })
 
     // console.log('👆 Cursor position emitted successfully')

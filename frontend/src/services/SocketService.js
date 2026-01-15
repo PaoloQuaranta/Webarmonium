@@ -183,12 +183,6 @@ class SocketService {
       this.handleUsersInactive(data)
     })
 
-    // Multi-user hover events
-    this.socket.on('hover-update', (data) => {
-      // console.log('🎛️ SocketService received hover-update:', data)
-      this.emit('hover-update', data)
-    })
-
     // Musical events for gesture processing
     this.socket.on('musical:event', (data) => {
       // console.log('🎵 SocketService received musical:event:', data)
@@ -224,8 +218,6 @@ class SocketService {
     this.socket.on('note:stream', (data) => {
       this.emit('note:stream', data)
     })
-
-    // Entry #105: unified-modulation handler removed (hover filter modulation disabled)
 
     // Collective compositional parameters
     this.socket.on('compositional-parameters', (data) => {
@@ -266,14 +258,6 @@ class SocketService {
     this.socket.on('mode-transition', (data) => {
       console.log('🔄 SocketService received mode-transition:', data)
       this.emit('mode-transition', data)
-    })
-
-    // Debug: raw hover events (development only)
-    this.socket.on('hover-update-raw', (data) => {
-      if (process.env.NODE_ENV === 'development') {
-        // console.log('🐛 Debug: SocketService received hover-update-raw:', data)
-        this.emit('hover-update-raw', data)
-      }
     })
 
     // Error handling

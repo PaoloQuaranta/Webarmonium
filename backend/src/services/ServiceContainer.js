@@ -282,7 +282,7 @@ function wireServices (container, config = {}) {
       const virtualUserService = c.get('virtualUserService')
       service.setVirtualUserService(virtualUserService)
 
-      // Give VirtualUserService access to RoomManager for HoverOrchestrator
+      // Give VirtualUserService access to RoomManager
       virtualUserService.setRoomManager(service)
 
       // Set Socket.IO for mode transition notifications

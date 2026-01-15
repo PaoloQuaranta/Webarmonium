@@ -15,7 +15,6 @@ const logger = createLogger('rate-limiter')
 const RATE_LIMIT_CONFIG = {
   'cursor-move': { windowMs: 1000, maxRequests: 60 },   // 60/sec for 60fps
   'gesture': { windowMs: 1000, maxRequests: 20 },        // 20/sec
-  'hover-update': { windowMs: 1000, maxRequests: 20 },   // 20/sec
   'note:stream': { windowMs: 1000, maxRequests: 25 },    // 25/sec
   'hold:start': { windowMs: 1000, maxRequests: 30 },     // 30/sec
   'hold:end': { windowMs: 1000, maxRequests: 30 },       // 30/sec

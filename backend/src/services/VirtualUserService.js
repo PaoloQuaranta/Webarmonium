@@ -209,8 +209,7 @@ class VirtualUserService {
   }
 
   /**
-   * Set RoomManager reference for HoverOrchestrator access
-   * Required for hover gesture modulation support
+   * Set RoomManager reference
    * @param {RoomManager} roomManager
    */
   setRoomManager(roomManager) {
@@ -606,8 +605,6 @@ class VirtualUserService {
           this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
         } else if (gestureType === 'drag') {
           this._emitDragGesture(roomId, source, config, roomState, normalizedVelocity, velocity)
-        } else if (gestureType === 'hover') {
-          this._emitHoverGesture(roomId, source, config, roomState)
         }
       } catch (sourceError) {
         console.error(`⚠️ VirtualUserService: Error generating gesture for source "${source}" in room ${roomId}:`, sourceError.message)
@@ -920,57 +917,6 @@ class VirtualUserService {
   }
 
   /**
-   * Emit a hover gesture (no sound, only filter modulation)
-   * Cursor position derived from periodicity metric
-   * @private
-   */
-  _emitHoverGesture(roomId, source, config, roomState) {
-    // Increment gesture counter for cyclic position variation
-    // FIX #7: Add modulo to prevent gesture counter overflow at MAX_SAFE_INTEGER
-    this.gestureCounters[source] = ((this.gestureCounters[source] || 0) + 1) % Number.MAX_SAFE_INTEGER
-
-    const periodicity = this._calculatePeriodicityMetric(source)
-
-    // Calculate HYBRID position: frequency base + metric offsets
-    // Hover has no audio, only modulation - cursor uses hybrid approach
-    const fullCanvasFreq = 110 + (periodicity * 1100) // Full range: 110-1210Hz
-    const position = this._calculateHybridPosition(source, fullCanvasFreq)
-
-    // Emit cursor position
-    this._emitCursorAtPosition(roomId, source, config, position)
-
-    const hoverData = {
-      userId: config.userId,
-      position: position,
-      intensity: periodicity,
-      velocity: 0,
-      isVirtual: true,
-      isRemote: true,
-      timestamp: Date.now()
-    }
-
-    // Send to HoverOrchestrator for modulation processing
-    // Virtual users contribute ONLY to aggregate metrics, NOT individual hover events
-    // Issue C-03 Refactor: Virtual users should not emit 'hover-update' directly
-    if (this.roomManager) {
-      let hoverOrchestrator = this.roomManager.getHoverOrchestrator(roomId)
-
-      if (!hoverOrchestrator) {
-        const HoverOrchestrator = require('./HoverOrchestrator')
-        hoverOrchestrator = new HoverOrchestrator(roomId, this.io)
-        this.roomManager.setHoverOrchestrator(roomId, hoverOrchestrator)
-        hoverOrchestrator.start()
-      }
-
-      hoverOrchestrator.addHoverEvent(hoverData)
-    }
-
-    // REMOVED: this.io.to(roomId).emit('hover-update', hoverData)
-    // Issue C-03 Refactor: Virtual users contribute only to aggregate metrics via HoverOrchestrator
-    // Individual hover-update events are only emitted by real users for visual cursor feedback
-  }
-
-  /**
    * Calculate activity level for a source (0.0-1.0)
    * Uses DYNAMIC NORMALIZATION based on HISTORICAL min/max
    * Same as LandingCompositionService
@@ -1029,30 +975,6 @@ class VirtualUserService {
         return this._normalizeValue(source, 'avgUpvotes', metrics[source].avgUpvotes || 0)
       case 'github':
         return this._normalizeValue(source, 'createsPerMinute', metrics[source].createsPerMinute || 0)
-      default:
-        return 0.5
-    }
-  }
-
-  /**
-   * Calculate periodicity metric for gesture classification
-   * Higher periodic values = more periodic = hover/modulation gesture
-   * Same as LandingCompositionService
-   * @param {string} source - Source name
-   * @returns {number} Periodicity value (0.0-1.0)
-   * @private
-   */
-  _calculatePeriodicityMetric(source) {
-    const metrics = this.webMetricsPoller?.getMetrics()
-    if (!metrics || !metrics[source]) return 0.5
-
-    switch (source) {
-      case 'wikipedia':
-        return this._normalizeValue(source, 'newArticles', metrics[source].newArticles || 0)
-      case 'hackernews':
-        return this._normalizeValue(source, 'commentCount', metrics[source].commentCount || 0)
-      case 'github':
-        return this._normalizeValue(source, 'deletesPerMinute', metrics[source].deletesPerMinute || 0)
       default:
         return 0.5
     }
@@ -1251,32 +1173,22 @@ class VirtualUserService {
 
   /**
    * Classify gesture type based on metric characteristics
-   * Uses PURE relative comparison: whichever metric is highest determines gesture type
+   * Uses PURE relative comparison: stability vs density
    * NO thresholds - gestures emerge naturally from metric variations
    * Same as LandingCompositionService
    * @param {string} source - Source name
-   * @returns {string} Gesture type: 'tap', 'drag', or 'hover'
+   * @returns {string} Gesture type: 'tap' or 'drag'
    * @private
    */
   _classifyGestureType(source) {
     const stability = this._calculateStabilityMetric(source)
     const density = this._calculateDensityMetric(source)
-    const periodicity = this._calculatePeriodicityMetric(source)
 
-    console.log(`🎭 ${source} metrics: stability=${stability.toFixed(3)}, density=${density.toFixed(3)}, periodicity=${periodicity.toFixed(3)}`)
+    console.log(`🎭 ${source} metrics: stability=${stability.toFixed(3)}, density=${density.toFixed(3)}`)
 
-    // Pure relative comparison: whichever metric is highest determines gesture type
-    // NO thresholds - preserves correlation between metrics and gestures
-    // UNIFIED with LandingCompositionService: now includes hover gesture type
-    const maxMetric = Math.max(stability, density, periodicity)
-
-    if (maxMetric === stability) {
-      return 'tap'
-    } else if (maxMetric === density) {
-      return 'drag'  // phrase
-    } else {
-      return 'hover'  // modulation (no sound, only filter modulation)
-    }
+    // Pure relative comparison: stability vs density determines gesture type
+    // Higher stability = single notes (tap), higher density = phrases (drag)
+    return stability > density ? 'tap' : 'drag'
   }
 
   /**

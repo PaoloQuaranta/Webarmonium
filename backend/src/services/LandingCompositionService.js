@@ -18,7 +18,6 @@ const StyleAnalyzer = require('./StyleAnalyzer')
 const HarmonicEngine = require('./HarmonicEngine')
 const CompositionEngine = require('./CompositionEngine')
 const PhraseMorphology = require('./PhraseMorphology')
-const HoverOrchestrator = require('./HoverOrchestrator')
 const FrequencyPositionMapper = require('../utils/FrequencyPositionMapper')
 const { VIRTUAL_USER_COLORS } = require('../constants/colors')
 
@@ -169,9 +168,6 @@ class LandingCompositionService {
    */
   setSocketIO(io) {
     this.io = io
-    // Initialize HoverOrchestrator for modulation support
-    this.hoverOrchestrator = new HoverOrchestrator(this.landingRoomId, io)
-    // console.log('🎵 LandingCompositionService: Socket.IO connected, HoverOrchestrator initialized')
   }
 
   /**
@@ -310,11 +306,6 @@ class LandingCompositionService {
     if (this.isRunning) return
 
     this.isRunning = true
-
-    // Start hover orchestrator for modulation support
-    if (this.hoverOrchestrator) {
-      this.hoverOrchestrator.start()
-    }
 
     // Emit initial cursor positions (distributed across canvas)
     this._emitAllCursors()
@@ -517,11 +508,6 @@ class LandingCompositionService {
 
     this.isRunning = false
 
-    // Stop hover orchestrator
-    if (this.hoverOrchestrator) {
-      this.hoverOrchestrator.stop()
-    }
-
     // Clear cursor interpolation timer
     if (this.cursorInterpolationTimer) {
       clearInterval(this.cursorInterpolationTimer)
@@ -612,12 +598,11 @@ class LandingCompositionService {
    * This mimics real user behavior - users gesture sporadically, not continuously
    * Prevents polyphony issues by not having all sources gesture every cycle
    * Uses normalized velocity (0-1) as "gesture intent" threshold
-   * @returns {Object} Object with gestures array and hovers array
+   * @returns {Array} Array of gestures (tap or drag)
    * @private
    */
   generateMetricDrivenGestures() {
     const gestures = []
-    const hovers = []
     const sources = Object.keys(this.virtualUsers)
 
     for (const source of sources) {
@@ -647,22 +632,17 @@ class LandingCompositionService {
       // Classify gesture type based on metrics
       const gestureType = this.classifyGestureType(source)
 
-      let gesture
+      // Generate gesture based on type (tap or drag only - hover removed)
       if (gestureType === 'tap') {
-        gesture = this.generateVirtualTap(source, velocity)
-        gestures.push(gesture)
+        gestures.push(this.generateVirtualTap(source, velocity))
       } else if (gestureType === 'drag') {
-        gesture = this.generateVirtualDrag(source, velocity, acceleration)
-        gestures.push(gesture)
-      } else if (gestureType === 'hover') {
-        gesture = this.generateVirtualHover(source)
-        hovers.push(gesture)
+        gestures.push(this.generateVirtualDrag(source, velocity, acceleration))
       }
 
       // console.log(`🎵 Generated ${gestureType} from ${source} (vel: ${velocity.toFixed(1)}, normVel: ${normalizedVelocity.toFixed(2)})`)
     }
 
-    return { gestures, hovers }
+    return gestures
   }
 
   /**
@@ -727,39 +707,6 @@ class LandingCompositionService {
       acceleration: acceleration,
       duration: dragDurationMs,
       intensity: activity
-    }
-  }
-
-  /**
-   * Generate virtual hover gesture (periodicity metric)
-   * No direct sound, only filter modulation
-   * CRITICAL: Generates hover position that will drive cursor movement
-   * @param {string} source - Source name
-   * @returns {Object} Hover gesture data
-   * @private
-   */
-  generateVirtualHover(source) {
-    // Increment gesture counter for golden ratio position variation
-    this.gestureCounters[source] = (this.gestureCounters[source] || 0) + 1
-
-    const periodicity = this.calculatePeriodicityMetric(source)
-    const user = this.virtualUsers[source]
-
-    // Calculate HYBRID position: golden ratio + metric modulation
-    // Hover has no audio, only modulation - cursor uses golden ratio for variety
-    const fullCanvasFreq = 110 + (periodicity * 1100) // Full range: 110-1210Hz
-    const position = this._calculateHybridPosition(source, fullCanvasFreq)
-
-    // Emit cursor position for hover
-    this._emitCursorAtPosition(source, user, position)
-
-    // This doesn't emit sound directly, only modulation
-    return {
-      type: 'hover',
-      source: source,
-      position: position,
-      intensity: periodicity,
-      velocity: 0  // hovers have no velocity
     }
   }
 
@@ -991,16 +938,14 @@ class LandingCompositionService {
   /**
    * Generate and broadcast composition using metric-driven virtual gestures
    * NEW ARCHITECTURE: Gestures CONTROL the background composition
-   * Separates sound-producing gestures (tap/drag) from modulation gestures (hover)
    * @private
    */
   async generateAndBroadcastComposition() {
     try {
-      // console.log(`🎵 Generating composition cycle ${this.compositionCount} (gestures + hovers + background)`)
+      // console.log(`🎵 Generating composition cycle ${this.compositionCount}`)
 
       // STEP 1: Generate metric-driven gestures for ALL sources
-      // Returns { gestures: [tap/drag], hovers: [hover] }
-      const { gestures: virtualGestures, hovers: virtualHovers } = this.generateMetricDrivenGestures()
+      const virtualGestures = this.generateMetricDrivenGestures()
 
       // STEP 2: CRITICAL - Add ALL gesture materials SYNCHRONOUSLY BEFORE generating background
       // This ensures CompositionEngine has access to the materials when generating background
@@ -1009,22 +954,10 @@ class LandingCompositionService {
         this.addVirtualGestureMaterialFromGesture(gesture)
       }
 
-      // STEP 3: Process hover events for modulation (no direct sound)
-      for (const hover of virtualHovers) {
-        if (this.hoverOrchestrator) {
-          this.hoverOrchestrator.addHoverEvent({
-            userId: this.virtualUsers[hover.source].userId,
-            position: hover.position,
-            intensity: hover.intensity,
-            timestamp: Date.now()
-          })
-        }
-      }
-
-      // STEP 4: Extract modulation params from gestures (only sound-producing ones)
+      // STEP 3: Extract modulation params from gestures
       const modulationParams = this.extractModulationParams(virtualGestures)
 
-      // STEP 5: CRITICAL - Apply style from gesture materials to CompositionEngine
+      // STEP 4: CRITICAL - Apply style from gesture materials to CompositionEngine
       // This is done AFTER adding materials, so style.energy reflects actual gesture activity
       // Density emerges naturally from metric-driven gesture count (NO hardcoded values)
       const style = this.styleAnalyzer.getCurrentStyle()
@@ -1040,7 +973,7 @@ class LandingCompositionService {
       this.compositionEngine.density = Math.min(0.9, Math.max(0.1, energy * 1.2))
       this.compositionEngine.complexityLevel = Math.min(0.9, Math.max(0.1, energy))
 
-      // STEP 6: Generate background composition from gesture materials
+      // STEP 5: Generate background composition from gesture materials
       this.compositionCount++
       // Entry #115: Save keyCenter before composition to detect changes
       const previousKeyCenter = this.compositionEngine.keyCenter
@@ -1135,11 +1068,6 @@ class LandingCompositionService {
    */
   async emitVirtualGestureNotes(gesture) {
     if (!this.io || !this.isRunning) return
-
-    // Handle hover (no sound, only modulation)
-    if (gesture.type === 'hover') {
-      return  // Hovers only generate modulation via HoverOrchestrator
-    }
 
     const user = this.virtualUsers[gesture.source]
     const musicalContext = {
@@ -1485,25 +1413,16 @@ class LandingCompositionService {
    * Uses PURE relative comparison: whichever metric is highest determines gesture type
    * NO thresholds - gestures emerge naturally from metric variations
    * @param {string} source - Source name
-   * @returns {string} Gesture type: 'tap', 'drag', or 'hover'
+   * @returns {string} Gesture type: 'tap' or 'drag'
    * @private
    */
   classifyGestureType(source) {
     const stability = this.calculateStabilityMetric(source)
     const density = this.calculateDensityMetric(source)
-    const periodicity = this.calculatePeriodicityMetric(source)
 
-    // Pure relative comparison: whichever metric is highest determines gesture type
-    // NO thresholds - preserves correlation between metrics and gestures
-    const maxMetric = Math.max(stability, density, periodicity)
-
-    if (maxMetric === stability) {
-      return 'tap'
-    } else if (maxMetric === density) {
-      return 'drag'  // phrase
-    } else {
-      return 'hover'  // modulation (no sound, only modulation)
-    }
+    // Pure relative comparison: stability vs density determines gesture type
+    // Higher stability = single notes (tap), higher density = phrases (drag)
+    return stability > density ? 'tap' : 'drag'
   }
 
   /**

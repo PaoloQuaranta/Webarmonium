@@ -164,23 +164,11 @@ class HoverProcessor {
   }
 
   /**
-   * Emit hover update to server
+   * Emit hover update - DISABLED (Entry #122)
+   * Backend hover handler removed; no-op for API compatibility
    */
   emitHoverUpdate() {
-    if (!this.socketService || !this.socketService.socket || !this.hoverState.isHovering) {
-      return
-    }
-
-    const hoverData = {
-      userId: this.localUserId,
-      roomId: this.currentRoom,
-      position: this.hoverState.position,
-      velocity: this.hoverState.hoverVelocity,
-      intensity: this.hoverState.hoverIntensity,
-      timestamp: Date.now()
-    }
-
-    this.socketService.socket.emit('hover-update', hoverData)
+    // Entry #122: hover-update backend handler removed
   }
 
   /**
