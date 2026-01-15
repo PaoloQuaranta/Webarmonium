@@ -99,10 +99,14 @@ class BackgroundCompositionService {
 // console.log(`🎼 Starting with DRONE (waiting for gestures to define composition)`)
 
     // Initialize room composition state with SESSION PROFILING
+    // Entry #117: Deterministic offset based on timestamp (not random!)
+    const PHI = 1.618033988749894848
+    const initialCompositionCount = Math.floor(((Date.now() / 1000) * PHI) % 100)
+
     this.roomCompositions.set(roomId, {
       roomId,
       roomContext,
-      compositionCount: 0,
+      compositionCount: initialCompositionCount,
       gestureCount: 0,           // Track gestures in this session
       initialGestureWindow: 5,    // First N gestures are highly influential
       compositionStarted: false,  // Start with drone, transition to composition after gestures

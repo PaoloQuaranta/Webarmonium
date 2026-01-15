@@ -46,7 +46,11 @@ class CompositionEngine {
 // console.log(`🎼 Current style: energy=${currentStyle.energy?.toFixed(2)}, tempo=${currentStyle.tempo}`)
 
       // 2. Determine or maintain form structure
-      if (!this.formStructure) {
+      // Entry #117: Reset form every ~8 compositions to avoid repetitive structure
+      // Using PHI to determine when to reset creates natural variety
+      const shouldResetForm = !this.formStructure ||
+        (this.compositionCount > 0 && ((this.compositionCount * PHI) % 1) < 0.12)
+      if (shouldResetForm) {
         this.formStructure = this.selectForm(currentStyle)
         this.initializeFormStructure(this.formStructure)
       }
@@ -117,12 +121,17 @@ class CompositionEngine {
 
     const forms = formsByEnergy[genre]
 
-    // DETERMINISTIC: energy + time variation determines form
-    // Golden ratio stepping on sectionHistory creates non-repeating sequences
-    // WEIGHTING: Energy dominates (70%) for musical appropriateness, time provides drift (30%)
+    // Entry #117: Use compositionCount for temporal variation in form selection
+    // This ensures different forms are selected as compositions progress
+    const compCount = this.compositionCount || 0
+    const temporalOffset = (compCount * PHI) % 1
+
+    // DETERMINISTIC: energy + compositionCount + history variation determines form
+    // Golden ratio stepping creates non-repeating sequences
     const historyLength = this.sectionHistory?.length || 0
-    const timeVariation = (historyLength * PHI) % 1
-    const combinedIndex = energy * 0.7 + timeVariation * 0.3
+    const historyVariation = (historyLength * PHI) % 1
+    // Combine all factors: energy (40%), composition progress (40%), history (20%)
+    const combinedIndex = energy * 0.4 + temporalOffset * 0.4 + historyVariation * 0.2
     const index = Math.min(Math.floor(combinedIndex * forms.length), forms.length - 1)
     return forms[index]
   }

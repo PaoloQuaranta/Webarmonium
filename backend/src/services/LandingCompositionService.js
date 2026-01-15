@@ -71,7 +71,10 @@ class LandingCompositionService {
 
     // Service state
     this.isRunning = false
-    this.compositionCount = 0
+    // Entry #117: Deterministic offset based on timestamp (not random!)
+    // PHI-based offset from startup time ensures variation without true randomness
+    const PHI = 1.618033988749894848
+    this.compositionCount = Math.floor(((Date.now() / 1000) * PHI) % 100)
     this.compositionTimer = null
 
     // Clock for quantization (120 BPM, 16 ticks per measure)
@@ -571,8 +574,9 @@ class LandingCompositionService {
       this.materialLibrary.clearAllMaterials()
     }
 
-    // Reset composition count
-    this.compositionCount = 0
+    // Reset composition count with deterministic offset (Entry #117)
+    const PHI = 1.618033988749894848
+    this.compositionCount = Math.floor(((Date.now() / 1000) * PHI) % 100)
   }
 
   /**
