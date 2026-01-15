@@ -135,6 +135,9 @@ class LandingApp {
     this.isRunning = false
     this.isAudioReady = false  // DRONE FIX: Track if audio is ready
 
+    // Entry #123: Store initAudio listener reference for cleanup from multiple places
+    this._initAudioListener = null
+
     // Canvas container
     this.canvasContainer = null
     this._resizeHandlerAttached = false
@@ -329,12 +332,14 @@ class LandingApp {
   /**
    * Setup audio initialization on user interaction
    * Uses mutex flag to prevent race conditions from rapid clicks/keystrokes
+   * Entry #123: Store listener reference for cleanup from start() as well
    * @private
    */
   _setupAudioInitialization() {
     let isInitializing = false // Mutex to prevent race conditions
 
-    const initAudio = async () => {
+    // Entry #123: Store as class property for cleanup from multiple places
+    this._initAudioListener = async () => {
       // CRITICAL: Check if audio already started (not just if audioService exists)
       // AudioService is now created early in initialize(), so check isAudioReady instead
       if (this.isAudioReady || isInitializing) return
@@ -384,13 +389,24 @@ class LandingApp {
         return
       }
 
-      // Remove listeners only on success
-      document.removeEventListener('click', initAudio)
-      document.removeEventListener('keydown', initAudio)
+      // Remove listeners on success
+      this._removeInitAudioListeners()
     }
 
-    document.addEventListener('click', initAudio)
-    document.addEventListener('keydown', initAudio)
+    document.addEventListener('click', this._initAudioListener)
+    document.addEventListener('keydown', this._initAudioListener)
+  }
+
+  /**
+   * Remove initAudio event listeners (Entry #123)
+   * Called from both initAudio success and start() to prevent race condition
+   * @private
+   */
+  _removeInitAudioListeners() {
+    if (this._initAudioListener) {
+      document.removeEventListener('click', this._initAudioListener)
+      document.removeEventListener('keydown', this._initAudioListener)
+    }
   }
 
   /**
@@ -1052,6 +1068,11 @@ class LandingApp {
 
         // DRONE FIX: Mark audio as ready and play pending drone
         this.isAudioReady = true
+
+        // Entry #123: Remove global click listeners to prevent race condition
+        // If initAudio and start() race, this ensures listeners are cleaned up
+        this._removeInitAudioListeners()
+
         if (this.pendingDrone) {
           // console.log('🎵 Playing pending drone')
           this.audioService.playComposition(this.pendingDrone, true)

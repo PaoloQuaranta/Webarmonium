@@ -5882,6 +5882,7 @@ User reported intermittent audio restart when leaving the app open with audio st
 1. **Visibility/Focus handlers lacked early guards** - Called `_performAudioRecovery()` without checking `_userStoppedAudio` first
 2. **Initial health check setTimeout not cancelled** - `_stopAudioHealthCheck()` only cleared the interval, not the initial setTimeout
 3. **`handleUserGestureForRecovery()` unconditionally cleared stop flag** - Could bypass user's stop action
+4. **Race condition in initAudio/start()** - When user clicks Start, both `initAudio` global listener and `start()` race. If `start()` finishes first and sets `isAudioReady = true`, `initAudio` returns early without removing global click listeners. When user later clicks Stop (setting `isAudioReady = false`), the Stop click bubbles to document and triggers `initAudio`, which calls `audioService.start()` and resets `_userStoppedAudio = false`
 
 ---
 
@@ -5929,6 +5930,28 @@ if (this._userStoppedAudio) {
 }
 ```
 
+#### Fix 4: Race condition fix - remove initAudio listeners from start()
+
+Refactored `_setupAudioInitialization()` to store `initAudio` as class property `_initAudioListener`, and added `_removeInitAudioListeners()` helper. Now called from both `initAudio` success AND `start()` to ensure listeners are removed regardless of which finishes first.
+
+```javascript
+// In _setupAudioInitialization():
+this._initAudioListener = async () => { ... }
+document.addEventListener('click', this._initAudioListener)
+
+// Helper method:
+_removeInitAudioListeners() {
+  if (this._initAudioListener) {
+    document.removeEventListener('click', this._initAudioListener)
+    document.removeEventListener('keydown', this._initAudioListener)
+  }
+}
+
+// In start():
+this.isAudioReady = true
+this._removeInitAudioListeners()  // Ensure cleanup even if initAudio raced
+```
+
 ---
 
 ### Files Modified
@@ -5936,6 +5959,7 @@ if (this._userStoppedAudio) {
 | File | Changes |
 |------|---------|
 | `frontend/src/services/AudioService.js` | Added 3 early guards, setTimeout tracking/cleanup, gesture recovery guard |
+| `frontend/src/landing/main.js` | Added `_initAudioListener` property, `_removeInitAudioListeners()` helper, call cleanup from `start()` |
 
 ---
 
@@ -5954,7 +5978,7 @@ if (this._userStoppedAudio) {
 
 ### Version
 
-Updated to v1.0.141
+Updated to v1.0.142
 
 ---
 
