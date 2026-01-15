@@ -220,6 +220,9 @@ class CompositionEngine {
     // Generate harmonic progression for the section
     // Entry #117: Pass compositionCount for temporal variation in progression selection
     const progression = this.harmonicEngine.generateProgression(style, sectionLength, this.compositionCount)
+    // Entry #117: Sync keyCenter from HarmonicEngine (which now varies by compositionCount)
+    this.keyCenter = this.harmonicEngine.currentKey
+    this.mode = this.harmonicEngine.currentMode
 
     // Compose based on material availability and user count
     if (material.length > 1) {

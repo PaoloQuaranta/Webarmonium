@@ -67,6 +67,37 @@ class HarmonicEngine {
   }
 
   /**
+   * Get key offset from C (base key) to current key
+   * Entry #117: Used for transposing progressions to current key
+   * @returns {number} Semitone offset (0-11)
+   */
+  _getKeyOffset() {
+    const keyMap = {
+      'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
+      'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8,
+      'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+    }
+    return keyMap[this.currentKey] || 0
+  }
+
+  /**
+   * Transpose chord notes to current key
+   * Entry #117: Ensures progressions are in the correct key
+   * @param {Array} progression - Chord progression with notes arrays
+   * @returns {Array} Transposed progression
+   */
+  _transposeToCurrentKey(progression) {
+    const offset = this._getKeyOffset()
+    if (offset === 0) return progression // Already in C
+
+    return progression.map(chord => ({
+      ...chord,
+      root: (chord.root + offset) % 12,
+      notes: chord.notes.map(note => note + offset)
+    }))
+  }
+
+  /**
    * Generate harmonic progression based on style analysis
    * Entry #117: Added compositionCount for temporal variation
    * @param {Object} styleAnalysis - Style analysis with genreWeights and harmonicComplexity
@@ -80,6 +111,24 @@ class HarmonicEngine {
     const complexity = harmonicComplexity?.modalFlavor === 'minor' ? 0.6 :
                        harmonicComplexity?.modalFlavor === 'major' ? 0.4 :
                        typeof harmonicComplexity === 'number' ? harmonicComplexity : 0.5
+
+    // Entry #117: Vary key based on compositionCount using circle of fifths
+    // This ensures melodic variety across compositions
+    const circleOfFifths = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F']
+    const temporalOffset = (compositionCount * PHI) % 1
+    const keyIndex = Math.floor(temporalOffset * circleOfFifths.length)
+    this.currentKey = circleOfFifths[keyIndex]
+
+    // Also vary mode occasionally for more variety
+    const modes = ['ionian', 'dorian', 'mixolydian', 'aeolian']
+    const modeSelector = ((compositionCount * PHI * 2) % 1)
+    // Only change mode every ~3 compositions to avoid too much variety
+    if (modeSelector > 0.7) {
+      const modeIndex = Math.floor(modeSelector * modes.length) % modes.length
+      this.currentMode = modes[modeIndex]
+    } else {
+      this.currentMode = 'ionian'
+    }
 
     // Select progression type based on dominant genre, passing complexity and compositionCount
     if (genreWeights.jazz > 0.7) {
@@ -122,12 +171,13 @@ class HarmonicEngine {
 
     const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
 
-    return selected.map(chord => ({
+    // Entry #117: Transpose to current key
+    return this._transposeToCurrentKey(selected.map(chord => ({
       ...chord,
       root: this.getChordRoot(chord.chord),
       quality: this.getChordQuality(chord.chord),
       notes: this.buildChord(chord.chord)
-    }))
+    })))
   }
 
   generateClassicalProgression(bars, complexity = 0.5, compositionCount = 0) {
@@ -155,12 +205,13 @@ class HarmonicEngine {
 
     const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
 
-    return selected.map(chord => ({
+    // Entry #117: Transpose to current key
+    return this._transposeToCurrentKey(selected.map(chord => ({
       ...chord,
       root: this.getChordRoot(chord.chord),
       quality: this.getChordQuality(chord.chord),
       notes: this.buildChord(chord.chord)
-    }))
+    })))
   }
 
   generateElectronicProgression(bars, complexity = 0.5, compositionCount = 0) {
@@ -187,12 +238,13 @@ class HarmonicEngine {
 
     const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
 
-    return selected.map(chord => ({
+    // Entry #117: Transpose to current key
+    return this._transposeToCurrentKey(selected.map(chord => ({
       ...chord,
       root: this.getChordRoot(chord.chord),
       quality: this.getChordQuality(chord.chord),
       notes: this.buildChord(chord.chord)
-    }))
+    })))
   }
 
   generateRockProgression(bars, complexity = 0.5, compositionCount = 0) {
@@ -221,12 +273,13 @@ class HarmonicEngine {
 
     const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
 
-    return selected.map(chord => ({
+    // Entry #117: Transpose to current key
+    return this._transposeToCurrentKey(selected.map(chord => ({
       ...chord,
       root: this.getChordRoot(chord.chord),
       quality: this.getChordQuality(chord.chord),
       notes: this.buildChord(chord.chord)
-    }))
+    })))
   }
 
   generatePopProgression(bars, complexity = 0.5, compositionCount = 0) {
@@ -256,12 +309,13 @@ class HarmonicEngine {
 
     const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
 
-    return selected.map(chord => ({
+    // Entry #117: Transpose to current key
+    return this._transposeToCurrentKey(selected.map(chord => ({
       ...chord,
       root: this.getChordRoot(chord.chord),
       quality: this.getChordQuality(chord.chord),
       notes: this.buildChord(chord.chord)
-    }))
+    })))
   }
 
   harmonizeMelody(melody, progression) {
