@@ -231,6 +231,7 @@ class AudioService {
     }
 
     // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
+    console.log('🔊 Tab visible - _userStoppedAudio:', this._userStoppedAudio)
     if (this._userStoppedAudio) {
       console.log('🔊 Tab visible, but user stopped audio - skipping recovery')
       return
@@ -2378,10 +2379,9 @@ class AudioService {
    */
   stop() {
     if (this.isInitialized) {
-      // console.log('🛑 Stopping AudioService - immediate silence...')
-
       // Mark that user intentionally stopped audio (prevents auto-recovery)
       this._userStoppedAudio = true
+      console.log('🛑 AudioService.stop() - _userStoppedAudio set to TRUE')
 
       // STEP 0: Stop health monitoring (prevent recovery attempts during stop)
       this._stopAudioHealthCheck()
