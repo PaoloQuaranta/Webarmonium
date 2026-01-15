@@ -333,17 +333,24 @@ class CounterpointEngine {
       default: {
         // Melody uses chord tones with passing tones (neighbors)
         // More movement and variation using PHI + contour + temporal
+        // Entry #117: Fixed melodic shape variation across compositions
 
         // Base: select chord tone using PHI + temporal offset
-        const melodicSelector = ((index * PHI) + (index * index * 0.1) + temporalOffset) % 1
+        // CRITICAL FIX: temporalOffset must MULTIPLY with index to change melody SHAPE
+        // AND add base offset so first note (index=0) also varies
+        const phiVaried = PHI + (temporalOffset * 0.5) // PHI varies 1.618 to 1.868
+        // FIX: Add temporalOffset as BASE so index=0 doesn't always give 0
+        const melodicSelector = (temporalOffset + (index * phiVaried) + (index * temporalOffset * 0.3)) % 1
         const baseIndex = Math.floor(melodicSelector * chordTones.length)
         let pitch = chordTones[baseIndex]
 
         // Add contour variation: sine curve with PHI-modulated frequency
-        // Temporal offset also modifies frequency for different contour shapes
-        const contourFreq = 1 + (((total * PHI) + temporalOffset) % 1) * 0.5 // 1.0-1.5
+        // Temporal offset also modifies frequency AND amplitude for different contour shapes
+        const contourFreq = 1 + (((total * PHI) + temporalOffset) % 1) * 1.0 // 1.0-2.0 (was 0.5)
         const position = index / Math.max(1, total - 1)
-        const contourOffset = Math.sin(position * Math.PI * contourFreq) * 3 // ±3 semitones
+        // Entry #117: Increased contour range from ±3 to ±5 for more dramatic melodic shapes
+        const contourAmplitude = 3 + (temporalOffset * 4) // 3-7 semitones based on composition
+        const contourOffset = Math.sin(position * Math.PI * contourFreq) * contourAmplitude
 
         // Apply contour as chromatic offset, then snap to nearest chord tone
         const targetPitch = pitch + Math.round(contourOffset)

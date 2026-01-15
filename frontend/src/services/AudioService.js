@@ -3332,7 +3332,9 @@ class AudioService {
       const frequency = this.midiToFrequency(midiNote)
       const duration = (textureItem.duration || 8000) / 1000
       const velocity = textureItem.velocity || 0.2
-      const delay = index * 0.5
+      // Entry #117: Drone notes should play simultaneously (no stagger)
+      // Non-drone textures can stagger for rhythmic interest
+      const delay = isDrone ? 0 : index * 0.5
       const layerName = isDrone ? 'pad' : 'backgroundLow'
 
       // Entry #90: Skip if layer is disabled by audio profile settings
