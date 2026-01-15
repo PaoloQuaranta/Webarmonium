@@ -1,3 +1,5 @@
+const { PHI } = require('../utils/constants')
+
 class CounterpointEngine {
   constructor() {
     // Voice ranges in MIDI note numbers (standard SATB ranges)
@@ -330,8 +332,11 @@ class CounterpointEngine {
     if (totalNotes === 0) return 80 // Default velocity
 
     const position = noteIndex / totalNotes
-    // Create arch-like dynamic contour (louder in middle of phrase)
-    const dynamicCurve = Math.sin(position * Math.PI) * 0.5 + 0.5 // 0.5 to 1.0
+    // Create varied arch contours - PHI stepping gives continuous frequency spectrum (1.0-1.5)
+    // Avoids the low-cardinality problem of totalNotes % 3 (only 3 values)
+    const freqVariation = ((totalNotes * PHI) % 1) * 0.5 // 0.0 to 0.5
+    const freq = 1 + freqVariation // 1.0 to 1.5, non-repeating
+    const dynamicCurve = Math.sin(position * Math.PI * freq) * 0.5 + 0.5 // 0.5 to 1.0
 
     switch (activity) {
       case 'high':
@@ -360,29 +365,32 @@ class CounterpointEngine {
 
   generateDurationByRole(role, index, total) {
     // Role-specific duration generation
-    // DERIVATION: uses note index for deterministic pattern-based selection
+    // DERIVATION: golden ratio stepping breaks predictable cycles
+
+    // Helper: golden ratio index for non-repeating sequences (with null guard)
+    const safeIndex = index || 0
+    const phiIndex = (arr) => Math.floor((safeIndex * PHI) % 1 * arr.length)
 
     switch (role) {
       case 'melody':
         // Fast, varied: 8th and 16th notes with variation
         const melodyOptions = [0.25, 0.5, 0.25, 0.75, 0.375, 0.625]
-        // DERIVATION: cycle through options based on note position
-        return melodyOptions[index % melodyOptions.length]
+        return melodyOptions[phiIndex(melodyOptions)]
 
       case 'harmony':
         // Medium: quarter and half notes with variation
         const harmonyOptions = [1.0, 1.5, 0.75, 1.0, 1.25, 0.5]
-        return harmonyOptions[index % harmonyOptions.length]
+        return harmonyOptions[phiIndex(harmonyOptions)]
 
       case 'bass':
         // Long: whole notes and half notes with variation
         const bassOptions = [3.0, 4.0, 2.0, 2.5, 3.5]
-        return bassOptions[index % bassOptions.length]
+        return bassOptions[phiIndex(bassOptions)]
 
       case 'pad':
         // Very long: sustained notes with variation
         const padOptions = [6.0, 8.0, 7.0, 5.0, 9.0]
-        return padOptions[index % padOptions.length]
+        return padOptions[phiIndex(padOptions)]
 
       default:
         // DERIVATION: duration based on position in phrase
@@ -412,14 +420,16 @@ class CounterpointEngine {
 
   generateGapByRole(role, noteIndex = 0, totalNotes = 1) {
     // Role-specific gaps for PIENI/VUOTI (full/empty sections)
-    // DERIVATION: uses note position for deterministic pattern-based gaps
+    // DERIVATION: role-specific frequencies create varied gap patterns
 
     // Guard against divide-by-zero
     if (totalNotes === 0) return 0
 
     const position = noteIndex / totalNotes
-    // Create variation using sine wave based on position
-    const variationFactor = Math.sin(position * Math.PI * 2) * 0.5 + 0.5 // 0-1
+    // Role-specific frequencies prevent identical patterns across voices
+    const roleFreq = { melody: 2, harmony: 3, bass: 1.5, pad: 1 }
+    const freq = roleFreq[role] || 2
+    const variationFactor = Math.sin(position * Math.PI * freq) * 0.5 + 0.5 // 0-1
 
     switch (role) {
       case 'melody':

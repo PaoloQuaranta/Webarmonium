@@ -1,3 +1,5 @@
+const { PHI } = require('../utils/constants')
+
 class PhraseMorphology {
   constructor() {
     // Musical scales with interval patterns
@@ -192,9 +194,15 @@ class PhraseMorphology {
       const phrasePosition = i / noteCount
 
       if (phrasePosition > syncopationThreshold && phrasePosition < (1 - syncopationThreshold / 2)) {
-        // Apply syncopation - device index derived from position
+        // Apply syncopation - device index derived from position + curvature + note index
+        // WEIGHTING: position (40%) for musical flow, curvature (30%) for gesture character,
+        // PHI stepping (30%) for non-repeating variety
         const rhythmicDevices = [0.5, 0.75, 1.5, 0.33, 0.67]
-        const deviceIndex = Math.floor((phrasePosition - syncopationThreshold) * rhythmicDevices.length * 2) % rhythmicDevices.length
+        const safeCurvature = curvature || 0.5
+        const mixedIndex = phrasePosition * 0.4 + safeCurvature * 0.3 + ((i * PHI) % 1) * 0.3
+        // Clamp to valid range before floor to ensure valid array access
+        const clampedIndex = Math.max(0, Math.min(1, mixedIndex))
+        const deviceIndex = Math.floor(clampedIndex * rhythmicDevices.length)
         duration = baseDuration * rhythmicDevices[deviceIndex]
       }
 
@@ -255,10 +263,16 @@ class PhraseMorphology {
 
     const selectedScale = scaleMap[mood]?.primary || mode
 
-    // DERIVATION: use secondary scale based on curvature+velocity threshold
+    // DERIVATION: use secondary scale based on curvature+velocity+angle threshold
     // High curvature + slow velocity → more chromatic/secondary scales
-    const secondaryThreshold = (curvature * 0.3) + ((100 - velocity) / 100 * 0.2) // 0-0.5 range
-    const scaleSelector = (curvature + velocity / 100) % 1 // Deterministic 0-1 value
+    // WEIGHTING: curvature (40%) = gesture smoothness affects tonal color
+    //            velocity (30%) = speed adds timbral variation
+    //            angle (30%) = direction provides spatial variety
+    const safeCurvature = curvature || 0.5
+    const safeVelocity = velocity || 50
+    const angle = gestureData.angle || 0
+    const secondaryThreshold = (safeCurvature * 0.3) + ((100 - safeVelocity) / 100 * 0.2) // 0-0.5 range
+    const scaleSelector = (safeCurvature * 0.4 + safeVelocity / 100 * 0.3 + (angle / 360) * 0.3) % 1
 
     if (scaleSelector < secondaryThreshold && scaleMap[mood]) {
       return this.scales[scaleMap[mood].secondary] || this.scales[selectedScale]
@@ -521,10 +535,15 @@ class PhraseMorphology {
       const phrasePosition = i / pitches.length
       const pitchClass = pitch % 12 // 0-11
 
+      // DERIVATION: ornament scores vary by phrase position to prevent same notes always getting same treatment
+      const ornamentScore3 = (pitchClass + Math.floor(phrasePosition * 7)) % 3
+      const ornamentScore4 = (pitchClass + Math.floor(phrasePosition * 7)) % 4
+      const ornamentScore5 = (pitchClass + Math.floor(phrasePosition * 7)) % 5
+
       switch (style) {
         case 'baroque':
-          // Trills on strong beats (positions 0.0, 0.25, 0.5, 0.75) for certain pitch classes
-          if ((pitchClass % 3 === 0) && phrasePosition < 0.9 && i < pitches.length - 1) {
+          // Trills on strong beats - varies by phrase position
+          if ((ornamentScore3 === 0) && phrasePosition < 0.9 && i < pitches.length - 1) {
             const trillNote = pitch + 2 // Major second above
             ornamented.push(trillNote)
             rhythm[i] = rhythm[i] * 0.7 // Shorten main note
@@ -532,24 +551,24 @@ class PhraseMorphology {
           break
 
         case 'jazz':
-          // Approach notes on weak beats (positions 0.1-0.4, 0.6-0.9)
-          if ((pitchClass % 4 < 2) && phrasePosition > 0.1 && phrasePosition < 0.9 && i < pitches.length - 1) {
+          // Approach notes on weak beats - varies by phrase position
+          if ((ornamentScore4 < 2) && phrasePosition > 0.1 && phrasePosition < 0.9 && i < pitches.length - 1) {
             const approachNote = pitch - 1
             ornamented.splice(ornamented.length - 1, 0, approachNote)
           }
           break
 
         case 'blues':
-          // Blue notes on off-beat positions for certain pitch classes
-          if ((pitchClass === 0 || pitchClass === 5 || pitchClass === 7) && phrasePosition > 0.2 && phrasePosition < 0.8) {
+          // Blue notes on off-beat positions - varies by phrase position
+          if ((ornamentScore3 === 0) && phrasePosition > 0.2 && phrasePosition < 0.8) {
             const blueNote = pitch - 3 // Flat 3rd
             ornamented.push(blueNote)
           }
           break
 
         case 'romantic':
-          // Arpeggios near phrase midpoint
-          if ((pitchClass % 5 === 0) && phrasePosition > 0.3 && phrasePosition < 0.6 && i < pitches.length - 2) {
+          // Arpeggios near phrase midpoint - varies by phrase position
+          if ((ornamentScore5 === 0) && phrasePosition > 0.3 && phrasePosition < 0.6 && i < pitches.length - 2) {
             const third = pitch + 4
             const fifth = pitch + 7
             ornamented.push(third, fifth)

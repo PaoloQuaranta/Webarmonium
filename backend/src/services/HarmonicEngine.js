@@ -1,3 +1,5 @@
+const { PHI } = require('../utils/constants')
+
 class HarmonicEngine {
   constructor() {
     this.currentKey = 'C'
@@ -37,6 +39,26 @@ class HarmonicEngine {
       suspended2: [0, 2, 7],
       suspended4: [0, 5, 7]
     }
+  }
+
+  /**
+   * Select progression by complexity with golden ratio context variation
+   * WEIGHTING: Complexity dominates (70%) for harmonic appropriateness, bars provide drift (30%)
+   * @param {Array} progressions - Array of progression options
+   * @param {number} complexity - 0-1 complexity value
+   * @param {number} bars - Number of bars for context variation
+   * @returns {Array} Selected progression
+   */
+  _selectProgressionByComplexity(progressions, complexity, bars) {
+    const safeComplexity = complexity || 0.5
+    const safeBars = bars || 4
+    const contextVariation = ((safeBars * PHI) % 1) * 0.3
+    const combinedIndex = safeComplexity * 0.7 + contextVariation
+    const index = Math.min(
+      Math.floor(combinedIndex * progressions.length),
+      progressions.length - 1
+    )
+    return progressions[index]
   }
 
   generateProgression(styleAnalysis, phraseLength) {
@@ -85,9 +107,7 @@ class HarmonicEngine {
       ]
     ]
 
-    // DERIVATION: complexity determines progression selection
-    const index = Math.min(Math.floor(complexity * progressions.length), progressions.length - 1)
-    const selected = progressions[index]
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars)
 
     return selected.map(chord => ({
       ...chord,
@@ -120,9 +140,7 @@ class HarmonicEngine {
       ]
     ]
 
-    // DERIVATION: complexity determines progression selection
-    const index = Math.min(Math.floor(complexity * progressions.length), progressions.length - 1)
-    const selected = progressions[index]
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars)
 
     return selected.map(chord => ({
       ...chord,
@@ -154,9 +172,7 @@ class HarmonicEngine {
       ]
     ]
 
-    // DERIVATION: complexity determines progression selection
-    const index = Math.min(Math.floor(complexity * progressions.length), progressions.length - 1)
-    const selected = progressions[index]
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars)
 
     return selected.map(chord => ({
       ...chord,
@@ -190,9 +206,7 @@ class HarmonicEngine {
       ]
     ]
 
-    // DERIVATION: complexity determines progression selection
-    const index = Math.min(Math.floor(complexity * progressions.length), progressions.length - 1)
-    const selected = progressions[index]
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars)
 
     return selected.map(chord => ({
       ...chord,
@@ -227,9 +241,7 @@ class HarmonicEngine {
       ]
     ]
 
-    // DERIVATION: complexity determines progression selection
-    const index = Math.min(Math.floor(complexity * progressions.length), progressions.length - 1)
-    const selected = progressions[index]
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars)
 
     return selected.map(chord => ({
       ...chord,

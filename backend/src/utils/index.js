@@ -7,7 +7,7 @@ const SmoothingCalculator = require('./SmoothingCalculator')
 const Logger = require('./Logger')
 const AppError = require('./AppError')
 const FrequencyPositionMapper = require('./FrequencyPositionMapper')
-const SeededRandom = require('./SeededRandom')
+const { PHI } = require('./constants')
 
 module.exports = {
   ...SocketValidation,
@@ -15,5 +15,5 @@ module.exports = {
   ...Logger,
   ...AppError,
   FrequencyPositionMapper,
-  SeededRandom
+  PHI
 }

@@ -1,5 +1,5 @@
 const CounterpointEngine = require('./CounterpointEngine')
-const SeededRandom = require('../utils/SeededRandom')
+const { PHI } = require('../utils/constants')
 
 class CompositionEngine {
   constructor(materialLibrary, styleAnalyzer, harmonicEngine) {
@@ -109,10 +109,13 @@ class CompositionEngine {
 
     const forms = formsByEnergy[genre]
 
-    // DETERMINISTIC: energy maps directly to form index
-    // Low energy (0.0-0.25) → contemplative forms (first in array)
-    // High energy (0.75-1.0) → energetic forms (last in array)
-    const index = Math.min(Math.floor(energy * forms.length), forms.length - 1)
+    // DETERMINISTIC: energy + time variation determines form
+    // Golden ratio stepping on sectionHistory creates non-repeating sequences
+    // WEIGHTING: Energy dominates (70%) for musical appropriateness, time provides drift (30%)
+    const historyLength = this.sectionHistory?.length || 0
+    const timeVariation = (historyLength * PHI) % 1
+    const combinedIndex = energy * 0.7 + timeVariation * 0.3
+    const index = Math.min(Math.floor(combinedIndex * forms.length), forms.length - 1)
     return forms[index]
   }
 
@@ -360,10 +363,10 @@ class CompositionEngine {
     }
 
     // Old material: advanced techniques
-    // DERIVATION: usage count determines which technique
-    // Higher usage → more complex transformation
+    // DERIVATION: golden ratio stepping breaks predictable cycling
     const advancedTechniques = ['augment', 'diminish', 'invert', 'retrograde']
-    const techniqueIndex = usage % advancedTechniques.length
+    const safeUsage = usage || 0
+    const techniqueIndex = Math.floor((safeUsage * PHI) % 1 * advancedTechniques.length)
     return advancedTechniques[techniqueIndex]
   }
 

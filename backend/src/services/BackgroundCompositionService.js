@@ -17,6 +17,7 @@ const StyleAnalyzer = require('./StyleAnalyzer')
 const HarmonicEngine = require('./HarmonicEngine')
 const CompositionEngine = require('./CompositionEngine')
 const PhraseMorphology = require('./PhraseMorphology')
+const { PHI } = require('../utils/constants')
 
 class BackgroundCompositionService {
   constructor() {
@@ -474,10 +475,11 @@ class BackgroundCompositionService {
 
     // DERIVATION: beats per composition based on energy and composition count
     // Higher energy → shorter compositions, lower energy → longer compositions
-    // Cycle through 8, 12, 16 beats based on composition count for variety
+    // Golden ratio stepping prevents obvious cycling patterns
     const energy = currentStyle.energy || 0.5
+    const safeCompositionCount = compositionCount || 0
     const baseBeats = [8, 12, 16, 10, 14] // Ordered phrase lengths
-    const beatIndex = compositionCount % baseBeats.length
+    const beatIndex = Math.floor((safeCompositionCount * PHI) % 1 * baseBeats.length)
     const energyModifier = 1 - (energy * 0.3) // High energy shortens (0.7-1.0)
     const beatsPerComposition = baseBeats[beatIndex] * energyModifier
 

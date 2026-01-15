@@ -4969,3 +4969,154 @@ Referrer-Policy: strict-origin-when-cross-origin
 Updated to v1.0.127
 
 ---
+
+## Entry #114 - Golden Ratio Deterministic Variation System
+
+**Date**: 2026-01-15
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented a comprehensive solution to address the "same phrase repetition" problem identified after Entry #111's Math.random() removal. The root cause was low-cardinality deterministic formulas (only 3-5 possible outputs) causing predictable cycling. Solution uses Golden Ratio (φ) stepping and multi-parameter mixing to maintain 100% determinism while achieving high variation.
+
+---
+
+### Problem Statement
+
+After removing ~50 `Math.random()` calls (Entry #111), some voices tended to play identical phrases because:
+
+1. **Low cardinality**: Formulas like `floor(energy * 4)` only produce 4 possible results
+2. **Predictable cycles**: Simple `index % 5` creates obvious 0,1,2,3,4,0,1,2... patterns
+3. **Same parameter everywhere**: Energy used for almost all decisions
+4. **Identical sinusoidal contours**: `sin(position * π)` produces the same arc every time
+
+---
+
+### Solution: Three Techniques
+
+#### 1. Golden Ratio (φ) Stepping
+
+The golden ratio `φ = 1.618033988749894848` creates low-discrepancy sequences that:
+- Never repeat in short cycles
+- Eventually cover all array indices
+- Avoid clustering of nearby values
+- Remain 100% deterministic
+
+**Formula**: `index = floor((n * φ) % 1 * arrayLength)`
+
+#### 2. Multi-Parameter Mixing
+
+Different musical decisions now derive from different input combinations:
+
+| Decision | Primary (70%) | Secondary (30%) |
+|----------|---------------|-----------------|
+| Form | energy | sectionHistory.length |
+| Progression | complexity | bars |
+| Velocity contour | position | totalNotes (φ) |
+| Duration | noteIndex (φ) | role |
+| Syncopation | phrasePosition | curvature + noteIndex |
+| Scale | curvature | velocity + angle |
+| Ornamentation | pitchClass | phrasePosition |
+| Beat timing | compositionCount (φ) | - |
+
+#### 3. Variable Sinusoidal Frequencies
+
+Role-specific frequencies prevent identical contour shapes:
+
+```javascript
+const roleFreq = { melody: 2, harmony: 3, bass: 1.5, pad: 1 }
+const variationFactor = Math.sin(position * Math.PI * roleFreq[role])
+```
+
+---
+
+### Files Created
+
+| File | Description |
+|------|-------------|
+| `backend/src/utils/constants.js` | PHI constant with comprehensive JSDoc documentation |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/CompositionEngine.js` | Form selection uses energy + sectionHistory; technique selection uses φ stepping |
+| `backend/src/services/HarmonicEngine.js` | Extracted `_selectProgressionByComplexity()` helper; uses complexity + bars mixing |
+| `backend/src/services/CounterpointEngine.js` | Velocity contour uses φ for continuous frequency; duration uses φ stepping; gap variation uses role-specific frequencies |
+| `backend/src/services/PhraseMorphology.js` | Syncopation uses phrasePosition + curvature + noteIndex; scale uses curvature + velocity + angle; ornamentation varies by phrase position |
+| `backend/src/services/BackgroundCompositionService.js` | Beat calculation uses φ stepping |
+| `backend/src/utils/index.js` | Added PHI export, removed SeededRandom |
+
+---
+
+### Files Deleted
+
+| File | Reason |
+|------|--------|
+| `backend/src/utils/SeededRandom.js` | Was imported but never used; PRNG approach rejected in favor of pure determinism |
+
+---
+
+### Code Review Fixes Applied
+
+After initial implementation, code-reviewer agent identified 6 issues. All fixed:
+
+| Priority | Issue | Fix |
+|----------|-------|-----|
+| Critical | Missing null guards for PHI calculations | Added `\|\| 0` or `\|\| 0.5` defaults |
+| Critical | Low-cardinality frequency `(totalNotes % 3)` only 3 values | Changed to `((totalNotes * PHI) % 1) * 0.5` (continuous) |
+| High | Unused PHI_INVERSE export | Removed from constants.js |
+| High | Duplicate progression selection code | Extracted `_selectProgressionByComplexity()` helper |
+| Medium | Magic numbers undocumented | Added `// WEIGHTING:` comments |
+
+---
+
+### Key Implementation Details
+
+**PHI Constant** (`backend/src/utils/constants.js`):
+```javascript
+/**
+ * Golden Ratio (φ)
+ * Mathematical constant ≈ 1.618033988749894848
+ *
+ * Used for generating low-discrepancy sequences via the formula:
+ * index = floor((n * φ) mod 1 * arrayLength)
+ */
+const PHI = 1.618033988749894848
+```
+
+**Example: Form Selection** (`CompositionEngine.js`):
+```javascript
+// WEIGHTING: 70% energy (primary musical driver) + 30% time variation
+const historyLength = this.sectionHistory?.length || 0
+const timeVariation = (historyLength * PHI) % 1
+const combinedIndex = energy * 0.7 + timeVariation * 0.3
+const index = Math.min(Math.floor(combinedIndex * forms.length), forms.length - 1)
+```
+
+**Example: Duration Selection** (`CounterpointEngine.js`):
+```javascript
+const safeIndex = index || 0
+const phiIndex = (arr) => Math.floor((safeIndex * PHI) % 1 * arr.length)
+return melodyOptions[phiIndex(melodyOptions)]
+```
+
+---
+
+### Verification
+
+- All backend modules load successfully
+- Test suite passes (15/17 - 2 pre-existing test file failures)
+- Server starts without errors
+- PHI correctly exported from utils barrel
+
+---
+
+### Version
+
+Updated to v1.0.128
+
+---
