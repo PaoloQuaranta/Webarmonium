@@ -5154,3 +5154,164 @@ Bass pitches with different compositionCounts: 36, 41, 38
 Updated to v1.0.129
 
 ---
+
+## Entry #115 - Anti-Mirroring Domain Protection System
+
+**Date**: 2026-01-15
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented comprehensive domain protection system to block unauthorized mirror sites. Discovered two domains (`treasurecompass.org`, `starlighthorizon.org`) hosting unauthorized copies of the application. Created multi-layer protection with HTTP middleware, WebSocket validation, and enhanced security headers.
+
+---
+
+### Problem Statement
+
+Two domains were identified mirroring the Webarmonium site:
+- `treasurecompass.org` (registered 2025-05-26 via Dynadot)
+- `starlighthorizon.org` (registered 2025-05-26 via Dynadot)
+
+Both registered on the same day, same registrar, both behind Cloudflare with privacy protection enabled - suggesting coordinated unauthorized mirroring.
+
+---
+
+### Solution
+
+#### 1. DomainProtection.js Utility Module (NEW)
+
+Created centralized domain protection module with:
+
+- **Blocked domains list**: Static list + environment variable additions
+- **Allowed domains list**: Configurable via `ALLOWED_DOMAINS` env var
+- **Origin/Referer validation**: Extracts and validates domains from request headers
+- **Middleware functions**: HTTP and WebSocket protection
+
+```javascript
+const BLOCKED_DOMAINS = [
+  'treasurecompass.org',
+  'www.treasurecompass.org',
+  'starlighthorizon.org',
+  'www.starlighthorizon.org'
+]
+```
+
+#### 2. HTTP Request Protection
+
+Domain protection middleware blocks requests from unauthorized domains:
+
+```javascript
+// Entry #115: Domain protection middleware - MUST be first
+app.use(domainProtectionMiddleware)
+```
+
+#### 3. WebSocket Connection Protection
+
+Socket.io middleware validates origin before allowing connections:
+
+```javascript
+// Entry #115: Domain protection for WebSocket connections
+io.use(socketDomainProtection)
+```
+
+#### 4. Enhanced Security Headers
+
+New `securityHeadersMiddleware` adds comprehensive anti-embedding headers:
+
+| Header | Value |
+|--------|-------|
+| X-Frame-Options | SAMEORIGIN |
+| Content-Security-Policy | frame-ancestors 'self' + allowed domains |
+| Cross-Origin-Opener-Policy | same-origin |
+| Cross-Origin-Embedder-Policy | require-corp |
+| Cross-Origin-Resource-Policy | same-origin |
+| Permissions-Policy | geolocation=(), microphone=(self), camera=() |
+
+#### 5. Admin & Validation Endpoints
+
+- `GET /api/admin/domain-protection` - View blocked/allowed domains (admin auth required)
+- `GET /api/domain/validate` - Public endpoint for frontend domain validation
+
+---
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `BLOCKED_DOMAINS` | Additional blocked domains (comma-separated) | - |
+| `ALLOWED_DOMAINS` | Allowed domains (comma-separated) | localhost, webarmonium.com |
+| `DOMAIN_STRICT_MODE` | Require explicit allow list | true in production |
+
+---
+
+### Files Created
+
+| File | Description |
+|------|-------------|
+| `backend/src/utils/DomainProtection.js` | Domain protection utility module |
+| `ABUSE_REPORTS_DRAFT.md` | Draft abuse reports for Dynadot, Cloudflare, Google |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/server.js` | Added domain protection middleware, WebSocket validation, admin endpoints |
+| `backend/src/utils/index.js` | Added DomainProtection export |
+
+---
+
+### WHOIS Investigation Results
+
+Both mirror domains share identical registration details:
+
+| Property | Value |
+|----------|-------|
+| Registrar | Dynadot Inc |
+| Created | 2025-05-26 |
+| Expires | 2026-05-26 |
+| Privacy | Super Privacy Service LTD c/o Dynadot |
+| CDN | Cloudflare |
+| Abuse Contact | abuse@dynadot.com |
+
+---
+
+### Legal Action Preparation
+
+Created `ABUSE_REPORTS_DRAFT.md` with:
+- Dynadot abuse report (email template)
+- Cloudflare abuse form details
+- Google Safe Browsing reports
+- WHOIS raw data for evidence
+
+---
+
+### Verification
+
+```
+=== Domain Protection Test ===
+treasurecompass.org blocked: true
+www.treasurecompass.org blocked: true
+starlighthorizon.org blocked: true
+api.treasurecompass.org blocked: true (subdomain match)
+
+localhost allowed: true
+webarmonium.com allowed: true
+
+Server log:
+[INFO] [server] Domain protection configured {
+  "blockedDomains": ["treasurecompass.org", ...],
+  "allowedDomains": ["localhost", "webarmonium.com", ...],
+  "strictMode": false
+}
+```
+
+---
+
+### Version
+
+Updated to v1.0.130
+
+---

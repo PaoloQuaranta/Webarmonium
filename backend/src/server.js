@@ -14,6 +14,13 @@ const { createServiceContainer, wireServices } = require('./services/ServiceCont
 const socketHandlers = require('./api/socketHandlers')
 const RateLimiter = require('./utils/RateLimiter')
 const { createLogger } = require('./utils/Logger')
+const {
+  domainProtectionMiddleware,
+  socketDomainProtection,
+  securityHeadersMiddleware,
+  getBlockedDomains,
+  getAllowedDomains
+} = require('./utils/DomainProtection')
 
 
 // Configuration
@@ -85,7 +92,17 @@ function validateEnvironment () {
     if (!process.env.ADMIN_API_KEY) {
       warnings.push('ADMIN_API_KEY is not set - admin endpoints will be disabled')
     }
+    if (!process.env.ALLOWED_DOMAINS) {
+      warnings.push('ALLOWED_DOMAINS is not set - using defaults for domain protection')
+    }
   }
+
+  // Log domain protection configuration
+  serverLogger.info('Domain protection configured', {
+    blockedDomains: getBlockedDomains(),
+    allowedDomains: getAllowedDomains(),
+    strictMode: process.env.DOMAIN_STRICT_MODE === 'true' || NODE_ENV === 'production'
+  })
 
   // Log warnings
   warnings.forEach(w => serverLogger.warn(`Environment: ${w}`))
@@ -111,6 +128,10 @@ try {
 // Start RateLimiter cleanup (cleanup stale entries periodically)
 RateLimiter.startCleanup(60000) // Every minute
 
+// Entry #115: Domain protection for WebSocket connections
+// Block connections from unauthorized/mirroring domains
+io.use(socketDomainProtection)
+
 io.use((socket, next) => {
   const ip = RateLimiter.getIP(socket)
 
@@ -131,39 +152,24 @@ io.use((socket, next) => {
   next()
 })
 
+// Entry #115: Domain protection middleware - MUST be first
+// Blocks requests from unauthorized/mirroring domains
+app.use(domainProtectionMiddleware)
+
 // Middleware
 app.use(limiter)
 app.use(cors({
   origin: corsOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key'],
+  credentials: true
 }))
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
-// Entry #Security: Add security headers including CSP
-app.use((req, res, next) => {
-  // Content-Security-Policy
-  const cspDirectives = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "connect-src 'self' wss: ws:",
-    "font-src 'self'",
-    "media-src 'self' blob:",
-    "worker-src 'self' blob:"
-  ]
-  res.setHeader('Content-Security-Policy', cspDirectives.join('; '))
-
-  // Other security headers
-  res.setHeader('X-Content-Type-Options', 'nosniff')
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN')
-  res.setHeader('X-XSS-Protection', '1; mode=block')
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-
-  next()
-})
+// Entry #115: Enhanced security headers with anti-embedding protection
+// Includes frame-ancestors CSP, COOP, COEP, CORP headers
+app.use(securityHeadersMiddleware)
 
 // Serve static files from frontend directory
 app.use(express.static('../frontend'))
@@ -450,6 +456,35 @@ app.delete('/api/rooms/:id', adminAuth, (req, res) => {
       message: error.message
     })
   }
+})
+
+// Entry #115: Domain protection status endpoint (admin)
+app.get('/api/admin/domain-protection', adminAuth, (req, res) => {
+  res.json({
+    success: true,
+    blockedDomains: getBlockedDomains(),
+    allowedDomains: getAllowedDomains(),
+    strictMode: process.env.DOMAIN_STRICT_MODE === 'true' || NODE_ENV === 'production',
+    timestamp: Date.now()
+  })
+})
+
+// Entry #115: Domain validation endpoint (public)
+// Frontend can use this to check if current domain is authorized
+app.get('/api/domain/validate', (req, res) => {
+  const origin = req.headers.origin
+  const referer = req.headers.referer
+  const { validateOrigin } = require('./utils/DomainProtection')
+
+  const validation = validateOrigin(origin, referer)
+
+  res.json({
+    success: true,
+    valid: validation.allowed,
+    domain: validation.domain || null,
+    reason: validation.reason || 'valid',
+    timestamp: Date.now()
+  })
 })
 
 // Socket.IO connection handling

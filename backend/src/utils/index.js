@@ -7,6 +7,7 @@ const SmoothingCalculator = require('./SmoothingCalculator')
 const Logger = require('./Logger')
 const AppError = require('./AppError')
 const FrequencyPositionMapper = require('./FrequencyPositionMapper')
+const DomainProtection = require('./DomainProtection')
 const { PHI } = require('./constants')
 
 module.exports = {
@@ -15,5 +16,6 @@ module.exports = {
   ...Logger,
   ...AppError,
   FrequencyPositionMapper,
+  DomainProtection,
   PHI
 }
