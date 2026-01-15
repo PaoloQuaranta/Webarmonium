@@ -433,14 +433,14 @@ class LandingCompositionService {
           {
             type: 'drone',
             note: droneNote,
-            duration: 8000,
+            duration: 10000,
             velocity: 0.8,
             articulation: 'legato'
           },
           {
             type: 'drone',
             note: fifthNote,
-            duration: 8000,
+            duration: 10000,
             velocity: 0.5,
             articulation: 'legato'
           }
@@ -477,8 +477,8 @@ class LandingCompositionService {
       structure: { form: 'drone', currentSection: 'ambient' },
       content: {
         texture: [
-          { type: 'drone', note: droneNote, duration: 8000, velocity: 0.8, articulation: 'legato' },
-          { type: 'drone', note: fifthNote, duration: 8000, velocity: 0.5, articulation: 'legato' }
+          { type: 'drone', note: droneNote, duration: 10000, velocity: 0.8, articulation: 'legato' },
+          { type: 'drone', note: fifthNote, duration: 10000, velocity: 0.5, articulation: 'legato' }
         ]
       }
     }
@@ -491,6 +491,19 @@ class LandingCompositionService {
       timestamp: Date.now()
     })
     // console.log('🎵 Drone emitted to socket (request-drone)')
+  }
+
+  /**
+   * Check if keyCenter changed and broadcast updated drone
+   * Entry #115: Drone updates dynamically when keyCenter changes
+   * @param {string} previousKeyCenter - KeyCenter before composition
+   */
+  updateDroneIfKeyChanged(previousKeyCenter) {
+    const currentKeyCenter = this.compositionEngine.keyCenter
+    if (currentKeyCenter !== previousKeyCenter) {
+      // KeyCenter changed - broadcast new drone to landing room
+      this.generateAndBroadcastDrone()
+    }
   }
 
   /**
@@ -1025,6 +1038,8 @@ class LandingCompositionService {
 
       // STEP 6: Generate background composition from gesture materials
       this.compositionCount++
+      // Entry #115: Save keyCenter before composition to detect changes
+      const previousKeyCenter = this.compositionEngine.keyCenter
       // Pass compositionCount for temporal variation (Entry #114)
       const composition = this.compositionEngine.compose({
         roomId: this.landingRoomId,
@@ -1087,6 +1102,9 @@ class LandingCompositionService {
 
       // Update material library lifecycle
       this.materialLibrary.updateMaterialLifecycle()
+
+      // Entry #115: Update drone if keyCenter changed during composition
+      this.updateDroneIfKeyChanged(previousKeyCenter)
 
     } catch (error) {
       console.error(`🎵 Error generating composition:`, error)

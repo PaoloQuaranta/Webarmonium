@@ -155,14 +155,14 @@ class BackgroundCompositionService {
           {
             type: 'drone',
             note: droneNote,  // Root note - follows key center
-            duration: 8000,
+            duration: 10000,
             velocity: 0.8,
             articulation: 'legato'
           },
           {
             type: 'drone',
             note: fifthNote,  // Fifth for richness
-            duration: 8000,
+            duration: 10000,
             velocity: 0.5,  // Quieter than root
             articulation: 'legato'
           }
@@ -210,8 +210,8 @@ class BackgroundCompositionService {
       structure: { form: 'drone', currentSection: 'ambient' },
       content: {
         texture: [
-          { type: 'drone', note: droneNote, duration: 8000, velocity: 0.8, articulation: 'legato' },
-          { type: 'drone', note: fifthNote, duration: 8000, velocity: 0.5, articulation: 'legato' }
+          { type: 'drone', note: droneNote, duration: 10000, velocity: 0.8, articulation: 'legato' },
+          { type: 'drone', note: fifthNote, duration: 10000, velocity: 0.5, articulation: 'legato' }
         ]
       }
     }
@@ -224,6 +224,20 @@ class BackgroundCompositionService {
       timestamp: Date.now()
     })
     // console.log(`🎵 Drone emitted to socket for room ${roomId} (request-drone)`)
+  }
+
+  /**
+   * Check if keyCenter changed and broadcast updated drone
+   * Entry #115: Drone updates dynamically when keyCenter changes
+   * @param {string} roomId - Room ID
+   * @param {string} previousKeyCenter - KeyCenter before composition
+   */
+  updateDroneIfKeyChanged(roomId, previousKeyCenter) {
+    const currentKeyCenter = this.compositionEngine.keyCenter
+    if (currentKeyCenter !== previousKeyCenter) {
+      // KeyCenter changed - broadcast new drone to room
+      this.generateAndBroadcastDrone(roomId)
+    }
   }
 
   /**
@@ -520,6 +534,9 @@ class BackgroundCompositionService {
       roomState.compositionCount++
       roomState.lastCompositionTime = Date.now()
 
+      // Entry #115: Save keyCenter before composition to detect changes
+      const previousKeyCenter = this.compositionEngine.keyCenter
+
       // Generate composition using CompositionEngine
       // Pass compositionCount for temporal variation (Entry #114)
       const composition = this.compositionEngine.compose({
@@ -564,6 +581,9 @@ class BackgroundCompositionService {
 
       // Update material library lifecycle
       this.materialLibrary.updateMaterialLifecycle()
+
+      // Entry #115: Update drone if keyCenter changed during composition
+      this.updateDroneIfKeyChanged(roomId, previousKeyCenter)
 
     } catch (error) {
 // console.error(`🎼 Error generating composition for room ${roomId}:`, error)
