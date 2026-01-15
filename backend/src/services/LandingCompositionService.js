@@ -1052,6 +1052,17 @@ class LandingCompositionService {
         compositionCount: this.compositionCount
       })
 
+      // DEBUG Entry #117: Log melody pitches and material source to verify variation
+      if (composition.content?.voices) {
+        const melodyVoice = composition.content.voices.find(v => v.voiceRole === 'melody')
+        if (melodyVoice) {
+          console.log(`🎵 Comp#${this.compositionCount} melody: ${melodyVoice.notes.map(n => n.pitch).join(',')} [material: ${melodyVoice.materialId || 'generated'}]`)
+        }
+      } else if (composition.content?.melody) {
+        console.log(`🎵 Comp#${this.compositionCount} homophonic melody: ${composition.content.melody.notes?.map(n => n.pitch).join(',') || 'no notes'}`)
+      } else {
+        console.log(`🎵 Comp#${this.compositionCount} type: ${composition.type} (no voices/melody)`)
+      }
       // console.log(`🎵 Generated ${composition.type} composition #${this.compositionCount} (density=${this.compositionEngine.density.toFixed(2)}, energy=${energy.toFixed(2)})`)
 
       // STEP 7: Broadcast background composition

@@ -164,8 +164,16 @@ class CounterpointEngine {
 
     if (material.notes && material.notes.length > 0) {
       // Adapt existing material to voice range
+      // Entry #117: Add temporal variation even when using existing material
+      const compCount = this._currentCompositionCount || 0
+      const temporalOffset = (compCount * PHI) % 1
+      // Variation: transpose material by interval based on compositionCount
+      const transposeInterval = Math.floor(temporalOffset * 5) - 2 // -2 to +2 semitones
+
       material.notes.forEach((note, i) => {
-        let adaptedPitch = this.adaptPitchToRange(note.pitch, range, profile)
+        // Entry #117: Apply transposition for variation across compositions
+        const transposedPitch = note.pitch + transposeInterval
+        let adaptedPitch = this.adaptPitchToRange(transposedPitch, range, profile)
 
         // Apply voice leading principles
         if (i > 0) {
@@ -173,7 +181,11 @@ class CounterpointEngine {
           adaptedPitch = this.applyVoiceLeading(prevNote.pitch, adaptedPitch, range)
         }
 
-        const duration = note.duration || 1
+        // Entry #117: Vary duration slightly with temporal offset
+        const baseDuration = note.duration || 1
+        const durationVariation = 0.8 + (((i * PHI) + temporalOffset) % 1) * 0.4 // 0.8-1.2x
+        const duration = baseDuration * durationVariation
+
         voiceNotes.push({
           pitch: adaptedPitch,
           duration: duration,
@@ -183,9 +195,10 @@ class CounterpointEngine {
         })
 
         // Accumulate timing: next note starts after this one plus optional gap
-        // DERIVATION: gap based on note position in phrase
-        const gapFactor = (i / material.notes.length) * 0.25 + 0.125 // 0.125-0.375 based on position
-        currentBeat += duration + gapFactor
+        // DERIVATION: gap based on note position in phrase + temporal variation
+        const baseGap = (i / material.notes.length) * 0.25 + 0.125
+        const gapVariation = Math.sin((i + temporalOffset) * Math.PI) * 0.1 // ±0.1
+        currentBeat += duration + baseGap + gapVariation
       })
     } else {
       // Generate new voice based on ROLE (not just activity)
