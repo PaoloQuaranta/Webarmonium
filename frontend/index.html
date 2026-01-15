@@ -255,29 +255,15 @@
         <span style="color: #ff7f00;">HackerNews</span> occupies the tenor range (196-392Hz, G3-G4) with pure sine tones,
         and <span style="color: #377eb8;">GitHub</span> sounds in soprano frequencies (523-1047Hz, C5-C6) with hollow triangle waves.
         Cursor positions are calculated using a <em>golden ratio distribution</em> system&mdash;each cursor's X and Y coordinates
-        are independently derived from gesture counters and multiple metrics, ensuring optimal spacing across the entire canvas.
+        are independently derived from gesture counters and multiple metrics.
         Visual pulses and particle flows respond to the same gesture data that drives the audio.
       </p>
 
       <!-- Part 1b: Background Composition Layer -->
       <h3 class="explainer-section-title">Background Composition Layer</h3>
       <p class="explainer-detail">
-        <strong>Three-layer generative system</strong>: Beyond virtual user notes, the landing page generates
-        continuous background music through three independent layers: <em>bass</em> (2-second cycles),
-        <em>pads</em> (16-second sustained chords), and <em>chords</em> (4-second harmonic movement).
-        Each layer follows one of seven harmonic progressions (I-V-vi-IV, i-VI-III-VII, etc.) and
-        automatically evolves when its current pattern completes. Composition timing is derived from
-        <em>energy level</em> and composition count&mdash;high energy produces shorter phrases (8-10 beats),
-        while low energy produces longer phrases (14-16 beats), cycling deterministically through pattern lengths.
-      </p>
-
-      <p class="explainer-detail">
-        <strong>Drone emergence</strong>: When activity stops, a drone layer gradually emerges to fill
-        the void. The DroneVoidController monitors three factors: time since last gesture (5-10 seconds),
-        user influence level, and active note count. The drone fades in over 2 seconds when silence is
-        detected and fades out over 20 seconds when activity resumes, creating smooth transitions.
-        Subtle LFO modulation (33-second amplitude cycle at -6dB to 0dB, 20-second pitch drift at &plusmn;8 cents)
-        adds organic breathing to the sustained pad sound.
+        <strong>Background music emerges organically in response to gestures</strong>: each parameter that feeds the composition algorithm, is derived from user interactions in the room.
+        No artificial or mechanical source has been used, just the users interaction in the room. 
       </p>
 
       <p class="explainer-detail">
@@ -293,12 +279,11 @@
       <h3 class="explainer-section-title">Collaborative Rooms: Real Users</h3>
       <p class="explainer-detail">
         In <a href="rooms.html">collaborative rooms</a>, you can create music through gestures:
-        <strong>tap</strong> for percussive notes (10-110ms attack based on intensity) and <strong>drag</strong> for melodic phrases (50-250ms attack based on vertical position).
+        <strong>tap</strong> for percussive or sustained (hold the tap) notes and <strong>drag</strong> for melodic phrases (50-250ms attack based on vertical position).
       </p>
 
       <p class="explainer-detail">
-        <strong>Multi-user composition</strong>: Up to 4 users can create polyphonic compositions together, each assigned a distinct
-        voice role (melody, harmony, bass, or pad). The system validates counterpoint rules to ensure musical coherence.
+        <strong>Multi-user composition</strong>: Up to 4 users can create polyphonic compositions together, with background accompaniment The system validates counterpoint rules to ensure musical coherence.
         When only one real user is present, two virtual users (from web metrics) automatically join to provide accompaniment.
       </p>
 
