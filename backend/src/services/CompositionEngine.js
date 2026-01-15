@@ -35,6 +35,9 @@ class CompositionEngine {
     try {
 // console.log(`🎼 CompositionEngine: Composing for room with ${roomContext.userCount || 1} users`)
 
+      // Store compositionCount for temporal variation (Entry #114)
+      this.compositionCount = roomContext.compositionCount || 0
+
       // 1. Analyze current musical context
       const currentStyle = this.styleAnalyzer.getCurrentStyle()
 // console.log(`🎼 Current style: energy=${currentStyle.energy?.toFixed(2)}, tempo=${currentStyle.tempo}`)
@@ -234,7 +237,8 @@ class CompositionEngine {
 
     // Create voices for each material/user with DISTINCT ROLES
     const voices = selectedMaterials.map((material, i) => {
-      const voice = this.counterpointEngine.createVoice(material, i, progression)
+      // Pass compositionCount for temporal variation (Entry #114)
+      const voice = this.counterpointEngine.createVoice(material, i, progression, this.compositionCount)
 // console.log(`🎼   Voice ${i} (${voice.voiceRole}): ${voice.notes?.length || 0} notes, timbre=${voice.timbre}`)
       return {
         ...voice,

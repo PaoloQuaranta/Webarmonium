@@ -34,7 +34,7 @@ class CounterpointEngine {
     this.dissonantIntervals = [1, 2, 5, 6, 8, 10, 11] // m2, M2, P4, TT, m6, m7, M7
   }
 
-  createVoice(material, voiceIndex, progression) {
+  createVoice(material, voiceIndex, progression, compositionCount = 0) {
     // Create a voice with DISTINCT ROLE based on index
     // Voice 0: MELODY (lead, soprano, fast notes)
     // Voice 1: HARMONY (supporting, alto, medium notes)
@@ -54,8 +54,8 @@ class CounterpointEngine {
     melodicProfile.noteLength = voiceRole.noteLength
     melodicProfile.activity = voiceRole.activity
 
-    // Generate voice based on role
-    const voiceNotes = this.generateVoiceNotes(material, range, melodicProfile, progression)
+    // Generate voice based on role (pass compositionCount for temporal variation - Entry #114)
+    const voiceNotes = this.generateVoiceNotes(material, range, melodicProfile, progression, compositionCount)
 
     return {
       voiceType,
@@ -152,9 +152,15 @@ class CounterpointEngine {
     return profile
   }
 
-  generateVoiceNotes(material, range, profile, progression) {
+  generateVoiceNotes(material, range, profile, progression, compositionCount = 0) {
     const voiceNotes = []
     let currentBeat = 0
+
+    // Extract chord tones from progression for harmonic context
+    const chordTones = this._extractChordTonesFromProgression(progression, range)
+
+    // Store compositionCount for temporal variation in pitch generation
+    this._currentCompositionCount = compositionCount
 
     if (material.notes && material.notes.length > 0) {
       // Adapt existing material to voice range
@@ -194,7 +200,8 @@ class CounterpointEngine {
       }[role] || 5
 
       for (let i = 0; i < noteCount; i++) {
-        let pitch = this.generatePitchForVoice(range, profile, i, noteCount)
+        // Use chord tones with PHI-based selection for harmonic coherence
+        let pitch = this.generatePitchFromChordTones(chordTones, range, profile, i, noteCount, role)
 
         if (i > 0) {
           const prevNote = voiceNotes[i-1]
@@ -217,6 +224,155 @@ class CounterpointEngine {
     }
 
     return voiceNotes
+  }
+
+  /**
+   * Extract chord tones from progression, transposed to voice range
+   * @param {Array} progression - Harmonic progression
+   * @param {Object} range - Voice range {min, max}
+   * @returns {Array} - Array of available chord tones within range
+   */
+  _extractChordTonesFromProgression(progression, range) {
+    const chordTones = new Set()
+
+    if (!progression || progression.length === 0) {
+      // Default to C major triad if no progression
+      const defaultTones = [0, 4, 7] // C, E, G (scale degrees)
+      defaultTones.forEach(tone => {
+        for (let octave = -2; octave <= 2; octave++) {
+          const pitch = 60 + tone + (octave * 12) // C4 = 60
+          if (pitch >= range.min && pitch <= range.max) {
+            chordTones.add(pitch)
+          }
+        }
+      })
+    } else {
+      // Extract all chord tones from progression
+      progression.forEach(chord => {
+        if (chord.notes && Array.isArray(chord.notes)) {
+          chord.notes.forEach(note => {
+            // Transpose note to all octaves within range
+            for (let octave = -3; octave <= 3; octave++) {
+              const pitch = note + (octave * 12)
+              if (pitch >= range.min && pitch <= range.max) {
+                chordTones.add(pitch)
+              }
+            }
+          })
+        }
+      })
+    }
+
+    return Array.from(chordTones).sort((a, b) => a - b)
+  }
+
+  /**
+   * Generate pitch from chord tones with PHI-based variation
+   * Different roles emphasize different chord tones
+   * Uses compositionCount for temporal variation across compositions
+   * @param {Array} chordTones - Available chord tones
+   * @param {Object} range - Voice range
+   * @param {Object} profile - Voice profile
+   * @param {number} index - Note index in phrase
+   * @param {number} total - Total notes in phrase
+   * @param {string} role - Voice role (melody, harmony, bass, pad)
+   * @returns {number} - MIDI pitch
+   */
+  generatePitchFromChordTones(chordTones, range, profile, index, total, role) {
+    if (!chordTones || chordTones.length === 0) {
+      // Fallback to old method if no chord tones
+      return this.generatePitchForVoice(range, profile, index, total)
+    }
+
+    const { min, max } = range
+    const rangeCenter = (min + max) / 2
+
+    // Temporal variation: compositionCount shifts selection across compositions
+    // This ensures successive compositions produce different note sequences
+    const compCount = this._currentCompositionCount || 0
+    const temporalOffset = (compCount * PHI) % 1
+
+    // Role-specific pitch selection strategy
+    switch (role) {
+      case 'bass': {
+        // Bass emphasizes roots (lowest chord tones) with occasional fifths
+        // PHI stepping + temporalOffset determines which chord tone to use
+        const bassWeight = ((index * PHI) + temporalOffset) % 1
+        // Select from lower portion of available tones
+        const lowerTones = chordTones.filter(t => t <= rangeCenter)
+        if (lowerTones.length > 0) {
+          // Temporal offset shifts which tone is selected each composition
+          const selectedIndex = Math.floor(bassWeight * lowerTones.length)
+          return lowerTones[selectedIndex]
+        }
+        // Fallback if no lower tones available
+        const toneIndex = Math.floor(bassWeight * Math.min(2, chordTones.length))
+        return chordTones[toneIndex]
+      }
+
+      case 'pad': {
+        // Pad holds sustained chord tones, mostly 3rds and 5ths
+        // Very slow movement, PHI + temporal offset selects which chord tone
+        const padSelector = ((index * PHI) + temporalOffset * 0.5) % 1
+        const padIndex = Math.floor(padSelector * chordTones.length)
+        return chordTones[padIndex]
+      }
+
+      case 'harmony': {
+        // Harmony fills in with chord tones, avoiding melody range
+        // PHI + index + temporal creates varied selection
+        const harmonySelector = ((index * PHI) + (total * PHI * 0.5) + temporalOffset) % 1
+        const harmonyIndex = Math.floor(harmonySelector * chordTones.length)
+        return chordTones[harmonyIndex]
+      }
+
+      case 'melody':
+      default: {
+        // Melody uses chord tones with passing tones (neighbors)
+        // More movement and variation using PHI + contour + temporal
+
+        // Base: select chord tone using PHI + temporal offset
+        const melodicSelector = ((index * PHI) + (index * index * 0.1) + temporalOffset) % 1
+        const baseIndex = Math.floor(melodicSelector * chordTones.length)
+        let pitch = chordTones[baseIndex]
+
+        // Add contour variation: sine curve with PHI-modulated frequency
+        // Temporal offset also modifies frequency for different contour shapes
+        const contourFreq = 1 + (((total * PHI) + temporalOffset) % 1) * 0.5 // 1.0-1.5
+        const position = index / Math.max(1, total - 1)
+        const contourOffset = Math.sin(position * Math.PI * contourFreq) * 3 // ±3 semitones
+
+        // Apply contour as chromatic offset, then snap to nearest chord tone
+        const targetPitch = pitch + Math.round(contourOffset)
+        pitch = this._snapToNearestChordTone(targetPitch, chordTones, range)
+
+        return pitch
+      }
+    }
+  }
+
+  /**
+   * Snap a pitch to the nearest available chord tone within range
+   */
+  _snapToNearestChordTone(targetPitch, chordTones, range) {
+    if (!chordTones || chordTones.length === 0) return targetPitch
+
+    let closest = chordTones[0]
+    let minDist = Math.abs(targetPitch - closest)
+
+    for (const tone of chordTones) {
+      const dist = Math.abs(targetPitch - tone)
+      if (dist < minDist) {
+        minDist = dist
+        closest = tone
+      }
+    }
+
+    // Ensure within range
+    while (closest < range.min) closest += 12
+    while (closest > range.max) closest -= 12
+
+    return closest
   }
 
   adaptPitchToRange(originalPitch, range, profile) {

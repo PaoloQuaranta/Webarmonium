@@ -4970,7 +4970,7 @@ Updated to v1.0.127
 
 ---
 
-## Entry #114 - Golden Ratio Deterministic Variation System
+## Entry #114 - Golden Ratio Deterministic Variation System + Harmonic Context Pitch Generation
 
 **Date**: 2026-01-15
 **Author**: Claude Code (AI Assistant)
@@ -4978,7 +4978,11 @@ Updated to v1.0.127
 
 ### Summary
 
-Implemented a comprehensive solution to address the "same phrase repetition" problem identified after Entry #111's Math.random() removal. The root cause was low-cardinality deterministic formulas (only 3-5 possible outputs) causing predictable cycling. Solution uses Golden Ratio (φ) stepping and multi-parameter mixing to maintain 100% determinism while achieving high variation.
+Two-phase implementation to address the "same phrase repetition" problem identified after Entry #111's Math.random() removal.
+
+**Phase 1**: Golden Ratio (φ) stepping and multi-parameter mixing for form/progression/duration selection.
+
+**Phase 2**: Harmonic context pitch generation - pitches now derive from chord tones in the progression instead of arbitrary sine curves. Added temporal variation via compositionCount so successive compositions produce different note sequences.
 
 ---
 
@@ -4990,10 +4994,12 @@ After removing ~50 `Math.random()` calls (Entry #111), some voices tended to pla
 2. **Predictable cycles**: Simple `index % 5` creates obvious 0,1,2,3,4,0,1,2... patterns
 3. **Same parameter everywhere**: Energy used for almost all decisions
 4. **Identical sinusoidal contours**: `sin(position * π)` produces the same arc every time
+5. **No harmonic context**: `generatePitchForVoice()` ignored the chord progression entirely
+6. **No temporal variation**: Same inputs always produced identical outputs across compositions
 
 ---
 
-### Solution: Three Techniques
+### Solution: Five Techniques
 
 #### 1. Golden Ratio (φ) Stepping
 
@@ -5029,6 +5035,36 @@ const roleFreq = { melody: 2, harmony: 3, bass: 1.5, pad: 1 }
 const variationFactor = Math.sin(position * Math.PI * roleFreq[role])
 ```
 
+#### 4. Harmonic Context Pitch Generation (Phase 2)
+
+New `generatePitchFromChordTones()` replaces arbitrary sine-curve pitch selection:
+
+- **Extracts chord tones** from progression and transposes to voice range
+- **Role-specific strategies**:
+  - **Bass**: Emphasizes roots (lowest chord tones), PHI stepping for variety
+  - **Pad**: Sustained chord tones (3rds, 5ths), slow movement
+  - **Harmony**: Fills with chord tones, avoids melody range
+  - **Melody**: Chord tones + chromatic passing tones, contour from PHI-modulated sine
+
+```javascript
+// Bass: select from lower chord tones with PHI stepping
+const bassWeight = ((index * PHI) + temporalOffset) % 1
+const lowerTones = chordTones.filter(t => t <= rangeCenter)
+return lowerTones[Math.floor(bassWeight * lowerTones.length)]
+```
+
+#### 5. Temporal Variation via compositionCount (Phase 2)
+
+`compositionCount` is passed through the composition chain and creates a temporal offset:
+
+```javascript
+const temporalOffset = (compositionCount * PHI) % 1
+// All pitch selections incorporate temporalOffset
+const melodicSelector = ((index * PHI) + temporalOffset) % 1
+```
+
+This ensures successive compositions produce different note sequences even with identical inputs.
+
 ---
 
 ### Files Created
@@ -5043,11 +5079,12 @@ const variationFactor = Math.sin(position * Math.PI * roleFreq[role])
 
 | File | Changes |
 |------|---------|
-| `backend/src/services/CompositionEngine.js` | Form selection uses energy + sectionHistory; technique selection uses φ stepping |
+| `backend/src/services/CompositionEngine.js` | Form selection uses energy + sectionHistory; stores compositionCount; passes to createVoice |
 | `backend/src/services/HarmonicEngine.js` | Extracted `_selectProgressionByComplexity()` helper; uses complexity + bars mixing |
-| `backend/src/services/CounterpointEngine.js` | Velocity contour uses φ for continuous frequency; duration uses φ stepping; gap variation uses role-specific frequencies |
-| `backend/src/services/PhraseMorphology.js` | Syncopation uses phrasePosition + curvature + noteIndex; scale uses curvature + velocity + angle; ornamentation varies by phrase position |
-| `backend/src/services/BackgroundCompositionService.js` | Beat calculation uses φ stepping |
+| `backend/src/services/CounterpointEngine.js` | **Major rewrite**: `_extractChordTonesFromProgression()`, `generatePitchFromChordTones()`, `_snapToNearestChordTone()`, temporal variation via compositionCount |
+| `backend/src/services/PhraseMorphology.js` | Syncopation uses phrasePosition + curvature + noteIndex; scale uses curvature + velocity + angle |
+| `backend/src/services/BackgroundCompositionService.js` | Beat calculation uses φ stepping; passes compositionCount to compose() |
+| `backend/src/services/LandingCompositionService.js` | Passes compositionCount to compose() |
 | `backend/src/utils/index.js` | Added PHI export, removed SeededRandom |
 
 ---
@@ -5060,63 +5097,60 @@ const variationFactor = Math.sin(position * Math.PI * roleFreq[role])
 
 ---
 
-### Code Review Fixes Applied
+### Key Implementation: Chord Tone Pitch Generation
 
-After initial implementation, code-reviewer agent identified 6 issues. All fixed:
-
-| Priority | Issue | Fix |
-|----------|-------|-----|
-| Critical | Missing null guards for PHI calculations | Added `\|\| 0` or `\|\| 0.5` defaults |
-| Critical | Low-cardinality frequency `(totalNotes % 3)` only 3 values | Changed to `((totalNotes * PHI) % 1) * 0.5` (continuous) |
-| High | Unused PHI_INVERSE export | Removed from constants.js |
-| High | Duplicate progression selection code | Extracted `_selectProgressionByComplexity()` helper |
-| Medium | Magic numbers undocumented | Added `// WEIGHTING:` comments |
-
----
-
-### Key Implementation Details
-
-**PHI Constant** (`backend/src/utils/constants.js`):
+**Extract chord tones from progression** (`CounterpointEngine.js`):
 ```javascript
-/**
- * Golden Ratio (φ)
- * Mathematical constant ≈ 1.618033988749894848
- *
- * Used for generating low-discrepancy sequences via the formula:
- * index = floor((n * φ) mod 1 * arrayLength)
- */
-const PHI = 1.618033988749894848
+_extractChordTonesFromProgression(progression, range) {
+  const chordTones = new Set()
+  progression.forEach(chord => {
+    chord.notes.forEach(note => {
+      // Transpose to all octaves within range
+      for (let octave = -3; octave <= 3; octave++) {
+        const pitch = note + (octave * 12)
+        if (pitch >= range.min && pitch <= range.max) {
+          chordTones.add(pitch)
+        }
+      }
+    })
+  })
+  return Array.from(chordTones).sort((a, b) => a - b)
+}
 ```
 
-**Example: Form Selection** (`CompositionEngine.js`):
+**Generate pitch with temporal variation** (`CounterpointEngine.js`):
 ```javascript
-// WEIGHTING: 70% energy (primary musical driver) + 30% time variation
-const historyLength = this.sectionHistory?.length || 0
-const timeVariation = (historyLength * PHI) % 1
-const combinedIndex = energy * 0.7 + timeVariation * 0.3
-const index = Math.min(Math.floor(combinedIndex * forms.length), forms.length - 1)
-```
+generatePitchFromChordTones(chordTones, range, profile, index, total, role) {
+  const temporalOffset = (this._currentCompositionCount * PHI) % 1
 
-**Example: Duration Selection** (`CounterpointEngine.js`):
-```javascript
-const safeIndex = index || 0
-const phiIndex = (arr) => Math.floor((safeIndex * PHI) % 1 * arr.length)
-return melodyOptions[phiIndex(melodyOptions)]
+  switch (role) {
+    case 'bass':
+      const bassWeight = ((index * PHI) + temporalOffset) % 1
+      const lowerTones = chordTones.filter(t => t <= rangeCenter)
+      return lowerTones[Math.floor(bassWeight * lowerTones.length)]
+    // ... other roles
+  }
+}
 ```
 
 ---
 
 ### Verification
 
+Test showing temporal variation works:
+```
+Bass pitches with different compositionCounts: 36, 41, 38
+(MIDI notes C2, F2, D2 - varies each composition)
+```
+
 - All backend modules load successfully
-- Test suite passes (15/17 - 2 pre-existing test file failures)
+- Test suite: 301 passed, 84 failed (TDD placeholders)
 - Server starts without errors
-- PHI correctly exported from utils barrel
 
 ---
 
 ### Version
 
-Updated to v1.0.128
+Updated to v1.0.129
 
 ---

@@ -521,10 +521,12 @@ class BackgroundCompositionService {
       roomState.lastCompositionTime = Date.now()
 
       // Generate composition using CompositionEngine
+      // Pass compositionCount for temporal variation (Entry #114)
       const composition = this.compositionEngine.compose({
         roomId,
         userCount: roomContext.userCount || 1,
-        activeUsers: roomContext.activeUsers || []
+        activeUsers: roomContext.activeUsers || [],
+        compositionCount: roomState.compositionCount
       })
 
 // console.log(`🎼 Generated ${composition.type} composition:`, {

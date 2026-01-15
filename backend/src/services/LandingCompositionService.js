@@ -1025,6 +1025,7 @@ class LandingCompositionService {
 
       // STEP 6: Generate background composition from gesture materials
       this.compositionCount++
+      // Pass compositionCount for temporal variation (Entry #114)
       const composition = this.compositionEngine.compose({
         roomId: this.landingRoomId,
         userCount: 3,
@@ -1032,7 +1033,8 @@ class LandingCompositionService {
           this.virtualUsers.wikipedia.userId,
           this.virtualUsers.hackernews.userId,
           this.virtualUsers.github.userId
-        ]
+        ],
+        compositionCount: this.compositionCount
       })
 
       // console.log(`🎵 Generated ${composition.type} composition #${this.compositionCount} (density=${this.compositionEngine.density.toFixed(2)}, energy=${energy.toFixed(2)})`)
