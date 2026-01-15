@@ -38,6 +38,9 @@ class CompositionEngine {
       // Store compositionCount for temporal variation (Entry #114)
       this.compositionCount = roomContext.compositionCount || 0
 
+      // DEBUG Entry #117: Log compositionCount to verify it changes
+      console.log(`🎼 CE.compose #${this.compositionCount}`)
+
       // 1. Analyze current musical context
       const currentStyle = this.styleAnalyzer.getCurrentStyle()
 // console.log(`🎼 Current style: energy=${currentStyle.energy?.toFixed(2)}, tempo=${currentStyle.tempo}`)
@@ -50,6 +53,8 @@ class CompositionEngine {
 
       // 3. Get available musical material
       const availableMaterial = this.getAvailableMaterial(roomContext)
+      // DEBUG Entry #117: Log material count
+      console.log(`🎼 CE material: ${availableMaterial.length} items, hasNotes: ${availableMaterial.map(m => m.notes?.length || 0).join(',')}`)
 // console.log(`🎼 Available material: ${availableMaterial.length} items`)
 
       // 4. Generate current section
