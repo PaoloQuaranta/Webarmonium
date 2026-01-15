@@ -5525,3 +5525,192 @@ Melody now changes with each composition:
 Updated to v1.0.132
 
 ---
+
+## Entry #118 - Complete Deterministic Composition Variation System
+
+**Date**: 2026-01-15
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+After Entry #117, user reported compositions still sounded like a "partitura" (fixed musical score). Discovered and fixed multiple additional causes: key always C ionian, chords not transposed, random initial offset, and form structure never resetting. All fixes use PHI-based deterministic variation (no `Math.random()`).
+
+---
+
+### Problem Statement
+
+Despite Entry #117 fixing melody pitch selection, compositions still started the same way every time. Investigation revealed 5 additional issues:
+
+1. **Key always "C ionian"**: `HarmonicEngine.generateProgression()` never varied the key
+2. **Chord notes not transposed**: Progressions defined in C, never transposed to current key
+3. **Random initial offset**: `compositionCount` started with `Math.random() * 100`
+4. **Form structure never reset**: Set once at startup, never changed
+5. **selectForm() static**: Form selection didn't use `compositionCount`
+
+---
+
+### Solution
+
+#### Fix 1: Key Variation Using Circle of Fifths
+
+**File:** `backend/src/services/HarmonicEngine.js`
+
+```javascript
+// Entry #117: Vary key based on compositionCount using circle of fifths
+const circleOfFifths = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F']
+const temporalOffset = (compositionCount * PHI) % 1
+const keyIndex = Math.floor(temporalOffset * circleOfFifths.length)
+this.currentKey = circleOfFifths[keyIndex]
+
+// Also vary mode occasionally
+const modes = ['ionian', 'dorian', 'mixolydian', 'aeolian']
+const modeSelector = ((compositionCount * PHI * 2) % 1)
+if (modeSelector > 0.7) {
+  const modeIndex = Math.floor(modeSelector * modes.length) % modes.length
+  this.currentMode = modes[modeIndex]
+} else {
+  this.currentMode = 'ionian'
+}
+```
+
+#### Fix 2: Chord Transposition to Current Key
+
+**File:** `backend/src/services/HarmonicEngine.js`
+
+Added two new methods:
+
+```javascript
+_getKeyOffset() {
+  const keyMap = {
+    'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
+    'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8,
+    'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+  }
+  return keyMap[this.currentKey] || 0
+}
+
+_transposeToCurrentKey(progression) {
+  const offset = this._getKeyOffset()
+  if (offset === 0) return progression
+  return progression.map(chord => ({
+    ...chord,
+    root: (chord.root + offset) % 12,
+    notes: chord.notes.map(note => note + offset)
+  }))
+}
+```
+
+Applied to all 5 progression generation methods:
+- `_generateSimpleProgression()`
+- `_generateModalProgression()`
+- `_generateJazzProgression()`
+- `_generateChromaticProgression()`
+- `_generateMinimalProgression()`
+
+#### Fix 3: Deterministic Initial Offset
+
+**Files:** `backend/src/services/LandingCompositionService.js`, `BackgroundCompositionService.js`
+
+Changed from random to deterministic:
+
+```javascript
+// BEFORE (random - bad!)
+this.compositionCount = Math.floor(Math.random() * 100)
+
+// AFTER (deterministic - PHI-based)
+const PHI = 1.618033988749894848
+this.compositionCount = Math.floor(((Date.now() / 1000) * PHI) % 100)
+```
+
+This ensures different starting points based on timestamp, but deterministically.
+
+#### Fix 4: Form Structure Periodic Reset
+
+**File:** `backend/src/services/CompositionEngine.js`
+
+```javascript
+// Entry #117: Reset form every ~8 compositions for variety
+const shouldResetForm = !this.formStructure ||
+  (this.compositionCount > 0 && ((this.compositionCount * PHI) % 1) < 0.12)
+
+if (shouldResetForm) {
+  this.formStructure = this.selectForm(currentStyle)
+  this.initializeFormStructure(this.formStructure)
+}
+```
+
+#### Fix 5: selectForm() Uses compositionCount
+
+**File:** `backend/src/services/CompositionEngine.js`
+
+```javascript
+const compCount = this.compositionCount || 0
+const temporalOffset = (compCount * PHI) % 1
+// Combine factors: energy (40%), temporalOffset (40%), history (20%)
+const combinedIndex = energy * 0.4 + temporalOffset * 0.4 + historyVariation * 0.2
+```
+
+#### Fix 6: CounterpointEngine Temporal Variation
+
+**File:** `backend/src/services/CounterpointEngine.js`
+
+Added temporal variation to multiple methods:
+
+- **generateVoice()**: Transposes existing material by -2 to +2 semitones based on compositionCount
+- **generatePitchFromChordTones()**: Melody selector now includes base temporalOffset so index=0 also varies
+- **generateDurationByRole()**: Duration array selection uses temporal offset
+- **generateGapByRole()**: Gap calculation includes temporal offset
+
+#### Fix 7: Centralized PHI Constant
+
+**File:** `backend/src/utils/constants.js` (NEW)
+
+```javascript
+/**
+ * Golden Ratio (φ)
+ * Used for generating low-discrepancy sequences
+ */
+const PHI = 1.618033988749894848
+
+module.exports = { PHI }
+```
+
+Exported from `backend/src/utils/index.js` for easy import.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/HarmonicEngine.js` | Key variation (circle of fifths), mode variation, `_getKeyOffset()`, `_transposeToCurrentKey()` |
+| `backend/src/services/CompositionEngine.js` | Form reset logic, selectForm() temporal variation, keyCenter sync |
+| `backend/src/services/LandingCompositionService.js` | Deterministic initial offset (2 locations) |
+| `backend/src/services/BackgroundCompositionService.js` | Deterministic initial offset |
+| `backend/src/services/CounterpointEngine.js` | Temporal variation in pitch, duration, gap generation |
+| `backend/src/utils/constants.js` | **NEW** - PHI constant definition |
+| `backend/src/utils/index.js` | Export PHI from barrel |
+
+---
+
+### Key Principle: NO RANDOM
+
+User explicitly requested: **"non voglio random!!!"**
+
+All variation now uses deterministic PHI-based formulas:
+- `temporalOffset = (compositionCount * PHI) % 1`
+- `((Date.now() / 1000) * PHI) % 100` for initial offset
+
+This ensures:
+- Same timestamp → same composition (reproducible)
+- Different timestamps → different compositions (varied)
+- No `Math.random()` anywhere in variation logic
+
+---
+
+### Version
+
+Updated to v1.0.139
+
+---
