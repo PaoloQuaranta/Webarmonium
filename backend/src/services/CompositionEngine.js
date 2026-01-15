@@ -257,6 +257,16 @@ class CompositionEngine {
       this.correctVoiceLeading(voices, validation.errors)
     }
 
+    // Entry #117: Clamp all pitches back to voice range after corrections
+    // This prevents voice leading corrections from moving notes outside playable range
+    voices.forEach(voice => {
+      const { min, max } = voice.range
+      voice.notes.forEach(note => {
+        while (note.pitch < min) note.pitch += 12
+        while (note.pitch > max) note.pitch -= 12
+      })
+    })
+
     return {
       type: 'polyphonic',
       voices,
@@ -685,33 +695,37 @@ class CompositionEngine {
   }
 
   correctParallelInterval(voices, error) {
-    // Move one voice to break parallelism
+    // Entry #117: Fixed cumulative correction bug
+    // Only correct first note once per voice
     const [voice1Index, voice2Index] = error.voices
-    const voice1 = voices[voice1Index]
     const voice2 = voices[voice2Index]
 
-    // Adjust the upper voice up by a semitone
-    if (voice2.notes.length > 0) {
+    if (voice2 && voice2.notes.length > 0 && !voice2._parallelCorrected) {
       voice2.notes[0].pitch += 1
+      voice2._parallelCorrected = true
     }
   }
 
   correctVoiceCrossing(voices, error) {
-    // Swap voice assignments to fix crossing
+    // Entry #117: Fixed cumulative correction bug
+    // Only correct if not already corrected (track with _crossingCorrected flag)
     const crossingIndex = voices.findIndex(v => v.voiceType === error.lowerVoice)
-    if (crossingIndex !== -1) {
+    if (crossingIndex !== -1 && !voices[crossingIndex]._crossingCorrected) {
       voices[crossingIndex].voiceType = error.upperVoice
       voices[crossingIndex].notes.forEach(note => {
         note.pitch += 12 // Move up an octave
       })
+      voices[crossingIndex]._crossingCorrected = true // Prevent cumulative corrections
     }
   }
 
   correctExcessiveSpacing(voices, error) {
-    // Move voices closer together
+    // Entry #117: Fixed cumulative correction bug
+    // Only correct once per voice
     const upperIndex = voices.findIndex(v => v.voiceType === error.upperVoice)
-    if (upperIndex !== -1 && voices[upperIndex].notes.length > 0) {
+    if (upperIndex !== -1 && voices[upperIndex].notes.length > 0 && !voices[upperIndex]._spacingCorrected) {
       voices[upperIndex].notes[0].pitch -= 6 // Move down a tritone
+      voices[upperIndex]._spacingCorrected = true
     }
   }
 
