@@ -5859,6 +5859,105 @@ v1.0.139 (no version bump - documentation only)
 
 ---
 
+## Entry #123 - Audio Auto-Restart Bug Fix
+
+**Date**: 2026-01-16
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed bug where audio would sometimes restart automatically after user pressed Stop, even without returning focus to the app. The issue was caused by missing early guards in visibility/focus handlers and an uncancelled setTimeout in the health check system.
+
+---
+
+### Problem Statement
+
+User reported intermittent audio restart when leaving the app open with audio stopped. Audio would resume without user interaction or focus change.
+
+---
+
+### Root Causes Identified
+
+1. **Visibility/Focus handlers lacked early guards** - Called `_performAudioRecovery()` without checking `_userStoppedAudio` first
+2. **Initial health check setTimeout not cancelled** - `_stopAudioHealthCheck()` only cleared the interval, not the initial setTimeout
+3. **`handleUserGestureForRecovery()` unconditionally cleared stop flag** - Could bypass user's stop action
+
+---
+
+### Solution
+
+#### Fix 1: Early guards in visibility/focus handlers
+
+Added `_userStoppedAudio` check at the start of:
+- `_handleVisibilityChange()` - Returns early if user stopped audio
+- `_handleWindowFocus()` - Returns early if user stopped audio
+- `_handlePageShow()` - Returns early if user stopped audio
+
+```javascript
+if (this._userStoppedAudio) {
+  console.log('🔊 Tab visible, but user stopped audio - skipping recovery')
+  return
+}
+```
+
+#### Fix 2: Cancel initial health check setTimeout
+
+Modified `_startAudioHealthCheck()` to store the initial setTimeout ID:
+```javascript
+this._audioHealthCheckInitialTimeout = setTimeout(
+  () => this._checkAudioHealth(),
+  config.HEALTH_CHECK_INITIAL_DELAY_MS
+)
+```
+
+Modified `_stopAudioHealthCheck()` to clear it:
+```javascript
+if (this._audioHealthCheckInitialTimeout) {
+  clearTimeout(this._audioHealthCheckInitialTimeout)
+  this._audioHealthCheckInitialTimeout = null
+}
+```
+
+#### Fix 3: handleUserGestureForRecovery respects user stop
+
+Added early return to prevent recovery when user explicitly stopped audio:
+```javascript
+if (this._userStoppedAudio) {
+  console.log('🔊 Gesture received, but user stopped audio - skipping recovery')
+  return
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Added 3 early guards, setTimeout tracking/cleanup, gesture recovery guard |
+
+---
+
+### Verification
+
+1. Start app, let audio play
+2. Press Stop button
+3. Wait 30+ seconds without interacting
+4. **Expected**: Audio remains stopped
+5. Switch tabs and return
+6. **Expected**: Audio still stopped, console shows "skipping recovery"
+7. Press Start to resume
+8. **Expected**: Audio plays normally
+
+---
+
+### Version
+
+Updated to v1.0.141
+
+---
+
 ## Entry #122 - Remove Dead Hover/HoverOrchestrator Code
 
 **Date**: 2026-01-15

@@ -230,6 +230,12 @@ class AudioService {
       return
     }
 
+    // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
+    if (this._userStoppedAudio) {
+      console.log('🔊 Tab visible, but user stopped audio - skipping recovery')
+      return
+    }
+
     console.log('🔊 Tab visible - initiating audio recovery...')
     await this._performAudioRecovery('visibility')
   }
@@ -239,6 +245,12 @@ class AudioService {
    * Mobile devices especially may not fire visibilitychange after sleep
    */
   async _handleWindowFocus() {
+    // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
+    if (this._userStoppedAudio) {
+      console.log('🔊 Window focused, but user stopped audio - skipping recovery')
+      return
+    }
+
     console.log('🔊 Window focus received - checking audio state...')
 
     // Small delay to let the system stabilize after wake
@@ -260,6 +272,12 @@ class AudioService {
    * @param {PageTransitionEvent} event
    */
   async _handlePageShow(event) {
+    // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
+    if (this._userStoppedAudio) {
+      console.log('🔊 Page shown, but user stopped audio - skipping recovery')
+      return
+    }
+
     if (event.persisted) {
       console.log('🔊 Page restored from BFCache - forcing audio recovery')
       await this._performAudioRecovery('pageshow-cached')
@@ -490,8 +508,11 @@ class AudioService {
       this._checkAudioHealth()
     }, checkInterval)
 
-    // Initial check after delay
-    setTimeout(() => this._checkAudioHealth(), config.HEALTH_CHECK_INITIAL_DELAY_MS)
+    // Entry #122: Store initial timeout ID for proper cleanup
+    this._audioHealthCheckInitialTimeout = setTimeout(
+      () => this._checkAudioHealth(),
+      config.HEALTH_CHECK_INITIAL_DELAY_MS
+    )
   }
 
   /**
@@ -501,6 +522,11 @@ class AudioService {
     if (this._audioHealthCheckInterval) {
       clearInterval(this._audioHealthCheckInterval)
       this._audioHealthCheckInterval = null
+    }
+    // Entry #122: Clear initial timeout too (was causing delayed restart after stop)
+    if (this._audioHealthCheckInitialTimeout) {
+      clearTimeout(this._audioHealthCheckInitialTimeout)
+      this._audioHealthCheckInitialTimeout = null
     }
   }
 
@@ -592,12 +618,18 @@ class AudioService {
    * Includes iOS-specific handling (very quiet tone instead of silent)
    */
   async handleUserGestureForRecovery() {
+    // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
+    // User must click Start button to resume, not just any gesture
+    if (this._userStoppedAudio) {
+      console.log('🔊 Gesture received, but user stopped audio - skipping recovery')
+      return
+    }
+
     console.log('🔊 User gesture received for audio recovery', {
       platform: this._isIOS ? 'iOS' : (this._isMobile ? 'mobile' : 'desktop'),
       contextState: Tone.context?.state
     })
     this._wakeRecoveryAttempts = 0
-    this._userStoppedAudio = false // Clear user stop flag on explicit gesture
 
     const config = this._recoveryConfig
 
