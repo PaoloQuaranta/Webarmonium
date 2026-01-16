@@ -1656,6 +1656,7 @@ class WebarmoniumApp {
           this.isAudioStarted = true
           button.textContent = '⏸'
           button.classList.remove('disabled')
+          button.classList.add('playing')
 
           // Entry #27: CRITICAL - Unmute audio when starting (localStorage may have saved muted=true)
           this.audioService.setMuted(false)
@@ -1687,6 +1688,7 @@ class WebarmoniumApp {
       this.audioService.stop()
       this.isAudioStarted = false
       button.textContent = '▶'
+      button.classList.remove('playing')
       // console.log('🔇 Audio stopped')
     }
   }
@@ -1923,6 +1925,7 @@ class WebarmoniumApp {
           if (button) {
             button.textContent = '⏸'
             button.classList.remove('disabled')
+            button.classList.add('playing')
           }
 
           // Play pending drone if saved

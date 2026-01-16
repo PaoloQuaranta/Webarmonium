@@ -619,6 +619,7 @@ class UIManager {
       // Use audio state directly - more reliable than reading original toggle text
       const isPlaying = window.webarmoniumApp?.isAudioStarted
       this.mobileAudioBtn.textContent = isPlaying ? '⏸' : '▶'
+      this.mobileAudioBtn.classList.toggle('playing', isPlaying)
     }
   }
 

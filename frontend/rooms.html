@@ -244,6 +244,14 @@
             box-shadow: none;
         }
 
+        .audio-toggle.playing {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .audio-toggle.playing:hover {
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
         .back-link {
             background: rgba(255, 255, 255, 0.1);
             color: #a5b4fc;
@@ -747,7 +755,6 @@
                     </div>
                     <div class="room-center"></div>
                     <div class="audio-controls">
-                        <a href="index.html" class="back-link">← Back</a>
                         <button class="audio-toggle" id="audioToggle">▶</button>
                         <div id="audio-controls"></div>
                     </div>

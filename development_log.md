@@ -6259,3 +6259,66 @@ Room page retains its unique features:
 v1.0.145
 
 ---
+
+## Entry #125 - Play Button Red State + Remove Back Button
+
+**Date**: 2026-01-16
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Added red "playing" state to room audio toggle button (matching landing page behavior) and removed the now-redundant "Back" button from room interface.
+
+---
+
+### Changes
+
+#### 1. Added `.audio-toggle.playing` CSS
+
+**File:** `frontend/rooms.html`
+
+```css
+.audio-toggle.playing {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.audio-toggle.playing:hover {
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+```
+
+#### 2. Toggle `playing` class in JavaScript
+
+**File:** `frontend/src/main.js`
+
+- Added `button.classList.add('playing')` when audio starts (2 locations)
+- Added `button.classList.remove('playing')` when audio stops
+
+**File:** `frontend/src/services/UIManager.js`
+
+- Added `this.mobileAudioBtn.classList.toggle('playing', isPlaying)` for mobile button sync
+
+#### 3. Removed Back Button
+
+**File:** `frontend/rooms.html`
+
+Removed `<a href="index.html" class="back-link">← Back</a>` from audio-controls div.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/rooms.html` | Added `.audio-toggle.playing` CSS, removed back-link from HTML |
+| `frontend/src/main.js` | Added `playing` class toggle on start/stop |
+| `frontend/src/services/UIManager.js` | Added `playing` class toggle for mobile button |
+
+---
+
+### Version
+
+v1.0.146
+
+---
