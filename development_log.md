@@ -6042,3 +6042,111 @@ return stability > density ? 'tap' : 'drag'
 v1.0.140
 
 ---
+
+## Entry #123 - Remove CursorManager Rendering Layer (Keep p5.js Only)
+
+**Date**: 2026-01-16
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Removed the CursorManager Canvas 2D rendering layer, keeping only the p5.js SpringMeshNetwork for cursor visualization. Two overlapping cursor layers were rendering simultaneously: CursorManager drew large circles with crosshairs on a separate overlay canvas, while SpringMeshNetwork rendered physics-driven nodes with Bezier connections in p5.js. CursorManager is kept for data tracking only (positions, colors, virtual cursors).
+
+---
+
+### Problem
+
+Two cursor visualization systems were rendering simultaneously:
+
+| Layer | Technology | Visual |
+|-------|------------|--------|
+| **CursorManager** | Canvas 2D (`cursorOverlay`) | Large circles + crosshair + label |
+| **SpringMeshNetwork** | p5.js | Small nodes with physics + Bezier connections |
+
+The p5.js layer was the intended visualization; the CursorManager layer was leftover from earlier implementation.
+
+---
+
+### Solution
+
+#### 1. Hidden Overlay Canvas
+
+**File:** `frontend/rooms.html`
+
+```html
+<!-- Cursor overlay canvas DISABLED - cursors now rendered in p5.js SpringMeshNetwork -->
+<canvas id="cursorOverlay"
+    style="display: none; position: absolute; top: 0; left: 0; ..."></canvas>
+```
+
+#### 2. Removed Rendering Methods from CursorManager
+
+**File:** `frontend/src/services/CursorManager.js`
+
+| Removed | Purpose |
+|---------|---------|
+| `renderCursors()` | Main render loop |
+| `renderSingleCursor()` | Draw single cursor circle |
+| `drawCrosshair()` | Crosshair overlay |
+| `drawUserLabel()` | User name label |
+| `startRendering()` | Start animation loop |
+| `stopRendering()` | Stop animation loop |
+
+**Kept for data tracking:**
+- `updateCursor()`, `removeCursor()`, `getCursor()`, `getAllCursors()`
+- Virtual cursor methods: `addVirtualCursor()`, `removeVirtualCursor()`, etc.
+
+#### 3. Removed Unused Code from GenerativeVisualService
+
+**File:** `frontend/src/services/GenerativeVisualService.js`
+
+| Removed | Reason |
+|---------|--------|
+| `this.cursorManager` | Never used |
+| `setCursorManager()` | Never called after main.js cleanup |
+| `renderCursors(p)` | Never called in draw loop |
+
+#### 4. Cleaned Up main.js
+
+**File:** `frontend/src/main.js`
+
+- Removed: `this.visualService.setCursorManager(this.cursorManager)`
+- Updated comments to explain new architecture
+
+---
+
+### Architecture After Change
+
+```
+Cursor Data Flow:
+  SocketService → CursorManager (data only) → SpringMeshNetwork (p5.js rendering)
+                         ↓
+              Tracks: positions, colors, virtual cursors
+              No longer: renders anything
+
+Visual Rendering:
+  SpringMeshNetwork.draw() → p5.js canvas
+    - Physics-based node positioning
+    - Bezier curve connections
+    - User labels
+```
+
+---
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `frontend/rooms.html` | Added `display: none` to `#cursorOverlay` |
+| `frontend/src/services/CursorManager.js` | Removed 6 rendering methods (~150 lines) |
+| `frontend/src/services/GenerativeVisualService.js` | Removed `setCursorManager`, `renderCursors` |
+| `frontend/src/main.js` | Removed setCursorManager call, updated comments |
+
+---
+
+### Version
+
+v1.0.143
+
+---

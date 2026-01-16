@@ -57,8 +57,7 @@ class GenerativeVisualService {
     // Background color (matching Webarmonium theme)
     this.bgColor = [26, 26, 46]
 
-    // PERF: Consolidated cursor rendering (eliminates CursorManager rAF loop)
-    this.cursorManager = null
+    // Hold state accessors for consolidated rendering
     this.getActiveLocalHold = null  // Function to get local hold state
     this.getActiveRemoteHolds = null  // Function to get remote holds Map
   }
@@ -488,17 +487,8 @@ class GenerativeVisualService {
   }
 
   // =========================================================================
-  // CONSOLIDATED CURSOR RENDERING (Fase 9 - Performance Optimization)
-  // Eliminates separate CursorManager rAF loop by rendering cursors in p5.js
+  // HOLD INDICATOR RENDERING
   // =========================================================================
-
-  /**
-   * Set cursor manager reference for consolidated rendering
-   * @param {CursorManager} cursorManager - Reference to cursor manager
-   */
-  setCursorManager(cursorManager) {
-    this.cursorManager = cursorManager
-  }
 
   /**
    * Set hold state accessor functions
@@ -510,63 +500,7 @@ class GenerativeVisualService {
     this.getActiveRemoteHolds = getRemoteHolds
   }
 
-  /**
-   * Render all cursors from CursorManager
-   * PERF: Called from p5.js draw() loop instead of separate rAF loop
-   * @param {p5} p - p5.js instance
-   */
-  renderCursors(p) {
-    if (!this.cursorManager?.cursors) return
-
-    this.cursorManager.cursors.forEach((cursor, userId) => {
-      const { x, y, color, isDrawing, isVirtual, alpha } = cursor
-      const pixelX = x * p.width
-      const pixelY = y * p.height
-
-      p.push()
-
-      // Apply alpha for virtual cursor fade animations
-      if (alpha !== undefined && alpha < 1) {
-        p.drawingContext.globalAlpha = alpha
-      }
-
-      // Cursor circle - larger base size to match landing page visibility
-      // Virtual cursors use dashed line style (handled below)
-      const baseSize = isDrawing ? 16 : 20
-      const size = baseSize
-      p.noFill()
-      p.stroke(color)
-      p.strokeWeight(isVirtual ? 1.5 : 2.5)
-
-      // Set dash pattern for virtual cursors
-      if (isVirtual) {
-        p.drawingContext.setLineDash([8, 5])
-      }
-
-      p.circle(pixelX, pixelY, size * 2)
-
-      // Reset line dash
-      if (isVirtual) {
-        p.drawingContext.setLineDash([])
-      }
-
-      // Crosshair lines
-      const crosshairExtend = 8
-      p.strokeWeight(1.5)
-      p.line(pixelX - size - crosshairExtend, pixelY, pixelX + size + crosshairExtend, pixelY)
-      p.line(pixelX, pixelY - size - crosshairExtend, pixelX, pixelY + size + crosshairExtend)
-
-      // User label
-      const label = isVirtual ? userId.replace('-metrics', '') : userId.substring(0, 8)
-      p.fill(color)
-      p.noStroke()
-      p.textAlign(p.CENTER, p.TOP)
-      p.textSize(12)
-      p.text(label, pixelX, pixelY + size + 8)
-
-      p.pop()
-    })
-  }
+  // REMOVED: setCursorManager and renderCursors - cursors now rendered in SpringMeshNetwork as nodes
 
   /**
    * Render hold indicators (pulsing circles for sustained holds)

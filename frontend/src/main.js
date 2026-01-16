@@ -105,10 +105,6 @@ class WebarmoniumApp {
           }
         })
 
-        // PERF: Consolidated cursor rendering - eliminates CursorManager rAF loop
-        // Pass cursor manager to visualService for rendering in p5.js draw() loop
-        this.visualService.setCursorManager(this.cursorManager)
-
         // PERF: Pass hold state accessors for consolidated hold indicator rendering
         // This eliminates the separate startRenderLoop() rAF loop
         this.visualService.setHoldReferences(
@@ -256,9 +252,8 @@ class WebarmoniumApp {
     )
     // console.log('🎯 GestureProcessor initialized')
 
-    // PERF: Cursor rendering is now consolidated in p5.js draw() loop
-    // This eliminates the separate 60fps rAF loop for cursors
-    // this.cursorManager.startRendering()  // DISABLED - see visualService.setCursorManager()
+    // NOTE: Cursor rendering is now handled by SpringMeshNetwork in p5.js
+    // CursorManager is kept only for data tracking (positions, colors, virtual cursors)
 
     // Track gesture time for optimized canvas clearing
     this.lastGestureRenderTime = 0
