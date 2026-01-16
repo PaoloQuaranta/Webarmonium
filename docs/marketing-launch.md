@@ -13,6 +13,7 @@
 | **Hacker News** | 1-2 giorni dopo PH | 15:00-17:00 | Mattina US, massima attività |
 | **Reddit** | Stesso giorno di HN | 18:00-20:00 | Pomeriggio US |
 | **Twitter/X** | Giorno di PH | 09:00 + 15:00 | Due post: lancio + reminder |
+| **Instagram** | Giorno di PH | 12:00-14:00 + 19:00-21:00 | Pausa pranzo + sera IT |
 
 **Strategia:** Product Hunt prima, poi HN dopo 1-2 giorni per non dividere l'attenzione.
 
@@ -230,6 +231,59 @@ GitHub developers are adding percussion.
 All happening live on Webarmonium → https://webarmonium.net
 ```
 
+### Tweet Alternativo (Artistico)
+
+```
+The internet never stops.
+
+Neither does its music.
+
+Webarmonium turns the constant pulse of Wikipedia, HackerNews, and GitHub into an infinite generative composition.
+
+No two moments sound the same.
+
+→ https://webarmonium.net
+```
+
+### Tweet Alternativo (Minimalista)
+
+```
+What does the internet sound like?
+
+→ https://webarmonium.net
+```
+
+### Tweet per Developer
+
+```
+Built a thing: real-time data sonification
+
+Wikipedia edits → bass
+HN posts → melody
+GitHub commits → percussion
+
+Stack: Vanilla JS, Tone.js, Socket.io, p5.js
+
+No frameworks. No build step. Just vibes.
+
+https://webarmonium.net
+```
+
+### Tweet con Video/GIF
+
+```
+30 seconds of the internet making music.
+
+Every blip is real data:
+🔴 Wikipedia edit
+🟠 HackerNews post
+🔵 GitHub commit
+
+[VIDEO/GIF]
+
+Try it live → https://webarmonium.net
+```
+
 ### Thread Tecnico (opzionale)
 
 ```
@@ -258,6 +312,164 @@ All happening live on Webarmonium → https://webarmonium.net
 Technical docs: https://webarmonium.net/technical-appendix.html
 ```
 
+### Hashtag Consigliati (Twitter)
+
+Primari: `#GenerativeMusic` `#WebAudio` `#CreativeCoding`
+Secondari: `#DataSonification` `#JavaScript` `#OpenSource`
+Discovery: `#IndieHacker` `#BuildInPublic` `#SideProject`
+
+---
+
+## Instagram
+
+### Bio Suggerita
+
+```
+Webarmonium
+🎵 The internet is playing music
+Real-time generative compositions from web activity
+↓ Listen now ↓
+webarmonium.net
+```
+
+### Post Feed - Lancio Principale
+
+**Immagine:** og-image.png o screenshot della landing page
+
+**Caption:**
+```
+The internet never sleeps. Neither does its music.
+
+Webarmonium transforms real-time web activity into generative compositions:
+
+🔴 Every Wikipedia edit becomes a bass note
+🟠 Every HackerNews post becomes a melody
+🔵 Every GitHub commit becomes an accent
+
+The result? An infinite, ever-changing soundtrack of human activity online.
+
+You can also join collaborative rooms and create music with strangers through simple gestures—tap for notes, drag for phrases.
+
+No account needed. Free forever.
+
+Link in bio → webarmonium.net
+
+#generativemusic #creativecoding #webdevelopment #datasonification #ambientmusic #experimentalmusic #javascript #webdesign #musictech #newmedia #digitalart #sounddesign #coding #developer #sideproject #indiemaker
+```
+
+### Post Feed - Behind the Scenes
+
+**Immagine:** Screenshot del codice o architettura
+
+**Caption:**
+```
+How it works 🔧
+
+Webarmonium listens to three data streams:
+
+1. Wikipedia Recent Changes API — real-time edits from editors worldwide
+2. HackerNews — new posts as they appear
+3. GitHub public events — commits, PRs, stars
+
+Each event gets mapped to musical parameters:
+• Position → frequency (pitch)
+• Source → instrument timbre
+• Timing → rhythm
+
+The composition is deterministic: same data = same music. No randomness involved.
+
+Built with vanilla JavaScript, Tone.js, Socket.io, and p5.js. No frameworks, no build step.
+
+Try it → link in bio
+
+#behindthescenes #webdev #javascript #creativetechnology #howitsbuilt #techart #musicproduction #generativeart #coding #developer
+```
+
+### Post Feed - Collaborative Rooms
+
+**Immagine:** Screenshot di una room con più cursori
+
+**Caption:**
+```
+Music is better together.
+
+In Webarmonium's collaborative rooms, up to 4 people can create music at the same time:
+
+👆 Tap for percussive notes
+✋ Hold for sustained tones
+👉 Drag for melodic phrases
+
+The room develops "environmental memory"—it learns from how people play and evolves its character over 24 hours.
+
+Join a room and jam with strangers. No signup needed.
+
+→ webarmonium.net (link in bio)
+
+#collaborativemusic #livemusic #jamming #musicproduction #creativecoding #realtimemusic #generativemusic #webmusic
+```
+
+### Reel / Video Post
+
+**Durata:** 30-60 secondi
+**Contenuto:** Screen recording della landing page con audio
+
+**Caption:**
+```
+This is what the internet sounds like right now 🎵
+
+Every blip you hear is real data:
+🔴 Wikipedia edit
+🟠 HackerNews post
+🔵 GitHub commit
+
+The music never repeats because the internet never stops.
+
+Try it yourself → link in bio
+
+#generativemusic #ambientmusic #experimentalmusic #datasonification #creativecoding #satisfying #asmr #coding #webdev
+```
+
+**Audio:** Usa l'audio originale del sito (non musica di sottofondo)
+
+### Stories Ideas
+
+**Story 1 - Hook:**
+```
+[Video 5 sec della landing page]
+Testo: "The internet is making music right now"
+Sticker: Link "Try it"
+```
+
+**Story 2 - Explanation:**
+```
+[Screenshot con annotazioni]
+Testo: "Every dot = real data"
+🔴 = Wikipedia edit
+🟠 = HN post
+🔵 = GitHub commit
+```
+
+**Story 3 - CTA:**
+```
+[Video della room collaborativa]
+Testo: "Join a room and jam with strangers"
+Sticker: Link + Poll "Would you try this?"
+```
+
+### Hashtag Strategy (Instagram)
+
+**Primari (alta rilevanza):**
+`#generativemusic` `#creativecoding` `#datasonification` `#ambientmusic` `#experimentalmusic`
+
+**Secondari (community):**
+`#webdevelopment` `#javascript` `#musictech` `#sounddesign` `#digitalart`
+
+**Discovery (volume):**
+`#coding` `#developer` `#sideproject` `#indiemaker` `#newmedia`
+
+**Niche:**
+`#tonejs` `#webaudio` `#p5js` `#creativetechnology` `#algorithmicmusic`
+
 ---
 
 ## Checklist Lancio
@@ -272,7 +484,9 @@ Technical docs: https://webarmonium.net/technical-appendix.html
 - [ ] 09:00 IT - Submit su Product Hunt
 - [ ] 09:05 IT - Postare First Comment
 - [ ] 09:10 IT - Tweet di lancio
+- [ ] 12:00-14:00 IT - Post Instagram (feed + stories)
 - [ ] 15:00 IT - Tweet reminder
+- [ ] 19:00-21:00 IT - Instagram Reel/secondo post
 - [ ] Monitorare commenti PH e rispondere
 
 ### Giorno 2-3 (Hacker News + Reddit)
