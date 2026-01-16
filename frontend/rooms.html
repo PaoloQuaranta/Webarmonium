@@ -791,7 +791,7 @@
     <script src="src/services/visual/ParticleFlowManager.js?v=11"></script> <!-- PERF: Object pooling -->
     <script src="src/services/visual/NoiseTextureNebulaSystem.js?v=4"></script>
     <script src="src/services/visual/PrecomputedAttractorSystem.js?v=10"></script>
-    <script src="src/services/GenerativeVisualService.js?v=12"></script>
+    <script src="src/services/GenerativeVisualService.js?v=13"></script> <!-- Entry #123: Removed unused cursor methods -->
 
     <!-- Musical Architecture (from commit a3c12b9) - PHASE 2 FIX -->
     <script src="src/services/MusicalScheduler.js?v=1"></script>
@@ -831,7 +831,7 @@
         })
     </script>
     <!-- DrawingRenderer.js REMOVED - replaced by p5.js GenerativeVisualService -->
-    <script src="src/services/CursorManager.js?v=9"></script> <!-- FIX: Halved cursor sizes (10px base) -->
+    <script src="src/services/CursorManager.js?v=10"></script> <!-- Entry #123: Removed rendering, data tracking only -->
     <script src="src/services/NotificationService.js?v=1"></script>
 
     <!-- Phase 3: Gesture modules (decomposed from EnhancedGestureCapture) -->
@@ -866,7 +866,7 @@
             }
         }, 1000)
     </script>
-    <script src="src/main.js?v=72"></script> <!-- Entry #69: Virtual P&P fix -->
+    <script src="src/main.js?v=73"></script> <!-- Entry #123: Removed setCursorManager -->
 </body>
 
 </html>
