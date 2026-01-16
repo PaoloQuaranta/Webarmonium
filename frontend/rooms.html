@@ -170,6 +170,23 @@
             gap: 1rem;
         }
 
+        .room-logo-link {
+            display: flex;
+            align-items: center;
+            flex: 0 0 auto;
+        }
+
+        .room-logo {
+            height: 32px;
+            width: auto;
+            opacity: 0.9;
+            transition: opacity 0.2s;
+        }
+
+        .room-logo:hover {
+            opacity: 1;
+        }
+
         .room-info {
             display: flex;
             align-items: center;
@@ -307,6 +324,10 @@
 
         /* Entry #48: Mobile optimizations */
         @media (max-width: 768px) {
+            .room-logo {
+                height: 28px;
+            }
+
             .room-interface {
                 top: max(10px, env(safe-area-inset-top, 10px));
                 left: max(10px, env(safe-area-inset-left, 10px));
@@ -717,6 +738,9 @@
             <!-- Room interface -->
             <div class="room-interface">
                 <div class="room-status">
+                    <a href="/" class="room-logo-link" title="Webarmonium Home">
+                        <img src="/webarmonium-logo.svg" alt="Webarmonium" class="room-logo">
+                    </a>
                     <div class="room-info">
                         <div class="user-count" id="userCount">1 user</div>
                         <div class="room-id" id="roomId">Room: connecting...</div>

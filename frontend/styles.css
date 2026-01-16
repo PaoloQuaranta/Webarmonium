@@ -75,6 +75,30 @@ header p {
   margin: 0 auto;
 }
 
+/* Header Logo */
+.header-logo-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  text-decoration: none;
+}
+
+.header-logo {
+  height: 48px;
+  width: auto;
+}
+
+/* Hide text on mobile, show only icon */
+@media (max-width: 480px) {
+  .header-logo-link h1 {
+    display: none;
+  }
+  .header-logo {
+    height: 40px;
+  }
+}
+
 /* Messages */
 .message {
   display: none;
