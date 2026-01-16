@@ -75,27 +75,35 @@ header p {
   margin: 0 auto;
 }
 
-/* Header Logo */
-.header-logo-link {
-  display: inline-flex;
+/* Corner Logo */
+.corner-logo-link {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1001;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
   text-decoration: none;
+  transition: transform 0.2s ease;
 }
 
-.header-logo {
-  height: 48px;
+.corner-logo-link:hover {
+  transform: scale(1.05);
+}
+
+.corner-logo {
+  height: 40px;
   width: auto;
 }
 
-/* Hide text on mobile, show only icon */
 @media (max-width: 480px) {
-  .header-logo-link h1 {
-    display: none;
+  .corner-logo-link {
+    top: 0.75rem;
+    left: 0.75rem;
   }
-  .header-logo {
-    height: 40px;
+  .corner-logo {
+    height: 32px;
   }
 }
 

@@ -1,379 +1,310 @@
-# 🎵 Webarmonium
+# Webarmonium
 
-**Collaborative Generative Music Ecosystem**
+**Real-time generative music from internet activity**
 
-Webarmonium is a real-time collaborative platform where users control generative music through intuitive gestures across devices. Built with constitutional principles ensuring performance, privacy, and musical innovation.
+Webarmonium transforms live data streams into music and enables collaborative music creation through gestures. No account needed, completely free.
 
-![Webarmonium Demo](docs/images/webarmonium-demo.gif)
+**Live:** [webarmonium.net](https://webarmonium.net)
 
-## ✨ Features
+---
 
-### 🎹 **Generative Music Engine**
-- **Algorithmic Composition**: CompositionEngine with form structures (ABA, rondo, sonata) and multi-voice generation
-- **Genre-Agnostic Generation**: Creates music spanning classical, electronic, ambient, and experimental styles
-- **Real-Time Evolution**: Sound patterns adapt and evolve based on user interactions
-- **Environmental Memory**: Rooms develop unique sonic personalities over 24 hours
+## What It Does
 
-### 🤝 **Collaborative Experience**
-- **Anonymous Sessions**: No accounts required - instant participation
-- **5-10 User Rooms**: Constitutional capacity limits for optimal collaboration
-- **Cross-Platform Gestures**: Mouse, touch, and gyroscope input normalization
-- **Real-Time Synchronization**: <100ms WebSocket latency for seamless interaction
+### Landing Page: The Internet Is Playing Music
 
-### 🎨 **Intuitive Controls**
-- **Visual Canvas**: 60fps gesture capture with multi-touch support
-- **Gesture-to-Sound Mapping**: X/Y coordinates → frequency/amplitude, intensity → dynamics
-- **Device Adaptation**: Automatic calibration for desktop, mobile, and tablet
-- **Visual Feedback**: Real-time trail rendering for gesture visualization
+The landing page connects to three real-time data sources:
 
-### ⚡ **Performance Excellence**
-- **<200ms Audio Latency**: Constitutional requirement for gesture-to-sound response
-- **60fps Rendering**: Smooth visual feedback on all devices
-- **<100ms WebSocket**: Real-time synchronization between collaborators
-- **Memory Management**: Automatic cleanup with 24-hour retention limits
+| Source | Musical Role | Data Stream |
+|--------|-------------|-------------|
+| **Wikipedia** | Bass frequencies | Recent Changes API (EventSource) |
+| **HackerNews** | Melodic phrases | New stories endpoint |
+| **GitHub** | Percussive accents | Public events API |
 
-## 🚀 Quick Start
+Every event maps to musical parameters:
+- **X position** → frequency (220-880 Hz)
+- **Y position** → harmonics and amplitude
+- **Source** → instrument timbre
+
+The composition is fully deterministic—same input data produces the same music.
+
+### Collaborative Rooms: Make Music Together
+
+Up to 4 people can create music simultaneously through gestures:
+
+| Gesture | Musical Result |
+|---------|---------------|
+| **Tap** | Percussive notes |
+| **Hold** | Sustained tones |
+| **Drag** | Melodic phrases |
+
+Rooms develop **environmental memory**—they learn from interaction patterns and evolve their sonic personality over 24 hours.
+
+---
+
+## Tech Stack
+
+### Frontend
+- **Vanilla JavaScript** — no frameworks, no build step
+- **Tone.js** v14.7.77 — Web Audio synthesis
+- **Socket.io Client** v4.7.5 — real-time communication
+- **p5.js** — physics-based visualizations
+- **Canvas API** — 60fps gesture rendering
+
+### Backend
+- **Node.js** 18+ with Express
+- **Socket.io** v4.7.5 — WebSocket server
+- **UUID** v9.0.1 — anonymous session management
+
+### Performance Targets
+- **<200ms** gesture-to-sound latency
+- **<100ms** WebSocket round-trip
+- **60fps** canvas rendering
+- **24-hour** memory retention with automatic cleanup
+
+---
+
+## Quick Start
 
 ### Prerequisites
-- **Node.js** 18+
-- **NPM** 8+
+- Node.js 18+
 - Modern browser with Web Audio API support
 
-### Installation
+### Development
 
 ```bash
 # Clone repository
-git clone https://github.com/your-org/webarmonium.git
+git clone https://github.com/your-username/webarmonium.git
 cd webarmonium
 
-# Install backend dependencies
+# Start backend (port 3001)
 cd backend
 npm install
-
-# Install frontend dependencies
-cd ../frontend
-npm install
-```
-
-### Development Setup
-
-```bash
-# Terminal 1: Start backend server
-cd backend
 npm run dev
 
-# Terminal 2: Start frontend development server
+# Start frontend (port 3000) - in another terminal
 cd frontend
+npm install
 npm start
 
-# Open browser to http://localhost:3000
+# Open http://localhost:3000
 ```
 
-### Production Deployment
+### Production
 
 ```bash
-# Build frontend
+# Backend
+cd backend
+npm install --production
+npm start
+
+# Frontend (no build step needed)
 cd frontend
-npm run build
-
-# Start production server
-cd ../backend
-npm run start
+npm start
 ```
 
-## 🏗️ Architecture
+---
 
-### **Frontend** (React + Canvas + Web Audio)
+## Architecture
+
 ```
-src/
-├── components/
-│   ├── GestureCanvas.js      # 60fps gesture capture + rendering
-│   ├── AudioEngine.js        # Web Audio API + Tone.js synthesis
-│   └── RoomInterface.js      # User management UI
-└── services/
-    ├── SocketService.js      # WebSocket client (<100ms latency)
-    ├── GestureCapture.js     # Cross-platform input normalization
-    └── AudioService.js       # Real-time audio parameter mapping
+webarmonium/
+├── frontend/
+│   └── src/
+│       ├── main.js                    # Entry point (WebarmoniumApp class)
+│       ├── services/
+│       │   ├── audio/
+│       │   │   ├── AudioService.js    # Three-tier audio system
+│       │   │   ├── GenerativeMusicEngine.js
+│       │   │   └── CompositionPlayer.js
+│       │   ├── gesture/
+│       │   │   └── EnhancedGestureCapture.js
+│       │   ├── visual/
+│       │   │   ├── SpringMeshNetwork.js   # Physics-based visualization
+│       │   │   └── ParticleFlowManager.js
+│       │   └── SocketService.js       # WebSocket client
+│       └── landing/
+│           ├── DashboardUI.js         # Metrics visualization
+│           └── MetricsCollectorService.js
+│
+├── backend/
+│   └── src/
+│       ├── server.js                  # Express + Socket.io
+│       ├── services/
+│       │   ├── RoomManager.js         # Room lifecycle
+│       │   ├── CompositionEngine.js   # Algorithmic composition
+│       │   ├── HarmonicEngine.js      # Progressions, voice leading
+│       │   ├── BackgroundCompositionService.js
+│       │   ├── EnvironmentalMemoryCoordinator.js
+│       │   ├── VirtualUserService.js  # Simulated users from web data
+│       │   └── WebMetricsPoller.js    # Wikipedia/HN/GitHub polling
+│       ├── models/
+│       │   ├── Room.js, User.js, Gesture.js
+│       │   └── SoundPattern.js, MemoryState.js
+│       └── api/
+│           └── handlers/              # Socket event handlers
+│
+└── docs/
+    ├── deployment.md
+    └── marketing-launch.md
 ```
 
-### **Backend** (Node.js + Socket.io + Express)
-```
-src/
-├── models/
-│   ├── User.js              # Anonymous session management
-│   ├── Room.js              # 5-10 user collaborative spaces
-│   ├── Gesture.js           # Input validation + processing
-│   ├── SoundPattern.js      # Evolving musical elements
-│   └── MemoryState.js       # 24-hour environmental learning
-├── services/
-│   ├── RoomManager.js       # Room lifecycle coordination
-│   ├── GestureProcessor.js  # <200ms gesture → audio conversion
-│   ├── EnvironmentalMemoryCoordinator.js  # Memory evolution
-│   └── CompositionEngine.js               # Algorithmic composition
-└── api/
-    └── socketHandlers.js    # Real-time WebSocket API
-```
+### Three-Tier Audio System
 
-## 🎵 Composition System
+1. **Background Layer** — ambient algorithmic music from CompositionEngine
+2. **Remote Layer** — other users' musical contributions
+3. **Local Layer** — your own gesture-generated sounds
 
-### **CompositionEngine**
-Core form structure management (ABA, rondo, sonata) with multi-voice generation
+### Composition Engine
 
-### **HarmonicEngine**
-Harmonic progressions, voice leading, and key/mode management
+The backend generates music using:
+- **Form structures** — ABA, rondo, sonata, verse-chorus
+- **13 scale types** — ionian, dorian, phrygian, lydian, mixolydian, etc.
+- **Voice leading** — smooth transitions between chords
+- **Material library** — organized by harmonic function and character
+- **Phrase morphology** — gesture contours to melodic phrases
 
-### **StyleAnalyzer**
-Analyzes gesture patterns to determine musical style, tempo, and energy
+---
 
-### **MaterialLibrary**
-Organizes and tracks musical material by harmonic function and character
-
-### **PhraseMorphology**
-Converts gesture contours into melodic phrases and rhythmic patterns
-
-## 🔧 API Reference
+## API
 
 ### WebSocket Events
 
-#### **Join Room**
+**Join Room**
 ```javascript
-socket.emit('join-room', {
-  roomId: 'harmonic-space-42',
-  userData: {
-    device: 'mobile',
-    capabilities: { touch: true, gyroscope: true }
-  }
-}, (response) => {
+socket.emit('join-room', { roomId: 'my-room' }, (response) => {
   console.log('Joined:', response.room)
 })
 ```
 
-#### **Send Gesture**
+**Send Gesture**
 ```javascript
 socket.emit('gesture', {
   type: 'touch',
   coordinates: { x: 0.5, y: 0.7 },
   intensity: 0.8,
   timestamp: Date.now()
-}, (response) => {
-  console.log('Processed:', response.sonicParams)
 })
 ```
 
-#### **Receive Sonic Updates**
+**Receive Updates**
 ```javascript
-socket.on('sonic-update', (update) => {
-  console.log('New patterns:', update.patterns)
-  audioEngine.updatePatterns(update.patterns)
+socket.on('composition-update', (composition) => {
+  // New algorithmic composition from backend
+})
+
+socket.on('cursor-position', (data) => {
+  // Other user's cursor position
 })
 ```
 
 ### REST Endpoints
 
-#### **Room Discovery**
-```bash
-GET /api/rooms?limit=10
-```
-
-#### **Health Check**
-```bash
-GET /health
-```
-
-#### **Performance Metrics**
-```bash
-GET /api/metrics
-```
-
-## 🧪 Testing
-
-### Run All Tests
-```bash
-# Backend tests
-cd backend
-npm test
-
-# Frontend tests
-cd frontend
-npm test
-
-# Integration tests
-npm run test:integration
-
-# Performance tests
-npm run test:performance
-```
-
-### Test Coverage
-- **Unit Tests**: 90%+ coverage requirement
-- **Integration Tests**: Cross-platform collaboration scenarios
-- **Performance Tests**: Constitutional latency validation
-- **Contract Tests**: Socket.io API compliance
-
-## 📊 Performance Monitoring
-
-### Constitutional Requirements
-- ✅ **<200ms Gesture Processing**: Input → audio synthesis
-- ✅ **<100ms WebSocket Latency**: Real-time collaboration
-- ✅ **60fps Canvas Rendering**: Smooth visual feedback
-- ✅ **Anonymous Sessions**: No personal data storage
-- ✅ **24-hour Memory**: Automatic room cleanup
-
-### Monitoring Endpoints
-```bash
-# Real-time metrics
-curl http://localhost:3001/api/metrics
-
-# Health status
-curl http://localhost:3001/health
-```
-
-## 🌍 Deployment
-
-### Docker Deployment
-```dockerfile
-# Backend container
-FROM node:18-alpine
-COPY backend/ /app
-WORKDIR /app
-RUN npm ci --production
-EXPOSE 3001
-CMD ["npm", "start"]
-```
-
-### Environment Variables
-```bash
-# Backend (.env)
-NODE_ENV=production
-PORT=3001
-CORS_ORIGIN=https://webarmonium.app
-
-# Frontend (.env)
-REACT_APP_WEBSOCKET_URL=wss://api.webarmonium.app
-```
-
-### Production Checklist
-- [ ] SSL/TLS certificates configured
-- [ ] CORS origins restricted to production domains
-- [ ] WebSocket security headers enabled
-- [ ] Memory cleanup intervals optimized
-- [ ] Performance monitoring enabled
-- [ ] CDN configured for static assets
-
-## 🛠️ Development
-
-### Code Style
-```bash
-# ESLint + Prettier (both frontend & backend)
-npm run lint
-npm run format
-```
-
-### Constitutional Compliance
-```bash
-# Validate performance requirements
-npm run test:constitutional
-
-# Check memory management
-npm run test:memory
-
-# Validate latency requirements
-npm run test:latency
-```
-
-### Adding New Composition Features
-```javascript
-// Extend CompositionEngine for new form structures
-// See backend/src/services/CompositionEngine.js
-
-// Add new harmonic progressions in HarmonicEngine
-// See backend/src/services/HarmonicEngine.js
-
-// Create new material types in MaterialLibrary
-// See backend/src/services/MaterialLibrary.js
-```
-
-## 🤝 Contributing
-
-### Getting Started
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/new-algorithm`
-3. Follow constitutional requirements (see `.specify/memory/constitution.md`)
-4. Add tests with 90%+ coverage
-5. Validate performance requirements
-6. Submit pull request
-
-### Constitutional Principles
-1. **Code Quality First**: Zero duplication, clean architecture
-2. **Test-Driven Development**: Tests before implementation (NON-NEGOTIABLE)
-3. **User Experience Consistency**: Design systems, accessibility
-4. **Performance By Design**: <200ms API, <100ms UI constitutional limits
-
-## 📚 Documentation
-
-### Architecture Documentation
-- [System Architecture](docs/architecture.md)
-- [Algorithm Details](docs/algorithms.md)
-- [Performance Guide](docs/performance.md)
-- [API Reference](docs/api.md)
-
-### Deployment Guides
-- [Local Development](docs/development.md)
-- [Production Deployment](docs/deployment.md)
-- [Monitoring Setup](docs/monitoring.md)
-- [Troubleshooting](docs/troubleshooting.md)
-
-## 🔐 Security
-
-### Data Privacy
-- **Anonymous Sessions**: No personal data collection
-- **Session-Only IDs**: Temporary identifiers, no tracking
-- **Memory Cleanup**: Automatic 24-hour data expiration
-- **No Persistent Storage**: Gestures not permanently stored
-
-### Network Security
-- **CORS Configuration**: Production domain restrictions
-- **Rate Limiting**: Gesture frequency limits
-- **Input Validation**: All gesture data sanitized
-- **WebSocket Security**: Secure headers and origin validation
-
-## 📈 Roadmap
-
-### v2.0 - Advanced Collaboration
-- [ ] **Spatial Audio**: 3D positioning for multi-user sessions
-- [ ] **Advanced Algorithms**: ML-based pattern recognition
-- [ ] **Room Templates**: Pre-configured algorithmic personalities
-- [ ] **Recording & Playback**: Session capture capabilities
-
-### v2.1 - Enhanced Experience
-- [ ] **Visual Modes**: Algorithm-specific visualization themes
-- [ ] **Accessibility**: Screen reader support, keyboard navigation
-- [ ] **Mobile Optimization**: PWA, offline capabilities
-- [ ] **Advanced Gestures**: Multi-finger, pressure sensitivity
-
-### v2.2 - Platform Integration
-- [ ] **DAW Integration**: VST/AU plugin export
-- [ ] **Streaming Support**: OBS integration for live performances
-- [ ] **Social Features**: Room sharing, favorite algorithms
-- [ ] **Analytics Dashboard**: Usage patterns, popular algorithms
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## 🙏 Acknowledgments
-
-- **Tone.js**: Web Audio synthesis framework
-- **Socket.io**: Real-time communication
-- **React**: Frontend framework
-- **Canvas API**: High-performance rendering
-- **Constitutional Development**: Governance-driven code quality
+| Endpoint | Description |
+|----------|-------------|
+| `GET /health` | Health check |
+| `GET /api/rooms` | List active rooms |
+| `GET /api/metrics` | Performance metrics |
 
 ---
 
-**Built with ❤️ for musical collaboration and algorithmic exploration**
+## Testing
 
-🌐 **Website**: [webarmonium.app](https://webarmonium.app)
-📧 **Contact**: hello@webarmonium.app
-🐛 **Issues**: [GitHub Issues](https://github.com/your-org/webarmonium/issues)
-💬 **Discussions**: [GitHub Discussions](https://github.com/your-org/webarmonium/discussions)
+```bash
+cd backend
+
+# Run all tests
+npm test
+
+# Watch mode
+npm run test:watch
+
+# Coverage report
+npm run test:coverage
+```
+
+Test categories:
+- **Unit tests** — individual services
+- **Integration tests** — multi-user scenarios
+- **Performance tests** — latency validation
+
+---
+
+## Deployment
+
+See [docs/deployment.md](docs/deployment.md) for complete deployment guide.
+
+### Quick Deploy (DigitalOcean)
+
+```bash
+# On server
+git clone https://github.com/your-username/webarmonium.git
+cd webarmonium
+
+# Backend with PM2
+cd backend
+npm install --production
+pm2 start src/server.js --name webarmonium-backend
+
+# Frontend with nginx
+cd ../frontend
+# Configure nginx to serve static files on port 80/443
+```
+
+### Environment Variables
+
+**Backend**
+```bash
+NODE_ENV=production
+PORT=3001
+CORS_ORIGIN=https://webarmonium.net
+```
+
+---
+
+## Privacy
+
+- **Anonymous sessions** — no accounts, no personal data
+- **Session-only IDs** — temporary, not tracked
+- **24-hour cleanup** — all room data automatically expires
+- **No persistent storage** — gestures are not permanently stored
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/new-feature`
+3. Write tests first (TDD required)
+4. Ensure 90%+ code coverage
+5. Submit pull request
+
+### Code Quality
+
+```bash
+# Lint
+npm run lint
+
+# Fix lint issues
+npm run lint:fix
+```
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+## Credits
+
+Built by Paolo and Patrick.
+
+**Dependencies:**
+- [Tone.js](https://tonejs.github.io/) — Web Audio synthesis
+- [Socket.io](https://socket.io/) — real-time communication
+- [p5.js](https://p5js.org/) — creative coding library
+
+---
+
+**Live at [webarmonium.net](https://webarmonium.net)**

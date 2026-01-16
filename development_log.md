@@ -6322,3 +6322,96 @@ Removed `<a href="index.html" class="back-link">← Back</a>` from audio-control
 v1.0.146
 
 ---
+
+## Entry #126 - Move Logo to Top-Left Corner
+
+**Date**: 2026-01-16
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Moved the clickable logo from inline with the header title to a fixed position in the top-left corner of the page for better visual hierarchy.
+
+---
+
+### Changes
+
+#### 1. Updated HTML Structure
+
+**File:** `frontend/index.html`
+
+```html
+<!-- BEFORE: Logo inline with title -->
+<header>
+  <a href="/" class="header-logo-link">
+    <img src="/webarmonium-logo.svg" alt="Webarmonium logo" class="header-logo">
+    <h1>WEBARMONIUM</h1>
+  </a>
+  <p>...</p>
+</header>
+
+<!-- AFTER: Logo in corner, title centered -->
+<header>
+  <a href="/" class="corner-logo-link" title="Home">
+    <img src="/webarmonium-logo.svg" alt="Webarmonium logo" class="corner-logo">
+  </a>
+  <h1>WEBARMONIUM</h1>
+  <p>...</p>
+</header>
+```
+
+#### 2. Updated CSS Styles
+
+**File:** `frontend/styles.css`
+
+```css
+/* Corner Logo */
+.corner-logo-link {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: transform 0.2s ease;
+}
+
+.corner-logo-link:hover {
+  transform: scale(1.05);
+}
+
+.corner-logo {
+  height: 40px;
+  width: auto;
+}
+
+@media (max-width: 480px) {
+  .corner-logo-link {
+    top: 0.75rem;
+    left: 0.75rem;
+  }
+  .corner-logo {
+    height: 32px;
+  }
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/index.html` | Separated logo from title, moved to corner |
+| `frontend/styles.css` | Replaced `.header-logo-link/.header-logo` with `.corner-logo-link/.corner-logo` |
+
+---
+
+### Version
+
+v1.0.147
+
+---
