@@ -314,17 +314,14 @@
       <p class="explainer-detail">
         <strong>Musical scheduler</strong>: All notes are clock-synchronized using Tone.js Transport
         with 25ms precision. Remote events snap to sixteenth-note boundaries, ensuring global
-        synchronization despite network latency. Virtual user notes are distributed across the beat
-        grid: <span style="color: #e41a1c;">Wikipedia</span> on beats (0,4,8,12),
-        <span style="color: #ff7f00;">HackerNews</span> on off-beats (2,6,10,14),
-        <span style="color: #377eb8;">GitHub</span> on upbeats (1,5,9,13).
+        synchronization despite network latency. 
       </p>
 
       <!-- Part 2: Collaborative Rooms -->
       <h3 class="explainer-section-title">Collaborative Rooms: Real Users</h3>
       <p class="explainer-detail">
         In <a href="rooms.html">collaborative rooms</a>, you can create music through gestures:
-        <strong>tap</strong> for percussive or sustained (hold the tap) notes and <strong>drag</strong> for melodic phrases (50-250ms attack based on vertical position).
+        <strong>tap</strong> for percussive or sustained (hold the tap) notes and <strong>drag</strong> for melodic phrases.
       </p>
 
       <p class="explainer-detail">
@@ -334,7 +331,7 @@
 
       <p class="explainer-detail">
         <strong>Environmental memory</strong>: The room learns from gesture patterns over time, with 24-hour retention.
-        Initial gestures have high influence (1.5&times;), while mature rooms evolve more slowly (0.8&times;). Pattern
+        Initial gestures have high influence, while mature rooms evolve more slowly. Pattern
         creation and evolution are derived from gesture characteristics&mdash;high-intensity gestures at unique positions
         create new patterns, while moderate-intensity gestures evolve existing dormant patterns, creating a deterministic
         &ldquo;room personality&rdquo; that shapes future compositions.
