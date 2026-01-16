@@ -78,9 +78,8 @@ class WebarmoniumApp {
       // Setup event listeners
       this.setupEventListeners()
 
-      // PERF: Hold indicator rendering is now consolidated in p5.js draw() loop
-      // This eliminates the separate rAF loop for hold indicators
-      // this.startRenderLoop()  // DISABLED - see visualService.setHoldReferences()
+      // Hold indicator rendering REMOVED - SpringMeshNetwork handles hold visualization via node pulsing
+      // this.startRenderLoop()  // DISABLED
 
       // Try to auto-start audio (may require user interaction)
       this.attemptAutoStartAudio()
@@ -105,12 +104,7 @@ class WebarmoniumApp {
           }
         })
 
-        // PERF: Pass hold state accessors for consolidated hold indicator rendering
-        // This eliminates the separate startRenderLoop() rAF loop
-        this.visualService.setHoldReferences(
-          () => this.activeLocalHold,
-          () => this.activeRemoteHolds
-        )
+        // Hold indicator rendering REMOVED - SpringMeshNetwork handles hold visualization via node pulsing
       }
 
       // Entry #69: Connect to server AFTER visual service is initialized
@@ -2224,14 +2218,12 @@ class WebarmoniumApp {
   }
 
   /**
-   * @deprecated DISABLED - Hold indicator rendering is now consolidated in p5.js draw() loop
-   * See: visualService.setHoldReferences() and visualService.renderHoldIndicators()
+   * @deprecated DISABLED - Hold indicator rendering removed
+   * Hold visualization is now handled by SpringMeshNetwork node pulsing
    * This method is kept for reference but is no longer called.
-   * PERF: Eliminates separate rAF loop for hold indicators (3 loops -> 1)
    */
   startRenderLoop() {
-    // DISABLED: This render loop is no longer used
-    // Hold indicators are now rendered in GenerativeVisualService.renderHoldIndicators()
+    // DISABLED: Hold indicators removed - SpringMeshNetwork handles hold visualization via node pulsing
     return
 
     const render = (timestamp) => {

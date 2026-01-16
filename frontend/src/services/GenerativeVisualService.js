@@ -56,10 +56,6 @@ class GenerativeVisualService {
 
     // Background color (matching Webarmonium theme)
     this.bgColor = [26, 26, 46]
-
-    // Hold state accessors for consolidated rendering
-    this.getActiveLocalHold = null  // Function to get local hold state
-    this.getActiveRemoteHolds = null  // Function to get remote holds Map
   }
 
   /**
@@ -236,9 +232,7 @@ class GenerativeVisualService {
         this.attractors.render(p)
       }
 
-      // 5. Hold indicators (pulsing circles)
-      // Eliminates separate startRenderLoop() rAF in main.js
-      this.renderHoldIndicators(p)
+      // Hold indicators REMOVED - SpringMeshNetwork already renders hold state via node pulsing
     }
   }
 
@@ -486,76 +480,8 @@ class GenerativeVisualService {
     }
   }
 
-  // =========================================================================
-  // HOLD INDICATOR RENDERING
-  // =========================================================================
-
-  /**
-   * Set hold state accessor functions
-   * @param {Function} getLocalHold - Function that returns activeLocalHold
-   * @param {Function} getRemoteHolds - Function that returns activeRemoteHolds Map
-   */
-  setHoldReferences(getLocalHold, getRemoteHolds) {
-    this.getActiveLocalHold = getLocalHold
-    this.getActiveRemoteHolds = getRemoteHolds
-  }
-
+  // REMOVED: Hold indicator rendering - SpringMeshNetwork handles hold visualization via node pulsing
   // REMOVED: setCursorManager and renderCursors - cursors now rendered in SpringMeshNetwork as nodes
-
-  /**
-   * Render hold indicators (pulsing circles for sustained holds)
-   * PERF: Called from p5.js draw() loop instead of separate rAF loop
-   * @param {p5} p - p5.js instance
-   */
-  renderHoldIndicators(p) {
-    const now = Date.now()
-
-    // Get hold states via accessor functions
-    const activeLocalHold = this.getActiveLocalHold?.()
-    const activeRemoteHolds = this.getActiveRemoteHolds?.()
-
-    // Render local hold indicator
-    if (activeLocalHold?.position) {
-      const elapsed = now - (activeLocalHold.visualStartTime || now)
-      const pulse = Math.sin(elapsed * 0.001 * Math.PI * 2)
-      const radius = 20 + pulse * 5
-
-      p.push()
-      p.drawingContext.globalAlpha = 0.6 + pulse * 0.1
-      p.noFill()
-      p.stroke(activeLocalHold.color || '#6bcf7f')
-      p.strokeWeight(3)
-      p.circle(
-        activeLocalHold.position.x * p.width,
-        activeLocalHold.position.y * p.height,
-        radius * 2
-      )
-      p.pop()
-    }
-
-    // Render remote hold indicators
-    if (activeRemoteHolds?.size > 0) {
-      activeRemoteHolds.forEach((hold, userId) => {
-        if (!hold?.position) return
-
-        const elapsed = now - (hold.visualStartTime || now)
-        const pulse = Math.sin(elapsed * 0.001 * Math.PI * 2)
-        const radius = 20 + pulse * 5
-
-        p.push()
-        p.drawingContext.globalAlpha = 0.5 + pulse * 0.1
-        p.noFill()
-        p.stroke(hold.color || '#ff6b6b')
-        p.strokeWeight(3)
-        p.circle(
-          hold.position.x * p.width,
-          hold.position.y * p.height,
-          radius * 2
-        )
-        p.pop()
-      })
-    }
-  }
 
   // =========================================================================
   // Entry #74: Graphics Quality Control
