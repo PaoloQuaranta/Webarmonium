@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  
+  <!-- W principale - linee sottili, angoli netti -->
+  <g fill="none" stroke="#a855f7" stroke-width="18" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M 80 165 L 144 397 L 256 225 L 368 397 L 432 165"/>
+  </g>
+  
+  <!-- 3 Onde sonore stilizzate sopra la W -->
+  <g fill="none" stroke-width="6" stroke-linecap="square">
+    <!-- Onda interna - blu -->
+    <path d="M 200 145 Q 256 115, 312 145" stroke="#377eb8"/>
+    <!-- Onda media - arancione -->
+    <path d="M 170 115 Q 256 75, 342 115" stroke="#ff7f00"/>
+    <!-- Onda esterna - rosso -->
+    <path d="M 140 85 Q 256 35, 372 85" stroke="#e41a1c"/>
+  </g>
+  
+</svg>
