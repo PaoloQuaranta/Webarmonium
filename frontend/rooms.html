@@ -106,7 +106,7 @@
             width: 40px;
             height: 40px;
             border: 4px solid rgba(255, 255, 255, 0.1);
-            border-top: 4px solid #00d4ff;
+            border-top: 4px solid #8b5cf6;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
@@ -147,11 +147,11 @@
             top: 20px;
             left: 20px;
             right: 20px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(26, 26, 46, 0.7);
             backdrop-filter: blur(10px);
             border-radius: 12px;
-            padding: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.75rem 1.5rem;
+            border: 1px solid rgba(99, 102, 241, 0.2);
             z-index: 1000;
             /* Entry #52: Collapsible UI */
             transition: transform 0.3s ease, opacity 0.3s ease;
@@ -167,90 +167,99 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
+            gap: 1rem;
         }
 
         .room-info {
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 1rem;
+            flex: 0 0 auto;
+        }
+
+        .room-center {
+            flex: 1;
+        }
+
+        .audio-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex: 0 0 auto;
         }
 
         .user-count {
-            background: rgba(0, 212, 255, 0.2);
-            color: #00d4ff;
-            padding: 5px 12px;
+            background: rgba(99, 102, 241, 0.2);
+            color: #a5b4fc;
+            padding: 0.35rem 0.75rem;
             border-radius: 20px;
-            font-size: 14px;
+            font-size: 0.85rem;
             font-weight: 500;
         }
 
         .room-id {
             font-family: 'Courier New', monospace;
-            font-size: 14px;
-            color: #ccc;
-        }
-
-        .audio-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
+            font-size: 0.85rem;
+            color: #a5b4fc;
+            opacity: 0.8;
         }
 
         .audio-toggle {
-            background: #00d4ff;
-            color: #1a1a2e;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 0.5rem 1rem;
             border-radius: 6px;
             cursor: pointer;
-            font-weight: 500;
-            transition: background 0.2s;
+            font-weight: 600;
+            transition: all 0.2s;
         }
 
         .audio-toggle:hover {
-            background: #00b8e6;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
         }
 
         .audio-toggle.disabled {
             background: #666;
             color: #ccc;
+            transform: none;
+            box-shadow: none;
         }
 
         .back-link {
             background: rgba(255, 255, 255, 0.1);
-            color: #ccc;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 8px 16px;
+            color: #a5b4fc;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            padding: 0.5rem 1rem;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 500;
-            font-size: 14px;
+            font-size: 0.85rem;
             text-decoration: none;
             transition: all 0.2s;
         }
 
         .back-link:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(99, 102, 241, 0.2);
             color: white;
         }
 
         /* Fix #3: Desktop settings button CSS (instead of inline styles) */
         .desktop-settings-btn {
             background: rgba(255, 255, 255, 0.1);
-            color: #ccc;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 8px 16px;
+            color: #a5b4fc;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            padding: 0.5rem 1rem;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 500;
-            font-size: 14px;
+            font-size: 0.85rem;
             transition: all 0.2s;
         }
 
         .desktop-settings-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(99, 102, 241, 0.2);
             color: white;
         }
 
@@ -302,13 +311,16 @@
                 top: max(10px, env(safe-area-inset-top, 10px));
                 left: max(10px, env(safe-area-inset-left, 10px));
                 right: max(10px, env(safe-area-inset-right, 10px));
-                padding: 12px;
+                padding: 0.5rem 1rem;
             }
 
             .room-status {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 8px;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+
+            .room-center {
+                display: none;
             }
 
             .instructions {
@@ -361,9 +373,9 @@
                 top: max(12px, env(safe-area-inset-top, 12px));
                 right: max(12px, env(safe-area-inset-right, 12px));
                 z-index: 1002;
-                background: rgba(0, 212, 255, 0.9);
+                background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
                 border: none;
-                color: #1a1a2e;
+                color: white;
                 border-radius: 50%;
                 width: 52px;
                 height: 52px;
@@ -372,7 +384,7 @@
                 justify-content: center;
                 font-size: 24px;
                 font-weight: bold;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
                 transition: transform 0.2s, background 0.2s;
             }
 
@@ -455,8 +467,8 @@
             }
 
             .mobile-user-count {
-                background: rgba(0, 212, 255, 0.2);
-                color: #00d4ff;
+                background: rgba(99, 102, 241, 0.2);
+                color: #a5b4fc;
                 padding: 6px 14px;
                 border-radius: 20px;
                 font-size: 14px;
@@ -466,12 +478,13 @@
             .mobile-room-id {
                 font-family: 'Courier New', monospace;
                 font-size: 12px;
-                color: #888;
+                color: #a5b4fc;
+                opacity: 0.8;
             }
 
             .mobile-back-link {
                 display: block;
-                color: #00d4ff;
+                color: #a5b4fc;
                 text-decoration: none;
                 font-size: 14px;
                 padding: 8px 0;
@@ -517,21 +530,21 @@
 
             /* Entry #74: Mobile Settings button */
             .mobile-settings-btn {
-                background: rgba(0, 212, 255, 0.15);
-                border: 1px solid rgba(0, 212, 255, 0.3);
-                color: #00d4ff;
+                background: rgba(99, 102, 241, 0.15);
+                border: 1px solid rgba(99, 102, 241, 0.3);
+                color: #a5b4fc;
                 border-radius: 8px;
                 font-size: 14px;
                 transition: background 0.2s, border-color 0.2s, color 0.2s;
             }
 
             .mobile-settings-btn:hover {
-                background: rgba(0, 212, 255, 0.25);
-                border-color: rgba(0, 212, 255, 0.5);
+                background: rgba(99, 102, 241, 0.25);
+                border-color: rgba(99, 102, 241, 0.5);
             }
 
             .mobile-settings-btn:active {
-                background: rgba(0, 212, 255, 0.35);
+                background: rgba(99, 102, 241, 0.35);
             }
 
             /* Mobile volume slider */
@@ -563,7 +576,7 @@
                 appearance: none;
                 width: 24px;
                 height: 24px;
-                background: #00d4ff;
+                background: #8b5cf6;
                 border-radius: 50%;
                 cursor: pointer;
             }
@@ -571,7 +584,7 @@
             .mobile-volume-slider::-moz-range-thumb {
                 width: 24px;
                 height: 24px;
-                background: #00d4ff;
+                background: #8b5cf6;
                 border-radius: 50%;
                 cursor: pointer;
                 border: none;
@@ -579,7 +592,7 @@
 
             /* Mobile room info overlay (top-left corner) */
             .mobile-overlay-user-count {
-                color: #00d4ff;
+                color: #a5b4fc;
                 font-size: 13px;
                 font-weight: 500;
             }
@@ -705,12 +718,13 @@
             <div class="room-interface">
                 <div class="room-status">
                     <div class="room-info">
-                        <div class="user-count" id="userCount">👥 1 user</div>
+                        <div class="user-count" id="userCount">1 user</div>
                         <div class="room-id" id="roomId">Room: connecting...</div>
                     </div>
+                    <div class="room-center"></div>
                     <div class="audio-controls">
-                        <a href="index.html" class="back-link">← Back to main page</a>
-                        <button class="audio-toggle" id="audioToggle">🔊 Start Audio</button>
+                        <a href="index.html" class="back-link">← Back</a>
+                        <button class="audio-toggle" id="audioToggle">▶ Start</button>
                         <div id="audio-controls"></div>
                     </div>
                 </div>
