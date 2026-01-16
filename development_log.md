@@ -6203,12 +6203,15 @@ New `.room-center` div for flexible 3-column layout matching landing page:
 
 #### 3. Button Text Standardization
 
+Unified to symbol-only buttons (no text) across both landing page and rooms:
+
 | Location | Before | After |
 |----------|--------|-------|
-| `rooms.html` | `🔊 Start Audio` | `▶ Start` |
-| `main.js` (start) | `🔇 Stop Audio` | `⏸ Stop` |
-| `main.js` (stop) | `🔊 Start Audio` | `▶ Start` |
-| `UIManager.js` | `Stop Audio` / `Start Audio` | `⏸ Stop` / `▶ Start` |
+| `index.html` | `▶ Start` | `▶` |
+| `rooms.html` | `🔊 Start Audio` | `▶` |
+| `DashboardUI.js` | `⏸ Stop` / `▶ Start` | `⏸` / `▶` |
+| `main.js` | `🔇 Stop Audio` / `🔊 Start Audio` | `⏸` / `▶` |
+| `UIManager.js` | `Stop Audio` / `Start Audio` | `⏸` / `▶` |
 
 #### 4. Mobile Styles Updated
 
@@ -6225,9 +6228,11 @@ All mobile elements updated from cyan to violet theme:
 
 | File | Changes |
 |------|---------|
-| `frontend/rooms.html` | CSS: room-interface, room-status, user-count, room-id, audio-toggle, back-link, desktop-settings-btn, spinner, all mobile styles. HTML: added room-center div, updated button text |
-| `frontend/src/main.js` | Changed button toggle text from emoji+Audio to symbol only |
-| `frontend/src/services/UIManager.js` | Changed mobile button toggle text |
+| `frontend/index.html` | Button text: `▶ Start` → `▶` |
+| `frontend/rooms.html` | CSS: room-interface, room-status, user-count, room-id, audio-toggle, back-link, desktop-settings-btn, spinner, all mobile styles. HTML: added room-center div, button text `▶` |
+| `frontend/src/landing/DashboardUI.js` | Button toggle: `⏸` / `▶` (symbol only) |
+| `frontend/src/main.js` | Button toggle: `⏸` / `▶` (symbol only) |
+| `frontend/src/services/UIManager.js` | Mobile button toggle: `⏸` / `▶` (symbol only) |
 
 ---
 
@@ -6240,7 +6245,7 @@ Both pages now share:
 - **Border**: Violet tint `rgba(99, 102, 241, 0.2)`
 - **Layout**: 3-section horizontal layout
 - **Buttons**: Gradient primary, transparent secondary
-- **Button text**: `▶ Start` / `⏸ Stop` (no emojis, no "Audio")
+- **Button symbols**: `▶` (play) / `⏸` (pause) - no text labels
 
 Room page retains its unique features:
 - `backdrop-filter: blur(10px)` for modern glass effect
@@ -6251,6 +6256,6 @@ Room page retains its unique features:
 
 ### Version
 
-v1.0.144
+v1.0.145
 
 ---

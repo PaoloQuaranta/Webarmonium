@@ -1654,7 +1654,7 @@ class WebarmoniumApp {
 
         if (startResult) {
           this.isAudioStarted = true
-          button.textContent = '⏸ Stop'
+          button.textContent = '⏸'
           button.classList.remove('disabled')
 
           // Entry #27: CRITICAL - Unmute audio when starting (localStorage may have saved muted=true)
@@ -1676,7 +1676,7 @@ class WebarmoniumApp {
         } else {
           // AudioContext still suspended - ask user to click again
           console.warn('⚠️ AudioService.start() returned false - context still suspended')
-          this.showError('Audio context blocked. Please click Start again.')
+          this.showError('Audio context blocked. Please click ▶ again.')
         }
       } catch (error) {
         // console.error('❌ Failed to start audio:', error)
@@ -1686,7 +1686,7 @@ class WebarmoniumApp {
       // console.log('🔇 Stopping audio...')
       this.audioService.stop()
       this.isAudioStarted = false
-      button.textContent = '▶ Start'
+      button.textContent = '▶'
       // console.log('🔇 Audio stopped')
     }
   }
@@ -1921,7 +1921,7 @@ class WebarmoniumApp {
           // Update button state
           const button = document.getElementById('audioToggle')
           if (button) {
-            button.textContent = '⏸ Stop'
+            button.textContent = '⏸'
             button.classList.remove('disabled')
           }
 
