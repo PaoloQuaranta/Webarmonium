@@ -58,6 +58,7 @@ header {
 }
 
 header h1 {
+  display: inline-block;
   font-size: clamp(2rem, 5vw, 3rem);
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -65,6 +66,7 @@ header h1 {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  color: transparent;
   margin-bottom: 0.5rem;
 }
 
