@@ -313,7 +313,7 @@ class WebarmoniumApp {
       // PERFORMANCE: Use cached scale instead of looking up on every note
       const params = this.compositionalParameters || {}
       const scale = this.cachedScale || window.MusicalScales.getScale('pentatonic')
-      const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
+      const baseOctave = params.baseOctave || (1 + Math.floor((1 - y) * 6))
 
       // GESTURE DIRECTION: Calculate vertical direction from position change
       const prevY = this.lastDragY || y
@@ -559,7 +559,7 @@ class WebarmoniumApp {
       // PERFORMANCE: Use cached scale instead of looking up on every note
       const params = this.compositionalParameters || {}
       const scale = this.cachedScale || window.MusicalScales.getScale('pentatonic')
-      const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
+      const baseOctave = params.baseOctave || (1 + Math.floor((1 - y) * 6))
 
       // Map X position to scale degree
       const scaleIndex = Math.floor(x * scale.length)
