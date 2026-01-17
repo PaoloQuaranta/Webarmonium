@@ -169,56 +169,6 @@ class AudioControls {
     wrapper.appendChild(this.volumeSlider)
     wrapper.appendChild(this.volumeDisplay)
 
-    // Entry #48: Low Power Mode toggle (for mobile battery saving)
-    if (typeof MobileResourceManager !== 'undefined') {
-      this.lowPowerToggle = document.createElement('button')
-      this.lowPowerToggle.className = 'low-power-toggle'
-      this.lowPowerToggle.textContent = 'Low Power'
-      this.lowPowerToggle.title = 'Enable Low Power Mode to reduce battery usage'
-      this.lowPowerToggle.style.cssText = `
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        color: white;
-        padding: 8px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 12px;
-        transition: all 0.2s;
-        margin-left: 10px;
-      `
-
-      const updateToggleState = () => {
-        const isLowPower = MobileResourceManager.getInstance().isLowPowerMode()
-        this.lowPowerToggle.style.background = isLowPower
-          ? 'rgba(52, 211, 153, 0.3)'
-          : 'rgba(255, 255, 255, 0.1)'
-        this.lowPowerToggle.style.borderColor = isLowPower
-          ? 'rgba(52, 211, 153, 0.6)'
-          : 'rgba(255, 255, 255, 0.3)'
-        this.lowPowerToggle.textContent = isLowPower ? 'Low Power ON' : 'Low Power'
-      }
-
-      this.lowPowerToggle.addEventListener('click', () => {
-        MobileResourceManager.getInstance().toggleLowPowerMode()
-        updateToggleState()
-      })
-
-      this.lowPowerToggle.addEventListener('mouseenter', () => {
-        if (!MobileResourceManager.getInstance().isLowPowerMode()) {
-          this.lowPowerToggle.style.background = 'rgba(255, 255, 255, 0.2)'
-        }
-      })
-      this.lowPowerToggle.addEventListener('mouseleave', () => {
-        updateToggleState()
-      })
-
-      // Listen for automatic mode changes
-      MobileResourceManager.getInstance().addListener(() => updateToggleState())
-
-      updateToggleState()
-      wrapper.appendChild(this.lowPowerToggle)
-    }
-
     this.container.appendChild(wrapper)
   }
 

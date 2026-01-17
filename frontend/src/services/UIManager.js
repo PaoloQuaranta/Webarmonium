@@ -240,31 +240,30 @@ class UIManager {
   }
 
   /**
-   * Entry #74: Create Settings button for desktop UI (inline with audio controls)
-   * Fix #3: Uses CSS classes instead of inline styles
+   * Entry #74: Create Settings button for desktop UI (icon only, in left section)
    */
   _createDesktopSettingsButton () {
     // Check if button already exists
     if (document.getElementById('desktopSettingsBtn')) return
 
-    // Find the audio-controls container in the UI bar
-    const audioControls = document.querySelector('.audio-controls')
-    if (!audioControls) {
-      console.warn('UIManager: .audio-controls not found, cannot add Settings button')
+    // Find the room-left container for settings button
+    const roomLeft = document.getElementById('roomLeft')
+    if (!roomLeft) {
+      console.warn('UIManager: #roomLeft not found, cannot add Settings button')
       return
     }
 
     const settingsBtn = document.createElement('button')
     settingsBtn.id = 'desktopSettingsBtn'
-    settingsBtn.className = 'desktop-settings-btn' // Fix #3: CSS handles all styling
-    settingsBtn.innerHTML = '&#9881; Settings'
-    settingsBtn.title = 'Open settings'
+    settingsBtn.className = 'desktop-settings-btn'
+    settingsBtn.innerHTML = '&#9881;' // Gear icon only
+    settingsBtn.title = 'Settings'
     settingsBtn.setAttribute('aria-label', 'Open settings')
 
     settingsBtn.onclick = () => this.openSettingsPanel()
 
-    // Insert at the end of audio-controls
-    audioControls.appendChild(settingsBtn)
+    // Insert in left section
+    roomLeft.appendChild(settingsBtn)
     this.desktopSettingsBtn = settingsBtn
   }
 
@@ -663,6 +662,7 @@ class UIManager {
 
   /**
    * Initialize audio mode indicator
+   * Now positioned as bottom-left overlay (not in UI bar)
    * Call after DOM is ready (typically in initCollapsibleUI)
    */
   initAudioModeIndicator() {
@@ -673,20 +673,8 @@ class UIManager {
       this.audioModeIndicator.className = 'audio-mode-indicator hidden'
       this.audioModeIndicator.title = 'Audio is running in power-saving mode'
 
-      // Insert into room interface (desktop) or will be shown in mobile menu
-      const roomInterface = document.querySelector('.room-interface')
-      if (roomInterface) {
-        roomInterface.appendChild(this.audioModeIndicator)
-      } else {
-        // Fallback: append to body with fixed positioning
-        this.audioModeIndicator.style.cssText = `
-          position: fixed;
-          top: 12px;
-          left: 12px;
-          z-index: 1000;
-        `
-        document.body.appendChild(this.audioModeIndicator)
-      }
+      // Append to body - CSS handles fixed bottom-left positioning
+      document.body.appendChild(this.audioModeIndicator)
     } else {
       this.audioModeIndicator = document.getElementById('audioModeIndicator')
     }

@@ -170,6 +170,30 @@
             gap: 1rem;
         }
 
+        /* Left section: settings button */
+        .room-left {
+            display: flex;
+            align-items: center;
+            flex: 0 0 auto;
+        }
+
+        /* Center section: audio controls */
+        .room-center {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            flex: 1;
+        }
+
+        /* Right section: logo and user count */
+        .room-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 0 0 auto;
+        }
+
         .room-logo-link {
             display: flex;
             align-items: center;
@@ -194,13 +218,9 @@
             flex: 0 0 auto;
         }
 
-        .room-center {
-            flex: 1;
-        }
-
         .audio-controls {
             display: flex;
-            gap: 1rem;
+            gap: 0.75rem;
             align-items: center;
             flex: 0 0 auto;
         }
@@ -270,16 +290,20 @@
             color: white;
         }
 
-        /* Fix #3: Desktop settings button CSS (instead of inline styles) */
+        /* Desktop settings button - icon only */
         .desktop-settings-btn {
             background: rgba(255, 255, 255, 0.1);
             color: #a5b4fc;
             border: 1px solid rgba(99, 102, 241, 0.2);
-            padding: 0.5rem 1rem;
+            padding: 0.5rem;
             border-radius: 6px;
             cursor: pointer;
-            font-weight: 500;
-            font-size: 0.85rem;
+            font-size: 1.1rem;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             transition: all 0.2s;
         }
 
@@ -683,23 +707,28 @@
             line-height: 1.4;
         }
 
-        /* Entry #73: Audio mode indicator */
+        /* Entry #73: Audio mode indicator - bottom-left overlay */
         .audio-mode-indicator {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             background: rgba(255, 193, 7, 0.2);
+            backdrop-filter: blur(10px);
             color: #ffc107;
-            padding: 4px 10px;
+            padding: 8px 14px;
             border-radius: 20px;
             font-size: 14px;
-            margin-left: 10px;
-            transition: opacity 0.3s ease, background 0.3s ease;
+            z-index: 1000;
+            transition: opacity 0.3s ease, background 0.3s ease, transform 0.3s ease;
         }
 
         .audio-mode-indicator.hidden {
             opacity: 0;
             pointer-events: none;
+            transform: translateY(20px);
         }
 
         .audio-mode-indicator.low-power {
@@ -746,20 +775,27 @@
             <!-- Room interface -->
             <div class="room-interface">
                 <div class="room-status">
-                    <a href="/" class="room-logo-link" title="Webarmonium Home">
-                        <img src="/webarmonium-logo.svg" alt="Webarmonium" class="room-logo">
-                    </a>
-                    <div class="room-info">
-                        <div class="user-count" id="userCount">1 user</div>
-                        <div class="room-id" id="roomId">Room: connecting...</div>
-                    </div>
-                    <div class="room-center"></div>
-                    <div class="audio-controls">
+                    <!-- Left: Settings button (added by UIManager) -->
+                    <div class="room-left" id="roomLeft"></div>
+
+                    <!-- Center: Audio controls -->
+                    <div class="room-center">
                         <button class="audio-toggle" id="audioToggle">▶</button>
                         <div id="audio-controls"></div>
                     </div>
+
+                    <!-- Right: Logo and user count -->
+                    <div class="room-right">
+                        <div class="user-count" id="userCount">1 user</div>
+                        <a href="/" class="room-logo-link" title="Webarmonium Home">
+                            <img src="/webarmonium-logo.svg" alt="Webarmonium" class="room-logo">
+                        </a>
+                    </div>
                 </div>
             </div>
+
+            <!-- Hidden room ID for internal tracking -->
+            <div id="roomId" style="display: none;">Room: connecting...</div>
 
             <!-- p5.js generative graphics background -->
             <div id="p5-container"

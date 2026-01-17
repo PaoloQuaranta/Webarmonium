@@ -124,6 +124,17 @@ class SettingsPanel {
       resetBtn.addEventListener('click', () => this._resetSettings())
     }
 
+    // Add Low Power toggle listener
+    const lowPowerToggle = this.panel.querySelector('#settings-lowPower')
+    if (lowPowerToggle && typeof MobileResourceManager !== 'undefined') {
+      lowPowerToggle.addEventListener('change', () => {
+        const manager = MobileResourceManager.getInstance()
+        if (lowPowerToggle.checked !== manager.isLowPowerMode()) {
+          manager.toggleLowPowerMode()
+        }
+      })
+    }
+
     // Load current settings into form
     this._loadCurrentSettings()
   }
@@ -178,6 +189,19 @@ class SettingsPanel {
             ${this._getRadioOption('graphicsQuality', 'full', 'Full', 'All effects')}
             ${this._getRadioOption('graphicsQuality', 'reduced', 'Reduced', 'No glow/shadows')}
             ${this._getRadioOption('graphicsQuality', 'minimal', 'Minimal', 'Basic rendering')}
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title">POWER MODE</div>
+          <div class="settings-options">
+            <label class="settings-toggle-label" for="settings-lowPower">
+              <span class="settings-toggle-text">
+                <span class="settings-radio-label-text">Low Power Mode</span>
+                <span class="settings-radio-description">Reduce CPU usage for battery saving</span>
+              </span>
+              <input type="checkbox" id="settings-lowPower" class="settings-toggle">
+            </label>
           </div>
         </div>
 
@@ -255,6 +279,12 @@ class SettingsPanel {
         radio.checked = true
       }
     })
+
+    // Load Low Power Mode state
+    const lowPowerToggle = this.panel.querySelector('#settings-lowPower')
+    if (lowPowerToggle && typeof MobileResourceManager !== 'undefined') {
+      lowPowerToggle.checked = MobileResourceManager.getInstance().isLowPowerMode()
+    }
 
     // Update device tier display
     this._updateDeviceTier()
@@ -714,6 +744,57 @@ settingsStyles.textContent = `
     color: #666;
     font-size: 12px;
     margin-top: 2px;
+  }
+
+  /* Toggle switch styles (for Low Power Mode) */
+  .settings-toggle-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .settings-toggle-label:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .settings-toggle-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .settings-toggle {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 48px;
+    height: 26px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 13px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .settings-toggle::before {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+
+  .settings-toggle:checked {
+    background: #4ecdc4;
+  }
+
+  .settings-toggle:checked::before {
+    transform: translateX(22px);
   }
 
   .settings-status {
