@@ -124,11 +124,12 @@ class LandingCompositionService {
     this.webMetricsPoller = null
 
     // Gesture generation config - UNIFIED with VirtualUserService
-    // Dynamic density based on activity level prevents chaos while ensuring algorithmic range
+    // Inverse modulation with SMALL amplitude (0.05 swing, matching gestureIntent swing)
+    // This provides light correction without dominating the raw activity signal
     this.gestureConfig = {
-      baseDensityMultiplier: 0.3,  // 30% base density (unified)
-      minDensity: 0.15,            // Minimum for sparse compositions
-      maxDensity: 0.5              // Maximum for variation
+      baseDensityMultiplier: 0.65, // 65% pass at HIGH activity (slightly fewer)
+      minDensity: 0.15,            // Minimum for sparse compositions (unused in current formula)
+      maxDensity: 0.70             // 70% pass at LOW activity (slightly more)
     }
 
     // Track pending timeouts for cleanup (prevents memory leaks)
