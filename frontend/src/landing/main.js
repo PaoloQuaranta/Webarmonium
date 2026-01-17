@@ -986,7 +986,9 @@ class LandingApp {
 
     // Entry #81: Draw trail halo for virtual user tap
     // FIX: Use helper to find cursor by userId (keys are 'wikipedia' not 'wikipedia-metrics')
+    console.log(`🎯 Tap trail: userId=${userId}, currentCursors keys=`, Object.keys(this.currentCursors))
     const cursorData = this._findCursorByUserId(userId)
+    console.log(`🎯 Tap trail: cursorData=`, cursorData)
     if (cursorData) {
       // Tap intensity based on duration (100ms = 0.3, 500ms = ~0.5)
       const intensity = Math.min(1, 0.3 + (tapDuration / 2) * 0.7)
@@ -1220,10 +1222,12 @@ class LandingApp {
    * @private
    */
   _renderTrailHalo(normX, normY, intensity, color) {
+    console.log(`🎯 Landing _renderTrailHalo called: x=${normX?.toFixed(2)}, y=${normY?.toFixed(2)}, intensity=${intensity?.toFixed(2)}, color=${color}`)
     if (!this.trailCtx || !this.trailCanvas) {
       console.warn('⚠️ Landing trail halo: no canvas context available')
       return
     }
+    console.log(`🎯 Trail canvas size: ${this.trailCanvas.width}x${this.trailCanvas.height}`)
 
     const x = normX * this.trailCanvas.width
     const y = normY * this.trailCanvas.height
