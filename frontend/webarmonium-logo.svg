@@ -9,12 +9,12 @@
     </linearGradient>
   </defs>
   
-  <!-- W principale - spessore aumentato, gradiente -->
-  <g fill="none" stroke="url(#purpleGrad)" stroke-width="28" stroke-linecap="square" stroke-linejoin="miter">
+  <!-- W principale - spessore raddoppiato, gradiente -->
+  <g fill="none" stroke="url(#purpleGrad)" stroke-width="56" stroke-linecap="square" stroke-linejoin="miter">
     <path d="M 80 165 L 144 397 L 256 225 L 368 397 L 432 165"/>
   </g>
   
-  <!-- 3 Onde sonore stilizzate sopra la W - spessore aumentato -->
+  <!-- 3 Onde sonore stilizzate sopra la W -->
   <g fill="none" stroke-width="10" stroke-linecap="square">
     <!-- Onda interna - blu -->
     <path d="M 200 145 Q 256 115, 312 145" stroke="#377eb8"/>
