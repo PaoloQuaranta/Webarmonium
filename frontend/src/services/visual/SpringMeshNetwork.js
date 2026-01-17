@@ -360,10 +360,12 @@ class SpringMeshNetwork {
     let wasNew = false
 
     if (existing) {
-      // Set target position - continuous interpolation in updateNodePosition
-      // handles smooth 60fps movement toward this target
-      existing.targetX = x
-      existing.targetY = y
+      // Smooth target positions using exponential moving average (EMA)
+      // This prevents jitter from rapid gesture sequences in nearby positions
+      // Lower smoothFactor = more smoothing (slower response to rapid changes)
+      const targetSmoothFactor = 0.25
+      existing.targetX = existing.targetX * (1 - targetSmoothFactor) + x * targetSmoothFactor
+      existing.targetY = existing.targetY * (1 - targetSmoothFactor) + y * targetSmoothFactor
       existing.color = color
       existing.gestureType = gestureData.type || 'idle'
       existing.isActive = gestureData.isActive || false
