@@ -6908,3 +6908,144 @@ Removed `setDensityMultiplier()` method (lines 193-200) that was defined but nev
 v1.0.155
 
 ---
+
+## Entry #130 - Unified 6-Octave Range for Real User Gestures
+
+**Date**: 2026-01-17
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Unified the octave range for all real user gesture types (TAP, HOLD, DRAG) to 6 octaves with consistent direction mapping. Previously each gesture type had different range and direction logic.
+
+---
+
+### Problem Statement
+
+Real user gestures had inconsistent octave ranges and Y-axis direction mapping:
+
+| Gesture | Formula | Range | Direction |
+|---------|---------|-------|-----------|
+| TAP | `110 + (1-y)*440 + x*660` | ~3.5 ottave (Hz lineari) | Non-standard |
+| HOLD | `3 + floor(y * 2)` | 3 octaves (3-5) | Inverted (top=low) |
+| DRAG | `2 + floor((1-y) * 4)` | 5 octaves (2-6) | Correct (top=high) |
+
+This caused confusing behavior where the same Y position produced different pitches depending on gesture type.
+
+---
+
+### Solution
+
+Implemented unified formula across all gesture handlers:
+
+```javascript
+baseOctave = 1 + Math.floor((1 - y) * 6)
+```
+
+**Range**: 6 octaves (1-7)
+**Direction**: Unified (top of screen = high pitch, bottom = low pitch)
+
+| Y Position | Octave |
+|------------|--------|
+| 0.00 (top) | 7 (highest) |
+| 0.17 | 6 |
+| 0.33 | 5 |
+| 0.50 | 4 (middle C) |
+| 0.67 | 3 |
+| 0.83 | 2 |
+| 1.00 (bottom) | 1 (lowest) |
+
+---
+
+### Changes
+
+#### 1. SustainedHoldHandler.js (line 73)
+
+```javascript
+// Before
+const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
+
+// After
+const baseOctave = params.baseOctave || (1 + Math.floor((1 - y) * 6))
+```
+
+#### 2. DragStreamingHandler.js (line 83)
+
+```javascript
+// Before
+const baseOctave = params.baseOctave || (2 + Math.floor((1 - y) * 4))
+
+// After
+const baseOctave = params.baseOctave || (1 + Math.floor((1 - y) * 6))
+```
+
+#### 3. GestureProcessor.js (lines 191-196)
+
+TAP now uses musical scale instead of linear frequency mapping:
+
+```javascript
+// Before
+const octaveBase = 110 + (1 - sonicParams.y) * 440
+const withinOctave = sonicParams.x * 660
+const frequency = octaveBase + withinOctave
+
+// After
+const baseOctave = 1 + Math.floor((1 - sonicParams.y) * 6)
+const scale = window.MusicalScales?.getScale('pentatonic') || [0, 2, 4, 7, 9]
+const scaleIndex = Math.floor(sonicParams.x * scale.length)
+const scaleNote = scale[scaleIndex % scale.length]
+const midiNote = 60 + (baseOctave - 4) * 12 + scaleNote
+const frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
+```
+
+#### 4. MusicalConstants.js (lines 112-114)
+
+```javascript
+// Before
+function getBaseOctaveFromY(y) {
+  return 3 + Math.floor(y * 2)
+}
+
+// After
+function getBaseOctaveFromY(y) {
+  return 1 + Math.floor((1 - y) * 6)
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/handlers/SustainedHoldHandler.js` | Updated baseOctave formula to 6-octave range |
+| `frontend/src/handlers/DragStreamingHandler.js` | Updated baseOctave formula to 6-octave range |
+| `frontend/src/services/GestureProcessor.js` | TAP now uses scale-based frequency calculation |
+| `frontend/src/constants/MusicalConstants.js` | Updated getBaseOctaveFromY() function |
+
+---
+
+### Notes
+
+- Melodic phrase generation in drag gestures remains unchanged (calculateScaleIndex, arpeggios, contours)
+- Only the baseOctave changes, not the scaleIndex/octaveOffset logic
+- TAP gestures now use the pentatonic scale instead of continuous linear frequency (more musical)
+
+---
+
+### Verification
+
+1. Start frontend: `cd frontend && npm start`
+2. Test TAP gestures at different Y positions → verify 6 distinct octaves
+3. Test HOLD gestures at different Y positions → verify 6 distinct octaves
+4. Test DRAG gestures → verify extended range and intact melodic phrases
+5. Verify top of screen = high pitch, bottom = low pitch for all gesture types
+
+---
+
+### Version
+
+v1.0.156
+
+---

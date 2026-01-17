@@ -186,11 +186,14 @@ class GestureProcessor {
       this.drawGestureTrailCallback(gestureWithMeta)
     }
 
-    // Calculate frequency using BOTH X and Y for maximum variation
-    // Y controls octave range, X controls frequency within octave
-    const octaveBase = 110 + (1 - sonicParams.y) * 440 // 110-550Hz (A2 to C#5)
-    const withinOctave = sonicParams.x * 660 // 0-660Hz variation within octave
-    const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
+    // Calculate frequency using scale-based mapping (6 octaves, unified with drag/hold)
+    // Y controls octave (0=high, 1=low), X controls scale degree
+    const baseOctave = 1 + Math.floor((1 - sonicParams.y) * 6)
+    const scale = window.MusicalScales?.getScale('pentatonic') || [0, 2, 4, 7, 9]
+    const scaleIndex = Math.floor(sonicParams.x * scale.length)
+    const scaleNote = scale[scaleIndex % scale.length]
+    const midiNote = 60 + (baseOctave - 4) * 12 + scaleNote
+    const frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
 
     const noteVolume = 0.5 // FIXED volume for clicks
     const noteDuration = 0.1 // 100ms for short percussive notes

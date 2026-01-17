@@ -107,10 +107,10 @@ function frequencyToMidi(frequency) {
 /**
  * Calculate base octave from Y position
  * @param {number} y - Y position (0-1)
- * @returns {number} Base octave (3-5 typically)
+ * @returns {number} Base octave (1-7, unified 6-octave range)
  */
 function getBaseOctaveFromY(y) {
-  return 3 + Math.floor(y * 2)
+  return 1 + Math.floor((1 - y) * 6)
 }
 
 /**

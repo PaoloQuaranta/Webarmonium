@@ -70,7 +70,7 @@ class SustainedHoldHandler {
 
     const params = this.compositionalParameters || {}
     const scale = this.getScale()
-    const baseOctave = params.baseOctave || (3 + Math.floor(y * 2))
+    const baseOctave = params.baseOctave || (1 + Math.floor((1 - y) * 6))
 
     // Map X position to scale degree
     const scaleIndex = Math.floor(x * scale.length)
