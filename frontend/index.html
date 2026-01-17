@@ -265,80 +265,30 @@
     <section id="mapping-explainer">
       <h2>How It Works</h2>
 
-      <!-- Part 1: Landing Page - Web Activity -->
-      <h3 class="explainer-section-title">This Page: Web Activity</h3>
       <p class="explainer-intro">
-        Press start, sit back and relax, while Webarmonium transforms real-time web activity into generative music and visuals through a direct correlation system.
-        Three data sources are polled continuously: <strong style="color: #e41a1c;">Wikipedia</strong> edits (every 5s),
-        <strong style="color: #ff7f00;">HackerNews</strong> posts (every 10s), and <strong style="color: #377eb8;">GitHub</strong>
-        pushes (every 60s). Each source feeds metrics into a <em>dynamic normalization</em> engine that tracks historical
-        min/max values rather than using fixed thresholds&mdash;this ensures maximum musical variety as the system adapts
-        to actual data patterns over time.
+        Webarmonium is a new instrument.
       </p>
 
       <p class="explainer-detail">
-        <strong>Monitored parameters</strong> include: edit rate, velocity (rate of change), edit size, new article count,
-        post frequency, upvote averages, comment counts, push frequency, repository creates, and deletes. These metrics
-        generate <em>virtual gestures</em> that feed into a <strong>deterministic composition system</strong>&mdash;every
-        musical decision derives directly from input data. The <em>CompositionEngine</em> selects musical forms based on
-        <em>energy level</em> (low energy &rarr; contemplative forms like theme_and_variations, high energy &rarr; energetic
-        forms like sonata). <em>PhraseMorphology</em> transforms gesture acceleration into rhythm variation (positive
-        acceleration = rushing, negative = dragging) and curvature into syncopation. The <em>HarmonicEngine</em> selects
-        progressions by complexity level, ensuring tonal coherence through voice leading.
+        Traditional instruments translate a performer's physical gestures into sound. Webarmonium replaces the individual gesture with two forms of distributed interaction:
+      </p>
+
+      <h3 class="explainer-section-title">1. Network activity as unconscious performance</h3>
+      <p class="explainer-detail">
+        The landing page connects to three real-time data streams—Wikipedia edits, HackerNews posts, and GitHub commits. Each event becomes a note: position determines frequency, source determines timbre. The resulting composition emerges from collective human activity, with no single author.
+      </p>
+
+      <h3 class="explainer-section-title">2. Remote motor gestures as collaborative performance</h3>
+      <p class="explainer-detail">
+        In <a href="rooms.html">private rooms</a>, up to 4 users become performers. Tap, hold, and drag gestures generate musical phrases. The room develops "environmental memory"—interaction patterns shape its tonal character over 24 hours.
       </p>
 
       <p class="explainer-detail">
-        <strong>Velocity</strong> (the &#177; value in the dashboard) represents the <em>rate of change</em> of each metric:
-        positive values indicate increasing activity, negative values indicate decreasing activity. Only sources with significant
-        velocity trigger musical events, preventing sonic overload and mimicking natural human interaction patterns.
-      </p>
-
-      <p class="explainer-detail">
-        <strong>Audio-visual coherence</strong>: Each source has a distinct audio identity.
-        <span style="color: #e41a1c;">Wikipedia</span> plays in bass tessitura (110-220Hz, A2-A3) with sawtooth waves (rich harmonics),
-        <span style="color: #ff7f00;">HackerNews</span> occupies the tenor range (196-392Hz, G3-G4) with pure sine tones,
-        and <span style="color: #377eb8;">GitHub</span> sounds in soprano frequencies (523-1047Hz, C5-C6) with hollow triangle waves.
-        Cursor positions are calculated using a <em>golden ratio distribution</em> system&mdash;each cursor's X and Y coordinates
-        are independently derived from gesture counters and multiple metrics.
-        Visual pulses and particle flows respond to the same gesture data that drives the audio.
-      </p>
-
-      <!-- Part 1b: Background Composition Layer -->
-      <h3 class="explainer-section-title">Background Composition Layer</h3>
-      <p class="explainer-detail">
-        <strong>Background music emerges organically in response to gestures</strong>: each parameter that feeds the composition algorithm, is derived from user interactions in the room.
-        No artificial or mechanical source has been used, just the room's activity metrics. 
-        Several voices are driven by those data to provide a rich, modulating, polyphonic texture that adapts to user gestures and use them as material for the composition.
-      </p>
-
-      <p class="explainer-detail">
-        <strong>Musical scheduler</strong>: All notes are clock-synchronized using Tone.js Transport
-        with 25ms precision. Remote events snap to sixteenth-note boundaries, ensuring global
-        synchronization despite network latency. 
-      </p>
-
-      <!-- Part 2: Collaborative Rooms -->
-      <h3 class="explainer-section-title">Collaborative Rooms: Real Users</h3>
-      <p class="explainer-detail">
-        In <a href="rooms.html">collaborative rooms</a>, you can create music through gestures:
-        <strong>tap</strong> for percussive or sustained (hold the tap) notes and <strong>drag</strong> for melodic phrases.
-      </p>
-
-      <p class="explainer-detail">
-        <strong>Multi-user composition</strong>: Up to 4 users can create polyphonic compositions together, with background accompaniment The system validates counterpoint rules to ensure musical coherence.
-        When only one real user is present, two virtual users (from web metrics) automatically join in.
-      </p>
-
-      <p class="explainer-detail">
-        <strong>Environmental memory</strong>: The room learns from gesture patterns over time, with 24-hour retention.
-        Initial gestures have high influence, while mature rooms evolve more slowly. Pattern
-        creation and evolution are derived from gesture characteristics&mdash;high-intensity gestures at unique positions
-        create new patterns, while moderate-intensity gestures evolve existing dormant patterns, creating a deterministic
-        &ldquo;room personality&rdquo; that shapes the composition.
+        The system is fully deterministic: identical input produces identical output. There is no randomness, only the structured translation of human activity into sound.
       </p>
 
       <p class="explainer-link">
-        <a href="technical-appendix.html">View Technical Documentation &rarr;</a>
+        <a href="how-it-works.html">Technical Details &rarr;</a>
       </p>
 
     </section>

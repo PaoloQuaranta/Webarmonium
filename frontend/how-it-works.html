@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Webarmonium - How It Works: Detailed explanation of the gesture-to-music transformation system">
+  <title>Webarmonium - How It Works</title>
+
+  <!-- Favicon & Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+  <!-- Entry #115: Frontend domain protection - MUST be first script -->
+  <script>
+  (function() {
+    var ALLOWED = ['localhost','127.0.0.1','webarmonium.com','www.webarmonium.com','webarmonium.net','www.webarmonium.net'];
+    var host = window.location.hostname.toLowerCase();
+    var isAllowed = ALLOWED.some(function(d) { return host === d || host.endsWith('.' + d); });
+
+    if (!isAllowed) {
+      window.WEBARMONIUM_BLOCKED = true;
+      document.addEventListener('DOMContentLoaded', function() {
+        var overlay = document.createElement('div');
+        overlay.id = 'unauthorized-domain-overlay';
+        overlay.innerHTML = [
+          '<div style="position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;font-family:system-ui,sans-serif;">',
+          '<div style="background:#dc2626;color:white;padding:15px 30px;border-radius:8px;font-size:18px;font-weight:bold;margin-bottom:30px;">',
+          'UNAUTHORIZED MIRROR SITE',
+          '</div>',
+          '<div style="color:#fff;font-size:24px;margin-bottom:20px;">',
+          'This is not the official Webarmonium website.',
+          '</div>',
+          '<div style="color:#ccc;font-size:16px;margin-bottom:30px;max-width:500px;">',
+          'You are viewing an unauthorized copy. The official site is:',
+          '</div>',
+          '<a href="https://webarmonium.net" style="background:#22c55e;color:white;padding:15px 40px;border-radius:8px;font-size:20px;font-weight:bold;text-decoration:none;">',
+          'Go to webarmonium.net',
+          '</a>',
+          '<div style="color:#888;font-size:12px;margin-top:40px;">',
+          'This mirror site has been reported for copyright infringement.',
+          '</div>',
+          '</div>'
+        ].join('');
+        document.body.innerHTML = '';
+        document.body.appendChild(overlay);
+      });
+    }
+  })();
+  </script>
+
+  <!-- Google Fonts - Archivo -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css?v=5">
+  <style>
+    /* How it works page specific styles */
+    .hiw-content {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    .hiw-section {
+      margin-bottom: 3rem;
+    }
+    .hiw-section h2 {
+      color: #fff;
+      border-bottom: 2px solid #377eb8;
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .hiw-section h3 {
+      color: #aaa;
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+    }
+    .hiw-section p {
+      color: #ccc;
+      line-height: 1.7;
+      margin-bottom: 1rem;
+    }
+    .hiw-section strong {
+      color: #fff;
+    }
+    .hiw-section em {
+      color: #8fbc8f;
+    }
+    .color-wikipedia { color: #e41a1c; }
+    .color-hackernews { color: #ff7f00; }
+    .color-github { color: #377eb8; }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 2rem;
+      color: #377eb8;
+      text-decoration: none;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+    .note {
+      background: #1a2a1a;
+      border-left: 3px solid #377eb8;
+      padding: 1rem;
+      margin: 1rem 0;
+      color: #aaa;
+    }
+    .nav-links {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid #333;
+    }
+    .nav-links a {
+      color: #377eb8;
+      text-decoration: none;
+    }
+    .nav-links a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <a href="/" class="corner-logo-link" title="Home">
+    <img src="/webarmonium-logo.svg" alt="Webarmonium logo" class="corner-logo">
+  </a>
+
+  <header>
+    <h1>WEBARMONIUM</h1>
+    <p>How It Works</p>
+  </header>
+
+  <main class="hiw-content">
+    <a href="/" class="back-link">&larr; Back to Home</a>
+
+    <!-- Section 1: Web Activity -->
+    <section class="hiw-section">
+      <h2>This Page: Web Activity</h2>
+      <p>
+        Press start, sit back and relax, while Webarmonium transforms real-time web activity into generative music and visuals through a direct correlation system.
+        Three data sources are polled continuously: <strong class="color-wikipedia">Wikipedia</strong> edits (every 5s),
+        <strong class="color-hackernews">HackerNews</strong> posts (every 10s), and <strong class="color-github">GitHub</strong>
+        pushes (every 60s). Each source feeds metrics into a <em>dynamic normalization</em> engine that tracks historical
+        min/max values rather than using fixed thresholds&mdash;this ensures maximum musical variety as the system adapts
+        to actual data patterns over time.
+      </p>
+
+      <p>
+        <strong>Monitored parameters</strong> include: edit rate, velocity (rate of change), edit size, new article count,
+        post frequency, upvote averages, comment counts, push frequency, repository creates, and deletes. These metrics
+        generate <em>virtual gestures</em> that feed into a <strong>deterministic composition system</strong>&mdash;every
+        musical decision derives directly from input data. The <em>CompositionEngine</em> selects musical forms based on
+        <em>energy level</em> (low energy &rarr; contemplative forms like theme_and_variations, high energy &rarr; energetic
+        forms like sonata). <em>PhraseMorphology</em> transforms gesture acceleration into rhythm variation (positive
+        acceleration = rushing, negative = dragging) and curvature into syncopation. The <em>HarmonicEngine</em> selects
+        progressions by complexity level, ensuring tonal coherence through voice leading.
+      </p>
+
+      <p>
+        <strong>Velocity</strong> (the &plusmn; value in the dashboard) represents the <em>rate of change</em> of each metric:
+        positive values indicate increasing activity, negative values indicate decreasing activity. Only sources with significant
+        velocity trigger musical events, preventing sonic overload and mimicking natural human interaction patterns.
+      </p>
+
+      <p>
+        <strong>Audio-visual coherence</strong>: Each source has a distinct audio identity.
+        <span class="color-wikipedia">Wikipedia</span> plays in bass tessitura (110-220Hz, A2-A3) with sawtooth waves (rich harmonics),
+        <span class="color-hackernews">HackerNews</span> occupies the tenor range (196-392Hz, G3-G4) with pure sine tones,
+        and <span class="color-github">GitHub</span> sounds in soprano frequencies (523-1047Hz, C5-C6) with hollow triangle waves.
+        Cursor positions are calculated using a <em>golden ratio distribution</em> system&mdash;each cursor's X and Y coordinates
+        are independently derived from gesture counters and multiple metrics.
+        Visual pulses and particle flows respond to the same gesture data that drives the audio.
+      </p>
+    </section>
+
+    <!-- Section 2: Background Composition Layer -->
+    <section class="hiw-section">
+      <h2>Background Composition Layer</h2>
+      <p>
+        <strong>Background music emerges organically in response to gestures</strong>: each parameter that feeds the composition algorithm is derived from user interactions in the room.
+        No artificial or mechanical source has been used, just the room's activity metrics.
+        Several voices are driven by those data to provide a rich, modulating, polyphonic texture that adapts to user gestures and uses them as material for the composition.
+      </p>
+
+      <p>
+        <strong>Musical scheduler</strong>: All notes are clock-synchronized using Tone.js Transport
+        with 25ms precision. Remote events snap to sixteenth-note boundaries, ensuring global
+        synchronization despite network latency.
+      </p>
+    </section>
+
+    <!-- Section 3: Collaborative Rooms -->
+    <section class="hiw-section">
+      <h2>Collaborative Rooms: Real Users</h2>
+      <p>
+        In <a href="rooms.html">collaborative rooms</a>, you can create music through gestures:
+        <strong>tap</strong> for percussive or sustained (hold the tap) notes and <strong>drag</strong> for melodic phrases.
+      </p>
+
+      <p>
+        <strong>Multi-user composition</strong>: Up to 4 users can create polyphonic compositions together, with background accompaniment. The system validates counterpoint rules to ensure musical coherence.
+        When only one real user is present, two virtual users (from web metrics) automatically join in.
+      </p>
+
+      <p>
+        <strong>Environmental memory</strong>: The room learns from gesture patterns over time, with 24-hour retention.
+        Initial gestures have high influence, while mature rooms evolve more slowly. Pattern
+        creation and evolution are derived from gesture characteristics&mdash;high-intensity gestures at unique positions
+        create new patterns, while moderate-intensity gestures evolve existing dormant patterns, creating a deterministic
+        &ldquo;room personality&rdquo; that shapes the composition.
+      </p>
+    </section>
+
+    <!-- Navigation -->
+    <div class="nav-links">
+      <a href="/">&larr; Home</a>
+      <a href="technical-appendix.html">Technical Documentation &rarr;</a>
+    </div>
+
+    <!-- Footer -->
+    <footer style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #333;">
+      <p><a href="rooms.html">Join a Room &rarr;</a></p>
+      <p class="footer-note">Webarmonium - Generative Music from Web Activity</p>
+    </footer>
+  </main>
+</body>
+</html>
