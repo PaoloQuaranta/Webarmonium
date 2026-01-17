@@ -7049,3 +7049,80 @@ function getBaseOctaveFromY(y) {
 v1.0.156
 
 ---
+
+## Entry #131 - Octave Formula Refactoring & Code Review Fixes
+
+**Date**: 2026-01-17
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Refactored the 6-octave formula from Entry #130 to use the centralized `getBaseOctaveFromY()` function, eliminating code duplication across 5 locations. Also removed obsolete `params.baseOctave` fallback and standardized scale fallbacks.
+
+---
+
+### Problem Statement
+
+Code review of Entry #130 identified several issues:
+
+| Issue | Priority | Description |
+|-------|----------|-------------|
+| Code duplication | Medium | Formula `(1 + Math.floor((1 - y) * 6))` repeated in 5 locations |
+| Unused utility | Medium | `getBaseOctaveFromY()` created but never used |
+| Obsolete fallback | Medium | `params.baseOctave ||` check no longer needed since backend removed it |
+| Inconsistent fallback | Low | Scale fallback differed between handlers (`[0,2,4,7,9]` vs `[0,2,4,5,7,9,11]`) |
+
+---
+
+### Solution
+
+#### 1. Use centralized `getBaseOctaveFromY()`
+
+Replaced all inline formulas with the centralized function:
+
+```javascript
+// Before (5 locations)
+const baseOctave = params.baseOctave || (1 + Math.floor((1 - y) * 6))
+
+// After (5 locations)
+const baseOctave = window.MusicalConstants.getBaseOctaveFromY(y)
+```
+
+#### 2. Remove obsolete fallback
+
+Since backend `CollectiveMetricsAnalyzer.js` no longer sends `baseOctave` in compositional parameters (removed in Entry #130), the `params.baseOctave ||` fallback is unnecessary.
+
+#### 3. Standardize scale fallback
+
+DragStreamingHandler.js used `[0, 2, 4, 5, 7, 9, 11]` (major scale) as fallback, while others used `[0, 2, 4, 7, 9]` (pentatonic). Standardized to pentatonic for consistency.
+
+---
+
+### Files Modified
+
+| File | Line | Change |
+|------|------|--------|
+| `frontend/src/handlers/SustainedHoldHandler.js` | 72 | Use `window.MusicalConstants.getBaseOctaveFromY(y)` |
+| `frontend/src/handlers/DragStreamingHandler.js` | 52 | Standardize scale fallback to `[0, 2, 4, 7, 9]` |
+| `frontend/src/handlers/DragStreamingHandler.js` | 82 | Use `window.MusicalConstants.getBaseOctaveFromY(y)` |
+| `frontend/src/services/GestureProcessor.js` | 221 | Use `window.MusicalConstants.getBaseOctaveFromY(sonicParams.y)` |
+| `frontend/src/main.js` | 315 | Use `window.MusicalConstants.getBaseOctaveFromY(y)` |
+| `frontend/src/main.js` | 560 | Use `window.MusicalConstants.getBaseOctaveFromY(y)` |
+
+---
+
+### Benefits
+
+1. **Single source of truth**: Formula changes only need to be made in `MusicalConstants.js`
+2. **Cleaner code**: Removed unused parameters (`params`) from 4 locations
+3. **Consistency**: All handlers now use identical pentatonic fallback scale
+4. **Maintainability**: Reduced code duplication from 5 copies to 1
+
+---
+
+### Version
+
+v1.0.160
+
+---
