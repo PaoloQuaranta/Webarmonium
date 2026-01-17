@@ -139,6 +139,12 @@ class GenerativeVisualService {
     // Create canvas matching container size
     p.createCanvas(containerWidth, containerHeight)
 
+    // FIX: Set z-index lower than trail-overlay (z-index: 10) so trails render on top
+    if (p.canvas) {
+      p.canvas.style.position = 'relative'
+      p.canvas.style.zIndex = '1'
+    }
+
     // Set frame rate cap
     p.frameRate(this.targetFps)
 
