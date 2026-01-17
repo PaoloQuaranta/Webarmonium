@@ -6415,3 +6415,127 @@ Moved the clickable logo from inline with the header title to a fixed position i
 v1.0.147
 
 ---
+
+## Entry #127 - Audio Auto-Restart Bug Fix (Extended)
+
+**Date**: 2026-01-17
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Extended fix for audio auto-restart bug where audio would sometimes restart automatically 30-60 minutes after user pressed Stop, even without returning focus to the app. Entry #123 added visibility/focus handler guards but missed deeper code paths.
+
+---
+
+### Problem Statement
+
+User reported that audio still restarted on its own after pressing Stop, often 30-60 minutes later, without any user interaction or focus change. Entry #123's fixes weren't complete.
+
+---
+
+### Root Causes Identified
+
+1. **`playComposition()` didn't check `_userStoppedAudio`** - Only checked `isInitialized` and `muted`, so if something called this method, it could restart audio
+2. **`startEvolvingGeneration()` didn't check `_userStoppedAudio`** - Called from health check, could restart evolving generation
+3. **`_initAudioListener` didn't check `_userStoppedAudio`** - If user clicked Stop before audio ever started, the document click listeners were still active
+4. **`stop()` didn't remove init audio listeners** - Listeners persisted if user stopped before audio initialized
+
+---
+
+### Solution
+
+#### Fix 1: Guard in playComposition
+
+Added `_userStoppedAudio` check at the start of `playComposition()`:
+
+```javascript
+playComposition(composition, isDrone = false) {
+  // Entry #124: Respect user's explicit stop - don't play if user stopped audio
+  if (this._userStoppedAudio) {
+    console.log('🔇 playComposition blocked - user stopped audio')
+    return
+  }
+  // ... rest of method
+}
+```
+
+#### Fix 2: Guard in startEvolvingGeneration
+
+Added `_userStoppedAudio` check in `startEvolvingGeneration()`:
+
+```javascript
+startEvolvingGeneration() {
+  if (this.evolvingGenerationActive) return
+
+  // Entry #124: Respect user's explicit stop - don't start if user stopped audio
+  if (this._userStoppedAudio) {
+    console.log('🔇 startEvolvingGeneration blocked - user stopped audio')
+    return
+  }
+  // ... rest of method
+}
+```
+
+#### Fix 3: Guard in _initAudioListener
+
+Added `_userStoppedAudio` check in the init audio listener:
+
+```javascript
+this._initAudioListener = async () => {
+  if (this.isAudioReady || isInitializing) return
+
+  // Entry #124: If user stopped via DashboardUI Stop button, don't auto-init audio
+  if (this.audioService?._userStoppedAudio) {
+    console.log('🔇 Audio init blocked - user stopped audio')
+    return
+  }
+  // ... rest of method
+}
+```
+
+#### Fix 4: Remove listeners in stop()
+
+Added `_removeInitAudioListeners()` call in `stop()`:
+
+```javascript
+stop() {
+  // Entry #124: Remove init audio listeners even if audio never started
+  this._removeInitAudioListeners()
+
+  if (this.audioService) {
+    this.audioService.stop()
+  }
+  // ... rest of method
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Added `_userStoppedAudio` guard to `playComposition()` and `startEvolvingGeneration()` |
+| `frontend/src/landing/main.js` | Added `_userStoppedAudio` guard to `_initAudioListener`, call `_removeInitAudioListeners()` in `stop()` |
+| `frontend/index.html` | Version bump to v1.0.148 |
+
+---
+
+### Verification
+
+1. Start app, let audio play
+2. Press Stop button
+3. Wait 30+ minutes without interacting
+4. **Expected**: Audio remains stopped
+5. Console should show blocking logs if any code paths attempt restart
+6. Press Start to resume
+7. **Expected**: Audio plays normally
+
+---
+
+### Version
+
+v1.0.148
+
+---

@@ -344,6 +344,13 @@ class LandingApp {
       // AudioService is now created early in initialize(), so check isAudioReady instead
       if (this.isAudioReady || isInitializing) return
 
+      // Entry #124: If user stopped via DashboardUI Stop button, don't auto-init audio
+      // This prevents the race condition where Stop click bubbles to document and triggers this listener
+      if (this.audioService?._userStoppedAudio) {
+        console.log('🔇 Audio init blocked - user stopped audio')
+        return
+      }
+
       isInitializing = true
 
       try {
@@ -1113,6 +1120,10 @@ class LandingApp {
     // console.log('⏸ Stopping Webarmonium Landing Page...')
 
     try {
+      // Entry #124: Remove init audio listeners even if audio never started
+      // This prevents clicks from triggering audio restart after user pressed Stop
+      this._removeInitAudioListeners()
+
       // Entry #27: Stop audio service to clear drone and release voices
       if (this.audioService && typeof this.audioService.stop === 'function') {
         this.audioService.stop()

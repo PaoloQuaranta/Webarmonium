@@ -1986,6 +1986,12 @@ class AudioService {
   startEvolvingGeneration() {
     if (this.evolvingGenerationActive) return
 
+    // Entry #124: Respect user's explicit stop - don't start if user stopped audio
+    if (this._userStoppedAudio) {
+      console.log('🔇 startEvolvingGeneration blocked - user stopped audio')
+      return
+    }
+
     this.evolvingGenerationActive = true
     this.lastVoiceUpdateTime = Date.now()
 
@@ -3095,6 +3101,12 @@ class AudioService {
    */
   playComposition(composition, isDrone = false) {
     // console.log(`🎼 playComposition called - isDrone: ${isDrone}, isInitialized: ${this.isInitialized}, muted: ${this.muted}, type: ${composition?.type}`)
+
+    // Entry #124: Respect user's explicit stop - don't play if user stopped audio
+    if (this._userStoppedAudio) {
+      console.log('🔇 playComposition blocked - user stopped audio')
+      return
+    }
 
     if (!this.isInitialized || this.muted) {
       // console.log('🔇 playComposition blocked - initialized:', this.isInitialized, 'muted:', this.muted)
