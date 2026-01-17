@@ -1046,7 +1046,6 @@ class WebarmoniumApp {
           // MEDIUM FIX #8: Use centralized intensity calculation
           const intensity = this._calculateTrailIntensityFromDuration(data.duration)
           const sanitizedColor = this._sanitizeColor(data.userColor) || '#00d4ff'
-          console.log(`🎯 DEBUG virtual hold:end trail: pos=(${data.position.x.toFixed(3)}, ${data.position.y.toFixed(3)})`)
           this._renderTrailHalo(data.position.x, data.position.y, intensity, sanitizedColor)
         }
         return
@@ -1344,7 +1343,6 @@ class WebarmoniumApp {
               ? Math.min(1, 0.3 + (duration * 0.7))
               : Math.min(1, 0.3 + (totalNotes * 0.1))  // More notes = higher intensity
             const sanitizedColor = this._sanitizeColor(userColor) || '#ff6b6b'
-            console.log(`🎯 DEBUG note:play trail: pos=(${remotePosition.x.toFixed(3)}, ${remotePosition.y.toFixed(3)}), cursorFound=${cursorFound}`)
             this._renderTrailHalo(remotePosition.x, remotePosition.y, tapIntensity, sanitizedColor)
           }
         }

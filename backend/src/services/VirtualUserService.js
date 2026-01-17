@@ -712,6 +712,7 @@ class VirtualUserService {
     // Emit hold:end after duration (resets visual state)
     // Entry #81 FIX: Include position, userColor, duration for trail halo rendering
     // HIGH FIX #6: Validate all trail halo data before emitting
+    // FIX: Use currentPosition (where cursor IS) instead of target position (where cursor WILL BE)
     const tapDurationMs2 = tapDuration * 1000
     setTimeout(() => {
       if (!this.activeRooms.has(roomId)) return
@@ -722,11 +723,14 @@ class VirtualUserService {
         isVirtual: true,
         timestamp: Date.now()
       }
+      // Use current interpolated position for trail (matches what user sees)
+      const currentPos = roomState.currentPositions?.[source]
+      const trailPosition = currentPos || position  // Fallback to target if current unavailable
       // Only include trail halo data if all values are valid
-      if (this._isValidPosition(position) &&
+      if (this._isValidPosition(trailPosition) &&
           this._isValidColor(config.color) &&
           this._isValidDuration(tapDurationMs2)) {
-        holdEndData.position = position
+        holdEndData.position = trailPosition
         holdEndData.userColor = config.color
         holdEndData.duration = tapDurationMs2
       }
@@ -895,6 +899,7 @@ class VirtualUserService {
           if (!this.activeRooms.has(roomId)) return
           // Entry #81 FIX: Include position, userColor, duration for trail halo
           // HIGH FIX #6: Validate all trail halo data before emitting
+          // FIX: Use currentPosition (where cursor IS) instead of target position
           const holdEndData = {
             type: 'hold:end',
             userId: config.userId,
@@ -902,11 +907,14 @@ class VirtualUserService {
             isVirtual: true,
             timestamp: Date.now()
           }
+          // Use current interpolated position for trail (matches what user sees)
+          const currentPos = roomState.currentPositions?.[source]
+          const trailPosition = currentPos || notePosition  // Fallback to target if unavailable
           // Only include trail halo data if all values are valid
-          if (this._isValidPosition(notePosition) &&
+          if (this._isValidPosition(trailPosition) &&
               this._isValidColor(config.color) &&
               this._isValidDuration(note.durationMs)) {
-            holdEndData.position = notePosition
+            holdEndData.position = trailPosition
             holdEndData.userColor = config.color
             holdEndData.duration = note.durationMs
           }
