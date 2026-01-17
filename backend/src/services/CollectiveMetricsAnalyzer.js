@@ -238,8 +238,8 @@ class CollectiveMetricsAnalyzer {
       scaleType: m.averageVelocity > 0.6 ? 'pentatonic' :
                  m.averageVelocity > 0.3 ? 'major' : 'minor',
 
-      // Base octave from dominant zone Y
-      baseOctave: 3 + Math.floor(m.dominantZone.y * 2),
+      // NOTE: baseOctave removed - each gesture calculates its own octave
+      // based on Y position using: 1 + Math.floor((1 - y) * 6) for 6-octave range
 
       // Harmonic density based on active users
       harmonicDensity: Math.min(m.activeUsers, 4), // 1-4 voices
