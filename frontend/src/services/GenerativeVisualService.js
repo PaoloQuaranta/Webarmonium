@@ -140,8 +140,11 @@ class GenerativeVisualService {
     p.createCanvas(containerWidth, containerHeight)
 
     // FIX: Set z-index lower than trail-overlay (z-index: 10) so trails render on top
+    // Use position:absolute (not relative) to enable z-index without affecting layout
     if (p.canvas) {
-      p.canvas.style.position = 'relative'
+      p.canvas.style.position = 'absolute'
+      p.canvas.style.top = '0'
+      p.canvas.style.left = '0'
       p.canvas.style.zIndex = '1'
     }
 
