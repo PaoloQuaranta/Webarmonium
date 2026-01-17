@@ -36,9 +36,9 @@ class BackgroundCompositionService {
     this.roomCompositions = new Map() // roomId -> composition state
 
     // Composition intervals (in milliseconds)
-    // FREQUENT compositions for continuous musical flow
-    this.minCompositionInterval = 3000  // 3 seconds minimum between compositions
-    this.maxCompositionInterval = 6000  // 6 seconds maximum between compositions
+    // Slowed down for less chaotic modulation
+    this.minCompositionInterval = 5000  // 5 seconds minimum between compositions
+    this.maxCompositionInterval = 12000 // 12 seconds maximum between compositions
 
     // Active composition timers
     this.compositionTimers = new Map() // roomId -> timer
@@ -498,14 +498,15 @@ class BackgroundCompositionService {
     const safeCompositionCount = compositionCount || 0
     const baseBeats = [8, 12, 16, 10, 14] // Ordered phrase lengths
     const beatIndex = Math.floor((safeCompositionCount * PHI) % 1 * baseBeats.length)
-    const energyModifier = 1 - (energy * 0.3) // High energy shortens (0.7-1.0)
+    // Reduced energy impact for smoother modulation (0.85-1.0 instead of 0.7-1.0)
+    const energyModifier = 1 - (energy * 0.15) // High energy shortens less aggressively
     const beatsPerComposition = baseBeats[beatIndex] * energyModifier
 
     const beatDuration = 60000 / tempo  // milliseconds per beat
     const interval = beatsPerComposition * beatDuration
 
-    // Clamp to reasonable bounds (don't go crazy)
-    const clampedInterval = Math.max(1000, Math.min(20000, interval))
+    // Clamp to reasonable bounds (minimum 3s for less chaos)
+    const clampedInterval = Math.max(3000, Math.min(20000, interval))
 
     const timer = setTimeout(() => {
       this.generateAndBroadcastComposition(roomId, roomContext)

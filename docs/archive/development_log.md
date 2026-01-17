@@ -6797,3 +6797,114 @@ Audio mode indicator (🔋⚡📉⚠️) now uses fixed positioning at bottom-le
 v1.0.154
 
 ---
+
+## Entry #93 - Background Modulation Reactivity Reduction
+
+**Date**: 2026-01-17
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Reduced background modulation reactivity in both landing page and normal rooms. Virtual users now generate gestures less frequently with dynamic density control, and composition intervals are longer. The density filter uses inverse activity modulation to prevent both silence (during low activity) and chaos (during high activity).
+
+---
+
+### Problem Statement
+
+The background music modulation was too aggressive, especially in normal rooms. With frequent gestures from virtual users, the background became chaotic. Investigation revealed:
+
+1. **Two independent cycles in normal rooms** - VirtualUserService and BackgroundCompositionService running separately
+2. **Dead code in LandingCompositionService** - `densityMultiplier: 0.2` and `setDensityMultiplier()` were defined but never used
+3. **Feedback loop** - More gestures → higher energy → more frequent compositions → chaos
+
+---
+
+### Solution
+
+#### 1. Added Density Control with Inverse Activity Modulation
+
+**Formula**: `density = maxDensity - (activityLevel * (maxDensity - baseDensity))`
+
+| Activity Level | Density | Gestures Passing |
+|----------------|---------|------------------|
+| 0.0 (low) | 0.5 | 50% → prevents silence |
+| 0.5 (medium) | 0.4 | 40% |
+| 1.0 (high) | 0.3 | 30% → prevents chaos |
+
+This compensates naturally:
+- Few gesture candidates (low activity) → more likely to pass
+- Many gesture candidates (high activity) → more aggressive filtering
+
+**Files:**
+- `backend/src/services/VirtualUserService.js:107-113` - Added `gestureConfig`
+- `backend/src/services/VirtualUserService.js:609-618` - Added density filter
+- `backend/src/services/LandingCompositionService.js:126-132` - Updated `gestureConfig`
+- `backend/src/services/LandingCompositionService.js:626-635` - Added density filter
+
+#### 2. Slowed Down Gesture Generation Timing
+
+Changed `beatsPerComposition` formula from `12 - (activity * 6)` to `16 - (activity * 6)`:
+- **Before**: 6-12 beats (2-12s intervals)
+- **After**: 10-16 beats (4-15s intervals)
+
+**Files:**
+- `backend/src/services/VirtualUserService.js:514` - Changed formula
+- `backend/src/services/VirtualUserService.js:520` - Changed clamp to 4-15s
+- `backend/src/services/LandingCompositionService.js:928` - Changed formula
+- `backend/src/services/LandingCompositionService.js:934` - Changed clamp to 4-15s
+
+#### 3. Slowed Down Composition Reactivity
+
+**File:** `backend/src/services/BackgroundCompositionService.js`
+
+- Lines 40-41: Changed min/max intervals from 3-6s to 5-12s
+- Line 502: Reduced energy impact from `energy * 0.3` to `energy * 0.15` (0.85-1.0 range)
+- Line 509: Increased minimum clamp from 1s to 3s
+
+#### 4. Removed Dead Code
+
+**File:** `backend/src/services/LandingCompositionService.js`
+
+Removed `setDensityMultiplier()` method (lines 193-200) that was defined but never called.
+
+---
+
+### Parameter Summary
+
+| Parameter | Landing (Before) | Normal (Before) | After (Both) |
+|-----------|------------------|-----------------|--------------|
+| densityMultiplier | 0.2 (unused) | none | 0.3-0.5 (inverse dynamic) |
+| beatsPerComposition | 6-12 | 6-12 | 10-16 |
+| Gesture interval | 2-12s | 2-12s | 4-15s |
+| Composition min | 3s | 3s | 5s |
+| Composition max | 6s | 6s | 12s |
+| Energy modifier | 0.3 | 0.3 | 0.15 |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/VirtualUserService.js` | Added gestureConfig, density filter with inverse modulation, slowed timing |
+| `backend/src/services/LandingCompositionService.js` | Updated gestureConfig, added density filter, slowed timing, removed dead code |
+| `backend/src/services/BackgroundCompositionService.js` | Increased intervals, reduced energy impact, raised minimum clamp |
+
+---
+
+### Verification
+
+1. Start backend: `cd backend && npm run dev`
+2. Open landing page - verify calmer behavior
+3. Open normal room in solo mode - verify virtual users generate gestures less frequently
+4. Make frequent manual gestures - verify no chaos
+5. Verify algorithmic range still covered (sparse to moderately dense)
+
+---
+
+### Version
+
+v1.0.155
+
+---

@@ -104,6 +104,14 @@ class VirtualUserService {
     this.interpolationInterval = 50  // 20fps
     this.interpolationSpeed = 0.15   // How fast to approach target (higher = faster, matches 100ms intervals)
 
+    // Gesture generation config - MATCHES landing page density control
+    // Dynamic density based on activity level prevents chaos while ensuring algorithmic range
+    this.gestureConfig = {
+      baseDensityMultiplier: 0.3,  // 30% base density
+      minDensity: 0.15,            // Minimum for sparse compositions
+      maxDensity: 0.5              // Maximum for variation
+    }
+
     // Initial distributed positions for each source
     this.initialPositions = {
       wikipedia: { x: 0.15, y: 0.75 },   // Bottom-left area (bass)
@@ -501,14 +509,15 @@ class VirtualUserService {
     const avgActivity = sourceCount > 0 ? totalActivity / sourceCount : 0.5
 
     // UNIFIED: Map activity to beats (same as Landing)
-    // High activity = frequent compositions (6 beats), Low activity = sparse (12 beats)
-    const beatsPerComposition = 12 - (avgActivity * 6)  // 6-12 beats, emerges from activity
+    // High activity = more frequent (10 beats), Low activity = sparse (16 beats)
+    // Slowed down from 6-12 to 10-16 beats to reduce chaos
+    const beatsPerComposition = 16 - (avgActivity * 6)  // 10-16 beats, emerges from activity
 
     const beatDuration = 60000 / tempo  // milliseconds per beat
     const interval = beatsPerComposition * beatDuration
 
-    // Clamp to reasonable bounds (2-12 seconds)
-    const clampedInterval = Math.max(2000, Math.min(12000, interval))
+    // Clamp to reasonable bounds (4-15 seconds) - increased from 2-12s
+    const clampedInterval = Math.max(4000, Math.min(15000, interval))
 
     roomState.gestureGenerationTimer = setTimeout(() => {
       // Defensive check: if room was deleted without proper deactivation, don't reschedule
@@ -594,6 +603,18 @@ class VirtualUserService {
         // Check if source should gesture this cycle
         if (normalizedVelocity < gestureIntent) {
           // No significant metric activity - skip this source this cycle
+          continue
+        }
+
+        // DENSITY FILTER: Probabilistic gesture emission with INVERSE activity modulation
+        // Low activity → higher density (more gestures pass, prevents silence)
+        // High activity → lower density (fewer gestures pass, prevents chaos)
+        // density varies from 0.5 (low activity) to 0.3 (high activity)
+        const density = this.gestureConfig.maxDensity -
+          (activityLevel * (this.gestureConfig.maxDensity - this.gestureConfig.baseDensityMultiplier))
+
+        if (Math.random() > density) {
+          // Skip this gesture probabilistically based on density
           continue
         }
 
