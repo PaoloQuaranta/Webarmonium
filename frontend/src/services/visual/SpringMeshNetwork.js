@@ -271,10 +271,38 @@ class SpringMeshNetwork {
 
   /**
    * Update node position using semi-implicit Euler integration
+   * Cursor nodes use target interpolation; other nodes use physics
    * @param {Object} node - Node object
    * @param {number} dt - Delta time
    */
   updateNodePosition(node, dt) {
+    // Cursor nodes (with userId) use smooth target interpolation instead of physics
+    // This avoids conflict between physics velocity and interpolation
+    if (node.userId && node.targetX != null && node.targetY != null) {
+      // Calculate distance to target
+      const dx = node.targetX - node.x
+      const dy = node.targetY - node.y
+      const distSquared = dx * dx + dy * dy
+
+      // Skip interpolation if already within sub-pixel distance (0.001 normalized ≈ 1px)
+      if (distSquared > 0.000001) {
+        // Frame-rate-independent interpolation using linear approximation
+        // lerpSpeed = 12 gives ~32% at 30fps, ~19% at 60fps
+        // Higher = more responsive, lower = smoother
+        const lerpSpeed = 12
+        const factor = Math.min(lerpSpeed * dt, 1.0)  // Linear approx, clamped
+
+        node.x += dx * factor
+        node.y += dy * factor
+      } else {
+        // Snap to target when very close
+        node.x = node.targetX
+        node.y = node.targetY
+      }
+      return  // Skip physics for cursor nodes
+    }
+
+    // Non-cursor nodes (intermediate, trace, background) use physics simulation
     // Apply damping
     node.vx *= this.damping
     node.vy *= this.damping
@@ -286,7 +314,7 @@ class SpringMeshNetwork {
       node.vy = (node.vy / speed) * this.maxVelocity
     }
 
-    // Update position
+    // Update position from physics velocity
     node.x += node.vx * dt
     node.y += node.vy * dt
   }
@@ -332,13 +360,10 @@ class SpringMeshNetwork {
     let wasNew = false
 
     if (existing) {
-      // Smoothly interpolate towards target position
-      // This creates the "spring" feel when user moves cursor
-      const lerpFactor = 0.3
+      // Set target position - continuous interpolation in updateNodePosition
+      // handles smooth 60fps movement toward this target
       existing.targetX = x
       existing.targetY = y
-      existing.x = existing.x * (1 - lerpFactor) + x * lerpFactor
-      existing.y = existing.y * (1 - lerpFactor) + y * lerpFactor
       existing.color = color
       existing.gestureType = gestureData.type || 'idle'
       existing.isActive = gestureData.isActive || false

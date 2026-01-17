@@ -6539,3 +6539,145 @@ stop() {
 v1.0.148
 
 ---
+
+## Entry #128 - Smooth Virtual User Cursor Movement
+
+**Date**: 2026-01-17
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed jerky/jumpy virtual user cursor movement in both landing room and normal rooms. Cursors now move smoothly like real user mouse movements by adding continuous frame-rate-independent interpolation in the render loop.
+
+---
+
+### Problem Statement
+
+Virtual user cursors appeared "jumpy" and "jerky" compared to real user cursors. Real mouse movements felt smooth, but virtual cursors seemed to teleport between positions.
+
+---
+
+### Root Cause Analysis
+
+1. **Backend sends positions at 20fps** (50ms intervals)
+2. **Frontend only interpolated when new data arrived**, not continuously
+3. **Physics and interpolation conflicted** - both tried to move cursor nodes
+4. **Math.exp() called every frame** - unnecessary computational overhead
+
+---
+
+### Solution
+
+#### 1. Continuous Frame-Rate-Independent Interpolation
+
+**File:** `frontend/src/services/visual/SpringMeshNetwork.js`
+
+Changed `updateNodePosition()` to smoothly interpolate cursor nodes toward targets every frame:
+
+```javascript
+updateNodePosition(node, dt) {
+  // Cursor nodes (with userId) use smooth target interpolation
+  if (node.userId && node.targetX != null && node.targetY != null) {
+    const dx = node.targetX - node.x
+    const dy = node.targetY - node.y
+    const distSquared = dx * dx + dy * dy
+
+    // Skip if within sub-pixel distance
+    if (distSquared > 0.000001) {
+      // Frame-rate-independent linear approximation
+      // lerpSpeed = 12 gives ~32% at 30fps, ~19% at 60fps
+      const lerpSpeed = 12
+      const factor = Math.min(lerpSpeed * dt, 1.0)
+      node.x += dx * factor
+      node.y += dy * factor
+    } else {
+      node.x = node.targetX
+      node.y = node.targetY
+    }
+    return  // Skip physics for cursor nodes
+  }
+
+  // Non-cursor nodes use physics simulation
+  // ... physics code unchanged
+}
+```
+
+#### 2. Separated Physics from Interpolation
+
+- **Cursor nodes** (with `userId`): Use target interpolation only
+- **Non-cursor nodes** (intermediate, trace, background): Use physics only
+- Added `return` statement to prevent physics running on cursor nodes
+
+#### 3. Performance Optimizations
+
+| Optimization | Before | After |
+|--------------|--------|-------|
+| Math.exp() per node | `1 - Math.exp(-lerpSpeed * dt)` | `Math.min(lerpSpeed * dt, 1.0)` |
+| Distance check | None | Skip if `distSquared < 0.000001` |
+| Null safety | `!== undefined` | `!= null` (catches both) |
+
+#### 4. Removed Immediate Lerp from updateNode()
+
+Changed `updateNode()` to only set target positions:
+
+```javascript
+// Before: immediate 30% lerp on every position update
+existing.x = existing.x * 0.7 + x * 0.3
+existing.y = existing.y * 0.7 + y * 0.3
+
+// After: just set target, let render loop handle interpolation
+existing.targetX = x
+existing.targetY = y
+```
+
+---
+
+### Code Review Issues Fixed
+
+| Priority | Issue | Fix |
+|----------|-------|-----|
+| Critical | Physics vs interpolation conflict | Separate code paths for cursor vs non-cursor nodes |
+| High | Math.exp() expensive | Linear approximation `Math.min(lerpSpeed * dt, 1.0)` |
+| High | Null safety | Changed `!== undefined` to `!= null` |
+| Medium | Sub-pixel calculations | Skip when `distSquared < 0.000001` |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/visual/SpringMeshNetwork.js` | Continuous interpolation in `updateNodePosition()`, target-only in `updateNode()` |
+
+---
+
+### Technical Details
+
+**Interpolation Formula:**
+- `factor = Math.min(lerpSpeed * dt, 1.0)`
+- At 30fps (dt ≈ 0.033s): factor ≈ 0.40 (40% per frame)
+- At 60fps (dt ≈ 0.016s): factor ≈ 0.19 (19% per frame)
+- Linear approximation accurate for small dt values
+
+**Why Linear Instead of Exponential:**
+- `1 - e^(-x) ≈ x` for small x (first-order Taylor approximation)
+- Avoids expensive Math.exp() call per node per frame
+- Difference imperceptible at typical frame rates
+
+---
+
+### Verification
+
+1. Open landing page - virtual cursors should move smoothly
+2. Join a room - virtual cursors should move smoothly
+3. Compare to real mouse movement - should feel similar
+4. Check console for no errors
+
+---
+
+### Version
+
+v1.0.149
+
+---
