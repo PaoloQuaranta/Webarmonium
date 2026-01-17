@@ -775,8 +775,13 @@
             <!-- Room interface -->
             <div class="room-interface">
                 <div class="room-status">
-                    <!-- Left: Settings button (added by UIManager) -->
-                    <div class="room-left" id="roomLeft"></div>
+                    <!-- Left: Logo and user count -->
+                    <div class="room-left">
+                        <a href="/" class="room-logo-link" title="Webarmonium Home">
+                            <img src="/webarmonium-logo.svg" alt="Webarmonium" class="room-logo">
+                        </a>
+                        <div class="user-count" id="userCount">1 user</div>
+                    </div>
 
                     <!-- Center: Audio controls -->
                     <div class="room-center">
@@ -784,13 +789,8 @@
                         <div id="audio-controls"></div>
                     </div>
 
-                    <!-- Right: Logo and user count -->
-                    <div class="room-right">
-                        <div class="user-count" id="userCount">1 user</div>
-                        <a href="/" class="room-logo-link" title="Webarmonium Home">
-                            <img src="/webarmonium-logo.svg" alt="Webarmonium" class="room-logo">
-                        </a>
-                    </div>
+                    <!-- Right: Settings button (added by UIManager) -->
+                    <div class="room-right" id="roomRight"></div>
                 </div>
             </div>
 

@@ -240,16 +240,16 @@ class UIManager {
   }
 
   /**
-   * Entry #74: Create Settings button for desktop UI (icon only, in left section)
+   * Entry #74: Create Settings button for desktop UI (icon only, in right section)
    */
   _createDesktopSettingsButton () {
     // Check if button already exists
     if (document.getElementById('desktopSettingsBtn')) return
 
-    // Find the room-left container for settings button
-    const roomLeft = document.getElementById('roomLeft')
-    if (!roomLeft) {
-      console.warn('UIManager: #roomLeft not found, cannot add Settings button')
+    // Find the room-right container for settings button
+    const roomRight = document.getElementById('roomRight')
+    if (!roomRight) {
+      console.warn('UIManager: #roomRight not found, cannot add Settings button')
       return
     }
 
@@ -262,8 +262,8 @@ class UIManager {
 
     settingsBtn.onclick = () => this.openSettingsPanel()
 
-    // Insert in left section
-    roomLeft.appendChild(settingsBtn)
+    // Insert in right section
+    roomRight.appendChild(settingsBtn)
     this.desktopSettingsBtn = settingsBtn
   }
 
