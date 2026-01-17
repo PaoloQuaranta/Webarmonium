@@ -49,7 +49,7 @@ class DragStreamingHandler {
     // Update cached scale if type changed
     const newScaleType = params?.scaleType || 'pentatonic'
     if (this.cachedScaleType !== newScaleType) {
-      this.cachedScale = window.MusicalScales?.getScale(newScaleType) || [0, 2, 4, 5, 7, 9, 11]
+      this.cachedScale = window.MusicalScales?.getScale(newScaleType) || [0, 2, 4, 7, 9]
       this.cachedScaleType = newScaleType
       // console.log(`🎼 Cached scale updated: ${newScaleType}`)
     }
@@ -77,10 +77,9 @@ class DragStreamingHandler {
     const x = noteData.position.x
     const y = noteData.position.y
 
-    // Get scale and octave from parameters
-    const params = this.compositionalParameters || {}
+    // Get scale and octave
     const scale = this.getScale()
-    const baseOctave = params.baseOctave || (1 + Math.floor((1 - y) * 6))
+    const baseOctave = window.MusicalConstants.getBaseOctaveFromY(y)
 
     // Calculate gesture direction
     const prevY = this.lastDragY || y

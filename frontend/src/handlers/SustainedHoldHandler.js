@@ -68,9 +68,8 @@ class SustainedHoldHandler {
     const x = position.x
     const y = position.y
 
-    const params = this.compositionalParameters || {}
     const scale = this.getScale()
-    const baseOctave = params.baseOctave || (1 + Math.floor((1 - y) * 6))
+    const baseOctave = window.MusicalConstants.getBaseOctaveFromY(y)
 
     // Map X position to scale degree
     const scaleIndex = Math.floor(x * scale.length)

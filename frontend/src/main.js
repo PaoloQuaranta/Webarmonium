@@ -311,9 +311,8 @@ class WebarmoniumApp {
 
       // MELODIC GENERATION: Dynamic melody creation based on gesture properties
       // PERFORMANCE: Use cached scale instead of looking up on every note
-      const params = this.compositionalParameters || {}
       const scale = this.cachedScale || window.MusicalScales.getScale('pentatonic')
-      const baseOctave = params.baseOctave || (1 + Math.floor((1 - y) * 6))
+      const baseOctave = window.MusicalConstants.getBaseOctaveFromY(y)
 
       // GESTURE DIRECTION: Calculate vertical direction from position change
       const prevY = this.lastDragY || y
@@ -557,9 +556,8 @@ class WebarmoniumApp {
 
       // Use same pitch calculation as drag gestures for consistency
       // PERFORMANCE: Use cached scale instead of looking up on every note
-      const params = this.compositionalParameters || {}
       const scale = this.cachedScale || window.MusicalScales.getScale('pentatonic')
-      const baseOctave = params.baseOctave || (1 + Math.floor((1 - y) * 6))
+      const baseOctave = window.MusicalConstants.getBaseOctaveFromY(y)
 
       // Map X position to scale degree
       const scaleIndex = Math.floor(x * scale.length)

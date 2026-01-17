@@ -218,8 +218,7 @@ class GestureProcessor {
 
     // Calculate frequency using scale-based mapping (6 octaves, unified with drag/hold)
     // Y controls octave (0=high, 1=low), X controls scale degree
-    // Entry #130: Use compositional scale from backend (same as HOLD and DRAG)
-    const baseOctave = 1 + Math.floor((1 - sonicParams.y) * 6)
+    const baseOctave = window.MusicalConstants.getBaseOctaveFromY(sonicParams.y)
     const scale = this.getScale()
     const scaleIndex = Math.floor(sonicParams.x * scale.length)
     const scaleNote = scale[scaleIndex % scale.length]
