@@ -485,6 +485,14 @@ input[type="range"]::-moz-range-thumb {
   background-clip: text;
 }
 
+#mapping-explainer h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+}
+
 .explainer-intro {
   color: var(--text-primary);
   font-size: 1.05rem;
