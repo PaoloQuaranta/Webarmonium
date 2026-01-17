@@ -53,3 +53,6 @@ temp/
 
 # OS generated files
 Thumbs.db
+
+# Marketing (private)
+docs/marketing-launch.md
