@@ -7126,3 +7126,143 @@ DragStreamingHandler.js used `[0, 2, 4, 5, 7, 9, 11]` (major scale) as fallback,
 v1.0.160
 
 ---
+
+## Entry #132 - WavePacketSystem Orphaned Pulse Bug Fix
+
+**Date**: 2026-01-17
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed a rare visual bug where a large yellow "globe" with rays would appear and persist on the canvas until page reload. The bug was caused by orphaned pulses that weren't properly cleaned up when their associated edge nodes were removed.
+
+---
+
+### Problem Statement
+
+User reported a rare bug where a large yellow glowing sphere with lines emanating from it would appear on the canvas and remain frozen until the page was reloaded. The artifact looked like a cursor node but was much larger, and the "rays" were actually edge connections.
+
+---
+
+### Root Cause Analysis
+
+Multiple issues in `WavePacketSystem.js` could cause pulses to become orphaned:
+
+1. **Early return without cleanup**: When `renderPulse()` returned early due to missing nodes, the pulse wasn't marked for removal
+2. **NaN propagation**: If `dt`, `progress`, or `speed` became `NaN`, the pulse would never complete its traversal
+3. **Invalid edge references**: When edges were rebuilt, pulses could retain references to stale edge objects
+4. **No periodic cleanup**: Orphaned pulses could accumulate without any mechanism to detect and remove them
+
+---
+
+### Solution
+
+#### 1. Mark pulses for removal on invalid state
+
+```javascript
+// Validate edge exists and has required properties
+if (!edge || !edge.sourceId || !edge.targetId || !edge.controlPoint) {
+  pulse._markedForRemoval = true
+  return
+}
+
+// Validate nodes exist
+if (!nodeA || !nodeB) {
+  pulse._markedForRemoval = true
+  return
+}
+
+// Validate position is finite
+if (!isFinite(pos.x) || !isFinite(pos.y)) {
+  pulse._markedForRemoval = true
+  return
+}
+
+// Validate visual properties
+if (!isFinite(alpha) || !isFinite(size) || size <= 0) {
+  pulse._markedForRemoval = true
+  return
+}
+```
+
+#### 2. NaN protection in update loop
+
+```javascript
+// Protect against NaN dt
+if (!isFinite(dt) || dt <= 0) {
+  dt = 0.016  // Default to ~60fps frame time
+}
+
+// Check for pulses marked for removal during render
+if (pulse._markedForRemoval) {
+  pulsesToRemove.push(pulseId)
+  continue
+}
+
+// Validate pulse has required properties
+if (!pulse.edge || !isFinite(pulse.progress) || !isFinite(pulse.speed)) {
+  pulsesToRemove.push(pulseId)
+  continue
+}
+
+// Check for NaN after progress update
+if (!isFinite(pulse.progress)) {
+  pulsesToRemove.push(pulseId)
+  continue
+}
+```
+
+#### 3. Periodic orphan cleanup
+
+```javascript
+// In render() - every 60 frames
+if (p.frameCount % 60 === 0) {
+  this._cleanupOrphanedPulses()
+}
+
+_cleanupOrphanedPulses() {
+  const orphanedIds = []
+
+  for (const [pulseId, pulse] of this.activePulses) {
+    if (pulse._markedForRemoval) {
+      orphanedIds.push(pulseId)
+      continue
+    }
+    if (!pulse.edge) {
+      orphanedIds.push(pulseId)
+      continue
+    }
+    // Check if edge nodes still exist
+    const nodeA = this.springMesh.getNodeOrIntermediate(pulse.edge.sourceId)
+    const nodeB = this.springMesh.getNodeOrIntermediate(pulse.edge.targetId)
+    if (!nodeA || !nodeB) {
+      orphanedIds.push(pulseId)
+    }
+  }
+
+  for (const pulseId of orphanedIds) {
+    this.removePulse(pulseId)
+  }
+
+  if (orphanedIds.length > 0) {
+    console.log(`🌊 Cleaned up ${orphanedIds.length} orphaned pulses`)
+  }
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/visual/WavePacketSystem.js` | Added `_markedForRemoval` flag handling, NaN protection, `_cleanupOrphanedPulses()` method, validation in `renderPulse()` and `update()` |
+
+---
+
+### Version
+
+v1.0.161
+
+---

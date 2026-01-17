@@ -448,13 +448,36 @@ class WavePacketSystem {
     // Cap dt to prevent huge jumps
     dt = Math.min(dt, 0.1)
 
+    // FIX: Protect against NaN dt
+    if (!isFinite(dt) || dt <= 0) {
+      dt = 0.016  // Default to ~60fps frame time
+    }
+
     // Update existing pulses
     for (const [pulseId, pulse] of this.activePulses) {
+      // FIX: Check for pulses marked for removal during render
+      if (pulse._markedForRemoval) {
+        pulsesToRemove.push(pulseId)
+        continue
+      }
+
+      // FIX: Validate pulse has required properties
+      if (!pulse.edge || !isFinite(pulse.progress) || !isFinite(pulse.speed)) {
+        pulsesToRemove.push(pulseId)
+        continue
+      }
+
       // Update progress along the edge (direction depends on isReverse)
       if (pulse.isReverse) {
         pulse.progress -= pulse.speed * dt  // Travel backwards along edge
       } else {
         pulse.progress += pulse.speed * dt  // Travel forwards along edge
+      }
+
+      // FIX: Check for NaN after progress update
+      if (!isFinite(pulse.progress)) {
+        pulsesToRemove.push(pulseId)
+        continue
       }
 
       // Gentle intensity fade over time (but cascade determines main decay)
@@ -584,6 +607,51 @@ class WavePacketSystem {
     for (const pulse of this.activePulses.values()) {
       this.renderPulse(p, pulse)
     }
+
+    // FIX: Periodic cleanup of orphaned pulses (every 60 frames)
+    // This catches any pulses marked for removal during render
+    if (p.frameCount % 60 === 0) {
+      this._cleanupOrphanedPulses()
+    }
+  }
+
+  /**
+   * FIX: Clean up orphaned pulses that were marked for removal
+   * or have invalid state
+   * @private
+   */
+  _cleanupOrphanedPulses() {
+    const orphanedIds = []
+
+    for (const [pulseId, pulse] of this.activePulses) {
+      // Check for marked pulses
+      if (pulse._markedForRemoval) {
+        orphanedIds.push(pulseId)
+        continue
+      }
+
+      // Check for invalid edge
+      if (!pulse.edge) {
+        orphanedIds.push(pulseId)
+        continue
+      }
+
+      // Check if edge nodes still exist
+      const nodeA = this.springMesh.getNodeOrIntermediate(pulse.edge.sourceId)
+      const nodeB = this.springMesh.getNodeOrIntermediate(pulse.edge.targetId)
+      if (!nodeA || !nodeB) {
+        orphanedIds.push(pulseId)
+      }
+    }
+
+    // Remove orphaned pulses
+    for (const pulseId of orphanedIds) {
+      this.removePulse(pulseId)
+    }
+
+    if (orphanedIds.length > 0) {
+      console.log(`🌊 Cleaned up ${orphanedIds.length} orphaned pulses`)
+    }
   }
 
   /**
@@ -593,11 +661,21 @@ class WavePacketSystem {
    */
   renderPulse(p, pulse) {
     const edge = pulse.edge
+
+    // FIX: Validate edge exists and has required properties
+    if (!edge || !edge.sourceId || !edge.targetId || !edge.controlPoint) {
+      // Mark pulse for removal - edge is invalid
+      pulse._markedForRemoval = true
+      return
+    }
+
     const nodeA = this.springMesh.getNodeOrIntermediate(edge.sourceId)
     const nodeB = this.springMesh.getNodeOrIntermediate(edge.targetId)
 
     if (!nodeA || !nodeB) {
-      // console.warn('⚠️ Pulse render: Missing nodes for edge', edge.sourceId.substring(0, 8), '->', edge.targetId.substring(0, 8))
+      // FIX: Mark pulse for removal instead of just skipping render
+      // This prevents orphaned pulses from accumulating
+      pulse._markedForRemoval = true
       return
     }
 
@@ -612,9 +690,21 @@ class WavePacketSystem {
       pulse.progress
     )
 
+    // FIX: Validate position is finite (prevents NaN rendering artifacts)
+    if (!isFinite(pos.x) || !isFinite(pos.y)) {
+      pulse._markedForRemoval = true
+      return
+    }
+
     // Calculate visual properties
     const alpha = Math.floor(pulse.intensity * 255)
     const size = pulse.width * pulse.intensity
+
+    // FIX: Validate visual properties
+    if (!isFinite(alpha) || !isFinite(size) || size <= 0) {
+      pulse._markedForRemoval = true
+      return
+    }
 
     // DEBUG: Log first few renders
     if (this.activePulses.size <= 3 && p.frameCount % 10 === 0) {
