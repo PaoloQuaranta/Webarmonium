@@ -31,6 +31,36 @@ class GestureProcessor {
 
     // Tap call counter for debugging
     this.tapCallCount = 0
+
+    // Compositional parameters from backend (Entry #130 fix)
+    this.compositionalParameters = null
+    this.cachedScale = null
+    this.cachedScaleType = null
+  }
+
+  /**
+   * Update compositional parameters from backend
+   * Entry #130: Ensures TAP and DRAG phrases use the same scale as HOLD
+   * @param {Object} params - Compositional parameters
+   */
+  updateCompositionalParameters(params) {
+    this.compositionalParameters = params
+
+    // Cache scale for performance
+    const newScaleType = params?.scaleType || 'pentatonic'
+    if (this.cachedScaleType !== newScaleType) {
+      this.cachedScale = window.MusicalScales?.getScale(newScaleType) || [0, 2, 4, 7, 9]
+      this.cachedScaleType = newScaleType
+      // console.log(`🎼 GestureProcessor: Cached scale updated to ${newScaleType}`)
+    }
+  }
+
+  /**
+   * Get current scale from compositional parameters
+   * @returns {Array} Scale intervals
+   */
+  getScale() {
+    return this.cachedScale || window.MusicalScales?.getScale('pentatonic') || [0, 2, 4, 7, 9]
   }
 
   /**
@@ -188,8 +218,9 @@ class GestureProcessor {
 
     // Calculate frequency using scale-based mapping (6 octaves, unified with drag/hold)
     // Y controls octave (0=high, 1=low), X controls scale degree
+    // Entry #130: Use compositional scale from backend (same as HOLD and DRAG)
     const baseOctave = 1 + Math.floor((1 - sonicParams.y) * 6)
-    const scale = window.MusicalScales?.getScale('pentatonic') || [0, 2, 4, 7, 9]
+    const scale = this.getScale()
     const scaleIndex = Math.floor(sonicParams.x * scale.length)
     const scaleNote = scale[scaleIndex % scale.length]
     const midiNote = 60 + (baseOctave - 4) * 12 + scaleNote
@@ -537,18 +568,9 @@ class GestureProcessor {
     const dy = gesture.dy || 0
     const velocity = gesture.velocity || 100
 
-    // FIX: Add time-based variation to scale selection (prevents pattern repetition)
-    // Use timeSeed to slightly shift boundaries
-    const scaleShift = (timeSeed / 1000) * 0.1 // 0-0.1 shift
-
-    // Determine scale type from X position (harmonic context) with variation
-    let scaleType
-    const x = sonicParams.x
-    if (x < 0.2 + scaleShift) scaleType = 'pentatonic' // Left: Simple, consonant
-    else if (x < 0.4 + scaleShift) scaleType = 'major' // Center-left: Major
-    else if (x < 0.6 + scaleShift) scaleType = 'dorian' // Center-right: Modal
-    else if (x < 0.8) scaleType = 'blues' // Right: Blues/tension
-    else scaleType = timeSeed % 2 === 0 ? 'phrygian' : 'lydian' // Far right: Exotic modes
+    // Entry #130: Use compositional scale from backend (same as TAP and HOLD)
+    // This ensures all gesture types use the same scale
+    const scaleType = this.cachedScaleType || 'pentatonic'
 
     // Determine contour type from gesture direction
     let contourType

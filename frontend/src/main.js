@@ -1143,6 +1143,11 @@ class WebarmoniumApp {
         this.audioService.updateCompositionalParameters(this.compositionalParameters)
       }
 
+      // Entry #130: Update GestureProcessor with new parameters for TAP and DRAG phrases
+      if (this.gestureProcessor && this.gestureProcessor.updateCompositionalParameters) {
+        this.gestureProcessor.updateCompositionalParameters(this.compositionalParameters)
+      }
+
       // Forward interaction metrics to visual service for spatial gradient
       if (this.visualService && data.parameters) {
         const metrics = {
