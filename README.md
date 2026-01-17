@@ -73,7 +73,7 @@ Rooms develop **environmental memory**—they learn from interaction patterns an
 
 ```bash
 # Clone repository
-git clone https://github.com/your-username/webarmonium.git
+git clone https://github.com/PaoloQuaranta/Webarmonium.git
 cd webarmonium
 
 # Start backend (port 3001)
@@ -237,7 +237,7 @@ See [docs/deployment.md](docs/deployment.md) for complete deployment guide.
 
 ```bash
 # On server
-git clone https://github.com/your-username/webarmonium.git
+git clone https://github.com/PaoloQuaranta/Webarmonium.git
 cd webarmonium
 
 # Backend with PM2

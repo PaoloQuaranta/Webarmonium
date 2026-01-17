@@ -1,4 +1,0 @@
-// Fix WebSocket initialization - use only SocketService
-    console.log('🔌 Initializing SocketService...')
-    this.socketService = new SocketService()
-    this.socketServicePromise = Promise.resolve(this.socketService.socket)

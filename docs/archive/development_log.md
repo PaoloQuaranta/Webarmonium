@@ -6681,3 +6681,119 @@ existing.targetY = y
 v1.0.149
 
 ---
+
+## Entry #129 - UI Bar Layout Reorganization
+
+**Date**: 2026-01-17
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Reorganized the UI bar layout in normal rooms for better visual hierarchy and consistency with landing page. Moved settings button (icon-only) to left, audio controls to center, and logo/user count to right. Removed visible room label and moved Low Power toggle to Settings panel. Performance notification icons now appear as bottom-left page overlay.
+
+---
+
+### Problem Statement
+
+The UI bar layout was inconsistent:
+1. "Room: Main Room" label took up space without adding value
+2. Settings button had text label instead of icon-only (unlike landing page)
+3. Audio controls were not centered
+4. Low Power button cluttered the audio controls area
+5. Performance notification icons appeared in UI bar (cluttering it)
+
+---
+
+### Solution
+
+#### 1. New UI Bar Layout Structure
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  [⚙]          [▶] [🔊] ───○─── 70%          👥 3 users [logo] │
+│  left               center                          right     │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**HTML Structure** (rooms.html):
+```html
+<div class="room-status">
+    <!-- Left: Settings button -->
+    <div class="room-left" id="roomLeft"></div>
+
+    <!-- Center: Audio controls -->
+    <div class="room-center">
+        <button class="audio-toggle" id="audioToggle">▶</button>
+        <div id="audio-controls"></div>
+    </div>
+
+    <!-- Right: Logo and user count -->
+    <div class="room-right">
+        <div class="user-count" id="userCount">1 user</div>
+        <a href="/" class="room-logo-link">...</a>
+    </div>
+</div>
+```
+
+#### 2. Settings Button Icon-Only
+
+Changed from `&#9881; Settings` to just `&#9881;` (gear icon). CSS updated for square 36x36px button.
+
+#### 3. Low Power Toggle Moved to Settings Panel
+
+Removed Low Power button from AudioControls.js and added to SettingsPanel.js as a toggle switch in new "Power Mode" section.
+
+#### 4. Performance Indicator as Bottom-Left Overlay
+
+Audio mode indicator (🔋⚡📉⚠️) now uses fixed positioning at bottom-left corner instead of being inside the UI bar.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/rooms.html` | Reorganized HTML structure (room-left, room-center, room-right), CSS for new layout, settings button icon-only styling, audio-mode-indicator bottom-left positioning |
+| `frontend/src/services/UIManager.js` | Settings button placed in #roomLeft with icon-only, audio mode indicator appends to body |
+| `frontend/src/components/AudioControls.js` | Removed Low Power toggle |
+| `frontend/src/components/SettingsPanel.js` | Added Power Mode section with Low Power toggle switch, CSS for toggle styling |
+
+---
+
+### CSS Changes
+
+**New Layout Classes:**
+```css
+.room-left { flex: 0 0 auto; }
+.room-center { flex: 1; justify-content: center; }
+.room-right { flex: 0 0 auto; }
+```
+
+**Settings Button:**
+```css
+.desktop-settings-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0.5rem;
+    font-size: 1.1rem;
+}
+```
+
+**Audio Mode Indicator:**
+```css
+.audio-mode-indicator {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1000;
+}
+```
+
+---
+
+### Version
+
+v1.0.154
+
+---

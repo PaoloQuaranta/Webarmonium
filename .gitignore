@@ -25,6 +25,9 @@ jspm_packages/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.*.production
+*.env.prod*
 
 # Editor directories and files
 .idea
@@ -56,3 +59,14 @@ Thumbs.db
 
 # Marketing (private)
 docs/marketing-launch.md
+
+# Production deployment (sensitive)
+**/deploy-production.sh
+**/deploy-prod*.sh
+nginx-config.conf
+nginx*.conf
+
+# Security documents
+security_fix_plan.md
+ABUSE_REPORTS_DRAFT.md
+*useful-commands.md
