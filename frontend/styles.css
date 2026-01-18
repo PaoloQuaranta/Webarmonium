@@ -892,12 +892,12 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 /* Entry #93: Full-screen Immersive Mode       */
 /* ============================================ */
 
-/* Immersive toggle button */
+/* Immersive toggle button - positioned inside canvas container */
 .immersive-toggle {
-  position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
-  z-index: 100;
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 20;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
@@ -978,7 +978,8 @@ body:not(.immersive-mode) .immersive-toggle {
   transition: opacity 0.3s ease;
 }
 
-body:not(.immersive-mode) #canvas-container:hover ~ .immersive-toggle,
+/* Button is now inside canvas container - show on container hover */
+body:not(.immersive-mode) #canvas-container:hover .immersive-toggle,
 body:not(.immersive-mode) .immersive-toggle:hover {
   opacity: 1;
   pointer-events: auto;

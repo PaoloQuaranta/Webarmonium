@@ -260,6 +260,12 @@
       <!-- Cursors are rendered in p5.js canvas, no HTML indicators needed -->
       <!-- Entry #81: Overlay canvas for gesture trail halos -->
       <canvas id="trail-overlay" aria-hidden="true" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
+
+      <!-- Entry #93: Immersive Mode Toggle (inside canvas for proper hover behavior) -->
+      <button class="immersive-toggle" id="immersive-toggle" title="Toggle immersive mode" aria-label="Toggle immersive mode">
+        <span class="immersive-icon">&#x26F6;</span>
+        <span class="immersive-label">Immersive</span>
+      </button>
     </section>
 
     <!-- Mapping Explainer -->
@@ -292,12 +298,6 @@
 
     </section>
 
-    <!-- Entry #93: Immersive Mode Toggle -->
-    <button class="immersive-toggle" id="immersive-toggle" title="Toggle immersive mode" aria-label="Toggle immersive mode">
-      <span class="immersive-icon">&#x26F6;</span>
-      <span class="immersive-label">Immersive</span>
-    </button>
-
     <!-- Entry #134: Immersive mode mini control bar -->
     <div class="immersive-controls" id="immersive-controls">
       <button class="immersive-ctrl-btn" id="immersive-play-btn" title="Play/Stop" aria-label="Play or stop experience">
@@ -314,7 +314,7 @@
       <p>Powered by <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia API</a>, <a href="https://news.ycombinator.com" target="_blank" rel="noopener">HackerNews API</a>, and <a href="https://github.com" target="_blank" rel="noopener">GitHub API</a></p>
       <p class="footer-note">Data updates every 5-60 seconds depending on source. Rate limits are respected.</p>
       <p class="footer-credits">Made by Paolo Quaranta, with so much needed help from Patrick De Marta</p>
-      <p class="version-tag">v1.0.171</p>
+      <p class="version-tag">v1.0.172</p>
     </footer>
   </main>
 
