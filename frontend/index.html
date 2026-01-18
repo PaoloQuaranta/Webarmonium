@@ -9,7 +9,8 @@
   <!-- SEO: Canonical URL -->
   <link rel="canonical" href="https://webarmonium.net/">
 
-  <!-- Favicon & Icons -->
+  <!-- Favicon & Icons (SVG with prefers-color-scheme, PNG fallback) -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 
@@ -157,12 +158,12 @@
     <section id="controls-bar">
       <!-- Left: Start + Volume + Settings -->
       <div class="controls-left">
-        <button id="btn-toggle" class="primary-btn">▶</button>
+        <button id="btn-toggle" class="primary-btn" aria-label="Play">▶</button>
         <div class="slider-group">
           <label for="volume">Volume</label>
           <input type="range" id="volume" min="0" max="100" value="70">
         </div>
-        <button id="btn-settings" class="settings-btn" title="Settings" onclick="openLandingSettings()">&#9881;</button>
+        <button id="btn-settings" class="settings-btn" title="Settings" aria-label="Settings" onclick="openLandingSettings()">&#9881;</button>
       </div>
 
       <!-- Center: Metrics Dashboard -->
@@ -255,10 +256,10 @@
     <div id="status-message" class="message status"></div>
 
     <!-- Canvas Container -->
-    <section id="canvas-container">
+    <section id="canvas-container" role="img" aria-label="Interactive generative visual display showing network activity as animated particles and waves">
       <!-- Cursors are rendered in p5.js canvas, no HTML indicators needed -->
       <!-- Entry #81: Overlay canvas for gesture trail halos -->
-      <canvas id="trail-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
+      <canvas id="trail-overlay" aria-hidden="true" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
     </section>
 
     <!-- Mapping Explainer -->
@@ -296,7 +297,7 @@
       <p>Powered by <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia API</a>, <a href="https://news.ycombinator.com" target="_blank" rel="noopener">HackerNews API</a>, and <a href="https://github.com" target="_blank" rel="noopener">GitHub API</a></p>
       <p class="footer-note">Data updates every 5-60 seconds depending on source. Rate limits are respected.</p>
       <p class="footer-credits">Made by Paolo Quaranta, with so much needed help from Patrick De Marta</p>
-      <p class="version-tag">v1.0.165</p>
+      <p class="version-tag">v1.0.166</p>
     </footer>
   </main>
 
@@ -310,6 +311,20 @@
       if (landingSettingsPanel) {
         landingSettingsPanel.open()
       }
+    }
+
+    // Pause looping animations when off-screen (Intersection Observer)
+    if ('IntersectionObserver' in window) {
+      const animationObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          entry.target.dataset.animationPaused = entry.isIntersecting ? 'false' : 'true'
+        })
+      }, { threshold: 0 })
+
+      // Observe elements with looping animations
+      document.querySelectorAll('.audio-mode-indicator').forEach(el => {
+        animationObserver.observe(el)
+      })
     }
   </script>
 

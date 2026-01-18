@@ -61,6 +61,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 
@@ -106,7 +107,7 @@
             width: 40px;
             height: 40px;
             border: 4px solid rgba(255, 255, 255, 0.1);
-            border-top: 4px solid #8b5cf6;
+            border-top: 4px solid #3b82f6;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
@@ -151,7 +152,7 @@
             backdrop-filter: blur(10px);
             border-radius: 12px;
             padding: 0.75rem 1.5rem;
-            border: 1px solid rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.2);
             z-index: 1000;
             /* Entry #52: Collapsible UI */
             transition: transform 0.3s ease, opacity 0.3s ease;
@@ -226,7 +227,7 @@
         }
 
         .user-count {
-            background: rgba(99, 102, 241, 0.2);
+            background: rgba(59, 130, 246, 0.2);
             color: #a5b4fc;
             padding: 0.35rem 0.75rem;
             border-radius: 20px;
@@ -242,7 +243,7 @@
         }
 
         .audio-toggle {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            background: #3b82f6;
             color: white;
             border: none;
             padding: 0.5rem 1rem;
@@ -254,7 +255,7 @@
 
         .audio-toggle:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
         }
 
         .audio-toggle.disabled {
@@ -275,7 +276,7 @@
         .back-link {
             background: rgba(255, 255, 255, 0.1);
             color: #a5b4fc;
-            border: 1px solid rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.2);
             padding: 0.5rem 1rem;
             border-radius: 6px;
             cursor: pointer;
@@ -286,7 +287,7 @@
         }
 
         .back-link:hover {
-            background: rgba(99, 102, 241, 0.2);
+            background: rgba(59, 130, 246, 0.2);
             color: white;
         }
 
@@ -294,7 +295,7 @@
         .desktop-settings-btn {
             background: rgba(255, 255, 255, 0.1);
             color: #a5b4fc;
-            border: 1px solid rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.2);
             padding: 0.5rem;
             border-radius: 6px;
             cursor: pointer;
@@ -308,7 +309,7 @@
         }
 
         .desktop-settings-btn:hover {
-            background: rgba(99, 102, 241, 0.2);
+            background: rgba(59, 130, 246, 0.2);
             color: white;
         }
 
@@ -426,7 +427,7 @@
                 top: max(12px, env(safe-area-inset-top, 12px));
                 right: max(12px, env(safe-area-inset-right, 12px));
                 z-index: 1002;
-                background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+                background: #3b82f6;
                 border: none;
                 color: white;
                 border-radius: 50%;
@@ -437,7 +438,7 @@
                 justify-content: center;
                 font-size: 24px;
                 font-weight: bold;
-                box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
                 transition: transform 0.2s, background 0.2s;
             }
 
@@ -520,7 +521,7 @@
             }
 
             .mobile-user-count {
-                background: rgba(99, 102, 241, 0.2);
+                background: rgba(59, 130, 246, 0.2);
                 color: #a5b4fc;
                 padding: 6px 14px;
                 border-radius: 20px;
@@ -583,8 +584,8 @@
 
             /* Entry #74: Mobile Settings button */
             .mobile-settings-btn {
-                background: rgba(99, 102, 241, 0.15);
-                border: 1px solid rgba(99, 102, 241, 0.3);
+                background: rgba(59, 130, 246, 0.15);
+                border: 1px solid rgba(59, 130, 246, 0.3);
                 color: #a5b4fc;
                 border-radius: 8px;
                 font-size: 14px;
@@ -592,12 +593,12 @@
             }
 
             .mobile-settings-btn:hover {
-                background: rgba(99, 102, 241, 0.25);
-                border-color: rgba(99, 102, 241, 0.5);
+                background: rgba(59, 130, 246, 0.25);
+                border-color: rgba(59, 130, 246, 0.5);
             }
 
             .mobile-settings-btn:active {
-                background: rgba(99, 102, 241, 0.35);
+                background: rgba(59, 130, 246, 0.35);
             }
 
             /* Mobile volume slider */
@@ -629,7 +630,7 @@
                 appearance: none;
                 width: 24px;
                 height: 24px;
-                background: #8b5cf6;
+                background: #3b82f6;
                 border-radius: 50%;
                 cursor: pointer;
             }
@@ -637,7 +638,7 @@
             .mobile-volume-slider::-moz-range-thumb {
                 width: 24px;
                 height: 24px;
-                background: #8b5cf6;
+                background: #3b82f6;
                 border-radius: 50%;
                 cursor: pointer;
                 border: none;
@@ -665,8 +666,8 @@
         @media (max-width: 768px) {
             .accelerometer-calibrate {
                 display: inline-block;
-                background: rgba(99, 102, 241, 0.2);
-                border: 1px solid rgba(99, 102, 241, 0.4);
+                background: rgba(59, 130, 246, 0.2);
+                border: 1px solid rgba(59, 130, 246, 0.4);
                 color: white;
                 padding: 8px 12px;
                 border-radius: 4px;
@@ -675,7 +676,7 @@
             }
 
             .accelerometer-calibrate.active {
-                background: rgba(99, 102, 241, 0.4);
+                background: rgba(59, 130, 246, 0.4);
             }
         }
 
@@ -785,7 +786,7 @@
 
                     <!-- Center: Audio controls -->
                     <div class="room-center">
-                        <button class="audio-toggle" id="audioToggle">▶</button>
+                        <button class="audio-toggle" id="audioToggle" aria-label="Play audio">▶</button>
                         <div id="audio-controls"></div>
                     </div>
 
@@ -803,7 +804,7 @@
             </div>
 
             <!-- Main gesture canvas -->
-            <canvas id="gestureCanvas"></canvas>
+            <canvas id="gestureCanvas" role="img" aria-label="Collaborative music canvas - tap, hold, or drag to create sounds with other users"></canvas>
 
             <!-- Cursor overlay canvas DISABLED - cursors now rendered in p5.js SpringMeshNetwork -->
             <canvas id="cursorOverlay"

@@ -26,6 +26,10 @@ class SettingsPanel {
     // Track original sample rate to detect changes requiring reload
     this._originalSampleRate = null
 
+    // Focus trap: store previously focused element and cached focusable elements
+    this._previouslyFocusedElement = null
+    this._focusableElements = null
+
     // Bind methods
     this.open = this.open.bind(this)
     this.close = this.close.bind(this)
@@ -40,15 +44,23 @@ class SettingsPanel {
     if (this.isOpen) return
     this.isOpen = true
 
+    // Focus trap: save currently focused element
+    this._previouslyFocusedElement = document.activeElement
+
     this._createPanel()
     this._startStressUpdates()
 
     // Add event listeners
     document.addEventListener('keydown', this._handleKeyDown)
 
-    // Animate in
+    // Animate in and focus first element
     requestAnimationFrame(() => {
       this.overlay.classList.add('settings-visible')
+      // Focus the close button (first focusable element)
+      const closeBtn = this.panel.querySelector('.settings-close')
+      if (closeBtn) {
+        closeBtn.focus()
+      }
     })
   }
 
@@ -63,6 +75,13 @@ class SettingsPanel {
 
     // Remove event listeners
     document.removeEventListener('keydown', this._handleKeyDown)
+
+    // Focus trap: restore focus to previously focused element
+    if (this._previouslyFocusedElement && typeof this._previouslyFocusedElement.focus === 'function') {
+      this._previouslyFocusedElement.focus()
+    }
+    this._previouslyFocusedElement = null
+    this._focusableElements = null
 
     // Fix #1: Clear notification timers on close
     if (this.notificationTimeout) {
@@ -96,9 +115,12 @@ class SettingsPanel {
     this.overlay.className = 'settings-overlay'
     this.overlay.addEventListener('click', this._handleOverlayClick)
 
-    // Create panel
+    // Create panel with ARIA attributes for accessibility
     this.panel = document.createElement('div')
     this.panel.className = 'settings-panel'
+    this.panel.setAttribute('role', 'dialog')
+    this.panel.setAttribute('aria-modal', 'true')
+    this.panel.setAttribute('aria-labelledby', 'settings-title')
     this.panel.innerHTML = this._getPanelHTML()
 
     this.overlay.appendChild(this.panel)
@@ -137,6 +159,11 @@ class SettingsPanel {
 
     // Load current settings into form
     this._loadCurrentSettings()
+
+    // Cache focusable elements for focus trap (performance optimization)
+    this._focusableElements = Array.from(this.panel.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    ))
   }
 
   /**
@@ -145,14 +172,14 @@ class SettingsPanel {
   _getPanelHTML () {
     return `
       <div class="settings-header">
-        <span class="settings-title">Settings</span>
-        <button class="settings-close" aria-label="Close">×</button>
+        <span class="settings-title" id="settings-title">Settings</span>
+        <button class="settings-close" aria-label="Close settings">×</button>
       </div>
 
       <div class="settings-content">
         <div class="settings-group">
-          <div class="settings-group-title">AUDIO QUALITY</div>
-          <div class="settings-options">
+          <div class="settings-group-title" id="audio-quality-label">AUDIO QUALITY</div>
+          <div class="settings-options" role="radiogroup" aria-labelledby="audio-quality-label">
             ${this._getRadioOption('audioQuality', 'auto', 'Auto', 'Use device detection')}
             ${this._getRadioOption('audioQuality', 'high', 'High', 'Best quality, more CPU')}
             ${this._getRadioOption('audioQuality', 'medium', 'Medium', 'Balanced')}
@@ -162,8 +189,8 @@ class SettingsPanel {
         </div>
 
         <div class="settings-group">
-          <div class="settings-group-title">SAMPLE RATE</div>
-          <div class="settings-options">
+          <div class="settings-group-title" id="sample-rate-label">SAMPLE RATE</div>
+          <div class="settings-options" role="radiogroup" aria-labelledby="sample-rate-label">
             ${this._getRadioOption('sampleRate', 'auto', 'Auto', 'Use device detection')}
             ${this._getRadioOption('sampleRate', '48000', '48 kHz', 'High fidelity')}
             ${this._getRadioOption('sampleRate', '44100', '44.1 kHz', 'Standard')}
@@ -172,8 +199,8 @@ class SettingsPanel {
         </div>
 
         <div class="settings-group">
-          <div class="settings-group-title">AUDIO BUFFER</div>
-          <div class="settings-options">
+          <div class="settings-group-title" id="audio-buffer-label">AUDIO BUFFER</div>
+          <div class="settings-options" role="radiogroup" aria-labelledby="audio-buffer-label">
             ${this._getRadioOption('audioBuffer', 'auto', 'Auto', 'Use device detection')}
             ${this._getRadioOption('audioBuffer', '100', 'Small (100ms)', 'Low latency')}
             ${this._getRadioOption('audioBuffer', '200', 'Medium (200ms)', 'Balanced')}
@@ -183,8 +210,8 @@ class SettingsPanel {
         </div>
 
         <div class="settings-group">
-          <div class="settings-group-title">GRAPHICS QUALITY</div>
-          <div class="settings-options">
+          <div class="settings-group-title" id="graphics-quality-label">GRAPHICS QUALITY</div>
+          <div class="settings-options" role="radiogroup" aria-labelledby="graphics-quality-label">
             ${this._getRadioOption('graphicsQuality', 'auto', 'Auto', 'Use device detection')}
             ${this._getRadioOption('graphicsQuality', 'full', 'Full', 'All effects')}
             ${this._getRadioOption('graphicsQuality', 'reduced', 'Reduced', 'No glow/shadows')}
@@ -592,6 +619,27 @@ class SettingsPanel {
   _handleKeyDown (e) {
     if (e.key === 'Escape') {
       this.close()
+      return
+    }
+
+    // Focus trap: trap Tab key within the panel (uses cached elements)
+    if (e.key === 'Tab' && this._focusableElements && this._focusableElements.length > 0) {
+      const firstElement = this._focusableElements[0]
+      const lastElement = this._focusableElements[this._focusableElements.length - 1]
+
+      if (e.shiftKey) {
+        // Shift+Tab: if on first element, wrap to last
+        if (document.activeElement === firstElement) {
+          e.preventDefault()
+          lastElement.focus()
+        }
+      } else {
+        // Tab: if on last element, wrap to first
+        if (document.activeElement === lastElement) {
+          e.preventDefault()
+          firstElement.focus()
+        }
+      }
     }
   }
 
@@ -690,7 +738,6 @@ settingsStyles.textContent = `
     font-size: 11px;
     font-weight: 600;
     color: #888;
-    letter-spacing: 0.5px;
     margin-bottom: 10px;
   }
 

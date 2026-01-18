@@ -8,12 +8,12 @@
   --bg-color: #0a0a0f;
   --card-bg: #1a1a2e;
   --card-bg-hover: #252540;
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
   --text-primary: #e0e0e0;
   --text-secondary: #a0a0a0;
   --text-muted: #6b7280;
-  --border-color: rgba(99, 102, 241, 0.2);
+  --border-color: rgba(59, 130, 246, 0.2);
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
@@ -47,6 +47,19 @@ body {
   min-height: 100vh;
   line-height: 1.6;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Text wrapping for better readability */
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+p, .explainer-intro, .explainer-detail {
+  text-wrap: pretty;
 }
 
 /* Header */
@@ -61,12 +74,7 @@ header h1 {
   display: inline-block;
   font-size: clamp(2rem, 5vw, 3rem);
   font-weight: 800;
-  letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  color: transparent;
+  color: var(--accent);
   margin-bottom: 0.5rem;
 }
 
@@ -87,7 +95,7 @@ header p {
   align-items: center;
   justify-content: center;
   text-decoration: none;
-  transition: transform 0.2s ease;
+  transition: transform 0.15s ease;
 }
 
 .corner-logo-link:hover {
@@ -127,8 +135,8 @@ header p {
 }
 
 .message.status {
-  background: rgba(99, 102, 241, 0.1);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
   color: #a5b4fc;
 }
 
@@ -165,7 +173,7 @@ header p {
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border-color);
-  transition: border-color 0.2s ease, box-shadow 0.3s ease;
+  transition: border-color 0.15s ease, transform 0.15s ease;
   width: 250px;
   flex-shrink: 0;
 }
@@ -175,7 +183,8 @@ header p {
 }
 
 .metric-card.flash {
-  box-shadow: 0 0 15px var(--flash-color, var(--accent));
+  transform: scale(1.02);
+  border-color: var(--flash-color, var(--accent));
 }
 
 .source-title {
@@ -184,7 +193,6 @@ header p {
   margin-bottom: 0.3rem;
   text-align: center;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .meters-container {
@@ -219,9 +227,9 @@ header p {
   left: 0;
   right: 0;
   height: 0%;
-  background: linear-gradient(to top, var(--meter-color, var(--accent)), var(--meter-color-light, #818cf8));
+  background: linear-gradient(to top, var(--meter-color, var(--accent)), var(--meter-color-light, #60a5fa));
   border-radius: 2px;
-  transition: height 0.3s ease-out;
+  transition: height 0.15s ease-out;
 }
 
 .meter.flash .meter-fill {
@@ -229,9 +237,9 @@ header p {
 }
 
 @keyframes meter-flash {
-  0% { filter: brightness(1); }
-  50% { filter: brightness(2); box-shadow: 0 0 10px var(--meter-color, var(--accent)); }
-  100% { filter: brightness(1); }
+  0% { filter: brightness(1); transform: scaleY(1); }
+  50% { filter: brightness(1.5); transform: scaleY(1.05); }
+  100% { filter: brightness(1); transform: scaleY(1); }
 }
 
 .meter-value {
@@ -246,7 +254,6 @@ header p {
   font-size: 0.5rem;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
@@ -351,7 +358,7 @@ button:disabled {
 }
 
 .primary-btn {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: var(--accent);
 }
 
 .secondary-btn {
@@ -360,7 +367,7 @@ button:disabled {
 }
 
 .primary-btn.playing {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
+  background: #ef4444;
 }
 
 /* Entry #74: Settings button */
@@ -409,6 +416,13 @@ button:disabled {
 .slider-group label {
   font-size: 0.875rem;
   color: var(--text-secondary);
+}
+
+/* Minimum font-size 16px prevents iOS zoom on focus */
+input,
+select,
+textarea {
+  font-size: 16px;
 }
 
 input[type="range"] {
@@ -479,10 +493,7 @@ input[type="range"]::-moz-range-thumb {
 #mapping-explainer h2 {
   font-size: 1.75rem;
   margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--accent);
 }
 
 #mapping-explainer h3 {
@@ -505,7 +516,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .explainer-intro em {
-  color: #a78bfa;
+  color: #60a5fa;
   font-style: normal;
 }
 
@@ -515,7 +526,7 @@ input[type="range"]::-moz-range-thumb {
   line-height: 1.7;
   margin-bottom: 1.25rem;
   padding-left: 1rem;
-  border-left: 2px solid rgba(99, 102, 241, 0.3);
+  border-left: 2px solid rgba(59, 130, 246, 0.3);
 }
 
 .explainer-detail strong {
@@ -524,7 +535,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .explainer-detail em {
-  color: #a78bfa;
+  color: #60a5fa;
   font-style: normal;
 }
 
@@ -671,7 +682,7 @@ footer a:hover {
   border-radius: 20px;
   font-size: 14px;
   margin-left: 10px;
-  transition: opacity 0.3s ease, background 0.3s ease;
+  transition: opacity 0.15s ease, background 0.15s ease;
 }
 
 .audio-mode-indicator.hidden {
@@ -703,4 +714,68 @@ footer a:hover {
 @keyframes pulse-warning {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
+}
+
+/* Pause looping animations when off-screen (performance) */
+.animation-paused,
+[data-animation-paused="true"] {
+  animation-play-state: paused !important;
+}
+
+/* Selection styling */
+::selection {
+  background: var(--accent);
+  color: var(--bg-color);
+}
+
+::-moz-selection {
+  background: var(--accent);
+  color: var(--bg-color);
+}
+
+/* Prevent text selection on interactive elements */
+button,
+.primary-btn,
+.secondary-btn,
+.settings-btn,
+.room-link,
+input[type="range"] {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Hide hover effects on touch devices */
+@media (hover: none) {
+  button:hover:not(:disabled),
+  .primary-btn:hover,
+  .settings-btn:hover,
+  .room-link:hover,
+  .metric-card:hover,
+  .corner-logo-link:hover {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* Focus rings using box-shadow (respects border-radius) */
+button:focus-visible,
+.primary-btn:focus-visible,
+.secondary-btn:focus-visible,
+.settings-btn:focus-visible,
+.room-link:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 5px rgba(59, 130, 246, 0.3);
+}
+
+/* Ensure focus is visible on dark backgrounds */
+input[type="range"]:focus-visible {
+  outline: none;
+}
+
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 5px rgba(59, 130, 246, 0.3);
 }

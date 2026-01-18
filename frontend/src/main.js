@@ -1779,18 +1779,18 @@ class WebarmoniumApp {
           width: 100px;
           height: 100px;
           border-radius: 50%;
-          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          background: #3b82f6;
           border: none;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 30px rgba(99, 102, 241, 0.5);
-          transition: transform 0.2s, box-shadow 0.2s;
+          box-shadow: 0 4px 30px rgba(59, 130, 246, 0.5);
+          transition: transform 0.15s, box-shadow 0.15s;
         }
         .audio-recovery-play-btn:hover {
           transform: scale(1.1);
-          box-shadow: 0 6px 40px rgba(99, 102, 241, 0.7);
+          box-shadow: 0 6px 40px rgba(59, 130, 246, 0.7);
         }
         .audio-recovery-play-btn:active {
           transform: scale(0.95);
