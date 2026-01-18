@@ -952,15 +952,9 @@ body.immersive-mode #canvas-container {
   z-index: 1000;
 }
 
+/* Hide immersive toggle in immersive mode - use mini control bar instead */
 body.immersive-mode .immersive-toggle {
-  z-index: 1001;
-  background: rgba(26, 26, 46, 0.8);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-body.immersive-mode .immersive-icon {
-  transform: rotate(180deg);
+  display: none;
 }
 
 /* Mobile adjustments for immersive toggle */
