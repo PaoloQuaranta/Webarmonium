@@ -1099,18 +1099,18 @@ body.audio-playing .immersive-ctrl-btn .stop-icon {
 
 /* Sound-reactive glow on metric cards when audio is active */
 body.audio-active .metric-card.sound-reactive {
-  box-shadow: 0 0 calc(15px * var(--audio-intensity)) rgba(59, 130, 246, calc(0.4 * var(--audio-intensity)));
-}
-
-/* Sound-reactive border on cards */
-body.audio-active .metric-card.sound-reactive {
-  border-color: rgba(59, 130, 246, calc(0.2 + 0.5 * var(--audio-intensity)));
+  box-shadow:
+    0 0 calc(20px * var(--audio-intensity)) rgba(59, 130, 246, calc(0.5 * var(--audio-intensity))),
+    0 0 calc(40px * var(--audio-intensity)) rgba(59, 130, 246, calc(0.25 * var(--audio-intensity)));
+  border-color: rgba(59, 130, 246, calc(0.3 + 0.5 * var(--audio-intensity)));
 }
 
 /* Sound-reactive play button glow */
 .primary-btn.playing {
   --btn-glow: 0;
-  box-shadow: 0 0 calc(20px * var(--btn-glow)) rgba(239, 68, 68, calc(0.5 * var(--btn-glow)));
+  box-shadow:
+    0 0 calc(25px * var(--btn-glow)) rgba(239, 68, 68, calc(0.6 * var(--btn-glow))),
+    0 0 calc(50px * var(--btn-glow)) rgba(239, 68, 68, calc(0.3 * var(--btn-glow)));
 }
 
 /* Disable sound-reactive effects for reduced motion */

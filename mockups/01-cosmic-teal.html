@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webarmonium - Cosmic Teal Theme</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Cosmic Teal - Deep space with cyan/teal accents */
+      --bg-primary: #050810;
+      --bg-secondary: #0a1118;
+      --bg-card: #0d1520;
+      --bg-card-hover: #12202d;
+
+      /* Teal/Cyan accent spectrum - spacey without purple */
+      --accent-primary: #14b8a6;      /* Teal 500 */
+      --accent-light: #2dd4bf;        /* Teal 400 */
+      --accent-glow: rgba(20, 184, 166, 0.4);
+      --accent-subtle: rgba(20, 184, 166, 0.15);
+
+      /* Secondary accent - cool blue for depth */
+      --accent-secondary: #0ea5e9;    /* Sky 500 */
+      --accent-secondary-glow: rgba(14, 165, 233, 0.3);
+
+      /* Text hierarchy */
+      --text-primary: #f0fdfa;        /* Teal 50 */
+      --text-secondary: #99f6e4;      /* Teal 200 */
+      --text-muted: #5eead4;          /* Teal 300 with opacity */
+      --text-dim: #4b5563;
+
+      /* Borders */
+      --border-color: rgba(20, 184, 166, 0.2);
+      --border-glow: rgba(20, 184, 166, 0.5);
+
+      /* Typography */
+      --font-display: 'Space Grotesk', system-ui, sans-serif;
+      --font-body: 'Inter', system-ui, sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Animated background gradient */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 40%, rgba(20, 184, 166, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 40% at 80% 60%, rgba(14, 165, 233, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse 100% 80% at 50% 100%, rgba(20, 184, 166, 0.04) 0%, transparent 40%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Subtle noise texture */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      opacity: 0.02;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      padding: 4rem 2rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 1rem;
+      text-shadow: 0 0 60px var(--accent-glow);
+    }
+
+    .tagline {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      max-width: 500px;
+      margin: 0 auto;
+      opacity: 0.9;
+    }
+
+    /* Controls bar */
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      margin: 2rem 0;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    /* Buttons */
+    .btn {
+      font-family: var(--font-display);
+      font-weight: 600;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.95rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+      color: var(--bg-primary);
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 30px var(--accent-glow);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--accent-primary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--accent-primary);
+      background: var(--accent-subtle);
+    }
+
+    /* Canvas area mockup */
+    .canvas-area {
+      width: 100%;
+      height: 400px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      position: relative;
+      overflow: hidden;
+      margin: 2rem 0;
+    }
+
+    .canvas-area::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 30% 40%, rgba(20, 184, 166, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 70% 60%, rgba(14, 165, 233, 0.1) 0%, transparent 35%),
+        radial-gradient(circle at 50% 80%, rgba(20, 184, 166, 0.08) 0%, transparent 30%);
+      animation: nebula-drift 20s ease-in-out infinite;
+    }
+
+    @keyframes nebula-drift {
+      0%, 100% { transform: scale(1) translate(0, 0); }
+      50% { transform: scale(1.1) translate(-2%, 2%); }
+    }
+
+    .canvas-label {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      font-family: var(--font-display);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* Metric cards */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      transition: all 0.2s ease;
+    }
+
+    .metric-card:hover {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 30px var(--accent-glow);
+    }
+
+    .metric-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-value {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--accent-light);
+    }
+
+    /* Info section */
+    .info-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 2rem;
+      margin: 3rem 0;
+    }
+
+    .info-section h2 {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      color: var(--accent-light);
+      margin-bottom: 1rem;
+    }
+
+    .info-section p {
+      color: var(--text-secondary);
+      line-height: 1.8;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 2rem;
+      border-top: 1px solid var(--border-color);
+      color: var(--text-dim);
+      font-size: 0.875rem;
+    }
+
+    footer a {
+      color: var(--accent-primary);
+      text-decoration: none;
+    }
+
+    /* Color palette display */
+    .palette-display {
+      display: flex;
+      gap: 0.5rem;
+      margin: 2rem 0;
+      flex-wrap: wrap;
+    }
+
+    .color-swatch {
+      width: 60px;
+      height: 60px;
+      border-radius: 8px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 4px;
+      font-size: 0.6rem;
+      font-family: monospace;
+      color: white;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+
+    .theme-info {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-top: 3rem;
+    }
+
+    .theme-info h3 {
+      font-family: var(--font-display);
+      color: var(--accent-light);
+      margin-bottom: 1rem;
+    }
+
+    .theme-info ul {
+      color: var(--text-secondary);
+      padding-left: 1.5rem;
+    }
+
+    .theme-info li {
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 class="logo">Webarmonium</h1>
+      <p class="tagline">Transform gestures into algorithmic music with real-time collaboration</p>
+    </header>
+
+    <div class="controls-bar">
+      <div style="display: flex; gap: 0.75rem;">
+        <button class="btn btn-primary">Start Playing</button>
+        <button class="btn btn-secondary">Settings</button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <span style="color: var(--text-muted); font-size: 0.85rem;">Room: cosmic-jam-42</span>
+        <button class="btn btn-secondary">Join Room</button>
+      </div>
+    </div>
+
+    <div class="canvas-area">
+      <span class="canvas-label">Interactive Canvas</span>
+    </div>
+
+    <div class="metrics">
+      <div class="metric-card">
+        <div class="metric-label">Wikipedia Activity</div>
+        <div class="metric-value">127</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Hacker News</div>
+        <div class="metric-value">84</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">GitHub Events</div>
+        <div class="metric-value">256</div>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <h2>How It Works</h2>
+      <p>Move your cursor across the canvas to create music in real-time. Your gestures control pitch, rhythm, and texture. Collaborate with others as their movements blend with yours in a shared sonic space.</p>
+    </div>
+
+    <div class="theme-info">
+      <h3>Theme: Cosmic Teal</h3>
+      <p style="color: var(--text-secondary); margin-bottom: 1rem;">A deep space aesthetic using teal and cyan tones. Avoids purple while maintaining the cosmic, abstract feel.</p>
+
+      <div class="palette-display">
+        <div class="color-swatch" style="background: #050810;">#050810</div>
+        <div class="color-swatch" style="background: #0d1520;">#0d1520</div>
+        <div class="color-swatch" style="background: #14b8a6;">#14b8a6</div>
+        <div class="color-swatch" style="background: #2dd4bf;">#2dd4bf</div>
+        <div class="color-swatch" style="background: #0ea5e9;">#0ea5e9</div>
+        <div class="color-swatch" style="background: #f0fdfa; color: #050810;">#f0fdfa</div>
+      </div>
+
+      <ul>
+        <li><strong>Primary Accent:</strong> Teal (#14b8a6) - Calm, modern, excellent accessibility</li>
+        <li><strong>Secondary:</strong> Sky blue (#0ea5e9) - Adds depth, complements teal</li>
+        <li><strong>Fonts:</strong> Space Grotesk (display), Inter (body)</li>
+        <li><strong>Vibe:</strong> Deep ocean meets outer space - mysterious yet approachable</li>
+      </ul>
+    </div>
+
+    <footer>
+      <p>Webarmonium - Mockup Theme Preview</p>
+    </footer>
+  </div>
+</body>
+</html>
