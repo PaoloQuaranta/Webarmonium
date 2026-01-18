@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webarmonium - Chrome Void Theme</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Chrome Void - Metallic futurism with glassmorphism */
+      --bg-primary: #09090b;
+      --bg-secondary: #0f0f12;
+      --bg-card: rgba(24, 24, 27, 0.6);
+      --bg-card-solid: #18181b;
+      --bg-glass: rgba(255, 255, 255, 0.03);
+
+      /* Chrome/Silver metallic accent */
+      --accent-primary: #a1a1aa;       /* Zinc 400 */
+      --accent-light: #d4d4d8;         /* Zinc 300 */
+      --accent-bright: #fafafa;        /* Almost white */
+      --accent-glow: rgba(161, 161, 170, 0.3);
+
+      /* Subtle blue undertone for tech feel */
+      --accent-secondary: #3b82f6;     /* Blue 500 */
+      --accent-secondary-dim: rgba(59, 130, 246, 0.15);
+
+      /* Text hierarchy - silver tones */
+      --text-primary: #fafafa;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --text-dim: #52525b;
+
+      /* Borders - glass effect */
+      --border-color: rgba(161, 161, 170, 0.15);
+      --border-light: rgba(255, 255, 255, 0.1);
+
+      /* Typography */
+      --font-display: 'Sora', system-ui, sans-serif;
+      --font-mono: 'Geist Mono', 'SF Mono', monospace;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-display);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Chrome gradient overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 100% 60% at 50% 0%, rgba(255, 255, 255, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse 80% 40% at 100% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 40%),
+        linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.3) 100%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Subtle grid pattern */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      opacity: 0.015;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      padding: 4rem 2rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .logo {
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(
+        135deg,
+        var(--accent-bright) 0%,
+        var(--accent-primary) 40%,
+        var(--accent-light) 60%,
+        var(--accent-bright) 100%
+      );
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 1rem;
+      filter: drop-shadow(0 0 40px rgba(255, 255, 255, 0.1));
+    }
+
+    .tagline {
+      font-size: 1rem;
+      font-weight: 400;
+      color: var(--text-muted);
+      max-width: 450px;
+      margin: 0 auto;
+      letter-spacing: 0.02em;
+    }
+
+    /* Glass card effect */
+    .glass-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-light);
+      border-radius: 16px;
+    }
+
+    /* Controls bar */
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      margin: 2rem 0;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    /* Buttons - chrome style */
+    .btn {
+      font-family: var(--font-display);
+      font-weight: 500;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.9rem;
+      letter-spacing: 0.01em;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-light) 0%, var(--accent-primary) 100%);
+      color: var(--bg-primary);
+      box-shadow:
+        0 2px 10px rgba(255, 255, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow:
+        0 4px 20px rgba(255, 255, 255, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-secondary {
+      background: var(--bg-glass);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-light);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+      border-color: var(--accent-primary);
+    }
+
+    /* Canvas area */
+    .canvas-area {
+      width: 100%;
+      height: 400px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: 20px;
+      position: relative;
+      overflow: hidden;
+      margin: 2rem 0;
+    }
+
+    .canvas-area::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.03) 0%, transparent 30%),
+        radial-gradient(circle at 80% 70%, rgba(59, 130, 246, 0.04) 0%, transparent 25%),
+        radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.02) 0%, transparent 50%);
+    }
+
+    /* Chrome reflection line */
+    .canvas-area::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+    }
+
+    .canvas-label {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+    }
+
+    /* Metric cards */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+
+    .metric-card {
+      padding: 1.25rem;
+      transition: all 0.2s ease;
+    }
+
+    .metric-card:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 0 40px rgba(255, 255, 255, 0.05);
+    }
+
+    .metric-label {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-dim);
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-value {
+      font-size: 1.75rem;
+      font-weight: 600;
+      background: linear-gradient(135deg, var(--accent-bright) 0%, var(--accent-primary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Info section */
+    .info-section {
+      padding: 2.5rem;
+      margin: 3rem 0;
+    }
+
+    .info-section h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--accent-light);
+      margin-bottom: 1rem;
+      letter-spacing: -0.01em;
+    }
+
+    .info-section p {
+      color: var(--text-muted);
+      line-height: 1.8;
+      font-size: 0.95rem;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 2rem;
+      border-top: 1px solid var(--border-color);
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      letter-spacing: 0.05em;
+    }
+
+    /* Theme info */
+    .theme-info {
+      padding: 1.5rem;
+      margin-top: 3rem;
+    }
+
+    .theme-info h3 {
+      color: var(--accent-light);
+      margin-bottom: 1rem;
+      font-weight: 600;
+    }
+
+    .theme-info ul {
+      color: var(--text-muted);
+      padding-left: 1.5rem;
+      font-size: 0.9rem;
+    }
+
+    .theme-info li {
+      margin-bottom: 0.5rem;
+    }
+
+    .palette-display {
+      display: flex;
+      gap: 0.5rem;
+      margin: 1.5rem 0;
+      flex-wrap: wrap;
+    }
+
+    .color-swatch {
+      width: 60px;
+      height: 60px;
+      border-radius: 8px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 4px;
+      font-size: 0.55rem;
+      font-family: var(--font-mono);
+      border: 1px solid var(--border-light);
+    }
+
+    /* Status indicator */
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-secondary);
+      box-shadow: 0 0 10px var(--accent-secondary);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 class="logo">Webarmonium</h1>
+      <p class="tagline">Transform gestures into algorithmic music with real-time collaboration</p>
+    </header>
+
+    <div class="controls-bar glass-card">
+      <div style="display: flex; gap: 0.75rem; align-items: center;">
+        <button class="btn btn-primary">Start Playing</button>
+        <button class="btn btn-secondary">Settings</button>
+        <div class="status-dot" style="margin-left: 0.5rem;"></div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <span style="color: var(--text-dim); font-size: 0.8rem; font-family: var(--font-mono);">ROOM://void-42</span>
+        <button class="btn btn-secondary">Join</button>
+      </div>
+    </div>
+
+    <div class="canvas-area">
+      <span class="canvas-label">// Interactive Canvas</span>
+    </div>
+
+    <div class="metrics">
+      <div class="metric-card glass-card">
+        <div class="metric-label">Wikipedia</div>
+        <div class="metric-value">127</div>
+      </div>
+      <div class="metric-card glass-card">
+        <div class="metric-label">Hacker News</div>
+        <div class="metric-value">84</div>
+      </div>
+      <div class="metric-card glass-card">
+        <div class="metric-label">GitHub</div>
+        <div class="metric-value">256</div>
+      </div>
+    </div>
+
+    <div class="info-section glass-card">
+      <h2>How It Works</h2>
+      <p>Move your cursor across the canvas to create music in real-time. Your gestures control pitch, rhythm, and texture. Collaborate with others as their movements blend with yours in a shared sonic space.</p>
+    </div>
+
+    <div class="theme-info glass-card">
+      <h3>Theme: Chrome Void</h3>
+      <p style="color: var(--text-muted); margin-bottom: 1rem;">Ultra-modern metallic aesthetic with glassmorphism. Chrome/silver tones create a premium, futuristic feel inspired by 2025-2026 design trends.</p>
+
+      <div class="palette-display">
+        <div class="color-swatch" style="background: #09090b; color: #a1a1aa;">#09090b</div>
+        <div class="color-swatch" style="background: #18181b; color: #a1a1aa;">#18181b</div>
+        <div class="color-swatch" style="background: #71717a; color: #fafafa;">#71717a</div>
+        <div class="color-swatch" style="background: #a1a1aa; color: #09090b;">#a1a1aa</div>
+        <div class="color-swatch" style="background: #d4d4d8; color: #09090b;">#d4d4d8</div>
+        <div class="color-swatch" style="background: #3b82f6; color: #fafafa;">#3b82f6</div>
+      </div>
+
+      <ul>
+        <li><strong>Primary:</strong> Chrome/Silver gradient - Premium, reflective quality</li>
+        <li><strong>Secondary:</strong> Blue accent (#3b82f6) - Tech undertone, status indicators</li>
+        <li><strong>Fonts:</strong> Sora (display), Geist Mono (labels)</li>
+        <li><strong>Effects:</strong> Glassmorphism, subtle grid, chrome reflections</li>
+        <li><strong>Vibe:</strong> Calm futurism - polished, high-end, minimal</li>
+      </ul>
+    </div>
+
+    <footer>
+      <p>WEBARMONIUM // MOCKUP THEME PREVIEW</p>
+    </footer>
+  </div>
+</body>
+</html>

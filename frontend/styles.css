@@ -1098,27 +1098,48 @@ body.audio-playing .immersive-ctrl-btn .stop-icon {
 }
 
 /* Sound-reactive glow on metric cards when audio is active */
+/* CSS pulse animation as fallback when JS analyser doesn't work */
 body.audio-active .metric-card.sound-reactive {
-  box-shadow:
-    0 0 calc(20px * var(--audio-intensity)) rgba(59, 130, 246, calc(0.5 * var(--audio-intensity))),
-    0 0 calc(40px * var(--audio-intensity)) rgba(59, 130, 246, calc(0.25 * var(--audio-intensity)));
-  border-color: rgba(59, 130, 246, calc(0.3 + 0.5 * var(--audio-intensity)));
+  animation: metric-pulse 2s ease-in-out infinite;
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+@keyframes metric-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 10px rgba(59, 130, 246, 0.3),
+      0 0 20px rgba(59, 130, 246, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 20px rgba(59, 130, 246, 0.5),
+      0 0 40px rgba(59, 130, 246, 0.25);
+  }
 }
 
 /* Sound-reactive play button glow */
 .primary-btn.playing {
-  --btn-glow: 0;
-  box-shadow:
-    0 0 calc(25px * var(--btn-glow)) rgba(239, 68, 68, calc(0.6 * var(--btn-glow))),
-    0 0 calc(50px * var(--btn-glow)) rgba(239, 68, 68, calc(0.3 * var(--btn-glow)));
+  animation: btn-pulse 2s ease-in-out infinite;
+}
+
+@keyframes btn-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 10px rgba(239, 68, 68, 0.4),
+      0 0 20px rgba(239, 68, 68, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 20px rgba(239, 68, 68, 0.6),
+      0 0 40px rgba(239, 68, 68, 0.3);
+  }
 }
 
 /* Disable sound-reactive effects for reduced motion */
 @media (prefers-reduced-motion: reduce) {
   body.audio-active .metric-card.sound-reactive,
   .primary-btn.playing {
+    animation: none;
     box-shadow: none;
-    --audio-intensity: 0;
-    --btn-glow: 0;
   }
 }
