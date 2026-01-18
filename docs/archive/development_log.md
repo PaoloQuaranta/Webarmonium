@@ -7267,24 +7267,28 @@ v1.0.161
 
 ---
 
-## Entry #129 - Audio Auto-Restart Bug Fix (Final)
+## Entry #129 - Audio Auto-Restart Bug Fix (Complete)
 
-**Date**: 2026-01-17
+**Date**: 2026-01-17 (Updated: 2026-01-18)
 **Author**: Claude Code (AI Assistant)
 **Status**: COMPLETED
 
 ### Summary
 
-Fixed two related audio auto-restart bugs:
+Comprehensive fix for the audio auto-restart bug, addressing multiple issues:
 1. Audio restarting after visibility/focus changes even when user had pressed Stop
 2. Audio starting automatically on any click, even without pressing Start button
+3. Audio recovery only restarting chords, not drone (incomplete recovery)
+4. iOS sleep recovery regression
 
 ---
 
 ### Problem Statement
 
-1. User reported that Entry #127 fixes were incomplete - audio still restarted when switching tabs after pressing Stop. Console logs showed `_userStoppedAudio: false`.
-2. Audio would start on pages where user never pressed Start - any click would trigger audio initialization.
+1. Audio restarted when switching tabs after pressing Stop
+2. Audio would start on pages where user never pressed Start
+3. When audio DID recover (after sleep), only chords restarted - drone was missing
+4. iOS sleep recovery stopped working after initial fixes
 
 ---
 
@@ -7292,56 +7296,72 @@ Fixed two related audio auto-restart bugs:
 
 **Bug 1: _userStoppedAudio not set when isInitialized is false**
 
-In `AudioService.stop()`, the critical line `this._userStoppedAudio = true` was inside the `if (this.isInitialized)` block:
-
-```javascript
-stop() {
-  if (this.isInitialized) {
-    this._userStoppedAudio = true  // Never reached if isInitialized is false!
-    // ...
-  }
-}
-```
+In `AudioService.stop()`, the flag was inside `if (this.isInitialized)` block.
 
 **Bug 2: _initAudioListener missing isRunning check**
 
-In `main.js`, the `_initAudioListener` would initialize audio on ANY click/keydown without checking if user had pressed Start:
+In `main.js`, any click/keydown would trigger audio initialization.
 
-```javascript
-this._initAudioListener = async () => {
-  // No check for isRunning - any click starts audio!
-  if (this.isAudioReady || isInitializing) return
-  // ... starts audio
-}
-```
+**Bug 3: Recovery missing _userExplicitlyStartedAudio check**
+
+Recovery would run even if user never pressed Start, because it only checked `isInitialized` and `_userStoppedAudio`.
+
+**Bug 4: DroneVoidController not restarted in recovery**
+
+`_performAudioRecovery()` only called `startEvolvingGeneration()` (chords), not `droneVoidController.start()`.
 
 ---
 
 ### Solution
 
-**Fix 1: Move flag outside conditional**
+**Fix 1: Move _userStoppedAudio outside conditional**
 
 ```javascript
 stop() {
-  // Entry #129: ALWAYS set flag when user presses Stop, regardless of initialization state
   this._userStoppedAudio = true
-  console.log('🛑 AudioService.stop() - _userStoppedAudio set to TRUE')
-
-  if (this.isInitialized) {
-    // ... rest of stop logic
-  }
+  this._userExplicitlyStartedAudio = false
+  // ...
 }
 ```
 
-**Fix 2: Add isRunning check**
+**Fix 2: Add isRunning check in _initAudioListener**
 
 ```javascript
 this._initAudioListener = async () => {
-  // Entry #129: Only initialize audio if user has explicitly pressed Start
   if (!this.isRunning) return
+  // ...
+}
+```
 
-  if (this.isAudioReady || isInitializing) return
-  // ... rest of initialization
+**Fix 3: Add _userExplicitlyStartedAudio flag**
+
+New flag tracks if user explicitly pressed Start:
+
+```javascript
+// In constructor
+this._userExplicitlyStartedAudio = false
+
+// In start()
+this._userExplicitlyStartedAudio = true
+
+// In stop()
+this._userExplicitlyStartedAudio = false
+
+// In _performAudioRecovery()
+if (!this._userExplicitlyStartedAudio) {
+  console.log('🔊 User never started audio, skipping recovery')
+  return
+}
+```
+
+**Fix 4: Restart DroneVoidController in recovery**
+
+```javascript
+// In _performAudioRecovery() STEP 5
+if (this.droneVoidController) {
+  console.log('🔊 Restarting DroneVoidController after recovery...')
+  this.droneVoidController.reset()
+  this.droneVoidController.start()
 }
 ```
 
@@ -7351,32 +7371,44 @@ this._initAudioListener = async () => {
 
 | File | Changes |
 |------|---------|
-| `frontend/src/services/AudioService.js` | Moved `_userStoppedAudio = true` outside `if (this.isInitialized)` block |
+| `frontend/src/services/AudioService.js` | Added `_userExplicitlyStartedAudio` flag, moved `_userStoppedAudio` outside conditional, added DroneVoidController restart in recovery, added flag check in `_performAudioRecovery()` |
 | `frontend/src/landing/main.js` | Added `if (!this.isRunning) return` check in `_initAudioListener` |
-| `frontend/index.html` | Version bump to v1.0.163 |
+| `frontend/index.html` | Version bump to v1.0.165 |
+
+---
+
+### Expected Behavior
+
+| Scenario | Behavior |
+|----------|----------|
+| User never pressed Start | No audio plays, no recovery |
+| User pressed Start, then Stop | Audio stops, no recovery after tab switch |
+| User pressed Start, iOS sleeps | Full recovery (chords + drone) after wake |
+| User pressed Start, then Stop, iOS sleeps | No recovery after wake |
 
 ---
 
 ### Verification
 
-**Test 1: Stop button respected after tab switch**
-1. Start app, press Start, let audio play
-2. Press Stop button
-3. Switch to another tab, then return
-4. **Expected**: Audio remains stopped
+**Test 1: No audio without Start**
+1. Load page fresh, click anywhere (not Start)
+2. **Expected**: No audio plays
 
-**Test 2: Audio doesn't start without pressing Start**
-1. Load page fresh
-2. Click anywhere on the page (not the Start button)
-3. **Expected**: No audio plays
-4. Press Start button
-5. **Expected**: Audio starts
+**Test 2: Stop respected after tab switch**
+1. Press Start, then Stop
+2. Switch tabs and return
+3. **Expected**: Audio remains stopped
+
+**Test 3: iOS sleep recovery works**
+1. Press Start, let audio play
+2. Let iOS sleep, then wake
+3. **Expected**: Full audio recovery (chords AND drone)
 
 ---
 
 ### Version
 
-v1.0.163
+v1.0.165
 
 ---
 

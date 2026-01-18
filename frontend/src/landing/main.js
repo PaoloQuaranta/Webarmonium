@@ -340,6 +340,10 @@ class LandingApp {
 
     // Entry #123: Store as class property for cleanup from multiple places
     this._initAudioListener = async () => {
+      // Entry #129: Only initialize audio if user has explicitly pressed Start
+      // Without this check, any click on the page would start audio
+      if (!this.isRunning) return
+
       // CRITICAL: Check if audio already started (not just if audioService exists)
       // AudioService is now created early in initialize(), so check isAudioReady instead
       if (this.isAudioReady || isInitializing) return

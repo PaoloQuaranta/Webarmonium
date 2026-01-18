@@ -216,6 +216,9 @@ class AudioService {
 
     // Track if audio was intentionally stopped by user (not just suspended)
     this._userStoppedAudio = false
+
+    // Entry #129: Track if user explicitly started audio (prevents recovery without Start)
+    this._userExplicitlyStartedAudio = false
   }
 
   /**
@@ -330,6 +333,13 @@ class AudioService {
       return
     }
 
+    // Entry #129: Only recover if user explicitly started audio (prevents unwanted auto-restart)
+    if (!this._userExplicitlyStartedAudio) {
+      console.log('🔊 User never started audio, skipping recovery')
+      this._recoveryInProgress = false
+      return
+    }
+
     try {
       // STEP 1: Resume AudioContext if suspended (with retry logic)
       const contextResumed = await this._resumeAudioContext(trigger)
@@ -368,6 +378,13 @@ class AudioService {
         // Reset flag to allow startEvolvingGeneration to run
         this.evolvingGenerationActive = false
         this.startEvolvingGeneration()
+
+        // Entry #129: Also restart DroneVoidController (was missing - caused only chords to restart)
+        if (this.droneVoidController) {
+          console.log('🔊 Restarting DroneVoidController after recovery...')
+          this.droneVoidController.reset()
+          this.droneVoidController.start()
+        }
       }
 
       // STEP 6: Start audio health monitoring to detect silent state
@@ -1206,6 +1223,10 @@ class AudioService {
     try {
       // Clear user-stopped flag when explicitly starting audio
       this._userStoppedAudio = false
+
+      // Entry #129: Mark that user explicitly started audio (enables recovery after sleep)
+      this._userExplicitlyStartedAudio = true
+      console.log('🔊 AudioService.start() - _userExplicitlyStartedAudio set to TRUE')
 
       // Initialize Tone.js audio context
       if (window.Tone) {
@@ -2384,10 +2405,13 @@ class AudioService {
    * Stop the audio engine
    */
   stop() {
+    // Entry #129: ALWAYS set flag when user presses Stop, regardless of initialization state
+    // This prevents audio recovery from restarting audio after visibility/focus changes
+    this._userStoppedAudio = true
+    this._userExplicitlyStartedAudio = false
+    console.log('🛑 AudioService.stop() - _userStoppedAudio=TRUE, _userExplicitlyStartedAudio=FALSE')
+
     if (this.isInitialized) {
-      // Mark that user intentionally stopped audio (prevents auto-recovery)
-      this._userStoppedAudio = true
-      console.log('🛑 AudioService.stop() - _userStoppedAudio set to TRUE')
 
       // STEP 0: Stop health monitoring (prevent recovery attempts during stop)
       this._stopAudioHealthCheck()
