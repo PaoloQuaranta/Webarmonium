@@ -172,6 +172,11 @@ class LandingApp {
     this._immersiveResizeHandler = null
     this._immersiveKeyHandler = null
 
+    // Entry #134: Immersive controls auto-hide state
+    this._immersiveMouseHandler = null
+    this._immersiveAutoHideTimeout = null
+    this._immersiveAutoHideDelay = 3000  // 3 seconds
+
   }
 
   /**
@@ -1119,6 +1124,9 @@ class LandingApp {
       // Entry #93: Toggle canvas glow effect
       this.canvasContainer?.classList.add('active')
 
+      // Entry #134: Add audio-playing class for immersive mode floating button
+      document.body.classList.add('audio-playing')
+
       // Entry #93: Setup and start sound-reactive UI
       this._setupSoundReactiveUI()
       this._startSoundReactiveLoop()
@@ -1163,6 +1171,9 @@ class LandingApp {
 
       // Entry #93: Remove canvas glow effect
       this.canvasContainer?.classList.remove('active')
+
+      // Entry #134: Remove audio-playing class for immersive mode floating button
+      document.body.classList.remove('audio-playing')
 
       // Entry #93: Stop sound-reactive UI
       this._stopSoundReactiveLoop()
@@ -1671,6 +1682,89 @@ class LandingApp {
       }
     }
     window.addEventListener('resize', this._immersiveResizeHandler)
+
+    // Entry #134: Immersive mode mini control bar
+    const immersiveControls = document.getElementById('immersive-controls')
+    const immersivePlayBtn = document.getElementById('immersive-play-btn')
+    const immersiveExitBtn = document.getElementById('immersive-exit-btn')
+
+    // Play/Stop toggle button
+    if (immersivePlayBtn) {
+      immersivePlayBtn.addEventListener('click', () => {
+        if (this.isRunning) {
+          this.stop()
+        } else {
+          this.start()
+        }
+      })
+    }
+
+    // Exit button - exit immersive mode
+    if (immersiveExitBtn) {
+      immersiveExitBtn.addEventListener('click', () => {
+        toggleBtn.click()
+      })
+    }
+
+    // Auto-hide control bar behavior
+    if (immersiveControls) {
+      const showControls = () => {
+        immersiveControls.classList.add('visible')
+        // Clear existing timeout
+        if (this._immersiveAutoHideTimeout) {
+          clearTimeout(this._immersiveAutoHideTimeout)
+        }
+        // Set new timeout to hide
+        this._immersiveAutoHideTimeout = setTimeout(() => {
+          if (document.body.classList.contains('immersive-mode')) {
+            immersiveControls.classList.remove('visible')
+          }
+        }, this._immersiveAutoHideDelay)
+      }
+
+      // Show controls on mouse move in immersive mode
+      this._immersiveMouseHandler = () => {
+        if (document.body.classList.contains('immersive-mode')) {
+          showControls()
+        }
+      }
+      document.addEventListener('mousemove', this._immersiveMouseHandler)
+
+      // Also show on touch
+      document.addEventListener('touchstart', this._immersiveMouseHandler, { passive: true })
+
+      // Show controls initially when entering immersive mode
+      const originalClick = toggleBtn.onclick
+      toggleBtn.addEventListener('click', () => {
+        if (document.body.classList.contains('immersive-mode')) {
+          showControls()
+        } else {
+          // Clear timeout when exiting
+          if (this._immersiveAutoHideTimeout) {
+            clearTimeout(this._immersiveAutoHideTimeout)
+            this._immersiveAutoHideTimeout = null
+          }
+          immersiveControls.classList.remove('visible')
+        }
+      })
+
+      // Keep controls visible when hovering over them
+      immersiveControls.addEventListener('mouseenter', () => {
+        if (this._immersiveAutoHideTimeout) {
+          clearTimeout(this._immersiveAutoHideTimeout)
+          this._immersiveAutoHideTimeout = null
+        }
+        immersiveControls.classList.add('visible')
+      })
+
+      immersiveControls.addEventListener('mouseleave', () => {
+        if (document.body.classList.contains('immersive-mode')) {
+          this._immersiveAutoHideTimeout = setTimeout(() => {
+            immersiveControls.classList.remove('visible')
+          }, this._immersiveAutoHideDelay)
+        }
+      })
+    }
   }
 
   /**
@@ -1692,6 +1786,17 @@ class LandingApp {
     if (this._immersiveResizeHandler) {
       window.removeEventListener('resize', this._immersiveResizeHandler)
       this._immersiveResizeHandler = null
+    }
+
+    // Entry #134: Cleanup immersive controls handlers
+    if (this._immersiveMouseHandler) {
+      document.removeEventListener('mousemove', this._immersiveMouseHandler)
+      document.removeEventListener('touchstart', this._immersiveMouseHandler)
+      this._immersiveMouseHandler = null
+    }
+    if (this._immersiveAutoHideTimeout) {
+      clearTimeout(this._immersiveAutoHideTimeout)
+      this._immersiveAutoHideTimeout = null
     }
 
     // Remove ARIA live region if created
