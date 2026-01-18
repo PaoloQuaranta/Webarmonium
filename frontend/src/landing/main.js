@@ -1134,6 +1134,9 @@ class LandingApp {
       // console.log('✅ Landing page started (receiving from backend)')
       this.dashboardUI.showStatus('Experience started - Connected to backend')
 
+      // Entry #134: Sync main play button state
+      this.dashboardUI._updatePlaybackState(true)
+
     } catch (error) {
       console.error('❌ Error starting experience:', error)
       this.dashboardUI.showError(ERROR_MESSAGES.START_FAILED)
@@ -1179,6 +1182,9 @@ class LandingApp {
       this._stopSoundReactiveLoop()
 
       this.dashboardUI.showStatus('Experience stopped')
+
+      // Entry #134: Sync main play button state
+      this.dashboardUI._updatePlaybackState(false)
 
     } catch (error) {
       console.error('❌ Error stopping experience:', error)
