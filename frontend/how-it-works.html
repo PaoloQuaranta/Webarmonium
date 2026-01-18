@@ -52,7 +52,7 @@
   <!-- Google Fonts - Archivo -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="styles.css?v=6">
   <style>
@@ -119,6 +119,53 @@
     }
     .nav-links a:hover {
       text-decoration: underline;
+    }
+
+    /* Entry #93: Scroll-triggered animations */
+    .hiw-section {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+    }
+
+    .hiw-section.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Stagger paragraph animations within visible sections */
+    .hiw-section.visible p {
+      opacity: 0;
+      animation: content-fade-in 0.5s ease-out forwards;
+    }
+
+    .hiw-section.visible p:nth-child(1) { animation-delay: 0.1s; }
+    .hiw-section.visible p:nth-child(2) { animation-delay: 0.2s; }
+    .hiw-section.visible p:nth-child(3) { animation-delay: 0.3s; }
+    .hiw-section.visible p:nth-child(4) { animation-delay: 0.4s; }
+    .hiw-section.visible p:nth-child(5) { animation-delay: 0.5s; }
+
+    @keyframes content-fade-in {
+      from {
+        opacity: 0.5;
+        transform: translateX(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    /* Reduced motion preference */
+    @media (prefers-reduced-motion: reduce) {
+      .hiw-section,
+      .hiw-section.visible,
+      .hiw-section.visible p {
+        opacity: 1;
+        transform: none;
+        animation: none;
+        transition: none;
+      }
     }
   </style>
 </head>
@@ -225,5 +272,47 @@
       <p class="footer-note">Webarmonium - Generative Music from Web Activity</p>
     </footer>
   </main>
+
+  <!-- Entry #93: Scroll-triggered animations using Intersection Observer -->
+  <script>
+    (function() {
+      // Check for reduced motion preference
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        // Make all sections visible immediately
+        document.querySelectorAll('.hiw-section').forEach(section => {
+          section.classList.add('visible')
+        })
+        return
+      }
+
+      // Check for Intersection Observer support
+      if (!('IntersectionObserver' in window)) {
+        // Fallback: make all sections visible
+        document.querySelectorAll('.hiw-section').forEach(section => {
+          section.classList.add('visible')
+        })
+        return
+      }
+
+      // Create observer for scroll-triggered animations
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible')
+            // Unobserve after animation (one-time animation)
+            observer.unobserve(entry.target)
+          }
+        })
+      }, {
+        threshold: 0.15,
+        rootMargin: '-50px 0px'
+      })
+
+      // Observe all sections
+      document.querySelectorAll('.hiw-section').forEach(section => {
+        observer.observe(section)
+      })
+    })()
+  </script>
 </body>
 </html>

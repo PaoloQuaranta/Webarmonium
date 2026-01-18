@@ -7724,3 +7724,182 @@ phrase.notes = phrase.notes.map(note => ({
 v1.0.164
 
 ---
+
+## Entry #134 - Entry #93 Code Review Fixes
+
+**Date**: 2026-01-18
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Applied 5 fixes identified by code-reviewer agent after Entry #93 visual/UX improvements. Addresses security concerns (SVG injection), memory leaks, race conditions, performance issues, and accessibility gaps.
+
+---
+
+### Issues Fixed
+
+| # | Issue | Priority | Fix |
+|---|-------|----------|-----|
+| 1 | SVG data URI in CSS | Critical | Moved inline SVG to external file `/assets/noise-texture.svg` |
+| 2 | Memory leak in sound-reactive loop | High | Added null checks for `_audioAnalyserData`, disconnect cleanup in `_stopSoundReactiveLoop()` |
+| 3 | Race condition: immersive resize handler | High | Stored handlers in instance properties, cleanup in `dispose()` |
+| 4 | Performance: CSS updates at 60fps | High | Added frame counter to throttle to ~30fps (skip every other frame) |
+| 5 | Missing ARIA announcements | Medium | Added `aria-live` region that announces immersive mode changes |
+
+---
+
+### Detailed Fixes
+
+#### 1. External SVG Noise Texture (Critical)
+
+**Problem**: Inline SVG data URI in CSS could be a security/maintenance concern.
+
+**Solution**: Created external file and updated CSS reference.
+
+**File:** `frontend/assets/noise-texture.svg` (NEW)
+```xml
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <filter id="n">
+    <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="4" stitchTiles="stitch"/>
+  </filter>
+  <rect width="100%" height="100%" filter="url(#n)"/>
+</svg>
+```
+
+**File:** `frontend/styles.css`
+```css
+/* Before */
+background-image: url("data:image/svg+xml,%3Csvg...");
+
+/* After */
+background-image: url("/assets/noise-texture.svg");
+```
+
+#### 2. Sound-Reactive Memory Leak Fix (High)
+
+**Problem**: Animation loop didn't check `_audioAnalyserData` before accessing, and analyser wasn't disconnected on stop.
+
+**Solution**: Added validation and cleanup.
+
+**File:** `frontend/src/landing/main.js`
+```javascript
+// In update loop - added null check
+if (!this._audioAnalyser || !this._audioAnalyserData || !this.isRunning) {
+  this._soundReactiveAnimationId = null
+  return
+}
+
+// In _stopSoundReactiveLoop() - added disconnect
+if (this._audioAnalyser) {
+  try {
+    this._audioAnalyser.disconnect()
+  } catch (e) {
+    // Ignore disconnect errors
+  }
+  this._audioAnalyser = null
+  this._audioAnalyserData = null
+}
+```
+
+#### 3. Immersive Mode Handler Cleanup (High)
+
+**Problem**: Resize and keydown handlers weren't removed in `dispose()`, causing potential memory leaks.
+
+**Solution**: Store handler references and remove in cleanup.
+
+**File:** `frontend/src/landing/main.js`
+```javascript
+// Constructor
+this._immersiveResizeHandler = null
+this._immersiveKeyHandler = null
+
+// In _setupImmersiveMode() - store references
+this._immersiveKeyHandler = (e) => { ... }
+document.addEventListener('keydown', this._immersiveKeyHandler)
+
+this._immersiveResizeHandler = () => { ... }
+window.addEventListener('resize', this._immersiveResizeHandler)
+
+// In dispose() - cleanup
+if (this._immersiveKeyHandler) {
+  document.removeEventListener('keydown', this._immersiveKeyHandler)
+  this._immersiveKeyHandler = null
+}
+if (this._immersiveResizeHandler) {
+  window.removeEventListener('resize', this._immersiveResizeHandler)
+  this._immersiveResizeHandler = null
+}
+```
+
+#### 4. 30fps Throttle for Sound-Reactive UI (High)
+
+**Problem**: CSS custom property updates at 60fps unnecessary, wastes CPU.
+
+**Solution**: Skip every other frame using frame counter.
+
+**File:** `frontend/src/landing/main.js`
+```javascript
+// Constructor
+this._soundReactiveFrameCount = 0
+
+// In _startSoundReactiveLoop()
+this._soundReactiveFrameCount = 0  // Reset
+
+const update = () => {
+  // Throttle to ~30fps (skip every other frame)
+  this._soundReactiveFrameCount++
+  if (this._soundReactiveFrameCount % 2 !== 0) {
+    this._soundReactiveAnimationId = requestAnimationFrame(update)
+    return
+  }
+  // ... actual work
+}
+```
+
+#### 5. ARIA Announcements for Immersive Mode (Medium)
+
+**Problem**: Screen reader users weren't informed when entering/exiting immersive mode.
+
+**Solution**: Create aria-live region and announce mode changes.
+
+**File:** `frontend/src/landing/main.js`
+```javascript
+// Create ARIA live region
+let ariaLive = document.getElementById('immersive-aria-live')
+if (!ariaLive) {
+  ariaLive = document.createElement('div')
+  ariaLive.id = 'immersive-aria-live'
+  ariaLive.setAttribute('role', 'status')
+  ariaLive.setAttribute('aria-live', 'polite')
+  ariaLive.setAttribute('aria-atomic', 'true')
+  ariaLive.className = 'sr-only'
+  ariaLive.style.cssText = 'position:absolute;width:1px;height:1px;...'
+  document.body.appendChild(ariaLive)
+}
+
+// Announce mode change
+if (ariaLive) {
+  ariaLive.textContent = isImmersive
+    ? 'Entered immersive mode. Press Escape to exit.'
+    : 'Exited immersive mode.'
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/assets/noise-texture.svg` | **NEW** - External SVG noise texture |
+| `frontend/styles.css` | Changed inline SVG to external file reference |
+| `frontend/src/landing/main.js` | Throttling, cleanup handlers, ARIA announcements, memory leak fixes |
+
+---
+
+### Version
+
+v1.0.167
+
+---

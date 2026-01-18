@@ -68,6 +68,7 @@ export class DashboardUI {
     this._cacheElements()
     this._bindControls(callbacks)
     this._startRoomActivityPolling()
+    this._setupCardParallax()  // Entry #93: Hover parallax effect
     // console.log('📊 DashboardUI initialized (meter-based mode)')
   }
 
@@ -367,6 +368,36 @@ export class DashboardUI {
         statusContainer.style.display = 'none'
       }, 3000)
     }
+  }
+
+  /**
+   * Entry #93: Setup hover parallax effect on metric cards
+   * Creates a subtle 3D tilt effect on mouse movement
+   * @private
+   */
+  _setupCardParallax() {
+    // Skip on touch devices (no hover)
+    if (window.matchMedia('(hover: none)').matches) return
+
+    const cards = Object.values(this.elements.cards).filter(Boolean)
+
+    cards.forEach(card => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect()
+        const x = (e.clientX - rect.left) / rect.width   // 0 to 1
+        const y = (e.clientY - rect.top) / rect.height   // 0 to 1
+
+        // Convert to -1 to 1 range, then scale for subtle effect
+        const rotateX = (y - 0.5) * -8   // Max 4 degrees
+        const rotateY = (x - 0.5) * 8    // Max 4 degrees
+
+        card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`
+      })
+
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = ''
+      })
+    })
   }
 
   /**
