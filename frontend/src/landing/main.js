@@ -1127,10 +1127,6 @@ class LandingApp {
       // Entry #134: Add audio-playing class for immersive mode floating button
       document.body.classList.add('audio-playing')
 
-      // Entry #93: Setup and start sound-reactive UI
-      this._setupSoundReactiveUI()
-      this._startSoundReactiveLoop()
-
       // console.log('✅ Landing page started (receiving from backend)')
       this.dashboardUI.showStatus('Experience started - Connected to backend')
 
@@ -1177,9 +1173,6 @@ class LandingApp {
 
       // Entry #134: Remove audio-playing class for immersive mode floating button
       document.body.classList.remove('audio-playing')
-
-      // Entry #93: Stop sound-reactive UI
-      this._stopSoundReactiveLoop()
 
       this.dashboardUI.showStatus('Experience stopped')
 
@@ -1490,131 +1483,6 @@ class LandingApp {
     document.body.appendChild(overlay)
   }
   */
-
-  // ============================================================
-  // Entry #93: Sound-Reactive UI Methods
-  // ============================================================
-
-  /**
-   * Setup sound-reactive UI analyser
-   * Creates Web Audio API analyser node connected to Tone.js output
-   * @private
-   */
-  _setupSoundReactiveUI() {
-    // Check for reduced motion preference
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-
-    // Get or create analyser from Tone.js context
-    if (typeof Tone !== 'undefined' && Tone.context) {
-      try {
-        this._audioAnalyser = Tone.context.createAnalyser()
-        this._audioAnalyser.fftSize = 256
-        this._audioAnalyser.smoothingTimeConstant = 0.8
-        this._audioAnalyserData = new Uint8Array(this._audioAnalyser.frequencyBinCount)
-
-        // Connect master output to analyser
-        if (Tone.Destination) {
-          Tone.Destination.connect(this._audioAnalyser)
-        }
-      } catch (e) {
-        console.warn('Could not create audio analyser:', e)
-      }
-    }
-  }
-
-  /**
-   * Start the sound-reactive animation loop
-   * Reads audio frequency data and updates CSS custom properties
-   * Throttled to ~30fps for performance
-   * @private
-   */
-  _startSoundReactiveLoop() {
-    if (this._soundReactiveAnimationId) return
-
-    const cards = document.querySelectorAll('.metric-card')
-    const playBtn = document.getElementById('btn-toggle')
-
-    // Add audio-active class to body and sound-reactive to cards
-    document.body.classList.add('audio-active')
-    cards.forEach(card => card.classList.add('sound-reactive'))
-
-    // Reset frame counter
-    this._soundReactiveFrameCount = 0
-
-    const update = () => {
-      if (!this._audioAnalyser || !this._audioAnalyserData || !this.isRunning) {
-        this._soundReactiveAnimationId = null
-        return
-      }
-
-      // Throttle to ~30fps (skip every other frame)
-      this._soundReactiveFrameCount++
-      if (this._soundReactiveFrameCount % 2 !== 0) {
-        this._soundReactiveAnimationId = requestAnimationFrame(update)
-        return
-      }
-
-      // Get frequency data
-      this._audioAnalyser.getByteFrequencyData(this._audioAnalyserData)
-
-      // Calculate average amplitude (0-255 range)
-      let sum = 0
-      for (let i = 0; i < this._audioAnalyserData.length; i++) {
-        sum += this._audioAnalyserData[i]
-      }
-      const average = sum / this._audioAnalyserData.length
-      const intensity = Math.min(1, average / 100) // Normalize to 0-1 (boosted sensitivity)
-
-      // Update CSS custom properties on metric cards
-      cards.forEach(card => {
-        card.style.setProperty('--audio-intensity', intensity.toFixed(3))
-      })
-
-      // Update play button glow
-      if (playBtn) {
-        playBtn.style.setProperty('--btn-glow', intensity.toFixed(3))
-      }
-
-      this._soundReactiveAnimationId = requestAnimationFrame(update)
-    }
-
-    this._soundReactiveAnimationId = requestAnimationFrame(update)
-  }
-
-  /**
-   * Stop the sound-reactive animation loop
-   * Resets CSS custom properties and removes classes
-   * @private
-   */
-  _stopSoundReactiveLoop() {
-    if (this._soundReactiveAnimationId) {
-      cancelAnimationFrame(this._soundReactiveAnimationId)
-      this._soundReactiveAnimationId = null
-    }
-
-    // Disconnect and cleanup analyser to prevent memory leak
-    if (this._audioAnalyser) {
-      try {
-        this._audioAnalyser.disconnect()
-      } catch (e) {
-        // Ignore disconnect errors
-      }
-      this._audioAnalyser = null
-      this._audioAnalyserData = null
-    }
-
-    // Remove classes and reset properties
-    document.body.classList.remove('audio-active')
-    document.querySelectorAll('.metric-card').forEach(card => {
-      card.classList.remove('sound-reactive')
-      card.style.setProperty('--audio-intensity', '0')
-    })
-
-    const playBtn = document.getElementById('btn-toggle')
-    if (playBtn) {
-      playBtn.style.setProperty('--btn-glow', '0')
-    }
-  }
 
   /**
    * Entry #93: Setup immersive mode toggle functionality

@@ -206,6 +206,28 @@ header p {
   border-color: var(--flash-color, var(--accent));
 }
 
+/* Source-specific glow colors on flash */
+.metric-card[data-source="wikipedia"].flash {
+  box-shadow:
+    0 0 15px rgba(228, 26, 28, 0.5),
+    0 0 30px rgba(228, 26, 28, 0.25),
+    inset 0 0 10px rgba(228, 26, 28, 0.08);
+}
+
+.metric-card[data-source="hackernews"].flash {
+  box-shadow:
+    0 0 15px rgba(255, 127, 0, 0.5),
+    0 0 30px rgba(255, 127, 0, 0.25),
+    inset 0 0 10px rgba(255, 127, 0, 0.08);
+}
+
+.metric-card[data-source="github"].flash {
+  box-shadow:
+    0 0 15px rgba(55, 126, 184, 0.5),
+    0 0 30px rgba(55, 126, 184, 0.25),
+    inset 0 0 10px rgba(55, 126, 184, 0.08);
+}
+
 /* Entry #93: Staggered fade-in animation for metric cards */
 .metric-card {
   opacity: 0;
@@ -1092,54 +1114,9 @@ body.audio-playing .immersive-ctrl-btn .stop-icon {
 /* Entry #93: Sound-Reactive UI                */
 /* ============================================ */
 
-/* CSS custom property for audio intensity (0-1) */
-.metric-card {
-  --audio-intensity: 0;
-}
-
-/* Sound-reactive glow on metric cards when audio is active */
-/* CSS pulse animation as fallback when JS analyser doesn't work */
-body.audio-active .metric-card.sound-reactive {
-  animation: metric-pulse 2s ease-in-out infinite;
-  border-color: rgba(59, 130, 246, 0.5);
-}
-
-@keyframes metric-pulse {
-  0%, 100% {
-    box-shadow:
-      0 0 10px rgba(59, 130, 246, 0.3),
-      0 0 20px rgba(59, 130, 246, 0.15);
-  }
-  50% {
-    box-shadow:
-      0 0 20px rgba(59, 130, 246, 0.5),
-      0 0 40px rgba(59, 130, 246, 0.25);
-  }
-}
-
-/* Sound-reactive play button glow */
-.primary-btn.playing {
-  animation: btn-pulse 2s ease-in-out infinite;
-}
-
-@keyframes btn-pulse {
-  0%, 100% {
-    box-shadow:
-      0 0 10px rgba(239, 68, 68, 0.4),
-      0 0 20px rgba(239, 68, 68, 0.2);
-  }
-  50% {
-    box-shadow:
-      0 0 20px rgba(239, 68, 68, 0.6),
-      0 0 40px rgba(239, 68, 68, 0.3);
-  }
-}
-
-/* Disable sound-reactive effects for reduced motion */
+/* Disable metric flash glow for reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  body.audio-active .metric-card.sound-reactive,
-  .primary-btn.playing {
-    animation: none;
+  .metric-card.flash {
     box-shadow: none;
   }
 }
