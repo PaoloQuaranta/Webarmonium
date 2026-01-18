@@ -57,17 +57,6 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* Entry #93: Noise texture overlay for visual depth */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.03;
-  background-image: url("/assets/noise-texture.svg");
-}
-
 /* Text wrapping for better readability */
 h1, h2, h3 {
   text-wrap: balance;
@@ -369,9 +358,9 @@ header p {
   position: relative;
   margin: 1rem 0;
   background: linear-gradient(180deg, rgba(26, 26, 46, 0.5) 0%, transparent 100%);
-  border-top: 1px solid var(--border-color);
-  border-bottom: 1px solid var(--border-color);
+  border: 1px solid var(--border-color);
   overflow: hidden;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 #generative-canvas {
@@ -384,24 +373,24 @@ header p {
 #canvas-container.active {
   border-color: var(--accent);
   box-shadow:
-    0 0 20px rgba(59, 130, 246, 0.3),
-    0 0 40px rgba(59, 130, 246, 0.15),
-    inset 0 0 60px rgba(59, 130, 246, 0.05);
+    0 0 30px rgba(59, 130, 246, 0.5),
+    0 0 60px rgba(59, 130, 246, 0.3),
+    inset 0 0 80px rgba(59, 130, 246, 0.1);
   animation: canvas-glow 3s ease-in-out infinite;
 }
 
 @keyframes canvas-glow {
   0%, 100% {
     box-shadow:
-      0 0 20px rgba(59, 130, 246, 0.3),
-      0 0 40px rgba(59, 130, 246, 0.15),
-      inset 0 0 60px rgba(59, 130, 246, 0.05);
+      0 0 30px rgba(59, 130, 246, 0.5),
+      0 0 60px rgba(59, 130, 246, 0.3),
+      inset 0 0 80px rgba(59, 130, 246, 0.1);
   }
   50% {
     box-shadow:
-      0 0 30px rgba(59, 130, 246, 0.5),
-      0 0 60px rgba(59, 130, 246, 0.25),
-      inset 0 0 80px rgba(59, 130, 246, 0.08);
+      0 0 50px rgba(59, 130, 246, 0.7),
+      0 0 100px rgba(59, 130, 246, 0.4),
+      inset 0 0 120px rgba(59, 130, 246, 0.15);
   }
 }
 
@@ -635,38 +624,6 @@ input[type="range"]::-moz-range-thumb {
 .explainer-detail em {
   color: #60a5fa;
   font-style: normal;
-}
-
-/* Entry #93: Asymmetric layout for explainer sections (larger screens) */
-@media (min-width: 768px) {
-  .explainer-intro:nth-of-type(odd) {
-    padding-left: 2rem;
-  }
-
-  .explainer-intro:nth-of-type(even) {
-    padding-right: 2rem;
-    text-align: right;
-  }
-
-  .explainer-detail:nth-of-type(odd) {
-    margin-left: 3rem;
-  }
-
-  .explainer-detail:nth-of-type(even) {
-    margin-left: auto;
-    margin-right: 3rem;
-    max-width: calc(100% - 3rem);
-    border-left: none;
-    border-right: 2px solid rgba(59, 130, 246, 0.3);
-    padding-left: 0;
-    padding-right: 1rem;
-    text-align: right;
-  }
-
-  .explainer-link {
-    text-align: center;
-    margin-top: 2rem;
-  }
 }
 
 .virtual-users-note strong {
