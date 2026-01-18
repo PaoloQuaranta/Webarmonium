@@ -802,6 +802,14 @@ class VirtualUserService {
       return
     }
 
+    // HARMONIC COHERENCE: Constrain all phrase notes to room's scale/mode
+    // PhraseMorphology uses mood-based scale selection; this ensures room coherence
+    const { key, mode } = roomState.musicalContext
+    phrase.notes = phrase.notes.map(note => ({
+      ...note,
+      pitch: this.harmonicEngine.constrainToScale(note.pitch, key, mode)
+    }))
+
     const beatDurationMs = (60 / (roomState.musicalContext.tempo || 120)) * 1000
     const { min: freqMin, max: freqMax } = config.frequencyRange
 

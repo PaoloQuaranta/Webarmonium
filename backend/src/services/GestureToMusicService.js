@@ -162,9 +162,19 @@ class GestureToMusicService {
 
     // Generate phrase based on gesture action
     switch (gestureData.gestureAction) {
-      case 'drag':
+      case 'drag': {
 // console.log('🎵 DRAG: Generating musical phrase')
-        return this.phraseMorphology.generatePhrase(gestureData, musicalContext)
+        const dragPhrase = this.phraseMorphology.generatePhrase(gestureData, musicalContext)
+        // HARMONIC COHERENCE: Constrain all phrase notes to room's scale/mode
+        // PhraseMorphology uses mood-based scale selection; this ensures room coherence
+        if (dragPhrase && dragPhrase.notes) {
+          dragPhrase.notes = dragPhrase.notes.map(note => ({
+            ...note,
+            pitch: this.harmonicEngine.constrainToScale(note.pitch, this.currentKey, this.currentMode)
+          }))
+        }
+        return dragPhrase
+      }
 
       case 'tap':
 // console.log('🎵 TAP: Generating short phrase')

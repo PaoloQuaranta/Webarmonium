@@ -7266,3 +7266,194 @@ _cleanupOrphanedPulses() {
 v1.0.161
 
 ---
+
+## Entry #129 - Audio Auto-Restart Bug Fix (Final)
+
+**Date**: 2026-01-17
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed two related audio auto-restart bugs:
+1. Audio restarting after visibility/focus changes even when user had pressed Stop
+2. Audio starting automatically on any click, even without pressing Start button
+
+---
+
+### Problem Statement
+
+1. User reported that Entry #127 fixes were incomplete - audio still restarted when switching tabs after pressing Stop. Console logs showed `_userStoppedAudio: false`.
+2. Audio would start on pages where user never pressed Start - any click would trigger audio initialization.
+
+---
+
+### Root Causes Identified
+
+**Bug 1: _userStoppedAudio not set when isInitialized is false**
+
+In `AudioService.stop()`, the critical line `this._userStoppedAudio = true` was inside the `if (this.isInitialized)` block:
+
+```javascript
+stop() {
+  if (this.isInitialized) {
+    this._userStoppedAudio = true  // Never reached if isInitialized is false!
+    // ...
+  }
+}
+```
+
+**Bug 2: _initAudioListener missing isRunning check**
+
+In `main.js`, the `_initAudioListener` would initialize audio on ANY click/keydown without checking if user had pressed Start:
+
+```javascript
+this._initAudioListener = async () => {
+  // No check for isRunning - any click starts audio!
+  if (this.isAudioReady || isInitializing) return
+  // ... starts audio
+}
+```
+
+---
+
+### Solution
+
+**Fix 1: Move flag outside conditional**
+
+```javascript
+stop() {
+  // Entry #129: ALWAYS set flag when user presses Stop, regardless of initialization state
+  this._userStoppedAudio = true
+  console.log('🛑 AudioService.stop() - _userStoppedAudio set to TRUE')
+
+  if (this.isInitialized) {
+    // ... rest of stop logic
+  }
+}
+```
+
+**Fix 2: Add isRunning check**
+
+```javascript
+this._initAudioListener = async () => {
+  // Entry #129: Only initialize audio if user has explicitly pressed Start
+  if (!this.isRunning) return
+
+  if (this.isAudioReady || isInitializing) return
+  // ... rest of initialization
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Moved `_userStoppedAudio = true` outside `if (this.isInitialized)` block |
+| `frontend/src/landing/main.js` | Added `if (!this.isRunning) return` check in `_initAudioListener` |
+| `frontend/index.html` | Version bump to v1.0.163 |
+
+---
+
+### Verification
+
+**Test 1: Stop button respected after tab switch**
+1. Start app, press Start, let audio play
+2. Press Stop button
+3. Switch to another tab, then return
+4. **Expected**: Audio remains stopped
+
+**Test 2: Audio doesn't start without pressing Start**
+1. Load page fresh
+2. Click anywhere on the page (not the Start button)
+3. **Expected**: No audio plays
+4. Press Start button
+5. **Expected**: Audio starts
+
+---
+
+### Version
+
+v1.0.163
+
+---
+
+## Entry #133 - Harmonic Quantization for Drag Gestures
+
+**Date**: 2026-01-18
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Ensured that virtual users respect the same harmonic quantization as real users for drag gestures. Previously, drag gestures used mood-based scale selection from PhraseMorphology, which could produce notes outside the room's current key/mode.
+
+---
+
+### Problem Statement
+
+Real users and virtual users were not consistently harmonically quantized for drag gestures:
+
+- **TAP gestures**: Both used `harmonicEngine.constrainToScale()` correctly
+- **DRAG gestures**: Used `PhraseMorphology.generatePhrase()` which selects scales based on gesture "mood" (bright→major, sad→minor, jazzy→dorian) instead of the room's musical context
+
+This meant a room in C dorian could have drag gestures producing C major notes if the gesture was classified as "bright".
+
+---
+
+### Solution
+
+Added `harmonicEngine.constrainToScale()` after phrase generation in all three services that generate drag gestures:
+
+**1. GestureToMusicService.js** (real users in normal rooms)
+```javascript
+case 'drag': {
+  const dragPhrase = this.phraseMorphology.generatePhrase(gestureData, musicalContext)
+  if (dragPhrase && dragPhrase.notes) {
+    dragPhrase.notes = dragPhrase.notes.map(note => ({
+      ...note,
+      pitch: this.harmonicEngine.constrainToScale(note.pitch, this.currentKey, this.currentMode)
+    }))
+  }
+  return dragPhrase
+}
+```
+
+**2. VirtualUserService.js** (virtual users in normal rooms when solo)
+```javascript
+const { key, mode } = roomState.musicalContext
+phrase.notes = phrase.notes.map(note => ({
+  ...note,
+  pitch: this.harmonicEngine.constrainToScale(note.pitch, key, mode)
+}))
+```
+
+**3. LandingCompositionService.js** (virtual users in landing room)
+```javascript
+const { key, mode } = musicalContext
+phrase.notes = phrase.notes.map(note => ({
+  ...note,
+  pitch: this.harmonicEngine.constrainToScale(note.pitch, key, mode)
+}))
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/GestureToMusicService.js` | Added harmonic quantization after drag phrase generation (lines 168-175) |
+| `backend/src/services/VirtualUserService.js` | Added harmonic quantization after drag phrase generation (lines 805-811) |
+| `backend/src/services/LandingCompositionService.js` | Added harmonic quantization after drag phrase generation (lines 1195-1201) |
+| `frontend/index.html` | Version bump to v1.0.164 |
+
+---
+
+### Version
+
+v1.0.164
+
+---

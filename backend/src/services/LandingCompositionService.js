@@ -1192,6 +1192,14 @@ class LandingCompositionService {
       return
     }
 
+    // HARMONIC COHERENCE: Constrain all phrase notes to room's scale/mode
+    // PhraseMorphology uses mood-based scale selection; this ensures room coherence
+    const { key, mode } = musicalContext
+    phrase.notes = phrase.notes.map(note => ({
+      ...note,
+      pitch: this.harmonicEngine.constrainToScale(note.pitch, key, mode)
+    }))
+
     const beatDurationMs = (60 / musicalContext.tempo) * 1000
     const { min: freqMin, max: freqMax } = user.frequencyRange
 
