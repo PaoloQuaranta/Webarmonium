@@ -45,7 +45,6 @@ class DeviceCapabilities {
     this._cache = capabilities
     this._cacheTimestamp = Date.now()
 
-    console.log(`🔧 DeviceCapabilities:`, capabilities)
     return capabilities
   }
 
@@ -117,7 +116,6 @@ class DeviceCapabilities {
 
       return lowEndPatterns.some(pattern => renderer.includes(pattern))
     } catch (e) {
-      console.warn('GPU detection failed:', e)
       return false
     }
   }

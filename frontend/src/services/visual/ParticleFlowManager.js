@@ -91,7 +91,6 @@ class ParticleFlowManager {
    */
   setCascadeEnabled (enabled) {
     this._cascadeEnabled = enabled
-    console.log(`🎨 ParticleFlowManager: Cascade ${enabled ? 'enabled' : 'disabled'}`)
   }
 
   /**
@@ -100,7 +99,6 @@ class ParticleFlowManager {
    */
   setMaxParticles (count) {
     this.maxParticles = count
-    console.log(`🎨 ParticleFlowManager: Max particles set to ${count}`)
 
     // If we have more particles than new max, remove oldest
     if (this.particles.size > count) {

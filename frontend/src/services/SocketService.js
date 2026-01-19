@@ -237,12 +237,10 @@ class SocketService {
 
     // Virtual user events for solo mode
     this.socket.on('virtual-users-activated', (data) => {
-      console.log('🎭 SocketService received virtual-users-activated:', data)
       this.emit('virtual-users-activated', data)
     })
 
     this.socket.on('virtual-users-deactivated', (data) => {
-      console.log('🎭 SocketService received virtual-users-deactivated:', data)
       this.emit('virtual-users-deactivated', data)
     })
 
@@ -256,7 +254,6 @@ class SocketService {
     })
 
     this.socket.on('mode-transition', (data) => {
-      console.log('🔄 SocketService received mode-transition:', data)
       this.emit('mode-transition', data)
     })
 
@@ -298,16 +295,12 @@ class SocketService {
         // CRITICAL FIX: Save backend-assigned userId for per-user synth routing
         if (response.userId) {
           this.currentUserId = response.userId
-          console.log(`🆔 Backend userId saved from joinRoom: ${response.userId.substring(0, 8)}... (socket.id=${this.socket?.id?.substring(0, 8)}...)`)
         }
 
         // Save backend-assigned slot for exclusive timbre per room
         if (response.assignedSlot !== undefined && response.assignedSlot !== null) {
           this.currentSlot = response.assignedSlot
-          console.log(`🎹 Backend slot SAVED: slot=${response.assignedSlot}`)
         } else {
-          console.warn(`⚠️ Backend slot NOT received in joinRoom response! assignedSlot=${response.assignedSlot}`)
-          console.warn(`   Full response keys: ${Object.keys(response).join(', ')}`)
         }
 
         // Populate userSlots map from all users in room
@@ -323,7 +316,6 @@ class SocketService {
         if (this.currentUserId && this.currentSlot !== null) {
           this.userSlots.set(this.currentUserId, this.currentSlot)
         }
-        console.log(`🎹 UserSlots populated: ${this.userSlots.size} users`)
 
         // Track latency
         const latency = performance.now() - startTime
@@ -525,7 +517,6 @@ class SocketService {
     // This is different from socket.id and must be used for synth lookup
     if (data.userId) {
       this.currentUserId = data.userId
-      console.log(`🆔 Backend userId saved: ${data.userId.substring(0, 8)}... (socket.id=${this.socket?.id?.substring(0, 8)}...)`)
     }
 
     // Also save slot if provided (mirrors joinRoom response handling)
@@ -535,7 +526,6 @@ class SocketService {
       if (data.userId) {
         this.userSlots.set(data.userId, data.assignedSlot)
       }
-      console.log(`🎹 Backend slot saved: ${data.assignedSlot}`)
     }
 
     this.emit('room-joined-update', data)

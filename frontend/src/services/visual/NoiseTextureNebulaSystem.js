@@ -319,7 +319,6 @@ class NoiseTextureNebulaSystem {
 
       default:
         // Unknown type - use ambient as fallback
-        console.log(`🌫️ Unknown composition type: ${compType}, using ambient`)
         this.targetPalette = JSON.parse(JSON.stringify(this.palettes.ambient))
         this.targetOctaves = JSON.parse(JSON.stringify(this.baseOctaves))
     }

@@ -155,7 +155,6 @@ class WebarmoniumApp {
     // Connect AudioService to SocketService for slot lookup
     if (this.audioService && this.socketService) {
       this.audioService.setSocketService(this.socketService)
-      console.log('🔗 AudioService connected to SocketService for slot lookup')
     }
 
     // Create basic gesture to music mapper for EnhancedGestureCapture
@@ -833,7 +832,6 @@ class WebarmoniumApp {
 
     // SLEEP RECOVERY: Listen for audio gesture required event (store reference for cleanup)
     this._audioGestureRequiredHandler = (event) => {
-      console.log('🔊 Audio requires user gesture:', event.detail)
       this._showAudioRecoveryPrompt()
       this._attachRecoveryClickHandlers() // Add click handlers only when needed
     }
@@ -1153,7 +1151,6 @@ class WebarmoniumApp {
           spatialDensity: data.parameters.rhythmicDensity || 0,
           dominantZone: data.parameters.dominantZone || { x: 0.5, y: 0.5 }
         }
-        console.log('🎨 Room gradient metrics:', metrics, 'hasNebulas:', !!this.visualService.nebulas)
         this.visualService.updateInteractionMetrics(metrics)
       }
     })
@@ -1196,22 +1193,16 @@ class WebarmoniumApp {
       }
     })
 
-    console.log('📡 Registering background-composition event listener...')
     this.socketService.on('background-composition', (data) => {
-      console.log('🎼 BACKGROUND COMPOSITION RECEIVED:', { isDrone: data.isDrone, isAudioStarted: this.isAudioStarted, type: data.composition?.type })
 
       if (this.isAudioStarted && data.composition) {
-        console.log('🎵 Playing composition via playComposition()...')
         this.audioService.playComposition(data.composition, data.isDrone)
       } else if (data.isDrone && data.composition) {
         // Save drone for later - will be played when audio starts
         this.pendingDrone = data.composition
-        console.log('💾 Saved pending drone - will play when audio starts')
       } else {
-        console.log('⏭️ Composition not played - isAudioStarted:', this.isAudioStarted, 'isDrone:', data.isDrone)
       }
     })
-    console.log('✅ background-composition listener registered')
 
     // PHASE 5: Removed unused 'gesture-processed' listener (82 lines)
     // Backend never emits this event - it uses 'musical:event' instead
@@ -1680,7 +1671,6 @@ class WebarmoniumApp {
           }
         } else {
           // AudioContext still suspended - ask user to click again
-          console.warn('⚠️ AudioService.start() returned false - context still suspended')
           this.showError('Audio context blocked. Please click ▶ again.')
         }
       } catch (error) {
@@ -1707,19 +1697,16 @@ class WebarmoniumApp {
     const contextState = Tone.context?.state
     // Audio needs recovery if context is not running
     if (contextState !== 'running') {
-      console.log('🔊 Rooms: Proactive check - context not running:', contextState)
       return true
     }
 
     // Also check if masterVolume is stuck at -Infinity (silent)
     if (this.audioService.masterVolume?.volume?.value === -Infinity) {
-      console.log('🔊 Rooms: Proactive check - masterVolume stuck at -Infinity')
       return true
     }
 
     // iOS Safari: Transport can be stopped even if context reports "running"
     if (Tone.Transport?.state !== 'started') {
-      console.log('🔊 Rooms: Proactive check - Transport not started:', Tone.Transport?.state)
       return true
     }
 
@@ -2132,7 +2119,6 @@ class WebarmoniumApp {
     let rgb = this._trailColorCache.get(colorKey)
     if (!rgb) {
       if (!window.VisualUtils) {
-        console.warn('[WebarmoniumApp] VisualUtils not available, using fallback color')
       }
       rgb = window.VisualUtils?.hexToRgb(colorKey) || { r: 45, g: 212, b: 191 }
       // Validate RGB values are finite

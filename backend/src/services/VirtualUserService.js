@@ -523,7 +523,6 @@ class VirtualUserService {
     roomState.gestureGenerationTimer = setTimeout(() => {
       // Defensive check: if room was deleted without proper deactivation, don't reschedule
       if (!this.activeRooms.has(roomId)) {
-        console.warn(`🧹 Orphan gesture timer stopped for deleted room ${roomId}`)
         return
       }
 
@@ -561,7 +560,6 @@ class VirtualUserService {
 
     // Validate sources array
     if (!roomState.sources || !Array.isArray(roomState.sources) || roomState.sources.length === 0) {
-      console.warn(`⚠️ VirtualUserService: No sources configured for room ${roomId}`)
       return
     }
 
@@ -570,7 +568,6 @@ class VirtualUserService {
         // Validate source config exists
         const config = this.virtualUserConfigs[source]
         if (!config) {
-          console.warn(`⚠️ VirtualUserService: Unknown source "${source}" for room ${roomId}`)
           continue
         }
 
@@ -621,7 +618,6 @@ class VirtualUserService {
 
         // Classify gesture type using relative metrics (no hardcoded thresholds)
         const gestureType = this._classifyGestureType(source)
-        console.log(`🎭 VirtualUser ${source} gesture: type=${gestureType}, velocity=${normalizedVelocity.toFixed(3)}`)
 
         if (gestureType === 'tap') {
           this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
@@ -683,11 +679,9 @@ class VirtualUserService {
 
     // FIX #2: Validate data before emitting hold:start
     if (!this._isValidPosition(position)) {
-      console.warn(`Invalid position for ${source} tap gesture, skipping emission`)
       return
     }
     if (!Number.isFinite(frequency) || frequency < 20 || frequency > 20000) {
-      console.warn(`Invalid frequency ${frequency} for ${source} tap gesture, skipping emission`)
       return
     }
 
@@ -798,7 +792,6 @@ class VirtualUserService {
     const phrase = this.phraseMorphology.generatePhrase(gestureData, roomState.musicalContext)
 
     if (!phrase || !phrase.notes || !Array.isArray(phrase.notes) || phrase.notes.length === 0) {
-      console.warn(`VirtualUserService: Empty phrase generated for source "${source}" in room ${roomId}`)
       return
     }
 
@@ -1115,7 +1108,6 @@ class VirtualUserService {
 
     // FIX #3: Validate input frequency - return safe fallback if invalid
     if (!Number.isFinite(baseFrequency) || baseFrequency < 0) {
-      console.warn(`Invalid baseFrequency: ${baseFrequency}, using center fallback`)
       return { x: 0.5, y: 0.5 }
     }
 
@@ -1222,7 +1214,6 @@ class VirtualUserService {
     const stability = this._calculateStabilityMetric(source)
     const density = this._calculateDensityMetric(source)
 
-    console.log(`🎭 ${source} metrics: stability=${stability.toFixed(3)}, density=${density.toFixed(3)}`)
 
     // Pure relative comparison: stability vs density determines gesture type
     // Higher stability = single notes (tap), higher density = phrases (drag)

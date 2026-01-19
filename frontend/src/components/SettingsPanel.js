@@ -304,7 +304,6 @@ class SettingsPanel {
    */
   _loadCurrentSettings () {
     if (typeof UserSettings === 'undefined') {
-      console.warn('UserSettings not loaded')
       return
     }
 
@@ -345,7 +344,6 @@ class SettingsPanel {
         const caps = DeviceCapabilities.detect()
         tierText = caps.tier || 'medium'
       } catch (e) {
-        console.warn('Could not detect device tier:', e)
       }
     } else if (typeof PlatformDetection !== 'undefined') {
       // Fallback to PlatformDetection
@@ -418,7 +416,6 @@ class SettingsPanel {
    */
   _applySettings () {
     if (typeof UserSettings === 'undefined') {
-      console.warn('UserSettings not loaded')
       return
     }
 
@@ -439,15 +436,6 @@ class SettingsPanel {
     })
 
     // Debug: Log what we're working with
-    console.log('🔧 SettingsPanel._applySettings:', {
-      webarmoniumApp: !!window.webarmoniumApp,
-      landingApp: !!window.landingApp,
-      webarmoniumAudioService: !!window.webarmoniumApp?.audioService,
-      landingAudioService: !!window.landingApp?.audioService,
-      webarmoniumVisualService: !!window.webarmoniumApp?.visualService,
-      landingVisualService: !!window.landingApp?.visualService,
-      newSettings
-    })
 
     // ROLLBACK FIX: Save settings to localStorage BEFORE attempting to apply
     // This ensures settings are persisted even if application fails
@@ -463,7 +451,6 @@ class SettingsPanel {
     const audioService = window.webarmoniumApp?.audioService || window.landingApp?.audioService
     if (audioService?.reloadAudioProfile) {
       try {
-        console.log('🔧 Calling audioService.reloadAudioProfile()...')
         audioService.reloadAudioProfile()
       } catch (error) {
         console.error('Failed to reload audio profile:', error)
@@ -472,7 +459,6 @@ class SettingsPanel {
         this._showCanvasNotification('Audio reload failed - will apply on refresh', true)
       }
     } else {
-      console.warn('⚠️ No audioService.reloadAudioProfile available')
     }
 
     // Try to apply graphics settings
@@ -480,7 +466,6 @@ class SettingsPanel {
     const visualService = window.webarmoniumApp?.visualService || window.landingApp?.visualService
     if (visualService?.applyGraphicsQuality) {
       try {
-        console.log('🔧 Calling visualService.applyGraphicsQuality()...')
         visualService.applyGraphicsQuality()
       } catch (error) {
         console.error('Failed to apply graphics quality:', error)
@@ -488,7 +473,6 @@ class SettingsPanel {
         this._showCanvasNotification('Graphics update failed - will apply on refresh', true)
       }
     } else {
-      console.warn('⚠️ No visualService.applyGraphicsQuality available')
     }
 
     // Close panel first
@@ -529,7 +513,6 @@ class SettingsPanel {
   _showCanvasNotification (message, isWarning = false) {
     // Security: Validate and sanitize input to prevent XSS
     if (typeof message !== 'string') {
-      console.warn('Invalid notification message:', message)
       return
     }
     // Escape HTML entities and truncate to prevent abuse
@@ -586,7 +569,6 @@ class SettingsPanel {
    */
   _resetSettings () {
     if (typeof UserSettings === 'undefined') {
-      console.warn('UserSettings not loaded')
       return
     }
 

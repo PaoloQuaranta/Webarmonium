@@ -228,19 +228,15 @@ class AudioService {
    */
   async _handleVisibilityChange() {
     if (document.hidden) {
-      console.log('🔇 Tab hidden - AudioContext may suspend')
       this._stopAudioHealthCheck()
       return
     }
 
     // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
-    console.log('🔊 Tab visible - _userStoppedAudio:', this._userStoppedAudio)
     if (this._userStoppedAudio) {
-      console.log('🔊 Tab visible, but user stopped audio - skipping recovery')
       return
     }
 
-    console.log('🔊 Tab visible - initiating audio recovery...')
     await this._performAudioRecovery('visibility')
   }
 
@@ -251,11 +247,9 @@ class AudioService {
   async _handleWindowFocus() {
     // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
     if (this._userStoppedAudio) {
-      console.log('🔊 Window focused, but user stopped audio - skipping recovery')
       return
     }
 
-    console.log('🔊 Window focus received - checking audio state...')
 
     // Small delay to let the system stabilize after wake
     await new Promise(resolve => setTimeout(resolve, this._recoveryConfig.FOCUS_STABILIZATION_DELAY_MS))
@@ -267,7 +261,6 @@ class AudioService {
    * Handle window blur - prepare for potential sleep
    */
   _handleWindowBlur() {
-    console.log('🔇 Window blur - preparing for potential sleep')
     this._stopAudioHealthCheck()
   }
 
@@ -278,19 +271,15 @@ class AudioService {
   async _handlePageShow(event) {
     // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
     if (this._userStoppedAudio) {
-      console.log('🔊 Page shown, but user stopped audio - skipping recovery')
       return
     }
 
     if (event.persisted) {
-      console.log('🔊 Page restored from BFCache - forcing audio recovery')
       await this._performAudioRecovery('pageshow-cached')
     } else if (this._isIOS && this.isInitialized && Tone.context?.state !== 'running') {
       // iOS Safari: Even non-persisted pageshow may need recovery after device wake
-      console.log('🔊 iOS pageshow with suspended context - attempting recovery')
       await this._performAudioRecovery('pageshow-ios')
     } else {
-      console.log('🔊 Page shown (fresh load)')
     }
   }
 
@@ -299,7 +288,6 @@ class AudioService {
    * @param {PageTransitionEvent} event
    */
   _handlePageHide(event) {
-    console.log('🔇 Page hiding, persisted:', event.persisted)
     this._stopAudioHealthCheck()
   }
 
@@ -312,30 +300,25 @@ class AudioService {
   async _performAudioRecovery(trigger) {
     // Concurrency guard - prevent multiple simultaneous recovery attempts
     if (this._recoveryInProgress) {
-      console.log(`🔊 Recovery already in progress, queueing trigger: ${trigger}`)
       this._pendingRecoveryTrigger = trigger
       return
     }
 
     this._recoveryInProgress = true
-    console.log(`🔊 Audio recovery triggered by: ${trigger}`)
 
     if (!this.isInitialized) {
-      console.log('🔊 Audio not initialized, skipping recovery')
       this._recoveryInProgress = false
       return
     }
 
     // Respect user's explicit stop - don't auto-resume if user stopped audio
     if (this._userStoppedAudio) {
-      console.log('🔊 User intentionally stopped audio, skipping recovery')
       this._recoveryInProgress = false
       return
     }
 
     // Entry #129: Only recover if user explicitly started audio (prevents unwanted auto-restart)
     if (!this._userExplicitlyStartedAudio) {
-      console.log('🔊 User never started audio, skipping recovery')
       this._recoveryInProgress = false
       return
     }
@@ -345,7 +328,6 @@ class AudioService {
       const contextResumed = await this._resumeAudioContext(trigger)
 
       if (!contextResumed) {
-        console.warn('🔊 AudioContext resume failed - may need user gesture')
         this._stopAudioHealthCheck() // Cleanup on failure
         this._requestUserGestureForAudio()
         this._recoveryInProgress = false
@@ -354,34 +336,29 @@ class AudioService {
 
       // STEP 2: Restore masterVolume if stuck at -Infinity (critical fix!)
       if (this.masterVolume && this.masterVolume.volume.value === -Infinity) {
-        console.log('🔊 Restoring masterVolume from -Infinity to -10dB')
         this.masterVolume.volume.value = -10
       }
 
       // STEP 3: Restart Transport if needed (AFTER context is confirmed running)
       if (Tone.Transport?.state !== 'started' && Tone.context?.state === 'running') {
-        console.log('🔊 Restarting Tone.Transport...')
         Tone.Transport.start()
       }
 
       // STEP 4: Reset UserSynthManager states to clear stale timing
       if (this.userSynthManager) {
         this.userSynthManager.resetAllSynthStates()
-        console.log('🔊 UserSynthManager states reset')
       }
 
       // STEP 5: FORCE restart evolving generation after sleep recovery
       // Even if evolvingGenerationActive is true, the scheduled events may be stale
       // after iOS sleep, so we must restart to re-register Transport events
       if (this.isInitialized && !this.muted) {
-        console.log('🔊 Force restarting evolving generation after recovery...')
         // Reset flag to allow startEvolvingGeneration to run
         this.evolvingGenerationActive = false
         this.startEvolvingGeneration()
 
         // Entry #129: Also restart DroneVoidController (was missing - caused only chords to restart)
         if (this.droneVoidController) {
-          console.log('🔊 Restarting DroneVoidController after recovery...')
           this.droneVoidController.reset()
           this.droneVoidController.start()
         }
@@ -391,14 +368,12 @@ class AudioService {
       this._startAudioHealthCheck()
       this._wakeRecoveryAttempts = 0
 
-      console.log('🔊 Audio recovery complete')
 
       // Check if another recovery was requested during this one
       if (this._pendingRecoveryTrigger) {
         const pendingTrigger = this._pendingRecoveryTrigger
         this._pendingRecoveryTrigger = null
         this._recoveryInProgress = false
-        console.log(`🔊 Processing queued recovery: ${pendingTrigger}`)
         await this._performAudioRecovery(pendingTrigger)
         return
       }
@@ -429,23 +404,15 @@ class AudioService {
       ? config.MAX_RESUME_ATTEMPTS_AGGRESSIVE
       : config.MAX_RESUME_ATTEMPTS
 
-    console.log('🔊 Attempting to resume AudioContext:', {
-      currentState: Tone.context?.state,
-      trigger,
-      maxAttempts,
-      platform: this._isIOS ? 'iOS' : (this._needsAggressiveResume ? 'Android' : 'other')
-    })
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         // iOS CRITICAL: "interrupted" state requires Tone.start(), not just resume()
         // This can only work if called from a user gesture context
         if (this._isIOS && (Tone.context?.state === 'interrupted' || Tone.context?.state === 'suspended')) {
-          console.log(`🔊 iOS: Trying Tone.start() on attempt ${attempt}`)
           try {
             await Tone.start()
           } catch (startError) {
-            console.log('🔊 iOS Tone.start() failed (expected if not in gesture):', startError.message)
           }
         }
 
@@ -465,13 +432,11 @@ class AudioService {
         }
 
         if (Tone.context.state === 'running') {
-          console.log(`🔊 AudioContext resumed on attempt ${attempt}/${maxAttempts}`)
           return true
         }
 
         // Android-specific: Try suspend/resume cycle
         if (this._needsAggressiveResume && Tone.context.state !== 'running') {
-          console.log(`🔊 Android: Trying suspend/resume cycle on attempt ${attempt}`)
           if (rawContext?.suspend) {
             await rawContext.suspend()
             await new Promise(resolve => setTimeout(resolve, config.ANDROID_SUSPEND_RESUME_DELAY_MS))
@@ -482,28 +447,17 @@ class AudioService {
           await new Promise(resolve => setTimeout(resolve, config.ANDROID_SUSPEND_RESUME_WAIT_MS))
 
           if (Tone.context.state === 'running') {
-            console.log('🔊 Android suspend/resume cycle succeeded')
             return true
           }
         }
 
       } catch (error) {
-        console.warn(`🔊 Resume attempt ${attempt}/${maxAttempts} failed:`, {
-          error: error.message,
-          contextState: Tone.context?.state,
-          trigger
-        })
       }
 
       // Wait before next attempt (exponential backoff)
       await new Promise(resolve => setTimeout(resolve, 50 * attempt))
     }
 
-    console.warn('🔊 All resume attempts exhausted:', {
-      finalState: Tone.context?.state,
-      attempts: maxAttempts,
-      trigger
-    })
     return false
   }
 
@@ -563,13 +517,8 @@ class AudioService {
     // Check 1: Context state - must be "running"
     // iOS Safari can have "interrupted" state after device sleep
     if (contextState !== 'running') {
-      console.warn('🔊 Health check: AudioContext not running', {
-        state: contextState,
-        isIOS: this._isIOS
-      })
       // iOS "interrupted" state requires user gesture - request it
       if (contextState === 'interrupted') {
-        console.warn('🔊 iOS interrupted state detected - requesting user gesture')
         this._requestUserGestureForAudio()
         return
       }
@@ -579,19 +528,16 @@ class AudioService {
 
     // Check 2: MasterVolume not stuck at -Infinity (only if not muted)
     if (this.masterVolume && this.masterVolume.volume.value === -Infinity && !this.muted) {
-      console.warn('🔊 Health check: MasterVolume stuck at -Infinity')
       this.masterVolume.volume.value = -10
     }
 
     // Check 3: Transport should be running
     if (Tone.Transport?.state !== 'started') {
-      console.warn('🔊 Health check: Transport not started')
       Tone.Transport.start()
     }
 
     // Check 4: Evolving generation should be active (only if not muted)
     if (!this.evolvingGenerationActive && !this.muted) {
-      console.log('🔊 Health check: Restarting evolving generation')
       this.startEvolvingGeneration()
     }
   }
@@ -603,13 +549,11 @@ class AudioService {
     this._wakeRecoveryAttempts++
 
     if (this._wakeRecoveryAttempts > this._maxWakeRecoveryAttempts) {
-      console.warn('🔊 Max recovery attempts reached - requesting user interaction')
       this._stopAudioHealthCheck() // Stop checking after max attempts
       this._requestUserGestureForAudio()
       return
     }
 
-    console.log(`🔊 Attempting silent recovery (attempt ${this._wakeRecoveryAttempts}/${this._maxWakeRecoveryAttempts})`)
     await this._performAudioRecovery('health-check')
   }
 
@@ -627,7 +571,6 @@ class AudioService {
     })
     window.dispatchEvent(event)
 
-    console.log('🔊 Dispatched audio:gesture-required event')
   }
 
   /**
@@ -639,14 +582,9 @@ class AudioService {
     // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
     // User must click Start button to resume, not just any gesture
     if (this._userStoppedAudio) {
-      console.log('🔊 Gesture received, but user stopped audio - skipping recovery')
       return
     }
 
-    console.log('🔊 User gesture received for audio recovery', {
-      platform: this._isIOS ? 'iOS' : (this._isMobile ? 'mobile' : 'desktop'),
-      contextState: Tone.context?.state
-    })
     this._wakeRecoveryAttempts = 0
 
     const config = this._recoveryConfig
@@ -656,11 +594,8 @@ class AudioService {
     // Tone.start() internally handles the iOS-specific unlock mechanism
     if (this._isIOS || Tone.context?.state === 'interrupted' || Tone.context?.state === 'suspended') {
       try {
-        console.log('🔊 Calling Tone.start() from user gesture...')
         await Tone.start()
-        console.log('🔊 After Tone.start():', Tone.context?.state)
       } catch (e) {
-        console.warn('🔊 Tone.start() failed:', e.message)
       }
     }
 
@@ -680,7 +615,6 @@ class AudioService {
         player.stop()
       }
     } catch (e) {
-      console.warn('🔊 Buffer unlock failed:', e.message)
     } finally {
       // Ensure player is always disposed to prevent memory leak
       if (player) {
@@ -853,10 +787,8 @@ class AudioService {
       if (window.Tone && Tone.context.state === 'suspended') {
         const customContext = new AudioContext(contextOptions)
         Tone.setContext(customContext)
-        console.log(`🔊 AudioContext configured: latencyHint=${latencyHint}, sampleRate=${customContext.sampleRate}, isWindowsBrowser=${isWindowsBrowser}, isAndroidChrome=${isAndroidChrome}`)
       }
     } catch (error) {
-      console.warn('⚠️ Failed to configure AudioContext:', error.message)
     }
   }
 
@@ -871,7 +803,6 @@ class AudioService {
       let baseProfile = null
       if (typeof PlatformDetection !== 'undefined') {
         baseProfile = PlatformDetection.getEffectiveAudioProfile()
-        console.log('🔧 _initializeAudioProfile: baseProfile from PlatformDetection:', baseProfile)
       } else {
         // Fallback profile
         baseProfile = {
@@ -886,29 +817,14 @@ class AudioService {
           tier: 'unknown',
           source: 'fallback'
         }
-        console.log('🔧 _initializeAudioProfile: using fallback baseProfile')
       }
 
       // Entry #74: Apply UserSettings overrides
       if (typeof UserSettings !== 'undefined') {
         const userSettings = UserSettings.getAll()
-        console.log('🔧 _initializeAudioProfile: UserSettings.getAll():', userSettings)
         this.audioProfile = UserSettings.getEffectiveAudioProfile(baseProfile)
-        console.log(`🔧 Audio Profile with UserSettings:`, {
-          tier: this.audioProfile.tier,
-          source: this.audioProfile.source,
-          maxPolyphony: this.audioProfile.maxPolyphony,
-          backgroundLayers: this.audioProfile.backgroundLayers,
-          synthComplexity: this.audioProfile.synthComplexity,
-          lookAhead: this.audioProfile.lookAhead,
-          sampleRate: this.audioProfile.sampleRate
-        })
       } else {
         this.audioProfile = baseProfile
-        console.log(`🔧 Audio Profile loaded (no UserSettings):`, {
-          tier: this.audioProfile.tier,
-          source: this.audioProfile.source
-        })
       }
 
       this.isUltraLowPowerMode = this.audioProfile.synthComplexity === 'mono-sine'
@@ -916,10 +832,8 @@ class AudioService {
       // If Ultra-Low Power mode, initialize the minimal audio engine
       if (this.isUltraLowPowerMode && typeof UltraLowPowerAudio !== 'undefined') {
         this.ultraLowPowerAudio = new UltraLowPowerAudio()
-        console.log('🔋 Ultra-Low Power Audio mode enabled')
       }
     } catch (error) {
-      console.warn('⚠️ Failed to initialize audio profile:', error.message)
     }
   }
 
@@ -930,7 +844,6 @@ class AudioService {
    */
   reloadAudioProfile() {
     try {
-      console.log('🔧 AudioService: Reloading audio profile...')
 
       const wasUltraLow = this.isUltraLowPowerMode
       // Entry #74 FIX: Track previous background layers to detect changes
@@ -953,20 +866,10 @@ class AudioService {
 
       this.isUltraLowPowerMode = this.audioProfile.synthComplexity === 'mono-sine'
 
-      console.log(`🔧 Audio Profile reloaded:`, {
-        tier: this.audioProfile.tier,
-        source: this.audioProfile.source,
-        maxPolyphony: this.audioProfile.maxPolyphony,
-        backgroundLayers: this.audioProfile.backgroundLayers,
-        synthComplexity: this.audioProfile.synthComplexity,
-        lookAhead: this.audioProfile.lookAhead,
-        sampleRate: this.audioProfile.sampleRate
-      })
 
       // Update Tone.js lookAhead if changed
       if (window.Tone && this.audioProfile.lookAhead) {
         Tone.context.lookAhead = this.audioProfile.lookAhead
-        console.log(`🔊 Tone.context.lookAhead updated to ${this.audioProfile.lookAhead}s`)
       }
 
       // Entry #74 FIX: Release notes on layers that are no longer enabled
@@ -980,7 +883,6 @@ class AudioService {
             } else if (this.ambientLayers[layer].triggerRelease) {
               this.ambientLayers[layer].triggerRelease()
             }
-            console.log(`🔊 Released notes on disabled layer: ${layer}`)
           }
         })
       }
@@ -990,42 +892,31 @@ class AudioService {
         const previousMax = this.maxTotalVoices
         this.maxTotalVoices = this.audioProfile.maxPolyphony
         if (this.maxTotalVoices !== previousMax) {
-          console.log(`🔊 Max polyphony updated: ${previousMax} → ${this.maxTotalVoices}`)
           // Release excess voices if we reduced the limit
           if (this.maxTotalVoices < previousMax) {
             try {
               this.managePolyphony()
             } catch (error) {
-              console.warn('Failed to manage polyphony after limit reduction:', error)
             }
           }
         }
       }
 
       // Handle transition to/from Ultra-Low Power mode
-      console.log(`🔋 Ultra-Low Power check: isUltraLow=${this.isUltraLowPowerMode}, wasUltraLow=${wasUltraLow}, UltraLowPowerAudio defined=${typeof UltraLowPowerAudio !== 'undefined'}`)
       if (this.isUltraLowPowerMode && !wasUltraLow) {
         // Switching TO Ultra-Low Power mode
-        console.log('🔋 Switching TO Ultra-Low Power mode...')
         if (typeof UltraLowPowerAudio !== 'undefined' && !this.ultraLowPowerAudio) {
           this.ultraLowPowerAudio = new UltraLowPowerAudio()
           this.ultraLowPowerAudio.initialize()
-          console.log('🔋 Ultra-Low Power Audio activated')
         } else {
-          console.warn('🔋 UltraLowPowerAudio not available or already exists:', {
-            defined: typeof UltraLowPowerAudio !== 'undefined',
-            exists: !!this.ultraLowPowerAudio
-          })
         }
         // Entry #90 FIX: Switch gestureSynth to simple sine oscillator
         // ERROR HANDLING: Wrap in try-catch to handle disposed synth or API changes
         try {
           if (this.gestureSynth && this.gestureSynth.oscillator && !this.gestureSynth.disposed) {
             this.gestureSynth.oscillator.type = 'sine'
-            console.log('🔋 gestureSynth switched to sine oscillator')
           }
         } catch (e) {
-          console.warn('🔋 Failed to switch gestureSynth oscillator:', e.message)
         }
         // Stop all background layers
         if (this.ambientLayers) {
@@ -1042,17 +933,14 @@ class AudioService {
         if (this.ultraLowPowerAudio) {
           this.ultraLowPowerAudio.dispose()
           this.ultraLowPowerAudio = null
-          console.log('🔋 Ultra-Low Power Audio deactivated')
         }
         // Entry #90 FIX: Restore gestureSynth to sawtooth oscillator
         // ERROR HANDLING: Wrap in try-catch to handle disposed synth or API changes
         try {
           if (this.gestureSynth && this.gestureSynth.oscillator && !this.gestureSynth.disposed) {
             this.gestureSynth.oscillator.type = 'sawtooth'
-            console.log('🔋 gestureSynth restored to sawtooth oscillator')
           }
         } catch (e) {
-          console.warn('🔋 Failed to restore gestureSynth oscillator:', e.message)
         }
         // Background layers will resume naturally via _isLayerEnabled checks
       }
@@ -1067,7 +955,6 @@ class AudioService {
         }))
       }
     } catch (error) {
-      console.warn('⚠️ Failed to reload audio profile:', error.message)
     }
   }
 
@@ -1082,7 +969,6 @@ class AudioService {
 
           // Handle stress changes
           this.stressMonitor.onStressChange = (data) => {
-            console.log(`🎧 Audio stress: factor=${data.stressFactor.toFixed(2)}, mode=${data.mode}`)
 
             // Emit event for UI indicator
             if (typeof window !== 'undefined') {
@@ -1092,7 +978,6 @@ class AudioService {
 
           // Handle mode changes
           this.stressMonitor.onModeChange = (data) => {
-            console.log(`🎧 Audio mode changed: ${data.from} → ${data.to}`)
 
             // Apply degradation based on mode
             this._applyStressDegradation(data.to)
@@ -1105,10 +990,8 @@ class AudioService {
         }
 
         this.stressMonitor.start(Tone.context)
-        console.log('🎧 AudioStressMonitor started')
       }
     } catch (error) {
-      console.warn('⚠️ Failed to start stress monitor:', error.message)
     }
   }
 
@@ -1123,21 +1006,18 @@ class AudioService {
           // Reduce filter update rate
           this.filterUpdateInterval = 100 // 10Hz
           this.ambientFilterUpdateInterval = 500 // 2Hz
-          console.log('🎧 Degraded mode: Reduced filter update rates')
           break
 
         case 'minimal':
           // Further reduce updates, consider stopping some layers
           this.filterUpdateInterval = 200 // 5Hz
           this.ambientFilterUpdateInterval = 1000 // 1Hz
-          console.log('🎧 Minimal mode: Significantly reduced audio processing')
           break
 
         case 'emergency':
           // Stop background composition, only play direct gestures
           if (this.evolvingGenerationActive) {
             this.stopEvolvingGeneration()
-            console.log('🎧 Emergency mode: Stopped background composition')
           }
           break
 
@@ -1150,7 +1030,6 @@ class AudioService {
           break
       }
     } catch (error) {
-      console.warn('⚠️ Failed to apply stress degradation:', error.message)
     }
   }
 
@@ -1226,7 +1105,6 @@ class AudioService {
 
       // Entry #129: Mark that user explicitly started audio (enables recovery after sleep)
       this._userExplicitlyStartedAudio = true
-      console.log('🔊 AudioService.start() - _userExplicitlyStartedAudio set to TRUE')
 
       // Initialize Tone.js audio context
       if (window.Tone) {
@@ -1238,14 +1116,11 @@ class AudioService {
 
         // Always ensure Tone is started (requires user gesture from click handler)
         if (Tone.context.state !== 'running') {
-          console.log('🔊 Calling Tone.start(), current state:', Tone.context.state)
           await Tone.start()
-          console.log('🔊 After Tone.start(), state:', Tone.context.state)
 
           // Entry #46 FIX: If still suspended, try explicit context.resume() with proper polling
           // Previous implementation used fixed 50ms delay which was insufficient for audio hardware
           if (Tone.context.state !== 'running') {
-            console.log('🔊 Context still suspended, trying explicit resume...')
             const rawContext = Tone.context.rawContext || Tone.context._context || Tone.context
 
             for (let attempt = 1; attempt <= 3; attempt++) {
@@ -1269,19 +1144,15 @@ class AudioService {
                   await new Promise(resolve => setTimeout(resolve, pollInterval))
                 }
 
-                console.log(`🔊 After resume attempt ${attempt}, state:`, Tone.context.state)
 
                 if (Tone.context.state === 'running') {
-                  console.log('🔊 ✅ Context resumed successfully!')
                   break
                 }
               } catch (resumeError) {
-                console.warn(`🔊 Resume attempt ${attempt} failed:`, resumeError)
               }
             }
 
             if (Tone.context.state !== 'running') {
-              console.warn('🔊 ⚠️ Context still not running after retries. User may need to click again.')
             }
           }
 
@@ -1289,7 +1160,6 @@ class AudioService {
           // Android has stricter autoplay policies that require additional measures
           // Reduced to 3 attempts with shorter delays (total ~600ms vs 3s)
           if (Tone.context.state !== 'running' && this._needsAggressiveResume) {
-            console.log('🔊 Android 13+ detected: Applying aggressive resume strategy')
 
             for (let aggressiveAttempt = 1; aggressiveAttempt <= 3; aggressiveAttempt++) {
               try {
@@ -1333,7 +1203,6 @@ class AudioService {
                 }
 
                 if (Tone.context.state === 'running') {
-                  console.log(`🔊 ✅ Android aggressive resume succeeded on attempt ${aggressiveAttempt}`)
                   break
                 }
 
@@ -1341,12 +1210,10 @@ class AudioService {
                 await new Promise(resolve => setTimeout(resolve, 100 * aggressiveAttempt))
 
               } catch (e) {
-                console.warn(`🔊 Android aggressive resume attempt ${aggressiveAttempt} failed:`, e)
               }
             }
           }
         } else {
-          console.log('🔊 Tone.context already running')
         }
 
         // PERF: Entry #48/#59: Use platform-specific lookAhead for better scheduling buffer
@@ -1369,12 +1236,10 @@ class AudioService {
         // This takes priority over platform detection
         if (this.audioProfile && this.audioProfile.lookAhead && this.audioProfile.source === 'user-settings') {
           targetLookAhead = this.audioProfile.lookAhead
-          console.log(`🔊 Using user-specified lookAhead: ${targetLookAhead}s`)
         }
 
         const isWindowsChromePure = typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsChromePure()
         Tone.context.lookAhead = targetLookAhead
-        console.log(`🔊 Tone.context.lookAhead set to ${targetLookAhead}s (isWindowsChromePure=${isWindowsChromePure})`)
 
         // PERF: Entry #59: Use platform-specific updateInterval for Chrome Windows
         // Default is 0.025s (25ms). Higher values reduce scheduler CPU overhead
@@ -1385,14 +1250,12 @@ class AudioService {
 
         // Always set and log - updateInterval is critical for Chrome stability
         Tone.context.updateInterval = targetUpdateInterval
-        console.log(`🔊 Tone.context.updateInterval set to ${targetUpdateInterval}s (isWindowsChromePure=${isWindowsChromePure})`)
 
         // CRITICAL: Start Transport for scheduled events (only if context is running)
         if (Tone.context.state === 'running' && Tone.Transport.state !== 'started') {
           Tone.Transport.start()
           // console.log('🚀 Tone.Transport started for event scheduling')
         } else if (Tone.context.state !== 'running') {
-          console.warn('🔊 Skipping Transport.start() - context still not running')
         }
 
         // Entry #73: Start stress monitor after Transport is running
@@ -1446,7 +1309,6 @@ class AudioService {
         // Return true only if context is actually running
         const contextRunning = Tone.context.state === 'running'
         if (!contextRunning) {
-          console.warn('🔊 AudioService.start() completed but context still not running')
         }
         return contextRunning
       } else {
@@ -1545,7 +1407,6 @@ class AudioService {
     this.reverb.ready.then(() => {
       // console.log('✅ Reverb impulse response ready')
     }).catch(e => {
-      console.warn('Reverb initialization warning:', e.message)
     })
 
     this.delay = new Tone.FeedbackDelay({
@@ -1829,7 +1690,6 @@ class AudioService {
     if (typeof DroneVoidController !== 'undefined') {
       // Critical #3: Verify initialization dependencies before starting
       if (!this.droneAmplitudeGain) {
-        console.warn('DroneVoidController: droneAmplitudeGain not initialized - controller will use fallback volume control')
       }
       this.droneVoidController = new DroneVoidController(this)
       this.droneVoidController.start()
@@ -1967,7 +1827,6 @@ class AudioService {
       // REMOVED: droneFilterLFO (was 50 second cycle on pad.frequency)
       // Reason: Conflicts with updateBackgroundFilters. Keeping only amplitude LFO for volume modulation.
     } catch (e) {
-      console.warn('Drone amplitude modulation setup failed:', e.message)
     }
 
     // PITCH DRIFT: Subtle organic detuning
@@ -2009,7 +1868,6 @@ class AudioService {
 
     // Entry #124: Respect user's explicit stop - don't start if user stopped audio
     if (this._userStoppedAudio) {
-      console.log('🔇 startEvolvingGeneration blocked - user stopped audio')
       return
     }
 
@@ -2409,7 +2267,6 @@ class AudioService {
     // This prevents audio recovery from restarting audio after visibility/focus changes
     this._userStoppedAudio = true
     this._userExplicitlyStartedAudio = false
-    console.log('🛑 AudioService.stop() - _userStoppedAudio=TRUE, _userExplicitlyStartedAudio=FALSE')
 
     if (this.isInitialized) {
 
@@ -2671,7 +2528,6 @@ class AudioService {
   triggerSustainedNoteAttack(frequency, velocity, position, userId = null, isRemote = false) {
     // Check audio context state - try to resume if suspended
     if (Tone.context.state !== 'running') {
-      console.warn('⚠️ Audio context not running:', Tone.context.state, '- attempting resume')
       if (Tone.context.state === 'suspended') {
         Tone.context.resume()
       }
@@ -3128,7 +2984,6 @@ class AudioService {
 
     // Entry #124: Respect user's explicit stop - don't play if user stopped audio
     if (this._userStoppedAudio) {
-      console.log('🔇 playComposition blocked - user stopped audio')
       return
     }
 
@@ -3138,7 +2993,6 @@ class AudioService {
     }
 
     if (!composition || !composition.content) {
-      console.warn('🎼 Invalid composition data')
       return
     }
 
@@ -3399,7 +3253,6 @@ class AudioService {
 
       // Entry #90: Skip if layer is disabled by audio profile settings
       if (!this._isLayerEnabled(layerName)) {
-        console.log(`🔇 Skipping ${layerName} - layer disabled by profile (backgroundLayers: ${JSON.stringify(this.audioProfile?.backgroundLayers)})`)
         continue
       }
 
@@ -3813,7 +3666,6 @@ class AudioService {
         }
 
         if (!this.gestureSynth || this.gestureSynth.disposed) {
-          console.log('🔇 Transport callback - gestureSynth not available')
           return
         }
 
@@ -3829,7 +3681,6 @@ class AudioService {
               actualFrequency = this.userSynthManager.constrainFrequencyToTessitura(eventFrequency, userId)
 
               // DEBUG: Log patch name for troubleshooting timbre issues
-              console.log(`🎹 PATCH: "${synthData.patch?.name}" | slot=${synthData.slot} | freq=${actualFrequency.toFixed(0)}Hz | dur=${eventDuration.toFixed(2)}s | vel=${eventVelocity.toFixed(2)} | ultraLow=${this.isUltraLowPowerMode}`)
 
               // Apply oscillator config
               // Entry #90 FIX: In Ultra-Low Power mode, force simple sine oscillator
@@ -3911,7 +3762,6 @@ class AudioService {
             }
           }
         } catch (e) {
-          console.log('❌ triggerAttackRelease error:', e.message)
         }
       }, scheduleTime)
 

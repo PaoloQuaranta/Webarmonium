@@ -71,7 +71,6 @@ export class MetricsCollectorService {
       this.intervalId = setInterval(() => this._poll(), 5000)
     }
 
-    console.log('📊 MetricsCollectorService started')
   }
 
   /**
@@ -90,7 +89,6 @@ export class MetricsCollectorService {
       this.mockIntervalId = null
     }
 
-    console.log('📊 MetricsCollectorService stopped')
   }
 
   /**
@@ -177,7 +175,6 @@ export class MetricsCollectorService {
         }
       }
     } catch (error) {
-      console.warn('Wikipedia fetch error:', error.message)
     }
   }
 
@@ -240,7 +237,6 @@ export class MetricsCollectorService {
       // Update last seen IDs (keep last 100)
       this.sources.hackernews.lastStoryIds = storyIds.slice(0, 100)
     } catch (error) {
-      console.warn('HackerNews fetch error:', error.message)
     }
   }
 
@@ -260,7 +256,6 @@ export class MetricsCollectorService {
       if (!response.ok) {
         if (response.status === 403) {
           // Rate limited
-          console.warn('GitHub API rate limit reached')
         }
         return
       }
@@ -294,7 +289,6 @@ export class MetricsCollectorService {
         newStars: stars
       }
     } catch (error) {
-      console.warn('GitHub fetch error:', error.message)
     }
   }
 

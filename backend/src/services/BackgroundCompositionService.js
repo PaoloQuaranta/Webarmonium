@@ -269,7 +269,6 @@ class BackgroundCompositionService {
     if (!roomState) {
       // Entry #64: Don't lose the gesture! Create state and continue processing
       // This fixes race condition during page reload where disconnect arrives after join
-      console.warn(`🎼 No room state for ${roomId}, creating and continuing...`)
       this.startComposition(roomId, {})
       roomState = this.roomCompositions.get(roomId)
       if (!roomState) {

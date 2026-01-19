@@ -27,12 +27,10 @@ class ConnectionTracker {
   setIO (io) {
     // Validate io is a Socket.IO server instance (basic duck-typing check)
     if (!io) {
-      console.warn('⚠️ ConnectionTracker.setIO(): Received null/undefined io instance')
       return
     }
 
     if (typeof io.to !== 'function' || typeof io.emit !== 'function') {
-      console.warn('⚠️ ConnectionTracker.setIO(): io instance missing required Socket.IO methods (to, emit)')
       return
     }
 

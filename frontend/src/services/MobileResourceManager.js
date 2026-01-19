@@ -123,7 +123,6 @@ class MobileResourceManager {
     // Apply initial mode
     this._applyMode()
 
-    console.log(`MobileResourceManager: Initialized in ${this.currentMode} mode`)
   }
 
   /**
@@ -144,7 +143,6 @@ class MobileResourceManager {
 
       this._checkBattery()
     } catch (e) {
-      console.warn('MobileResourceManager: Battery API not available:', e)
     }
   }
 
@@ -160,7 +158,6 @@ class MobileResourceManager {
     const isLow = this.battery.level < this.lowBatteryThreshold && !this.battery.charging
 
     if (isLow && this.currentMode !== this.modes.CRITICAL) {
-      console.log('MobileResourceManager: Battery low, switching to critical mode')
       this.setMode(this.modes.CRITICAL)
     } else if (!isLow && this.currentMode === this.modes.CRITICAL) {
       // Recover from critical if battery is ok now
@@ -230,19 +227,15 @@ class MobileResourceManager {
     if (avgFps < config.targetFps * 0.6) {
       // Significant frame drops - degrade
       if (this.currentMode === this.modes.FULL) {
-        console.log(`MobileResourceManager: FPS low (${avgFps.toFixed(1)}), degrading to balanced`)
         this.setMode(this.modes.BALANCED)
       } else if (this.currentMode === this.modes.BALANCED) {
-        console.log(`MobileResourceManager: FPS low (${avgFps.toFixed(1)}), degrading to lowPower`)
         this.setMode(this.modes.LOW_POWER)
       }
     } else if (avgFps > config.targetFps * 0.9 && !PlatformDetection.isMobile()) {
       // Good performance on desktop - try to upgrade
       if (this.currentMode === this.modes.LOW_POWER) {
-        console.log(`MobileResourceManager: FPS good (${avgFps.toFixed(1)}), upgrading to balanced`)
         this.setMode(this.modes.BALANCED)
       } else if (this.currentMode === this.modes.BALANCED) {
-        console.log(`MobileResourceManager: FPS good (${avgFps.toFixed(1)}), upgrading to full`)
         this.setMode(this.modes.FULL)
       }
     }
@@ -255,7 +248,6 @@ class MobileResourceManager {
    */
   setMode(mode, manual = false) {
     if (!this.modeConfigs[mode]) {
-      console.warn('MobileResourceManager: Unknown mode:', mode)
       return
     }
 
@@ -266,7 +258,6 @@ class MobileResourceManager {
     this._applyMode()
     this._notifyListeners()
 
-    console.log(`MobileResourceManager: Mode changed ${previousMode} -> ${mode}${manual ? ' (manual)' : ''}`)
   }
 
   /**

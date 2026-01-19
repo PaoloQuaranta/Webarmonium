@@ -461,7 +461,6 @@ class NeonNebulaSystem {
 
     // Validate composition type
     if (!C.VALID_COMPOSITION_TYPES.includes(type)) {
-      console.warn(`[NeonNebulaSystem] Unknown composition type: ${type}`)
       return
     }
 

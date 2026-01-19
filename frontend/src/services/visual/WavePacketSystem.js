@@ -82,7 +82,6 @@ class WavePacketSystem {
    */
   setGlowEnabled (enabled) {
     this._glowOverride = enabled
-    console.log(`🎨 WavePacketSystem: Glow ${enabled ? 'enabled' : 'disabled'}`)
   }
 
   /**
@@ -650,7 +649,6 @@ class WavePacketSystem {
     }
 
     if (orphanedIds.length > 0) {
-      console.log(`🌊 Cleaned up ${orphanedIds.length} orphaned pulses`)
     }
   }
 

@@ -34,7 +34,6 @@ class PlatformDetection {
       PlatformDetection._cache = isWindows && isChrome
     } catch (e) {
       // Fallback to false if detection fails (e.g., in test environments)
-      console.warn('PlatformDetection: Unable to detect platform, defaulting to non-Windows-Chrome')
       PlatformDetection._cache = false
     }
 
@@ -60,7 +59,6 @@ class PlatformDetection {
       const isChromiumBased = ua.includes('Chrome') || ua.includes('Edg')
       PlatformDetection._windowsBrowserCache = isWindows && isChromiumBased
     } catch (e) {
-      console.warn('PlatformDetection: Unable to detect Windows browser, defaulting to false')
       PlatformDetection._windowsBrowserCache = false
     }
 
@@ -337,7 +335,6 @@ class PlatformDetection {
    */
   static setLowPowerMode(enabled) {
     PlatformDetection._lowPowerModeEnabled = enabled
-    console.log(`🔋 Low Power Audio mode: ${enabled ? 'ENABLED' : 'DISABLED'}`)
   }
 
   /**

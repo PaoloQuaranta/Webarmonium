@@ -97,20 +97,16 @@ class PrecomputedAttractorSystem {
 
     // Initialize
     this._precomputeAttractors()
-    console.log('🦋 PrecomputedAttractorSystem initialized')
   }
 
   /**
    * Precompute all attractor frames at initialization
    */
   _precomputeAttractors() {
-    console.log('🦋 Precomputing Lorenz attractor...')
     this.lorenzFrames = this._computeLorenzFrames()
 
-    console.log('🦋 Precomputing Rossler attractor...')
     this.rosslerFrames = this._computeRosslerFrames()
 
-    console.log(`🦋 Precomputation complete: ${this.frameCount} frames × ${this.pointCount} points`)
   }
 
   /**
@@ -427,7 +423,6 @@ class PrecomputedAttractorSystem {
     if (type === this.targetAttractor) return
 
     this.targetAttractor = type
-    console.log(`🦋 Switching to ${type} attractor`)
   }
 
   /**
@@ -442,7 +437,6 @@ class PrecomputedAttractorSystem {
 
     // Rate limiting: prevent rapid oscillations
     if (timeSinceLastMorph < this.minMorphInterval) {
-      console.debug(`🦋 Toggle rate-limited (${this.minMorphInterval - timeSinceLastMorph}ms remaining)`)
       return false
     }
 
@@ -456,7 +450,6 @@ class PrecomputedAttractorSystem {
       this.currentAttractor = this.targetAttractor
       this.targetAttractor = temp
 
-      console.log(`🦋 Reversing morph → ${this.targetAttractor} attractor`)
     } else {
       // NORMAL TOGGLE: Complete, start new morph to opposite attractor
       const next = this.targetAttractor === 'lorenz' ? 'rossler' : 'lorenz'
@@ -562,7 +555,6 @@ class PrecomputedAttractorSystem {
   setStressFactor(factor) {
     // Fix #3: Validate input to prevent NaN propagation
     if (typeof factor !== 'number' || !isFinite(factor)) {
-      console.warn('⚠️ PrecomputedAttractorSystem: Invalid stress factor:', factor, '- using 1.0')
       factor = 1.0
     }
 
@@ -582,14 +574,12 @@ class PrecomputedAttractorSystem {
    */
   setPointLimit (limit) {
     if (typeof limit !== 'number' || !isFinite(limit) || limit < 100) {
-      console.warn('⚠️ PrecomputedAttractorSystem: Invalid point limit:', limit)
       return
     }
 
     // Limit can only reduce points (not increase above original)
     const newCount = Math.min(limit, 1200)
     if (newCount !== this.pointCount) {
-      console.log(`🎨 PrecomputedAttractorSystem: Point limit set to ${newCount}`)
       this.pointCount = newCount
 
       // Regenerate precomputed frames with new point count

@@ -113,7 +113,6 @@ class MusicalScheduler {
       if (window.Tone?.context?.state === 'running' && window.Tone?.Transport) {
         window.Tone.Transport.start();
       } else {
-        console.warn('[MusicalScheduler] Skipping Transport.start() - prerequisites not met');
       }
 
       // Start our scheduling worker

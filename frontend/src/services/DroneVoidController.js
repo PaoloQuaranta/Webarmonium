@@ -152,7 +152,6 @@ class DroneVoidController {
     this.lastActivityTime = Date.now()
 
     if (this.debugEnabled) {
-      console.log('DroneVoidController: Activity registered')
     }
   }
 
@@ -165,7 +164,6 @@ class DroneVoidController {
     this.lastActivityTime = Date.now()
 
     if (this.debugEnabled) {
-      console.log(`DroneVoidController: Note start - ${noteId}, active: ${this.activeNotes.size}`)
     }
   }
 
@@ -179,7 +177,6 @@ class DroneVoidController {
     // Activity time is updated on note START, not end
 
     if (this.debugEnabled) {
-      console.log(`DroneVoidController: Note end - ${noteId}, active: ${this.activeNotes.size}`)
     }
   }
 
@@ -239,9 +236,6 @@ class DroneVoidController {
       this.currentTargetDb = targetDb
 
       if (this.debugEnabled) {
-        console.log(`DroneVoidController: voidScore=${this.currentVoidScore.toFixed(2)}, ` +
-          `timeScore=${timeScore.toFixed(2)}, influenceVoid=${influenceVoidScore.toFixed(2)}, ` +
-          `noteVoid=${noteVoidScore}, targetDb=${targetDb.toFixed(1)}`)
       }
     }
   }
@@ -281,7 +275,6 @@ class DroneVoidController {
         return
       } catch (e) {
         // Critical #2: Log error before fallback
-        console.warn('DroneVoidController: Failed to apply gain modulation, using fallback:', e.message)
       }
     }
 
@@ -299,7 +292,6 @@ class DroneVoidController {
         //     `to ${targetDb.toFixed(1)}dB over ${fadeTime}s`)
         // }
       } catch (e) {
-        console.warn('DroneVoidController: Failed to set volume:', e.message)
       }
     }
   }
@@ -321,7 +313,6 @@ class DroneVoidController {
         return
       } catch (e) {
         // Critical #2: Log error before fallback
-        console.warn('DroneVoidController: Failed to set immediate gain, using fallback:', e.message)
       }
     }
 
@@ -331,7 +322,6 @@ class DroneVoidController {
         this.audioService.ambientVolumes.pad.volume.value = db
         this.currentTargetDb = db
       } catch (e) {
-        console.warn('DroneVoidController: Failed to set immediate volume:', e.message)
       }
     }
   }

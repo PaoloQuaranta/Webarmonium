@@ -368,7 +368,6 @@ class GestureProcessor {
               })
             }
           } catch (e) {
-            console.warn(`🔇 Error playing phrase note ${index}:`, e)
           }
         }, delayMs)
       })

@@ -71,7 +71,6 @@ class GenerativeVisualService {
    * @param {HTMLElement} containerElement - DOM element to attach p5.js canvas
    */
   initialize(containerElement) {
-    console.log('🎨 GenerativeVisualService.initialize() called with container:', containerElement)
 
     if (!containerElement) {
       console.error('❌ GenerativeVisualService: Container element not found')
@@ -83,16 +82,12 @@ class GenerativeVisualService {
 
     try {
       // Initialize subsystems
-      console.log('🎨 Creating SpringMeshNetwork...')
       this.springMesh = new SpringMeshNetwork()
 
-      console.log('🎨 Creating WavePacketSystem...')
       this.wavePackets = new WavePacketSystem(this.springMesh)
 
-      console.log('🎨 Creating ParticleFlowManager...')
       this.particles = new ParticleFlowManager(this.springMesh)
 
-      console.log('🎨 Creating NeonNebulaSystem...')
       // NeonNebulaSystem is loaded via script tag and exposed on window
       if (typeof NeonNebulaSystem === 'undefined' && typeof window.NeonNebulaSystem === 'undefined') {
         console.error('❌ NeonNebulaSystem not loaded - ensure script is included before GenerativeVisualService')
@@ -100,14 +95,11 @@ class GenerativeVisualService {
       const NebulaClass = typeof NeonNebulaSystem !== 'undefined' ? NeonNebulaSystem : window.NeonNebulaSystem
       this.nebulas = new NebulaClass()
 
-      console.log('🎨 Creating PrecomputedAttractorSystem...')
       this.attractors = new PrecomputedAttractorSystem()
 
-      console.log('🎨 Creating p5 instance...')
       // Create p5.js instance in instance mode
       this.p5Instance = new p5((p) => {
         p.setup = () => {
-          console.log('🎨 p5 setup() called')
           this.setup(p)
         }
         p.draw = () => {
@@ -124,11 +116,9 @@ class GenerativeVisualService {
 
       // Apply reduced motion settings if user prefers
       if (this.prefersReducedMotion) {
-        console.log('🎨 Reduced motion preference detected - disabling animations')
         this._applyReducedMotionSettings()
       }
 
-      console.log('✅ GenerativeVisualService: Enhanced p5.js initialized with subsystems')
     } catch (error) {
       console.error('❌ Error during GenerativeVisualService initialization:', error)
       throw error
@@ -143,10 +133,8 @@ class GenerativeVisualService {
   _handleReducedMotionChange(event) {
     this.prefersReducedMotion = event.matches
     if (this.prefersReducedMotion) {
-      console.log('🎨 Reduced motion preference enabled')
       this._applyReducedMotionSettings()
     } else {
-      console.log('🎨 Reduced motion preference disabled')
       this._restoreMotionSettings()
     }
   }
@@ -203,7 +191,6 @@ class GenerativeVisualService {
 
     // Verify dimensions before creating canvas (prevents flickering)
     if (containerWidth === 0 || containerHeight === 0) {
-      console.warn('GenerativeVisualService: Container has zero dimensions, deferring setup')
       setTimeout(() => this.setup(p), 100)
       return
     }
@@ -235,12 +222,9 @@ class GenerativeVisualService {
     // This ensures all subsystems are properly connected to the p5 rendering context
     try {
       this.applyGraphicsQuality()
-      console.log('🎨 Graphics quality applied after p5 setup')
     } catch (e) {
-      console.warn('🎨 Failed to apply graphics quality after setup:', e)
     }
 
-    console.log('✅ GenerativeVisualService: Canvas created', containerWidth, 'x', containerHeight, 'pixelDensity:', p.pixelDensity())
   }
 
   /**
@@ -557,10 +541,6 @@ class GenerativeVisualService {
         console.error('GenerativeVisualService: Error updating interaction metrics:', error)
       }
     } else {
-      console.warn('🎨 updateInteractionMetrics: nebulas not available', {
-        hasNebulas: !!this.nebulas,
-        hasMethod: !!(this.nebulas && this.nebulas.setInteractionMetrics)
-      })
     }
 
     // Forward to attractors for hue animation
@@ -582,7 +562,6 @@ class GenerativeVisualService {
    */
   applyGraphicsQuality () {
     if (typeof UserSettings === 'undefined') {
-      console.warn('UserSettings not loaded, cannot apply graphics quality')
       return
     }
 
@@ -598,34 +577,22 @@ class GenerativeVisualService {
     // Use device-detected profile if available
     if (typeof DeviceCapabilities !== 'undefined') {
       baseProfile = DeviceCapabilities.getGraphicsProfile()
-      console.log('🎨 Graphics baseProfile from DeviceCapabilities:', baseProfile)
     }
 
     // Get effective profile with user overrides
     const profile = UserSettings.getEffectiveGraphicsProfile(baseProfile)
 
-    console.log('🎨 Applying graphics quality:', profile)
-    console.log('🎨 Visual subsystems available:', {
-      springMesh: !!this.springMesh,
-      wavePackets: !!this.wavePackets,
-      particles: !!this.particles,
-      attractors: !!this.attractors
-    })
 
     // Apply to SpringMeshNetwork (node glow)
     if (this.springMesh) {
       this.springMesh.setShadowBlurEnabled(profile.shadowBlur !== false)
-      console.log('🎨 SpringMesh shadowBlur set to:', profile.shadowBlur !== false)
     } else {
-      console.warn('🎨 No springMesh available')
     }
 
     // Apply to WavePacketSystem (pulses)
     if (this.wavePackets) {
       this.wavePackets.setGlowEnabled(profile.pulseGlow !== false)
-      console.log('🎨 WavePackets glow set to:', profile.pulseGlow !== false)
     } else {
-      console.warn('🎨 No wavePackets available')
     }
 
     // Apply to ParticleFlowManager
@@ -633,18 +600,14 @@ class GenerativeVisualService {
       this.particles.setCascadeEnabled(profile.cascadeEnabled !== false)
       if (profile.particleCount) {
         this.particles.setMaxParticles(profile.particleCount)
-        console.log('🎨 Particles maxCount set to:', profile.particleCount)
       }
     } else {
-      console.warn('🎨 No particles available')
     }
 
     // Apply to PrecomputedAttractorSystem
     if (this.attractors && profile.attractorPoints) {
       this.attractors.setPointLimit(profile.attractorPoints)
-      console.log('🎨 Attractors pointLimit set to:', profile.attractorPoints)
     } else if (!this.attractors) {
-      console.warn('🎨 No attractors available')
     }
 
     // Store current profile for reference
@@ -682,7 +645,6 @@ class GenerativeVisualService {
 
     const profile = profiles[quality] || profiles.full
 
-    console.log(`🎨 Setting graphics quality: ${quality}`, profile)
 
     // Apply to subsystems
     if (this.springMesh) {

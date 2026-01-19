@@ -56,7 +56,6 @@ class AudioStressMonitor {
 
     this.isMonitoring = true
     this.toneContext = toneContext
-    console.log('🎧 AudioStressMonitor: Starting')
 
     // Start periodic stress checks
     this._checkTimer = setInterval(() => this._checkStress(), this.CHECK_INTERVAL)
@@ -64,7 +63,6 @@ class AudioStressMonitor {
     // Reset underrun count periodically
     this._underrunResetTimer = setInterval(() => {
       if (this.underrunCount > 0) {
-        console.log(`🎧 AudioStressMonitor: Resetting underrun count (was ${this.underrunCount})`)
         this.underrunCount = 0
       }
     }, this.UNDERRUN_RESET_INTERVAL)
@@ -80,7 +78,6 @@ class AudioStressMonitor {
     if (!this.isMonitoring) return
 
     this.isMonitoring = false
-    console.log('🎧 AudioStressMonitor: Stopping')
 
     if (this._checkTimer) {
       clearInterval(this._checkTimer)
@@ -114,7 +111,6 @@ class AudioStressMonitor {
         if (originalHandler) originalHandler(event)
 
         if (rawContext.state === 'interrupted' || rawContext.state === 'suspended') {
-          console.warn('🎧 AudioContext state changed:', rawContext.state)
           // Treat as underrun-like event
           this._recordUnderrun('context-state-change')
         }
@@ -146,7 +142,6 @@ class AudioStressMonitor {
       // Only trigger underrun after N consecutive high drift events
       // This prevents false positives from normal GC pauses
       if (this.consecutiveHighDrift >= this.CONSECUTIVE_DRIFT_TRIGGER) {
-        console.warn(`🎧 Sustained timing drift detected: ${drift.toFixed(1)}ms (${this.consecutiveHighDrift} consecutive)`)
         this._recordUnderrun('sustained-timing-drift')
         this.consecutiveHighDrift = 0 // Reset after recording
       }
@@ -170,7 +165,6 @@ class AudioStressMonitor {
     this.totalUnderruns++
     this.lastUnderrunTime = now
 
-    console.warn(`🎧 Audio underrun detected (${source}): count=${this.underrunCount}, total=${this.totalUnderruns}`)
 
     // Apply stress penalty
     this.stressFactor = Math.max(
@@ -233,7 +227,6 @@ class AudioStressMonitor {
 
     // baseLatency > 0.1s (100ms) indicates audio system under pressure
     if (rawContext.baseLatency > 0.1) {
-      console.warn(`🎧 High base latency: ${(rawContext.baseLatency * 1000).toFixed(0)}ms`)
       // Don't record as underrun, just note it
     }
   }
@@ -265,7 +258,6 @@ class AudioStressMonitor {
     const oldMode = this.currentMode
     this.currentMode = mode
 
-    console.log(`🎧 Audio mode change: ${oldMode} → ${mode} (stressFactor=${this.stressFactor.toFixed(2)})`)
 
     if (this.onModeChange) {
       this.onModeChange({

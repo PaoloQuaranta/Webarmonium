@@ -161,7 +161,6 @@ class SocketEventCoordinator {
   registerVirtualUserEvents() {
     // Virtual users activated (when room enters solo mode)
     this.socketService.on('virtual-users-activated', (data) => {
-      console.log('🎭 Virtual users activated:', data.sources)
 
       if (this.cursorManager && data.virtualUsers) {
         data.virtualUsers.forEach(user => {
@@ -184,7 +183,6 @@ class SocketEventCoordinator {
 
     // Virtual users deactivated (when room enters multi mode)
     this.socketService.on('virtual-users-deactivated', (data) => {
-      console.log('🎭 Virtual users deactivated:', data.sources)
 
       if (this.cursorManager) {
         this.cursorManager.removeAllVirtualCursors(true) // fadeOut
@@ -205,7 +203,6 @@ class SocketEventCoordinator {
       for (const [source, cursor] of Object.entries(data.cursors)) {
         // Validate cursor data structure
         if (!cursor || !cursor.userId || typeof cursor.x !== 'number' || typeof cursor.y !== 'number') {
-          console.warn('Invalid virtual cursor data for source:', source, cursor)
           continue
         }
 
@@ -227,7 +224,6 @@ class SocketEventCoordinator {
 
     // Mode transition notification
     this.socketService.on('mode-transition', (data) => {
-      console.log('🔄 Mode transition:', data.from, '→', data.to)
 
       if (window.NotificationService) {
         window.NotificationService.showModeTransition(data.message, data.duration || 3000)

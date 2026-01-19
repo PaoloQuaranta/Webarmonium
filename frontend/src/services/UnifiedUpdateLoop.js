@@ -60,7 +60,6 @@ class UnifiedUpdateLoop {
    */
   register(id, callback, targetHz = 30) {
     if (typeof callback !== 'function') {
-      console.warn(`UnifiedUpdateLoop: Invalid callback for ${id}`)
       return
     }
 
@@ -158,7 +157,6 @@ class UnifiedUpdateLoop {
           entry.callback(dtSeconds)
           entry.lastCall = timestamp
         } catch (error) {
-          console.warn(`UnifiedUpdateLoop: Error in callback '${id}':`, error.message)
         }
       }
     }

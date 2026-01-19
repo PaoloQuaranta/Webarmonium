@@ -197,10 +197,8 @@ class GenerativeMusicEngine {
         compositionTick()
       }, 0.1, startTime) // 100ms interval
 
-      console.log('🎵 GenerativeMusicEngine: Using Tone.Transport scheduling')
     } else {
       // Fallback to setTimeout if Tone not available
-      console.warn('🎵 GenerativeMusicEngine: Tone.Transport not available, using setTimeout fallback')
       const compositionLoopFallback = () => {
         if (!this.evolvingGenerationActive) return
         compositionTick()

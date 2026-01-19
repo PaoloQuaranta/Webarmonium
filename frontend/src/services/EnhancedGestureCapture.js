@@ -389,7 +389,6 @@ class EnhancedGestureCapture {
 
       // Entry #46 FIX: Validate canvas size to prevent NaN/0 propagation during initialization
       if (canvasSize === 0) {
-        console.warn('⚠️ Canvas size is 0, skipping drag movement tracking')
         return
       }
 

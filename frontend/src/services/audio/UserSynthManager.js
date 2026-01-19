@@ -79,9 +79,7 @@ class UserSynthManager {
         return backendSlot
       }
       // Fall through to hash if lookup returned null (user not in room yet)
-      console.warn(`⚠️ No backend slot for ${userId?.substring(0, 8)}, falling back to hash`)
     } else {
-      console.warn(`⚠️ No slotLookupFn set! userId=${userId?.substring(0, 8)} will use hash`)
     }
 
     // Fallback: Simple hash from userId string to get consistent slot
@@ -110,7 +108,6 @@ class UserSynthManager {
 
     // If synth exists but is being disposed, don't use it
     if (existing && existing.disposing) {
-      console.warn(`Synth for ${userId} is disposing, cannot use`)
       return null
     }
 
@@ -133,7 +130,6 @@ class UserSynthManager {
    */
   createSynthForUser(userId) {
     if (!this.patchDefinitions || typeof Tone === 'undefined') {
-      console.warn('PatchDefinitions or Tone.js not available')
       return
     }
 
@@ -141,7 +137,6 @@ class UserSynthManager {
     const patch = this.patchDefinitions.getPatchForUser(userId, slot)
 
     if (!patch) {
-      console.warn(`No patch found for user ${userId}, slot ${slot}`)
       return
     }
 
@@ -213,7 +208,6 @@ class UserSynthManager {
       const MAX_PATCH_VOLUME_DB = 12  // Safety limit - allows real user patches to match gestureSynth prominence
       const patchVolume = Math.min(patch.volume || 0, MAX_PATCH_VOLUME_DB)
       if (patch.volume > MAX_PATCH_VOLUME_DB) {
-        console.warn(`⚠️ Patch "${patch.name}" volume capped: ${patch.volume} dB → ${MAX_PATCH_VOLUME_DB} dB`)
       }
       const volume = new Tone.Volume(patchVolume)
 
@@ -244,7 +238,6 @@ class UserSynthManager {
         try {
           pan.connect(this.masterVolume)
         } catch (e) {
-          console.warn('UserSynthManager: Could not connect to masterVolume, using destination:', e.message)
           pan.toDestination()
         }
       } else {
@@ -262,7 +255,6 @@ class UserSynthManager {
           volume.connect(delaySend)
           delaySend.connect(this.delay)
         } catch (e) {
-          console.warn('UserSynthManager: Could not connect to delay:', e.message)
           delaySend = null
         }
       }
@@ -274,7 +266,6 @@ class UserSynthManager {
           volume.connect(reverbSend)
           reverbSend.connect(this.reverb)
         } catch (e) {
-          console.warn('UserSynthManager: Could not connect to reverb:', e.message)
           reverbSend = null
         }
       }
@@ -323,7 +314,6 @@ class UserSynthManager {
     // CRITICAL: Validate input to prevent infinite loops
     // frequency = 0, NaN, Infinity, or negative would cause while loops to never exit
     if (!isFinite(frequency) || frequency <= 0) {
-      console.warn(`Invalid frequency ${frequency} for user ${userId}, using tessitura min`)
       return min
     }
 
@@ -492,7 +482,6 @@ class UserSynthManager {
 
     // Prevent double-disposal if cleanup called multiple times
     if (synthData.disposing) {
-      console.warn(`Synth for ${userId} already disposing, skipping`)
       return
     }
 
@@ -518,7 +507,6 @@ class UserSynthManager {
 
           // console.log(`Fully disposed synth for ${userId}`)
         } catch (e) {
-          console.warn(`Error during synth disposal for ${userId}:`, e.message)
         }
       }, 1000)
 
@@ -565,14 +553,12 @@ class UserSynthManager {
 
         // console.log(`🔄 Reset synth state for ${userId.substring(0, 8)}: ${synthData.patch?.name}`)
       } catch (e) {
-        console.warn(`Failed to reset synth state for ${userId}:`, e)
       }
     }
 
     // 3. Clear all active notes tracking
     this.activeNotes.clear()
 
-    console.log(`🔄 Reset ${this.userSynths.size} synth states after visibility change`)
   }
 
   /**

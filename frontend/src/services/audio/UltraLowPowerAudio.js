@@ -74,7 +74,6 @@ class UltraLowPowerAudio {
       this.oscillator.start()
 
       this.isInitialized = true
-      console.log('🔋 UltraLowPowerAudio: Initialized (sampleRate=' + this.audioContext.sampleRate + ')')
 
       return true
     } catch (error) {
@@ -92,7 +91,6 @@ class UltraLowPowerAudio {
 
     if (this.audioContext.state === 'suspended') {
       await this.audioContext.resume()
-      console.log('🔋 UltraLowPowerAudio: Resumed')
     }
     return this.audioContext.state === 'running'
   }
@@ -126,7 +124,6 @@ class UltraLowPowerAudio {
     try {
       // Entry #73 FIX: Verify oscillator is still valid
       if (!this.oscillator || !this.gainNode) {
-        console.warn('🔋 UltraLowPowerAudio: Oscillator missing, attempting recovery')
         this._recreateOscillator()
         if (!this.oscillator) {
           console.error('🔋 UltraLowPowerAudio: Recovery failed')
@@ -162,7 +159,6 @@ class UltraLowPowerAudio {
       }, totalDuration)
     } catch (error) {
       // Entry #73 FIX: Attempt recovery on error
-      console.warn('🔋 UltraLowPowerAudio: playNote error, attempting recovery', error.message)
       this._recreateOscillator()
       this.noteActive = false
     }
@@ -197,7 +193,6 @@ class UltraLowPowerAudio {
       this.oscillator.connect(this.gainNode)
       this.oscillator.start()
 
-      console.log('🔋 UltraLowPowerAudio: Oscillator recreated successfully')
     } catch (error) {
       console.error('🔋 UltraLowPowerAudio: Failed to recreate oscillator', error)
       this.oscillator = null
@@ -272,7 +267,6 @@ class UltraLowPowerAudio {
     }
 
     this.isInitialized = false
-    console.log('🔋 UltraLowPowerAudio: Disposed')
   }
 
   /**

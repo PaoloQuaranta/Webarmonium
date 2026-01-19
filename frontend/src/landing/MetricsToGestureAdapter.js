@@ -465,7 +465,6 @@ export class MetricsToGestureAdapter {
    */
   _generateAudioFromGesture(user, gestureData) {
     if (!this.audioService) {
-      console.warn('⚠️ No audio service available')
       return
     }
 
@@ -507,7 +506,6 @@ export class MetricsToGestureAdapter {
     } else if (typeof this.audioService.processGestureAudio === 'function') {
       this.audioService.processGestureAudio(audioParams)
     } else {
-      console.warn('⚠️ No audio input method found on AudioService')
     }
   }
 

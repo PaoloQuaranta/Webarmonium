@@ -220,13 +220,11 @@ class WebMetricsPoller {
       const response = await fetch(this.sources.wikipedia.url)
 
       if (!response.ok) {
-        console.warn(`Wikipedia fetch error: HTTP ${response.status}`)
         return
       }
 
       const contentType = response.headers.get('content-type')
       if (!contentType || !contentType.includes('application/json')) {
-        console.warn(`Wikipedia fetch error: unexpected content-type ${contentType}`)
         return
       }
 
@@ -269,7 +267,6 @@ class WebMetricsPoller {
         }
       }
     } catch (error) {
-      console.warn('Wikipedia fetch error:', error.message)
     }
   }
 
@@ -282,14 +279,12 @@ class WebMetricsPoller {
       const storiesResponse = await fetch(this.sources.hackernews.storiesUrl)
 
       if (!storiesResponse.ok) {
-        console.warn(`HackerNews fetch error: HTTP ${storiesResponse.status}`)
         return
       }
 
       const storyIds = await storiesResponse.json()
 
       if (!Array.isArray(storyIds)) {
-        console.warn('HackerNews fetch error: unexpected response format')
         return
       }
 
@@ -343,7 +338,6 @@ class WebMetricsPoller {
       // Update last seen IDs (keep last 100)
       this.sources.hackernews.lastStoryIds = storyIds.slice(0, 100)
     } catch (error) {
-      console.warn('HackerNews fetch error:', error.message)
     }
   }
 
@@ -374,7 +368,6 @@ class WebMetricsPoller {
               this.githubBackoff.currentDelay * this.githubBackoff.multiplier,
               this.githubBackoff.maxDelay
             )
-            console.warn(`GitHub server error (${response.status}): backing off for ${Math.round(this.githubBackoff.currentDelay / 1000)}s`)
           }
         }
         return
@@ -412,7 +405,6 @@ class WebMetricsPoller {
         deletesPerMinute: deletes
       }
     } catch (error) {
-      console.warn('GitHub fetch error:', error.message)
       // Network errors also trigger backoff
       this.githubBackoff.consecutiveFailures++
       if (this.githubBackoff.consecutiveFailures >= 3) {
@@ -451,11 +443,9 @@ class WebMetricsPoller {
         // Only use header value if wait time is positive and reasonable (< 2 hours)
         if (waitTime > 0 && waitTime < 7200000) {
           this.githubBackoff.currentDelay = Math.min(waitTime + 5000, this.githubBackoff.maxDelay) // +5s buffer
-          console.warn(`GitHub rate limit: waiting until reset (${Math.round(waitTime / 1000)}s)`)
           return
         }
       } else {
-        console.warn(`GitHub rate limit: invalid X-RateLimit-Reset header value: ${resetHeader}`)
       }
     }
 
@@ -464,7 +454,6 @@ class WebMetricsPoller {
       this.githubBackoff.currentDelay * this.githubBackoff.multiplier,
       this.githubBackoff.maxDelay
     )
-    console.warn(`GitHub rate limit: backing off for ${Math.round(this.githubBackoff.currentDelay / 1000)}s`)
   }
 
   /**

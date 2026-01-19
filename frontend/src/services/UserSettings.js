@@ -131,12 +131,10 @@ class UserSettings {
    */
   static set (key, value) {
     if (typeof localStorage === 'undefined') {
-      console.warn('localStorage not available')
       return
     }
 
     localStorage.setItem(this.STORAGE_PREFIX + key, String(value))
-    console.log(`Settings: ${key} = ${value}`)
 
     // Dispatch event for live updates
     if (typeof window !== 'undefined') {
@@ -166,7 +164,6 @@ class UserSettings {
     Object.keys(this.DEFAULTS).forEach(key => {
       this.set(key, this.DEFAULTS[key])
     })
-    console.log('Settings: Reset to defaults (auto)')
   }
 
   /**

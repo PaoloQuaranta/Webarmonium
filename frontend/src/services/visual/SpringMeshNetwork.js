@@ -118,7 +118,6 @@ class SpringMeshNetwork {
   setShadowBlurEnabled (enabled) {
     // Coerce to boolean for defensive programming
     this._shadowBlurEnabled = Boolean(enabled)
-    console.log(`🎨 SpringMeshNetwork: Shadow blur ${this._shadowBlurEnabled ? 'enabled' : 'disabled'}`)
   }
 
   /**

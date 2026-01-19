@@ -208,7 +208,6 @@ class LandingApp {
    */
   async initialize() {
     if (this.isInitialized) {
-      console.warn('LandingApp already initialized')
       return
     }
 
@@ -243,7 +242,6 @@ class LandingApp {
         this.visualService = new GenerativeVisualService()
         // DON'T initialize here - defer to after dashboard UI is ready
       } else {
-        console.warn('⚠️ GenerativeVisualService not available - visuals disabled')
       }
 
       // CRITICAL FIX: Create AudioService EARLY (like normal rooms do)
@@ -372,7 +370,6 @@ class LandingApp {
       // Entry #124: If user stopped via DashboardUI Stop button, don't auto-init audio
       // This prevents the race condition where Stop click bubbles to document and triggers this listener
       if (this.audioService?._userStoppedAudio) {
-        console.log('🔇 Audio init blocked - user stopped audio')
         return
       }
 
@@ -407,7 +404,6 @@ class LandingApp {
             this.pendingDrone = null
           } else if (this.socket?.connected) {
             // Entry #27: No pending drone (consumed or never received), request from backend
-            console.log('🎵 Requesting drone from backend (no pendingDrone)')
             this.socket.emit('request-drone')
           }
 
@@ -450,7 +446,6 @@ class LandingApp {
     const { SOCKET_MAX_RETRIES, SOCKET_RETRY_DELAY_BASE_MS } = LANDING_CONFIG
 
     if (this.socket?.connected) {
-      console.log('Socket already connected')
       return
     }
 
@@ -468,7 +463,6 @@ class LandingApp {
         ? 'http://localhost:3001'
         : `${window.location.protocol}//${window.location.host}`
 
-      console.log(`🔌 Landing page connecting to: ${socketUrl}${retryCount > 0 ? ` (retry ${retryCount}/${SOCKET_MAX_RETRIES})` : ''}`)
 
       // Connect to backend
       this.socket = io(socketUrl)
@@ -557,12 +551,10 @@ class LandingApp {
             this.audioService.playComposition(data.composition, data.isDrone || false)
             // console.log('🎵 Background composition sent to AudioService')
           } else {
-            console.warn('⚠️ playComposition not available on AudioService')
           }
         } else if (!this.isAudioReady) {
           // console.log('⏳ Audio not ready, composition discarded')
         } else {
-          console.warn('⚠️ AudioService not available or no composition data')
         }
       })
 
@@ -597,7 +589,6 @@ class LandingApp {
 
         // Validate incoming data
         if (!SocketDataValidator.validateHoldStart(data)) {
-          console.warn('⚠️ Invalid hold:start data received:', data)
           return
         }
 
@@ -629,7 +620,6 @@ class LandingApp {
 
         // Validate incoming data
         if (!SocketDataValidator.validateMusicalEvent(data)) {
-          console.warn('⚠️ Invalid musical:event data received:', data)
           return
         }
 
@@ -672,7 +662,6 @@ class LandingApp {
     for (const [source, cursor] of Object.entries(this.currentCursors)) {
       // CRITICAL: Null safety - validate cursor data before processing
       if (!cursor || typeof cursor.x !== 'number' || typeof cursor.y !== 'number') {
-        console.warn(`⚠️ Invalid cursor data for ${source}:`, cursor)
         continue
       }
 
@@ -808,13 +797,11 @@ class LandingApp {
 
     // CRITICAL: Validate frequency before processing
     if (frequency === null || frequency === undefined || isNaN(frequency)) {
-      console.warn('⚠️ Invalid frequency in hold:start event:', { frequency, userId, data })
       return
     }
 
     // CRITICAL: Validate velocity before processing
     if (velocity === null || velocity === undefined || isNaN(velocity)) {
-      console.warn('⚠️ Invalid velocity in hold:start event:', { velocity, userId, data })
       return
     }
 
@@ -839,14 +826,11 @@ class LandingApp {
         // console.log(`🎵 Virtual HOLD: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
       }
     } else {
-      console.warn(`⚠️ No userSynthManager or userId in HOLD - falling back`)
     }
 
     // Fallback to gestureSynth if no user synth available
     if (!synth) {
-      console.warn(`⚠️ HOLD using gestureSynth fallback for userId=${userId}`)
       if (!this.audioService.gestureSynth) {
-        console.warn('⚠️ No synth available - skipping note playback')
         return
       }
       synth = this.audioService.gestureSynth
@@ -869,7 +853,6 @@ class LandingApp {
           }
         }, fallbackDuration)
       } else {
-        console.warn('⚠️ synth has no trigger methods')
       }
     }
 
@@ -934,7 +917,6 @@ class LandingApp {
 
     // CRITICAL: Verify gestureSynth exists before proceeding
     if (!this.audioService.gestureSynth) {
-      console.warn('⚠️ gestureSynth not initialized - skipping tap note playback')
       return
     }
 
@@ -942,13 +924,11 @@ class LandingApp {
 
     // CRITICAL: Validate frequency before processing
     if (frequency === null || frequency === undefined || isNaN(frequency)) {
-      console.warn('⚠️ Invalid frequency in musical:event:', { frequency, userId, data })
       return
     }
 
     // CRITICAL: Validate velocity before processing
     if (velocity === null || velocity === undefined || isNaN(velocity)) {
-      console.warn('⚠️ Invalid velocity in musical:event:', { velocity, userId, data })
       return
     }
 
@@ -974,7 +954,6 @@ class LandingApp {
         // console.log(`🎵 Virtual TAP: userId=${userId}, freq=${actualFrequency.toFixed(1)}Hz, patch=${synthData.patch?.name}`)
       }
     } else {
-      console.warn(`⚠️ No userSynthManager or userId - falling back to gestureSynth`)
     }
 
     // Fallback to gestureSynth if no user synth available
@@ -1076,7 +1055,6 @@ class LandingApp {
    */
   async start() {
     if (this.isRunning) {
-      console.warn('LandingApp already running')
       return
     }
 
@@ -1151,7 +1129,6 @@ class LandingApp {
    */
   stop() {
     if (!this.isRunning) {
-      console.warn('LandingApp not running')
       return
     }
 
@@ -1539,9 +1516,13 @@ class LandingApp {
       }
     })
 
-    // Edge detection: show when mouse near bottom 30px
+    // Desktop only: Edge detection - show when mouse near bottom 30px
     // Exclude right corner where immersive button is (right 5rem = ~80px)
+    // Skip on mobile (button handles it there)
     document.addEventListener('mousemove', (e) => {
+      // Skip edge detection on mobile - use button instead
+      if (window.innerWidth <= 768) return
+
       const nearBottom = window.innerHeight - e.clientY < 30
       const inImmersiveButtonArea = window.innerWidth - e.clientX < 80
 
@@ -1561,8 +1542,9 @@ class LandingApp {
       }
     })
 
-    // Keep visible while hovering over explainer
+    // Desktop only: Keep visible while hovering over explainer
     explainer.addEventListener('mouseenter', () => {
+      if (window.innerWidth <= 768) return // Skip on mobile
       if (autoHideTimeout) {
         clearTimeout(autoHideTimeout)
         autoHideTimeout = null
@@ -1570,11 +1552,23 @@ class LandingApp {
     })
 
     explainer.addEventListener('mouseleave', () => {
+      if (window.innerWidth <= 768) return // Skip on mobile
       if (!explainer.classList.contains('collapsed')) {
         autoHideTimeout = setTimeout(() => {
           explainer.classList.add('collapsed')
           handle.setAttribute('aria-expanded', 'false')
         }, AUTO_HIDE_DELAY)
+      }
+    })
+
+    // Mobile only: Click outside to close
+    document.addEventListener('click', (e) => {
+      if (window.innerWidth > 768) return // Skip on desktop
+      if (!explainer.classList.contains('collapsed') &&
+          !explainer.contains(e.target) &&
+          !handle.contains(e.target)) {
+        explainer.classList.add('collapsed')
+        handle.setAttribute('aria-expanded', 'false')
       }
     })
 

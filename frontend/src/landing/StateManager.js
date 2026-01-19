@@ -72,7 +72,6 @@ export class StateManager {
    */
   updateMetrics(source, data) {
     if (!this.state.metrics[source]) {
-      console.warn(`StateManager: Unknown metric source '${source}'`)
       return
     }
 

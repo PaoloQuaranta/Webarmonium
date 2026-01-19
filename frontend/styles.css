@@ -1059,20 +1059,19 @@ input[type="range"]::-moz-range-thumb {
 /* Collapsible Explainer (Bottom Section)      */
 /* ============================================ */
 
-/* Explainer panel - floating popup style */
+/* Desktop: Full-width bottom bar (edge-hover behavior) */
 #mapping-explainer,
 .landing-explainer {
   position: fixed;
-  bottom: 4rem; /* Above the floating button */
-  left: 1rem;
-  max-width: 400px;
+  bottom: 0;
+  left: 0;
+  right: 0;
   max-height: 50vh;
   overflow-y: auto;
   background: var(--ui-bg);
   backdrop-filter: blur(20px);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  z-index: 199; /* Just below the button */
+  border-top: 1px solid var(--line);
+  z-index: 100;
   transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
   opacity: 1;
   transform: translateY(0);
@@ -1082,20 +1081,27 @@ input[type="range"]::-moz-range-thumb {
 #mapping-explainer.collapsed,
 .landing-explainer.collapsed {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(100%);
   visibility: hidden;
   pointer-events: none;
 }
 
-/* Mobile: Full-width panel with backdrop */
+/* Mobile: Floating popup style with button */
 @media (max-width: 768px) {
   #mapping-explainer,
   .landing-explainer {
     left: 0.75rem;
     right: 0.75rem;
-    max-width: none;
     bottom: 3.5rem;
+    max-width: none;
     max-height: 60vh;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+  }
+
+  #mapping-explainer.collapsed,
+  .landing-explainer.collapsed {
+    transform: translateY(10px);
   }
 
   /* Backdrop overlay to hide UI when explainer is open on mobile */
@@ -1119,9 +1125,9 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
-/* Explainer toggle button - ALWAYS VISIBLE */
+/* Explainer toggle button - MOBILE ONLY */
 .explainer-handle {
-  display: flex; /* Visible on all screen sizes */
+  display: none; /* Hidden on desktop */
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
@@ -1134,8 +1140,19 @@ input[type="range"]::-moz-range-thumb {
   position: fixed;
   bottom: 1rem;
   left: 1rem;
-  z-index: 200; /* Above explainer content, same level as immersive toggle */
+  z-index: 200;
   width: auto;
+}
+
+/* Show button only on mobile */
+@media (max-width: 768px) {
+  .explainer-handle {
+    display: flex;
+    padding: 0.6rem 1rem;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    min-height: 44px; /* iOS minimum touch target */
+  }
 }
 
 .explainer-handle:hover {
@@ -1185,17 +1202,7 @@ input[type="range"]::-moz-range-thumb {
   transition: color 0.2s ease;
 }
 
-/* Mobile: Larger touch target */
-@media (max-width: 768px) {
-  .explainer-handle {
-    padding: 0.6rem 1rem;
-    bottom: 0.75rem;
-    left: 0.75rem;
-    min-height: 44px; /* iOS minimum touch target */
-  }
-}
-
-/* Very small screens: Stack buttons if needed */
+/* Very small screens: smaller button */
 @media (max-width: 360px) {
   .explainer-handle {
     padding: 0.5rem 0.75rem;

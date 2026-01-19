@@ -224,7 +224,6 @@ class UIManager {
     // Initialize audio mode indicator (Entry #73)
     this.initAudioModeIndicator()
 
-    console.log(`✅ UIManager: Collapsible UI initialized (${this.isMobile ? 'mobile' : 'desktop'} mode)`)
   }
 
   /**
@@ -249,7 +248,6 @@ class UIManager {
     // Find the room-right container for settings button
     const roomRight = document.getElementById('roomRight')
     if (!roomRight) {
-      console.warn('UIManager: #roomRight not found, cannot add Settings button')
       return
     }
 
@@ -643,7 +641,6 @@ class UIManager {
     if (this.settingsPanel) {
       this.settingsPanel.open()
     } else {
-      console.warn('SettingsPanel not loaded')
     }
   }
 
@@ -682,7 +679,6 @@ class UIManager {
     // Set up event listeners for audio stress changes
     this._setupAudioStressListeners()
 
-    console.log('🔊 UIManager: Audio mode indicator initialized')
   }
 
   /**
