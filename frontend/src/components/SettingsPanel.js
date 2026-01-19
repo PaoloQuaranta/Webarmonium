@@ -923,13 +923,15 @@ settingsStyles.textContent = `
   }
 
   .settings-apply {
-    background: var(--accent, #2dd4bf);
-    border: none;
-    color: var(--void, #020208);
+    background: transparent;
+    border: 2px solid var(--accent, #2dd4bf);
+    color: var(--accent, #2dd4bf);
   }
 
   .settings-apply:hover {
-    filter: brightness(1.1);
+    background: rgba(45, 212, 191, 0.1);
+    border-color: var(--accent-hover, #5eead4);
+    color: var(--accent-hover, #5eead4);
   }
 
   /* Scrollbar styling */
