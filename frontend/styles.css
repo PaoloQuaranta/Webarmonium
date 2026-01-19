@@ -457,7 +457,7 @@ header p {
 }
 
 .metric-card.flash {
-  transform: perspective(800px) translateZ(25px) scale(1.02) !important;
+  transform: perspective(800px) translateZ(8px) scale(1.01) !important;
 }
 
 /* Source-specific cluster colors */
@@ -575,7 +575,7 @@ header p {
 }
 
 .data-point.flash {
-  transform: perspective(500px) translateZ(15px) scale(1.1) !important;
+  transform: perspective(500px) translateZ(5px) scale(1.03) !important;
 }
 
 /* Value and label */
