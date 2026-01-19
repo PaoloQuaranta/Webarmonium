@@ -87,12 +87,12 @@
   })();
   </script>
 
-  <!-- Google Fonts - Archivo -->
+  <!-- Google Fonts - Space Grotesk + Fira Code -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=8">
 
   <!-- p5.js for canvas rendering -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
@@ -125,7 +125,7 @@
   <script src="src/services/visual/PulsePool.js?v=1"></script>
   <script src="src/services/visual/WavePacketSystem.js?v=11"></script>
   <script src="src/services/visual/ParticleFlowManager.js?v=11"></script>
-  <script src="src/services/visual/NoiseTextureNebulaSystem.js?v=4"></script>
+  <script src="src/services/visual/NeonNebulaSystem.js?v=1"></script>
   <script src="src/services/visual/PrecomputedAttractorSystem.js?v=11"></script>
   <script src="src/services/GenerativeVisualService.js?v=12"></script>
 
@@ -145,109 +145,278 @@
   <script src="src/services/DroneVoidController.js?v=2"></script>
 </head>
 <body>
-  <header>
-    <a href="/" class="corner-logo-link" title="Home" style="position: absolute;">
-      <img src="/webarmonium-logo.svg" alt="Webarmonium logo" class="corner-logo">
-    </a>
-    <h1>WEBARMONIUM</h1>
-    <p>Real-time web activity transformed into generative music and art</p>
-  </header>
+  <!-- Photosensitivity Warning Modal -->
+  <div id="photosensitivity-warning" class="warning-modal" role="dialog" aria-modal="true" aria-labelledby="warning-title">
+    <div class="warning-content">
+      <div class="warning-icon">&#x26A0;</div>
+      <h2 id="warning-title">Photosensitivity Warning</h2>
+      <p class="warning-text">
+        This experience contains <strong>flashing lights, rapid visual changes, and dynamic animations</strong> that may potentially trigger seizures in people with photosensitive epilepsy or other photosensitive conditions.
+      </p>
+      <p class="warning-text">
+        If you or someone in your family has a history of epilepsy or seizures, please consult a physician before using this application.
+      </p>
+      <p class="warning-text warning-small">
+        User discretion is advised. If you experience any discomfort, dizziness, or disorientation, please stop immediately.
+      </p>
+      <button id="warning-accept" class="warning-btn">I understand, continue</button>
+    </div>
+  </div>
 
-  <main>
+  <style>
+    .warning-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 2, 8, 0.98);
+      z-index: 100000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+    .warning-modal.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .warning-content {
+      background: var(--ui-bg, rgba(10, 10, 20, 0.55));
+      border: 1px solid var(--line, #3a3a50);
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 480px;
+      text-align: center;
+      backdrop-filter: blur(20px);
+    }
+    .warning-icon {
+      font-size: 3rem;
+      color: #ffc107;
+      margin-bottom: 1rem;
+    }
+    .warning-content h2 {
+      font-family: var(--font-display, 'Space Grotesk', sans-serif);
+      font-size: 1.5rem;
+      color: var(--bright, #e0e0f0);
+      margin-bottom: 1rem;
+    }
+    .warning-text {
+      font-family: var(--font-body, 'Space Grotesk', sans-serif);
+      font-size: 0.95rem;
+      color: var(--light, #9090a8);
+      line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+    .warning-text strong {
+      color: #ffc107;
+    }
+    .warning-small {
+      font-size: 0.85rem;
+      color: var(--dim, #5a5a70);
+    }
+    .warning-btn {
+      margin-top: 1.5rem;
+      padding: 0.75rem 2rem;
+      background: transparent;
+      border: 2px solid var(--accent, #2dd4bf);
+      color: var(--accent, #2dd4bf);
+      font-family: var(--font-display, 'Space Grotesk', sans-serif);
+      font-size: 1rem;
+      font-weight: 500;
+      border-radius: 25px;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+    .warning-btn:hover {
+      background: var(--accent, #2dd4bf);
+      color: var(--void, #020208);
+    }
+  </style>
+
+  <script>
+    (function() {
+      var WARNING_KEY = 'webarmonium_photosensitivity_accepted';
+      var modal = document.getElementById('photosensitivity-warning');
+      var btn = document.getElementById('warning-accept');
+
+      if (localStorage.getItem(WARNING_KEY) === 'true') {
+        modal.classList.add('hidden');
+        setTimeout(function() { modal.style.display = 'none'; }, 300);
+      } else {
+        btn.addEventListener('click', function() {
+          localStorage.setItem(WARNING_KEY, 'true');
+          modal.classList.add('hidden');
+          setTimeout(function() { modal.style.display = 'none'; }, 300);
+        });
+      }
+    })();
+  </script>
+
+  <!-- Full-Page Canvas Container (p5.js generative visuals) -->
+  <section id="canvas-container" role="img" aria-label="Interactive generative visual display showing network activity as animated particles and waves">
+    <!-- Entry #81: Overlay canvas for gesture trail halos -->
+    <canvas id="trail-overlay" aria-hidden="true" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
+  </section>
+
+  <!-- Entry #93: Immersive Mode Toggle (outside canvas for proper z-index) -->
+  <button class="immersive-toggle" id="immersive-toggle" title="Toggle immersive mode" aria-label="Toggle immersive mode">
+    <span class="immersive-icon">&#x26F6;</span>
+    <span class="immersive-label">Immersive</span>
+  </button>
+
+  <!-- Landing Page Overlay (all UI) -->
+  <div class="landing-overlay" id="landing-overlay">
+    <header>
+      <a href="/" class="landing-logo-link" title="Home">
+        <img src="/webarmonium-logo.svg" alt="Webarmonium" class="landing-logo">
+      </a>
+      <div class="landing-title-group">
+        <h1>WEBARMONIUM</h1>
+        <p>Real-time web activity transformed into generative music</p>
+      </div>
+    </header>
+
+    <main>
     <!-- Controls Bar -->
     <section id="controls-bar">
-      <!-- Left: Start + Volume + Settings -->
+      <!-- Left: Start + Volume + Settings (node-based design) -->
       <div class="controls-left">
-        <button id="btn-toggle" class="primary-btn" aria-label="Play">▶</button>
-        <div class="slider-group">
-          <label for="volume">Volume</label>
+        <div class="node-btn-wrapper">
+          <button id="btn-toggle" class="node-btn primary" aria-label="Play">▶</button>
+          <span class="node-label">Start</span>
+        </div>
+        <div class="slider-node">
           <input type="range" id="volume" min="0" max="100" value="70">
+          <label for="volume">Volume</label>
         </div>
-        <button id="btn-settings" class="settings-btn" title="Settings" aria-label="Settings" onclick="openLandingSettings()">&#9881;</button>
-      </div>
-
-      <!-- Center: Metrics Dashboard -->
-      <div id="metrics-dashboard">
-        <div class="metric-card" id="wikipedia-metric" data-source="wikipedia">
-          <h3 class="source-title" style="color: #e41a1c;">Wikipedia</h3>
-          <div class="meters-container">
-            <div class="meter" data-metric="editsPerMinute">
-              <div class="meter-bar"><div class="meter-fill"></div></div>
-              <span class="meter-value">0</span>
-              <span class="meter-label">edits</span>
-            </div>
-            <div class="meter" data-metric="velocity">
-              <div class="meter-bar"><div class="meter-fill"></div></div>
-              <span class="meter-value">0</span>
-              <span class="meter-label">velocity</span>
-            </div>
-            <div class="meter" data-metric="avgEditSize">
-              <div class="meter-bar"><div class="meter-fill"></div></div>
-              <span class="meter-value">0</span>
-              <span class="meter-label">size</span>
-            </div>
-            <div class="meter" data-metric="newArticles">
-              <div class="meter-bar"><div class="meter-fill"></div></div>
-              <span class="meter-value">0</span>
-              <span class="meter-label">new</span>
-            </div>
-          </div>
-        </div>
-        <div class="metric-card" id="hackernews-metric" data-source="hackernews">
-          <h3 class="source-title" style="color: #ff7f00;">HackerNews</h3>
-          <div class="meters-container">
-            <div class="meter" data-metric="postsPerMinute">
-              <div class="meter-bar"><div class="meter-fill"></div></div>
-              <span class="meter-value">0</span>
-              <span class="meter-label">posts</span>
-            </div>
-            <div class="meter" data-metric="velocity">
-              <div class="meter-bar"><div class="meter-fill"></div></div>
-              <span class="meter-value">0</span>
-              <span class="meter-label">velocity</span>
-            </div>
-            <div class="meter" data-metric="avgUpvotes">
-              <div class="meter-bar"><div class="meter-fill"></div></div>
-              <span class="meter-value">0</span>
-              <span class="meter-label">upvotes</span>
-            </div>
-            <div class="meter" data-metric="commentCount">
-              <div class="meter-bar"><div class="meter-fill"></div></div>
-              <span class="meter-value">0</span>
-              <span class="meter-label">comments</span>
-            </div>
-          </div>
-        </div>
-        <div class="metric-card" id="github-metric" data-source="github">
-          <h3 class="source-title" style="color: #377eb8;">GitHub</h3>
-          <div class="meters-container">
-            <div class="meter" data-metric="pushesPerMinute">
-              <div class="meter-bar"><div class="meter-fill"></div></div>
-              <span class="meter-value">0</span>
-              <span class="meter-label">pushes</span>
-            </div>
-            <div class="meter" data-metric="velocity">
-              <div class="meter-bar"><div class="meter-fill"></div></div>
-              <span class="meter-value">0</span>
-              <span class="meter-label">velocity</span>
-            </div>
-            <div class="meter" data-metric="createsPerMinute">
-              <div class="meter-bar"><div class="meter-fill"></div></div>
-              <span class="meter-value">0</span>
-              <span class="meter-label">creates</span>
-            </div>
-            <div class="meter" data-metric="deletesPerMinute">
-              <div class="meter-bar"><div class="meter-fill"></div></div>
-              <span class="meter-value">0</span>
-              <span class="meter-label">deletes</span>
-            </div>
-          </div>
+        <div class="node-btn-wrapper">
+          <button id="btn-settings" class="node-btn" title="Settings" aria-label="Settings" onclick="openLandingSettings()">&#9881;</button>
+          <span class="node-label">Settings</span>
         </div>
       </div>
 
-      <!-- Right: Join + User Count -->
+      <!-- Right: Join Room (node-based design) -->
       <div class="join-section">
-        <a href="rooms.html" class="room-link">Join a Room<span id="rooms-activity" class="rooms-activity"></span></a>
+        <div class="node-btn-wrapper">
+          <a href="rooms.html" class="node-btn primary join-btn" aria-label="Join a Room">Join</a>
+          <span class="node-label">Rooms</span>
+          <span id="rooms-activity" class="rooms-activity"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Metrics Dashboard (separated from controls bar) -->
+    <section id="metrics-dashboard">
+      <div class="metric-card" id="wikipedia-metric" data-source="wikipedia">
+        <h3 class="source-title source-wikipedia">Wikipedia</h3>
+        <div class="meters-container">
+          <div class="data-point" data-metric="editsPerMinute">
+            <svg class="meter-svg" viewBox="0 0 52 52">
+              <circle class="meter-bg" cx="26" cy="26" r="20"/>
+              <circle class="meter-progress" cx="26" cy="26" r="20"/>
+            </svg>
+            <span class="meter-value">0</span>
+            <span class="meter-label">edits</span>
+          </div>
+          <div class="data-point" data-metric="velocity">
+            <svg class="meter-svg" viewBox="0 0 52 52">
+              <circle class="meter-bg" cx="26" cy="26" r="20"/>
+              <circle class="meter-progress" cx="26" cy="26" r="20"/>
+            </svg>
+            <span class="meter-value">0</span>
+            <span class="meter-label">velocity</span>
+          </div>
+          <div class="data-point" data-metric="avgEditSize">
+            <svg class="meter-svg" viewBox="0 0 52 52">
+              <circle class="meter-bg" cx="26" cy="26" r="20"/>
+              <circle class="meter-progress" cx="26" cy="26" r="20"/>
+            </svg>
+            <span class="meter-value">0</span>
+            <span class="meter-label">size</span>
+          </div>
+          <div class="data-point" data-metric="newArticles">
+            <svg class="meter-svg" viewBox="0 0 52 52">
+              <circle class="meter-bg" cx="26" cy="26" r="20"/>
+              <circle class="meter-progress" cx="26" cy="26" r="20"/>
+            </svg>
+            <span class="meter-value">0</span>
+            <span class="meter-label">new</span>
+          </div>
+        </div>
+      </div>
+      <div class="metric-card" id="hackernews-metric" data-source="hackernews">
+        <h3 class="source-title source-hackernews">HackerNews</h3>
+        <div class="meters-container">
+          <div class="data-point" data-metric="postsPerMinute">
+            <svg class="meter-svg" viewBox="0 0 52 52">
+              <circle class="meter-bg" cx="26" cy="26" r="20"/>
+              <circle class="meter-progress" cx="26" cy="26" r="20"/>
+            </svg>
+            <span class="meter-value">0</span>
+            <span class="meter-label">posts</span>
+          </div>
+          <div class="data-point" data-metric="velocity">
+            <svg class="meter-svg" viewBox="0 0 52 52">
+              <circle class="meter-bg" cx="26" cy="26" r="20"/>
+              <circle class="meter-progress" cx="26" cy="26" r="20"/>
+            </svg>
+            <span class="meter-value">0</span>
+            <span class="meter-label">velocity</span>
+          </div>
+          <div class="data-point" data-metric="avgUpvotes">
+            <svg class="meter-svg" viewBox="0 0 52 52">
+              <circle class="meter-bg" cx="26" cy="26" r="20"/>
+              <circle class="meter-progress" cx="26" cy="26" r="20"/>
+            </svg>
+            <span class="meter-value">0</span>
+            <span class="meter-label">upvotes</span>
+          </div>
+          <div class="data-point" data-metric="commentCount">
+            <svg class="meter-svg" viewBox="0 0 52 52">
+              <circle class="meter-bg" cx="26" cy="26" r="20"/>
+              <circle class="meter-progress" cx="26" cy="26" r="20"/>
+            </svg>
+            <span class="meter-value">0</span>
+            <span class="meter-label">comments</span>
+          </div>
+        </div>
+      </div>
+      <div class="metric-card" id="github-metric" data-source="github">
+        <h3 class="source-title source-github">GitHub</h3>
+        <div class="meters-container">
+          <div class="data-point" data-metric="pushesPerMinute">
+            <svg class="meter-svg" viewBox="0 0 52 52">
+              <circle class="meter-bg" cx="26" cy="26" r="20"/>
+              <circle class="meter-progress" cx="26" cy="26" r="20"/>
+            </svg>
+            <span class="meter-value">0</span>
+            <span class="meter-label">pushes</span>
+          </div>
+          <div class="data-point" data-metric="velocity">
+            <svg class="meter-svg" viewBox="0 0 52 52">
+              <circle class="meter-bg" cx="26" cy="26" r="20"/>
+              <circle class="meter-progress" cx="26" cy="26" r="20"/>
+            </svg>
+            <span class="meter-value">0</span>
+            <span class="meter-label">velocity</span>
+          </div>
+          <div class="data-point" data-metric="createsPerMinute">
+            <svg class="meter-svg" viewBox="0 0 52 52">
+              <circle class="meter-bg" cx="26" cy="26" r="20"/>
+              <circle class="meter-progress" cx="26" cy="26" r="20"/>
+            </svg>
+            <span class="meter-value">0</span>
+            <span class="meter-label">creates</span>
+          </div>
+          <div class="data-point" data-metric="deletesPerMinute">
+            <svg class="meter-svg" viewBox="0 0 52 52">
+              <circle class="meter-bg" cx="26" cy="26" r="20"/>
+              <circle class="meter-progress" cx="26" cy="26" r="20"/>
+            </svg>
+            <span class="meter-value">0</span>
+            <span class="meter-label">deletes</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -255,68 +424,67 @@
     <div id="error-message" class="message error"></div>
     <div id="status-message" class="message status"></div>
 
-    <!-- Canvas Container -->
-    <section id="canvas-container" role="img" aria-label="Interactive generative visual display showing network activity as animated particles and waves">
-      <!-- Cursors are rendered in p5.js canvas, no HTML indicators needed -->
-      <!-- Entry #81: Overlay canvas for gesture trail halos -->
-      <canvas id="trail-overlay" aria-hidden="true" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
-
-      <!-- Entry #93: Immersive Mode Toggle (inside canvas for proper hover behavior) -->
-      <button class="immersive-toggle" id="immersive-toggle" title="Toggle immersive mode" aria-label="Toggle immersive mode">
-        <span class="immersive-icon">&#x26F6;</span>
-        <span class="immersive-label">Immersive</span>
+    <!-- Mapping Explainer (collapsible) -->
+    <section id="mapping-explainer" class="landing-explainer">
+      <button class="explainer-handle" aria-expanded="false" aria-controls="explainer-content">
+        <span class="handle-icon"></span>
+        <span class="handle-text">About</span>
       </button>
+      <div class="explainer-content" id="explainer-content">
+        <h3 class="explainer-section-title">
+          Webarmonium is a new instrument.
+        </h3>
+
+        <p class="explainer-detail">
+          Traditional instruments translate a performer's physical gestures into sound. Webarmonium replaces the individual gesture with two forms of distributed interaction:
+        </p>
+
+        <p class="explainer-intro">1. Network activity as unconscious performance</p>
+        <p class="explainer-detail">
+          The landing page connects to three real-time data streams—Wikipedia edits, HackerNews posts, and GitHub commits. Each event contributes to the advent of a note: position determines frequency, source determines timbre. The resulting composition emerges from collective human activity, with no single author.
+        </p>
+
+        <p class="explainer-intro">2. Remote motor gestures as collaborative performance</p>
+        <p class="explainer-detail">
+          In <a href="rooms.html">private rooms</a>, up to 4 users become performers. Tap, hold, and drag gestures generate musical phrases. The room develops "environmental memory"—interaction patterns shape its tonal character over 24 hours.
+        </p>
+
+        <p class="explainer-detail">
+          The system is fully deterministic: identical input produces identical output. There is no randomness, only the structured translation of human activity into sound.
+        </p>
+
+        <p class="explainer-link">
+          <a href="how-it-works.html">How It Works &rarr;</a>
+        </p>
+
+        <!-- Footer content (inside explainer) -->
+        <div class="explainer-footer">
+          <p>Powered by <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia API</a>, <a href="https://news.ycombinator.com" target="_blank" rel="noopener">HackerNews API</a>, and <a href="https://github.com" target="_blank" rel="noopener">GitHub API</a></p>
+          <p class="footer-note">Data updates every 5-60 seconds depending on source. Rate limits are respected.</p>
+          <p class="footer-credits">Made by Paolo Quaranta, with so much needed help from Patrick De Marta</p>
+          <p class="version-tag">v1.0.184</p>
+        </div>
+      </div>
     </section>
+  </main>
+  </div>
 
-    <!-- Mapping Explainer -->
-    <section id="mapping-explainer">
-      <h3 class="explainer-section-title">
-        Webarmonium is a new instrument.
-      </h3>
-
-      <p class="explainer-detail">
-        Traditional instruments translate a performer's physical gestures into sound. Webarmonium replaces the individual gesture with two forms of distributed interaction:
-      </p>
-
-      <p class="explainer-intro">1. Network activity as unconscious performance</p>
-      <p class="explainer-detail">
-        The landing page connects to three real-time data streams—Wikipedia edits, HackerNews posts, and GitHub commits. Each event contributes to the advent of a note: position determines frequency, source determines timbre. The resulting composition emerges from collective human activity, with no single author.
-      </p>
-
-      <p class="explainer-intro">2. Remote motor gestures as collaborative performance</p>
-      <p class="explainer-detail">
-        In <a href="rooms.html">private rooms</a>, up to 4 users become performers. Tap, hold, and drag gestures generate musical phrases. The room develops "environmental memory"—interaction patterns shape its tonal character over 24 hours.
-      </p>
-
-      <p class="explainer-detail">
-        The system is fully deterministic: identical input produces identical output. There is no randomness, only the structured translation of human activity into sound.
-      </p>
-
-      <p class="explainer-link">
-        <a href="how-it-works.html">How It Works &rarr;</a>
-      </p>
-
-    </section>
-
-    <!-- Entry #134: Immersive mode mini control bar -->
-    <div class="immersive-controls" id="immersive-controls">
+  <!-- Entry #134: Immersive mode mini control bar (OUTSIDE overlay) -->
+  <div class="immersive-controls" id="immersive-controls">
+    <div class="node-btn-wrapper">
       <button class="immersive-ctrl-btn" id="immersive-play-btn" title="Play/Stop" aria-label="Play or stop experience">
         <span class="ctrl-icon play-icon">▶</span>
         <span class="ctrl-icon stop-icon">■</span>
       </button>
-      <button class="immersive-ctrl-btn" id="immersive-exit-btn" title="Exit immersive mode" aria-label="Exit immersive mode">
-        Exit
-      </button>
+      <span class="node-label">Start</span>
     </div>
-
-    <!-- Footer -->
-    <footer>
-      <p>Powered by <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia API</a>, <a href="https://news.ycombinator.com" target="_blank" rel="noopener">HackerNews API</a>, and <a href="https://github.com" target="_blank" rel="noopener">GitHub API</a></p>
-      <p class="footer-note">Data updates every 5-60 seconds depending on source. Rate limits are respected.</p>
-      <p class="footer-credits">Made by Paolo Quaranta, with so much needed help from Patrick De Marta</p>
-      <p class="version-tag">v1.0.177</p>
-    </footer>
-  </main>
+    <div class="node-btn-wrapper">
+      <button class="immersive-ctrl-btn" id="immersive-exit-btn" title="Exit immersive mode" aria-label="Exit immersive mode">
+        ✕
+      </button>
+      <span class="node-label">Exit</span>
+    </div>
+  </div>
 
   <!-- Entry #74: Settings panel opener for landing page -->
   <script>
@@ -346,6 +514,6 @@
   </script>
 
   <!-- Landing page module scripts -->
-  <script type="module" src="src/landing/main.js?v=51"></script> <!-- Entry #123: Fix initAudio race condition -->
+  <script type="module" src="src/landing/main.js?v=54"></script> <!-- Entry #136: Immersive minibar line layout -->
 </body>
 </html>

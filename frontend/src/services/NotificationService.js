@@ -37,9 +37,9 @@ class NotificationService {
     this.container.id = 'notification-container'
     this.container.style.cssText = `
       position: fixed;
-      top: max(80px, calc(env(safe-area-inset-top, 12px) + 70px));
+      top: 50%;
       left: 50%;
-      transform: translateX(-50%);
+      transform: translate(-50%, -50%);
       z-index: 10000;
       pointer-events: none;
       display: flex;
@@ -48,50 +48,53 @@ class NotificationService {
       gap: 10px;
     `
 
-    // Add styles for notifications
+    // Add styles for notifications (uses CSS variables from styles.css)
     const style = document.createElement('style')
     style.textContent = `
       .webarmonium-notification {
-        background: rgba(0, 0, 0, 0.85);
-        color: #fff;
+        background: var(--ui-bg, rgba(10, 10, 20, 0.4));
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        color: var(--bright, #e0e0f0);
         padding: 12px 24px;
-        border-radius: 8px;
-        font-family: 'Archivo', -apple-system, BlinkMacSystemFont, sans-serif;
-        font-size: 14px;
+        border-radius: 25px;
+        font-family: var(--font-mono, 'Fira Code', monospace);
+        font-size: 0.85rem;
         line-height: 1.4;
         max-width: 400px;
         text-align: center;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--line, #3a3a50);
         opacity: 0;
-        transform: translateY(-20px);
+        transform: translateY(-20px) scale(0.95);
         transition: opacity ${this.animationDuration}ms ease, transform ${this.animationDuration}ms ease;
         pointer-events: auto;
       }
 
       .webarmonium-notification.show {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
       }
 
       .webarmonium-notification.hide {
         opacity: 0;
-        transform: translateY(-20px);
+        transform: translateY(-20px) scale(0.95);
       }
 
       .webarmonium-notification.info {
-        border-left: 4px solid #3b82f6;
+        border-color: var(--accent, #2dd4bf);
       }
 
       .webarmonium-notification.success {
-        border-left: 4px solid #22c55e;
+        border-color: #22c55e;
       }
 
       .webarmonium-notification.warning {
-        border-left: 4px solid #f59e0b;
+        border-color: #f97316;  /* Semantic orange for warnings */
       }
 
       .webarmonium-notification.error {
-        border-left: 4px solid #ef4444;
+        border-color: #ef4444;  /* Semantic red for errors */
       }
     `
     document.head.appendChild(style)
@@ -209,7 +212,7 @@ class NotificationService {
    * @param {string[]} sources - Virtual user sources
    */
   showVirtualUsersActivated(sources) {
-    const message = `Utenti virtuali attivati: ${sources.join(', ')}`
+    const message = `Virtual users activated: ${sources.join(', ')}`
     this.show(message, 2000, 'success')
   }
 

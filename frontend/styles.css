@@ -1,31 +1,60 @@
 /**
  * Webarmonium Landing Page Styles
- * Dark theme matching the main Webarmonium aesthetic
+ * Constellation + Void Particles hybrid theme
  */
 
 /* CSS Custom Properties */
 :root {
-  --bg-color: #0a0a0f;
-  --card-bg: #1a1a2e;
-  --card-bg-hover: #252540;
-  --accent: #3b82f6;
-  --accent-hover: #60a5fa;
-  --text-primary: #e0e0e0;
-  --text-secondary: #a0a0a0;
-  --text-muted: #6b7280;
-  --border-color: rgba(59, 130, 246, 0.2);
+  /* Constellation palette (Mockup 12) */
+  --void: #020208;
+  --deep: #0a0a14;
+  --surface: #14141f;
+  --line: #3a3a50;  /* Unified gray - same as button borders */
+  --muted: #3a3a50;
+  --dim: #5a5a70;
+  --light: #9090a8;
+  --bright: #e0e0f0;
+
+  /* Node colors for data sources (Electric Triad palette) */
+  --node-1: #ff2d92;  /* Wikipedia - magenta */
+  --node-2: #00d4ff;  /* HackerNews - cyan */
+  --node-3: #a855f7;  /* GitHub - viola */
+  --accent: #2dd4bf;  /* Teal - esclusivo UI (non metriche) */
+  --accent-hover: #5eead4;
+
+  /* Unified semi-transparent background for all UI elements */
+  --ui-bg: rgba(10, 10, 20, 0.55);
+  --ui-bg-solid: #0a0a14;
+
+  /* Typography (Mockup 12) */
+  --font-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Fira Code', monospace;
+  --font-body: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+
+  /* Legacy aliases (backward compatibility) */
+  --bg-color: var(--void);
+  --card-bg: var(--surface);
+  --card-bg-hover: var(--line);
+  --text-primary: var(--bright);
+  --text-secondary: var(--light);
+  --text-muted: var(--dim);
+  --border-color: var(--line);
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
 
-  /* Entry #93: Typography upgrade - display vs body fonts */
-  --font-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
-  --font-body: 'Archivo', system-ui, -apple-system, sans-serif;
+  /* Metric colors (mapped to nodes) */
+  --wikipedia-color: var(--node-1);
+  --hackernews-color: var(--node-2);
+  --github-color: var(--node-3);
 
-  /* Metric colors */
-  --wikipedia-color: #e41a1c;
-  --hackernews-color: #ff7f00;
-  --github-color: #377eb8;
+  /* Cluster glow effects (Electric Triad) */
+  --glow-1: rgba(255, 45, 146, 0.3);   /* magenta */
+  --glow-2: rgba(0, 212, 255, 0.3);    /* cyan */
+  --glow-3: rgba(168, 85, 247, 0.3);   /* viola */
+
+  /* Logo alignment (SVG viewBox: 512x512, W starts at y=165) */
+  --logo-h: 48px;
 }
 
 /* Reset and Base Styles */
@@ -35,9 +64,48 @@
   box-sizing: border-box;
 }
 
-/* Global visited link reset - maintain original colors */
+/* Custom Scrollbar (WebKit: Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+  border: 2px solid var(--deep);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--dim);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--deep);
+}
+
+/* Custom Scrollbar (Firefox) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) var(--deep);
+}
+
+/* Global link colors - prevent browser default blue/purple */
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
 a:visited {
-  color: inherit;
+  color: var(--accent);
+}
+
+a:hover {
+  color: var(--accent-hover);
 }
 
 html {
@@ -48,7 +116,7 @@ body {
   font-family: var(--font-body);
   background: var(--bg-color);
   color: var(--text-primary);
-  min-height: 100vh;
+  min-height: 100dvh;
   line-height: 1.6;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
@@ -66,29 +134,175 @@ p, .explainer-intro, .explainer-detail {
   text-wrap: pretty;
 }
 
-/* Header */
+/* ============================================ */
+/* Constellation Background (Mockup 12)        */
+/* ============================================ */
+
+.constellation-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.5;
+}
+
+.constellation-bg svg {
+  width: 100%;
+  height: 100%;
+}
+
+.constellation-bg .node {
+  fill: var(--muted);
+}
+
+.constellation-bg .node.highlight {
+  fill: var(--accent);
+}
+
+.constellation-bg .edge {
+  stroke: var(--line);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+
+/* ============================================ */
+/* Floating Particles (Mockup 9)               */
+/* ============================================ */
+
+.particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  animation: float linear infinite;
+  opacity: 0;
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(100vh) rotate(0deg);
+    opacity: 0;
+  }
+  10% { opacity: 0.8; }
+  90% { opacity: 0.8; }
+  100% {
+    transform: translateY(-100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+/* Particle variations */
+.particle:nth-child(1) { left: 5%; width: 3px; height: 3px; background: var(--node-1); animation-duration: 25s; animation-delay: 0s; }
+.particle:nth-child(2) { left: 15%; width: 2px; height: 2px; background: var(--light); animation-duration: 20s; animation-delay: 2s; }
+.particle:nth-child(3) { left: 25%; width: 4px; height: 4px; background: var(--node-2); animation-duration: 30s; animation-delay: 1s; }
+.particle:nth-child(4) { left: 35%; width: 2px; height: 2px; background: var(--node-3); animation-duration: 22s; animation-delay: 3s; }
+.particle:nth-child(5) { left: 45%; width: 3px; height: 3px; background: var(--muted); animation-duration: 28s; animation-delay: 0.5s; }
+.particle:nth-child(6) { left: 55%; width: 2px; height: 2px; background: var(--node-1); animation-duration: 24s; animation-delay: 4s; }
+.particle:nth-child(7) { left: 65%; width: 5px; height: 5px; background: var(--light); animation-duration: 35s; animation-delay: 1.5s; }
+.particle:nth-child(8) { left: 75%; width: 2px; height: 2px; background: var(--node-2); animation-duration: 21s; animation-delay: 2.5s; }
+.particle:nth-child(9) { left: 85%; width: 3px; height: 3px; background: var(--node-3); animation-duration: 26s; animation-delay: 0.8s; }
+.particle:nth-child(10) { left: 95%; width: 2px; height: 2px; background: var(--muted); animation-duration: 23s; animation-delay: 3.5s; }
+.particle:nth-child(11) { left: 10%; width: 2px; height: 2px; background: var(--light); animation-duration: 27s; animation-delay: 5s; }
+.particle:nth-child(12) { left: 20%; width: 3px; height: 3px; background: var(--node-1); animation-duration: 29s; animation-delay: 6s; }
+.particle:nth-child(13) { left: 30%; width: 2px; height: 2px; background: var(--node-3); animation-duration: 31s; animation-delay: 4.5s; }
+.particle:nth-child(14) { left: 40%; width: 4px; height: 4px; background: var(--muted); animation-duration: 33s; animation-delay: 7s; }
+.particle:nth-child(15) { left: 50%; width: 2px; height: 2px; background: var(--node-2); animation-duration: 19s; animation-delay: 8s; }
+.particle:nth-child(16) { left: 60%; width: 3px; height: 3px; background: var(--light); animation-duration: 32s; animation-delay: 9s; }
+.particle:nth-child(17) { left: 70%; width: 2px; height: 2px; background: var(--node-1); animation-duration: 24s; animation-delay: 10s; }
+.particle:nth-child(18) { left: 80%; width: 2px; height: 2px; background: var(--node-3); animation-duration: 28s; animation-delay: 11s; }
+.particle:nth-child(19) { left: 90%; width: 3px; height: 3px; background: var(--node-2); animation-duration: 26s; animation-delay: 12s; }
+.particle:nth-child(20) { left: 3%; width: 2px; height: 2px; background: var(--light); animation-duration: 30s; animation-delay: 13s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .particle {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ============================================ */
+/* Landing Page Overlay                        */
+/* ============================================ */
+
+.landing-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.2s ease;
+}
+
+.landing-overlay > * {
+  pointer-events: auto;
+}
+
+/* Hide overlay in immersive mode */
+body.immersive-mode .landing-overlay {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ============================================ */
+/* Header (Landing Overlay)                    */
+/* ============================================ */
+
 header {
-  text-align: center;
-  padding: 2rem 1rem;
-  border-bottom: 1px solid var(--border-color);
-  background: linear-gradient(180deg, rgba(26, 26, 46, 0.8) 0%, transparent 100%);
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  padding: 1.5rem 2rem;
+  background: linear-gradient(180deg, var(--ui-bg) 0%, rgba(10, 10, 20, 0.6) 50%, transparent 100%);
+}
+
+.landing-logo-link {
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s ease;
+  text-decoration: none;
+}
+
+.landing-logo-link:hover {
+  transform: scale(1.05);
+}
+
+.landing-logo {
+  height: var(--logo-h);
+  width: auto;
+}
+
+.landing-title-group {
+  display: flex;
+  flex-direction: column;
+  /* Align with W in logo: W starts at y=165 in 512px viewBox */
+  margin-top: calc(var(--logo-h) * 165 / 512);
 }
 
 header h1 {
-  display: inline-block;
   font-family: var(--font-display);
-  font-size: clamp(2rem, 5vw, 3rem);
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--accent);
-  margin-bottom: 0.5rem;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--bright);
+  margin: 0;
+  line-height: 1;
 }
 
 header p {
-  color: var(--text-secondary);
-  font-size: clamp(0.9rem, 2vw, 1.1rem);
-  max-width: 600px;
-  margin: 0 auto;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--dim);
+  margin: 0.25rem 0 0;
 }
 
 /* Corner Logo */
@@ -141,83 +355,111 @@ header p {
 }
 
 .message.status {
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  color: #a5b4fc;
+  background: rgba(45, 212, 191, 0.1);
+  border: 1px solid rgba(45, 212, 191, 0.3);
+  color: #5eead4;
 }
 
-/* Controls Bar (spread layout: left - center - right) */
+/* ============================================ */
+/* Controls Bar (Node-Based Design)            */
+/* ============================================ */
+
 #controls-bar {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1.5rem;
+  gap: 2rem;
+  padding: 1rem 2rem;
   max-width: 1400px;
   margin: 0 auto;
-  background: rgba(26, 26, 46, 0.5);
-  border-bottom: 1px solid var(--border-color);
+  /* No background - transparent */
+  position: relative;
+}
+
+/* Extreme line segments - extend beyond first and last elements */
+/* Left segment - before toggle button */
+.controls-left::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 100%;
+  width: 2rem;
+  height: 1px;
+  background: var(--line);
+  z-index: 0;
+}
+
+/* Right segment - after join button */
+.join-section::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 100%;
+  width: 2rem;
+  height: 1px;
+  background: var(--line);
+  z-index: 0;
 }
 
 /* Left group: Start button + Volume slider */
 .controls-left {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 1.5rem;
+  position: relative;
+  z-index: 1;
 }
 
-/* Metrics Dashboard (inline, smaller) */
+/* ============================================ */
+/* Metric Clusters (Mockup 12 Style)           */
+/* ============================================ */
+
 #metrics-dashboard {
   display: flex;
-  gap: 0.5rem;
+  gap: 1.5rem;
   align-items: stretch;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  padding: 1.5rem 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
+/* Cluster card styling */
 .metric-card {
-  background: var(--card-bg);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-color);
-  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
-  width: 250px;
+  background: var(--ui-bg);
+  border-radius: 20px;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--line);
+  transition: border-color 0.2s ease, transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 280px;
   flex-shrink: 0;
-  /* Entry #93: Enable 3D perspective for parallax hover effect */
+  position: relative;
   transform-style: preserve-3d;
 }
 
-.metric-card:hover {
-  border-color: var(--accent);
-}
-
 .metric-card.flash {
-  transform: scale(1.02);
-  border-color: var(--flash-color, var(--accent));
+  transform: perspective(800px) translateZ(25px) scale(1.02) !important;
 }
 
-/* Source-specific glow colors on flash */
-.metric-card[data-source="wikipedia"].flash {
-  box-shadow:
-    0 0 15px rgba(228, 26, 28, 0.5),
-    0 0 30px rgba(228, 26, 28, 0.25),
-    inset 0 0 10px rgba(228, 26, 28, 0.08);
+/* Source-specific cluster colors */
+.metric-card[data-source="wikipedia"] {
+  --cluster-color: var(--node-1);
 }
 
-.metric-card[data-source="hackernews"].flash {
-  box-shadow:
-    0 0 15px rgba(255, 127, 0, 0.5),
-    0 0 30px rgba(255, 127, 0, 0.25),
-    inset 0 0 10px rgba(255, 127, 0, 0.08);
+.metric-card[data-source="hackernews"] {
+  --cluster-color: var(--node-2);
 }
 
-.metric-card[data-source="github"].flash {
-  box-shadow:
-    0 0 15px rgba(55, 126, 184, 0.5),
-    0 0 30px rgba(55, 126, 184, 0.25),
-    inset 0 0 10px rgba(55, 126, 184, 0.08);
+.metric-card[data-source="github"] {
+  --cluster-color: var(--node-3);
 }
 
-/* Entry #93: Staggered fade-in animation for metric cards */
+/* Staggered fade-in animation */
 .metric-card {
   opacity: 0;
   transform: translateY(10px);
@@ -243,99 +485,141 @@ header p {
   }
 }
 
-.source-title {
-  font-size: 0.6rem;
-  font-weight: 700;
-  margin-bottom: 0.3rem;
-  text-align: center;
-  text-transform: uppercase;
-}
-
-.meters-container {
+/* Cluster header */
+.cluster-header {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   gap: 0.5rem;
-  height: 60px;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--line);
 }
 
+.cluster-node {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cluster-color, var(--accent));
+}
+
+.cluster-name,
+.source-title {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--cluster-color, var(--accent));
+  font-weight: 500;
+  margin: 0 0 0.75rem 0;
+}
+
+/* Data points grid (orbit-ring meters) */
+.data-points,
+.meters-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+}
+
+.data-point,
 .meter {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 1;
-  min-width: 0;
+  gap: 0.35rem;
 }
 
-.meter-bar {
-  width: 100%;
-  max-width: 18px;
-  height: 38px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
-  overflow: hidden;
-  position: relative;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* SVG Meter */
+.meter-svg {
+  width: 52px;
+  height: 52px;
+  transform: rotate(90deg); /* Start at 6 o'clock (bottom) */
 }
 
-.meter-fill {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 0%;
-  background: linear-gradient(to top, var(--meter-color, var(--accent)), var(--meter-color-light, #60a5fa));
-  border-radius: 2px;
-  transition: height 0.15s ease-out;
+/* Background circle */
+.meter-bg {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
 }
 
-.meter.flash .meter-fill {
-  animation: meter-flash 0.3s ease-out;
+/* Progress arc */
+.meter-progress {
+  fill: none;
+  stroke: var(--cluster-color, var(--accent));
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 125.66; /* 2 * PI * 20 (radius) */
+  stroke-dashoffset: 125.66; /* Start at 0% */
+  transition: stroke-dashoffset 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              filter 0.15s ease-out;
 }
 
-@keyframes meter-flash {
-  0% { filter: brightness(1); transform: scaleY(1); }
-  50% { filter: brightness(1.5); transform: scaleY(1.05); }
-  100% { filter: brightness(1); transform: scaleY(1); }
+/* Flash effect - 3D parallax pop-out on gesture trigger */
+.data-point {
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
 }
 
+.data-point.flash {
+  transform: perspective(500px) translateZ(15px) scale(1.1) !important;
+}
+
+/* Value and label */
+.point-value,
 .meter-value {
-  font-size: 0.5rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-top: 0.15rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--bright);
   font-variant-numeric: tabular-nums;
 }
 
+.point-label,
 .meter-label {
-  font-size: 0.5rem;
-  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
   text-transform: uppercase;
-  white-space: nowrap;
+  color: var(--dim);
 }
 
 /* Source-specific colors */
 #wikipedia-metric {
-  --meter-color: #e41a1c;
-  --meter-color-light: #ff6b6b;
-  --flash-color: rgba(228, 26, 28, 0.5);
+  --cluster-color: var(--node-1);
 }
 
 #hackernews-metric {
-  --meter-color: #ff7f00;
-  --meter-color-light: #ffa94d;
-  --flash-color: rgba(255, 127, 0, 0.5);
+  --cluster-color: var(--node-2);
 }
 
 #github-metric {
-  --meter-color: #377eb8;
-  --meter-color-light: #74c0fc;
-  --flash-color: rgba(55, 126, 184, 0.5);
+  --cluster-color: var(--node-3);
 }
 
 /* Join Section with Room Activity */
 .join-section {
   display: flex;
   align-items: center;
+  position: relative;
+}
+
+/* Normalize join-section wrapper to match controls-left */
+.join-section .node-btn-wrapper {
+  height: 80px;
+  padding-top: 10px; /* Join btn is 60px, center at 40px (10 + 30 = 40) */
+  justify-content: flex-start;
+}
+
+/* Line segment before join button - in the 2rem gap between sections */
+.join-section::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 100%;
+  width: 2rem; /* gap size between sections */
+  height: 1px;
+  background: var(--line);
+  z-index: 0;
 }
 
 .rooms-activity {
@@ -351,16 +635,21 @@ header p {
   display: block;
 }
 
-/* Canvas Container */
+/* ============================================ */
+/* Full-Page Canvas Container                  */
+/* ============================================ */
+
 #canvas-container {
-  width: 100%;
-  height: clamp(600px, 80vh, 1000px);
-  position: relative;
-  margin: 1rem 0;
-  background: linear-gradient(180deg, rgba(26, 26, 46, 0.5) 0%, transparent 100%);
-  border: 1px solid var(--border-color);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100dvh;
+  z-index: 0;
+  background: var(--void);
   overflow: hidden;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  border: none;
+  margin: 0;
 }
 
 #generative-canvas {
@@ -369,28 +658,24 @@ header p {
   display: block;
 }
 
-/* Entry #93: Canvas glow effect when audio is active */
+/* Canvas glow effect when audio is active */
 #canvas-container.active {
-  border-color: var(--accent);
   box-shadow:
-    0 0 30px rgba(59, 130, 246, 0.5),
-    0 0 60px rgba(59, 130, 246, 0.3),
-    inset 0 0 80px rgba(59, 130, 246, 0.1);
-  animation: canvas-glow 3s ease-in-out infinite;
+    inset 0 0 100px rgba(45, 212, 191, 0.1),
+    inset 0 0 200px rgba(45, 212, 191, 0.05);
+  animation: canvas-glow 4s ease-in-out infinite;
 }
 
 @keyframes canvas-glow {
   0%, 100% {
     box-shadow:
-      0 0 30px rgba(59, 130, 246, 0.5),
-      0 0 60px rgba(59, 130, 246, 0.3),
-      inset 0 0 80px rgba(59, 130, 246, 0.1);
+      inset 0 0 100px rgba(45, 212, 191, 0.1),
+      inset 0 0 200px rgba(45, 212, 191, 0.05);
   }
   50% {
     box-shadow:
-      0 0 50px rgba(59, 130, 246, 0.7),
-      0 0 100px rgba(59, 130, 246, 0.4),
-      inset 0 0 120px rgba(59, 130, 246, 0.15);
+      inset 0 0 150px rgba(45, 212, 191, 0.15),
+      inset 0 0 300px rgba(45, 212, 191, 0.08);
   }
 }
 
@@ -408,7 +693,7 @@ header p {
   border-radius: 50%;
   pointer-events: none;
   transform: translate(-50%, -50%);
-  transition: left 0.5s ease, top 0.5s ease, opacity 0.3s ease, transform 0.2s ease;
+  transition: left 0.15s ease, top 0.15s ease, opacity 0.2s ease, transform 0.15s ease;
   z-index: 10;
 }
 
@@ -417,26 +702,39 @@ header p {
   display: none;
 }
 
+/* ============================================ */
+/* Node-Based Buttons (Outline-Only Style)     */
+/* ============================================ */
+
+/* All buttons use outline-only style:
+   - Background: unified UI bg (semi-transparent)
+   - Border: dark gray (--muted) default, light gray (--light) hover
+   - No fill colors except unified background
+   - Red border for playing/active state
+*/
+
 button {
-  background: var(--accent);
-  color: white;
-  border: none;
-  padding: 0.75rem 2rem;
-  border-radius: 8px;
+  background: var(--ui-bg);
+  color: var(--dim);
+  border: 2px solid var(--muted);
+  padding: 0.5rem 1rem;
+  border-radius: 50%;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: opacity 0.2s ease, transform 0.1s ease;
-  font-family: inherit;
+  transition: border-color 0.2s ease, color 0.2s ease;
+  font-family: var(--font-display);
+  position: relative;
 }
 
 button:hover:not(:disabled) {
-  opacity: 0.9;
-  transform: translateY(-1px);
+  border-color: var(--light);
+  color: var(--light);
 }
 
 button:active:not(:disabled) {
-  transform: translateY(0);
+  border-color: var(--bright);
+  color: var(--bright);
 }
 
 button:disabled {
@@ -444,65 +742,239 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.primary-btn {
-  background: var(--accent);
+/* Node button wrapper - for proper label positioning */
+.node-btn-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 1;
 }
 
-.secondary-btn {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
+/* In controls-left: normalize all wrappers for line alignment */
+.controls-left .node-btn-wrapper {
+  height: 80px;
+  padding-top: 14px; /* Position button so its center is at 40px (14 + 26 = 40) */
+  justify-content: flex-start;
+}
+
+/* Slider positioned BELOW the line level */
+.controls-left .slider-node {
+  height: 80px;
+  padding-top: 52px; /* Push slider below the line (line is at 40px) */
+  justify-content: flex-start;
+}
+
+/* Line segment after toggle - spans through slider area (gap + slider + gap) */
+.controls-left .node-btn-wrapper:first-child::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 100%;
+  width: calc(1.5rem + 90px + 1.5rem); /* gap + slider width + gap */
+  height: 1px;
+  background: var(--line);
+  z-index: 0;
+}
+
+/* Node button - circular, transparent bg */
+.node-btn {
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  min-height: 52px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--ui-bg);
+  border: 2px solid var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--dim);
+  transition: border-color 0.2s ease, color 0.2s ease;
+  padding: 0;
+  text-decoration: none;
+  position: relative;
+  z-index: 1;
+}
+
+.node-btn:hover {
+  border-color: var(--light);
+  color: var(--light);
+}
+
+/* Primary node button - same outline style, just starts with accent border */
+.node-btn.primary {
+  border-color: var(--muted);
+  color: var(--dim);
+}
+
+.node-btn.primary:hover {
+  border-color: var(--light);
+  color: var(--light);
+}
+
+/* Playing state - red border only */
+.node-btn.primary.playing {
+  background: var(--ui-bg);
+  border-color: var(--node-1);
+  color: var(--node-1);
+}
+
+/* Join button - larger to fit text, unified bg */
+.node-btn.join-btn {
+  width: 60px;
+  height: 60px;
+  min-width: 60px;
+  min-height: 60px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--ui-bg);
+  border-color: var(--muted);
+  color: var(--dim);
+}
+
+.node-btn.join-btn:hover {
+  border-color: var(--light);
+  color: var(--light);
+}
+
+.node-label {
+  margin-top: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  text-transform: uppercase;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+/* Primary and secondary buttons - unified bg */
+.primary-btn {
+  background: var(--ui-bg);
+  border-color: var(--muted);
+  color: var(--dim);
+}
+
+.primary-btn:hover:not(:disabled) {
+  border-color: var(--light);
+  color: var(--light);
 }
 
 .primary-btn.playing {
-  background: #ef4444;
+  background: var(--ui-bg);
+  border-color: var(--node-1);
+  color: var(--node-1);
 }
 
-/* Entry #74: Settings button */
+.secondary-btn {
+  background: var(--ui-bg);
+  border: 2px solid var(--muted);
+  color: var(--dim);
+}
+
+.secondary-btn:hover:not(:disabled) {
+  border-color: var(--light);
+  color: var(--light);
+}
+
+/* Settings button - node style, unified bg */
 .settings-btn {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-  font-size: 1.25rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--ui-bg);
+  border: 2px solid var(--muted);
+  color: var(--dim);
+  padding: 0;
+  font-size: 1.1rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
 }
 
 .settings-btn:hover {
-  background: var(--accent);
-  color: var(--bg-primary);
-  border-color: var(--accent);
+  border-color: var(--light);
+  color: var(--light);
 }
 
+/* Room link - node style, unified bg */
 .room-link {
   display: flex;
   flex-direction: column;
   align-items: center;
-  color: var(--accent);
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  color: var(--dim);
   text-decoration: none;
   font-weight: 500;
-  padding: 0.5rem 1.25rem;
-  border-radius: 8px;
-  border: 1px solid var(--accent);
-  transition: all 0.2s ease;
+  border: 2px solid var(--muted);
+  background: var(--ui-bg);
+  transition: border-color 0.2s ease, color 0.2s ease;
+  position: relative;
+  z-index: 1;
 }
 
 .room-link:hover {
-  background: var(--accent);
-  color: var(--bg-primary);
+  border-color: var(--light);
+  color: var(--light);
 }
 
-.slider-group {
+.room-link .rooms-activity {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  font-size: 0.5rem;
+  white-space: nowrap;
+}
+
+/* Slider styling - minimal line with dot, label below */
+.slider-group,
+.slider-node {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  min-width: 150px;
+  align-items: center;
+  position: relative;
+  z-index: 1;
 }
 
-.slider-group label {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+/* Slider does NOT interrupt the line - line passes through */
+/* No ::after pseudo-element for slider */
+
+/* Line segment after settings button (third child) */
+.controls-left .node-btn-wrapper:nth-child(3)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 100%;
+  width: 2rem; /* gap to join-section */
+  height: 1px;
+  background: var(--line);
+  z-index: 0;
+}
+
+.slider-group label,
+.slider-node label {
+  margin-top: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  text-transform: uppercase;
+  color: var(--dim);
+  order: 1; /* Label appears after slider */
+}
+
+.slider-group input[type="range"],
+.slider-node input[type="range"] {
+  order: 0; /* Slider appears before label */
 }
 
 /* Minimum font-size 16px prevents iOS zoom on focus */
@@ -512,11 +984,12 @@ textarea {
   font-size: 16px;
 }
 
+/* Range slider - minimal line with dot thumb */
 input[type="range"] {
-  width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--card-bg);
+  width: 90px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--line);
   outline: none;
   -webkit-appearance: none;
   appearance: none;
@@ -525,21 +998,22 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--accent);
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
   background: var(--accent-hover);
+  transform: scale(1.2);
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--accent);
   cursor: pointer;
@@ -567,35 +1041,111 @@ input[type="range"]::-moz-range-thumb {
   cursor: pointer;
 }
 
-/* Mapping Explainer */
-#mapping-explainer {
+/* ============================================ */
+/* Collapsible Explainer (Bottom Section)      */
+/* ============================================ */
+
+#mapping-explainer,
+.landing-explainer {
+  max-height: 50vh;
+  overflow-y: auto;
+  background: var(--ui-bg);
+  border-top: 1px solid var(--line);
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+}
+
+#mapping-explainer.collapsed,
+.landing-explainer.collapsed {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Explainer handle - MOBILE ONLY */
+.explainer-handle {
+  display: none; /* Hidden by default on desktop */
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  cursor: pointer;
+  background: var(--ui-bg);
+  border: none;
+  border-bottom: 1px solid var(--line);
+  transition: background 0.2s ease;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  width: 100%;
+}
+
+.explainer-handle:hover {
+  background: var(--surface);
+}
+
+.handle-icon {
+  font-size: 0.7rem;
+  color: var(--dim);
+  transition: transform 0.2s ease;
+}
+
+/* Chevron icon */
+.handle-icon::before {
+  content: '▲';
+}
+
+#mapping-explainer.collapsed .handle-icon,
+.landing-explainer.collapsed .handle-icon {
+  transform: rotate(180deg);
+}
+
+.handle-text {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* Desktop: Collapsible behavior enabled (same as mobile) */
+/* No override needed - collapsed state works on all screen sizes */
+
+/* Mobile: Show handle and enable collapse */
+@media (max-width: 768px) {
+  .explainer-handle {
+    display: flex;
+  }
+}
+
+/* Explainer content */
+.explainer-content {
   max-width: 900px;
-  margin: 3rem auto;
-  padding: 2rem;
-  background: var(--card-bg);
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
+  margin: 0 auto;
+  padding: 1.5rem 2rem 2rem;
 }
 
 #mapping-explainer h2 {
-  font-size: 1.75rem;
+  font-size: 1.25rem;
   margin-bottom: 0.5rem;
   color: var(--accent);
+  font-family: var(--font-display);
 }
 
-#mapping-explainer h3 {
-  font-size: 1.05rem;
+#mapping-explainer h3,
+.explainer-section-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
   font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.7;
-  margin-bottom: 1.5rem;
+  color: var(--bright);
+  line-height: 1.6;
+  margin-bottom: 1rem;
 }
 
 .explainer-intro {
-  color: var(--text-primary);
-  font-size: 1.05rem;
+  color: var(--bright);
+  font-size: 0.95rem;
   line-height: 1.7;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .explainer-intro strong {
@@ -603,31 +1153,92 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .explainer-intro em {
-  color: #60a5fa;
+  color: var(--accent);
   font-style: normal;
 }
 
 .explainer-detail {
-  color: var(--text-secondary);
-  font-size: 0.95rem;
+  color: var(--light);
+  font-size: 0.9rem;
   line-height: 1.7;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
   padding-left: 1rem;
-  border-left: 2px solid rgba(59, 130, 246, 0.3);
+  border-left: 2px solid var(--line);
 }
 
 .explainer-detail strong {
-  color: var(--text-primary);
+  color: var(--bright);
   font-weight: 600;
 }
 
 .explainer-detail em {
-  color: #60a5fa;
+  color: var(--accent);
   font-style: normal;
 }
 
 .virtual-users-note strong {
   color: var(--accent);
+}
+
+.explainer-link {
+  margin-top: 1.5rem;
+}
+
+.explainer-link a,
+.explainer-link a:visited {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.explainer-link a:hover {
+  color: var(--accent-hover);
+}
+
+/* Explainer footer (inside collapsible section) */
+.explainer-footer {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  font-family: var(--font-mono);
+}
+
+.explainer-footer p {
+  color: var(--dim);
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.explainer-footer a,
+.explainer-footer a:visited {
+  color: var(--light);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.explainer-footer a:hover {
+  color: var(--accent);
+}
+
+.explainer-footer .footer-note {
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+
+.explainer-footer .footer-credits {
+  margin-top: 0.75rem;
+  font-size: 0.7rem;
+  color: var(--dim);
+}
+
+.explainer-footer .version-tag {
+  margin-top: 0.5rem;
+  font-size: 0.55rem;
+  color: var(--accent);
+  opacity: 0.7;
 }
 
 .cta-section {
@@ -636,10 +1247,11 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .cta-section p {
-  color: var(--text-secondary);
+  color: var(--light);
 }
 
-.cta-section a {
+.cta-section a,
+.cta-section a:visited {
   color: var(--accent);
   text-decoration: none;
   font-weight: 600;
@@ -648,20 +1260,28 @@ input[type="range"]::-moz-range-thumb {
 
 .cta-section a:hover {
   color: var(--accent-hover);
-  text-decoration: underline;
 }
 
-/* Footer */
+/* Footer - Hidden on landing (inside explainer), shown on other pages */
 footer {
+  display: none;
+}
+
+/* Footer styling when visible (how-it-works, etc) */
+.hiw-content footer,
+main footer {
+  display: block;
   text-align: center;
   padding: 2rem 1rem;
-  border-top: 1px solid var(--border-color);
-  color: var(--text-muted);
-  font-size: 0.875rem;
+  border-top: 1px solid var(--line);
+  color: var(--dim);
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
 }
 
-footer a {
-  color: var(--text-secondary);
+footer a,
+footer a:visited {
+  color: var(--light);
   text-decoration: none;
   transition: color 0.2s ease;
 }
@@ -672,89 +1292,203 @@ footer a:hover {
 
 .footer-note {
   margin-top: 0.5rem;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
+  color: var(--dim);
 }
 
 .footer-credits {
   margin-top: 0.75rem;
-  font-size: 0.85rem;
-  font-style: italic;
-  opacity: 0.9;
+  font-size: 0.75rem;
+  font-style: normal;
+  opacity: 0.8;
 }
 
 .version-tag {
   margin-top: 1rem;
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   color: var(--accent);
-  font-family: monospace;
-  opacity: 0.8;
+  font-family: var(--font-mono);
+  opacity: 0.7;
 }
 
-/* Responsive Design */
+/* ============================================ */
+/* Responsive Design                           */
+/* ============================================ */
+
+@media (max-width: 1024px) {
+  #metrics-dashboard {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .metric-card {
+    width: 240px;
+  }
+}
+
+/* Tablet: When controls wrap to two rows */
+@media (max-width: 900px) and (min-width: 769px) {
+  /* Hide segments that connect the two rows */
+  .controls-left .node-btn-wrapper:nth-child(3)::after,
+  .join-section::before {
+    display: none;
+  }
+}
+
 @media (max-width: 768px) {
+  :root {
+    --logo-h: 36px;
+  }
+
+  header {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  header h1 {
+    font-size: 1.25rem;
+  }
+
   #controls-bar {
     flex-direction: column;
-    justify-content: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
+    gap: 1.5rem;
+    padding: 1rem;
+  }
+
+  /* Hide all connection line segments on mobile (stacked layout) */
+  .controls-left::before,
+  .controls-left .node-btn-wrapper:first-child::after,
+  .controls-left .node-btn-wrapper:nth-child(3)::after,
+  .join-section::before,
+  .join-section::after {
+    display: none;
+  }
+
+  /* Reset height and padding normalization for stacked layout */
+  .controls-left .node-btn-wrapper,
+  .controls-left .slider-node,
+  .join-section .node-btn-wrapper {
+    height: auto;
+    padding-top: 0;
   }
 
   .controls-left {
-    width: 100%;
     justify-content: center;
   }
 
   #metrics-dashboard {
     width: 100%;
     justify-content: center;
+    gap: 0.75rem;
+    padding: 1rem;
   }
 
-  .join-section {
-    align-items: center;
+  .metric-card {
+    width: 200px;
+    padding: 1rem;
   }
 
-  .mapping-item {
-    flex-direction: column;
-    text-align: center;
+  .data-points,
+  .meters-container {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
   }
 
-  .slider-group {
-    min-width: auto;
+  .point-node,
+  .meter-bar {
+    width: 32px;
+    height: 32px;
   }
 
-  /* Smaller canvas on mobile */
-  #canvas-container {
-    height: clamp(300px, 50vh, 500px);
+  .meter-value {
+    font-size: 0.75rem;
+  }
+
+  .meter-label {
+    font-size: 0.5rem;
+  }
+
+  .explainer-content {
+    padding: 1rem;
   }
 }
 
 @media (max-width: 480px) {
-  #metrics-dashboard {
-    flex-wrap: wrap;
-    gap: 0.4rem;
+  :root {
+    --logo-h: 32px;
   }
 
-  .metric-card {
-    width: 100px;
-    padding: 0.3rem 0.4rem;
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
   }
 
-  .meters-container {
-    height: 40px;
-    gap: 0.25rem;
-  }
-
-  .meter-bar {
-    height: 24px;
-    max-width: 12px;
+  .landing-title-group {
+    margin-top: 0; /* Stacked layout, no alignment needed */
   }
 
   header h1 {
-    font-size: 1.75rem;
+    font-size: 1.1rem;
   }
 
-  #mapping-explainer {
-    padding: 1rem;
+  header p {
+    font-size: 0.6rem;
+  }
+
+  #metrics-dashboard {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .metric-card {
+    width: 100%;
+    max-width: 320px;
+    padding: 1rem 1.25rem;
+  }
+
+  .data-points,
+  .meters-container {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+  }
+
+  .point-node,
+  .meter-bar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .meter-value {
+    font-size: 0.8rem;
+  }
+
+  .meter-label {
+    font-size: 0.5rem;
+  }
+
+  .source-title {
+    font-size: 0.7rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .node-btn,
+  .settings-btn,
+  .room-link {
+    width: 44px;
+    height: 44px;
+  }
+
+  .node-label {
+    display: none;
+  }
+
+  .room-link .rooms-activity {
+    display: none;
   }
 }
 
@@ -855,7 +1589,7 @@ select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--accent), 0 0 0 5px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 5px rgba(45, 212, 191, 0.3);
 }
 
 /* Ensure focus is visible on dark backgrounds */
@@ -864,42 +1598,47 @@ input[type="range"]:focus-visible {
 }
 
 input[type="range"]:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px var(--accent), 0 0 0 5px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 5px rgba(45, 212, 191, 0.3);
 }
 
 /* ============================================ */
 /* Entry #93: Full-screen Immersive Mode       */
 /* ============================================ */
 
-/* Immersive toggle button - positioned inside canvas container */
+/* Immersive toggle button - circular, outline-only */
 .immersive-toggle {
-  position: absolute;
+  position: fixed;
   bottom: 1rem;
   right: 1rem;
-  z-index: 20;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  padding: 0.6rem 1rem;
-  border-radius: 8px;
+  z-index: 200; /* Above explainer (z-index: 100) - must be accessible when explainer open */
+  width: 44px;
+  height: 44px;
+  background: var(--ui-bg);
+  border: 2px solid var(--muted);
+  color: var(--dim);
+  padding: 0;
+  border-radius: 50%;
   cursor: pointer;
   font-family: inherit;
-  font-size: 0.85rem;
-  transition: all 0.2s ease;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, color 0.2s ease;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
 }
 
 .immersive-toggle:hover {
-  background: var(--accent);
-  color: white;
-  border-color: var(--accent);
+  border-color: var(--light);
+  color: var(--light);
 }
 
 .immersive-icon {
   font-size: 1.1rem;
-  transition: transform 0.3s ease;
+}
+
+/* Hide label in circular button */
+.immersive-label {
+  display: none;
 }
 
 /* Immersive mode active state */
@@ -907,27 +1646,25 @@ body.immersive-mode {
   overflow: hidden;
 }
 
+/* Hide all overlay elements in immersive mode */
+body.immersive-mode .landing-overlay,
 body.immersive-mode header,
 body.immersive-mode #controls-bar,
 body.immersive-mode #mapping-explainer,
+body.immersive-mode .landing-explainer,
 body.immersive-mode footer,
 body.immersive-mode .corner-logo-link,
+body.immersive-mode .constellation-bg,
+body.immersive-mode .particles,
 body.immersive-mode #error-message,
 body.immersive-mode #status-message {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease;
 }
 
+/* Canvas already full-page, just ensure z-index */
 body.immersive-mode #canvas-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  margin: 0;
-  border: none;
-  border-radius: 0;
   z-index: 1000;
 }
 
@@ -950,21 +1687,20 @@ body.immersive-mode .immersive-toggle {
   }
 }
 
-/* Entry #134: Immersive toggle only visible on canvas hover (non-immersive mode) */
+/* Immersive toggle hidden by default, shows on bottom-right corner hover */
 body:not(.immersive-mode) .immersive-toggle {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
-/* Button is now inside canvas container - show on container hover */
-body:not(.immersive-mode) #canvas-container:hover .immersive-toggle,
-body:not(.immersive-mode) .immersive-toggle:hover {
+/* Show when mouse in bottom-right corner (via JS) */
+body:not(.immersive-mode) .immersive-toggle.visible {
   opacity: 1;
   pointer-events: auto;
 }
 
-/* Entry #134: Immersive mode mini control bar */
+/* Immersive mode mini control bar - line-based layout like other bars */
 .immersive-controls {
   position: fixed;
   bottom: 1.5rem;
@@ -972,16 +1708,12 @@ body:not(.immersive-mode) .immersive-toggle:hover {
   z-index: 1002;
   display: none;
   align-items: center;
-  gap: 0.75rem;
-  background: rgba(26, 26, 46, 0.7);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  padding: 0.5rem 0.75rem;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
+  gap: 1.5rem;
+  /* No background - transparent like other bars */
   opacity: 0;
   transform: translateY(10px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  height: 70px;
 }
 
 /* Show control bar in immersive mode */
@@ -995,48 +1727,97 @@ body.immersive-mode .immersive-controls.visible {
   transform: translateY(0);
 }
 
-/* Control bar buttons - match existing button styles */
+/* Normalize button wrappers for line alignment */
+.immersive-controls .node-btn-wrapper {
+  height: 70px;
+  padding-top: 11px; /* Center 44px button at 33px (11 + 22 = 33) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+/* Line segments for immersive controls */
+.immersive-controls::before {
+  content: '';
+  position: absolute;
+  top: 33px; /* Line at button center height */
+  right: 100%;
+  width: 2rem;
+  height: 1px;
+  background: var(--line);
+  z-index: 0;
+}
+
+.immersive-controls::after {
+  content: '';
+  position: absolute;
+  top: 33px;
+  left: 100%;
+  width: 2rem;
+  height: 1px;
+  background: var(--line);
+  z-index: 0;
+}
+
+/* Line segment between buttons */
+.immersive-controls .node-btn-wrapper:first-child::after {
+  content: '';
+  position: absolute;
+  top: 33px;
+  left: 100%;
+  width: 1.5rem; /* gap size */
+  height: 1px;
+  background: var(--line);
+  z-index: 0;
+}
+
+/* Control bar buttons - outline-only style */
 .immersive-ctrl-btn {
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  border: none;
-  background: var(--accent);
-  color: white;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--muted);
+  background: var(--ui-bg);
+  color: var(--dim);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.2s ease, transform 0.1s ease, background 0.2s ease;
-  font-family: inherit;
+  transition: border-color 0.2s ease, color 0.2s ease;
+  font-family: var(--font-display);
+  padding: 0;
 }
 
 .immersive-ctrl-btn:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
+  border-color: var(--light);
+  color: var(--light);
 }
 
-.immersive-ctrl-btn:active {
-  transform: translateY(0);
-}
-
-/* Play button turns red when playing */
+/* Play button turns red border when playing */
 body.audio-playing #immersive-play-btn {
-  background: #ef4444;
+  background: var(--ui-bg);
+  border-color: var(--node-1);
+  color: var(--node-1);
 }
 
-/* Exit button - secondary style */
+/* Exit button - same circular style as play button */
 #immersive-exit-btn {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
+  background: var(--ui-bg);
+  border: 2px solid var(--muted);
+  color: var(--dim);
+  font-size: 1.1rem;
 }
 
 #immersive-exit-btn:hover {
-  background: var(--accent);
-  color: white;
-  border-color: var(--accent);
+  border-color: var(--light);
+  color: var(--light);
 }
 
 /* Play/Stop icon toggle */
@@ -1052,17 +1833,36 @@ body.audio-playing .immersive-ctrl-btn .stop-icon {
   display: block;
 }
 
+/* Update label text when playing */
+body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label {
+  /* Label updated via JS */
+}
+
 /* Mobile adjustments */
 @media (max-width: 480px) {
   .immersive-controls {
     bottom: 1rem;
     right: 1rem;
-    padding: 0.4rem 0.6rem;
-    gap: 0.5rem;
+    gap: 1rem;
+    height: 60px;
+  }
+
+  .immersive-controls .node-btn-wrapper {
+    height: 60px;
+    padding-top: 8px;
+  }
+
+  .immersive-controls::before,
+  .immersive-controls::after,
+  .immersive-controls .node-btn-wrapper:first-child::after {
+    top: 28px;
   }
 
   .immersive-ctrl-btn {
-    padding: 0.4rem 0.75rem;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
     font-size: 0.9rem;
   }
 }

@@ -503,7 +503,7 @@ class WebarmoniumApp {
 
         if (this.visualService && this.socketService?.socket) {
           const userId = this.socketService.socket.id
-          const color = this.currentUserColor || '#00ff00'
+          const color = this.currentUserColor || '#22c55e'
           this.visualService.updateCursorPosition(userId, x, y, color)
           this.visualService.updateGestureData(userId, {
             type: 'drag',
@@ -647,7 +647,7 @@ class WebarmoniumApp {
         if (this.visualService && this.socketService && this.socketService.socket) {
           const userId = this.socketService.socket.id
           if (!userId) return // Skip if socket not ready (prevents ghost "local" cursor)
-          const color = this.currentUserColor || '#00ff00'
+          const color = this.currentUserColor || '#22c55e'
 
           this.visualService.updateCursorPosition(userId, holdData.position.x, holdData.position.y, color)
           this.visualService.updateGestureData(userId, {
@@ -759,7 +759,7 @@ class WebarmoniumApp {
         const userId = this.socketService.socket.id
         if (!userId) return // Skip if socket not ready (prevents ghost "local" cursor)
         const position = gesture.coordinates || gesture.startPosition || { x: 0.5, y: 0.5 }
-        const color = this.currentUserColor || '#00ff00' // Default green for local user
+        const color = this.currentUserColor || '#22c55e' // Default green for local user
 
         this.visualService.updateCursorPosition(userId, position.x, position.y, color)
         this.visualService.updateGestureData(userId, {
@@ -965,7 +965,7 @@ class WebarmoniumApp {
         // VISUAL: Update cursor position, but skip p&p if suppressVisual is set
         // When suppressVisual is true, p&p are handled by virtual:phrase-visual event
         if (this.visualService) {
-          const color = data.userColor || '#ff6b6b'
+          const color = data.userColor || '#fb923c'
           this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
 
           // Only trigger particles/pulses if NOT suppressed
@@ -1001,13 +1001,13 @@ class WebarmoniumApp {
           frequency: data.frequency,
           startTime: result.startTime,
           position: data.position,
-          userColor: data.userColor || '#ff6b6b',
+          userColor: data.userColor || '#fb923c',
           visualStartTime: Date.now()
         })
 
         // Update visual service with remote hold gesture
         if (this.visualService) {
-          const color = data.userColor || '#ff6b6b'
+          const color = data.userColor || '#fb923c'
           this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
           this.visualService.updateGestureData(data.userId, {
             type: 'hold',
@@ -1043,7 +1043,7 @@ class WebarmoniumApp {
             isFinite(data.position.x) && isFinite(data.position.y)) {
           // MEDIUM FIX #8: Use centralized intensity calculation
           const intensity = this._calculateTrailIntensityFromDuration(data.duration)
-          const sanitizedColor = this._sanitizeColor(data.userColor) || '#00d4ff'
+          const sanitizedColor = this._sanitizeColor(data.userColor) || '#2dd4bf'
           this._renderTrailHalo(data.position.x, data.position.y, intensity, sanitizedColor)
         }
         return
@@ -1094,7 +1094,7 @@ class WebarmoniumApp {
       if (!data.userId || typeof data.userId !== 'string') return
       if (!data.position || typeof data.position.x !== 'number' || typeof data.position.y !== 'number') return
 
-      const color = this._sanitizeColor(data.userColor) || '#ff6b6b'
+      const color = this._sanitizeColor(data.userColor) || '#fb923c'
       this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
 
       // Scale particle count by note count (capped at 4)
@@ -1284,7 +1284,7 @@ class WebarmoniumApp {
 
       // Get remote user's cursor position from cursor manager
       let remotePosition = { x: 0.5, y: 0.5 } // Default center
-      let userColor = '#ff6b6b' // Default color
+      let userColor = '#fb923c' // Default color
       let cursorFound = false
 
       if (this.cursorManager) {
@@ -1345,7 +1345,7 @@ class WebarmoniumApp {
             const tapIntensity = gestureType === 'tap'
               ? Math.min(1, 0.3 + (duration * 0.7))
               : Math.min(1, 0.3 + (totalNotes * 0.1))  // More notes = higher intensity
-            const sanitizedColor = this._sanitizeColor(userColor) || '#ff6b6b'
+            const sanitizedColor = this._sanitizeColor(userColor) || '#fb923c'
             this._renderTrailHalo(remotePosition.x, remotePosition.y, tapIntensity, sanitizedColor)
           }
         }
@@ -1394,7 +1394,7 @@ class WebarmoniumApp {
       }
 
       // Render remote user's trail halo
-      this._renderTrailHalo(data.x, data.y, data.intensity || 0.5, data.color || '#00d4ff')
+      this._renderTrailHalo(data.x, data.y, data.intensity || 0.5, data.color || '#2dd4bf')
     })
 
     // Handle real-time note streaming from remote users (drag notes)
@@ -1440,7 +1440,8 @@ class WebarmoniumApp {
 
       if (this.visualService && data.virtualUsers) {
         data.virtualUsers.forEach(user => {
-          this.visualService.addVirtualUser?.(user.userId, user.color)
+          // Initialize cursor at center position so it appears immediately
+          this.visualService.updateCursorPosition?.(user.userId, 0.5, 0.5, user.color)
         })
       }
 
@@ -1554,7 +1555,7 @@ class WebarmoniumApp {
         if (this.visualService && this.socketService && this.socketService.socket) {
           const userId = this.socketService.socket.id
           if (!userId) return // Skip if socket not ready (prevents ghost "local" cursor)
-          const color = this.currentUserColor || '#00ff00'
+          const color = this.currentUserColor || '#22c55e'
           this.visualService.updateCursorPosition(userId, x, y, color)
         }
       }
@@ -1779,18 +1780,18 @@ class WebarmoniumApp {
           width: 100px;
           height: 100px;
           border-radius: 50%;
-          background: #3b82f6;
+          background: #2dd4bf;
           border: none;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 30px rgba(59, 130, 246, 0.5);
+          box-shadow: 0 4px 30px rgba(45, 212, 191, 0.5);
           transition: transform 0.15s, box-shadow 0.15s;
         }
         .audio-recovery-play-btn:hover {
           transform: scale(1.1);
-          box-shadow: 0 6px 40px rgba(59, 130, 246, 0.7);
+          box-shadow: 0 6px 40px rgba(45, 212, 191, 0.7);
         }
         .audio-recovery-play-btn:active {
           transform: scale(0.95);
@@ -1980,7 +1981,7 @@ class WebarmoniumApp {
       return
     }
 
-    const userColor = this.currentUserColor || '#00d4ff'
+    const userColor = this.currentUserColor || '#2dd4bf'
 
     // Entry #81: For taps/holds, calculate intensity from duration (100ms→0.3, 2000ms→1.0)
     // For drags, use the gesture intensity based on movement
@@ -2126,13 +2127,17 @@ class WebarmoniumApp {
     }
 
     // Only cache valid color strings
-    const colorKey = typeof color === 'string' && color.length > 0 ? color : '#00d4ff'
+    // Default color #2dd4bf (teal) = RGB(45, 212, 191)
+    const colorKey = typeof color === 'string' && color.length > 0 ? color : '#2dd4bf'
     let rgb = this._trailColorCache.get(colorKey)
     if (!rgb) {
-      rgb = window.VisualUtils?.hexToRgb(colorKey) || { r: 0, g: 212, b: 255 }
+      if (!window.VisualUtils) {
+        console.warn('[WebarmoniumApp] VisualUtils not available, using fallback color')
+      }
+      rgb = window.VisualUtils?.hexToRgb(colorKey) || { r: 45, g: 212, b: 191 }
       // Validate RGB values are finite
       if (!isFinite(rgb.r) || !isFinite(rgb.g) || !isFinite(rgb.b)) {
-        rgb = { r: 0, g: 212, b: 255 }
+        rgb = { r: 45, g: 212, b: 191 }
       }
       this._trailColorCache.set(colorKey, rgb)
       // Keep cache size bounded (max 20 colors)
@@ -2255,7 +2260,7 @@ class WebarmoniumApp {
         const overlayCtx = this.cursorOverlayCanvas.getContext('2d')
         overlayCtx.save()
         overlayCtx.globalAlpha = opacity
-        overlayCtx.strokeStyle = this.socketService?.userColor || '#6bcf7f'
+        overlayCtx.strokeStyle = this.socketService?.userColor || '#2dd4bf'
         overlayCtx.lineWidth = 3
         overlayCtx.beginPath()
         overlayCtx.arc(
@@ -2286,7 +2291,7 @@ class WebarmoniumApp {
           overlayCtx.save()
           overlayCtx.globalAlpha = opacity
           // Use a different color for remote holds (or get from hold.userColor if available)
-          overlayCtx.strokeStyle = hold.userColor || '#ff6b6b'
+          overlayCtx.strokeStyle = hold.userColor || '#fb923c'
           overlayCtx.lineWidth = 3
           overlayCtx.beginPath()
           overlayCtx.arc(

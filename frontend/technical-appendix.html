@@ -57,6 +57,17 @@
   <link rel="stylesheet" href="styles.css?v=6">
   <style>
     /* Technical appendix specific styles */
+    /* Global link colors - prevent browser default blue/purple */
+    a {
+      color: #2dd4bf;
+      text-decoration: none;
+    }
+    a:visited {
+      color: #2dd4bf;
+    }
+    a:hover {
+      color: #5eead4;
+    }
     .tech-content {
       max-width: 900px;
       margin: 0 auto;
@@ -67,7 +78,7 @@
     }
     .tech-section h2 {
       color: #fff;
-      border-bottom: 2px solid #377eb8;
+      border-bottom: 2px solid #2dd4bf;
       padding-bottom: 0.5rem;
       margin-bottom: 1.5rem;
     }
@@ -75,6 +86,14 @@
       color: #aaa;
       margin-top: 2rem;
       margin-bottom: 1rem;
+    }
+    .tech-section p a,
+    .tech-section p a:visited {
+      color: #2dd4bf;
+      text-decoration: underline;
+    }
+    .tech-section p a:hover {
+      color: #5eead4;
     }
     table {
       width: 100%;
@@ -98,9 +117,9 @@
     tr:hover td {
       background: #1a1a1a;
     }
-    .color-wikipedia { color: #e41a1c; }
-    .color-hackernews { color: #ff7f00; }
-    .color-github { color: #377eb8; }
+    .color-wikipedia { color: #ff2d92; }
+    .color-hackernews { color: #00d4ff; }
+    .color-github { color: #a855f7; }
     .badge {
       display: inline-block;
       padding: 0.2rem 0.5rem;
@@ -110,13 +129,22 @@
     }
     .badge-deterministic { background: #2d5a2d; color: #8fbc8f; }
     .badge-probabilistic { background: #5a3d2d; color: #deb887; }
-    .back-link {
+    .back-link,
+    .back-link:visited {
       display: inline-block;
       margin-bottom: 2rem;
-      color: #377eb8;
+      color: #2dd4bf;
       text-decoration: none;
     }
     .back-link:hover {
+      text-decoration: underline;
+    }
+    footer a,
+    footer a:visited {
+      color: #2dd4bf;
+      text-decoration: none;
+    }
+    footer a:hover {
       text-decoration: underline;
     }
     .formula {
@@ -130,7 +158,7 @@
     }
     .note {
       background: #1a2a1a;
-      border-left: 3px solid #377eb8;
+      border-left: 3px solid #2dd4bf;
       padding: 1rem;
       margin: 1rem 0;
       color: #aaa;
@@ -142,12 +170,11 @@
     <img src="/webarmonium-logo.svg" alt="Webarmonium logo" class="corner-logo">
   </a>
 
-  <header>
-    <h1>WEBARMONIUM</h1>
-    <p>Technical Documentation</p>
+  <header style="position: fixed; top: 0; left: 0; right: 0; padding-left: 5rem; z-index: 1000;">
+    <p style="font-size: 1.5rem; font-weight: 500;">Technical Documentation</p>
   </header>
 
-  <main class="tech-content">
+  <main class="tech-content" style="padding-top: 5rem;">
     <a href="how-it-works.html" class="back-link">&larr; Back to How It Works</a>
 
     <!-- Section 1: Landing Page Virtual User Mapping -->

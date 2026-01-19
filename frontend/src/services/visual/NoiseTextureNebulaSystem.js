@@ -60,11 +60,11 @@ class NoiseTextureNebulaSystem {
     this.gradientEnabled = true
     this.gradientIntensity = 0
 
-    // Gradient effect configuration (tunable parameters)
+    // Gradient effect configuration (tunable for subtle modern look)
     this.gradientConfig = {
-      hueShift: 80,        // Degrees toward warm (red/orange) at max effect
-      saturationBoost: 30, // Percentage saturation increase at max effect
-      lightnessBoost: 20,  // Percentage brightness increase at max effect
+      hueShift: 40,        // Reduced from 80 - subtler warm shift
+      saturationBoost: 15, // Reduced from 30 - less dramatic
+      lightnessBoost: 10,  // Reduced from 20 - maintains darkness
       maxDiagonal: Math.sqrt(2), // Max distance for normalized 0-1 coordinates
       maxUsers: 4          // Divisor for userFactor (4 for rooms, 3 for landing)
     }
@@ -74,52 +74,53 @@ class NoiseTextureNebulaSystem {
     this.targetOctaves = JSON.parse(JSON.stringify(this.baseOctaves))
 
     // Color palettes for background composition types
-    // VIBRANT COLORS on dark background RGB(26,26,46) ≈ HSB(240,43,18)
-    // High saturation (60-85), good brightness (50-70), visible alpha (55-75)
+    // MODERN DARK THEME on black background RGB(2,2,8) - matching UI --void
+    // Lower lightness (20-42%), moderate saturation, subtle alpha (36-50%)
+    // NO PURPLE - hues avoid 240-320 range
     this.palettes = {
       ambient: {
-        // Calm but visible - blue/cool tones (oceanic)
+        // Calm, oceanic - deep blue tones
         colors: [
-          { hue: 200, sat: 70, light: 60, alpha: 65 },  // Vivid sky blue
-          { hue: 215, sat: 75, light: 55, alpha: 60 },  // Ocean blue
-          { hue: 185, sat: 65, light: 62, alpha: 58 },  // Bright cyan
-          { hue: 225, sat: 60, light: 58, alpha: 62 }   // Twilight blue
+          { hue: 210, sat: 55, light: 35, alpha: 45 },  // Deep ocean blue
+          { hue: 200, sat: 50, light: 32, alpha: 42 },  // Midnight blue
+          { hue: 190, sat: 45, light: 38, alpha: 40 },  // Dark cyan
+          { hue: 220, sat: 40, light: 30, alpha: 44 }   // Navy depths
         ]
       },
       riff: {
-        // Energetic, rhythmic - warm/orange tones
+        // Energetic, rhythmic - warm/orange tones (darker)
         colors: [
-          { hue: 25, sat: 85, light: 65, alpha: 70 },   // Vivid amber
-          { hue: 15, sat: 80, light: 60, alpha: 65 },   // Bright orange
-          { hue: 35, sat: 75, light: 62, alpha: 60 },   // Golden
-          { hue: 8, sat: 70, light: 58, alpha: 65 }     // Warm red-orange
+          { hue: 25, sat: 70, light: 42, alpha: 50 },   // Dark amber
+          { hue: 15, sat: 65, light: 38, alpha: 48 },   // Deep orange
+          { hue: 35, sat: 60, light: 40, alpha: 45 },   // Muted gold
+          { hue: 8, sat: 55, light: 35, alpha: 48 }     // Burnt sienna
         ]
       },
       phrase: {
-        // Melodic, expressive - purple/violet tones
+        // Melodic, expressive - teal/cyan (REPLACES PURPLE)
         colors: [
-          { hue: 280, sat: 75, light: 60, alpha: 68 },  // Vivid purple
-          { hue: 290, sat: 70, light: 58, alpha: 62 },  // Bright violet
-          { hue: 265, sat: 65, light: 62, alpha: 60 },  // Lavender
-          { hue: 300, sat: 60, light: 56, alpha: 64 }   // Magenta
+          { hue: 170, sat: 60, light: 38, alpha: 48 },  // Deep teal
+          { hue: 175, sat: 55, light: 35, alpha: 45 },  // Ocean teal
+          { hue: 165, sat: 50, light: 40, alpha: 42 },  // Jade
+          { hue: 180, sat: 45, light: 32, alpha: 46 }   // Dark cyan
         ]
       },
       arpeggio: {
-        // Bright, lively - cyan/green tones
+        // Bright, lively - green tones
         colors: [
-          { hue: 170, sat: 80, light: 62, alpha: 68 },  // Vivid cyan
-          { hue: 180, sat: 75, light: 58, alpha: 62 },  // Bright teal
-          { hue: 160, sat: 70, light: 64, alpha: 58 },  // Aquamarine
-          { hue: 190, sat: 65, light: 60, alpha: 65 }   // Electric cyan
+          { hue: 150, sat: 55, light: 36, alpha: 48 },  // Forest green
+          { hue: 160, sat: 50, light: 34, alpha: 45 },  // Dark sea green
+          { hue: 140, sat: 45, light: 38, alpha: 42 },  // Deep emerald
+          { hue: 155, sat: 40, light: 32, alpha: 46 }   // Muted jade
         ]
       },
       drone: {
-        // Sustained, foundational - deep but visible blue/purple
+        // Sustained, foundational - desaturated blue-gray (REPLACES VIOLET)
         colors: [
-          { hue: 240, sat: 65, light: 50, alpha: 60 },  // Deep indigo
-          { hue: 250, sat: 60, light: 48, alpha: 55 },  // Night blue
-          { hue: 235, sat: 55, light: 52, alpha: 58 },  // Rich navy
-          { hue: 260, sat: 50, light: 50, alpha: 55 }   // Deep violet
+          { hue: 215, sat: 35, light: 25, alpha: 40 },  // Deep steel blue
+          { hue: 220, sat: 30, light: 22, alpha: 38 },  // Charcoal blue
+          { hue: 210, sat: 25, light: 28, alpha: 36 },  // Slate
+          { hue: 225, sat: 20, light: 20, alpha: 38 }   // Near-black blue
         ]
       }
     }

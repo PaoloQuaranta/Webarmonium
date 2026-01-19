@@ -187,13 +187,13 @@ class SustainedHoldHandler {
         frequency: data.frequency,
         startTime: result.startTime,
         position: data.position,
-        userColor: data.userColor || '#ff6b6b',
+        userColor: data.userColor || '#fb923c',
         visualStartTime: Date.now()
       })
 
       // Update visual service with remote hold
       if (this.visualService) {
-        const color = data.userColor || '#ff6b6b'
+        const color = data.userColor || '#fb923c'
         this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
         this.visualService.updateGestureData(data.userId, {
           type: 'hold',
@@ -294,7 +294,7 @@ class SustainedHoldHandler {
 
     const userId = this.socketService.socket.id
     if (!userId) return // Skip if socket not ready (prevents ghost "local" cursor)
-    const color = this.currentUserColor || '#00ff00'
+    const color = this.currentUserColor || '#22c55e'
 
     this.visualService.updateCursorPosition(userId, position.x, position.y, color)
     this.visualService.updateGestureData(userId, {

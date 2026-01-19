@@ -306,6 +306,9 @@ class LandingApp {
       // Entry #93: Setup immersive mode toggle
       this._setupImmersiveMode()
 
+      // Entry #92: Setup collapsible explainer section
+      this._setupCollapsibleExplainer()
+
       this.isInitialized = true
       // console.log('✅ Landing page initialized (waiting for Start)')
 
@@ -915,7 +918,7 @@ class LandingApp {
         // FIX #6: Use centralized intensity calculation helper
         const holdDuration = duration || 1000
         const intensity = this._calculateTrailIntensityFromDuration(holdDuration)
-        this._renderTrailHalo(cursorData.x, cursorData.y, intensity, cursorData.color || '#00d4ff')
+        this._renderTrailHalo(cursorData.x, cursorData.y, intensity, cursorData.color || '#2dd4bf')
       }
     }
   }
@@ -1012,7 +1015,7 @@ class LandingApp {
     if (cursorData) {
       // Tap intensity based on duration (100ms = 0.3, 500ms = ~0.5)
       const intensity = Math.min(1, 0.3 + (tapDuration / 2) * 0.7)
-      this._renderTrailHalo(cursorData.x, cursorData.y, intensity, userColor || cursorData.color || '#00d4ff')
+      this._renderTrailHalo(cursorData.x, cursorData.y, intensity, userColor || cursorData.color || '#2dd4bf')
     }
 
     // Flash the corresponding meter
@@ -1127,6 +1130,10 @@ class LandingApp {
       // Entry #134: Add audio-playing class for immersive mode floating button
       document.body.classList.add('audio-playing')
 
+      // Update immersive mode label
+      const immersiveLabel = document.querySelector('#immersive-controls .node-btn-wrapper:first-child .node-label')
+      if (immersiveLabel) immersiveLabel.textContent = 'Stop'
+
       // console.log('✅ Landing page started (receiving from backend)')
       this.dashboardUI.showStatus('Experience started - Connected to backend')
 
@@ -1173,6 +1180,10 @@ class LandingApp {
 
       // Entry #134: Remove audio-playing class for immersive mode floating button
       document.body.classList.remove('audio-playing')
+
+      // Update immersive mode label
+      const immersiveLabel = document.querySelector('#immersive-controls .node-btn-wrapper:first-child .node-label')
+      if (immersiveLabel) immersiveLabel.textContent = 'Start'
 
       this.dashboardUI.showStatus('Experience stopped')
 
@@ -1279,18 +1290,26 @@ class LandingApp {
     }
 
     const alpha = Math.min(intensity, 1)
-    const size = 5 + (intensity * 15)
+    const size = 8 + (intensity * 20)  // Larger trails
 
     this.trailCtx.save()
 
-    // Use globalAlpha + solid fill + shadowBlur for glow effect
-    this.trailCtx.globalAlpha = alpha * 0.8
+    // Neon glow effect - brighter for dark background
+    this.trailCtx.globalAlpha = Math.min(1, alpha * 1.2)  // Higher alpha
     this.trailCtx.fillStyle = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
     this.trailCtx.shadowColor = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
-    this.trailCtx.shadowBlur = size * 0.6
+    this.trailCtx.shadowBlur = size * 1.5  // More glow
 
+    // Outer glow layer
     this.trailCtx.beginPath()
-    this.trailCtx.arc(x, y, size * 0.5, 0, Math.PI * 2)
+    this.trailCtx.arc(x, y, size * 0.8, 0, Math.PI * 2)
+    this.trailCtx.fill()
+
+    // Inner bright core
+    this.trailCtx.globalAlpha = Math.min(1, alpha * 1.5)
+    this.trailCtx.shadowBlur = size * 0.5
+    this.trailCtx.beginPath()
+    this.trailCtx.arc(x, y, size * 0.3, 0, Math.PI * 2)
     this.trailCtx.fill()
 
     this.trailCtx.restore()
@@ -1485,6 +1504,86 @@ class LandingApp {
   */
 
   /**
+   * Entry #92: Setup collapsible explainer section
+   * Allows users to collapse/expand the bottom explainer text
+   * Shows on edge hover, auto-hides after 5 seconds
+   * @private
+   */
+  _setupCollapsibleExplainer() {
+    const explainer = document.getElementById('mapping-explainer')
+    const handle = explainer?.querySelector('.explainer-handle')
+
+    if (!explainer || !handle) return
+
+    // State
+    let autoHideTimeout = null
+    const AUTO_HIDE_DELAY = 5000  // 5 seconds
+
+    // Toggle collapsed state on handle click
+    handle.addEventListener('click', () => {
+      const isCollapsed = explainer.classList.toggle('collapsed')
+      handle.setAttribute('aria-expanded', !isCollapsed)
+
+      // Clear auto-hide on manual toggle
+      if (autoHideTimeout) {
+        clearTimeout(autoHideTimeout)
+        autoHideTimeout = null
+      }
+
+      // Start auto-hide timer if expanded
+      if (!isCollapsed) {
+        autoHideTimeout = setTimeout(() => {
+          explainer.classList.add('collapsed')
+          handle.setAttribute('aria-expanded', 'false')
+        }, AUTO_HIDE_DELAY)
+      }
+    })
+
+    // Edge detection: show when mouse near bottom 30px
+    // Exclude right corner where immersive button is (right 5rem = ~80px)
+    document.addEventListener('mousemove', (e) => {
+      const nearBottom = window.innerHeight - e.clientY < 30
+      const inImmersiveButtonArea = window.innerWidth - e.clientX < 80
+
+      if (nearBottom && !inImmersiveButtonArea && explainer.classList.contains('collapsed')) {
+        // Show explainer
+        explainer.classList.remove('collapsed')
+        handle.setAttribute('aria-expanded', 'true')
+
+        // Clear existing timer and start new auto-hide
+        if (autoHideTimeout) {
+          clearTimeout(autoHideTimeout)
+        }
+        autoHideTimeout = setTimeout(() => {
+          explainer.classList.add('collapsed')
+          handle.setAttribute('aria-expanded', 'false')
+        }, AUTO_HIDE_DELAY)
+      }
+    })
+
+    // Keep visible while hovering over explainer
+    explainer.addEventListener('mouseenter', () => {
+      if (autoHideTimeout) {
+        clearTimeout(autoHideTimeout)
+        autoHideTimeout = null
+      }
+    })
+
+    explainer.addEventListener('mouseleave', () => {
+      if (!explainer.classList.contains('collapsed')) {
+        autoHideTimeout = setTimeout(() => {
+          explainer.classList.add('collapsed')
+          handle.setAttribute('aria-expanded', 'false')
+        }, AUTO_HIDE_DELAY)
+      }
+    })
+
+    // Start collapsed
+    explainer.classList.add('collapsed')
+    handle.setAttribute('aria-expanded', 'false')
+  }
+
+  /**
    * Entry #93: Setup immersive mode toggle functionality
    * Allows users to enter full-screen canvas-only mode
    * @private
@@ -1547,6 +1646,48 @@ class LandingApp {
       }
     }
     document.addEventListener('keydown', this._immersiveKeyHandler)
+
+    // Entry #136: Show immersive toggle when mouse enters bottom-right corner
+    // This is the opposite corner from explainer (which uses left side of bottom edge)
+    let immersiveHideTimeout = null
+    const IMMERSIVE_AUTO_HIDE_DELAY = 3000
+
+    document.addEventListener('mousemove', (e) => {
+      // Skip if already in immersive mode (button always visible there)
+      if (document.body.classList.contains('immersive-mode')) return
+
+      const nearBottom = window.innerHeight - e.clientY < 30
+      const nearRightEdge = window.innerWidth - e.clientX < 80
+
+      if (nearBottom && nearRightEdge) {
+        // Show button
+        toggleBtn.classList.add('visible')
+
+        // Reset auto-hide timer
+        if (immersiveHideTimeout) {
+          clearTimeout(immersiveHideTimeout)
+        }
+        immersiveHideTimeout = setTimeout(() => {
+          toggleBtn.classList.remove('visible')
+        }, IMMERSIVE_AUTO_HIDE_DELAY)
+      }
+    })
+
+    // Keep visible while hovering over button
+    toggleBtn.addEventListener('mouseenter', () => {
+      if (immersiveHideTimeout) {
+        clearTimeout(immersiveHideTimeout)
+        immersiveHideTimeout = null
+      }
+    })
+
+    toggleBtn.addEventListener('mouseleave', () => {
+      if (!document.body.classList.contains('immersive-mode')) {
+        immersiveHideTimeout = setTimeout(() => {
+          toggleBtn.classList.remove('visible')
+        }, IMMERSIVE_AUTO_HIDE_DELAY)
+      }
+    })
 
     // Handle window resize in immersive mode (store handler for cleanup)
     this._immersiveResizeHandler = () => {

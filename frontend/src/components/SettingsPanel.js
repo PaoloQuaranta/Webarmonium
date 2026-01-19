@@ -146,15 +146,28 @@ class SettingsPanel {
       resetBtn.addEventListener('click', () => this._resetSettings())
     }
 
-    // Add Low Power toggle listener
+    // Add Low Power toggle listener with ARIA support
     const lowPowerToggle = this.panel.querySelector('#settings-lowPower')
-    if (lowPowerToggle && typeof MobileResourceManager !== 'undefined') {
-      lowPowerToggle.addEventListener('change', () => {
-        const manager = MobileResourceManager.getInstance()
-        if (lowPowerToggle.checked !== manager.isLowPowerMode()) {
-          manager.toggleLowPowerMode()
-        }
-      })
+    if (lowPowerToggle) {
+      // Add accessibility attributes
+      lowPowerToggle.setAttribute('role', 'switch')
+      lowPowerToggle.setAttribute('aria-checked', lowPowerToggle.checked ? 'true' : 'false')
+
+      if (typeof MobileResourceManager !== 'undefined') {
+        lowPowerToggle.addEventListener('change', () => {
+          // Update ARIA state
+          lowPowerToggle.setAttribute('aria-checked', lowPowerToggle.checked ? 'true' : 'false')
+          const manager = MobileResourceManager.getInstance()
+          if (lowPowerToggle.checked !== manager.isLowPowerMode()) {
+            manager.toggleLowPowerMode()
+          }
+        })
+      } else {
+        // Still update ARIA state even without MobileResourceManager
+        lowPowerToggle.addEventListener('change', () => {
+          lowPowerToggle.setAttribute('aria-checked', lowPowerToggle.checked ? 'true' : 'false')
+        })
+      }
     }
 
     // Load current settings into form
@@ -386,13 +399,13 @@ class SettingsPanel {
       stressEl.textContent = factor.toFixed(2)
       underrunsEl.textContent = String(underruns)
 
-      // Color code stress
+      // Color code stress (semantic colors)
       if (factor < 0.5) {
-        stressEl.style.color = '#ff6b6b' // Red - stressed
+        stressEl.style.color = '#ef4444' // Red - stressed
       } else if (factor < 0.8) {
-        stressEl.style.color = '#ffa500' // Orange - moderate
+        stressEl.style.color = '#f97316' // Orange - moderate
       } else {
-        stressEl.style.color = '#4ecdc4' // Green - good
+        stressEl.style.color = '#22c55e' // Green - good
       }
     } else {
       stressEl.textContent = '-'
@@ -653,23 +666,27 @@ class SettingsPanel {
   }
 }
 
-// Add CSS styles
+// Add CSS styles (uses CSS variables from styles.css)
 const settingsStyles = document.createElement('style')
 settingsStyles.textContent = `
+  /* ============================================ */
+  /* Desktop: Right-side slide-in panel          */
+  /* ============================================ */
   .settings-overlay {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    background: rgba(2, 2, 8, 0.6);
     z-index: 10000;
     opacity: 0;
     transition: opacity 0.3s ease;
     backdrop-filter: blur(4px);
+    /* Desktop: align panel to right */
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
   }
 
   .settings-overlay.settings-visible {
@@ -677,57 +694,77 @@ settingsStyles.textContent = `
   }
 
   .settings-panel {
-    background: #1a1a2e;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 400px;
-    max-height: 85vh;
+    /* Unified semi-transparent background like other UI elements */
+    background: var(--ui-bg, rgba(10, 10, 20, 0.55));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    width: 360px;
+    height: 100%;
+    max-height: 100vh;
     overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-    transform: scale(0.9);
+    box-shadow: -10px 0 40px rgba(0, 0, 0, 0.4);
+    border-left: 1px solid var(--line, #1e1e2d);
+    border-radius: 0;
+    /* Slide in from right */
+    transform: translateX(100%);
     transition: transform 0.3s ease;
-    border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .settings-visible .settings-panel {
-    transform: scale(1);
+    transform: translateX(0);
   }
 
   .settings-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--line, #1e1e2d);
+    position: sticky;
+    top: 0;
+    background: var(--ui-bg, rgba(10, 10, 20, 0.55));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    z-index: 1;
   }
 
   .settings-title {
-    font-size: 18px;
+    font-family: var(--font-display, 'Space Grotesk', system-ui, sans-serif);
+    font-size: 16px;
     font-weight: 600;
-    color: #fff;
+    color: var(--bright, #e0e0f0);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   .settings-close {
-    background: none;
-    border: none;
-    color: #888;
-    font-size: 28px;
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: 2px solid var(--muted, #3a3a50);
+    border-radius: 50%;
+    color: var(--dim, #5a5a70);
+    font-size: 18px;
     cursor: pointer;
     padding: 0;
     line-height: 1;
-    transition: color 0.2s;
+    transition: border-color 0.2s, color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .settings-close:hover {
-    color: #fff;
+    border-color: var(--light, #9090a8);
+    color: var(--bright, #e0e0f0);
   }
 
   .settings-content {
-    padding: 16px 20px;
+    padding: 20px 24px;
   }
 
   .settings-group {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
   }
 
   .settings-group:last-of-type {
@@ -735,25 +772,29 @@ settingsStyles.textContent = `
   }
 
   .settings-group-title {
-    font-size: 11px;
+    font-family: var(--font-mono, 'Fira Code', monospace);
+    font-size: 10px;
     font-weight: 600;
-    color: #888;
-    margin-bottom: 10px;
+    color: var(--dim, #5a5a70);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
   }
 
   .settings-options {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 8px;
+    background: transparent;
+    border-radius: 12px;
     overflow: hidden;
+    border: 1px solid var(--line, #1e1e2d);
   }
 
   .settings-radio-label {
     display: flex;
     align-items: center;
-    padding: 10px 12px;
+    padding: 12px 14px;
     cursor: pointer;
     transition: background 0.2s;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--line, #1e1e2d);
   }
 
   .settings-radio-label:last-child {
@@ -761,18 +802,18 @@ settingsStyles.textContent = `
   }
 
   .settings-radio-label:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(45, 212, 191, 0.05);
   }
 
   .settings-radio-label.settings-changed {
-    background: rgba(78, 205, 196, 0.15);
+    background: rgba(45, 212, 191, 0.1);
   }
 
   .settings-radio-label input[type="radio"] {
     width: 18px;
     height: 18px;
     margin-right: 12px;
-    accent-color: #4ecdc4;
+    accent-color: var(--accent, #2dd4bf);
     cursor: pointer;
   }
 
@@ -782,14 +823,14 @@ settingsStyles.textContent = `
   }
 
   .settings-radio-label-text {
-    color: #fff;
-    font-size: 14px;
+    color: var(--bright, #e0e0f0);
+    font-size: 13px;
     font-weight: 500;
   }
 
   .settings-radio-description {
-    color: #666;
-    font-size: 12px;
+    color: var(--dim, #5a5a70);
+    font-size: 11px;
     margin-top: 2px;
   }
 
@@ -798,13 +839,13 @@ settingsStyles.textContent = `
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px;
+    padding: 12px 14px;
     cursor: pointer;
     transition: background 0.2s;
   }
 
   .settings-toggle-label:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(45, 212, 191, 0.05);
   }
 
   .settings-toggle-text {
@@ -815,10 +856,10 @@ settingsStyles.textContent = `
   .settings-toggle {
     -webkit-appearance: none;
     appearance: none;
-    width: 48px;
-    height: 26px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 13px;
+    width: 44px;
+    height: 24px;
+    background: var(--muted, #3a3a50);
+    border-radius: 12px;
     position: relative;
     cursor: pointer;
     transition: background 0.2s;
@@ -829,28 +870,30 @@ settingsStyles.textContent = `
     position: absolute;
     top: 3px;
     left: 3px;
-    width: 20px;
-    height: 20px;
-    background: #fff;
+    width: 18px;
+    height: 18px;
+    background: var(--bright, #e0e0f0);
     border-radius: 50%;
     transition: transform 0.2s;
   }
 
   .settings-toggle:checked {
-    background: #4ecdc4;
+    background: var(--accent, #2dd4bf);
   }
 
   .settings-toggle:checked::before {
-    transform: translateX(22px);
+    transform: translateX(20px);
   }
 
   .settings-status {
-    margin-top: 20px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 8px;
-    font-size: 12px;
-    color: #888;
+    margin-top: 24px;
+    padding: 14px;
+    background: transparent;
+    border-radius: 12px;
+    border: 1px solid var(--line, #1e1e2d);
+    font-family: var(--font-mono, 'Fira Code', monospace);
+    font-size: 11px;
+    color: var(--dim, #5a5a70);
   }
 
   .settings-status-line {
@@ -859,22 +902,28 @@ settingsStyles.textContent = `
   }
 
   .settings-status-line + .settings-status-line {
-    margin-top: 4px;
+    margin-top: 6px;
   }
 
   .settings-footer {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
-    padding: 16px 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    gap: 12px;
+    padding: 20px 24px;
+    border-top: 1px solid var(--line, #1e1e2d);
+    position: sticky;
+    bottom: 0;
+    background: var(--ui-bg, rgba(10, 10, 20, 0.55));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
   }
 
   .settings-reset,
   .settings-apply {
     padding: 10px 20px;
-    border-radius: 6px;
-    font-size: 14px;
+    border-radius: 25px;
+    font-family: var(--font-mono, 'Fira Code', monospace);
+    font-size: 12px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -882,23 +931,23 @@ settingsStyles.textContent = `
 
   .settings-reset {
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #888;
+    border: 2px solid var(--muted, #3a3a50);
+    color: var(--dim, #5a5a70);
   }
 
   .settings-reset:hover {
-    border-color: rgba(255, 255, 255, 0.4);
-    color: #fff;
+    border-color: var(--light, #9090a8);
+    color: var(--bright, #e0e0f0);
   }
 
   .settings-apply {
-    background: #4ecdc4;
+    background: var(--accent, #2dd4bf);
     border: none;
-    color: #1a1a2e;
+    color: var(--void, #020208);
   }
 
   .settings-apply:hover {
-    background: #3dbdb5;
+    filter: brightness(1.1);
   }
 
   /* Scrollbar styling */
@@ -911,8 +960,64 @@ settingsStyles.textContent = `
   }
 
   .settings-panel::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--muted, #3a3a50);
     border-radius: 3px;
+  }
+
+  /* ============================================ */
+  /* Mobile: Bottom sheet modal                  */
+  /* ============================================ */
+  @media (max-width: 768px) {
+    .settings-overlay {
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    .settings-panel {
+      width: 100%;
+      height: auto;
+      max-height: 85vh;
+      border-left: none;
+      border-top: 1px solid var(--line, #1e1e2d);
+      border-radius: 20px 20px 0 0;
+      /* Slide up from bottom */
+      transform: translateY(100%);
+    }
+
+    .settings-visible .settings-panel {
+      transform: translateY(0);
+    }
+
+    .settings-header {
+      padding: 16px 20px;
+      border-radius: 20px 20px 0 0;
+    }
+
+    /* Mobile handle bar */
+    .settings-header::before {
+      content: '';
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 40px;
+      height: 4px;
+      background: var(--muted, #3a3a50);
+      border-radius: 2px;
+    }
+
+    .settings-title {
+      margin-top: 8px;
+    }
+
+    .settings-content {
+      padding: 16px 20px;
+    }
+
+    .settings-footer {
+      padding: 16px 20px;
+      padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+    }
   }
 
   /* Canvas notification toast */
@@ -921,17 +1026,18 @@ settingsStyles.textContent = `
     bottom: 100px;
     left: 50%;
     transform: translateX(-50%) translateY(20px);
-    background: rgba(78, 205, 196, 0.9);
-    color: #1a1a2e;
+    background: var(--accent, #2dd4bf);
+    color: var(--void, #020208);
     padding: 12px 24px;
     border-radius: 25px;
-    font-size: 14px;
+    font-family: var(--font-mono, 'Fira Code', monospace);
+    font-size: 12px;
     font-weight: 600;
     z-index: 9999;
     opacity: 0;
     transition: opacity 0.3s ease, transform 0.3s ease;
     pointer-events: none;
-    box-shadow: 0 4px 20px rgba(78, 205, 196, 0.3);
+    box-shadow: 0 4px 20px rgba(45, 212, 191, 0.3);
   }
 
   .settings-canvas-notification.visible {
@@ -940,8 +1046,8 @@ settingsStyles.textContent = `
   }
 
   .settings-canvas-notification.warning {
-    background: rgba(255, 167, 38, 0.95);
-    box-shadow: 0 4px 20px rgba(255, 167, 38, 0.4);
+    background: var(--node-2, #00d4ff);
+    box-shadow: 0 4px 20px rgba(255, 169, 77, 0.4);
   }
 `
 document.head.appendChild(settingsStyles)

@@ -120,19 +120,19 @@ export class DashboardUI {
     card.classList.add('flash')
     setTimeout(() => card.classList.remove('flash'), 300)
 
-    // If a specific metric triggered, flash that meter
+    // If a specific metric triggered, flash that data-point
     if (triggerMetric) {
-      const meter = card.querySelector(`[data-metric="${triggerMetric}"]`)
-      if (meter) {
-        meter.classList.add('flash')
-        setTimeout(() => meter.classList.remove('flash'), 300)
+      const dataPoint = card.querySelector(`[data-metric="${triggerMetric}"]`)
+      if (dataPoint) {
+        dataPoint.classList.add('flash')
+        setTimeout(() => dataPoint.classList.remove('flash'), 300)
       }
     } else {
-      // Flash the velocity meter (usually the trigger)
-      const velocityMeter = card.querySelector('[data-metric="velocity"]')
-      if (velocityMeter) {
-        velocityMeter.classList.add('flash')
-        setTimeout(() => velocityMeter.classList.remove('flash'), 300)
+      // Flash the velocity data-point (usually the trigger)
+      const velocityPoint = card.querySelector('[data-metric="velocity"]')
+      if (velocityPoint) {
+        velocityPoint.classList.add('flash')
+        setTimeout(() => velocityPoint.classList.remove('flash'), 300)
       }
     }
   }
@@ -155,23 +155,55 @@ export class DashboardUI {
       // Room activity label
       roomsActivity: document.getElementById('rooms-activity')
     }
+
+    // Pre-cache metric data-point selectors to avoid DOM queries in update loop
+    this._metricElements = {
+      wikipedia: {},
+      hackernews: {},
+      github: {}
+    }
+
+    // Cache selectors for each source's metrics
+    const metricsBySource = {
+      wikipedia: ['editsPerMinute', 'velocity', 'avgEditSize', 'newArticles'],
+      hackernews: ['postsPerMinute', 'velocity', 'avgUpvotes', 'commentCount'],
+      github: ['pushesPerMinute', 'velocity', 'createsPerMinute', 'deletesPerMinute']
+    }
+
+    Object.entries(metricsBySource).forEach(([source, metrics]) => {
+      const card = this.elements.cards[source]
+      if (!card) return
+
+      metrics.forEach(metric => {
+        const dataPoint = card.querySelector(`[data-metric="${metric}"]`)
+        if (dataPoint) {
+          this._metricElements[source][metric] = {
+            container: dataPoint,
+            progress: dataPoint.querySelector('.meter-progress'),
+            value: dataPoint.querySelector('.meter-value')
+          }
+        }
+      })
+    })
   }
 
   /**
-   * Update meters for a single source
+   * Update meters for a single source (orbit-ring style)
+   * Uses pre-cached DOM selectors for performance
    * @param {string} source - Source name
    * @param {Object} values - Metric values
    * @private
    */
   _updateSourceMeters(source, values) {
-    const card = this.elements.cards[source]
-    if (!card) return
+    const cachedMetrics = this._metricElements[source]
+    if (!cachedMetrics) return
 
     const ranges = this.normRanges[source]
 
     Object.entries(values).forEach(([metric, value]) => {
-      const meter = card.querySelector(`[data-metric="${metric}"]`)
-      if (!meter) return
+      // Use cached element references instead of DOM query
+      const cached = cachedMetrics[metric]
+      if (!cached) return
 
       // Update normalization range dynamically
       const range = ranges[metric]
@@ -184,23 +216,24 @@ export class DashboardUI {
       // Calculate normalized value (0-100%)
       const normalized = this._normalizeValue(value, range)
 
-      // Update meter fill
-      const fill = meter.querySelector('.meter-fill')
-      if (fill) {
-        fill.style.height = `${normalized}%`
+      // Update SVG meter progress arc (using cached reference)
+      if (cached.progress) {
+        // circumference = 2 * PI * radius (20) = 125.66
+        const circumference = 125.66
+        const offset = circumference * (1 - normalized / 100)
+        cached.progress.style.strokeDashoffset = offset
       }
 
-      // Update meter value display
-      const valueEl = meter.querySelector('.meter-value')
-      if (valueEl) {
+      // Update meter value display (using cached reference)
+      if (cached.value) {
         // Format based on metric type
         if (metric === 'velocity') {
           const sign = value > 0 ? '+' : ''
-          valueEl.textContent = `${sign}${value.toFixed(1)}`
+          cached.value.textContent = `${sign}${value.toFixed(1)}`
         } else if (metric === 'avgEditSize' || metric === 'avgUpvotes') {
-          valueEl.textContent = value >= 1000 ? `${(value / 1000).toFixed(1)}k` : Math.round(value)
+          cached.value.textContent = value >= 1000 ? `${(value / 1000).toFixed(1)}k` : Math.round(value)
         } else {
-          valueEl.textContent = Math.round(value)
+          cached.value.textContent = Math.round(value)
         }
       }
     })
@@ -337,6 +370,13 @@ export class DashboardUI {
     if (toggleBtn) {
       toggleBtn.textContent = isPlaying ? '⏸' : '▶'
       toggleBtn.classList.toggle('playing', isPlaying)
+
+      // Update the label below the button
+      const wrapper = toggleBtn.closest('.node-btn-wrapper')
+      const label = wrapper?.querySelector('.node-label')
+      if (label) {
+        label.textContent = isPlaying ? 'Stop' : 'Start'
+      }
     }
   }
 

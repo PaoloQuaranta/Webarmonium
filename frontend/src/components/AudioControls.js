@@ -88,88 +88,59 @@ class AudioControls {
   }
 
   /**
-   * Render UI controls
+   * Render UI controls (node-based design, no mute button)
    */
   render () {
     // Clear container
     this.container.innerHTML = ''
 
-    // Create controls wrapper
+    // Create controls wrapper - node style (slider with label below)
     const wrapper = document.createElement('div')
-    wrapper.className = 'audio-controls'
+    wrapper.className = 'slider-node'
+    // No background - transparent, minimal style
     wrapper.style.cssText = `
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 15px;
-      padding: 10px;
-      background: rgba(0, 0, 0, 0.7);
-      border-radius: 8px;
-      color: white;
-      font-family: 'Archivo', sans-serif;
-      font-size: 14px;
+      position: relative;
+      z-index: 1;
     `
 
-    // Mute button
-    this.muteButton = document.createElement('button')
-    this.muteButton.className = 'audio-mute-button'
-    this.muteButton.textContent = this.muted ? '🔇' : '🔊'
-    this.muteButton.title = this.muted ? 'Unmute' : 'Mute'
-    this.muteButton.style.cssText = `
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: white;
-      padding: 8px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 18px;
-      transition: background 0.2s;
-    `
-    this.muteButton.addEventListener('mouseenter', () => {
-      this.muteButton.style.background = 'rgba(255, 255, 255, 0.2)'
-    })
-    this.muteButton.addEventListener('mouseleave', () => {
-      this.muteButton.style.background = 'rgba(255, 255, 255, 0.1)'
-    })
-    this.muteButton.addEventListener('click', () => {
-      this.toggleMute()
-    })
-
-    // Volume label
-    const volumeLabel = document.createElement('label')
-    volumeLabel.textContent = 'Volume:'
-    volumeLabel.style.cssText = 'margin-left: 5px;'
-
-    // Volume slider
+    // Volume slider - uses global CSS styles
     this.volumeSlider = document.createElement('input')
     this.volumeSlider.type = 'range'
     this.volumeSlider.min = '0'
     this.volumeSlider.max = '100'
     this.volumeSlider.value = this.volume.toString()
-    this.volumeSlider.className = 'audio-volume-slider'
-    this.volumeSlider.style.cssText = `
-      width: 150px;
-      cursor: pointer;
-    `
+    this.volumeSlider.id = 'roomVolumeSlider'
+    // Slider uses global CSS from styles.css
     this.volumeSlider.addEventListener('input', (e) => {
       this.setVolume(parseInt(e.target.value, 10))
     })
 
-    // Volume display
-    this.volumeDisplay = document.createElement('span')
-    this.volumeDisplay.className = 'audio-volume-display'
-    this.volumeDisplay.textContent = `${this.volume}%`
-    this.volumeDisplay.style.cssText = `
-      min-width: 40px;
-      text-align: right;
+    // Volume label - below slider (node style)
+    const volumeLabel = document.createElement('label')
+    volumeLabel.htmlFor = 'roomVolumeSlider'
+    volumeLabel.textContent = 'Volume'
+    volumeLabel.style.cssText = `
+      margin-top: 0.4rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #5a5a70;
+      white-space: nowrap;
     `
 
-    // Assemble controls
-    wrapper.appendChild(this.muteButton)
-    wrapper.appendChild(volumeLabel)
+    // Assemble controls (slider first, then label)
     wrapper.appendChild(this.volumeSlider)
-    wrapper.appendChild(this.volumeDisplay)
+    wrapper.appendChild(volumeLabel)
 
     this.container.appendChild(wrapper)
+
+    // No mute button - removed as per design
+    this.muteButton = null
+    this.volumeDisplay = null
   }
 
   /**
@@ -196,13 +167,10 @@ class AudioControls {
   }
 
   /**
-   * Apply mute state to UI
+   * Apply mute state to UI (no-op, mute button removed)
    */
   applyMuteState () {
-    if (this.muteButton) {
-      this.muteButton.textContent = this.muted ? '🔇' : '🔊'
-      this.muteButton.title = this.muted ? 'Unmute' : 'Mute'
-    }
+    // Mute button removed - no UI update needed
   }
 
   /**

@@ -46,7 +46,16 @@ class PrecomputedAttractorSystem {
 
     // Visual properties - VIVID colors, FULL SCENE coverage
     // Using HSB: hue 0-360, sat 0-100, brightness 0-100
-    this.baseColor = { hue: 180, sat: 100, light: 80, alpha: 90 }
+    // Hue 195 = cyan Electric Triad (#00d4ff)
+    this.baseColor = { hue: 195, sat: 100, light: 80, alpha: 90 }
+
+    // Interaction-driven hue (synced with room spatialDensity metric)
+    // Maps spatialDensity (0-1) to hue range for color animation
+    // 0 = spread apart → cyan (195°), 1 = clustered → magenta (330°)
+    this.hueRange = { min: 195, max: 330 }  // Cool → warm as density increases
+    this.targetHue = 195          // Target hue for smooth transition
+    this.hueTransitionSpeed = 0.015  // Smooth transition speed
+
     this.pointSize = 1.5      // Tiny points for dense cloud
     this.glowSize = 3         // Minimal glow
     this.scale = 2.2          // FULL SCENE with slight zoom
@@ -284,6 +293,13 @@ class PrecomputedAttractorSystem {
     // Smooth step transitions for adaptive point reduction
     this.currentStep += (this.targetStep - this.currentStep) * this.stepTransitionRate
 
+    // Smooth hue transition (composition-driven color)
+    // Handle hue wraparound (e.g., 350° → 30° should go through 0°, not 180°)
+    let hueDiff = this.targetHue - this.baseColor.hue
+    if (hueDiff > 180) hueDiff -= 360
+    if (hueDiff < -180) hueDiff += 360
+    this.baseColor.hue = (this.baseColor.hue + hueDiff * this.hueTransitionSpeed + 360) % 360
+
     // Update morph progress
     if (this.currentAttractor !== this.targetAttractor && this.morphProgress >= 1.0) {
       this.morphProgress = 0
@@ -510,11 +526,26 @@ class PrecomputedAttractorSystem {
   }
 
   /**
-   * Handle background composition (sync color with nebula)
+   * Handle background composition (kept for API compatibility)
    */
   onBackgroundComposition(composition) {
-    // This is called to sync color palette with nebulas
-    // The actual color will be passed via setBaseColor
+    // Hue now driven by spatialDensity via setInteractionMetrics
+  }
+
+  /**
+   * Update interaction metrics - drives hue animation
+   * @param {Object} metrics - Interaction metrics from room
+   * @param {number} metrics.spatialDensity - Cursor clustering (0-1)
+   */
+  setInteractionMetrics(metrics) {
+    if (!metrics) return
+
+    // Map spatialDensity to hue range
+    // 0 (spread) → cyan (195°), 1 (clustered) → magenta (330°)
+    if (typeof metrics.spatialDensity === 'number' && isFinite(metrics.spatialDensity)) {
+      const density = Math.max(0, Math.min(1, metrics.spatialDensity))
+      this.targetHue = this.hueRange.min + density * (this.hueRange.max - this.hueRange.min)
+    }
   }
 
   /**

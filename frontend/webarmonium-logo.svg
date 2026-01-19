@@ -1,18 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-
-  <!-- Main W - solid blue color -->
-  <g fill="none" stroke="#3b82f6" stroke-width="56" stroke-linecap="square" stroke-linejoin="miter">
+  
+  <!-- W principale - indaco -->
+  <g fill="none" stroke="#6366f1" stroke-width="56" stroke-linecap="square" stroke-linejoin="miter">
     <path d="M 80 165 L 144 397 L 256 225 L 368 397 L 432 165"/>
   </g>
-
-  <!-- 3 Stylized sound waves above the W -->
+  
+  <!-- 3 Onde sonore stilizzate sopra la W -->
   <g fill="none" stroke-width="10" stroke-linecap="square">
-    <!-- Inner wave - blue -->
-    <path d="M 200 145 Q 256 115, 312 145" stroke="#377eb8"/>
-    <!-- Middle wave - orange -->
-    <path d="M 170 115 Q 256 75, 342 115" stroke="#ff7f00"/>
-    <!-- Outer wave - red -->
-    <path d="M 140 85 Q 256 35, 372 85" stroke="#e41a1c"/>
+    <!-- Onda interna - viola -->
+    <path d="M 200 145 Q 256 115, 312 145" stroke="#a855f7"/>
+    <!-- Onda media - cyan -->
+    <path d="M 170 115 Q 256 75, 342 115" stroke="#00d4ff"/>
+    <!-- Onda esterna - magenta -->
+    <path d="M 140 85 Q 256 35, 372 85" stroke="#ff2d92"/>
   </g>
-
+  
 </svg>

@@ -171,7 +171,8 @@ class SocketEventCoordinator {
 
       if (this.visualService && data.virtualUsers) {
         data.virtualUsers.forEach(user => {
-          this.visualService.addVirtualUser?.(user.userId, user.color)
+          // Initialize cursor at center position so it appears immediately
+          this.visualService.updateCursorPosition?.(user.userId, 0.5, 0.5, user.color)
         })
       }
 
@@ -448,7 +449,7 @@ class SocketEventCoordinator {
     )
 
     if (result && this.visualService) {
-      const color = data.userColor || '#ff6b6b'
+      const color = data.userColor || '#fb923c'
       this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
       this.visualService.updateGestureData(data.userId, {
         type: 'hold',

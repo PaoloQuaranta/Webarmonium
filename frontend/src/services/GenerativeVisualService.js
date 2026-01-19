@@ -6,7 +6,7 @@
  * - SpringMeshNetwork: Physics simulation and curved edges
  * - WavePacketSystem: Pulse propagation along edges
  * - ParticleFlowManager: Particle flow effects
- * - NoiseTextureNebulaSystem: Atmospheric noise texture background
+ * - NeonNebulaSystem: Discrete floating nebula blobs with neon glow
  * - PrecomputedAttractorSystem: Strange attractors (Lorenz/Rossler) with precomputed keyframes
  *
  * Responsibilities:
@@ -27,6 +27,14 @@ class GenerativeVisualService {
     this.particles = null
     this.nebulas = null
     this.attractors = null
+
+    // Accessibility: Reduced motion preference
+    this.prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    // Listen for changes to reduced motion preference
+    this._reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    this._handleReducedMotionChange = this._handleReducedMotionChange.bind(this)
+    this._reducedMotionQuery.addEventListener('change', this._handleReducedMotionChange)
 
     // Performance monitoring
     this.lastFrameTime = 0
@@ -54,8 +62,8 @@ class GenerativeVisualService {
     this.MIN_EMIT_INTERVAL = 300  // ms between p&p emissions per user
     this.frameSampleInterval = 60
 
-    // Background color (matching Webarmonium theme)
-    this.bgColor = [26, 26, 46]
+    // Background color (matching UI --void: #020208)
+    this.bgColor = [2, 2, 8]
   }
 
   /**
@@ -84,8 +92,13 @@ class GenerativeVisualService {
       console.log('🎨 Creating ParticleFlowManager...')
       this.particles = new ParticleFlowManager(this.springMesh)
 
-      console.log('🎨 Creating NoiseTextureNebulaSystem...')
-      this.nebulas = new NoiseTextureNebulaSystem()
+      console.log('🎨 Creating NeonNebulaSystem...')
+      // NeonNebulaSystem is loaded via script tag and exposed on window
+      if (typeof NeonNebulaSystem === 'undefined' && typeof window.NeonNebulaSystem === 'undefined') {
+        console.error('❌ NeonNebulaSystem not loaded - ensure script is included before GenerativeVisualService')
+      }
+      const NebulaClass = typeof NeonNebulaSystem !== 'undefined' ? NeonNebulaSystem : window.NeonNebulaSystem
+      this.nebulas = new NebulaClass()
 
       console.log('🎨 Creating PrecomputedAttractorSystem...')
       this.attractors = new PrecomputedAttractorSystem()
@@ -109,11 +122,70 @@ class GenerativeVisualService {
       // This prevents race conditions where settings are applied before subsystems
       // are fully connected to the p5 rendering context
 
+      // Apply reduced motion settings if user prefers
+      if (this.prefersReducedMotion) {
+        console.log('🎨 Reduced motion preference detected - disabling animations')
+        this._applyReducedMotionSettings()
+      }
+
       console.log('✅ GenerativeVisualService: Enhanced p5.js initialized with subsystems')
     } catch (error) {
       console.error('❌ Error during GenerativeVisualService initialization:', error)
       throw error
     }
+  }
+
+  /**
+   * Handle changes to reduced motion preference
+   * @param {MediaQueryListEvent} event - Media query change event
+   * @private
+   */
+  _handleReducedMotionChange(event) {
+    this.prefersReducedMotion = event.matches
+    if (this.prefersReducedMotion) {
+      console.log('🎨 Reduced motion preference enabled')
+      this._applyReducedMotionSettings()
+    } else {
+      console.log('🎨 Reduced motion preference disabled')
+      this._restoreMotionSettings()
+    }
+  }
+
+  /**
+   * Apply settings for users who prefer reduced motion
+   * Disables or minimizes animations while preserving core functionality
+   * @private
+   */
+  _applyReducedMotionSettings() {
+    // Disable nebula animations
+    if (this.nebulas) {
+      this.nebulas.setPerformanceMode('disabled')
+    }
+
+    // Disable attractor animations
+    if (this.attractors) {
+      this.attractors.setPerformanceMode('disabled')
+    }
+
+    // Reduce particle effects
+    if (this.particles) {
+      this.particles.setCascadeEnabled(false)
+      this.particles.setMaxParticles(0)
+    }
+
+    // Disable wave pulse glow effects
+    if (this.wavePackets) {
+      this.wavePackets.setGlowEnabled(false)
+    }
+  }
+
+  /**
+   * Restore motion settings when user preference changes
+   * @private
+   */
+  _restoreMotionSettings() {
+    // Re-apply graphics quality which will restore appropriate settings
+    this.applyGraphicsQuality()
   }
 
   /**
@@ -196,8 +268,8 @@ class GenerativeVisualService {
     // Performance monitoring
     this.updatePerformanceMetrics(p)
 
-    // Clear background (match Webarmonium background color)
-    p.background(26, 26, 46)
+    // Clear background (match UI --void: #020208)
+    p.background(2, 2, 8)
 
     // Update and render based on performance mode
     if (this.performanceMode === 'disabled') {
@@ -456,12 +528,15 @@ class GenerativeVisualService {
   }
 
   /**
-   * Handle background composition events - forward to nebulas
+   * Handle background composition events - forward to nebulas and attractors
    * @param {Object} composition - Background composition from backend
    */
   onBackgroundComposition(composition) {
     if (this.nebulas && this.nebulas.onBackgroundComposition) {
       this.nebulas.onBackgroundComposition(composition)
+    }
+    if (this.attractors && this.attractors.onBackgroundComposition) {
+      this.attractors.onBackgroundComposition(composition)
     }
   }
 
@@ -486,6 +561,11 @@ class GenerativeVisualService {
         hasNebulas: !!this.nebulas,
         hasMethod: !!(this.nebulas && this.nebulas.setInteractionMetrics)
       })
+    }
+
+    // Forward to attractors for hue animation
+    if (this.attractors && this.attractors.setInteractionMetrics) {
+      this.attractors.setInteractionMetrics(metrics)
     }
   }
 
@@ -629,6 +709,12 @@ class GenerativeVisualService {
    * Cleanup: remove p5.js instance and dispose subsystems
    */
   dispose() {
+    // Clean up reduced motion listener
+    if (this._reducedMotionQuery && this._handleReducedMotionChange) {
+      this._reducedMotionQuery.removeEventListener('change', this._handleReducedMotionChange)
+      this._reducedMotionQuery = null
+    }
+
     // Dispose subsystems
     if (this.attractors) {
       this.attractors.dispose()

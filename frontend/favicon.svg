@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
   <style>
-    /* Light mode (default) */
-    .w-stroke { stroke: #3b82f6; }
+    /* Light mode (default) - indigo */
+    .w-stroke { stroke: #6366f1; }
     .bg { fill: #ffffff; }
 
-    /* Dark mode */
+    /* Dark mode - indigo chiaro */
     @media (prefers-color-scheme: dark) {
-      .w-stroke { stroke: #60a5fa; }
+      .w-stroke { stroke: #818cf8; }
       .bg { fill: #0a0a0f; }
     }
   </style>
@@ -19,9 +19,9 @@
     <path d="M 5 10 L 9 24 L 16 14 L 23 24 L 27 10"/>
   </g>
 
-  <!-- Sound waves (simplified) -->
+  <!-- Sound waves (simplified) - Electric Triad -->
   <g fill="none" stroke-width="1.5" stroke-linecap="round">
-    <path d="M 12 8 Q 16 5, 20 8" stroke="#377eb8"/>
-    <path d="M 10 5.5 Q 16 2, 22 5.5" stroke="#ff7f00"/>
+    <path d="M 12 8 Q 16 5, 20 8" stroke="#a855f7"/>
+    <path d="M 10 5.5 Q 16 2, 22 5.5" stroke="#00d4ff"/>
   </g>
 </svg>

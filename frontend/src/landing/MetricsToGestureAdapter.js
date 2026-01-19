@@ -8,9 +8,9 @@
  * - Reuses GenerativeVisualService and AudioService APIs without modification
  *
  * Virtual Users:
- * - 'wikipedia-metrics' (Red 🔴): Left region, moves based on edit rate and size
- * - 'hackernews-metrics' (Orange 🟠): Center region, moves based on posts and upvotes
- * - 'github-metrics' (Blue 🔵): Right region, moves based on commits and stars
+ * - 'wikipedia-metrics' (Magenta): Left region, moves based on edit rate and size
+ * - 'hackernews-metrics' (Cyan): Center region, moves based on posts and upvotes
+ * - 'github-metrics' (Viola): Right region, moves based on commits and stars
  *
  * API Compatibility:
  * - updateCursorPosition(userId, x, y, color) -> GenerativeVisualService
@@ -24,7 +24,7 @@ export class MetricsToGestureAdapter {
     this.virtualUsers = {
       wikipedia: {
         userId: 'wikipedia-metrics',
-        color: '#e41a1c', // Red
+        color: '#ff2d92', // Magenta
         region: { xMin: 0.0, xMax: 0.33 },
         gesture: {
           type: 'idle',
@@ -40,7 +40,7 @@ export class MetricsToGestureAdapter {
       },
       hackernews: {
         userId: 'hackernews-metrics',
-        color: '#ff7f00', // Orange
+        color: '#00d4ff', // Cyan
         region: { xMin: 0.33, xMax: 0.66 },
         gesture: {
           type: 'idle',
@@ -55,7 +55,7 @@ export class MetricsToGestureAdapter {
       },
       github: {
         userId: 'github-metrics',
-        color: '#377eb8', // Blue
+        color: '#a855f7', // Viola
         region: { xMin: 0.66, xMax: 1.0 },
         gesture: {
           type: 'idle',

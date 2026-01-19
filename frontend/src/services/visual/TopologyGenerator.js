@@ -116,7 +116,7 @@ class TraceTopology {
       type: 'trace',
       x: controlX,
       y: controlY,
-      color: '#06b6d4'  // Cyan for trace nodes
+      color: '#00d4ff'  // Cyan for trace nodes
     }
     nodes.push(intermediateNode)
 
@@ -148,7 +148,7 @@ class TraceTopology {
         type: 'trace',
         x: extraX,
         y: extraY,
-        color: '#fbbf24'  // Gold for secondary trace nodes
+        color: '#fb923c'  // Gold for secondary trace nodes
       }
       nodes.push(extraNode)
 
@@ -189,7 +189,7 @@ class TraceTopology {
    * Get color for trace nodes
    */
   getTraceNodeColor() {
-    return '#06b6d4'  // Cyan
+    return '#00d4ff'  // Cyan
   }
 
   /**

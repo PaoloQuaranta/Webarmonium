@@ -75,7 +75,7 @@ class UIManager {
     const userCountEl = document.getElementById(this.elementIds.userCount)
     if (userCountEl) {
       const userText = this.userCount === 1 ? 'user' : 'users'
-      let displayText = `👥 ${this.userCount} ${userText}`
+      let displayText = `${this.userCount} ${userText}`
 
       // Add web sources info when virtual users are active
       if (this.virtualSourceCount > 0) {
