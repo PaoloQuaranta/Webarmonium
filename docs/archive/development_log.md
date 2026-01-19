@@ -2240,3 +2240,111 @@ Removed the verbose `mobileRoomInfoOverlay` (which showed both user count AND ro
 v1.0.192
 
 ---
+
+## Entry #148 - Rooms Cleanup & Mobile Theme Unification
+
+**Date**: 2026-01-19
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed corrupted rooms.html file, resolved explainer overlap issue on desktop, and unified mobile button themes from old blue style to the new gray/accent design system.
+
+---
+
+### Changes
+
+#### 1. Fixed Corrupted rooms.html
+
+The rooms.html file contained ~870 lines of duplicate/leftover CSS and HTML from lines 251-1123. This was residual content from a previous style unification effort.
+
+**Before:** 1292 lines with duplicate `<style>` blocks and corrupted markup
+**After:** 419 lines of clean HTML
+
+**Commit:** `f5d840d`
+
+---
+
+#### 2. Fixed Explainer Overlapping Metric Cards (Desktop)
+
+User reported the explainer box was expanding vertically and overlapping the metric cards on desktop. The issue was on the Y-axis, not Z-axis.
+
+**Solution:** Added `top: 60%` constraint to prevent the explainer from expanding above the metric cards area:
+
+**File:** `frontend/styles.css`
+```css
+#mapping-explainer,
+.landing-explainer {
+  top: 60%; /* Limit top edge to not overlap with metrics cards */
+}
+
+@media (max-width: 768px) {
+  #mapping-explainer,
+  .landing-explainer {
+    top: auto; /* Override desktop top constraint */
+  }
+}
+```
+
+**Commit:** `38e1832`
+
+---
+
+#### 3. Updated Mobile Room Buttons to Unified Theme
+
+The hamburger menu button and mobile bottom sheet were still using the old blue theme (`rgba(0, 212, 255, 0.9)`). Updated to match the unified design system:
+
+| Element | Old Style | New Style |
+|---------|-----------|-----------|
+| Hamburger button bg | Blue accent | `rgba(10, 10, 20, 0.55)` transparent |
+| Hamburger border | None | `2px solid #3a3a50` |
+| Hamburger (open) | Blue bg | Gray bg + `#2dd4bf` accent border |
+| Bottom sheet | Blue tint | Unified gray with blur backdrop |
+
+**File:** `frontend/src/services/UIManager.js`
+- Updated `_createMobileMenuButton()`
+- Updated `openMobileMenu()` / `closeMobileMenu()`
+- Updated `_createMobileBottomSheet()` styling
+
+**Commit:** `c67d02a`
+
+---
+
+#### 4. Updated Settings Apply Button Style
+
+The Apply button in settings panel was using filled accent background, inconsistent with other buttons. Changed to transparent style with accent border:
+
+**File:** `frontend/src/components/SettingsPanel.js`
+```css
+.settings-apply {
+  background: transparent;
+  border: 2px solid var(--accent, #2dd4bf);
+  color: var(--accent, #2dd4bf);
+}
+.settings-apply:hover {
+  background: rgba(45, 212, 191, 0.1);
+  border-color: var(--accent-hover, #5eead4);
+}
+```
+
+**Commit:** `0f46235`
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/rooms.html` | Removed ~870 lines of corrupted content |
+| `frontend/styles.css` | Added `top: 60%` constraint for desktop explainer |
+| `frontend/src/services/UIManager.js` | Unified mobile hamburger and bottom sheet theme |
+| `frontend/src/components/SettingsPanel.js` | Transparent Apply button style |
+
+---
+
+### Version
+
+v1.0.193
+
+---

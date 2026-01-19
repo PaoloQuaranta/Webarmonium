@@ -2527,4 +2527,9 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   .accelerometer-calibrate {
     display: inline-block;
   }
+
+  /* Hide elements marked for mobile-hidden */
+  .mobile-hidden {
+    display: none !important;
+  }
 }
