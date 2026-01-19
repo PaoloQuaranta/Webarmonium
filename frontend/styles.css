@@ -2488,11 +2488,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     padding: 0.5rem 1rem;
   }
 
-  /* Hide main user count on mobile - mobile overlay shows it instead */
-  .room-interface .user-count {
-    display: none;
-  }
-
   .room-controls {
     display: none;
   }
