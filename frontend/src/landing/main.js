@@ -1488,7 +1488,8 @@ class LandingApp {
    */
   _setupCollapsibleExplainer() {
     const explainer = document.getElementById('mapping-explainer')
-    const handle = explainer?.querySelector('.explainer-handle')
+    // Button is now OUTSIDE explainer (for visibility when collapsed)
+    const handle = document.getElementById('explainer-toggle')
 
     if (!explainer || !handle) return
 

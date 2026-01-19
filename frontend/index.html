@@ -424,12 +424,14 @@
     <div id="error-message" class="message error"></div>
     <div id="status-message" class="message status"></div>
 
+    <!-- Explainer toggle button (OUTSIDE explainer for visibility when collapsed) -->
+    <button class="explainer-handle" id="explainer-toggle" aria-expanded="false" aria-controls="mapping-explainer">
+      <span class="handle-icon"></span>
+      <span class="handle-text">About</span>
+    </button>
+
     <!-- Mapping Explainer (collapsible) -->
     <section id="mapping-explainer" class="landing-explainer">
-      <button class="explainer-handle" aria-expanded="false" aria-controls="explainer-content">
-        <span class="handle-icon"></span>
-        <span class="handle-text">About</span>
-      </button>
       <div class="explainer-content" id="explainer-content">
         <h3 class="explainer-section-title">
           Webarmonium is a new instrument.

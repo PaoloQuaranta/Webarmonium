@@ -51,6 +51,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
 
+    <!-- Main stylesheet (shared with landing page) -->
+    <link rel="stylesheet" href="styles.css">
+
     <!-- Preload critical resources -->
     <link rel="preload" href="https://unpkg.com/tone@14.7.77/build/Tone.js" as="script">
     <link rel="preload" href="https://cdn.socket.io/4.7.5/socket.io.min.js" as="script">
@@ -309,7 +312,7 @@
             opacity: 0.8;
         }
 
-        /* Node-based audio toggle (circular button) - unified bg */
+        /* Node-based audio toggle (circular button) - primary style like landing */
         .audio-toggle {
             width: 52px;
             height: 52px;
@@ -318,13 +321,13 @@
             flex-shrink: 0;
             border-radius: 50%;
             background: var(--ui-bg);
-            border: 2px solid var(--muted);
-            color: var(--dim);
+            border: 2px solid #2dd4bf; /* accent color */
+            color: #2dd4bf;
             cursor: pointer;
             font-family: 'Space Grotesk', sans-serif;
             font-size: 1.2rem;
             font-weight: 500;
-            transition: border-color 0.2s ease, color 0.2s ease;
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -332,8 +335,8 @@
         }
 
         .audio-toggle:hover {
-            border-color: var(--light);
-            color: var(--light);
+            border-color: #5eead4;
+            color: #5eead4;
         }
 
         .audio-toggle.disabled {
@@ -343,7 +346,7 @@
             opacity: 0.5;
         }
 
-        /* Playing state - red border only */
+        /* Playing state - pink/magenta border */
         .audio-toggle.playing {
             background: var(--ui-bg);
             border-color: var(--node-1);
@@ -355,14 +358,14 @@
             color: var(--node-1);
         }
 
-        /* Node-based back link (circular button) - unified bg */
+        /* Node-based back link (circular button) - unified style */
         .back-link {
             width: 44px;
             height: 44px;
             border-radius: 50%;
             background: var(--ui-bg);
-            border: 2px solid var(--muted);
-            color: var(--dim);
+            border: 2px solid var(--line);
+            color: var(--light);
             cursor: pointer;
             font-family: 'Space Grotesk', sans-serif;
             font-size: 1.1rem;
@@ -375,8 +378,8 @@
         }
 
         .back-link:hover {
-            border-color: var(--light);
-            color: var(--light);
+            border-color: #2dd4bf;
+            color: #2dd4bf;
         }
 
         /* Node button wrapper and label */
@@ -453,11 +456,11 @@
             border: none;
         }
 
-        /* Desktop settings button - unified bg */
+        /* Desktop settings button - unified style */
         .desktop-settings-btn {
             background: var(--ui-bg);
-            color: var(--dim);
-            border: 2px solid var(--muted);
+            color: var(--light);
+            border: 2px solid var(--line);
             padding: 0;
             border-radius: 50%;
             cursor: pointer;
@@ -473,8 +476,8 @@
         }
 
         .desktop-settings-btn:hover {
-            border-color: var(--light);
-            color: var(--light);
+            border-color: #2dd4bf;
+            color: #2dd4bf;
         }
 
         .instructions {
@@ -595,7 +598,7 @@
                 -webkit-touch-callout: none;
             }
 
-            /* Entry #52: Mobile menu button - unified bg */
+            /* Entry #52: Mobile menu button - unified style */
             .mobile-menu-btn {
                 display: flex;
                 position: fixed;
@@ -603,8 +606,8 @@
                 right: max(12px, env(safe-area-inset-right, 12px));
                 z-index: 1002;
                 background: var(--ui-bg);
-                border: 2px solid var(--muted);
-                color: var(--dim);
+                border: 2px solid var(--line);
+                color: var(--light);
                 border-radius: 50%;
                 width: 52px;
                 height: 52px;
@@ -617,15 +620,15 @@
             }
 
             .mobile-menu-btn:active {
-                border-color: var(--light);
-                color: var(--light);
+                border-color: #2dd4bf;
+                color: #2dd4bf;
             }
 
-            /* Open state - red border */
+            /* Open state - accent border */
             .mobile-menu-btn.open {
                 background: var(--ui-bg);
-                border-color: var(--node-1);
-                color: var(--node-1);
+                border-color: #2dd4bf;
+                color: #2dd4bf;
             }
 
             /* Entry #52: Mobile backdrop */
@@ -739,12 +742,12 @@
                 margin-bottom: 6px;
             }
 
-            /* Mobile close button - unified bg */
+            /* Mobile close button - unified style */
             .mobile-close-btn {
                 width: 100%;
                 background: var(--ui-bg);
-                border: 2px solid var(--muted);
-                color: var(--dim);
+                border: 2px solid var(--line);
+                color: var(--light);
                 padding: 14px;
                 border-radius: 25px;
                 font-size: 16px;
@@ -754,8 +757,8 @@
             }
 
             .mobile-close-btn:active {
-                border-color: var(--light);
-                color: var(--light);
+                border-color: #2dd4bf;
+                color: #2dd4bf;
             }
 
             /* Mobile audio controls styling */
@@ -770,24 +773,24 @@
                 min-height: 48px;
             }
 
-            /* Entry #74: Mobile Settings button - unified bg */
+            /* Entry #74: Mobile Settings button - unified style */
             .mobile-settings-btn {
                 background: var(--ui-bg);
-                border: 2px solid var(--muted);
-                color: var(--dim);
+                border: 2px solid var(--line);
+                color: var(--light);
                 border-radius: 25px;
                 font-size: 14px;
                 transition: border-color 0.2s ease, color 0.2s ease;
             }
 
             .mobile-settings-btn:hover {
-                border-color: var(--light);
-                color: var(--light);
+                border-color: #2dd4bf;
+                color: #2dd4bf;
             }
 
             .mobile-settings-btn:active {
-                border-color: var(--light);
-                color: var(--light);
+                border-color: #2dd4bf;
+                color: #2dd4bf;
             }
 
             /* Mobile volume slider */
@@ -856,8 +859,8 @@
             .accelerometer-calibrate {
                 display: inline-block;
                 background: var(--ui-bg);
-                border: 2px solid var(--muted);
-                color: var(--dim);
+                border: 2px solid var(--line);
+                color: var(--light);
                 padding: 8px 12px;
                 border-radius: 25px;
                 font-size: 12px;
@@ -866,8 +869,8 @@
             }
 
             .accelerometer-calibrate.active {
-                border-color: var(--light);
-                color: var(--light);
+                border-color: #2dd4bf;
+                color: #2dd4bf;
             }
         }
 
