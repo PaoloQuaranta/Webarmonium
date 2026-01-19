@@ -2180,3 +2180,63 @@ Changed from full-width bottom bar to floating popup panel:
 v1.0.191
 
 ---
+
+## Entry #147 - Unified Button Styles & Mobile User Count Fix
+
+**Date**: 2026-01-19
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed two UI inconsistencies from previous session: unified all play button styles to match `.node-btn.primary`, and removed verbose mobile overlay in favor of the pill-shaped user count.
+
+---
+
+### Changes
+
+#### 1. Unified Play Button Styles
+
+All play buttons now match `.node-btn.primary` style from index.html:
+
+| State | Color |
+|-------|-------|
+| Default | `--muted` (#3a3a50) border, `--dim` (#5a5a70) text |
+| Hover | `--light` (#9090a8) |
+| Playing | `--node-1` (#ff2d92) magenta |
+
+**Files modified:**
+- `frontend/styles.css`: Changed `.audio-toggle` from teal accent to gray
+- `frontend/src/services/UIManager.js`: Changed mobile central button from teal to gray
+
+#### 2. Mobile User Count Simplified
+
+Removed the verbose `mobileRoomInfoOverlay` (which showed both user count AND room ID) in favor of keeping the pill-shaped `.user-count` visible on mobile.
+
+| Before | After |
+|--------|-------|
+| Overlay with "1 user" + "Room: xxx" | Pill badge with "1 user" only |
+| 12px border-radius | 20px border-radius (pill) |
+| Two elements on mobile | Single element, same as desktop |
+
+**Files modified:**
+- `frontend/styles.css`: Removed CSS that hid `.user-count` on mobile
+- `frontend/src/services/UIManager.js`: Removed `_createMobileRoomInfoOverlay()`, `_syncMobileOverlay()`, and related code
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/styles.css` | `.audio-toggle` gray style, removed mobile `.user-count` hide rule |
+| `frontend/src/services/UIManager.js` | Mobile central button gray, removed mobileRoomInfoOverlay |
+| `frontend/rooms.html` | Cache version bumps (v14, v15) |
+
+---
+
+### Version
+
+v1.0.192
+
+---

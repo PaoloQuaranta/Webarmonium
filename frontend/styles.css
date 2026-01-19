@@ -2141,7 +2141,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   z-index: 0;
 }
 
-/* Audio toggle button (primary style) */
+/* Audio toggle button (matches .node-btn.primary style) */
 .audio-toggle {
   width: 52px;
   height: 52px;
@@ -2150,8 +2150,8 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--ui-bg);
-  border: 2px solid var(--accent);
-  color: var(--accent);
+  border: 2px solid var(--muted);
+  color: var(--dim);
   cursor: pointer;
   font-family: var(--font-display);
   font-size: 1.2rem;
@@ -2164,8 +2164,8 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 }
 
 .audio-toggle:hover {
-  border-color: var(--accent-hover);
-  color: var(--accent-hover);
+  border-color: var(--light);
+  color: var(--light);
 }
 
 .audio-toggle.disabled {
@@ -2488,10 +2488,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     padding: 0.5rem 1rem;
   }
 
-  /* Hide main user count on mobile - mobile overlay shows it instead */
-  .room-interface .user-count {
-    display: none;
-  }
+  /* User count stays visible on mobile - same style as desktop */
 
   .room-controls {
     display: none;
