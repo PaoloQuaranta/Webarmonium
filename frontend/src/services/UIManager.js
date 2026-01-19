@@ -318,6 +318,25 @@ class UIManager {
     this.mobileMenuBtn.innerHTML = '&#9776;' // Hamburger icon (☰)
     this.mobileMenuBtn.setAttribute('aria-label', 'Open menu')
     this.mobileMenuBtn.onclick = () => this.toggleMobileMenu()
+
+    // Hover/touch states - change to lighter gray (only when menu is closed)
+    const setHoverState = () => {
+      if (!this.mobileMenuOpen) {
+        this.mobileMenuBtn.style.borderColor = '#5a5a70'
+        this.mobileMenuBtn.style.color = '#b0b0c0'
+      }
+    }
+    const resetState = () => {
+      if (!this.mobileMenuOpen) {
+        this.mobileMenuBtn.style.borderColor = '#3a3a50'
+        this.mobileMenuBtn.style.color = '#9090a8'
+      }
+    }
+    this.mobileMenuBtn.addEventListener('mouseenter', setHoverState)
+    this.mobileMenuBtn.addEventListener('mouseleave', resetState)
+    this.mobileMenuBtn.addEventListener('touchstart', setHoverState, { passive: true })
+    this.mobileMenuBtn.addEventListener('touchend', resetState, { passive: true })
+
     document.body.appendChild(this.mobileMenuBtn)
   }
 
