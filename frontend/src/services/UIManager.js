@@ -264,11 +264,11 @@ class UIManager {
    * Setup mobile UI with single bottom sheet menu
    */
   _setupMobileMenu() {
-    // Hide original controls and instructions
-    const roomInterface = document.querySelector('.room-interface')
+    // Hide controls bar and instructions (keep header with logo + user count visible)
+    const roomControls = document.querySelector('.room-controls')
     const instructions = document.querySelector('.instructions')
 
-    if (roomInterface) roomInterface.classList.add('mobile-hidden')
+    if (roomControls) roomControls.classList.add('mobile-hidden')
     if (instructions) instructions.classList.add('mobile-hidden')
 
     // Create menu button
@@ -1183,9 +1183,9 @@ class UIManager {
     }
 
     // Restore hidden elements
-    const roomInterface = document.querySelector('.room-interface')
+    const roomControls = document.querySelector('.room-controls')
     const instructions = document.querySelector('.instructions')
-    if (roomInterface) roomInterface.classList.remove('mobile-hidden')
+    if (roomControls) roomControls.classList.remove('mobile-hidden')
     if (instructions) instructions.classList.remove('mobile-hidden')
 
     this.currentRoom = null
