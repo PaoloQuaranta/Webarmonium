@@ -476,7 +476,7 @@ class UIManager {
     this.mobileCentralStartBtn = document.createElement('button')
     this.mobileCentralStartBtn.id = 'mobileCentralStart'
     this.mobileCentralStartBtn.className = 'mobile-central-start'
-    // Unified style: transparent bg with accent border
+    // Unified style: transparent bg with gray border (like other UI elements)
     this.mobileCentralStartBtn.style.cssText = `
       display: flex;
       align-items: center;
@@ -489,14 +489,14 @@ class UIManager {
       background: rgba(10, 10, 20, 0.55);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
-      border: 2px solid #2dd4bf;
+      border: 2px solid #3a3a50;
       border-radius: 50%;
       width: 100px;
       height: 100px;
       font-size: 40px;
-      color: #2dd4bf;
+      color: #9090a8;
       cursor: pointer;
-      transition: opacity 0.3s, transform 0.2s, border-color 0.2s;
+      transition: opacity 0.3s, transform 0.2s, border-color 0.2s, color 0.2s;
     `
     this.mobileCentralStartBtn.textContent = '▶'
 
@@ -521,6 +521,20 @@ class UIManager {
         }
       }
     }
+
+    // Hover/touch states - change to lighter gray
+    const setHoverState = () => {
+      this.mobileCentralStartBtn.style.borderColor = '#5a5a70'
+      this.mobileCentralStartBtn.style.color = '#b0b0c0'
+    }
+    const resetState = () => {
+      this.mobileCentralStartBtn.style.borderColor = '#3a3a50'
+      this.mobileCentralStartBtn.style.color = '#9090a8'
+    }
+    this.mobileCentralStartBtn.addEventListener('mouseenter', setHoverState)
+    this.mobileCentralStartBtn.addEventListener('mouseleave', resetState)
+    this.mobileCentralStartBtn.addEventListener('touchstart', setHoverState, { passive: true })
+    this.mobileCentralStartBtn.addEventListener('touchend', resetState, { passive: true })
 
     document.body.appendChild(this.mobileCentralStartBtn)
   }
