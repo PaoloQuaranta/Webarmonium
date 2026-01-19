@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webarmonium - Analisi Completa Colori</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #020208;
+            color: #e0e0f0;
+            font-family: 'Space Grotesk', sans-serif;
+            padding: 1.5rem;
+            font-size: 12px;
+        }
+        h1 { font-size: 1.2rem; margin-bottom: 0.25rem; color: #9090a8; }
+        .subtitle { font-family: 'Fira Code', monospace; font-size: 0.65rem; color: #5a5a70; margin-bottom: 1.5rem; }
+
+        .section { margin-bottom: 2rem; }
+        .section-title {
+            font-size: 0.85rem;
+            color: #9090a8;
+            border-bottom: 1px solid #3a3a50;
+            padding-bottom: 0.25rem;
+            margin-bottom: 0.75rem;
+        }
+        .section-title.no-change { color: #5a5a70; }
+
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .color-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .color-item:hover { background: rgba(255,255,255,0.05); }
+
+        .swatch {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            flex-shrink: 0;
+            box-shadow: 0 0 8px var(--glow, transparent);
+        }
+
+        .color-info {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .color-name {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.6rem;
+            color: #9090a8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .color-hex {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.7rem;
+            color: #e0e0f0;
+        }
+
+        /* Palette comparison */
+        h2 { font-size: 1rem; margin: 2rem 0 1rem; color: #e0e0f0; }
+
+        .palette-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.65rem;
+            margin-bottom: 2rem;
+        }
+        .palette-table th, .palette-table td {
+            padding: 0.4rem 0.5rem;
+            border: 1px solid #3a3a50;
+            text-align: left;
+        }
+        .palette-table th {
+            background: #14141f;
+            color: #9090a8;
+        }
+        .palette-table td { vertical-align: middle; }
+
+        .mini-swatch {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-right: 4px;
+        }
+
+        .palette-name { font-weight: 600; }
+        .palette-name.recommended { color: #a855f7; }
+
+        .category-header {
+            background: #0a0a14;
+            font-weight: 600;
+            color: #5a5a70;
+        }
+    </style>
+</head>
+<body>
+    <h1>Webarmonium - Mappa Completa Colori</h1>
+    <p class="subtitle">Tutti i colori usati nel codebase con proposte sostituzione</p>
+
+    <!-- GRIGI - NON MODIFICARE -->
+    <div class="section">
+        <h3 class="section-title no-change">Grigi UI (non modificare)</h3>
+        <div class="color-grid">
+            <div class="color-item"><div class="swatch" style="background:#020208"></div><div class="color-info"><span class="color-name">--void</span><span class="color-hex">#020208</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#0a0a14"></div><div class="color-info"><span class="color-name">--deep</span><span class="color-hex">#0a0a14</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#14141f"></div><div class="color-info"><span class="color-name">--surface</span><span class="color-hex">#14141f</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#3a3a50"></div><div class="color-info"><span class="color-name">--line/muted</span><span class="color-hex">#3a3a50</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#5a5a70"></div><div class="color-info"><span class="color-name">--dim</span><span class="color-hex">#5a5a70</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#9090a8"></div><div class="color-info"><span class="color-name">--light</span><span class="color-hex">#9090a8</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#e0e0f0"></div><div class="color-info"><span class="color-name">--bright</span><span class="color-hex">#e0e0f0</span></div></div>
+        </div>
+    </div>
+
+    <!-- COLORI ATTUALI -->
+    <div class="section">
+        <h3 class="section-title">Colori Attuali (da sostituire)</h3>
+        <div class="color-grid">
+            <div class="color-item"><div class="swatch" style="background:#ff6b6b; --glow:rgba(255,107,107,0.4)"></div><div class="color-info"><span class="color-name">node-1 Wikipedia</span><span class="color-hex">#ff6b6b</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#e41a1c; --glow:rgba(228,26,28,0.4)"></div><div class="color-info"><span class="color-name">Wikipedia metric</span><span class="color-hex">#e41a1c</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#ffa94d; --glow:rgba(255,169,77,0.4)"></div><div class="color-info"><span class="color-name">node-2 HackerNews</span><span class="color-hex">#ffa94d</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#ff7f00; --glow:rgba(255,127,0,0.4)"></div><div class="color-info"><span class="color-name">HackerNews metric</span><span class="color-hex">#ff7f00</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#69b3ff; --glow:rgba(105,179,255,0.4)"></div><div class="color-info"><span class="color-name">node-3/accent GitHub</span><span class="color-hex">#69b3ff</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#377eb8; --glow:rgba(55,126,184,0.4)"></div><div class="color-info"><span class="color-name">GitHub metric</span><span class="color-hex">#377eb8</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#8ec5ff; --glow:rgba(142,197,255,0.4)"></div><div class="color-info"><span class="color-name">accent-hover</span><span class="color-hex">#8ec5ff</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#3b82f6; --glow:rgba(59,130,246,0.4)"></div><div class="color-info"><span class="color-name">button blu</span><span class="color-hex">#3b82f6</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#00d4ff; --glow:rgba(0,212,255,0.4)"></div><div class="color-info"><span class="color-name">trail cyan</span><span class="color-hex">#00d4ff</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#06b6d4; --glow:rgba(6,182,212,0.4)"></div><div class="color-info"><span class="color-name">trace nodes</span><span class="color-hex">#06b6d4</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#fbbf24; --glow:rgba(251,191,36,0.4)"></div><div class="color-info"><span class="color-name">gold secondary</span><span class="color-hex">#fbbf24</span></div></div>
+        </div>
+    </div>
+
+    <!-- USER COLOR POOL -->
+    <div class="section">
+        <h3 class="section-title">Pool Colori Utenti Reali</h3>
+        <div class="color-grid">
+            <div class="color-item"><div class="swatch" style="background:#4daf4a; --glow:rgba(77,175,74,0.4)"></div><div class="color-info"><span class="color-name">verde</span><span class="color-hex">#4daf4a</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#984ea3; --glow:rgba(152,78,163,0.4)"></div><div class="color-info"><span class="color-name">viola</span><span class="color-hex">#984ea3</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#ffff33; --glow:rgba(255,255,51,0.4)"></div><div class="color-info"><span class="color-name">giallo</span><span class="color-hex">#ffff33</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#e7298a; --glow:rgba(231,41,138,0.4)"></div><div class="color-info"><span class="color-name">magenta</span><span class="color-hex">#e7298a</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#f781bf; --glow:rgba(247,129,191,0.4)"></div><div class="color-info"><span class="color-name">rosa</span><span class="color-hex">#f781bf</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#66c2a5; --glow:rgba(102,194,165,0.4)"></div><div class="color-info"><span class="color-name">teal</span><span class="color-hex">#66c2a5</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#00ff00; --glow:rgba(0,255,0,0.4)"></div><div class="color-info"><span class="color-name">local fallback</span><span class="color-hex">#00ff00</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#6bcf7f; --glow:rgba(107,207,127,0.4)"></div><div class="color-info"><span class="color-name">stroke verde</span><span class="color-hex">#6bcf7f</span></div></div>
+        </div>
+    </div>
+
+    <!-- STATI/FEEDBACK -->
+    <div class="section">
+        <h3 class="section-title no-change">Colori Stato (feedback system - non modificare)</h3>
+        <div class="color-grid">
+            <div class="color-item"><div class="swatch" style="background:#22c55e"></div><div class="color-info"><span class="color-name">success/low-power</span><span class="color-hex">#22c55e</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#ffc107"></div><div class="color-info"><span class="color-name">warning/degraded</span><span class="color-hex">#ffc107</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#f97316"></div><div class="color-info"><span class="color-name">minimal</span><span class="color-hex">#f97316</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#ef4444"></div><div class="color-info"><span class="color-name">error/emergency</span><span class="color-hex">#ef4444</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#dc2626"></div><div class="color-info"><span class="color-name">error banner</span><span class="color-hex">#dc2626</span></div></div>
+            <div class="color-item"><div class="swatch" style="background:#4ecdc4"></div><div class="color-info"><span class="color-name">stress good</span><span class="color-hex">#4ecdc4</span></div></div>
+        </div>
+    </div>
+
+    <!-- TABELLA CONFRONTO PALETTE -->
+    <h2>Tabella Sostituzione per Palette</h2>
+
+    <table class="palette-table">
+        <thead>
+            <tr>
+                <th>Elemento</th>
+                <th>Attuale</th>
+                <th class="palette-name recommended">A: Electric Triad</th>
+                <th class="palette-name">B: Neon Minimal</th>
+                <th class="palette-name">C: Cyberpunk Cinema</th>
+                <th class="palette-name">D: Aurora Boreale</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- NODE COLORS -->
+            <tr class="category-header"><td colspan="6">Node Colors (Metriche)</td></tr>
+            <tr>
+                <td>--node-1 (Wikipedia)</td>
+                <td><span class="mini-swatch" style="background:#ff6b6b"></span>#ff6b6b</td>
+                <td><span class="mini-swatch" style="background:#ff2d92"></span>#ff2d92</td>
+                <td><span class="mini-swatch" style="background:#ff6b9d"></span>#ff6b9d</td>
+                <td><span class="mini-swatch" style="background:#ff0055"></span>#ff0055</td>
+                <td><span class="mini-swatch" style="background:#e040fb"></span>#e040fb</td>
+            </tr>
+            <tr>
+                <td>Wikipedia metric</td>
+                <td><span class="mini-swatch" style="background:#e41a1c"></span>#e41a1c</td>
+                <td><span class="mini-swatch" style="background:#ff2d92"></span>#ff2d92</td>
+                <td><span class="mini-swatch" style="background:#ff6b9d"></span>#ff6b9d</td>
+                <td><span class="mini-swatch" style="background:#ff0055"></span>#ff0055</td>
+                <td><span class="mini-swatch" style="background:#e040fb"></span>#e040fb</td>
+            </tr>
+            <tr>
+                <td>--node-2 (HackerNews)</td>
+                <td><span class="mini-swatch" style="background:#ffa94d"></span>#ffa94d</td>
+                <td><span class="mini-swatch" style="background:#00d4ff"></span>#00d4ff</td>
+                <td><span class="mini-swatch" style="background:#2dd4bf"></span>#2dd4bf</td>
+                <td><span class="mini-swatch" style="background:#ffee00"></span>#ffee00</td>
+                <td><span class="mini-swatch" style="background:#00e676"></span>#00e676</td>
+            </tr>
+            <tr>
+                <td>HackerNews metric</td>
+                <td><span class="mini-swatch" style="background:#ff7f00"></span>#ff7f00</td>
+                <td><span class="mini-swatch" style="background:#00d4ff"></span>#00d4ff</td>
+                <td><span class="mini-swatch" style="background:#2dd4bf"></span>#2dd4bf</td>
+                <td><span class="mini-swatch" style="background:#ffee00"></span>#ffee00</td>
+                <td><span class="mini-swatch" style="background:#00e676"></span>#00e676</td>
+            </tr>
+            <tr>
+                <td>--node-3/accent (GitHub)</td>
+                <td><span class="mini-swatch" style="background:#69b3ff"></span>#69b3ff</td>
+                <td><span class="mini-swatch" style="background:#a855f7"></span>#a855f7</td>
+                <td><span class="mini-swatch" style="background:#3b82f6"></span>#3b82f6</td>
+                <td><span class="mini-swatch" style="background:#00ffff"></span>#00ffff</td>
+                <td><span class="mini-swatch" style="background:#40c4ff"></span>#40c4ff</td>
+            </tr>
+            <tr>
+                <td>GitHub metric</td>
+                <td><span class="mini-swatch" style="background:#377eb8"></span>#377eb8</td>
+                <td><span class="mini-swatch" style="background:#a855f7"></span>#a855f7</td>
+                <td><span class="mini-swatch" style="background:#3b82f6"></span>#3b82f6</td>
+                <td><span class="mini-swatch" style="background:#00ffff"></span>#00ffff</td>
+                <td><span class="mini-swatch" style="background:#40c4ff"></span>#40c4ff</td>
+            </tr>
+
+            <!-- ACCENT DERIVATI -->
+            <tr class="category-header"><td colspan="6">Accent Derivati</td></tr>
+            <tr>
+                <td>--accent-hover</td>
+                <td><span class="mini-swatch" style="background:#8ec5ff"></span>#8ec5ff</td>
+                <td><span class="mini-swatch" style="background:#c084fc"></span>#c084fc</td>
+                <td><span class="mini-swatch" style="background:#60a5fa"></span>#60a5fa</td>
+                <td><span class="mini-swatch" style="background:#80ffff"></span>#80ffff</td>
+                <td><span class="mini-swatch" style="background:#80d8ff"></span>#80d8ff</td>
+            </tr>
+            <tr>
+                <td>button blu mobile</td>
+                <td><span class="mini-swatch" style="background:#3b82f6"></span>#3b82f6</td>
+                <td><span class="mini-swatch" style="background:#a855f7"></span>#a855f7</td>
+                <td><span class="mini-swatch" style="background:#3b82f6"></span>#3b82f6</td>
+                <td><span class="mini-swatch" style="background:#00ffff"></span>#00ffff</td>
+                <td><span class="mini-swatch" style="background:#40c4ff"></span>#40c4ff</td>
+            </tr>
+
+            <!-- TRAIL/VISUAL -->
+            <tr class="category-header"><td colspan="6">Trail e Visualizzazione</td></tr>
+            <tr>
+                <td>trail cyan fallback</td>
+                <td><span class="mini-swatch" style="background:#00d4ff"></span>#00d4ff</td>
+                <td><span class="mini-swatch" style="background:#a855f7"></span>#a855f7</td>
+                <td><span class="mini-swatch" style="background:#2dd4bf"></span>#2dd4bf</td>
+                <td><span class="mini-swatch" style="background:#00ffff"></span>#00ffff</td>
+                <td><span class="mini-swatch" style="background:#40c4ff"></span>#40c4ff</td>
+            </tr>
+            <tr>
+                <td>trace nodes</td>
+                <td><span class="mini-swatch" style="background:#06b6d4"></span>#06b6d4</td>
+                <td><span class="mini-swatch" style="background:#00d4ff"></span>#00d4ff</td>
+                <td><span class="mini-swatch" style="background:#2dd4bf"></span>#2dd4bf</td>
+                <td><span class="mini-swatch" style="background:#00ffff"></span>#00ffff</td>
+                <td><span class="mini-swatch" style="background:#00e676"></span>#00e676</td>
+            </tr>
+            <tr>
+                <td>gold secondary trace</td>
+                <td><span class="mini-swatch" style="background:#fbbf24"></span>#fbbf24</td>
+                <td><span class="mini-swatch" style="background:#ff2d92"></span>#ff2d92</td>
+                <td><span class="mini-swatch" style="background:#ff6b9d"></span>#ff6b9d</td>
+                <td><span class="mini-swatch" style="background:#ffee00"></span>#ffee00</td>
+                <td><span class="mini-swatch" style="background:#e040fb"></span>#e040fb</td>
+            </tr>
+
+            <!-- USER POOL -->
+            <tr class="category-header"><td colspan="6">Pool Colori Utenti Reali (da rivedere per coerenza)</td></tr>
+            <tr>
+                <td>verde</td>
+                <td><span class="mini-swatch" style="background:#4daf4a"></span>#4daf4a</td>
+                <td><span class="mini-swatch" style="background:#00e676"></span>#00e676</td>
+                <td><span class="mini-swatch" style="background:#2dd4bf"></span>#2dd4bf</td>
+                <td><span class="mini-swatch" style="background:#39ff14"></span>#39ff14</td>
+                <td><span class="mini-swatch" style="background:#00e676"></span>#00e676</td>
+            </tr>
+            <tr>
+                <td>viola</td>
+                <td><span class="mini-swatch" style="background:#984ea3"></span>#984ea3</td>
+                <td><span class="mini-swatch" style="background:#a855f7"></span>#a855f7</td>
+                <td><span class="mini-swatch" style="background:#8b5cf6"></span>#8b5cf6</td>
+                <td><span class="mini-swatch" style="background:#bf00ff"></span>#bf00ff</td>
+                <td><span class="mini-swatch" style="background:#e040fb"></span>#e040fb</td>
+            </tr>
+            <tr>
+                <td>giallo</td>
+                <td><span class="mini-swatch" style="background:#ffff33"></span>#ffff33</td>
+                <td><span class="mini-swatch" style="background:#fde047"></span>#fde047</td>
+                <td><span class="mini-swatch" style="background:#fde047"></span>#fde047</td>
+                <td><span class="mini-swatch" style="background:#ffee00"></span>#ffee00</td>
+                <td><span class="mini-swatch" style="background:#ffeb3b"></span>#ffeb3b</td>
+            </tr>
+            <tr>
+                <td>magenta</td>
+                <td><span class="mini-swatch" style="background:#e7298a"></span>#e7298a</td>
+                <td><span class="mini-swatch" style="background:#ff2d92"></span>#ff2d92</td>
+                <td><span class="mini-swatch" style="background:#ff6b9d"></span>#ff6b9d</td>
+                <td><span class="mini-swatch" style="background:#ff0055"></span>#ff0055</td>
+                <td><span class="mini-swatch" style="background:#ff4081"></span>#ff4081</td>
+            </tr>
+            <tr>
+                <td>rosa</td>
+                <td><span class="mini-swatch" style="background:#f781bf"></span>#f781bf</td>
+                <td><span class="mini-swatch" style="background:#f472b6"></span>#f472b6</td>
+                <td><span class="mini-swatch" style="background:#f472b6"></span>#f472b6</td>
+                <td><span class="mini-swatch" style="background:#ff80ab"></span>#ff80ab</td>
+                <td><span class="mini-swatch" style="background:#f48fb1"></span>#f48fb1</td>
+            </tr>
+            <tr>
+                <td>teal</td>
+                <td><span class="mini-swatch" style="background:#66c2a5"></span>#66c2a5</td>
+                <td><span class="mini-swatch" style="background:#2dd4bf"></span>#2dd4bf</td>
+                <td><span class="mini-swatch" style="background:#2dd4bf"></span>#2dd4bf</td>
+                <td><span class="mini-swatch" style="background:#00ffff"></span>#00ffff</td>
+                <td><span class="mini-swatch" style="background:#64ffda"></span>#64ffda</td>
+            </tr>
+            <tr>
+                <td>local user fallback</td>
+                <td><span class="mini-swatch" style="background:#00ff00"></span>#00ff00</td>
+                <td><span class="mini-swatch" style="background:#00e676"></span>#00e676</td>
+                <td><span class="mini-swatch" style="background:#2dd4bf"></span>#2dd4bf</td>
+                <td><span class="mini-swatch" style="background:#39ff14"></span>#39ff14</td>
+                <td><span class="mini-swatch" style="background:#00e676"></span>#00e676</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        document.querySelectorAll('.color-item, td').forEach(el => {
+            el.addEventListener('click', () => {
+                const hex = el.textContent.match(/#[0-9a-fA-F]{6}/)?.[0];
+                if (hex) {
+                    navigator.clipboard.writeText(hex);
+                    const orig = el.style.outline;
+                    el.style.outline = '2px solid #a855f7';
+                    setTimeout(() => el.style.outline = orig, 300);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

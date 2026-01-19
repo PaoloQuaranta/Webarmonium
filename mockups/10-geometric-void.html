@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webarmonium - Geometric Void Theme</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --black: #000000;
+      --white: #ffffff;
+      --gray-90: #1a1a1a;
+      --gray-80: #2a2a2a;
+      --gray-60: #666666;
+      --gray-40: #999999;
+      --gray-20: #cccccc;
+
+      --red: #ff3b3b;
+      --orange: #ff8c00;
+      --blue: #3b9dff;
+      --teal: #00d4aa;
+
+      --font-display: 'Space Grotesk', system-ui, sans-serif;
+      --font-mono: 'Space Mono', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-display);
+      background: var(--black);
+      color: var(--white);
+      min-height: 100vh;
+    }
+
+    /* Abstract geometric shapes - no gradients */
+    .geo-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .geo-shape {
+      position: absolute;
+      border: 1px solid;
+      opacity: 0.08;
+    }
+
+    /* Various geometric shapes */
+    .geo-shape.circle { border-radius: 50%; }
+    .geo-shape.diamond { transform: rotate(45deg); }
+    .geo-shape.line { height: 1px; border: none; background: currentColor; }
+
+    .geo-shape:nth-child(1) { width: 300px; height: 300px; top: -100px; left: -100px; border-color: var(--teal); }
+    .geo-shape:nth-child(2) { width: 200px; height: 200px; top: 20%; right: 10%; border-color: var(--red); }
+    .geo-shape:nth-child(3) { width: 400px; height: 1px; top: 40%; left: 0; right: 0; background: var(--gray-60); border: none; }
+    .geo-shape:nth-child(4) { width: 150px; height: 150px; bottom: 20%; left: 5%; border-color: var(--orange); transform: rotate(45deg); }
+    .geo-shape:nth-child(5) { width: 250px; height: 250px; bottom: -80px; right: -80px; border-color: var(--blue); border-radius: 50%; }
+    .geo-shape:nth-child(6) { width: 100%; height: 1px; top: 70%; background: var(--gray-80); border: none; }
+    .geo-shape:nth-child(7) { width: 80px; height: 80px; top: 60%; left: 30%; border-color: var(--teal); }
+    .geo-shape:nth-child(8) { width: 120px; height: 120px; top: 15%; left: 40%; border-color: var(--gray-60); border-radius: 50%; }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header - stark, minimal */
+    header {
+      padding: 4rem 0;
+      border-bottom: 1px solid var(--gray-80);
+    }
+
+    .logo {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .logo-accent {
+      color: var(--teal);
+    }
+
+    .tagline {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--gray-40);
+      margin-top: 0.5rem;
+      letter-spacing: 0.08em;
+    }
+
+    /* Controls - geometric, flat */
+    .controls-geo {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      padding: 1.5rem 0;
+      margin: 2rem 0;
+      border-top: 1px solid var(--gray-80);
+      border-bottom: 1px solid var(--gray-80);
+    }
+
+    .btn-geo {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 0.8rem;
+      padding: 0.75rem 1.5rem;
+      background: var(--white);
+      color: var(--black);
+      border: none;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: background 0.15s;
+    }
+
+    .btn-geo:hover {
+      background: var(--teal);
+    }
+
+    .btn-geo.secondary {
+      background: transparent;
+      color: var(--white);
+      border: 1px solid var(--gray-60);
+    }
+
+    .btn-geo.secondary:hover {
+      border-color: var(--white);
+    }
+
+    .slider-geo {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .slider-geo label {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--gray-40);
+    }
+
+    .slider-geo input[type="range"] {
+      width: 100px;
+      height: 2px;
+      background: var(--gray-80);
+      appearance: none;
+      border: none;
+    }
+
+    .slider-geo input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      background: var(--white);
+      cursor: pointer;
+    }
+
+    /* Metrics - geometric blocks */
+    .metrics-geo {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--gray-80);
+      margin: 3rem 0;
+    }
+
+    @media (max-width: 800px) {
+      .metrics-geo { grid-template-columns: 1fr; }
+    }
+
+    .metric-block {
+      background: var(--black);
+      padding: 1.5rem;
+      position: relative;
+    }
+
+    /* Colored top line - flat, no gradient */
+    .metric-block::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--block-color);
+    }
+
+    .metric-block[data-source="wikipedia"] { --block-color: var(--red); }
+    .metric-block[data-source="hackernews"] { --block-color: var(--orange); }
+    .metric-block[data-source="github"] { --block-color: var(--blue); }
+
+    .block-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .block-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--block-color);
+    }
+
+    .block-name {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--gray-40);
+    }
+
+    .meters-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.75rem;
+    }
+
+    .meter-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    /* Vertical bar - flat color */
+    .meter-bar-v {
+      width: 16px;
+      height: 50px;
+      background: var(--gray-90);
+      position: relative;
+    }
+
+    .meter-bar-v .fill {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--block-color);
+    }
+
+    .meter-val {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--white);
+    }
+
+    .meter-lbl {
+      font-family: var(--font-mono);
+      font-size: 0.45rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--gray-60);
+    }
+
+    /* Decorative geometric element */
+    .geo-divider {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin: 3rem 0;
+    }
+
+    .geo-divider::before,
+    .geo-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--gray-80);
+    }
+
+    .geo-divider .shape {
+      width: 12px;
+      height: 12px;
+      border: 1px solid var(--teal);
+      transform: rotate(45deg);
+    }
+
+    /* Theme info */
+    .theme-info {
+      padding: 2rem;
+      border: 1px solid var(--gray-80);
+    }
+
+    .theme-info h3 {
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: 1rem;
+    }
+
+    .theme-info p {
+      font-size: 0.9rem;
+      color: var(--gray-40);
+      line-height: 1.7;
+    }
+
+    .palette-blocks {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .color-block {
+      width: 40px;
+      height: 40px;
+      position: relative;
+    }
+
+    .color-block::after {
+      content: attr(data-name);
+      position: absolute;
+      top: 100%;
+      left: 0;
+      font-family: var(--font-mono);
+      font-size: 0.4rem;
+      color: var(--gray-60);
+      margin-top: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    footer {
+      text-align: center;
+      padding: 3rem;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      color: var(--gray-60);
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <!-- Geometric background shapes -->
+  <div class="geo-bg">
+    <div class="geo-shape circle"></div>
+    <div class="geo-shape circle"></div>
+    <div class="geo-shape line"></div>
+    <div class="geo-shape diamond"></div>
+    <div class="geo-shape circle"></div>
+    <div class="geo-shape line"></div>
+    <div class="geo-shape"></div>
+    <div class="geo-shape circle"></div>
+  </div>
+
+  <div class="container">
+    <header>
+      <h1 class="logo">WEBAR<span class="logo-accent">M</span>ONIUM</h1>
+      <p class="tagline">web activity → generative music</p>
+    </header>
+
+    <div class="controls-geo">
+      <button class="btn-geo">▶ Play</button>
+      <div class="slider-geo">
+        <label>Volume</label>
+        <input type="range" min="0" max="100" value="70">
+      </div>
+      <div class="slider-geo">
+        <label>Density</label>
+        <input type="range" min="0" max="100" value="50">
+      </div>
+      <button class="btn-geo secondary">Config</button>
+    </div>
+
+    <div class="metrics-geo">
+      <div class="metric-block" data-source="wikipedia">
+        <div class="block-header">
+          <div class="block-dot"></div>
+          <span class="block-name">Wikipedia</span>
+        </div>
+        <div class="meters-grid">
+          <div class="meter-col">
+            <div class="meter-bar-v"><div class="fill" style="height: 72%;"></div></div>
+            <span class="meter-val">127</span>
+            <span class="meter-lbl">edits</span>
+          </div>
+          <div class="meter-col">
+            <div class="meter-bar-v"><div class="fill" style="height: 45%;"></div></div>
+            <span class="meter-val">0.8</span>
+            <span class="meter-lbl">vel</span>
+          </div>
+          <div class="meter-col">
+            <div class="meter-bar-v"><div class="fill" style="height: 58%;"></div></div>
+            <span class="meter-val">2.4k</span>
+            <span class="meter-lbl">size</span>
+          </div>
+          <div class="meter-col">
+            <div class="meter-bar-v"><div class="fill" style="height: 25%;"></div></div>
+            <span class="meter-val">3</span>
+            <span class="meter-lbl">new</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-block" data-source="hackernews">
+        <div class="block-header">
+          <div class="block-dot"></div>
+          <span class="block-name">HackerNews</span>
+        </div>
+        <div class="meters-grid">
+          <div class="meter-col">
+            <div class="meter-bar-v"><div class="fill" style="height: 55%;"></div></div>
+            <span class="meter-val">84</span>
+            <span class="meter-lbl">posts</span>
+          </div>
+          <div class="meter-col">
+            <div class="meter-bar-v"><div class="fill" style="height: 68%;"></div></div>
+            <span class="meter-val">156</span>
+            <span class="meter-lbl">cmts</span>
+          </div>
+          <div class="meter-col">
+            <div class="meter-bar-v"><div class="fill" style="height: 82%;"></div></div>
+            <span class="meter-val">412</span>
+            <span class="meter-lbl">score</span>
+          </div>
+          <div class="meter-col">
+            <div class="meter-bar-v"><div class="fill" style="height: 35%;"></div></div>
+            <span class="meter-val">12</span>
+            <span class="meter-lbl">top</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-block" data-source="github">
+        <div class="block-header">
+          <div class="block-dot"></div>
+          <span class="block-name">GitHub</span>
+        </div>
+        <div class="meters-grid">
+          <div class="meter-col">
+            <div class="meter-bar-v"><div class="fill" style="height: 78%;"></div></div>
+            <span class="meter-val">256</span>
+            <span class="meter-lbl">evts</span>
+          </div>
+          <div class="meter-col">
+            <div class="meter-bar-v"><div class="fill" style="height: 62%;"></div></div>
+            <span class="meter-val">89</span>
+            <span class="meter-lbl">cmts</span>
+          </div>
+          <div class="meter-col">
+            <div class="meter-bar-v"><div class="fill" style="height: 40%;"></div></div>
+            <span class="meter-val">34</span>
+            <span class="meter-lbl">prs</span>
+          </div>
+          <div class="meter-col">
+            <div class="meter-bar-v"><div class="fill" style="height: 52%;"></div></div>
+            <span class="meter-val">67</span>
+            <span class="meter-lbl">stars</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="geo-divider"><div class="shape"></div></div>
+
+    <div class="theme-info">
+      <h3>Geometric Void</h3>
+      <p>Pure geometric abstraction. No gradients - only flat colors, sharp lines, and geometric shapes. Swiss design influence with stark contrast.</p>
+      <div class="palette-blocks">
+        <div class="color-block" style="background: #000000;" data-name="black"></div>
+        <div class="color-block" style="background: #ffffff;" data-name="white"></div>
+        <div class="color-block" style="background: #00d4aa;" data-name="teal"></div>
+        <div class="color-block" style="background: #ff3b3b;" data-name="red"></div>
+        <div class="color-block" style="background: #ff8c00;" data-name="orange"></div>
+        <div class="color-block" style="background: #3b9dff;" data-name="blue"></div>
+      </div>
+    </div>
+
+    <footer>Webarmonium · Mockup</footer>
+  </div>
+</body>
+</html>

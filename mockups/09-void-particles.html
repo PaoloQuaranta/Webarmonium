@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webarmonium - Void Particles Theme</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-void: #000000;
+      --bg-card: rgba(255, 255, 255, 0.02);
+      --accent: #e0e0e0;
+      --accent-dim: #666666;
+      --text-primary: #ffffff;
+      --text-secondary: #888888;
+      --text-muted: #444444;
+      --wikipedia-color: #ff6b6b;
+      --hackernews-color: #ffa94d;
+      --github-color: #74c0fc;
+      --font-display: 'Space Grotesk', system-ui, sans-serif;
+      --font-mono: 'Space Mono', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-display);
+      background: var(--bg-void);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated floating particles */
+    .particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      animation: float linear infinite;
+      opacity: 0;
+    }
+
+    @keyframes float {
+      0% {
+        transform: translateY(100vh) rotate(0deg);
+        opacity: 0;
+      }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% {
+        transform: translateY(-100vh) rotate(720deg);
+        opacity: 0;
+      }
+    }
+
+    /* Generate 30 particles with CSS */
+    .particle:nth-child(1) { left: 5%; width: 3px; height: 3px; background: var(--wikipedia-color); animation-duration: 25s; animation-delay: 0s; }
+    .particle:nth-child(2) { left: 15%; width: 2px; height: 2px; background: var(--accent); animation-duration: 20s; animation-delay: 2s; }
+    .particle:nth-child(3) { left: 25%; width: 4px; height: 4px; background: var(--hackernews-color); animation-duration: 30s; animation-delay: 1s; }
+    .particle:nth-child(4) { left: 35%; width: 2px; height: 2px; background: var(--github-color); animation-duration: 22s; animation-delay: 3s; }
+    .particle:nth-child(5) { left: 45%; width: 3px; height: 3px; background: var(--accent-dim); animation-duration: 28s; animation-delay: 0.5s; }
+    .particle:nth-child(6) { left: 55%; width: 2px; height: 2px; background: var(--wikipedia-color); animation-duration: 24s; animation-delay: 4s; }
+    .particle:nth-child(7) { left: 65%; width: 5px; height: 5px; background: var(--accent); animation-duration: 35s; animation-delay: 1.5s; }
+    .particle:nth-child(8) { left: 75%; width: 2px; height: 2px; background: var(--hackernews-color); animation-duration: 21s; animation-delay: 2.5s; }
+    .particle:nth-child(9) { left: 85%; width: 3px; height: 3px; background: var(--github-color); animation-duration: 26s; animation-delay: 0.8s; }
+    .particle:nth-child(10) { left: 95%; width: 2px; height: 2px; background: var(--accent-dim); animation-duration: 23s; animation-delay: 3.5s; }
+    .particle:nth-child(11) { left: 10%; width: 2px; height: 2px; background: var(--accent); animation-duration: 27s; animation-delay: 5s; }
+    .particle:nth-child(12) { left: 20%; width: 3px; height: 3px; background: var(--wikipedia-color); animation-duration: 29s; animation-delay: 6s; }
+    .particle:nth-child(13) { left: 30%; width: 2px; height: 2px; background: var(--github-color); animation-duration: 31s; animation-delay: 4.5s; }
+    .particle:nth-child(14) { left: 40%; width: 4px; height: 4px; background: var(--accent-dim); animation-duration: 33s; animation-delay: 7s; }
+    .particle:nth-child(15) { left: 50%; width: 2px; height: 2px; background: var(--hackernews-color); animation-duration: 19s; animation-delay: 8s; }
+    .particle:nth-child(16) { left: 60%; width: 3px; height: 3px; background: var(--accent); animation-duration: 32s; animation-delay: 9s; }
+    .particle:nth-child(17) { left: 70%; width: 2px; height: 2px; background: var(--wikipedia-color); animation-duration: 24s; animation-delay: 10s; }
+    .particle:nth-child(18) { left: 80%; width: 2px; height: 2px; background: var(--github-color); animation-duration: 28s; animation-delay: 11s; }
+    .particle:nth-child(19) { left: 90%; width: 3px; height: 3px; background: var(--hackernews-color); animation-duration: 26s; animation-delay: 12s; }
+    .particle:nth-child(20) { left: 3%; width: 2px; height: 2px; background: var(--accent); animation-duration: 30s; animation-delay: 13s; }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Minimal header - just text floating in void */
+    header {
+      padding: 4rem 0;
+      text-align: center;
+    }
+
+    .logo {
+      font-size: clamp(1.5rem, 4vw, 2.5rem);
+      font-weight: 300;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--accent);
+      opacity: 0.9;
+    }
+
+    .tagline {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 1rem;
+      letter-spacing: 0.1em;
+    }
+
+    /* Abstract floating controls */
+    .controls-float {
+      display: flex;
+      justify-content: center;
+      gap: 3rem;
+      padding: 2rem 0;
+      margin: 2rem 0;
+    }
+
+    .control-orb {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: var(--bg-card);
+      border: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .control-orb:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 30px rgba(255,255,255,0.1);
+    }
+
+    .control-orb.primary {
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15), transparent);
+      border-color: rgba(255,255,255,0.2);
+    }
+
+    .control-orb span {
+      font-size: 1.2rem;
+      opacity: 0.7;
+    }
+
+    .control-label {
+      position: absolute;
+      bottom: -1.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    /* Slider as abstract line */
+    .slider-abstract {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .slider-abstract label {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+    }
+
+    .slider-abstract input[type="range"] {
+      width: 80px;
+      height: 1px;
+      background: rgba(255,255,255,0.1);
+      appearance: none;
+      border: none;
+    }
+
+    .slider-abstract input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    /* Metrics as abstract scattered elements */
+    .metrics-abstract {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
+      margin: 4rem 0;
+    }
+
+    @media (max-width: 800px) {
+      .metrics-abstract { grid-template-columns: 1fr; gap: 3rem; }
+    }
+
+    .metric-abstract {
+      position: relative;
+      padding: 2rem;
+    }
+
+    /* Organic border shape using clip-path */
+    .metric-abstract::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--bg-card);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+      transition: all 0.5s ease;
+    }
+
+    .metric-abstract:hover::before {
+      border-radius: 60% 40% 30% 70% / 50% 60% 40% 60%;
+      border-color: var(--card-accent);
+      box-shadow: 0 0 40px rgba(var(--card-rgb), 0.15);
+    }
+
+    .metric-abstract[data-source="wikipedia"] { --card-accent: var(--wikipedia-color); --card-rgb: 255, 107, 107; }
+    .metric-abstract[data-source="hackernews"] { --card-accent: var(--hackernews-color); --card-rgb: 255, 169, 77; }
+    .metric-abstract[data-source="github"] { --card-accent: var(--github-color); --card-rgb: 116, 192, 252; }
+
+    .metric-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .source-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--card-accent);
+      margin-bottom: 1rem;
+      box-shadow: 0 0 10px var(--card-accent);
+    }
+
+    .source-name {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .meters-scatter {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .meter-point {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .meter-ring {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* Progress ring effect */
+    .meter-ring::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      border-top-color: var(--card-accent);
+      transform: rotate(var(--rotation, 0deg));
+    }
+
+    .meter-ring .value {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .meter-point .label {
+      font-family: var(--font-mono);
+      font-size: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+
+    /* Theme info - minimal */
+    .theme-info {
+      margin-top: 4rem;
+      padding: 2rem;
+      background: var(--bg-card);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 30% 70% 50% 50% / 60% 40% 60% 40%;
+    }
+
+    .theme-info h3 {
+      font-weight: 400;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      font-size: 1rem;
+    }
+
+    .theme-info p {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    .palette-scatter {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .color-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      position: relative;
+    }
+
+    .color-dot::after {
+      content: attr(data-color);
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: var(--font-mono);
+      font-size: 0.4rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      margin-top: 0.25rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 3rem;
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      letter-spacing: 0.2em;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <!-- Floating particles -->
+  <div class="particles">
+    <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+    <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+    <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+    <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+    <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+    <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+    <div class="particle"></div><div class="particle"></div>
+  </div>
+
+  <div class="container">
+    <header>
+      <h1 class="logo">Webarmonium</h1>
+      <p class="tagline">sound from the void</p>
+    </header>
+
+    <!-- Abstract controls -->
+    <div class="controls-float">
+      <div class="control-orb primary">
+        <span>▶</span>
+        <span class="control-label">play</span>
+      </div>
+      <div class="slider-abstract">
+        <label>volume</label>
+        <input type="range" min="0" max="100" value="70">
+      </div>
+      <div class="slider-abstract">
+        <label>depth</label>
+        <input type="range" min="0" max="100" value="50">
+      </div>
+      <div class="control-orb">
+        <span>⚙</span>
+        <span class="control-label">config</span>
+      </div>
+    </div>
+
+    <!-- Abstract metrics -->
+    <div class="metrics-abstract">
+      <div class="metric-abstract" data-source="wikipedia">
+        <div class="metric-content">
+          <div class="source-dot"></div>
+          <div class="source-name">Wikipedia</div>
+          <div class="meters-scatter">
+            <div class="meter-point">
+              <div class="meter-ring" style="--rotation: 259deg;"><span class="value">127</span></div>
+              <span class="label">edits</span>
+            </div>
+            <div class="meter-point">
+              <div class="meter-ring" style="--rotation: 162deg;"><span class="value">0.8</span></div>
+              <span class="label">vel</span>
+            </div>
+            <div class="meter-point">
+              <div class="meter-ring" style="--rotation: 209deg;"><span class="value">2.4k</span></div>
+              <span class="label">size</span>
+            </div>
+            <div class="meter-point">
+              <div class="meter-ring" style="--rotation: 90deg;"><span class="value">3</span></div>
+              <span class="label">new</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-abstract" data-source="hackernews">
+        <div class="metric-content">
+          <div class="source-dot"></div>
+          <div class="source-name">HackerNews</div>
+          <div class="meters-scatter">
+            <div class="meter-point">
+              <div class="meter-ring" style="--rotation: 198deg;"><span class="value">84</span></div>
+              <span class="label">posts</span>
+            </div>
+            <div class="meter-point">
+              <div class="meter-ring" style="--rotation: 245deg;"><span class="value">156</span></div>
+              <span class="label">cmts</span>
+            </div>
+            <div class="meter-point">
+              <div class="meter-ring" style="--rotation: 295deg;"><span class="value">412</span></div>
+              <span class="label">score</span>
+            </div>
+            <div class="meter-point">
+              <div class="meter-ring" style="--rotation: 126deg;"><span class="value">12</span></div>
+              <span class="label">top</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-abstract" data-source="github">
+        <div class="metric-content">
+          <div class="source-dot"></div>
+          <div class="source-name">GitHub</div>
+          <div class="meters-scatter">
+            <div class="meter-point">
+              <div class="meter-ring" style="--rotation: 281deg;"><span class="value">256</span></div>
+              <span class="label">evts</span>
+            </div>
+            <div class="meter-point">
+              <div class="meter-ring" style="--rotation: 223deg;"><span class="value">89</span></div>
+              <span class="label">cmts</span>
+            </div>
+            <div class="meter-point">
+              <div class="meter-ring" style="--rotation: 144deg;"><span class="value">34</span></div>
+              <span class="label">prs</span>
+            </div>
+            <div class="meter-point">
+              <div class="meter-ring" style="--rotation: 187deg;"><span class="value">67</span></div>
+              <span class="label">stars</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="theme-info">
+      <h3>Void Particles</h3>
+      <p>Pure black void with floating particles. Organic blob shapes for cards, circular progress rings for metrics. Minimal, abstract, meditative.</p>
+      <div class="palette-scatter">
+        <div class="color-dot" style="background: #000000;" data-color="#000"></div>
+        <div class="color-dot" style="background: #e0e0e0;" data-color="#e0e"></div>
+        <div class="color-dot" style="background: #ff6b6b;" data-color="#f6b"></div>
+        <div class="color-dot" style="background: #ffa94d;" data-color="#fa9"></div>
+        <div class="color-dot" style="background: #74c0fc;" data-color="#7cf"></div>
+      </div>
+    </div>
+
+    <footer>webarmonium</footer>
+  </div>
+</body>
+</html>

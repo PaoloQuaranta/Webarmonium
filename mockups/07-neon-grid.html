@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webarmonium - Neon Grid Theme</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Sharp, angular fonts with tech edge -->
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Neon Grid - Cyberpunk with electric cyan */
+      --bg-primary: #030303;
+      --bg-secondary: #0a0a0a;
+      --bg-card: #111111;
+      --bg-meter: #050505;
+
+      /* Electric cyan accent */
+      --accent-primary: #00f0ff;
+      --accent-light: #67f7ff;
+      --accent-dim: #00b8c4;
+      --accent-glow: rgba(0, 240, 255, 0.5);
+      --accent-glow-soft: rgba(0, 240, 255, 0.15);
+
+      /* Secondary - magenta for contrast */
+      --accent-secondary: #ff00aa;
+      --accent-secondary-glow: rgba(255, 0, 170, 0.4);
+
+      /* Source colors - neon variants */
+      --wikipedia-color: #ff3366;
+      --hackernews-color: #ff9500;
+      --github-color: #00aaff;
+
+      /* Text */
+      --text-primary: #ffffff;
+      --text-secondary: #aaaaaa;
+      --text-muted: #666666;
+      --text-label: #444444;
+
+      /* Borders - glowing */
+      --border-color: rgba(0, 240, 255, 0.3);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+
+      /* Typography - ANGULAR TECH */
+      --font-display: 'Chakra Petch', system-ui, sans-serif;
+      --font-mono: 'Share Tech Mono', 'Consolas', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-display);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* Grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* Glow overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% 0%, rgba(0, 240, 255, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 40% at 0% 50%, rgba(255, 0, 170, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 40% at 100% 50%, rgba(0, 240, 255, 0.04) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      padding: 3rem 2rem;
+      border-bottom: 1px solid var(--border-color);
+      position: relative;
+    }
+
+    header::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent-primary);
+      text-shadow:
+        0 0 10px var(--accent-glow),
+        0 0 40px var(--accent-glow-soft);
+    }
+
+    .tagline {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      letter-spacing: 0.1em;
+    }
+
+    /* ================================================ */
+    /* METRICS DASHBOARD                                */
+    /* ================================================ */
+
+    .metrics-section {
+      margin: 2.5rem 0;
+    }
+
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--accent-dim);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .section-label::before,
+    .section-label::after {
+      content: '//';
+      color: var(--text-label);
+    }
+
+    .metrics-dashboard {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 900px) {
+      .metrics-dashboard { grid-template-columns: 1fr; }
+    }
+
+    /* Metric Card - Neon bordered */
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 2px;
+      padding: 1rem;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    /* Corner accents */
+    .metric-card::before,
+    .metric-card::after {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border: 1px solid var(--card-accent);
+    }
+
+    .metric-card::before {
+      top: -1px;
+      left: -1px;
+      border-right: none;
+      border-bottom: none;
+    }
+
+    .metric-card::after {
+      bottom: -1px;
+      right: -1px;
+      border-left: none;
+      border-top: none;
+    }
+
+    .metric-card:hover {
+      border-color: var(--card-accent);
+      box-shadow:
+        0 0 20px rgba(var(--card-accent-rgb), 0.3),
+        inset 0 0 30px rgba(var(--card-accent-rgb), 0.05);
+    }
+
+    .metric-card[data-source="wikipedia"] {
+      --card-accent: var(--wikipedia-color);
+      --card-accent-rgb: 255, 51, 102;
+    }
+    .metric-card[data-source="hackernews"] {
+      --card-accent: var(--hackernews-color);
+      --card-accent-rgb: 255, 149, 0;
+    }
+    .metric-card[data-source="github"] {
+      --card-accent: var(--github-color);
+      --card-accent-rgb: 0, 170, 255;
+    }
+
+    /* Source Title */
+    .source-title {
+      font-family: var(--font-display);
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--card-accent);
+      text-align: center;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      text-shadow: 0 0 10px currentColor;
+    }
+
+    /* Meters Container */
+    .meters-container {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.5rem;
+    }
+
+    /* Individual Meter */
+    .meter {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    /* Meter Bar - neon style */
+    .meter-bar {
+      width: 18px;
+      height: 50px;
+      background: var(--bg-meter);
+      border: 1px solid var(--border-subtle);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Scanline effect */
+    .meter-bar::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.3) 2px,
+        rgba(0,0,0,0.3) 4px
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .meter-fill {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(to top, var(--card-accent), color-mix(in srgb, var(--card-accent) 60%, white));
+      box-shadow: 0 0 10px var(--card-accent);
+      transition: height 0.3s ease;
+    }
+
+    /* Meter Value - SHARP MONO */
+    .meter-value {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 400;
+      color: var(--text-primary);
+      text-shadow: 0 0 5px rgba(255,255,255,0.3);
+    }
+
+    /* Meter Label */
+    .meter-label {
+      font-family: var(--font-mono);
+      font-size: 0.45rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-label);
+    }
+
+    /* ================================================ */
+    /* CONTROLS                                         */
+    /* ================================================ */
+
+    .controls-preview {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+      padding: 1rem 1.25rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      margin: 2rem 0;
+      position: relative;
+    }
+
+    .controls-preview::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+    }
+
+    .btn {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 0.8rem;
+      padding: 0.65rem 1.5rem;
+      border: 1px solid var(--accent-primary);
+      background: transparent;
+      color: var(--accent-primary);
+      cursor: pointer;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .btn:hover {
+      background: var(--accent-primary);
+      color: var(--bg-primary);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .btn-primary {
+      background: var(--accent-primary);
+      color: var(--bg-primary);
+      box-shadow: 0 0 15px var(--accent-glow-soft);
+    }
+
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .slider-group label {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-label);
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .slider-row input[type="range"] {
+      width: 100px;
+      height: 2px;
+      background: var(--bg-meter);
+      border: none;
+      appearance: none;
+    }
+
+    .slider-row input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 10px;
+      height: 16px;
+      background: var(--accent-primary);
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    .slider-value {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--accent-light);
+      min-width: 2rem;
+      text-shadow: 0 0 5px var(--accent-glow-soft);
+    }
+
+    /* ================================================ */
+    /* FONT SPECIMEN                                    */
+    /* ================================================ */
+
+    .font-specimen {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .font-specimen h3 {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--accent-dim);
+      margin-bottom: 1.25rem;
+    }
+
+    .font-samples {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 600px) {
+      .font-samples { grid-template-columns: 1fr; }
+    }
+
+    .font-sample-item {
+      padding: 1rem;
+      background: var(--bg-meter);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .sample-label {
+      font-family: var(--font-mono);
+      font-size: 0.45rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-label);
+      margin-bottom: 0.5rem;
+    }
+
+    .sample-text.display {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--accent-primary);
+      text-shadow: 0 0 10px var(--accent-glow-soft);
+    }
+
+    .sample-text.mono {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      color: var(--text-secondary);
+    }
+
+    .sample-text.values {
+      font-family: var(--font-mono);
+      font-size: 1.25rem;
+      color: var(--text-primary);
+    }
+
+    .sample-text.labels {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+    }
+
+    /* Theme info */
+    .theme-info {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 1.5rem;
+      margin-top: 2rem;
+      position: relative;
+    }
+
+    .theme-info::before {
+      content: '';
+      position: absolute;
+      top: -1px;
+      left: 20%;
+      right: 20%;
+      height: 2px;
+      background: var(--accent-primary);
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    .theme-info h3 {
+      font-family: var(--font-display);
+      font-weight: 600;
+      color: var(--accent-light);
+      margin-bottom: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    .theme-info p {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+    }
+
+    .palette-display {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .color-swatch {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 3px;
+      font-family: var(--font-mono);
+      font-size: 0.4rem;
+      border: 1px solid var(--border-subtle);
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-label);
+    }
+
+    footer span {
+      color: var(--accent-dim);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 class="logo">WEBARMONIUM</h1>
+      <p class="tagline">[ real-time web activity → generative music ]</p>
+    </header>
+
+    <!-- Controls -->
+    <div class="controls-preview">
+      <button class="btn btn-primary">▶ INIT</button>
+      <div class="slider-group">
+        <label>Volume</label>
+        <div class="slider-row">
+          <input type="range" min="0" max="100" value="70">
+          <span class="slider-value">70</span>
+        </div>
+      </div>
+      <div class="slider-group">
+        <label>Gain</label>
+        <div class="slider-row">
+          <input type="range" min="0" max="100" value="50">
+          <span class="slider-value">50</span>
+        </div>
+      </div>
+      <button class="btn">CONFIG</button>
+    </div>
+
+    <!-- Metrics -->
+    <section class="metrics-section">
+      <div class="section-label">Data Feeds</div>
+
+      <div class="metrics-dashboard">
+        <!-- Wikipedia -->
+        <div class="metric-card" data-source="wikipedia">
+          <h3 class="source-title">Wikipedia</h3>
+          <div class="meters-container">
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 72%;"></div></div>
+              <span class="meter-value">127</span>
+              <span class="meter-label">edits</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 45%;"></div></div>
+              <span class="meter-value">0.8</span>
+              <span class="meter-label">vel</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 58%;"></div></div>
+              <span class="meter-value">2.4k</span>
+              <span class="meter-label">size</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 25%;"></div></div>
+              <span class="meter-value">3</span>
+              <span class="meter-label">new</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- HackerNews -->
+        <div class="metric-card" data-source="hackernews">
+          <h3 class="source-title">HackerNews</h3>
+          <div class="meters-container">
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 55%;"></div></div>
+              <span class="meter-value">84</span>
+              <span class="meter-label">posts</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 68%;"></div></div>
+              <span class="meter-value">156</span>
+              <span class="meter-label">cmts</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 82%;"></div></div>
+              <span class="meter-value">412</span>
+              <span class="meter-label">score</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 35%;"></div></div>
+              <span class="meter-value">12</span>
+              <span class="meter-label">top</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- GitHub -->
+        <div class="metric-card" data-source="github">
+          <h3 class="source-title">GitHub</h3>
+          <div class="meters-container">
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 78%;"></div></div>
+              <span class="meter-value">256</span>
+              <span class="meter-label">evts</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 62%;"></div></div>
+              <span class="meter-value">89</span>
+              <span class="meter-label">cmts</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 40%;"></div></div>
+              <span class="meter-value">34</span>
+              <span class="meter-label">prs</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 52%;"></div></div>
+              <span class="meter-value">67</span>
+              <span class="meter-label">stars</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Typography -->
+    <div class="font-specimen">
+      <h3>// Typography</h3>
+      <div class="font-samples">
+        <div class="font-sample-item">
+          <div class="sample-label">Display · Chakra Petch</div>
+          <div class="sample-text display">WEBARMONIUM</div>
+        </div>
+        <div class="font-sample-item">
+          <div class="sample-label">Mono · Share Tech Mono</div>
+          <div class="sample-text mono">stream.init(data)</div>
+        </div>
+        <div class="font-sample-item">
+          <div class="sample-label">Values</div>
+          <div class="sample-text values">127 | 2.4k | 412</div>
+        </div>
+        <div class="font-sample-item">
+          <div class="sample-label">Labels</div>
+          <div class="sample-text labels">EDITS · VELOCITY · SIZE · NEW · POSTS</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Theme Info -->
+    <div class="theme-info">
+      <h3>Theme: Neon Grid</h3>
+      <p>Cyberpunk aesthetic with electric cyan and grid overlay. Chakra Petch for angular display, Share Tech Mono for data.</p>
+
+      <div class="palette-display">
+        <div class="color-swatch" style="background: #030303; color: #666;">#030303</div>
+        <div class="color-swatch" style="background: #111111; color: #666;">#111111</div>
+        <div class="color-swatch" style="background: #00f0ff; color: #030303;">#00f0ff</div>
+        <div class="color-swatch" style="background: #ff3366; color: #030303;">#ff3366</div>
+        <div class="color-swatch" style="background: #ff9500; color: #030303;">#ff9500</div>
+        <div class="color-swatch" style="background: #00aaff; color: #030303;">#00aaff</div>
+      </div>
+    </div>
+
+    <footer><span>//</span> Webarmonium · Theme Mockup <span>//</span></footer>
+  </div>
+</body>
+</html>

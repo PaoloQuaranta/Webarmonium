@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webarmonium - Constellation Theme</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --void: #020208;
+      --deep: #0a0a14;
+      --surface: #14141f;
+      --line: #1e1e2d;
+      --muted: #3a3a50;
+      --dim: #5a5a70;
+      --light: #9090a8;
+      --bright: #e0e0f0;
+
+      --node-1: #ff6b6b;
+      --node-2: #ffa94d;
+      --node-3: #69b3ff;
+      --accent: #69b3ff;
+
+      --font-display: 'Space Grotesk', system-ui, sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-display);
+      background: var(--void);
+      color: var(--bright);
+      min-height: 100vh;
+    }
+
+    /* SVG constellation background */
+    .constellation-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .constellation-bg svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Dots */
+    .constellation-bg .node {
+      fill: var(--muted);
+    }
+
+    .constellation-bg .node.highlight {
+      fill: var(--accent);
+    }
+
+    /* Lines connecting dots */
+    .constellation-bg .edge {
+      stroke: var(--line);
+      stroke-width: 1;
+      opacity: 0.4;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header - floating in constellation */
+    header {
+      text-align: center;
+      padding: 3rem 0;
+    }
+
+    .logo {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--bright);
+    }
+
+    .tagline {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--dim);
+      margin-top: 0.5rem;
+      letter-spacing: 0.05em;
+    }
+
+    /* Controls - node-like buttons */
+    .controls-nodes {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 2rem;
+      padding: 2rem 0;
+      margin: 2rem 0;
+      position: relative;
+    }
+
+    /* Connection line between controls */
+    .controls-nodes::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 20%;
+      right: 20%;
+      height: 1px;
+      background: var(--line);
+      z-index: 0;
+    }
+
+    .node-btn {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 2px solid var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+      color: var(--light);
+      transition: all 0.2s;
+      position: relative;
+      z-index: 1;
+    }
+
+    .node-btn:hover {
+      border-color: var(--accent);
+      color: var(--bright);
+    }
+
+    .node-btn.primary {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .node-btn.primary:hover {
+      background: var(--accent);
+      color: var(--void);
+    }
+
+    .node-label {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--dim);
+      white-space: nowrap;
+    }
+
+    .slider-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .slider-node label {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--dim);
+    }
+
+    .slider-node input[type="range"] {
+      width: 90px;
+      height: 2px;
+      background: var(--line);
+      appearance: none;
+      border: none;
+    }
+
+    .slider-node input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 10px;
+      height: 10px;
+      background: var(--accent);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    /* Metrics - as connected node clusters */
+    .metrics-constellation {
+      margin: 4rem 0;
+    }
+
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--dim);
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .clusters {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
+    }
+
+    @media (max-width: 800px) {
+      .clusters { grid-template-columns: 1fr; }
+    }
+
+    /* Cluster - group of connected nodes */
+    .cluster {
+      background: var(--deep);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1.5rem;
+      position: relative;
+    }
+
+    /* Cluster header with main node */
+    .cluster-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .cluster-node {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--cluster-color);
+    }
+
+    .cluster-name {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--cluster-color);
+    }
+
+    .cluster[data-source="wikipedia"] { --cluster-color: var(--node-1); }
+    .cluster[data-source="hackernews"] { --cluster-color: var(--node-2); }
+    .cluster[data-source="github"] { --cluster-color: var(--node-3); }
+
+    /* Data points as mini nodes */
+    .data-points {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    .data-point {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    /* Mini node with orbit ring showing value */
+    .point-node {
+      width: 36px;
+      height: 36px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .point-node .orbit {
+      position: absolute;
+      inset: 0;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+    }
+
+    /* Partial orbit showing percentage */
+    .point-node .orbit-fill {
+      position: absolute;
+      inset: -1px;
+      border: 2px solid var(--cluster-color);
+      border-radius: 50%;
+      clip-path: conic-gradient(from 0deg, black var(--pct, 50%), transparent 0);
+      /* Workaround: use border with rotation instead */
+    }
+
+    /* Simple approach: just a colored arc indicator */
+    .point-node::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 2px solid transparent;
+      border-top-color: var(--cluster-color);
+      border-right-color: var(--cluster-color);
+      border-radius: 50%;
+      transform: rotate(var(--rotate, 0deg));
+    }
+
+    .point-core {
+      width: 6px;
+      height: 6px;
+      background: var(--cluster-color);
+      border-radius: 50%;
+    }
+
+    .point-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .point-value {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--bright);
+    }
+
+    .point-label {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--dim);
+    }
+
+    /* Theme info */
+    .theme-info {
+      background: var(--deep);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-top: 3rem;
+    }
+
+    .theme-info h3 {
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      letter-spacing: 0.03em;
+    }
+
+    .theme-info p {
+      font-size: 0.9rem;
+      color: var(--light);
+      line-height: 1.6;
+    }
+
+    .palette-nodes {
+      display: flex;
+      gap: 1.5rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .palette-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .palette-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .palette-name {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--dim);
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <!-- Constellation background -->
+  <div class="constellation-bg">
+    <svg viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid slice">
+      <!-- Edges (lines between nodes) -->
+      <line class="edge" x1="100" y1="150" x2="250" y2="200"/>
+      <line class="edge" x1="250" y1="200" x2="400" y2="120"/>
+      <line class="edge" x1="400" y1="120" x2="550" y2="180"/>
+      <line class="edge" x1="550" y1="180" x2="700" y2="100"/>
+      <line class="edge" x1="700" y1="100" x2="850" y2="160"/>
+      <line class="edge" x1="150" y1="350" x2="300" y2="400"/>
+      <line class="edge" x1="300" y1="400" x2="450" y2="350"/>
+      <line class="edge" x1="450" y1="350" x2="600" y2="420"/>
+      <line class="edge" x1="600" y1="420" x2="750" y2="380"/>
+      <line class="edge" x1="750" y1="380" x2="900" y2="450"/>
+      <line class="edge" x1="200" y1="550" x2="350" y2="600"/>
+      <line class="edge" x1="350" y1="600" x2="500" y2="550"/>
+      <line class="edge" x1="500" y1="550" x2="650" y2="620"/>
+      <line class="edge" x1="650" y1="620" x2="800" y2="580"/>
+      <line class="edge" x1="250" y1="200" x2="300" y2="400"/>
+      <line class="edge" x1="450" y1="350" x2="500" y2="550"/>
+      <line class="edge" x1="700" y1="100" x2="750" y2="380"/>
+      <line class="edge" x1="100" y1="700" x2="300" y2="750"/>
+      <line class="edge" x1="550" y1="700" x2="700" y2="750"/>
+
+      <!-- Nodes (dots) -->
+      <circle class="node" cx="100" cy="150" r="3"/>
+      <circle class="node highlight" cx="250" cy="200" r="4"/>
+      <circle class="node" cx="400" cy="120" r="3"/>
+      <circle class="node" cx="550" cy="180" r="3"/>
+      <circle class="node highlight" cx="700" cy="100" r="4"/>
+      <circle class="node" cx="850" cy="160" r="3"/>
+      <circle class="node" cx="150" cy="350" r="3"/>
+      <circle class="node" cx="300" cy="400" r="3"/>
+      <circle class="node highlight" cx="450" cy="350" r="4"/>
+      <circle class="node" cx="600" cy="420" r="3"/>
+      <circle class="node" cx="750" cy="380" r="3"/>
+      <circle class="node" cx="900" cy="450" r="3"/>
+      <circle class="node" cx="200" cy="550" r="3"/>
+      <circle class="node" cx="350" cy="600" r="3"/>
+      <circle class="node highlight" cx="500" cy="550" r="4"/>
+      <circle class="node" cx="650" cy="620" r="3"/>
+      <circle class="node" cx="800" cy="580" r="3"/>
+      <circle class="node" cx="100" cy="700" r="2"/>
+      <circle class="node" cx="300" cy="750" r="2"/>
+      <circle class="node" cx="550" cy="700" r="2"/>
+      <circle class="node" cx="700" cy="750" r="2"/>
+      <circle class="node" cx="950" cy="300" r="2"/>
+      <circle class="node" cx="50" cy="450" r="2"/>
+    </svg>
+  </div>
+
+  <div class="container">
+    <header>
+      <h1 class="logo">Webarmonium</h1>
+      <p class="tagline">nodes of sound</p>
+    </header>
+
+    <div class="controls-nodes">
+      <div class="node-btn primary" style="position: relative;">
+        <span>▶</span>
+        <span class="node-label">play</span>
+      </div>
+      <div class="slider-node">
+        <label>Volume</label>
+        <input type="range" min="0" max="100" value="70">
+      </div>
+      <div class="slider-node">
+        <label>Depth</label>
+        <input type="range" min="0" max="100" value="50">
+      </div>
+      <div class="node-btn" style="position: relative;">
+        <span>⚙</span>
+        <span class="node-label">config</span>
+      </div>
+    </div>
+
+    <section class="metrics-constellation">
+      <div class="section-label">Data Clusters</div>
+
+      <div class="clusters">
+        <div class="cluster" data-source="wikipedia">
+          <div class="cluster-header">
+            <div class="cluster-node"></div>
+            <span class="cluster-name">Wikipedia</span>
+          </div>
+          <div class="data-points">
+            <div class="data-point">
+              <div class="point-node" style="--rotate: 130deg;">
+                <div class="orbit"></div>
+                <div class="point-core"></div>
+              </div>
+              <div class="point-info">
+                <span class="point-value">127</span>
+                <span class="point-label">edits</span>
+              </div>
+            </div>
+            <div class="data-point">
+              <div class="point-node" style="--rotate: 80deg;">
+                <div class="orbit"></div>
+                <div class="point-core"></div>
+              </div>
+              <div class="point-info">
+                <span class="point-value">0.8</span>
+                <span class="point-label">velocity</span>
+              </div>
+            </div>
+            <div class="data-point">
+              <div class="point-node" style="--rotate: 105deg;">
+                <div class="orbit"></div>
+                <div class="point-core"></div>
+              </div>
+              <div class="point-info">
+                <span class="point-value">2.4k</span>
+                <span class="point-label">size</span>
+              </div>
+            </div>
+            <div class="data-point">
+              <div class="point-node" style="--rotate: 45deg;">
+                <div class="orbit"></div>
+                <div class="point-core"></div>
+              </div>
+              <div class="point-info">
+                <span class="point-value">3</span>
+                <span class="point-label">new</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cluster" data-source="hackernews">
+          <div class="cluster-header">
+            <div class="cluster-node"></div>
+            <span class="cluster-name">HackerNews</span>
+          </div>
+          <div class="data-points">
+            <div class="data-point">
+              <div class="point-node" style="--rotate: 100deg;">
+                <div class="orbit"></div>
+                <div class="point-core"></div>
+              </div>
+              <div class="point-info">
+                <span class="point-value">84</span>
+                <span class="point-label">posts</span>
+              </div>
+            </div>
+            <div class="data-point">
+              <div class="point-node" style="--rotate: 120deg;">
+                <div class="orbit"></div>
+                <div class="point-core"></div>
+              </div>
+              <div class="point-info">
+                <span class="point-value">156</span>
+                <span class="point-label">comments</span>
+              </div>
+            </div>
+            <div class="data-point">
+              <div class="point-node" style="--rotate: 150deg;">
+                <div class="orbit"></div>
+                <div class="point-core"></div>
+              </div>
+              <div class="point-info">
+                <span class="point-value">412</span>
+                <span class="point-label">score</span>
+              </div>
+            </div>
+            <div class="data-point">
+              <div class="point-node" style="--rotate: 60deg;">
+                <div class="orbit"></div>
+                <div class="point-core"></div>
+              </div>
+              <div class="point-info">
+                <span class="point-value">12</span>
+                <span class="point-label">top</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cluster" data-source="github">
+          <div class="cluster-header">
+            <div class="cluster-node"></div>
+            <span class="cluster-name">GitHub</span>
+          </div>
+          <div class="data-points">
+            <div class="data-point">
+              <div class="point-node" style="--rotate: 140deg;">
+                <div class="orbit"></div>
+                <div class="point-core"></div>
+              </div>
+              <div class="point-info">
+                <span class="point-value">256</span>
+                <span class="point-label">events</span>
+              </div>
+            </div>
+            <div class="data-point">
+              <div class="point-node" style="--rotate: 110deg;">
+                <div class="orbit"></div>
+                <div class="point-core"></div>
+              </div>
+              <div class="point-info">
+                <span class="point-value">89</span>
+                <span class="point-label">commits</span>
+              </div>
+            </div>
+            <div class="data-point">
+              <div class="point-node" style="--rotate: 70deg;">
+                <div class="orbit"></div>
+                <div class="point-core"></div>
+              </div>
+              <div class="point-info">
+                <span class="point-value">34</span>
+                <span class="point-label">prs</span>
+              </div>
+            </div>
+            <div class="data-point">
+              <div class="point-node" style="--rotate: 95deg;">
+                <div class="orbit"></div>
+                <div class="point-core"></div>
+              </div>
+              <div class="point-info">
+                <span class="point-value">67</span>
+                <span class="point-label">stars</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="theme-info">
+      <h3>Constellation</h3>
+      <p>Connected nodes forming data clusters. SVG background with dots and lines. Node-based UI elements. Flat colors, no gradients. Spacey network aesthetic.</p>
+      <div class="palette-nodes">
+        <div class="palette-item">
+          <div class="palette-dot" style="background: #020208;"></div>
+          <span class="palette-name">void</span>
+        </div>
+        <div class="palette-item">
+          <div class="palette-dot" style="background: #69b3ff;"></div>
+          <span class="palette-name">accent</span>
+        </div>
+        <div class="palette-item">
+          <div class="palette-dot" style="background: #ff6b6b;"></div>
+          <span class="palette-name">node-1</span>
+        </div>
+        <div class="palette-item">
+          <div class="palette-dot" style="background: #ffa94d;"></div>
+          <span class="palette-name">node-2</span>
+        </div>
+        <div class="palette-item">
+          <div class="palette-dot" style="background: #69b3ff;"></div>
+          <span class="palette-name">node-3</span>
+        </div>
+      </div>
+    </div>
+
+    <footer>webarmonium · constellation</footer>
+  </div>
+</body>
+</html>

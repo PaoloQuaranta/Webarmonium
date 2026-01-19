@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webarmonium - Signal Noise Theme</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --fg: #f0f0f0;
+      --dim: #404040;
+      --muted: #606060;
+      --accent: #00ff88;
+      --red: #ff4444;
+      --orange: #ff9933;
+      --blue: #4488ff;
+
+      --font: 'IBM Plex Mono', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      font-size: 12px;
+    }
+
+    /* Noise/static texture - CSS pattern, no images */
+    .noise-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.03;
+      background:
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(255,255,255,0.03) 2px,
+          rgba(255,255,255,0.03) 4px
+        );
+    }
+
+    /* Scanlines */
+    .scanlines {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 1px,
+        rgba(0,0,0,0.15) 1px,
+        rgba(0,0,0,0.15) 2px
+      );
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 1.5rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Terminal-style header */
+    header {
+      padding: 2rem 0;
+      border-bottom: 1px solid var(--dim);
+    }
+
+    .terminal-line {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .prompt {
+      color: var(--accent);
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 14px;
+      background: var(--accent);
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .system-msg {
+      color: var(--muted);
+      font-size: 0.9em;
+    }
+
+    /* Controls - terminal commands style */
+    .controls-term {
+      padding: 1rem 0;
+      margin: 1.5rem 0;
+      border-top: 1px solid var(--dim);
+      border-bottom: 1px solid var(--dim);
+    }
+
+    .cmd-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .cmd-btn {
+      font-family: var(--font);
+      font-size: 0.9em;
+      padding: 0.5rem 1rem;
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .cmd-btn:hover {
+      background: var(--accent);
+      color: var(--bg);
+    }
+
+    .cmd-btn.stop {
+      color: var(--red);
+      border-color: var(--red);
+    }
+
+    .cmd-btn.stop:hover {
+      background: var(--red);
+      color: var(--bg);
+    }
+
+    .param {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .param-name {
+      color: var(--muted);
+      text-transform: uppercase;
+      font-size: 0.8em;
+    }
+
+    .param-val {
+      color: var(--accent);
+      min-width: 3ch;
+    }
+
+    .param input[type="range"] {
+      width: 80px;
+      height: 2px;
+      background: var(--dim);
+      appearance: none;
+      border: none;
+    }
+
+    .param input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 8px;
+      height: 12px;
+      background: var(--accent);
+      cursor: pointer;
+    }
+
+    /* Metrics - data stream visualization */
+    .data-streams {
+      margin: 2rem 0;
+    }
+
+    .stream-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      color: var(--muted);
+      font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .stream-header::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--dim);
+    }
+
+    .streams-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--dim);
+    }
+
+    @media (max-width: 700px) {
+      .streams-grid { grid-template-columns: 1fr; }
+    }
+
+    .stream-block {
+      background: var(--bg);
+      padding: 1rem;
+    }
+
+    .stream-id {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px dashed var(--dim);
+    }
+
+    .stream-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--stream-color);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .stream-name {
+      color: var(--stream-color);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.85em;
+    }
+
+    .stream-block[data-source="wikipedia"] { --stream-color: var(--red); }
+    .stream-block[data-source="hackernews"] { --stream-color: var(--orange); }
+    .stream-block[data-source="github"] { --stream-color: var(--blue); }
+
+    /* Data rows - like log output */
+    .data-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .data-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.25rem 0;
+    }
+
+    .data-key {
+      color: var(--muted);
+      text-transform: uppercase;
+      font-size: 0.75em;
+      letter-spacing: 0.05em;
+    }
+
+    .data-value {
+      color: var(--fg);
+      font-weight: 600;
+    }
+
+    /* Mini bar visualization */
+    .data-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .bar-track {
+      width: 50px;
+      height: 4px;
+      background: var(--dim);
+      position: relative;
+    }
+
+    .bar-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      background: var(--stream-color);
+    }
+
+    /* Activity visualization - abstract data blocks */
+    .activity-viz {
+      display: flex;
+      gap: 2px;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px dashed var(--dim);
+    }
+
+    .activity-block {
+      width: 8px;
+      background: var(--stream-color);
+      opacity: 0.3;
+    }
+
+    .activity-block.active {
+      opacity: 1;
+    }
+
+    /* Random heights for visual interest */
+    .activity-block:nth-child(1) { height: 12px; }
+    .activity-block:nth-child(2) { height: 20px; }
+    .activity-block:nth-child(3) { height: 8px; }
+    .activity-block:nth-child(4) { height: 16px; }
+    .activity-block:nth-child(5) { height: 24px; }
+    .activity-block:nth-child(6) { height: 10px; }
+    .activity-block:nth-child(7) { height: 18px; }
+    .activity-block:nth-child(8) { height: 6px; }
+    .activity-block:nth-child(9) { height: 22px; }
+    .activity-block:nth-child(10) { height: 14px; }
+
+    .activity-block:nth-child(odd) { opacity: 0.8; }
+    .activity-block:nth-child(3n) { opacity: 1; }
+
+    /* Theme info */
+    .theme-info {
+      margin-top: 2rem;
+      padding: 1rem;
+      border: 1px dashed var(--dim);
+    }
+
+    .theme-info h3 {
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+
+    .theme-info p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .color-list {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .color-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .color-swatch-sm {
+      width: 12px;
+      height: 12px;
+    }
+
+    .color-name {
+      color: var(--muted);
+      font-size: 0.85em;
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--dim);
+      font-size: 0.85em;
+    }
+
+    footer .accent {
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="noise-overlay"></div>
+  <div class="scanlines"></div>
+
+  <div class="container">
+    <header>
+      <div class="terminal-line">
+        <span class="prompt">$</span>
+        <span class="logo">WEBARMONIUM</span>
+        <span class="cursor"></span>
+      </div>
+      <div class="system-msg">// web activity → generative music // v0.1.0</div>
+    </header>
+
+    <div class="controls-term">
+      <div class="cmd-row">
+        <button class="cmd-btn">[PLAY]</button>
+        <button class="cmd-btn stop">[STOP]</button>
+        <div class="param">
+          <span class="param-name">vol:</span>
+          <input type="range" min="0" max="100" value="70">
+          <span class="param-val">70</span>
+        </div>
+        <div class="param">
+          <span class="param-name">gain:</span>
+          <input type="range" min="0" max="100" value="50">
+          <span class="param-val">50</span>
+        </div>
+        <button class="cmd-btn">[CONFIG]</button>
+      </div>
+    </div>
+
+    <div class="data-streams">
+      <div class="stream-header">
+        <span>// data streams</span>
+      </div>
+
+      <div class="streams-grid">
+        <div class="stream-block" data-source="wikipedia">
+          <div class="stream-id">
+            <div class="stream-dot"></div>
+            <span class="stream-name">Wikipedia</span>
+          </div>
+          <div class="data-rows">
+            <div class="data-row">
+              <span class="data-key">edits</span>
+              <div class="data-bar">
+                <div class="bar-track"><div class="bar-fill" style="width: 72%;"></div></div>
+                <span class="data-value">127</span>
+              </div>
+            </div>
+            <div class="data-row">
+              <span class="data-key">velocity</span>
+              <div class="data-bar">
+                <div class="bar-track"><div class="bar-fill" style="width: 45%;"></div></div>
+                <span class="data-value">0.8</span>
+              </div>
+            </div>
+            <div class="data-row">
+              <span class="data-key">size</span>
+              <div class="data-bar">
+                <div class="bar-track"><div class="bar-fill" style="width: 58%;"></div></div>
+                <span class="data-value">2.4k</span>
+              </div>
+            </div>
+            <div class="data-row">
+              <span class="data-key">new</span>
+              <div class="data-bar">
+                <div class="bar-track"><div class="bar-fill" style="width: 25%;"></div></div>
+                <span class="data-value">3</span>
+              </div>
+            </div>
+          </div>
+          <div class="activity-viz">
+            <div class="activity-block"></div>
+            <div class="activity-block active"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block active"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block active"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block active"></div>
+            <div class="activity-block"></div>
+          </div>
+        </div>
+
+        <div class="stream-block" data-source="hackernews">
+          <div class="stream-id">
+            <div class="stream-dot"></div>
+            <span class="stream-name">HackerNews</span>
+          </div>
+          <div class="data-rows">
+            <div class="data-row">
+              <span class="data-key">posts</span>
+              <div class="data-bar">
+                <div class="bar-track"><div class="bar-fill" style="width: 55%;"></div></div>
+                <span class="data-value">84</span>
+              </div>
+            </div>
+            <div class="data-row">
+              <span class="data-key">comments</span>
+              <div class="data-bar">
+                <div class="bar-track"><div class="bar-fill" style="width: 68%;"></div></div>
+                <span class="data-value">156</span>
+              </div>
+            </div>
+            <div class="data-row">
+              <span class="data-key">score</span>
+              <div class="data-bar">
+                <div class="bar-track"><div class="bar-fill" style="width: 82%;"></div></div>
+                <span class="data-value">412</span>
+              </div>
+            </div>
+            <div class="data-row">
+              <span class="data-key">top</span>
+              <div class="data-bar">
+                <div class="bar-track"><div class="bar-fill" style="width: 35%;"></div></div>
+                <span class="data-value">12</span>
+              </div>
+            </div>
+          </div>
+          <div class="activity-viz">
+            <div class="activity-block active"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block active"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block active"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block active"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block active"></div>
+          </div>
+        </div>
+
+        <div class="stream-block" data-source="github">
+          <div class="stream-id">
+            <div class="stream-dot"></div>
+            <span class="stream-name">GitHub</span>
+          </div>
+          <div class="data-rows">
+            <div class="data-row">
+              <span class="data-key">events</span>
+              <div class="data-bar">
+                <div class="bar-track"><div class="bar-fill" style="width: 78%;"></div></div>
+                <span class="data-value">256</span>
+              </div>
+            </div>
+            <div class="data-row">
+              <span class="data-key">commits</span>
+              <div class="data-bar">
+                <div class="bar-track"><div class="bar-fill" style="width: 62%;"></div></div>
+                <span class="data-value">89</span>
+              </div>
+            </div>
+            <div class="data-row">
+              <span class="data-key">prs</span>
+              <div class="data-bar">
+                <div class="bar-track"><div class="bar-fill" style="width: 40%;"></div></div>
+                <span class="data-value">34</span>
+              </div>
+            </div>
+            <div class="data-row">
+              <span class="data-key">stars</span>
+              <div class="data-bar">
+                <div class="bar-track"><div class="bar-fill" style="width: 52%;"></div></div>
+                <span class="data-value">67</span>
+              </div>
+            </div>
+          </div>
+          <div class="activity-viz">
+            <div class="activity-block"></div>
+            <div class="activity-block active"></div>
+            <div class="activity-block active"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block active"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block active"></div>
+            <div class="activity-block"></div>
+            <div class="activity-block"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="theme-info">
+      <h3>// SIGNAL_NOISE</h3>
+      <p>Terminal/data aesthetic with scanlines and noise texture. Monospace only (IBM Plex Mono). Raw data visualization with activity blocks. No gradients.</p>
+      <div class="color-list">
+        <div class="color-item">
+          <div class="color-swatch-sm" style="background: #0a0a0a;"></div>
+          <span class="color-name">bg</span>
+        </div>
+        <div class="color-item">
+          <div class="color-swatch-sm" style="background: #00ff88;"></div>
+          <span class="color-name">accent</span>
+        </div>
+        <div class="color-item">
+          <div class="color-swatch-sm" style="background: #ff4444;"></div>
+          <span class="color-name">red</span>
+        </div>
+        <div class="color-item">
+          <div class="color-swatch-sm" style="background: #ff9933;"></div>
+          <span class="color-name">orange</span>
+        </div>
+        <div class="color-item">
+          <div class="color-swatch-sm" style="background: #4488ff;"></div>
+          <span class="color-name">blue</span>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <span class="accent">$</span> webarmonium --version 0.1.0
+    </footer>
+  </div>
+</body>
+</html>

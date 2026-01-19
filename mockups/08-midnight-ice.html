@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webarmonium - Midnight Ice Theme</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Sharp, modern fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Midnight Ice - Deep navy with icy blue accents */
+      --bg-primary: #020617;
+      --bg-secondary: #0f172a;
+      --bg-card: #1e293b;
+      --bg-meter: #0f172a;
+      --bg-elevated: #334155;
+
+      /* Icy blue accent */
+      --accent-primary: #38bdf8;
+      --accent-light: #7dd3fc;
+      --accent-bright: #bae6fd;
+      --accent-dim: #0284c7;
+      --accent-glow: rgba(56, 189, 248, 0.35);
+
+      /* Secondary - slate silver */
+      --accent-secondary: #94a3b8;
+
+      /* Source colors - cool variants */
+      --wikipedia-color: #f87171;
+      --hackernews-color: #fb923c;
+      --github-color: #60a5fa;
+
+      /* Text - cool grays */
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --text-muted: #64748b;
+      --text-label: #475569;
+
+      /* Borders */
+      --border-color: rgba(56, 189, 248, 0.2);
+      --border-subtle: rgba(148, 163, 184, 0.1);
+
+      /* Typography - SHARP GEOMETRIC */
+      --font-display: 'Manrope', system-ui, sans-serif;
+      --font-mono: 'Fira Code', 'SF Mono', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-display);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* Frosted glass effect overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 100% 50% at 50% -10%, rgba(56, 189, 248, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse 80% 60% at 20% 80%, rgba(56, 189, 248, 0.04) 0%, transparent 40%),
+        radial-gradient(ellipse 60% 40% at 90% 70%, rgba(148, 163, 184, 0.03) 0%, transparent 40%);
+      pointer-events: none;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      padding: 3rem 2rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent-bright) 0%, var(--accent-primary) 50%, var(--accent-dim) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 30px var(--accent-glow));
+    }
+
+    .tagline {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      font-weight: 400;
+    }
+
+    /* ================================================ */
+    /* METRICS DASHBOARD                                */
+    /* ================================================ */
+
+    .metrics-section {
+      margin: 2.5rem 0;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--border-subtle), transparent);
+    }
+
+    .metrics-dashboard {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 900px) {
+      .metrics-dashboard { grid-template-columns: 1fr; }
+    }
+
+    /* Metric Card - Frosted glass style */
+    .metric-card {
+      background: rgba(30, 41, 59, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.25rem;
+      transition: all 0.2s ease;
+    }
+
+    .metric-card:hover {
+      border-color: var(--card-accent);
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(var(--card-accent-rgb), 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .metric-card[data-source="wikipedia"] {
+      --card-accent: var(--wikipedia-color);
+      --card-accent-rgb: 248, 113, 113;
+    }
+    .metric-card[data-source="hackernews"] {
+      --card-accent: var(--hackernews-color);
+      --card-accent-rgb: 251, 146, 60;
+    }
+    .metric-card[data-source="github"] {
+      --card-accent: var(--github-color);
+      --card-accent-rgb: 96, 165, 250;
+    }
+
+    /* Source Title */
+    .source-title {
+      font-family: var(--font-display);
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--card-accent);
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
+    /* Meters Container */
+    .meters-container {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.75rem;
+    }
+
+    /* Individual Meter */
+    .meter {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    /* Meter Bar - Ice style */
+    .meter-bar {
+      width: 20px;
+      height: 48px;
+      background: var(--bg-meter);
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .meter-fill {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(
+        to top,
+        var(--card-accent),
+        color-mix(in srgb, var(--card-accent) 50%, white)
+      );
+      border-radius: 3px;
+      transition: height 0.3s ease;
+      box-shadow: 0 -2px 10px rgba(var(--card-accent-rgb), 0.3);
+    }
+
+    /* Meter Value - Fira Code */
+    .meter-value {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    /* Meter Label - KEY ELEMENT */
+    .meter-label {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      font-weight: 400;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-label);
+    }
+
+    /* ================================================ */
+    /* CONTROLS PREVIEW                                 */
+    /* ================================================ */
+
+    .controls-preview {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      background: rgba(30, 41, 59, 0.5);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      margin: 2rem 0;
+    }
+
+    .btn {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 0.65rem 1.35rem;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-dim) 100%);
+      color: var(--bg-primary);
+      box-shadow: 0 4px 16px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px var(--accent-glow);
+    }
+
+    .btn-secondary {
+      background: rgba(148, 163, 184, 0.1);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(148, 163, 184, 0.15);
+      border-color: var(--accent-secondary);
+    }
+
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .slider-group label {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-label);
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .slider-row input[type="range"] {
+      width: 110px;
+      height: 4px;
+      background: var(--bg-meter);
+      border-radius: 2px;
+      appearance: none;
+    }
+
+    .slider-row input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: var(--accent-primary);
+      border-radius: 4px;
+      cursor: pointer;
+      box-shadow: 0 2px 8px var(--accent-glow);
+    }
+
+    .slider-value {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--accent-light);
+      min-width: 2.5rem;
+    }
+
+    /* ================================================ */
+    /* TYPOGRAPHY SPECIMEN                              */
+    /* ================================================ */
+
+    .font-specimen {
+      background: rgba(30, 41, 59, 0.5);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .font-specimen h3 {
+      font-family: var(--font-display);
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+    }
+
+    .font-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 600px) {
+      .font-grid { grid-template-columns: 1fr; }
+    }
+
+    .font-item {
+      padding: 1rem;
+      background: var(--bg-meter);
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .font-item-label {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-label);
+      margin-bottom: 0.6rem;
+    }
+
+    .font-item-sample.display {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent-light), var(--accent-primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .font-item-sample.mono {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      color: var(--accent-light);
+    }
+
+    .font-item-sample.values {
+      font-family: var(--font-mono);
+      font-size: 1.25rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .font-item-sample.labels {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    /* Theme info */
+    .theme-info {
+      background: rgba(30, 41, 59, 0.5);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .theme-info h3 {
+      font-family: var(--font-display);
+      font-weight: 700;
+      color: var(--accent-light);
+      margin-bottom: 0.75rem;
+    }
+
+    .theme-info p {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+    }
+
+    .palette-display {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .color-swatch {
+      width: 50px;
+      height: 50px;
+      border-radius: 6px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 3px;
+      font-family: var(--font-mono);
+      font-size: 0.4rem;
+      border: 1px solid var(--border-subtle);
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      color: var(--text-label);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 class="logo">Webarmonium</h1>
+      <p class="tagline">real-time web activity → generative music</p>
+    </header>
+
+    <!-- Controls -->
+    <div class="controls-preview">
+      <button class="btn btn-primary">▶ Play</button>
+      <div class="slider-group">
+        <label>Volume</label>
+        <div class="slider-row">
+          <input type="range" min="0" max="100" value="70">
+          <span class="slider-value">70%</span>
+        </div>
+      </div>
+      <div class="slider-group">
+        <label>Intensity</label>
+        <div class="slider-row">
+          <input type="range" min="0" max="100" value="50">
+          <span class="slider-value">50%</span>
+        </div>
+      </div>
+      <button class="btn btn-secondary">Settings</button>
+    </div>
+
+    <!-- Metrics -->
+    <section class="metrics-section">
+      <div class="section-title">Live Data Streams</div>
+
+      <div class="metrics-dashboard">
+        <!-- Wikipedia -->
+        <div class="metric-card" data-source="wikipedia">
+          <h3 class="source-title">Wikipedia</h3>
+          <div class="meters-container">
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 72%;"></div></div>
+              <span class="meter-value">127</span>
+              <span class="meter-label">edits</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 45%;"></div></div>
+              <span class="meter-value">0.8</span>
+              <span class="meter-label">velocity</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 58%;"></div></div>
+              <span class="meter-value">2.4k</span>
+              <span class="meter-label">size</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 25%;"></div></div>
+              <span class="meter-value">3</span>
+              <span class="meter-label">new</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- HackerNews -->
+        <div class="metric-card" data-source="hackernews">
+          <h3 class="source-title">HackerNews</h3>
+          <div class="meters-container">
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 55%;"></div></div>
+              <span class="meter-value">84</span>
+              <span class="meter-label">posts</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 68%;"></div></div>
+              <span class="meter-value">156</span>
+              <span class="meter-label">comments</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 82%;"></div></div>
+              <span class="meter-value">412</span>
+              <span class="meter-label">score</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 35%;"></div></div>
+              <span class="meter-value">12</span>
+              <span class="meter-label">top</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- GitHub -->
+        <div class="metric-card" data-source="github">
+          <h3 class="source-title">GitHub</h3>
+          <div class="meters-container">
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 78%;"></div></div>
+              <span class="meter-value">256</span>
+              <span class="meter-label">events</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 62%;"></div></div>
+              <span class="meter-value">89</span>
+              <span class="meter-label">commits</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 40%;"></div></div>
+              <span class="meter-value">34</span>
+              <span class="meter-label">prs</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 52%;"></div></div>
+              <span class="meter-value">67</span>
+              <span class="meter-label">stars</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Typography -->
+    <div class="font-specimen">
+      <h3>Typography</h3>
+      <div class="font-grid">
+        <div class="font-item">
+          <div class="font-item-label">Display · Manrope 800</div>
+          <div class="font-item-sample display">Webarmonium</div>
+        </div>
+        <div class="font-item">
+          <div class="font-item-label">Mono · Fira Code</div>
+          <div class="font-item-sample mono">const stream = init()</div>
+        </div>
+        <div class="font-item">
+          <div class="font-item-label">Values · Tabular</div>
+          <div class="font-item-sample values">127 | 2.4k | 412</div>
+        </div>
+        <div class="font-item">
+          <div class="font-item-label">Labels · Micro</div>
+          <div class="font-item-sample labels">EDITS · VELOCITY · SIZE · NEW · POSTS · COMMITS</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Theme Info -->
+    <div class="theme-info">
+      <h3>Theme: Midnight Ice</h3>
+      <p>Deep navy with icy blue gradients and frosted glass effects. Manrope for sharp geometric display, Fira Code for technical data.</p>
+
+      <div class="palette-display">
+        <div class="color-swatch" style="background: #020617; color: #64748b;">#020617</div>
+        <div class="color-swatch" style="background: #1e293b; color: #64748b;">#1e293b</div>
+        <div class="color-swatch" style="background: #38bdf8; color: #020617;">#38bdf8</div>
+        <div class="color-swatch" style="background: #f87171; color: #020617;">#f87171</div>
+        <div class="color-swatch" style="background: #fb923c; color: #020617;">#fb923c</div>
+        <div class="color-swatch" style="background: #60a5fa; color: #020617;">#60a5fa</div>
+      </div>
+    </div>
+
+    <footer>Webarmonium · Theme Mockup</footer>
+  </div>
+</body>
+</html>

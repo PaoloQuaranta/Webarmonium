@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webarmonium - Obsidian Theme</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Sharp, technical fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Obsidian - Deep black with warm amber accents */
+      --bg-primary: #09090b;
+      --bg-secondary: #18181b;
+      --bg-card: #1f1f23;
+      --bg-meter: #09090b;
+      --bg-elevated: #27272a;
+
+      /* Warm amber accent - like volcanic glass */
+      --accent-primary: #f59e0b;
+      --accent-light: #fbbf24;
+      --accent-dim: #d97706;
+      --accent-glow: rgba(245, 158, 11, 0.3);
+
+      /* Source colors - slightly desaturated */
+      --wikipedia-color: #dc2626;
+      --hackernews-color: #ea580c;
+      --github-color: #2563eb;
+
+      /* Text - warm grays */
+      --text-primary: #fafafa;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --text-label: #52525b;
+
+      /* Borders */
+      --border-color: rgba(245, 158, 11, 0.15);
+      --border-subtle: rgba(255, 255, 255, 0.06);
+
+      /* Typography - SHARP TECHNICAL */
+      --font-display: 'IBM Plex Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-display);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* Subtle radial glow */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 50% 0%, rgba(245, 158, 11, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse 80% 60% at 100% 100%, rgba(245, 158, 11, 0.02) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      padding: 3rem 2rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .logo span {
+      color: var(--accent-primary);
+    }
+
+    .tagline {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+
+    /* ================================================ */
+    /* DETAILED METRICS DASHBOARD                       */
+    /* ================================================ */
+
+    .metrics-section {
+      margin: 2.5rem 0;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .section-header h2 {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+    }
+
+    .section-header::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-subtle);
+    }
+
+    .metrics-dashboard {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 900px) {
+      .metrics-dashboard { grid-template-columns: 1fr; }
+    }
+
+    /* Metric Card */
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 1rem;
+      transition: all 0.15s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Top accent line */
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--card-accent);
+    }
+
+    .metric-card:hover {
+      border-color: var(--card-accent);
+      background: var(--bg-elevated);
+    }
+
+    .metric-card[data-source="wikipedia"] { --card-accent: var(--wikipedia-color); }
+    .metric-card[data-source="hackernews"] { --card-accent: var(--hackernews-color); }
+    .metric-card[data-source="github"] { --card-accent: var(--github-color); }
+
+    /* Source Title */
+    .source-title {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--card-accent);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .source-title::before {
+      content: '●';
+      font-size: 0.5rem;
+    }
+
+    /* Meters Container */
+    .meters-container {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.75rem;
+    }
+
+    /* Individual Meter */
+    .meter {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.5rem 0.25rem;
+      background: var(--bg-meter);
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    /* Meter Bar */
+    .meter-bar {
+      width: 16px;
+      height: 40px;
+      background: var(--bg-primary);
+      border-radius: 2px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .meter-fill {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--card-accent);
+      border-radius: 1px;
+      transition: height 0.3s ease;
+    }
+
+    /* Meter Value - JetBrains Mono */
+    .meter-value {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+
+    /* Meter Label - KEY STYLING */
+    .meter-label {
+      font-family: var(--font-mono);
+      font-size: 0.45rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-label);
+    }
+
+    /* ================================================ */
+    /* CONTROLS PREVIEW                                 */
+    /* ================================================ */
+
+    .controls-preview {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+      padding: 1rem 1.25rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      margin: 2rem 0;
+    }
+
+    .btn {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 0.75rem;
+      padding: 0.6rem 1.25rem;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .btn-primary {
+      background: var(--accent-primary);
+      color: var(--bg-primary);
+    }
+
+    .btn-secondary {
+      background: var(--bg-meter);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .slider-group label {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-label);
+    }
+
+    .slider-track {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .slider-track input[type="range"] {
+      width: 100px;
+      height: 3px;
+      background: var(--bg-meter);
+      border-radius: 1px;
+      appearance: none;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .slider-track input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      background: var(--accent-primary);
+      border-radius: 2px;
+      cursor: pointer;
+    }
+
+    .slider-value {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--accent-light);
+      min-width: 2.5rem;
+    }
+
+    /* ================================================ */
+    /* TYPOGRAPHY SPECIMEN                              */
+    /* ================================================ */
+
+    .font-specimen {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .font-specimen h3 {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+    }
+
+    .font-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 600px) {
+      .font-grid { grid-template-columns: 1fr; }
+    }
+
+    .font-item {
+      padding: 1rem;
+      background: var(--bg-meter);
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .font-item-label {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-label);
+      margin-bottom: 0.75rem;
+    }
+
+    .font-item-sample.display {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .font-item-sample.mono {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      color: var(--accent-light);
+    }
+
+    .font-item-sample.label-sample {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
+    .font-item-sample.values {
+      font-family: var(--font-mono);
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    /* Theme info */
+    .theme-info {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .theme-info h3 {
+      font-family: var(--font-display);
+      font-weight: 600;
+      color: var(--accent-light);
+      margin-bottom: 0.75rem;
+    }
+
+    .theme-info p {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+    }
+
+    .palette-display {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .color-swatch {
+      width: 48px;
+      height: 48px;
+      border-radius: 4px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 3px;
+      font-family: var(--font-mono);
+      font-size: 0.4rem;
+      letter-spacing: 0.02em;
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-label);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 class="logo">WEBARMON<span>I</span>UM</h1>
+      <p class="tagline">web activity → generative music</p>
+    </header>
+
+    <!-- Controls Preview -->
+    <div class="controls-preview">
+      <button class="btn btn-primary">▶ PLAY</button>
+      <div class="slider-group">
+        <label>Volume</label>
+        <div class="slider-track">
+          <input type="range" min="0" max="100" value="70">
+          <span class="slider-value">70%</span>
+        </div>
+      </div>
+      <div class="slider-group">
+        <label>Intensity</label>
+        <div class="slider-track">
+          <input type="range" min="0" max="100" value="50">
+          <span class="slider-value">50%</span>
+        </div>
+      </div>
+      <button class="btn btn-secondary">⚙ CONFIG</button>
+    </div>
+
+    <!-- Metrics Section -->
+    <section class="metrics-section">
+      <div class="section-header">
+        <h2>Data Streams</h2>
+      </div>
+
+      <div class="metrics-dashboard">
+        <!-- Wikipedia -->
+        <div class="metric-card" data-source="wikipedia">
+          <h3 class="source-title">Wikipedia</h3>
+          <div class="meters-container">
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 72%;"></div></div>
+              <span class="meter-value">127</span>
+              <span class="meter-label">edits</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 45%;"></div></div>
+              <span class="meter-value">0.8</span>
+              <span class="meter-label">vel</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 58%;"></div></div>
+              <span class="meter-value">2.4k</span>
+              <span class="meter-label">size</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 25%;"></div></div>
+              <span class="meter-value">3</span>
+              <span class="meter-label">new</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- HackerNews -->
+        <div class="metric-card" data-source="hackernews">
+          <h3 class="source-title">HackerNews</h3>
+          <div class="meters-container">
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 55%;"></div></div>
+              <span class="meter-value">84</span>
+              <span class="meter-label">posts</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 68%;"></div></div>
+              <span class="meter-value">156</span>
+              <span class="meter-label">cmts</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 82%;"></div></div>
+              <span class="meter-value">412</span>
+              <span class="meter-label">score</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 35%;"></div></div>
+              <span class="meter-value">12</span>
+              <span class="meter-label">top</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- GitHub -->
+        <div class="metric-card" data-source="github">
+          <h3 class="source-title">GitHub</h3>
+          <div class="meters-container">
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 78%;"></div></div>
+              <span class="meter-value">256</span>
+              <span class="meter-label">evts</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 62%;"></div></div>
+              <span class="meter-value">89</span>
+              <span class="meter-label">cmts</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 40%;"></div></div>
+              <span class="meter-value">34</span>
+              <span class="meter-label">prs</span>
+            </div>
+            <div class="meter">
+              <div class="meter-bar"><div class="meter-fill" style="height: 52%;"></div></div>
+              <span class="meter-value">67</span>
+              <span class="meter-label">stars</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Typography -->
+    <div class="font-specimen">
+      <h3>Typography</h3>
+      <div class="font-grid">
+        <div class="font-item">
+          <div class="font-item-label">Display · IBM Plex Sans</div>
+          <div class="font-item-sample display">WEBARMONIUM</div>
+        </div>
+        <div class="font-item">
+          <div class="font-item-label">Mono · JetBrains Mono</div>
+          <div class="font-item-sample mono">const data = stream()</div>
+        </div>
+        <div class="font-item">
+          <div class="font-item-label">Values · Tabular</div>
+          <div class="font-item-sample values">127 | 2.4k | 412</div>
+        </div>
+        <div class="font-item">
+          <div class="font-item-label">Labels · Micro</div>
+          <div class="font-item-sample label-sample">EDITS · VELOCITY · SIZE · NEW · POSTS · COMMITS · STARS</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Theme Info -->
+    <div class="theme-info">
+      <h3>Theme: Obsidian</h3>
+      <p>Deep volcanic black with warm amber accents. JetBrains Mono for sharp technical typography, IBM Plex Sans for headings.</p>
+
+      <div class="palette-display">
+        <div class="color-swatch" style="background: #09090b; color: #a1a1aa;">#09090b</div>
+        <div class="color-swatch" style="background: #1f1f23; color: #a1a1aa;">#1f1f23</div>
+        <div class="color-swatch" style="background: #f59e0b; color: #09090b;">#f59e0b</div>
+        <div class="color-swatch" style="background: #dc2626; color: #fafafa;">#dc2626</div>
+        <div class="color-swatch" style="background: #ea580c; color: #fafafa;">#ea580c</div>
+        <div class="color-swatch" style="background: #2563eb; color: #fafafa;">#2563eb</div>
+      </div>
+    </div>
+
+    <footer>Webarmonium · Theme Mockup · v0.1</footer>
+  </div>
+</body>
+</html>
