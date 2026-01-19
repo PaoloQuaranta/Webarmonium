@@ -297,7 +297,7 @@ const AuthHandler = {
         // Include redirect info if applicable
         if (wasRedirected) {
           response.redirectedFrom = result.redirectedFrom
-          response.redirectMessage = `La stanza ${result.redirectedFrom} era piena. Sei stato reindirizzato a ${actualRoomId}`
+          response.redirectMessage = `Room ${result.redirectedFrom} was full. You have been redirected to ${actualRoomId}`
         }
 
         // Include virtual users info if in solo mode

@@ -92,7 +92,7 @@ const CursorHandler = {
         // Validate cursor data
         const cursorData = {
           userId: data.userId || socket.userId,
-          color: data.color || '#66c2a5',
+          color: data.color || '#2dd4bf',
           x: data.x || 0.5,
           y: data.y || 0.5,
           isDrawing: data.isDrawing || false,

@@ -163,7 +163,7 @@ class RoomManager {
         this.io.to(roomId).emit('mode-transition', {
           from: 'solo',
           to: 'multi',
-          message: 'Un altro utente si \u00e8 unito - le voci virtuali vengono sostituite',
+          message: 'Another user joined - virtual voices are being replaced',
           duration: 3000,
           timestamp: Date.now()
         })
