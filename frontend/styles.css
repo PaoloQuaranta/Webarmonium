@@ -247,6 +247,20 @@ p, .explainer-intro, .explainer-detail {
   pointer-events: auto;
 }
 
+/* Mobile: Allow scrolling within the overlay */
+@media (max-width: 768px) {
+  .landing-overlay {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Add padding at bottom for floating buttons */
+  .landing-overlay main {
+    padding-bottom: 5rem;
+  }
+}
+
 /* Hide overlay in immersive mode */
 body.immersive-mode .landing-overlay {
   opacity: 0;
@@ -1045,49 +1059,112 @@ input[type="range"]::-moz-range-thumb {
 /* Collapsible Explainer (Bottom Section)      */
 /* ============================================ */
 
+/* Explainer panel - floating popup style */
 #mapping-explainer,
 .landing-explainer {
+  position: fixed;
+  bottom: 4rem; /* Above the floating button */
+  left: 1rem;
+  max-width: 400px;
   max-height: 50vh;
   overflow-y: auto;
   background: var(--ui-bg);
-  border-top: 1px solid var(--line);
-  transition: max-height 0.3s ease, opacity 0.2s ease;
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  z-index: 199; /* Just below the button */
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
 }
 
 #mapping-explainer.collapsed,
 .landing-explainer.collapsed {
-  max-height: 0;
   opacity: 0;
-  overflow: hidden;
+  transform: translateY(10px);
+  visibility: hidden;
   pointer-events: none;
 }
 
-/* Explainer handle - MOBILE ONLY */
+/* Mobile: Full-width panel with backdrop */
+@media (max-width: 768px) {
+  #mapping-explainer,
+  .landing-explainer {
+    left: 0.75rem;
+    right: 0.75rem;
+    max-width: none;
+    bottom: 3.5rem;
+    max-height: 60vh;
+  }
+
+  /* Backdrop overlay to hide UI when explainer is open on mobile */
+  #mapping-explainer::before,
+  .landing-explainer::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 2, 8, 0.9);
+    z-index: -1;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+    pointer-events: auto;
+  }
+
+  /* Hide backdrop when collapsed */
+  #mapping-explainer.collapsed::before,
+  .landing-explainer.collapsed::before {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+/* Explainer toggle button - ALWAYS VISIBLE */
 .explainer-handle {
-  display: none; /* Hidden by default on desktop */
+  display: flex; /* Visible on all screen sizes */
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.75rem;
+  padding: 0.75rem 1.25rem;
   cursor: pointer;
   background: var(--ui-bg);
-  border: none;
-  border-bottom: 1px solid var(--line);
-  transition: background 0.2s ease;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  width: 100%;
+  border: 2px solid var(--muted);
+  border-radius: 25px;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 200; /* Above explainer content, same level as immersive toggle */
+  width: auto;
 }
 
 .explainer-handle:hover {
   background: var(--surface);
+  border-color: var(--light);
+}
+
+.explainer-handle:hover .handle-text,
+.explainer-handle:hover .handle-icon {
+  color: var(--light);
+}
+
+/* Active state when explainer is open */
+.landing-explainer:not(.collapsed) .explainer-handle,
+#mapping-explainer:not(.collapsed) .explainer-handle {
+  border-color: var(--accent);
+}
+
+.landing-explainer:not(.collapsed) .explainer-handle .handle-text,
+.landing-explainer:not(.collapsed) .explainer-handle .handle-icon,
+#mapping-explainer:not(.collapsed) .explainer-handle .handle-text,
+#mapping-explainer:not(.collapsed) .explainer-handle .handle-icon {
+  color: var(--accent);
 }
 
 .handle-icon {
   font-size: 0.7rem;
   color: var(--dim);
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, color 0.2s ease;
 }
 
 /* Chevron icon */
@@ -1105,15 +1182,27 @@ input[type="range"]::-moz-range-thumb {
   font-size: 0.65rem;
   text-transform: uppercase;
   color: var(--dim);
+  transition: color 0.2s ease;
 }
 
-/* Desktop: Collapsible behavior enabled (same as mobile) */
-/* No override needed - collapsed state works on all screen sizes */
-
-/* Mobile: Show handle and enable collapse */
+/* Mobile: Larger touch target */
 @media (max-width: 768px) {
   .explainer-handle {
-    display: flex;
+    padding: 0.6rem 1rem;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    min-height: 44px; /* iOS minimum touch target */
+  }
+}
+
+/* Very small screens: Stack buttons if needed */
+@media (max-width: 360px) {
+  .explainer-handle {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .explainer-handle .handle-text {
+    font-size: 0.6rem;
   }
 }
 
@@ -1438,6 +1527,22 @@ footer a:hover {
     font-size: 0.6rem;
   }
 
+  /* Controls: Row layout, horizontally scrollable if needed */
+  #controls-bar {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: center;
+    padding: 0.75rem;
+    gap: 1rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .controls-left {
+    gap: 1rem;
+    flex-shrink: 0;
+  }
+
   #metrics-dashboard {
     flex-direction: column;
     align-items: center;
@@ -1652,6 +1757,7 @@ body.immersive-mode header,
 body.immersive-mode #controls-bar,
 body.immersive-mode #mapping-explainer,
 body.immersive-mode .landing-explainer,
+body.immersive-mode .explainer-handle,
 body.immersive-mode footer,
 body.immersive-mode .corner-logo-link,
 body.immersive-mode .constellation-bg,
@@ -1698,6 +1804,14 @@ body:not(.immersive-mode) .immersive-toggle {
 body:not(.immersive-mode) .immersive-toggle.visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Mobile/Touch: Always visible since hover doesn't work */
+@media (hover: none), (max-width: 768px) {
+  body:not(.immersive-mode) .immersive-toggle {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 /* Immersive mode mini control bar - line-based layout like other bars */
