@@ -2019,3 +2019,507 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     box-shadow: none;
   }
 }
+
+/* ============================================ */
+/* Room Page Styles                             */
+/* ============================================ */
+
+/* Room interface top bar */
+.room-interface {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 16px;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  z-index: 1000;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.room-interface.collapsed {
+  transform: translateY(calc(-100% - 30px));
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Room logo */
+.room-logo-link {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  z-index: 2;
+}
+
+.room-logo {
+  height: 32px;
+  width: auto;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+.room-logo:hover {
+  opacity: 1;
+}
+
+/* User count badge */
+.user-count {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--ui-bg);
+  color: var(--dim);
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  z-index: 2;
+}
+
+/* Room controls bar */
+.room-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  position: relative;
+  height: 80px;
+}
+
+.room-controls .node-btn-wrapper {
+  height: 80px;
+  padding-top: 14px;
+}
+
+.room-controls .slider-node {
+  height: 80px;
+  padding-top: 52px;
+}
+
+/* Connection lines for room controls */
+.room-controls::before,
+.room-controls::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2rem;
+  height: 1px;
+  background: var(--line);
+  z-index: 0;
+}
+
+.room-controls::before {
+  right: 100%;
+}
+
+.room-controls::after {
+  left: 100%;
+}
+
+.room-controls .node-btn-wrapper:first-child::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 100%;
+  width: calc(1.5rem + 90px + 1.5rem);
+  height: 1px;
+  background: var(--line);
+  z-index: 0;
+}
+
+/* Audio toggle button (primary style) */
+.audio-toggle {
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  min-height: 52px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--ui-bg);
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 500;
+  transition: border-color 0.2s ease, color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.audio-toggle:hover {
+  border-color: var(--accent-hover);
+  color: var(--accent-hover);
+}
+
+.audio-toggle.disabled {
+  border-color: var(--muted);
+  color: var(--dim);
+  opacity: 0.5;
+}
+
+.audio-toggle.playing {
+  border-color: var(--node-1);
+  color: var(--node-1);
+}
+
+/* Back link button */
+.back-link {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--ui-bg);
+  border: 2px solid var(--line);
+  color: var(--light);
+  cursor: pointer;
+  font-size: 1.1rem;
+  text-decoration: none;
+  transition: border-color 0.2s ease, color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.back-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Desktop settings button */
+.desktop-settings-btn {
+  background: var(--ui-bg);
+  color: var(--light);
+  border: 2px solid var(--line);
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.1rem;
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.desktop-settings-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Room instructions */
+.room-interface ~ .instructions,
+.instructions {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ui-bg);
+  padding: 15px 25px;
+  border-radius: 25px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--light);
+  border: 1px solid var(--line);
+  max-width: 90%;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.instructions.collapsed {
+  transform: translateX(-50%) translateY(calc(100% + 30px));
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Mobile menu button */
+.mobile-menu-btn {
+  display: none;
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 12px));
+  right: max(12px, env(safe-area-inset-right, 12px));
+  z-index: 1002;
+  background: var(--ui-bg);
+  border: 2px solid var(--line);
+  color: var(--light);
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: bold;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.mobile-menu-btn:active,
+.mobile-menu-btn.open {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Mobile backdrop */
+.mobile-menu-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1003;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.mobile-menu-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Mobile bottom sheet */
+.mobile-bottom-sheet {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--ui-bg);
+  backdrop-filter: blur(20px);
+  border-radius: 20px 20px 0 0;
+  z-index: 1004;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+}
+
+.mobile-bottom-sheet.open {
+  transform: translateY(0);
+}
+
+.mobile-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: rgba(45, 212, 191, 0.3);
+  border-radius: 2px;
+  margin: 12px auto;
+}
+
+.mobile-sheet-content {
+  padding: 0 20px 20px;
+}
+
+.mobile-sheet-section {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.mobile-sheet-section:last-child {
+  border-bottom: none;
+}
+
+.mobile-sheet-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.mobile-close-btn {
+  width: 100%;
+  background: var(--ui-bg);
+  border: 2px solid var(--line);
+  color: var(--light);
+  padding: 14px;
+  border-radius: 25px;
+  font-size: 16px;
+  margin-top: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.mobile-close-btn:active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mobile-settings-btn {
+  background: var(--ui-bg);
+  border: 2px solid var(--line);
+  color: var(--light);
+  border-radius: 25px;
+  font-size: 14px;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.mobile-settings-btn:hover,
+.mobile-settings-btn:active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Audio mode indicator */
+.audio-mode-indicator {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ui-bg);
+  backdrop-filter: blur(10px);
+  color: var(--dim);
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 14px;
+  z-index: 1000;
+  border: 1px solid var(--line);
+  transition: opacity 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+}
+
+.audio-mode-indicator.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(20px);
+}
+
+.audio-mode-indicator.low-power {
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.audio-mode-indicator.degraded {
+  border-color: #ffc107;
+  color: #ffc107;
+}
+
+.audio-mode-indicator.minimal {
+  border-color: #f97316;
+  color: #f97316;
+}
+
+.audio-mode-indicator.emergency {
+  border-color: #ef4444;
+  color: #ef4444;
+  animation: pulse-warning 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Accelerometer calibration button */
+.accelerometer-calibrate {
+  display: none;
+  background: var(--ui-bg);
+  border: 2px solid var(--line);
+  color: var(--light);
+  padding: 8px 12px;
+  border-radius: 25px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.accelerometer-calibrate.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Error display */
+.error-display {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 0, 0, 0.1);
+  border: 2px solid #ff4444;
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 400px;
+  text-align: center;
+  z-index: 2000;
+}
+
+.error-title {
+  color: #ff4444;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.error-message {
+  color: #ccc;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Room page mobile styles */
+@media (max-width: 768px) {
+  .room-logo {
+    height: 28px;
+  }
+
+  .room-interface {
+    top: max(10px, env(safe-area-inset-top, 10px));
+    left: max(10px, env(safe-area-inset-left, 10px));
+    right: max(10px, env(safe-area-inset-right, 10px));
+    padding: 0.5rem 1rem;
+  }
+
+  .room-controls {
+    display: none;
+  }
+
+  .room-controls::before,
+  .room-controls::after,
+  .room-controls .node-btn-wrapper:first-child::after {
+    display: none;
+  }
+
+  .room-controls .node-btn-wrapper,
+  .room-controls .slider-node {
+    height: auto;
+    padding-top: 0;
+  }
+
+  .instructions {
+    bottom: max(10px, calc(env(safe-area-inset-bottom, 10px) + 50px));
+    font-size: 11px;
+    padding: 10px 15px;
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .mobile-menu-backdrop {
+    display: block;
+  }
+
+  .mobile-bottom-sheet {
+    display: block;
+  }
+
+  .accelerometer-calibrate {
+    display: inline-block;
+  }
+}
