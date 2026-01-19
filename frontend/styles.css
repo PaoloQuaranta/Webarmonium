@@ -2061,7 +2061,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 }
 
 .room-logo {
-  height: 32px;
+  height: 40px; /* Match index logo size */
   width: auto;
   opacity: 0.9;
   transition: opacity 0.2s;
@@ -2478,7 +2478,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Room page mobile styles */
 @media (max-width: 768px) {
   .room-logo {
-    height: 28px;
+    height: 32px; /* Match index mobile logo size */
   }
 
   .room-interface {
