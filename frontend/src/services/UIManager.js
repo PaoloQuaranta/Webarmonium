@@ -302,15 +302,18 @@ class UIManager {
     this.mobileMenuBtn = document.createElement('button')
     this.mobileMenuBtn.className = 'mobile-menu-btn'
     // Force all styles inline for iPad (screen > 768px bypasses media query)
+    // Unified style: transparent bg with accent border
     this.mobileMenuBtn.style.cssText = `
       display: flex;
       position: fixed;
       top: max(12px, env(safe-area-inset-top, 12px));
       right: max(12px, env(safe-area-inset-right, 12px));
       z-index: 1002;
-      background: rgba(0, 212, 255, 0.9);
-      border: none;
-      color: #1a1a2e;
+      background: rgba(10, 10, 20, 0.55);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 2px solid #3a3a50;
+      color: #9090a8;
       border-radius: 50%;
       width: 52px;
       height: 52px;
@@ -319,8 +322,7 @@ class UIManager {
       justify-content: center;
       font-size: 24px;
       font-weight: bold;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      transition: transform 0.2s, background 0.2s;
+      transition: border-color 0.2s, color 0.2s;
     `
     this.mobileMenuBtn.innerHTML = '&#9776;' // Hamburger icon (☰)
     this.mobileMenuBtn.setAttribute('aria-label', 'Open menu')
@@ -335,6 +337,7 @@ class UIManager {
   _createMobileRoomInfoOverlay() {
     this.mobileRoomInfoOverlay = document.createElement('div')
     this.mobileRoomInfoOverlay.className = 'mobile-room-info-overlay'
+    // Unified style matching other UI elements
     this.mobileRoomInfoOverlay.style.cssText = `
       display: flex;
       flex-direction: column;
@@ -343,12 +346,12 @@ class UIManager {
       top: max(12px, env(safe-area-inset-top, 12px));
       left: max(12px, env(safe-area-inset-left, 12px));
       z-index: 1001;
-      background: rgba(0, 0, 0, 0.6);
+      background: rgba(10, 10, 20, 0.55);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       border-radius: 12px;
       padding: 8px 12px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid #3a3a50;
     `
     this.mobileRoomInfoOverlay.innerHTML = `
       <span class="mobile-overlay-user-count" id="mobileOverlayUserCount">👥 1 user</span>
@@ -407,6 +410,7 @@ class UIManager {
     document.body.appendChild(this.mobileBackdrop)
 
     // Bottom sheet - force base styles for iPad (screen > 768px)
+    // Unified style matching other UI elements
     this.mobileSheet = document.createElement('div')
     this.mobileSheet.className = 'mobile-bottom-sheet'
     this.mobileSheet.style.cssText = `
@@ -415,8 +419,11 @@ class UIManager {
       bottom: 0;
       left: 0;
       right: 0;
-      background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+      background: rgba(10, 10, 20, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border-radius: 20px 20px 0 0;
+      border-top: 1px solid #3a3a50;
       padding: 20px;
       padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
       z-index: 1003;
@@ -534,6 +541,7 @@ class UIManager {
     this.mobileCentralStartBtn = document.createElement('button')
     this.mobileCentralStartBtn.id = 'mobileCentralStart'
     this.mobileCentralStartBtn.className = 'mobile-central-start'
+    // Unified style: transparent bg with accent border
     this.mobileCentralStartBtn.style.cssText = `
       display: flex;
       align-items: center;
@@ -543,16 +551,17 @@ class UIManager {
       left: 50%;
       transform: translate(-50%, -50%);
       z-index: 1000;
-      background: rgba(0, 212, 255, 0.95);
-      border: none;
+      background: rgba(10, 10, 20, 0.55);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 2px solid #2dd4bf;
       border-radius: 50%;
-      width: 120px;
-      height: 120px;
-      font-size: 48px;
-      color: #0a0a0f;
+      width: 100px;
+      height: 100px;
+      font-size: 40px;
+      color: #2dd4bf;
       cursor: pointer;
-      box-shadow: 0 0 40px rgba(0, 212, 255, 0.6);
-      transition: opacity 0.3s, transform 0.2s;
+      transition: opacity 0.3s, transform 0.2s, border-color 0.2s;
     `
     this.mobileCentralStartBtn.textContent = '▶'
 
@@ -792,7 +801,9 @@ class UIManager {
       this.mobileSheet.style.transform = 'translateY(0)'
     }
     if (this.mobileMenuBtn) {
-      this.mobileMenuBtn.style.background = 'rgba(255, 100, 100, 0.9)'
+      // Accent border when open
+      this.mobileMenuBtn.style.borderColor = '#2dd4bf'
+      this.mobileMenuBtn.style.color = '#2dd4bf'
     }
     this.mobileMenuBtn.innerHTML = '&#10005;' // X icon
   }
@@ -814,7 +825,9 @@ class UIManager {
       this.mobileSheet.style.transform = 'translateY(100%)'
     }
     if (this.mobileMenuBtn) {
-      this.mobileMenuBtn.style.background = 'rgba(0, 212, 255, 0.9)'
+      // Reset to default border color
+      this.mobileMenuBtn.style.borderColor = '#3a3a50'
+      this.mobileMenuBtn.style.color = '#9090a8'
     }
     this.mobileMenuBtn.innerHTML = '&#9776;' // Hamburger icon
   }
