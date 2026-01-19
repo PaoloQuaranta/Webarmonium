@@ -350,7 +350,7 @@ class UIManager {
   _createMobileInfoButton() {
     this.mobileInfoBtn = document.createElement('button')
     this.mobileInfoBtn.className = 'mobile-info-btn'
-    // Unified style: matches other mobile buttons
+    // Unified style: pill button with text label
     this.mobileInfoBtn.style.cssText = `
       display: flex;
       position: fixed;
@@ -362,17 +362,17 @@ class UIManager {
       -webkit-backdrop-filter: blur(10px);
       border: 2px solid #3a3a50;
       color: #9090a8;
-      border-radius: 50%;
-      width: 52px;
-      height: 52px;
+      border-radius: 25px;
+      padding: 0.6rem 1.2rem;
       cursor: pointer;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
-      font-weight: bold;
+      font-family: var(--font-display, 'Space Grotesk', system-ui, sans-serif);
+      font-size: 14px;
+      font-weight: 500;
       transition: border-color 0.2s, color 0.2s;
     `
-    this.mobileInfoBtn.innerHTML = '?' // Help icon (matches ☰ and ✕ style)
+    this.mobileInfoBtn.textContent = '?'
     this.mobileInfoBtn.setAttribute('aria-label', 'Show instructions')
     this.mobileInfoBtn.setAttribute('aria-expanded', 'false')
 
