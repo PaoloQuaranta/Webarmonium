@@ -1067,7 +1067,9 @@ input[type="range"]::-moz-range-thumb {
   bottom: 0;
   left: 0;
   right: 0;
-  max-height: 50vh;
+  /* Limit top edge to not overlap with metrics cards (approx 60% from top) */
+  top: 60%;
+  max-height: none;
   overflow-y: auto;
   background: var(--ui-bg);
   backdrop-filter: blur(20px);
@@ -1094,6 +1096,7 @@ input[type="range"]::-moz-range-thumb {
     left: 0.75rem;
     right: 0.75rem;
     bottom: 3.5rem;
+    top: auto; /* Override desktop top constraint */
     max-width: none;
     max-height: 60vh;
     border: 1px solid var(--line);
