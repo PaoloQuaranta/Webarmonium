@@ -372,7 +372,7 @@ class UIManager {
       font-weight: bold;
       transition: border-color 0.2s, color 0.2s;
     `
-    this.mobileInfoBtn.innerHTML = 'ℹ' // Info icon
+    this.mobileInfoBtn.innerHTML = '?' // Help icon (matches ☰ and ✕ style)
     this.mobileInfoBtn.setAttribute('aria-label', 'Show instructions')
     this.mobileInfoBtn.setAttribute('aria-expanded', 'false')
 
