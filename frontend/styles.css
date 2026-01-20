@@ -946,6 +946,29 @@ button:disabled {
   opacity: 1;
   visibility: visible;
   transform: translateY(-50%) translateX(0);
+  pointer-events: auto;
+}
+
+/* Got it button in tooltip */
+.join-tooltip-gotit {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.5em;
+  text-decoration: underline;
+}
+
+.join-tooltip-gotit:hover {
+  color: var(--light);
+}
+
+/* Hide tooltip when dismissed */
+.join-tooltip.dismissed {
+  display: none !important;
 }
 
 /* Mobile: tooltip repositioned below cards at bottom of screen */

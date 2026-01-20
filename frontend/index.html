@@ -92,7 +92,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css?v=39">
+  <link rel="stylesheet" href="styles.css?v=40">
 
   <!-- p5.js for canvas rendering -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
@@ -348,7 +348,7 @@
           <a href="rooms.html" class="node-btn primary join-btn" aria-label="Join a Room">Join</a>
           <span class="node-label">Rooms</span>
           <span id="rooms-activity" class="rooms-activity"></span>
-          <span class="join-tooltip" id="join-tooltip">Join rooms to interact with other hoomans, or web sources if the room is empty. Free. No account required.<button class="join-tooltip-dismiss" id="join-tooltip-dismiss" aria-label="Dismiss">&times;</button></span>
+          <span class="join-tooltip" id="join-tooltip">Join rooms to interact with other hoomans, or web sources if the room is empty. Free. No account required. <button class="join-tooltip-gotit" id="join-tooltip-gotit">got it</button></span>
         </div>
       </div>
     </section>
@@ -553,6 +553,27 @@
       }
     }
 
+    // Desktop tooltip "got it" handler
+    (function() {
+      var TOOLTIP_KEY = 'webarmonium_join_tooltip_dismissed';
+      var tooltip = document.getElementById('join-tooltip');
+      var gotitBtn = document.getElementById('join-tooltip-gotit');
+
+      // Check if already dismissed
+      if (localStorage.getItem(TOOLTIP_KEY) === 'true' && tooltip) {
+        tooltip.classList.add('dismissed');
+      }
+
+      if (gotitBtn) {
+        gotitBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          localStorage.setItem(TOOLTIP_KEY, 'true');
+          if (tooltip) tooltip.classList.add('dismissed');
+        });
+      }
+    })();
+
     // Mobile join tooltip: show after delay if user hasn't clicked Join
     // Uses dynamic element creation like NotificationService for reliable mobile display
     (function() {
@@ -571,10 +592,10 @@
         // Create tooltip element dynamically and append to body
         var el = document.createElement('div');
         el.id = 'mobile-join-tooltip';
-        el.innerHTML = 'Join rooms to interact with other hoomans, or web sources if the room is empty. Free. No account required.<button id="mobile-tooltip-dismiss" style="position:absolute;top:8px;right:8px;background:none;border:none;color:var(--dim);font-size:16px;cursor:pointer;padding:0;line-height:1;">&times;</button>';
+        el.innerHTML = 'Join rooms to interact with other hoomans, or web sources if the room is empty. Free. No account required. <button id="mobile-tooltip-gotit" style="background:none;border:none;color:var(--accent,#2dd4bf);font-family:inherit;font-size:inherit;cursor:pointer;padding:0;margin-left:0.5em;text-decoration:underline;">got it</button>';
 
-        // Inline styles - same approach as NotificationService
-        el.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10000;background:var(--ui-bg,rgba(10,10,20,0.4));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:var(--bright,#e0e0f0);padding:16px 32px 16px 16px;border-radius:8px;font-family:var(--font-mono,"Fira Code",monospace);font-size:0.85rem;line-height:1.5;max-width:320px;text-align:left;box-shadow:0 4px 20px rgba(0,0,0,0.5);border:1px solid var(--line,#3a3a50);opacity:0;transition:opacity 0.3s ease;';
+        // Inline styles - positioned at bottom, wider and flatter
+        el.style.cssText = 'position:fixed;top:auto;bottom:1rem;left:1rem;right:1rem;transform:none;z-index:10000;background:var(--ui-bg,rgba(10,10,20,0.4));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:var(--bright,#e0e0f0);padding:12px 16px;border-radius:8px;font-family:var(--font-mono,"Fira Code",monospace);font-size:0.8rem;line-height:1.4;text-align:left;box-shadow:0 4px 20px rgba(0,0,0,0.5);border:1px solid var(--line,#3a3a50);opacity:0;transition:opacity 0.3s ease;';
 
         document.body.appendChild(el);
 
@@ -583,10 +604,10 @@
           el.style.opacity = '1';
         });
 
-        // Dismiss button
-        var dismissBtn = document.getElementById('mobile-tooltip-dismiss');
-        if (dismissBtn) {
-          dismissBtn.addEventListener('click', function(e) {
+        // Got it button
+        var gotitBtn = document.getElementById('mobile-tooltip-gotit');
+        if (gotitBtn) {
+          gotitBtn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             localStorage.setItem(TOOLTIP_KEY, 'true');
