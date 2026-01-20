@@ -128,14 +128,14 @@ a:hover {
   color: var(--accent-hover);
 }
 
-/* Light mode: use viola from palette for better contrast on light backgrounds */
+/* Light mode: use --light (dark in light mode) for better contrast */
 :root[data-theme="light"] a,
 :root[data-theme="light"] a:visited {
-  color: var(--node-3);
+  color: var(--light);
 }
 
 :root[data-theme="light"] a:hover {
-  color: #9333ea;
+  color: var(--bright);
 }
 
 html {
