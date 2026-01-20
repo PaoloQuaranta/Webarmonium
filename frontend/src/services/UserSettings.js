@@ -175,7 +175,6 @@ class UserSettings {
   static applyTheme (theme) {
     if (typeof document !== 'undefined') {
       const root = document.documentElement
-      const body = document.body
 
       // Dark mode: remove attribute (CSS uses absence of attribute for dark)
       // Light mode: set attribute to 'light'
@@ -185,13 +184,14 @@ class UserSettings {
         root.removeAttribute('data-theme')
       }
 
-      // Force Chrome to recalculate ALL CSS variables
-      // Method: toggle visibility on body to trigger full repaint without flash
-      if (body) {
-        body.style.visibility = 'hidden'
-        void body.offsetHeight // Force synchronous reflow
-        body.style.visibility = ''
-      }
+      // Force Chrome to re-evaluate ALL CSS by toggling disabled on stylesheets
+      // This is a workaround for Chrome not updating CSS variables in some cases
+      const styleSheets = document.querySelectorAll('style, link[rel="stylesheet"]')
+      styleSheets.forEach(sheet => { sheet.disabled = true })
+      // Use setTimeout(0) to ensure disabled state is applied before re-enabling
+      setTimeout(() => {
+        styleSheets.forEach(sheet => { sheet.disabled = false })
+      }, 0)
 
       window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme } }))
     }
