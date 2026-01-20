@@ -57,9 +57,8 @@
   --logo-h: 48px;
 }
 
-/* Gradient and semantic colors */
+/* Semantic colors */
 :root {
-  --gradient-mid: rgba(10, 10, 20, 0.6);
   --success: #22c55e;  /* Green for success states */
 }
 
@@ -74,7 +73,6 @@
   --bright: #020208;    /* era --void */
   --ui-bg: rgba(144, 144, 168, 0.85);
   --ui-bg-solid: #9090a8;
-  --gradient-mid: rgba(224, 224, 240, 0.6);  /* Light version */
   --success: #059669;  /* Darker green for light mode contrast */
   /* accent, node-*, glow-* ereditano da :root (invariati) */
 }
@@ -298,7 +296,6 @@ header {
   align-items: flex-start;
   gap: 1.5rem;
   padding: 1.5rem 2rem;
-  background: linear-gradient(180deg, var(--ui-bg) 0%, var(--gradient-mid) 50%, transparent 100%);
 }
 
 .landing-logo-link {
@@ -767,6 +764,12 @@ button {
 button:hover:not(:disabled) {
   border-color: var(--light);
   color: var(--light);
+}
+
+/* Light mode: use --bright for more contrast on hover */
+:root[data-theme="light"] button:hover:not(:disabled) {
+  border-color: var(--bright);
+  color: var(--bright);
 }
 
 button:active:not(:disabled) {
