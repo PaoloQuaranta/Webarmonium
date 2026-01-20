@@ -847,6 +847,11 @@ button:disabled {
   color: var(--light);
 }
 
+:root[data-theme="light"] .node-btn:hover {
+  border-color: var(--surface);
+  color: var(--surface);
+}
+
 /* Primary node button - same outline style, just starts with accent border */
 .node-btn.primary {
   border-color: var(--muted);
@@ -856,6 +861,11 @@ button:disabled {
 .node-btn.primary:hover {
   border-color: var(--light);
   color: var(--light);
+}
+
+:root[data-theme="light"] .node-btn.primary:hover {
+  border-color: var(--surface);
+  color: var(--surface);
 }
 
 /* Playing state - red border only */
@@ -1065,6 +1075,11 @@ button:disabled {
   color: var(--light);
 }
 
+:root[data-theme="light"] .settings-btn:hover {
+  border-color: var(--surface);
+  color: var(--surface);
+}
+
 /* Room link - node style, unified bg */
 .room-link {
   display: flex;
@@ -1087,6 +1102,11 @@ button:disabled {
 .room-link:hover {
   border-color: var(--light);
   color: var(--light);
+}
+
+:root[data-theme="light"] .room-link:hover {
+  border-color: var(--surface);
+  color: var(--surface);
 }
 
 .room-link .rooms-activity {
@@ -1922,6 +1942,11 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   color: var(--light);
 }
 
+:root[data-theme="light"] .immersive-toggle:hover {
+  border-color: var(--surface);
+  color: var(--surface);
+}
+
 .immersive-icon {
   font-size: 1.1rem;
 }
@@ -2110,6 +2135,11 @@ body.immersive-mode .immersive-controls.visible {
   color: var(--light);
 }
 
+:root[data-theme="light"] .immersive-ctrl-btn:hover {
+  border-color: var(--surface);
+  color: var(--surface);
+}
+
 /* Play button turns red border when playing */
 body.audio-playing #immersive-play-btn {
   background: var(--ui-bg);
@@ -2128,6 +2158,11 @@ body.audio-playing #immersive-play-btn {
 #immersive-exit-btn:hover {
   border-color: var(--light);
   color: var(--light);
+}
+
+:root[data-theme="light"] #immersive-exit-btn:hover {
+  border-color: var(--surface);
+  color: var(--surface);
 }
 
 /* Play/Stop icon toggle */
@@ -2362,6 +2397,11 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 .audio-toggle:hover {
   border-color: var(--light);
   color: var(--light);
+}
+
+:root[data-theme="light"] .audio-toggle:hover {
+  border-color: var(--surface);
+  color: var(--surface);
 }
 
 .audio-toggle.disabled {
