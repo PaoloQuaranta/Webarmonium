@@ -952,7 +952,7 @@ button:disabled {
 @media (max-width: 768px) {
   .join-tooltip {
     position: fixed !important;
-    top: calc(100vh - 6rem) !important;
+    top: 80% !important;
     bottom: auto !important;
     left: 1rem !important;
     right: 1rem !important;
