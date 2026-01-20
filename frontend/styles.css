@@ -884,11 +884,12 @@ button:disabled {
   color: var(--light);
 }
 
-/* Join button tooltip */
+/* Join button tooltip - positioned to the left of button */
 .join-tooltip {
   position: absolute;
-  top: calc(100% + 0.75rem);
-  right: 0;
+  top: 50%;
+  right: calc(100% + 0.75rem);
+  transform: translateY(-50%) translateX(4px);
   width: 220px;
   padding: 0.75rem 1rem;
   background: var(--ui-bg);
@@ -901,34 +902,37 @@ button:disabled {
   color: var(--light);
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-4px);
   transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
   pointer-events: none;
   z-index: 100;
 }
 
+/* Arrow pointing right toward button */
 .join-tooltip::before {
   content: '';
   position: absolute;
-  bottom: 100%;
-  right: 20px;
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
   border: 6px solid transparent;
-  border-bottom-color: var(--line);
+  border-left-color: var(--line);
 }
 
 .join-tooltip::after {
   content: '';
   position: absolute;
-  bottom: 100%;
-  right: 21px;
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  margin-left: -1px;
   border: 5px solid transparent;
-  border-bottom-color: var(--ui-bg);
+  border-left-color: var(--ui-bg);
 }
 
 .join-section .node-btn-wrapper:hover .join-tooltip {
   opacity: 1;
   visibility: visible;
-  transform: translateY(0);
+  transform: translateY(-50%) translateX(0);
 }
 
 /* Mobile: tooltip hidden by default, shown via JS */
@@ -937,12 +941,13 @@ button:disabled {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
+    transform: translateY(-50%) translateX(4px);
   }
 
   .join-tooltip.visible {
     opacity: 1;
     visibility: visible;
-    transform: translateY(0);
+    transform: translateY(-50%) translateX(0);
     pointer-events: auto;
   }
 }

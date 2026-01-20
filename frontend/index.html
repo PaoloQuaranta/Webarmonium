@@ -92,7 +92,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css?v=23">
+  <link rel="stylesheet" href="styles.css?v=24">
 
   <!-- p5.js for canvas rendering -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
@@ -553,10 +553,10 @@
       }
     }
 
-    // Mobile join tooltip: show after 5 minutes if user hasn't clicked Join
+    // Mobile join tooltip: show after delay if user hasn't clicked Join
     (function() {
       var TOOLTIP_KEY = 'webarmonium_join_tooltip_dismissed';
-      var DELAY = 5 * 60 * 1000; // 5 minutes
+      var DELAY = 20 * 1000; // 20 seconds (for testing)
       var tooltip = document.getElementById('join-tooltip');
       var dismissBtn = document.getElementById('join-tooltip-dismiss');
       var joinBtn = document.querySelector('.join-btn');
