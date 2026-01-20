@@ -948,8 +948,8 @@ button:disabled {
   transform: translateY(-50%) translateX(0);
 }
 
-/* Mobile: tooltip repositioned below controls, centered */
-@media (hover: none) {
+/* Mobile: tooltip repositioned at bottom of screen */
+@media (max-width: 768px) {
   .join-tooltip {
     position: fixed;
     top: auto;
@@ -1000,7 +1000,7 @@ button:disabled {
   color: var(--light);
 }
 
-@media (hover: none) {
+@media (max-width: 768px) {
   .join-tooltip-dismiss {
     display: block;
   }
