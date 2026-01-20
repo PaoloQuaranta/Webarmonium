@@ -1649,7 +1649,7 @@ class WebarmoniumApp {
 
         if (startResult) {
           this.isAudioStarted = true
-          button.textContent = '⏸'
+          button.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>'
           button.classList.remove('disabled')
           button.classList.add('playing')
 
@@ -1914,7 +1914,7 @@ class WebarmoniumApp {
           // Update button state
           const button = document.getElementById('audioToggle')
           if (button) {
-            button.textContent = '⏸'
+            button.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>'
             button.classList.remove('disabled')
             button.classList.add('playing')
           }

@@ -549,14 +549,14 @@ class UIManager {
       const mobileAudioBtn = document.createElement('button')
       mobileAudioBtn.id = 'mobileAudioToggle'
       mobileAudioBtn.className = audioToggle.className
-      mobileAudioBtn.textContent = audioToggle.textContent
+      mobileAudioBtn.innerHTML = audioToggle.innerHTML
       // Directly call app method (clicking hidden elements unreliable)
       mobileAudioBtn.onclick = () => {
         if (window.webarmoniumApp?.toggleAudio) {
           window.webarmoniumApp.toggleAudio()
           // Update both buttons' text after toggle
           setTimeout(() => {
-            mobileAudioBtn.textContent = audioToggle.textContent
+            mobileAudioBtn.innerHTML = audioToggle.innerHTML
           }, 100)
         }
       }
@@ -728,7 +728,7 @@ class UIManager {
     if (this.mobileAudioBtn) {
       // Use audio state directly - more reliable than reading original toggle text
       const isPlaying = window.webarmoniumApp?.isAudioStarted
-      this.mobileAudioBtn.textContent = isPlaying ? '⏸' : '▶'
+      this.mobileAudioBtn.innerHTML = isPlaying ? '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>' : '▶'
       this.mobileAudioBtn.classList.toggle('playing', isPlaying)
     }
   }
