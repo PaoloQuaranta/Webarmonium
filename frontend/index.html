@@ -231,6 +231,42 @@
       background: var(--accent, #2dd4bf);
       color: var(--void, #020208);
     }
+    /* Mobile: compact warning modal */
+    @media (max-width: 768px) {
+      .warning-modal {
+        padding: 12px;
+        align-items: flex-start;
+        padding-top: max(12px, env(safe-area-inset-top, 12px));
+      }
+      .warning-content {
+        padding: 1.25rem 1rem;
+        max-width: 100%;
+        max-height: calc(100dvh - 24px);
+        overflow-y: auto;
+      }
+      .warning-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+      }
+      .warning-content h2 {
+        font-size: 1.15rem;
+        margin-bottom: 0.75rem;
+      }
+      .warning-text {
+        font-size: 0.85rem;
+        line-height: 1.5;
+        margin-bottom: 0.75rem;
+      }
+      .warning-small {
+        font-size: 0.75rem;
+      }
+      .warning-btn {
+        margin-top: 1rem;
+        padding: 0.6rem 1.5rem;
+        font-size: 0.9rem;
+        width: 100%;
+      }
+    }
   </style>
 
   <script>
