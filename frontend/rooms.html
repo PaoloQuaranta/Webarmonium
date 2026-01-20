@@ -320,6 +320,33 @@
             </div>
         </div>
 
+        <!-- Immersive Mode Toggle -->
+        <button class="immersive-toggle" id="immersive-toggle" title="Toggle immersive mode" aria-label="Toggle immersive mode">
+            <span class="immersive-icon">&#x26F6;</span>
+        </button>
+
+        <!-- Immersive mode mini control bar -->
+        <div class="immersive-controls" id="immersive-controls">
+            <div class="node-btn-wrapper">
+                <button class="immersive-ctrl-btn" id="immersive-play-btn" title="Play/Stop" aria-label="Play or stop">
+                    <span class="ctrl-icon play-icon">&#x25B6;</span>
+                    <span class="ctrl-icon stop-icon"><svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg></span>
+                </button>
+                <span class="node-label">Start</span>
+            </div>
+            <div class="node-btn-wrapper">
+                <button class="immersive-ctrl-btn" id="immersive-exit-btn" title="Exit immersive mode" aria-label="Exit immersive mode">
+                    &#x2715;
+                </button>
+                <span class="node-label">Exit</span>
+            </div>
+        </div>
+
+        <!-- Fullscreen ESC notice (desktop only) -->
+        <div class="fullscreen-esc-notice" id="fullscreen-esc-notice">
+            Press <kbd>ESC</kbd> to exit fullscreen
+        </div>
+
         <!-- Error display (hidden by default) -->
         <div class="error-display" id="errorDisplay" style="display: none;">
             <div class="error-title">Connection Error</div>
@@ -362,6 +389,7 @@
     <!-- Sprint 2 refactoring: Extracted components -->
     <script src="src/services/CanvasManager.js?v=1"></script>
     <script src="src/services/UIManager.js?v=18"></script> <!-- Fix: keep header visible on mobile -->
+    <script src="src/services/ImmersiveManager.js?v=1"></script> <!-- Immersive/fullscreen mode for rooms -->
     <script src="src/services/UserSettings.js?v=1"></script> <!-- Entry #74: User settings storage -->
     <script src="src/components/SettingsPanel.js?v=2"></script> <!-- Entry #74: Settings panel UI -->
     <script src="src/services/VolumeController.js?v=1"></script>

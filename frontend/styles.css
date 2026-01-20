@@ -1799,6 +1799,17 @@ body.immersive-mode #status-message {
   transition: opacity 0.2s ease;
 }
 
+/* Room elements hidden in immersive mode */
+body.immersive-mode .room-interface,
+body.immersive-mode .instructions,
+body.immersive-mode .mobile-info-btn,
+body.immersive-mode .mobile-info-popup,
+body.immersive-mode .audio-mode-indicator {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
 /* Canvas already full-page, just ensure z-index */
 body.immersive-mode #canvas-container {
   z-index: 1000;
@@ -2009,6 +2020,35 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     min-height: 40px;
     font-size: 0.9rem;
   }
+}
+
+/* Fullscreen ESC notice (desktop only) */
+.fullscreen-esc-notice {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: var(--light);
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  z-index: 1003;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+.fullscreen-esc-notice.visible {
+  opacity: 1;
+}
+
+.fullscreen-esc-notice kbd {
+  background: var(--muted);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  margin: 0 0.25rem;
 }
 
 /* ============================================ */

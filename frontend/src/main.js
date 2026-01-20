@@ -90,6 +90,10 @@ class WebarmoniumApp {
       // Entry #52: Initialize collapsible UI
       this.uiManager.initCollapsibleUI()
 
+      // Initialize immersive mode
+      this.immersiveManager = new ImmersiveManager(this)
+      this.immersiveManager.initialize()
+
       // Entry #69: Initialize visual service BEFORE connecting to server
       // This ensures springMesh exists when virtual user events arrive
       // p5.js container is visible after showApp()
@@ -1653,6 +1657,11 @@ class WebarmoniumApp {
           button.classList.remove('disabled')
           button.classList.add('playing')
 
+          // Sync audio-playing class for immersive mode play/stop icon
+          document.body.classList.add('audio-playing')
+          const immersiveLabel = document.querySelector('#immersive-controls .node-btn-wrapper:first-child .node-label')
+          if (immersiveLabel) immersiveLabel.textContent = 'Stop'
+
           // Entry #27: CRITICAL - Unmute audio when starting (localStorage may have saved muted=true)
           this.audioService.setMuted(false)
           if (this.audioControls) {
@@ -1683,6 +1692,11 @@ class WebarmoniumApp {
       this.isAudioStarted = false
       button.textContent = '▶'
       button.classList.remove('playing')
+
+      // Sync audio-playing class for immersive mode play/stop icon
+      document.body.classList.remove('audio-playing')
+      const immersiveLabel = document.querySelector('#immersive-controls .node-btn-wrapper:first-child .node-label')
+      if (immersiveLabel) immersiveLabel.textContent = 'Start'
       // console.log('🔇 Audio stopped')
     }
   }
@@ -2414,6 +2428,10 @@ class WebarmoniumApp {
 
     if (this.uiManager) {
       this.uiManager.destroy()
+    }
+
+    if (this.immersiveManager) {
+      this.immersiveManager.cleanup()
     }
 
     // Stop rendering loops

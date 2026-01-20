@@ -2348,3 +2348,160 @@ The Apply button in settings panel was using filled accent background, inconsist
 v1.0.193
 
 ---
+
+## Entry #149 - Mobile UI Unification & Stop Icon Redesign
+
+**Date**: 2026-01-20
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Unified mobile UI across index and rooms pages. Replaced ugly Unicode stop icon with consistent SVG. Removed redundant hamburger menu system from rooms (~450 lines), using same UI bar as index. Fixed various mobile layout issues.
+
+---
+
+### Changes
+
+#### 1. SVG Stop Icon Replacement
+
+Replaced the ugly Unicode `■` stop icon with a consistent SVG that matches the UI style across all pages (index, rooms) and modes (desktop, mobile, immersive).
+
+**SVG Icon:**
+```html
+<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor">
+  <rect x="3" y="3" width="10" height="10" rx="1.5"/>
+</svg>
+```
+
+**Files modified:**
+- `frontend/index.html`: Mobile UI bar stop icon
+- `frontend/src/main.js`: Immersive mode minibar stop icon
+- `frontend/src/services/UIManager.js`: Rooms UI bar stop icon
+- `frontend/src/landing/DashboardUI.js`: Landing page stop icon
+
+---
+
+#### 2. Removed Mobile Hamburger Menu from Rooms
+
+The hamburger menu in rooms was redundant. Removed ~450 lines of code and now rooms uses the same UI bar as index on mobile.
+
+**Removed methods from UIManager.js:**
+- `_createMobileMenuButton()`
+- `_createMobileBottomSheet()`
+- `_createMobileCentralStartButton()`
+- `toggleMobileMenu()`, `openMobileMenu()`, `closeMobileMenu()`
+
+**Result:** Clean mobile UI with play/volume/settings buttons in a centered row below the logo.
+
+---
+
+#### 3. Restored Info Button for Instructions Toggle
+
+Re-added the "?" info button that was accidentally removed. Simplified implementation with 44px round button positioned bottom-left, toggles popup with 5s auto-hide.
+
+**New methods in UIManager.js:**
+- `_createMobileInfoButton()`
+- `_createMobileInfoPopup()`
+- `_toggleMobileInfoPopup()`
+- `_closeMobileInfoPopup()`
+
+---
+
+#### 4. Mobile Layout Fixes
+
+| Issue | Fix |
+|-------|-----|
+| Room controls on same row as logo | Added `padding-top: 3rem` to room-interface |
+| Logo/usercount overlap | Kept absolute positioning for logo and usercount |
+| About/Immersive misaligned | Set both to `bottom: 1rem` |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/index.html` | SVG stop icon, cache version bump |
+| `frontend/src/main.js` | SVG stop icon for immersive minibar |
+| `frontend/src/services/UIManager.js` | Removed hamburger menu (~450 lines), SVG stop icon, restored info button |
+| `frontend/src/landing/DashboardUI.js` | SVG stop icon |
+| `frontend/styles.css` | Mobile room controls, layout fixes, About button alignment |
+
+---
+
+### Version
+
+v1.0.194
+
+---
+
+## Entry #150 - Immersive Mode for Rooms
+
+**Date**: 2026-01-20
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Added immersive/fullscreen mode to rooms page, matching the index page behavior but with browser Fullscreen API on desktop.
+
+---
+
+### Changes
+
+#### 1. New ImmersiveManager Service
+
+Created `frontend/src/services/ImmersiveManager.js` to handle immersive mode:
+- Desktop: Browser Fullscreen API with vendor prefixes (Safari/webkit support)
+- Mobile: Hides UI only (no fullscreen API)
+- Auto-hide minibar after 3 seconds
+- ESC key to exit
+- Proper cleanup of all event listeners
+
+#### 2. HTML Elements Added to rooms.html
+
+- `.immersive-toggle` button (bottom-right corner)
+- `.immersive-controls` minibar with Play/Stop and Exit buttons
+- `.fullscreen-esc-notice` notification (desktop only)
+
+#### 3. CSS Rules Added to styles.css
+
+- Room elements hidden in immersive mode (`.room-interface`, `.instructions`, `.mobile-info-btn`)
+- Fullscreen ESC notice styling
+
+#### 4. main.js Integration
+
+- ImmersiveManager initialization after UIManager
+- `body.audio-playing` class sync in `toggleAudio()` for play/stop icon
+- Cleanup call in `destroy()` method
+
+---
+
+### Behavior
+
+| | Desktop | Mobile |
+|---|---|---|
+| Trigger | Hover bottom-right corner | Always visible |
+| Fullscreen | Browser API (vendor-prefixed) | No |
+| ESC Notice | Shows 3 sec | No |
+| Minibar | Auto-hide 3 sec | Auto-hide 3 sec |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/ImmersiveManager.js` | **NEW** - Immersive mode service |
+| `frontend/rooms.html` | HTML elements, script include |
+| `frontend/styles.css` | Room immersive hiding rules, ESC notice |
+| `frontend/src/main.js` | Initialize ImmersiveManager, audio-playing sync, cleanup |
+
+---
+
+### Version
+
+v1.0.195
+
+---
