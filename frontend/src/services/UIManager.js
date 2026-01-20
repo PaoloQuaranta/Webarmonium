@@ -261,114 +261,6 @@ class UIManager {
   _setupMobileMenu() {
     // Add settings button to mobile UI (same as desktop)
     this._createDesktopSettingsButton()
-
-    // Create central start button always - it will hide itself if audio already started
-    // This avoids race condition with attemptAutoStartAudio()
-    this._createMobileCentralStartButton()
-
-    // If audio already started (rare race condition), hide immediately
-    if (window.webarmoniumApp?.isAudioStarted) {
-      this.hideMobileCentralStartButton()
-    }
-  }
-
-  /**
-   * Create central start button for mobile (visible until audio starts)
-   * Button appears centered on screen and disappears when audio starts.
-   * @private
-   */
-  _createMobileCentralStartButton() {
-    // Prevent duplicate creation
-    if (this.mobileCentralStartBtn || document.getElementById('mobileCentralStart')) {
-      return
-    }
-
-    this.mobileCentralStartBtn = document.createElement('button')
-    this.mobileCentralStartBtn.id = 'mobileCentralStart'
-    this.mobileCentralStartBtn.className = 'mobile-central-start'
-    // Match .node-btn.primary style (gray default) - just bigger
-    this.mobileCentralStartBtn.style.cssText = `
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 1000;
-      background: rgba(10, 10, 20, 0.55);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 2px solid #3a3a50;
-      border-radius: 50%;
-      width: 100px;
-      height: 100px;
-      font-size: 40px;
-      color: #5a5a70;
-      cursor: pointer;
-      transition: opacity 0.3s, transform 0.2s, border-color 0.2s, color 0.2s;
-    `
-    this.mobileCentralStartBtn.textContent = '▶'
-
-    // Accessibility attributes
-    this.mobileCentralStartBtn.setAttribute('aria-label', 'Start Audio')
-    this.mobileCentralStartBtn.setAttribute('role', 'button')
-
-    this.mobileCentralStartBtn.onclick = async () => {
-      if (window.webarmoniumApp?.toggleAudio) {
-        // Set loading state for accessibility
-        this.mobileCentralStartBtn.setAttribute('aria-busy', 'true')
-        this.mobileCentralStartBtn.style.pointerEvents = 'none'
-
-        try {
-          await window.webarmoniumApp.toggleAudio()
-          this.hideMobileCentralStartButton()
-        } catch (error) {
-          // Reset button state on error so user can retry
-          console.error('Failed to start audio:', error)
-          this.mobileCentralStartBtn.setAttribute('aria-busy', 'false')
-          this.mobileCentralStartBtn.style.pointerEvents = 'auto'
-        }
-      }
-    }
-
-    // Hover/touch states - lighter gray (matches --light)
-    const setHoverState = () => {
-      this.mobileCentralStartBtn.style.borderColor = '#9090a8'
-      this.mobileCentralStartBtn.style.color = '#9090a8'
-    }
-    const resetState = () => {
-      this.mobileCentralStartBtn.style.borderColor = '#3a3a50'
-      this.mobileCentralStartBtn.style.color = '#5a5a70'
-    }
-    this.mobileCentralStartBtn.addEventListener('mouseenter', setHoverState)
-    this.mobileCentralStartBtn.addEventListener('mouseleave', resetState)
-    this.mobileCentralStartBtn.addEventListener('touchstart', setHoverState, { passive: true })
-    this.mobileCentralStartBtn.addEventListener('touchend', resetState, { passive: true })
-
-    document.body.appendChild(this.mobileCentralStartBtn)
-  }
-
-  /**
-   * Hide and remove the central start button with fade animation
-   * Safe to call multiple times - checks if button exists before removal
-   * @public
-   */
-  hideMobileCentralStartButton() {
-    if (this.mobileCentralStartBtn) {
-      // Transfer focus to menu button before removing (accessibility)
-      this.mobileCentralStartBtn.style.opacity = '0'
-      this.mobileCentralStartBtn.style.pointerEvents = 'none'
-
-      // Store reference for cleanup in timeout
-      const btnToRemove = this.mobileCentralStartBtn
-      this.mobileCentralStartBtn = null
-
-      setTimeout(() => {
-        btnToRemove?.remove()
-      }, 300)
-    }
-
   }
 
   // ==========================================
@@ -707,13 +599,6 @@ class UIManager {
     // Remove event listeners
     if (this._boundEdgeHandler) {
       document.removeEventListener('mousemove', this._boundEdgeHandler)
-    }
-
-    // Remove mobile elements
-    // Clean up mobile central start button
-    if (this.mobileCentralStartBtn) {
-      this.mobileCentralStartBtn.remove()
-      this.mobileCentralStartBtn = null
     }
 
     // Remove audio mode indicator (Entry #73)
