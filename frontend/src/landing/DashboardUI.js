@@ -368,7 +368,7 @@ export class DashboardUI {
     const { toggleBtn } = this.elements
 
     if (toggleBtn) {
-      toggleBtn.innerHTML = isPlaying ? '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>' : '▶'
+      toggleBtn.innerHTML = isPlaying ? '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>' : '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><polygon points="4,2 14,8 4,14"/></svg>'
       toggleBtn.classList.toggle('playing', isPlaying)
 
       // Update the label below the button
