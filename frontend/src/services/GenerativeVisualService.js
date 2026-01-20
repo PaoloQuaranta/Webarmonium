@@ -62,8 +62,27 @@ class GenerativeVisualService {
     this.MIN_EMIT_INTERVAL = 300  // ms between p&p emissions per user
     this.frameSampleInterval = 60
 
-    // Background color (matching UI --void: #020208)
-    this.bgColor = [2, 2, 8]
+    // Background colors for themes (matching CSS --void)
+    this.bgColors = {
+      dark: [2, 2, 8],       // #020208
+      light: [224, 224, 240] // #e0e0f0
+    }
+    // Set initial background based on current theme
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark'
+    this.bgColor = this.bgColors[currentTheme] || this.bgColors.dark
+
+    // Listen for theme changes
+    this._handleThemeChange = this._handleThemeChange.bind(this)
+    window.addEventListener('theme-change', this._handleThemeChange)
+  }
+
+  /**
+   * Handle theme change event
+   * @param {CustomEvent} event - theme-change event with { theme: 'dark' | 'light' }
+   */
+  _handleThemeChange(event) {
+    const theme = event.detail?.theme || 'dark'
+    this.bgColor = this.bgColors[theme] || this.bgColors.dark
   }
 
   /**
@@ -252,8 +271,8 @@ class GenerativeVisualService {
     // Performance monitoring
     this.updatePerformanceMetrics(p)
 
-    // Clear background (match UI --void: #020208)
-    p.background(2, 2, 8)
+    // Clear background (theme-aware)
+    p.background(...this.bgColor)
 
     // Update and render based on performance mode
     if (this.performanceMode === 'disabled') {
@@ -675,6 +694,11 @@ class GenerativeVisualService {
     if (this._reducedMotionQuery && this._handleReducedMotionChange) {
       this._reducedMotionQuery.removeEventListener('change', this._handleReducedMotionChange)
       this._reducedMotionQuery = null
+    }
+
+    // Clean up theme change listener
+    if (this._handleThemeChange) {
+      window.removeEventListener('theme-change', this._handleThemeChange)
     }
 
     // Dispose subsystems

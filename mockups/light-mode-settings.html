@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webarmonium Light Mode - Settings Panel Mockup</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================
+       LIGHT MODE PALETTE - Webarmonium
+       ============================================ */
+
+    :root {
+      /* Dark Mode (reference) */
+      --void: #020208;
+      --deep: #0a0a14;
+      --surface: #14141f;
+      --line: #3a3a50;
+      --muted: #3a3a50;
+      --dim: #5a5a70;
+      --light: #9090a8;
+      --bright: #e0e0f0;
+      --accent: #2dd4bf;
+      --accent-hover: #5eead4;
+      --ui-bg: rgba(10, 10, 20, 0.55);
+      --ui-bg-solid: #0a0a14;
+      --node-1: #ff2d92;
+      --node-2: #00d4ff;
+      --node-3: #a855f7;
+    }
+
+    /* LIGHT MODE OVERRIDE */
+    :root[data-theme="light"] {
+      --void: #f8f8fc;
+      --deep: #ffffff;
+      --surface: #f0f0f5;
+      --line: #d0d0dc;
+      --muted: #c0c0cc;
+      --dim: #707080;
+      --light: #505060;
+      --bright: #1a1a24;
+      --accent: #0d9488;
+      --accent-hover: #14b8a6;
+      --ui-bg: rgba(255, 255, 255, 0.85);
+      --ui-bg-solid: #ffffff;
+      --node-1: #db2777;
+      --node-2: #0891b2;
+      --node-3: #7c3aed;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background: var(--void);
+      color: var(--bright);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    /* Theme Toggle */
+    .theme-toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      display: flex;
+      gap: 0.5rem;
+      background: var(--ui-bg);
+      backdrop-filter: blur(20px);
+      padding: 0.5rem;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      z-index: 1000;
+    }
+
+    .theme-toggle button {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.875rem;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle button.active {
+      background: var(--accent);
+      color: white;
+    }
+
+    .theme-toggle button:not(.active) {
+      background: transparent;
+      color: var(--light);
+    }
+
+    /* Settings Overlay */
+    .settings-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 1rem;
+    }
+
+    :root[data-theme="light"] .settings-overlay {
+      background: rgba(0, 0, 0, 0.15);
+    }
+
+    /* Settings Panel */
+    .settings-panel {
+      width: 360px;
+      max-height: calc(100vh - 2rem);
+      background: var(--ui-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+
+    :root[data-theme="light"] .settings-panel {
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Header */
+    .settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--line);
+      background: var(--ui-bg-solid);
+    }
+
+    .settings-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+    }
+
+    .settings-close {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      color: var(--light);
+      font-size: 1.5rem;
+      cursor: pointer;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .settings-close:hover {
+      background: var(--surface);
+      color: var(--bright);
+    }
+
+    /* Content */
+    .settings-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem 1.25rem;
+    }
+
+    /* Group */
+    .settings-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .settings-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .settings-group-title {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--dim);
+      margin-bottom: 0.75rem;
+    }
+
+    /* NEW: Appearance group highlight */
+    .settings-group.appearance {
+      background: var(--surface);
+      margin: -1rem -1.25rem 1.5rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .settings-group.appearance .settings-group-title {
+      color: var(--accent);
+    }
+
+    /* Options */
+    .settings-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    /* Radio Label */
+    .settings-radio-label {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.625rem 0.75rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .settings-radio-label:hover {
+      background: rgba(45, 212, 191, 0.05);
+    }
+
+    :root[data-theme="light"] .settings-radio-label:hover {
+      background: rgba(13, 148, 136, 0.05);
+    }
+
+    .settings-radio-label input[type="radio"] {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--line);
+      border-radius: 50%;
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .settings-radio-label input[type="radio"]:checked {
+      border-color: var(--accent);
+    }
+
+    .settings-radio-label input[type="radio"]:checked::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+    }
+
+    .settings-radio-text {
+      flex: 1;
+    }
+
+    .settings-radio-label-text {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--bright);
+    }
+
+    .settings-radio-description {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--dim);
+      margin-top: 0.125rem;
+    }
+
+    /* Toggle Switch */
+    .settings-toggle-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.625rem 0.75rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .settings-toggle-label:hover {
+      background: rgba(45, 212, 191, 0.05);
+    }
+
+    :root[data-theme="light"] .settings-toggle-label:hover {
+      background: rgba(13, 148, 136, 0.05);
+    }
+
+    .settings-toggle-text {
+      flex: 1;
+    }
+
+    .settings-toggle {
+      appearance: none;
+      width: 44px;
+      height: 24px;
+      background: var(--line);
+      border-radius: 12px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .settings-toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .settings-toggle:checked {
+      background: var(--accent);
+    }
+
+    .settings-toggle:checked::after {
+      transform: translateX(20px);
+    }
+
+    /* Status */
+    .settings-status {
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .settings-status-line {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      color: var(--dim);
+    }
+
+    .settings-status-line + .settings-status-line {
+      margin-top: 0.375rem;
+    }
+
+    .settings-status-value {
+      color: var(--light);
+      font-family: 'Fira Code', monospace;
+    }
+
+    .settings-status-value.good { color: #16a34a; }
+    .settings-status-value.warning { color: #ea580c; }
+    .settings-status-value.error { color: #dc2626; }
+
+    /* Footer */
+    .settings-footer {
+      display: flex;
+      gap: 0.75rem;
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--line);
+      background: var(--ui-bg-solid);
+    }
+
+    .settings-footer button {
+      flex: 1;
+      padding: 0.625rem 1rem;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .settings-reset {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--light);
+    }
+
+    .settings-reset:hover {
+      background: var(--surface);
+      border-color: var(--accent);
+      color: var(--bright);
+    }
+
+    .settings-apply {
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      color: white;
+    }
+
+    .settings-apply:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    /* Comparison Label */
+    .comparison-label {
+      position: fixed;
+      bottom: 1rem;
+      left: 1rem;
+      background: var(--ui-bg);
+      backdrop-filter: blur(20px);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      font-size: 0.875rem;
+      color: var(--light);
+    }
+
+    .comparison-label strong {
+      color: var(--bright);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Theme Toggle -->
+  <div class="theme-toggle">
+    <button onclick="setTheme('dark')">Dark</button>
+    <button class="active" onclick="setTheme('light')">Light</button>
+  </div>
+
+  <!-- Settings Overlay -->
+  <div class="settings-overlay">
+    <div class="settings-panel">
+
+      <!-- Header -->
+      <div class="settings-header">
+        <span class="settings-title">Settings</span>
+        <button class="settings-close">&times;</button>
+      </div>
+
+      <!-- Content -->
+      <div class="settings-content">
+
+        <!-- NEW: Appearance Group (FIRST) -->
+        <div class="settings-group appearance">
+          <div class="settings-group-title">APPEARANCE</div>
+          <div class="settings-options">
+            <label class="settings-toggle-label">
+              <span class="settings-toggle-text">
+                <span class="settings-radio-label-text">Light Mode</span>
+                <span class="settings-radio-description">Switch to light color scheme</span>
+              </span>
+              <input type="checkbox" class="settings-toggle" id="theme-toggle" checked>
+            </label>
+          </div>
+        </div>
+
+        <!-- Audio Quality -->
+        <div class="settings-group">
+          <div class="settings-group-title">AUDIO QUALITY</div>
+          <div class="settings-options">
+            <label class="settings-radio-label">
+              <input type="radio" name="audioQuality" checked>
+              <span class="settings-radio-text">
+                <span class="settings-radio-label-text">Auto</span>
+                <span class="settings-radio-description">Use device detection</span>
+              </span>
+            </label>
+            <label class="settings-radio-label">
+              <input type="radio" name="audioQuality">
+              <span class="settings-radio-text">
+                <span class="settings-radio-label-text">High</span>
+                <span class="settings-radio-description">Best quality, more CPU</span>
+              </span>
+            </label>
+            <label class="settings-radio-label">
+              <input type="radio" name="audioQuality">
+              <span class="settings-radio-text">
+                <span class="settings-radio-label-text">Medium</span>
+                <span class="settings-radio-description">Balanced</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Graphics Quality -->
+        <div class="settings-group">
+          <div class="settings-group-title">GRAPHICS QUALITY</div>
+          <div class="settings-options">
+            <label class="settings-radio-label">
+              <input type="radio" name="graphicsQuality" checked>
+              <span class="settings-radio-text">
+                <span class="settings-radio-label-text">Auto</span>
+                <span class="settings-radio-description">Use device detection</span>
+              </span>
+            </label>
+            <label class="settings-radio-label">
+              <input type="radio" name="graphicsQuality">
+              <span class="settings-radio-text">
+                <span class="settings-radio-label-text">Full</span>
+                <span class="settings-radio-description">All effects</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Power Mode -->
+        <div class="settings-group">
+          <div class="settings-group-title">POWER MODE</div>
+          <div class="settings-options">
+            <label class="settings-toggle-label">
+              <span class="settings-toggle-text">
+                <span class="settings-radio-label-text">Low Power Mode</span>
+                <span class="settings-radio-description">Reduce CPU usage for battery saving</span>
+              </span>
+              <input type="checkbox" class="settings-toggle">
+            </label>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div class="settings-status">
+          <div class="settings-status-line">
+            <span>Device tier:</span>
+            <span class="settings-status-value">high</span>
+          </div>
+          <div class="settings-status-line">
+            <span>Stress:</span>
+            <span class="settings-status-value good">0.12</span>
+            <span>|</span>
+            <span>Underruns:</span>
+            <span class="settings-status-value">0</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="settings-footer">
+        <button class="settings-reset">Reset</button>
+        <button class="settings-apply">Apply</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Comparison Label -->
+  <div class="comparison-label">
+    <strong>Mockup:</strong> Settings Panel con toggle Light Mode
+  </div>
+
+  <script>
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      document.querySelectorAll('.theme-toggle button').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent.toLowerCase() === theme);
+      });
+      // Update the toggle state
+      document.getElementById('theme-toggle').checked = (theme === 'light');
+    }
+
+    // Sync toggle with theme
+    document.getElementById('theme-toggle').addEventListener('change', function() {
+      setTheme(this.checked ? 'light' : 'dark');
+    });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webarmonium Light Mode - Landing Page Mockup</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================
+       LIGHT MODE PALETTE - Webarmonium
+       ============================================ */
+
+    :root {
+      /* Dark Mode (reference) */
+      --void: #020208;
+      --deep: #0a0a14;
+      --surface: #14141f;
+      --line: #3a3a50;
+      --muted: #3a3a50;
+      --dim: #5a5a70;
+      --light: #9090a8;
+      --bright: #e0e0f0;
+      --accent: #2dd4bf;
+      --accent-hover: #5eead4;
+      --ui-bg: rgba(10, 10, 20, 0.55);
+      --ui-bg-solid: #0a0a14;
+      --node-1: #ff2d92;
+      --node-2: #00d4ff;
+      --node-3: #a855f7;
+      --glow-1: rgba(255, 45, 146, 0.3);
+      --glow-2: rgba(0, 212, 255, 0.3);
+      --glow-3: rgba(168, 85, 247, 0.3);
+    }
+
+    /* LIGHT MODE OVERRIDE */
+    :root[data-theme="light"] {
+      --void: #f8f8fc;
+      --deep: #ffffff;
+      --surface: #f0f0f5;
+      --line: #d0d0dc;
+      --muted: #c0c0cc;
+      --dim: #707080;
+      --light: #505060;
+      --bright: #1a1a24;
+      --accent: #0d9488;
+      --accent-hover: #14b8a6;
+      --ui-bg: rgba(255, 255, 255, 0.85);
+      --ui-bg-solid: #ffffff;
+      --node-1: #db2777;
+      --node-2: #0891b2;
+      --node-3: #7c3aed;
+      --glow-1: rgba(219, 39, 119, 0.15);
+      --glow-2: rgba(8, 145, 178, 0.15);
+      --glow-3: rgba(124, 58, 237, 0.15);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background: var(--void);
+      color: var(--bright);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    /* Theme Toggle */
+    .theme-toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      display: flex;
+      gap: 0.5rem;
+      background: var(--ui-bg);
+      backdrop-filter: blur(20px);
+      padding: 0.5rem;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+    }
+
+    .theme-toggle button {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.875rem;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle button.active {
+      background: var(--accent);
+      color: white;
+    }
+
+    .theme-toggle button:not(.active) {
+      background: transparent;
+      color: var(--light);
+    }
+
+    .theme-toggle button:not(.active):hover {
+      background: var(--surface);
+      color: var(--bright);
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .logo {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+    }
+
+    .logo span {
+      color: var(--accent);
+    }
+
+    .tagline {
+      color: var(--light);
+      font-size: 1.125rem;
+    }
+
+    /* Palette Display */
+    .section-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--dim);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .color-swatch {
+      background: var(--deep);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .swatch-color {
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.75rem;
+    }
+
+    .swatch-info {
+      padding: 0.75rem;
+    }
+
+    .swatch-name {
+      font-weight: 600;
+      font-size: 0.875rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .swatch-var {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.7rem;
+      color: var(--dim);
+    }
+
+    /* Cards Section */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .card {
+      background: var(--deep);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: all 0.2s;
+    }
+
+    .card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 20px var(--glow-1);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+    }
+
+    .card-icon.wikipedia { background: var(--glow-1); color: var(--node-1); }
+    .card-icon.hackernews { background: var(--glow-2); color: var(--node-2); }
+    .card-icon.github { background: var(--glow-3); color: var(--node-3); }
+
+    .card-title {
+      font-weight: 600;
+      font-size: 1.125rem;
+    }
+
+    .card-value {
+      font-family: 'Fira Code', monospace;
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .card-value.wikipedia { color: var(--node-1); }
+    .card-value.hackernews { color: var(--node-2); }
+    .card-value.github { color: var(--node-3); }
+
+    .card-label {
+      color: var(--dim);
+      font-size: 0.875rem;
+    }
+
+    /* Buttons Section */
+    .buttons-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--bright);
+      border-color: var(--line);
+    }
+
+    .btn-secondary:hover {
+      background: var(--surface);
+      border-color: var(--accent);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--accent);
+      border-color: transparent;
+    }
+
+    .btn-ghost:hover {
+      background: var(--surface);
+    }
+
+    /* Text Samples */
+    .text-samples {
+      background: var(--deep);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    .text-primary { color: var(--bright); margin-bottom: 0.5rem; }
+    .text-secondary { color: var(--light); margin-bottom: 0.5rem; }
+    .text-muted { color: var(--dim); margin-bottom: 0.5rem; }
+    .text-accent { color: var(--accent); }
+
+    /* Status Badges */
+    .badges-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 3rem;
+    }
+
+    .badge {
+      padding: 0.375rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .badge-success {
+      background: rgba(34, 197, 94, 0.15);
+      color: #16a34a;
+    }
+
+    .badge-warning {
+      background: rgba(249, 115, 22, 0.15);
+      color: #ea580c;
+    }
+
+    .badge-error {
+      background: rgba(239, 68, 68, 0.15);
+      color: #dc2626;
+    }
+
+    .badge-info {
+      background: var(--glow-2);
+      color: var(--node-2);
+    }
+
+    /* Canvas Simulation */
+    .canvas-preview {
+      background: var(--void);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      height: 300px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 3rem;
+    }
+
+    .canvas-preview::before {
+      content: 'Canvas Area';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: var(--dim);
+      font-size: 1.25rem;
+    }
+
+    /* Floating nodes simulation */
+    .node {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    .node-1 { background: var(--node-1); left: 20%; top: 30%; animation-delay: 0s; }
+    .node-2 { background: var(--node-2); left: 50%; top: 60%; animation-delay: 0.5s; }
+    .node-3 { background: var(--node-3); left: 75%; top: 40%; animation-delay: 1s; }
+    .node-4 { background: var(--accent); left: 35%; top: 70%; animation-delay: 1.5s; }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); opacity: 0.8; }
+      50% { transform: translateY(-20px); opacity: 1; }
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding-top: 2rem;
+      border-top: 1px solid var(--line);
+      color: var(--dim);
+      font-size: 0.875rem;
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Theme Toggle -->
+  <div class="theme-toggle">
+    <button onclick="setTheme('dark')">Dark</button>
+    <button class="active" onclick="setTheme('light')">Light</button>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <h1 class="logo">Webarmo<span>nium</span></h1>
+    <p class="tagline">Real-time collaborative music through gestures</p>
+  </header>
+
+  <!-- Base Colors Palette -->
+  <section>
+    <h2 class="section-title">Base Colors (Grayscale)</h2>
+    <div class="palette-grid">
+      <div class="color-swatch">
+        <div class="swatch-color" style="background: var(--void); color: var(--bright);">#f8f8fc</div>
+        <div class="swatch-info">
+          <div class="swatch-name">Void</div>
+          <div class="swatch-var">--void</div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-color" style="background: var(--deep); color: var(--bright);">#ffffff</div>
+        <div class="swatch-info">
+          <div class="swatch-name">Deep</div>
+          <div class="swatch-var">--deep</div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-color" style="background: var(--surface); color: var(--bright);">#f0f0f5</div>
+        <div class="swatch-info">
+          <div class="swatch-name">Surface</div>
+          <div class="swatch-var">--surface</div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-color" style="background: var(--line); color: var(--void);">#d0d0dc</div>
+        <div class="swatch-info">
+          <div class="swatch-name">Line</div>
+          <div class="swatch-var">--line</div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-color" style="background: var(--dim); color: white;">#707080</div>
+        <div class="swatch-info">
+          <div class="swatch-name">Dim</div>
+          <div class="swatch-var">--dim</div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-color" style="background: var(--light); color: white;">#505060</div>
+        <div class="swatch-info">
+          <div class="swatch-name">Light</div>
+          <div class="swatch-var">--light</div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-color" style="background: var(--bright); color: white;">#1a1a24</div>
+        <div class="swatch-info">
+          <div class="swatch-name">Bright</div>
+          <div class="swatch-var">--bright</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Accent & Node Colors -->
+  <section>
+    <h2 class="section-title">Accent & Node Colors (Electric Triad)</h2>
+    <div class="palette-grid">
+      <div class="color-swatch">
+        <div class="swatch-color" style="background: var(--accent); color: white;">#0d9488</div>
+        <div class="swatch-info">
+          <div class="swatch-name">Accent (Teal)</div>
+          <div class="swatch-var">--accent</div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-color" style="background: var(--accent-hover); color: white;">#14b8a6</div>
+        <div class="swatch-info">
+          <div class="swatch-name">Accent Hover</div>
+          <div class="swatch-var">--accent-hover</div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-color" style="background: var(--node-1); color: white;">#db2777</div>
+        <div class="swatch-info">
+          <div class="swatch-name">Wikipedia (Magenta)</div>
+          <div class="swatch-var">--node-1</div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-color" style="background: var(--node-2); color: white;">#0891b2</div>
+        <div class="swatch-info">
+          <div class="swatch-name">HackerNews (Cyan)</div>
+          <div class="swatch-var">--node-2</div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-color" style="background: var(--node-3); color: white;">#7c3aed</div>
+        <div class="swatch-info">
+          <div class="swatch-name">GitHub (Viola)</div>
+          <div class="swatch-var">--node-3</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Metric Cards -->
+  <section>
+    <h2 class="section-title">Metric Cards</h2>
+    <div class="cards-grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon wikipedia">W</div>
+          <div class="card-title">Wikipedia</div>
+        </div>
+        <div class="card-value wikipedia">1,247</div>
+        <div class="card-label">Active articles today</div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon hackernews">Y</div>
+          <div class="card-title">HackerNews</div>
+        </div>
+        <div class="card-value hackernews">892</div>
+        <div class="card-label">Points on front page</div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon github">G</div>
+          <div class="card-title">GitHub</div>
+        </div>
+        <div class="card-value github">3,456</div>
+        <div class="card-label">Stars this week</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Buttons -->
+  <section>
+    <h2 class="section-title">Buttons</h2>
+    <div class="buttons-row">
+      <button class="btn btn-primary">Primary Action</button>
+      <button class="btn btn-secondary">Secondary</button>
+      <button class="btn btn-ghost">Ghost Button</button>
+    </div>
+  </section>
+
+  <!-- Text Hierarchy -->
+  <section>
+    <h2 class="section-title">Text Hierarchy</h2>
+    <div class="text-samples">
+      <p class="text-primary" style="font-size: 1.25rem; font-weight: 600;">Primary Text (--bright) - Main headings and important content</p>
+      <p class="text-secondary">Secondary Text (--light) - Supporting information and descriptions</p>
+      <p class="text-muted">Muted Text (--dim) - Timestamps, hints, and less important details</p>
+      <p class="text-accent">Accent Text (--accent) - Links, highlights, and interactive elements</p>
+    </div>
+  </section>
+
+  <!-- Status Badges -->
+  <section>
+    <h2 class="section-title">Status Badges</h2>
+    <div class="badges-row">
+      <span class="badge badge-success">Connected</span>
+      <span class="badge badge-warning">High CPU</span>
+      <span class="badge badge-error">Disconnected</span>
+      <span class="badge badge-info">4 Users Online</span>
+    </div>
+  </section>
+
+  <!-- Canvas Preview -->
+  <section>
+    <h2 class="section-title">Canvas Area Preview</h2>
+    <div class="canvas-preview">
+      <div class="node node-1"></div>
+      <div class="node node-2"></div>
+      <div class="node node-3"></div>
+      <div class="node node-4"></div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>Webarmonium Light Mode Mockup | <a href="#">View Dark Mode</a></p>
+  </footer>
+
+  <script>
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      document.querySelectorAll('.theme-toggle button').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent.toLowerCase() === theme);
+      });
+    }
+  </script>
+
+</body>
+</html>

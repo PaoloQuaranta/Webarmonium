@@ -57,6 +57,20 @@
   --logo-h: 48px;
 }
 
+/* Light Mode Theme (colori originali riassegnati) */
+:root[data-theme="light"] {
+  --void: #e0e0f0;      /* era --bright */
+  --deep: #9090a8;      /* era --light */
+  --surface: #5a5a70;   /* era --dim */
+  /* --line e --muted invariati */
+  --dim: #14141f;       /* era --surface */
+  --light: #0a0a14;     /* era --deep */
+  --bright: #020208;    /* era --void */
+  --ui-bg: rgba(144, 144, 168, 0.85);
+  --ui-bg-solid: #9090a8;
+  /* accent, node-*, glow-* ereditano da :root (invariati) */
+}
+
 /* Reset and Base Styles */
 * {
   margin: 0;

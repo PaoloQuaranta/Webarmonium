@@ -12,7 +12,8 @@ class UserSettings {
     audioQuality: 'auto',     // auto, high, medium, low, minimal
     sampleRate: 'auto',       // auto, 48000, 44100, 22050
     audioBuffer: 'auto',      // auto, 100, 200, 300, 500 (ms)
-    graphicsQuality: 'auto'   // auto, full, reduced, minimal
+    graphicsQuality: 'auto',  // auto, full, reduced, minimal
+    theme: 'dark'             // dark, light
   }
 
   // Audio quality tier mappings (matches DeviceCapabilities tiers)
@@ -153,7 +154,28 @@ class UserSettings {
       audioQuality: this.get('audioQuality'),
       sampleRate: this.get('sampleRate'),
       audioBuffer: this.get('audioBuffer'),
-      graphicsQuality: this.get('graphicsQuality')
+      graphicsQuality: this.get('graphicsQuality'),
+      theme: this.get('theme')
+    }
+  }
+
+  /**
+   * Get effective theme (resolves 'dark' or 'light')
+   * @returns {string} 'dark' or 'light'
+   */
+  static getEffectiveTheme () {
+    const setting = this.get('theme')
+    return setting === 'light' ? 'light' : 'dark'
+  }
+
+  /**
+   * Apply theme to document
+   * @param {string} theme - 'dark' or 'light'
+   */
+  static applyTheme (theme) {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme)
+      window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme } }))
     }
   }
 

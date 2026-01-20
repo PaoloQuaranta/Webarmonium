@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Light Mode C: Inverted (Colori Inalterati) - Webarmonium Mockup</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================
+       LIGHT MODE C: "INVERTED"
+       COLORI INALTERATI - solo riassegnati
+
+       Dark mode originale:
+       --void: #020208      (sfondo)
+       --deep: #0a0a14      (cards)
+       --surface: #14141f   (superfici)
+       --line: #3a3a50      (bordi)
+       --muted: #3a3a50     (muted)
+       --dim: #5a5a70       (testo dim)
+       --light: #9090a8     (testo secondario)
+       --bright: #e0e0f0    (testo primario)
+
+       Light mode inverted (stessi valori, ruoli invertiti):
+       --void: #e0e0f0      (sfondo - era bright)
+       --deep: #9090a8      (cards - era light)
+       --surface: #5a5a70   (superfici - era dim)
+       --line: #3a3a50      (bordi - invariato)
+       --muted: #3a3a50     (muted - invariato)
+       --dim: #14141f       (testo dim - era surface)
+       --light: #0a0a14     (testo secondario - era deep)
+       --bright: #020208    (testo primario - era void)
+       ============================================ */
+
+    :root {
+      /* COLORI ORIGINALI RIASSEGNATI */
+      --void: #e0e0f0;        /* Era --bright, ora sfondo principale */
+      --deep: #9090a8;        /* Era --light, ora background cards */
+      --surface: #5a5a70;     /* Era --dim, ora superfici elevate */
+      --line: #3a3a50;        /* Invariato - bordi */
+      --muted: #3a3a50;       /* Invariato - elementi muted */
+      --dim: #14141f;         /* Era --surface, ora testo dimmed */
+      --light: #0a0a14;       /* Era --deep, ora testo secondario */
+      --bright: #020208;      /* Era --void, ora testo primario */
+
+      /* Accent e Node Colors: INALTERATI */
+      --accent: #2dd4bf;      /* Teal originale */
+      --accent-hover: #5eead4; /* Hover originale */
+
+      --node-1: #ff2d92;      /* Magenta originale */
+      --node-2: #00d4ff;      /* Cyan originale */
+      --node-3: #a855f7;      /* Viola originale */
+
+      /* Glow: INALTERATI */
+      --glow-1: rgba(255, 45, 146, 0.3);
+      --glow-2: rgba(0, 212, 255, 0.3);
+      --glow-3: rgba(168, 85, 247, 0.3);
+
+      /* UI backgrounds: usando i colori originali */
+      --ui-bg: rgba(144, 144, 168, 0.85);  /* --light con alpha */
+      --ui-bg-solid: #9090a8;              /* --light originale */
+
+      /* Shadows */
+      --shadow-sm: 0 1px 3px rgba(2, 2, 8, 0.08);
+      --shadow-md: 0 4px 12px rgba(2, 2, 8, 0.12);
+      --shadow-lg: 0 12px 32px rgba(2, 2, 8, 0.16);
+
+      /* Typography */
+      --font-display: 'Space Grotesk', system-ui, sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-display);
+      background: var(--void);
+      color: var(--bright);
+      min-height: 100vh;
+    }
+
+    /* Canvas simulation */
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      background: var(--void);
+      z-index: 0;
+    }
+
+    .canvas-node {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.7;
+      animation: pulse 4s ease-in-out infinite;
+    }
+    .canvas-node.n1 { background: var(--node-1); width: 120px; height: 120px; top: 15%; left: 20%; animation-delay: 0s; }
+    .canvas-node.n2 { background: var(--node-2); width: 100px; height: 100px; top: 60%; left: 70%; animation-delay: 1s; }
+    .canvas-node.n3 { background: var(--node-3); width: 80px; height: 80px; top: 40%; left: 45%; animation-delay: 2s; }
+    .canvas-node.accent { background: var(--accent); width: 60px; height: 60px; top: 75%; left: 25%; animation-delay: 1.5s; }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.6; }
+      50% { transform: scale(1.15); opacity: 0.8; }
+    }
+
+    /* Landing overlay */
+    .landing-overlay {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .landing-logo {
+      width: 48px;
+      height: 48px;
+      background: var(--accent);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--void);  /* Testo chiaro su accent */
+      font-weight: 700;
+      font-size: 1.5rem;
+    }
+
+    .landing-title-group h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .landing-title-group p {
+      color: var(--light);
+      font-size: 0.9rem;
+    }
+
+    /* Controls bar */
+    #controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.25rem;
+      background: var(--ui-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow-md);
+    }
+
+    .controls-left {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .node-btn-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.375rem;
+    }
+
+    .node-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid var(--line);
+      background: var(--deep);
+      color: var(--bright);
+      font-size: 1.125rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+    }
+
+    .node-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .node-btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--void);
+    }
+
+    .node-btn.primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    .node-label {
+      font-size: 0.6875rem;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Volume slider */
+    .slider-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.375rem;
+    }
+
+    .slider-node input[type="range"] {
+      width: 100px;
+      height: 6px;
+      -webkit-appearance: none;
+      background: var(--line);
+      border-radius: 3px;
+    }
+
+    .slider-node input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      background: var(--accent);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .slider-node label {
+      font-size: 0.6875rem;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Metrics dashboard */
+    #metrics-dashboard {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .metric-card {
+      background: var(--deep);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1.25rem;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s;
+    }
+
+    .metric-card:hover {
+      box-shadow: var(--shadow-md);
+    }
+
+    .metric-card[data-source="wikipedia"] { border-left: 3px solid var(--node-1); }
+    .metric-card[data-source="hackernews"] { border-left: 3px solid var(--node-2); }
+    .metric-card[data-source="github"] { border-left: 3px solid var(--node-3); }
+
+    .source-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 1rem;
+    }
+
+    .source-wikipedia { color: var(--node-1); }
+    .source-hackernews { color: var(--node-2); }
+    .source-github { color: var(--node-3); }
+
+    .meters-container {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .data-point {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .meter-svg {
+      width: 44px;
+      height: 44px;
+    }
+
+    .meter-bg {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 4;
+    }
+
+    .meter-progress {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-dasharray: 125.6;
+      stroke-dashoffset: 94.2;
+      transform: rotate(-90deg);
+      transform-origin: center;
+    }
+
+    .metric-card[data-source="wikipedia"] .meter-progress { stroke: var(--node-1); }
+    .metric-card[data-source="hackernews"] .meter-progress { stroke: var(--node-2); }
+    .metric-card[data-source="github"] .meter-progress { stroke: var(--node-3); }
+
+    .meter-value {
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--bright);
+    }
+
+    .meter-label {
+      font-size: 0.625rem;
+      color: var(--dim);
+      text-transform: uppercase;
+    }
+
+    /* Explainer */
+    .landing-explainer {
+      background: var(--deep);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1.5rem;
+      max-width: 600px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .explainer-section-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    .explainer-detail {
+      color: var(--light);
+      font-size: 0.9rem;
+      line-height: 1.6;
+      margin-bottom: 0.75rem;
+    }
+
+    .explainer-link a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .explainer-link a:hover {
+      text-decoration: underline;
+    }
+
+    /* Color Palette Reference */
+    .palette-reference {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      background: var(--deep);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: var(--shadow-lg);
+      z-index: 100;
+      max-width: 320px;
+    }
+
+    .palette-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--dim);
+      margin-bottom: 0.75rem;
+    }
+
+    .palette-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.375rem;
+      font-size: 0.6875rem;
+      font-family: var(--font-mono);
+    }
+
+    .palette-swatch-sm {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .palette-arrow {
+      color: var(--muted);
+    }
+
+    .palette-label {
+      font-size: 0.625rem;
+      color: var(--dim);
+      margin-top: 0.75rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--line);
+    }
+
+    /* Theme toggle */
+    .theme-info {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      background: var(--accent);
+      color: var(--void);
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <div class="theme-info">Light Mode C: Colori Inalterati</div>
+
+  <!-- Canvas Background -->
+  <section id="canvas-container">
+    <div class="canvas-node n1"></div>
+    <div class="canvas-node n2"></div>
+    <div class="canvas-node n3"></div>
+    <div class="canvas-node accent"></div>
+  </section>
+
+  <!-- Landing Overlay -->
+  <div class="landing-overlay">
+    <header>
+      <div class="landing-logo">W</div>
+      <div class="landing-title-group">
+        <h1>WEBARMONIUM</h1>
+        <p>Real-time web activity transformed into generative music</p>
+      </div>
+    </header>
+
+    <main>
+      <!-- Controls Bar -->
+      <section id="controls-bar">
+        <div class="controls-left">
+          <div class="node-btn-wrapper">
+            <button class="node-btn primary">▶</button>
+            <span class="node-label">Start</span>
+          </div>
+          <div class="slider-node">
+            <input type="range" min="0" max="100" value="70">
+            <label>Volume</label>
+          </div>
+          <div class="node-btn-wrapper">
+            <button class="node-btn">⚙</button>
+            <span class="node-label">Settings</span>
+          </div>
+        </div>
+        <div class="node-btn-wrapper">
+          <a href="#" class="node-btn primary">Join</a>
+          <span class="node-label">Rooms</span>
+        </div>
+      </section>
+
+      <!-- Metrics Dashboard -->
+      <section id="metrics-dashboard">
+        <div class="metric-card" data-source="wikipedia">
+          <h3 class="source-title source-wikipedia">Wikipedia</h3>
+          <div class="meters-container">
+            <div class="data-point">
+              <svg class="meter-svg" viewBox="0 0 52 52">
+                <circle class="meter-bg" cx="26" cy="26" r="20"/>
+                <circle class="meter-progress" cx="26" cy="26" r="20"/>
+              </svg>
+              <span class="meter-value">24</span>
+              <span class="meter-label">edits</span>
+            </div>
+            <div class="data-point">
+              <svg class="meter-svg" viewBox="0 0 52 52">
+                <circle class="meter-bg" cx="26" cy="26" r="20"/>
+                <circle class="meter-progress" cx="26" cy="26" r="20"/>
+              </svg>
+              <span class="meter-value">0.8</span>
+              <span class="meter-label">velocity</span>
+            </div>
+            <div class="data-point">
+              <svg class="meter-svg" viewBox="0 0 52 52">
+                <circle class="meter-bg" cx="26" cy="26" r="20"/>
+                <circle class="meter-progress" cx="26" cy="26" r="20"/>
+              </svg>
+              <span class="meter-value">156</span>
+              <span class="meter-label">size</span>
+            </div>
+            <div class="data-point">
+              <svg class="meter-svg" viewBox="0 0 52 52">
+                <circle class="meter-bg" cx="26" cy="26" r="20"/>
+                <circle class="meter-progress" cx="26" cy="26" r="20"/>
+              </svg>
+              <span class="meter-value">2</span>
+              <span class="meter-label">new</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="metric-card" data-source="hackernews">
+          <h3 class="source-title source-hackernews">HackerNews</h3>
+          <div class="meters-container">
+            <div class="data-point">
+              <svg class="meter-svg" viewBox="0 0 52 52">
+                <circle class="meter-bg" cx="26" cy="26" r="20"/>
+                <circle class="meter-progress" cx="26" cy="26" r="20"/>
+              </svg>
+              <span class="meter-value">8</span>
+              <span class="meter-label">posts</span>
+            </div>
+            <div class="data-point">
+              <svg class="meter-svg" viewBox="0 0 52 52">
+                <circle class="meter-bg" cx="26" cy="26" r="20"/>
+                <circle class="meter-progress" cx="26" cy="26" r="20"/>
+              </svg>
+              <span class="meter-value">0.5</span>
+              <span class="meter-label">velocity</span>
+            </div>
+            <div class="data-point">
+              <svg class="meter-svg" viewBox="0 0 52 52">
+                <circle class="meter-bg" cx="26" cy="26" r="20"/>
+                <circle class="meter-progress" cx="26" cy="26" r="20"/>
+              </svg>
+              <span class="meter-value">42</span>
+              <span class="meter-label">upvotes</span>
+            </div>
+            <div class="data-point">
+              <svg class="meter-svg" viewBox="0 0 52 52">
+                <circle class="meter-bg" cx="26" cy="26" r="20"/>
+                <circle class="meter-progress" cx="26" cy="26" r="20"/>
+              </svg>
+              <span class="meter-value">18</span>
+              <span class="meter-label">comments</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="metric-card" data-source="github">
+          <h3 class="source-title source-github">GitHub</h3>
+          <div class="meters-container">
+            <div class="data-point">
+              <svg class="meter-svg" viewBox="0 0 52 52">
+                <circle class="meter-bg" cx="26" cy="26" r="20"/>
+                <circle class="meter-progress" cx="26" cy="26" r="20"/>
+              </svg>
+              <span class="meter-value">15</span>
+              <span class="meter-label">pushes</span>
+            </div>
+            <div class="data-point">
+              <svg class="meter-svg" viewBox="0 0 52 52">
+                <circle class="meter-bg" cx="26" cy="26" r="20"/>
+                <circle class="meter-progress" cx="26" cy="26" r="20"/>
+              </svg>
+              <span class="meter-value">0.6</span>
+              <span class="meter-label">velocity</span>
+            </div>
+            <div class="data-point">
+              <svg class="meter-svg" viewBox="0 0 52 52">
+                <circle class="meter-bg" cx="26" cy="26" r="20"/>
+                <circle class="meter-progress" cx="26" cy="26" r="20"/>
+              </svg>
+              <span class="meter-value">7</span>
+              <span class="meter-label">creates</span>
+            </div>
+            <div class="data-point">
+              <svg class="meter-svg" viewBox="0 0 52 52">
+                <circle class="meter-bg" cx="26" cy="26" r="20"/>
+                <circle class="meter-progress" cx="26" cy="26" r="20"/>
+              </svg>
+              <span class="meter-value">1</span>
+              <span class="meter-label">deletes</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Explainer -->
+      <section class="landing-explainer">
+        <h3 class="explainer-section-title">Webarmonium is a new instrument.</h3>
+        <p class="explainer-detail">
+          Traditional instruments translate a performer's physical gestures into sound. Webarmonium replaces the individual gesture with two forms of distributed interaction.
+        </p>
+        <p class="explainer-link">
+          <a href="#">How It Works →</a>
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <!-- Color Palette Reference -->
+  <div class="palette-reference">
+    <div class="palette-title">Palette C: Colori Originali Riassegnati</div>
+
+    <div class="palette-row">
+      <div class="palette-swatch-sm" style="background: #020208;"></div>
+      <span>--void #020208</span>
+      <span class="palette-arrow">→</span>
+      <span>--bright (testo)</span>
+    </div>
+    <div class="palette-row">
+      <div class="palette-swatch-sm" style="background: #0a0a14;"></div>
+      <span>--deep #0a0a14</span>
+      <span class="palette-arrow">→</span>
+      <span>--light (testo 2)</span>
+    </div>
+    <div class="palette-row">
+      <div class="palette-swatch-sm" style="background: #14141f;"></div>
+      <span>--surface #14141f</span>
+      <span class="palette-arrow">→</span>
+      <span>--dim (testo dim)</span>
+    </div>
+    <div class="palette-row">
+      <div class="palette-swatch-sm" style="background: #3a3a50;"></div>
+      <span>--line #3a3a50</span>
+      <span class="palette-arrow">→</span>
+      <span>invariato</span>
+    </div>
+    <div class="palette-row">
+      <div class="palette-swatch-sm" style="background: #5a5a70;"></div>
+      <span>--dim #5a5a70</span>
+      <span class="palette-arrow">→</span>
+      <span>--surface</span>
+    </div>
+    <div class="palette-row">
+      <div class="palette-swatch-sm" style="background: #9090a8;"></div>
+      <span>--light #9090a8</span>
+      <span class="palette-arrow">→</span>
+      <span>--deep (cards)</span>
+    </div>
+    <div class="palette-row">
+      <div class="palette-swatch-sm" style="background: #e0e0f0;"></div>
+      <span>--bright #e0e0f0</span>
+      <span class="palette-arrow">→</span>
+      <span>--void (sfondo)</span>
+    </div>
+
+    <p class="palette-label">Accent (#2dd4bf) e Node colors inalterati</p>
+  </div>
+</body>
+</html>

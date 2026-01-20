@@ -2461,12 +2461,24 @@ class WebarmoniumApp {
   }
 }
 
+/**
+ * Apply saved theme on startup
+ */
+function initializeTheme() {
+  if (typeof UserSettings !== 'undefined') {
+    const theme = UserSettings.getEffectiveTheme()
+    document.documentElement.setAttribute('data-theme', theme)
+  }
+}
+
 // Initialize app when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
+    initializeTheme()
     window.webarmoniumApp = new WebarmoniumApp()
   })
 } else {
+  initializeTheme()
   window.webarmoniumApp = new WebarmoniumApp()
 }
 

@@ -170,6 +170,22 @@ class SettingsPanel {
       }
     }
 
+    // Add Theme toggle listener with ARIA support
+    const themeToggle = this.panel.querySelector('#settings-theme')
+    if (themeToggle) {
+      themeToggle.setAttribute('role', 'switch')
+      const currentTheme = UserSettings.getEffectiveTheme()
+      themeToggle.checked = currentTheme === 'light'
+      themeToggle.setAttribute('aria-checked', themeToggle.checked ? 'true' : 'false')
+
+      themeToggle.addEventListener('change', () => {
+        themeToggle.setAttribute('aria-checked', themeToggle.checked ? 'true' : 'false')
+        const newTheme = themeToggle.checked ? 'light' : 'dark'
+        UserSettings.set('theme', newTheme)
+        UserSettings.applyTheme(newTheme)
+      })
+    }
+
     // Load current settings into form
     this._loadCurrentSettings()
 
@@ -190,6 +206,19 @@ class SettingsPanel {
       </div>
 
       <div class="settings-content">
+        <div class="settings-group">
+          <div class="settings-group-title">APPEARANCE</div>
+          <div class="settings-options">
+            <label class="settings-toggle-label" for="settings-theme">
+              <span class="settings-toggle-text">
+                <span class="settings-radio-label-text">Light Mode</span>
+                <span class="settings-radio-description">Switch to light color scheme</span>
+              </span>
+              <input type="checkbox" id="settings-theme" class="settings-toggle">
+            </label>
+          </div>
+        </div>
+
         <div class="settings-group">
           <div class="settings-group-title" id="audio-quality-label">AUDIO QUALITY</div>
           <div class="settings-options" role="radiogroup" aria-labelledby="audio-quality-label">

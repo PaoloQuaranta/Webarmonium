@@ -1943,14 +1943,26 @@ class LandingApp {
 }
 
 /**
+ * Apply saved theme on startup
+ */
+function initializeTheme() {
+  if (typeof UserSettings !== 'undefined') {
+    const theme = UserSettings.getEffectiveTheme()
+    document.documentElement.setAttribute('data-theme', theme)
+  }
+}
+
+/**
  * Initialize on DOM ready
  */
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
+    initializeTheme()
     window.landingApp = new LandingApp()
     window.landingApp.initialize()
   })
 } else {
+  initializeTheme()
   window.landingApp = new LandingApp()
   window.landingApp.initialize()
 }
