@@ -526,18 +526,13 @@ class UIManager {
     this.mobileSheet.innerHTML = `
       <div class="mobile-sheet-handle"></div>
       <div class="mobile-sheet-content">
-        <div class="mobile-sheet-section">
-          <a href="index.html" class="mobile-back-link">← Back to main page</a>
-        </div>
-        <div class="mobile-sheet-section" id="mobileAudioControls">
-          <!-- Audio controls will be added here -->
+        <div class="mobile-sheet-section mobile-controls-row" id="mobileAudioControls">
+          <!-- Audio controls will be added here: play, volume, settings in a row -->
         </div>
         <div class="mobile-sheet-section mobile-instructions">
           <div><strong>Tap</strong> for notes (hold longer for sustained tones)</div>
           <div><strong>Drag</strong> to create melodic phrases</div>
-          <div><strong>Hover</strong> to modulate filters and effects</div>
         </div>
-        <button class="mobile-close-btn" onclick="window.webarmoniumApp?.uiManager?.closeMobileMenu()">Close</button>
       </div>
     `
 
@@ -548,7 +543,7 @@ class UIManager {
     if (audioToggle) {
       const mobileAudioBtn = document.createElement('button')
       mobileAudioBtn.id = 'mobileAudioToggle'
-      mobileAudioBtn.className = audioToggle.className
+      mobileAudioBtn.className = 'mobile-node-btn'
       mobileAudioBtn.innerHTML = audioToggle.innerHTML
       // Directly call app method (clicking hidden elements unreliable)
       mobileAudioBtn.onclick = () => {
@@ -580,10 +575,6 @@ class UIManager {
     }
 
     // Create volume slider that directly controls audio service
-    const volumeContainer = document.createElement('div')
-    volumeContainer.className = 'mobile-volume-control'
-    volumeContainer.innerHTML = '<span class="mobile-volume-label">Volume</span>'
-
     const mobileVolumeSlider = document.createElement('input')
     mobileVolumeSlider.type = 'range'
     mobileVolumeSlider.id = 'mobileVolumeSlider'
@@ -601,16 +592,15 @@ class UIManager {
       }
     }
 
-    volumeContainer.appendChild(mobileVolumeSlider)
-    document.getElementById('mobileAudioControls')?.appendChild(volumeContainer)
+    document.getElementById('mobileAudioControls')?.appendChild(mobileVolumeSlider)
 
     this.mobileVolumeSlider = mobileVolumeSlider
 
-    // Entry #74: Create Settings button (replaces Low Power toggle)
+    // Entry #74: Create Settings button (round, matches play button)
     const settingsBtn = document.createElement('button')
     settingsBtn.id = 'mobileSettingsBtn'
-    settingsBtn.className = 'mobile-settings-btn'
-    settingsBtn.innerHTML = '&#9881; Settings' // Gear icon
+    settingsBtn.className = 'mobile-node-btn'
+    settingsBtn.innerHTML = '&#9881;' // Gear icon only
     settingsBtn.onclick = () => this.openSettingsPanel()
 
     document.getElementById('mobileAudioControls')?.appendChild(settingsBtn)

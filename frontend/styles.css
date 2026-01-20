@@ -2338,44 +2338,51 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   border-bottom: none;
 }
 
-.mobile-sheet-row {
+/* Controls row: play, volume, settings in a horizontal row */
+.mobile-controls-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 1rem;
 }
 
-.mobile-close-btn {
-  width: 100%;
+/* Round button matching index mobile UI bar style */
+.mobile-node-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  border-radius: 50%;
   background: var(--ui-bg);
-  border: 2px solid var(--line);
-  color: var(--light);
-  padding: 14px;
-  border-radius: 25px;
-  font-size: 16px;
-  margin-top: 10px;
+  border: 2px solid var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--dim);
   transition: border-color 0.2s ease, color 0.2s ease;
+  padding: 0;
 }
 
-.mobile-close-btn:active {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.mobile-settings-btn {
-  background: var(--ui-bg);
-  border: 2px solid var(--line);
+.mobile-node-btn:hover,
+.mobile-node-btn:active {
+  border-color: var(--light);
   color: var(--light);
-  border-radius: 25px;
-  font-size: 14px;
-  transition: border-color 0.2s ease, color 0.2s ease;
 }
 
-.mobile-settings-btn:hover,
-.mobile-settings-btn:active {
-  border-color: var(--accent);
-  color: var(--accent);
+/* Playing state - red border */
+.mobile-node-btn.playing {
+  border-color: var(--node-1);
+  color: var(--node-1);
+}
+
+/* Volume slider in mobile controls row */
+.mobile-controls-row .mobile-volume-slider {
+  width: 100px;
+  flex-shrink: 1;
 }
 
 /* Audio mode indicator */
