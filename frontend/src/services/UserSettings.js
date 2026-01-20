@@ -174,7 +174,13 @@ class UserSettings {
    */
   static applyTheme (theme) {
     if (typeof document !== 'undefined') {
-      document.documentElement.setAttribute('data-theme', theme)
+      // Dark mode: remove attribute (CSS uses absence of attribute for dark)
+      // Light mode: set attribute to 'light'
+      if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light')
+      } else {
+        document.documentElement.removeAttribute('data-theme')
+      }
       window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme } }))
     }
   }

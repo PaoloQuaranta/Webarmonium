@@ -2761,3 +2761,70 @@ Changed rendering multipliers from 0.8/0.7 to 0.92/0.88 for more vibrant output.
 v1.1.02
 
 ---
+
+## Entry #154 - Theme Switching Bug Fix
+
+**Date**: 2026-01-20
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed intermittent bug where switching from light mode back to dark mode would not always update the page, requiring a reload.
+
+---
+
+### Problem Statement
+
+When switching themes (dark → light → dark), pages would sometimes not update correctly and required a page reload. The issue was intermittent.
+
+---
+
+### Root Cause
+
+The CSS uses `:root[data-theme="light"]` for light mode overrides, with default `:root` styles (no attribute) for dark mode. However, `applyTheme('dark')` was setting `data-theme="dark"` instead of removing the attribute entirely.
+
+This created an inconsistent state:
+- Initial dark mode: no `data-theme` attribute
+- After light→dark switch: `data-theme="dark"` attribute present
+
+While CSS didn't have a `:root[data-theme="dark"]` selector (so light styles wouldn't apply), some components reading the attribute could behave inconsistently.
+
+---
+
+### Solution
+
+Modified `UserSettings.applyTheme()` to remove the attribute for dark mode instead of setting it:
+
+```javascript
+static applyTheme (theme) {
+  if (typeof document !== 'undefined') {
+    if (theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light')
+    } else {
+      document.documentElement.removeAttribute('data-theme')
+    }
+    window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme } }))
+  }
+}
+```
+
+Also updated `initializeTheme()` functions in both `main.js` files to use `UserSettings.applyTheme()` instead of direct `setAttribute()`.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/UserSettings.js` | `applyTheme()` now removes attribute for dark mode |
+| `frontend/src/main.js` | `initializeTheme()` uses `UserSettings.applyTheme()` |
+| `frontend/src/landing/main.js` | `initializeTheme()` uses `UserSettings.applyTheme()` |
+
+---
+
+### Version
+
+v1.1.03
+
+---

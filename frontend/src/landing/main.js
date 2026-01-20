@@ -1948,7 +1948,7 @@ class LandingApp {
 function initializeTheme() {
   if (typeof UserSettings !== 'undefined') {
     const theme = UserSettings.getEffectiveTheme()
-    document.documentElement.setAttribute('data-theme', theme)
+    UserSettings.applyTheme(theme)
   }
 }
 
