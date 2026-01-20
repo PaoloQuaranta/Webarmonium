@@ -561,8 +561,13 @@
       var dismissBtn = document.getElementById('join-tooltip-dismiss');
       var joinBtn = document.querySelector('.join-btn');
 
-      // Only on touch devices
-      if (window.matchMedia('(hover: none)').matches) {
+      // Detect touch device (multiple methods for old iOS compatibility)
+      var isTouchDevice = window.matchMedia('(hover: none)').matches ||
+                          window.matchMedia('(pointer: coarse)').matches ||
+                          ('ontouchstart' in window) ||
+                          (navigator.maxTouchPoints > 0);
+
+      if (isTouchDevice) {
         // Already dismissed or clicked Join?
         if (localStorage.getItem(TOOLTIP_KEY) === 'true') return;
 
