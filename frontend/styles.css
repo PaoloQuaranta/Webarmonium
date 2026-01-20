@@ -948,12 +948,12 @@ button:disabled {
   transform: translateY(-50%) translateX(0);
 }
 
-/* Mobile: tooltip repositioned at top center of screen */
+/* Mobile: tooltip repositioned below cards at bottom of screen */
 @media (max-width: 768px) {
   .join-tooltip {
     position: fixed !important;
-    top: 6rem !important;
-    bottom: auto !important;
+    top: auto !important;
+    bottom: calc(2rem + env(safe-area-inset-bottom, 0px)) !important;
     left: 1rem !important;
     right: 1rem !important;
     transform: none !important;
