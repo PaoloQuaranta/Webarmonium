@@ -128,14 +128,14 @@ a:hover {
   color: var(--accent-hover);
 }
 
-/* Light mode: use --dim for readable links on light background */
+/* Light mode: orange for links on light background */
 :root[data-theme="light"] a,
 :root[data-theme="light"] a:visited {
-  color: var(--dim);
+  color: #f97316;
 }
 
 :root[data-theme="light"] a:hover {
-  color: var(--bright);
+  color: #ea580c;
 }
 
 html {
