@@ -2493,32 +2493,27 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     left: max(10px, env(safe-area-inset-left, 10px));
     right: max(10px, env(safe-area-inset-right, 10px));
     padding: 0.5rem 1rem;
-    flex-direction: column;
-    gap: 0.75rem;
+    padding-top: 3rem; /* Space for logo row */
   }
 
-  /* Room controls - horizontal row below logo/usercount */
+  /* Logo stays absolute top-left */
+  .room-logo-link {
+    top: 0.5rem;
+    left: 1rem;
+  }
+
+  /* User count stays absolute top-right */
+  .user-count {
+    top: 0.5rem;
+    right: 1rem;
+  }
+
+  /* Room controls - centered below logo row */
   .room-controls {
     display: flex;
     gap: 1rem;
     height: auto;
-    position: relative;
-    width: 100%;
     justify-content: center;
-  }
-
-  /* Reposition logo and user count for mobile column layout */
-  .room-logo-link {
-    position: relative;
-    left: auto;
-    top: auto;
-    transform: none;
-  }
-
-  .user-count {
-    position: absolute;
-    right: 0;
-    top: 0;
   }
 
   /* Hide connection lines on mobile */
