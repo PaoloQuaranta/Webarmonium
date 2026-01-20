@@ -953,7 +953,7 @@ button:disabled {
   .join-tooltip {
     position: fixed;
     top: auto;
-    bottom: 1rem;
+    bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
     left: 50%;
     right: auto;
     transform: translateX(-50%) translateY(10px);
@@ -976,6 +976,19 @@ button:disabled {
     visibility: visible;
     transform: translateX(-50%) translateY(0);
     pointer-events: auto;
+  }
+
+  /* Override desktop hover - use .visible class instead on mobile */
+  .join-section .node-btn-wrapper:hover .join-tooltip {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-50%) translateY(10px);
+  }
+
+  .join-section .node-btn-wrapper:hover .join-tooltip.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
   }
 }
 
