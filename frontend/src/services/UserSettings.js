@@ -174,13 +174,25 @@ class UserSettings {
    */
   static applyTheme (theme) {
     if (typeof document !== 'undefined') {
+      const root = document.documentElement
+      const body = document.body
+
       // Dark mode: remove attribute (CSS uses absence of attribute for dark)
       // Light mode: set attribute to 'light'
       if (theme === 'light') {
-        document.documentElement.setAttribute('data-theme', 'light')
+        root.setAttribute('data-theme', 'light')
       } else {
-        document.documentElement.removeAttribute('data-theme')
+        root.removeAttribute('data-theme')
       }
+
+      // Force Chrome to recalculate ALL CSS variables
+      // Method: toggle visibility on body to trigger full repaint without flash
+      if (body) {
+        body.style.visibility = 'hidden'
+        void body.offsetHeight // Force synchronous reflow
+        body.style.visibility = ''
+      }
+
       window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme } }))
     }
   }
