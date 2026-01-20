@@ -2493,13 +2493,32 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     left: max(10px, env(safe-area-inset-left, 10px));
     right: max(10px, env(safe-area-inset-right, 10px));
     padding: 0.5rem 1rem;
+    flex-direction: column;
+    gap: 0.75rem;
   }
 
-  /* Room controls - horizontal row like index mobile */
+  /* Room controls - horizontal row below logo/usercount */
   .room-controls {
     display: flex;
     gap: 1rem;
     height: auto;
+    position: relative;
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Reposition logo and user count for mobile column layout */
+  .room-logo-link {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+  }
+
+  .user-count {
+    position: absolute;
+    right: 0;
+    top: 0;
   }
 
   /* Hide connection lines on mobile */
