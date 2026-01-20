@@ -188,6 +188,17 @@
   </style>
 </head>
 <body>
+  <!-- Theme initialization (before content renders) -->
+  <script>
+    (function() {
+      try {
+        var theme = localStorage.getItem('webarmonium:settings:theme');
+        if (theme === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      } catch(e) {}
+    })();
+  </script>
   <a href="/" class="corner-logo-link" title="Home">
     <img src="/webarmonium-logo.svg" alt="Webarmonium logo" class="corner-logo">
   </a>
@@ -278,7 +289,7 @@
     </section>
 
     <!-- Footer -->
-    <footer style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #333;">
+    <footer style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--line, #3a3a50);">
       <p><a href="technical-appendix.html">Technical Documentation &rarr;</a></p>
       <p class="footer-note">Webarmonium - Generative Music from Web Activity</p>
     </footer>

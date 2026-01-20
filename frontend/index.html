@@ -145,6 +145,17 @@
   <script src="src/services/DroneVoidController.js?v=2"></script>
 </head>
 <body>
+  <!-- Theme initialization (before content renders) -->
+  <script>
+  (function() {
+    try {
+      var theme = localStorage.getItem('webarmonium:settings:theme');
+      if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    } catch(e) {}
+  })();
+  </script>
   <!-- Photosensitivity Warning Modal -->
   <div id="photosensitivity-warning" class="warning-modal" role="dialog" aria-modal="true" aria-labelledby="warning-title">
     <div class="warning-content">

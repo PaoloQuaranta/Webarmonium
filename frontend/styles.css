@@ -57,6 +57,12 @@
   --logo-h: 48px;
 }
 
+/* Gradient and semantic colors */
+:root {
+  --gradient-mid: rgba(10, 10, 20, 0.6);
+  --success: #22c55e;  /* Green for success states */
+}
+
 /* Light Mode Theme (colori originali riassegnati) */
 :root[data-theme="light"] {
   --void: #e0e0f0;      /* era --bright */
@@ -68,6 +74,8 @@
   --bright: #020208;    /* era --void */
   --ui-bg: rgba(144, 144, 168, 0.85);
   --ui-bg-solid: #9090a8;
+  --gradient-mid: rgba(224, 224, 240, 0.6);  /* Light version */
+  --success: #059669;  /* Darker green for light mode contrast */
   /* accent, node-*, glow-* ereditano da :root (invariati) */
 }
 
@@ -290,7 +298,7 @@ header {
   align-items: flex-start;
   gap: 1.5rem;
   padding: 1.5rem 2rem;
-  background: linear-gradient(180deg, var(--ui-bg) 0%, rgba(10, 10, 20, 0.6) 50%, transparent 100%);
+  background: linear-gradient(180deg, var(--ui-bg) 0%, var(--gradient-mid) 50%, transparent 100%);
 }
 
 .landing-logo-link {
@@ -1662,7 +1670,7 @@ footer a:hover {
 
 .audio-mode-indicator.low-power {
   background: rgba(34, 197, 94, 0.2);
-  color: #22c55e;
+  color: var(--success);
 }
 
 .audio-mode-indicator.degraded {
@@ -2466,8 +2474,8 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 }
 
 .audio-mode-indicator.low-power {
-  border-color: #22c55e;
-  color: #22c55e;
+  border-color: var(--success);
+  color: var(--success);
 }
 
 .audio-mode-indicator.degraded {

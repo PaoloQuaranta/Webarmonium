@@ -56,17 +56,17 @@
 
   <link rel="stylesheet" href="styles.css?v=6">
   <style>
-    /* Technical appendix specific styles */
+    /* Technical appendix specific styles (uses CSS variables from styles.css) */
     /* Global link colors - prevent browser default blue/purple */
     a {
-      color: #2dd4bf;
+      color: var(--accent, #2dd4bf);
       text-decoration: none;
     }
     a:visited {
-      color: #2dd4bf;
+      color: var(--accent, #2dd4bf);
     }
     a:hover {
-      color: #5eead4;
+      color: var(--accent-hover, #5eead4);
     }
     .tech-content {
       max-width: 900px;
@@ -77,23 +77,33 @@
       margin-bottom: 3rem;
     }
     .tech-section h2 {
-      color: #fff;
-      border-bottom: 2px solid #2dd4bf;
+      font-family: var(--font-display, 'Space Grotesk', system-ui, sans-serif);
+      color: var(--bright, #e0e0f0);
+      border-bottom: 2px solid var(--accent, #2dd4bf);
       padding-bottom: 0.5rem;
       margin-bottom: 1.5rem;
     }
     .tech-section h3 {
-      color: #aaa;
+      font-family: var(--font-display, 'Space Grotesk', system-ui, sans-serif);
+      color: var(--light, #9090a8);
       margin-top: 2rem;
       margin-bottom: 1rem;
     }
+    .tech-section p {
+      color: var(--light, #9090a8);
+      line-height: 1.7;
+    }
     .tech-section p a,
     .tech-section p a:visited {
-      color: #2dd4bf;
+      color: var(--accent, #2dd4bf);
       text-decoration: underline;
     }
     .tech-section p a:hover {
-      color: #5eead4;
+      color: var(--accent-hover, #5eead4);
+    }
+    .tech-section ul,
+    .tech-section li {
+      color: var(--light, #9090a8);
     }
     table {
       width: 100%;
@@ -104,22 +114,22 @@
     th, td {
       padding: 0.75rem;
       text-align: left;
-      border-bottom: 1px solid #333;
+      border-bottom: 1px solid var(--line, #3a3a50);
     }
     th {
-      background: #1a1a1a;
-      color: #fff;
+      background: var(--deep, #0a0a14);
+      color: var(--bright, #e0e0f0);
       font-weight: 600;
     }
     td {
-      color: #ccc;
+      color: var(--light, #9090a8);
     }
     tr:hover td {
-      background: #1a1a1a;
+      background: var(--deep, #0a0a14);
     }
-    .color-wikipedia { color: #ff2d92; }
-    .color-hackernews { color: #00d4ff; }
-    .color-github { color: #a855f7; }
+    .color-wikipedia { color: var(--node-1, #ff2d92); }
+    .color-hackernews { color: var(--node-2, #00d4ff); }
+    .color-github { color: var(--node-3, #a855f7); }
     .badge {
       display: inline-block;
       padding: 0.2rem 0.5rem;
@@ -133,7 +143,7 @@
     .back-link:visited {
       display: inline-block;
       margin-bottom: 2rem;
-      color: #2dd4bf;
+      color: var(--accent, #2dd4bf);
       text-decoration: none;
     }
     .back-link:hover {
@@ -141,31 +151,43 @@
     }
     footer a,
     footer a:visited {
-      color: #2dd4bf;
+      color: var(--accent, #2dd4bf);
       text-decoration: none;
     }
     footer a:hover {
       text-decoration: underline;
     }
     .formula {
-      background: #1a1a1a;
+      background: var(--deep, #0a0a14);
       padding: 1rem;
       border-radius: 4px;
-      font-family: monospace;
-      color: #8fbc8f;
+      font-family: var(--font-mono, 'Fira Code', monospace);
+      color: var(--accent, #2dd4bf);
       margin: 1rem 0;
       overflow-x: auto;
     }
     .note {
-      background: #1a2a1a;
-      border-left: 3px solid #2dd4bf;
+      background: var(--deep, #0a0a14);
+      border-left: 3px solid var(--accent, #2dd4bf);
       padding: 1rem;
       margin: 1rem 0;
-      color: #aaa;
+      color: var(--dim, #5a5a70);
+      border-radius: 0 8px 8px 0;
     }
   </style>
 </head>
 <body>
+  <!-- Theme initialization (before content renders) -->
+  <script>
+    (function() {
+      try {
+        var theme = localStorage.getItem('webarmonium:settings:theme');
+        if (theme === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      } catch(e) {}
+    })();
+  </script>
   <a href="/" class="corner-logo-link" title="Home">
     <img src="/webarmonium-logo.svg" alt="Webarmonium logo" class="corner-logo">
   </a>
@@ -175,8 +197,6 @@
   </header>
 
   <main class="tech-content" style="padding-top: 5rem;">
-    <a href="how-it-works.html" class="back-link">&larr; Back to How It Works</a>
-
     <!-- Section 1: Landing Page Virtual User Mapping -->
     <section class="tech-section">
       <h2>1. Landing Page: Virtual User Mapping</h2>
@@ -1017,7 +1037,7 @@
     </section>
 
     <!-- Footer -->
-    <footer style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #333;">
+    <footer style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--line, #3a3a50);">
       <p><a href="how-it-works.html">&larr; How It Works</a> | <a href="rooms.html">Join a Room &rarr;</a></p>
       <p class="footer-note">Webarmonium Technical Documentation</p>
     </footer>

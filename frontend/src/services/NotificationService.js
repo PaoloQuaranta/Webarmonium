@@ -86,7 +86,7 @@ class NotificationService {
       }
 
       .webarmonium-notification.success {
-        border-color: #22c55e;
+        border-color: var(--success, #22c55e);
       }
 
       .webarmonium-notification.warning {
