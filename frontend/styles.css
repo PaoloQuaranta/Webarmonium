@@ -128,17 +128,14 @@ a:hover {
   color: var(--accent-hover);
 }
 
-/* Light mode: darker link color for better contrast on light backgrounds */
-:root[data-theme="light"] a {
-  color: #0d9488;
-}
-
+/* Light mode: use viola from palette for better contrast on light backgrounds */
+:root[data-theme="light"] a,
 :root[data-theme="light"] a:visited {
-  color: #0d9488;
+  color: var(--node-3);
 }
 
 :root[data-theme="light"] a:hover {
-  color: #0f766e;
+  color: #9333ea;
 }
 
 html {
