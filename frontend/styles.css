@@ -935,19 +935,32 @@ button:disabled {
   transform: translateY(-50%) translateX(0);
 }
 
-/* Mobile: tooltip hidden by default, shown via JS */
+/* Mobile: tooltip repositioned below controls, centered */
 @media (hover: none) {
   .join-tooltip {
+    position: fixed;
+    top: auto;
+    bottom: 1rem;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%) translateY(10px);
+    width: calc(100% - 2rem);
+    max-width: 320px;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transform: translateY(-50%) translateX(-4px);
+  }
+
+  /* Hide arrow on mobile */
+  .join-tooltip::before,
+  .join-tooltip::after {
+    display: none;
   }
 
   .join-tooltip.visible {
     opacity: 1;
     visibility: visible;
-    transform: translateY(-50%) translateX(0);
+    transform: translateX(-50%) translateY(0);
     pointer-events: auto;
   }
 }
