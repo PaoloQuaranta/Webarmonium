@@ -766,10 +766,9 @@ button:hover:not(:disabled) {
   color: var(--light);
 }
 
-/* Light mode: use --surface for lighter hover effect */
+/* Light mode: use --surface for border hover effect */
 :root[data-theme="light"] button:hover:not(:disabled) {
   border-color: var(--surface);
-  color: var(--surface);
 }
 
 button:active:not(:disabled) {
@@ -849,7 +848,6 @@ button:disabled {
 
 :root[data-theme="light"] .node-btn:hover {
   border-color: var(--surface);
-  color: var(--surface);
 }
 
 /* Primary node button - same outline style, just starts with accent border */
@@ -865,7 +863,6 @@ button:disabled {
 
 :root[data-theme="light"] .node-btn.primary:hover {
   border-color: var(--surface);
-  color: var(--surface);
 }
 
 /* Playing state - red border only */
@@ -898,7 +895,6 @@ button:disabled {
 :root[data-theme="light"] .node-btn.join-btn:hover {
   background: var(--deep);
   border-color: var(--surface);
-  color: var(--surface);
 }
 
 /* Join button tooltip - positioned to the right of button */
@@ -1077,7 +1073,6 @@ button:disabled {
 
 :root[data-theme="light"] .settings-btn:hover {
   border-color: var(--surface);
-  color: var(--surface);
 }
 
 /* Room link - node style, unified bg */
@@ -1106,7 +1101,6 @@ button:disabled {
 
 :root[data-theme="light"] .room-link:hover {
   border-color: var(--surface);
-  color: var(--surface);
 }
 
 .room-link .rooms-activity {
@@ -1339,11 +1333,6 @@ input[type="range"]::-moz-range-thumb {
 .explainer-handle:hover .handle-text,
 .explainer-handle:hover .handle-icon {
   color: var(--light);
-}
-
-:root[data-theme="light"] .explainer-handle:hover .handle-text,
-:root[data-theme="light"] .explainer-handle:hover .handle-icon {
-  color: var(--surface);
 }
 
 /* Active state when explainer is open */
@@ -1944,7 +1933,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 
 :root[data-theme="light"] .immersive-toggle:hover {
   border-color: var(--surface);
-  color: var(--surface);
 }
 
 .immersive-icon {
@@ -2137,7 +2125,6 @@ body.immersive-mode .immersive-controls.visible {
 
 :root[data-theme="light"] .immersive-ctrl-btn:hover {
   border-color: var(--surface);
-  color: var(--surface);
 }
 
 /* Play button turns red border when playing */
@@ -2162,7 +2149,6 @@ body.audio-playing #immersive-play-btn {
 
 :root[data-theme="light"] #immersive-exit-btn:hover {
   border-color: var(--surface);
-  color: var(--surface);
 }
 
 /* Play/Stop icon toggle */
@@ -2401,7 +2387,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
 :root[data-theme="light"] .audio-toggle:hover {
   border-color: var(--surface);
-  color: var(--surface);
 }
 
 .audio-toggle.disabled {
