@@ -884,6 +884,13 @@ button:disabled {
   color: var(--light);
 }
 
+/* Light mode: lighter background on hover */
+:root[data-theme="light"] .node-btn.join-btn:hover {
+  background: var(--deep);
+  border-color: var(--surface);
+  color: var(--surface);
+}
+
 /* Join button tooltip - positioned to the right of button */
 .join-tooltip {
   position: absolute;
@@ -1304,9 +1311,19 @@ input[type="range"]::-moz-range-thumb {
   border-color: var(--light);
 }
 
+:root[data-theme="light"] .explainer-handle:hover {
+  background: var(--deep);
+  border-color: var(--surface);
+}
+
 .explainer-handle:hover .handle-text,
 .explainer-handle:hover .handle-icon {
   color: var(--light);
+}
+
+:root[data-theme="light"] .explainer-handle:hover .handle-text,
+:root[data-theme="light"] .explainer-handle:hover .handle-icon {
+  color: var(--surface);
 }
 
 /* Active state when explainer is open */
