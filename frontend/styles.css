@@ -766,10 +766,10 @@ button:hover:not(:disabled) {
   color: var(--light);
 }
 
-/* Light mode: use --bright for more contrast on hover */
+/* Light mode: use --surface for lighter hover effect */
 :root[data-theme="light"] button:hover:not(:disabled) {
-  border-color: var(--bright);
-  color: var(--bright);
+  border-color: var(--surface);
+  color: var(--surface);
 }
 
 button:active:not(:disabled) {
