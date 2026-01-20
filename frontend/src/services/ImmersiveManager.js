@@ -57,14 +57,24 @@ class ImmersiveManager {
     document.addEventListener('mozfullscreenchange', this._fullscreenChangeHandler)
     document.addEventListener('MSFullscreenChange', this._fullscreenChangeHandler)
 
-    // Mouse/touch shows minibar
+    // Mouse move shows minibar (desktop only)
     this._mouseMoveHandler = () => {
-      if (this.isImmersive) this._showControls()
+      if (this.isImmersive && !this._isMobile()) this._showControls()
     }
     document.addEventListener('mousemove', this._mouseMoveHandler)
 
-    this._touchHandler = () => {
-      if (this.isImmersive) this._showControls()
+    // Touch in bottom-right corner shows minibar (mobile only)
+    this._touchHandler = (e) => {
+      if (!this.isImmersive || !this._isMobile()) return
+      const touch = e.touches[0]
+      if (!touch) return
+      const TOUCH_THRESHOLD_VERTICAL = 100  // Larger touch target for mobile
+      const TOUCH_THRESHOLD_HORIZONTAL = 100
+      const nearBottom = window.innerHeight - touch.clientY < TOUCH_THRESHOLD_VERTICAL
+      const nearRight = window.innerWidth - touch.clientX < TOUCH_THRESHOLD_HORIZONTAL
+      if (nearBottom && nearRight) {
+        this._showControls()
+      }
     }
     document.addEventListener('touchstart', this._touchHandler, { passive: true })
 

@@ -175,6 +175,7 @@ class LandingApp {
 
     // Entry #134: Immersive controls auto-hide state
     this._immersiveMouseHandler = null
+    this._immersiveTouchHandler = null
     this._immersiveAutoHideTimeout = null
     this._immersiveAutoHideDelay = 3000  // 3 seconds
 
@@ -1800,16 +1801,29 @@ class LandingApp {
         }, this._immersiveAutoHideDelay)
       }
 
-      // Show controls on mouse move in immersive mode
+      // Show controls on mouse move in immersive mode (desktop only)
+      const isMobile = window.PlatformDetection?.isMobile?.() || false
       this._immersiveMouseHandler = () => {
-        if (document.body.classList.contains('immersive-mode')) {
+        if (document.body.classList.contains('immersive-mode') && !isMobile) {
           showControls()
         }
       }
       document.addEventListener('mousemove', this._immersiveMouseHandler)
 
-      // Also show on touch
-      document.addEventListener('touchstart', this._immersiveMouseHandler, { passive: true })
+      // Touch in bottom-right corner shows controls (mobile only)
+      this._immersiveTouchHandler = (e) => {
+        if (!document.body.classList.contains('immersive-mode')) return
+        if (!isMobile) return
+        const touch = e.touches[0]
+        if (!touch) return
+        const TOUCH_THRESHOLD = 100  // Larger touch target for mobile
+        const nearBottom = window.innerHeight - touch.clientY < TOUCH_THRESHOLD
+        const nearRight = window.innerWidth - touch.clientX < TOUCH_THRESHOLD
+        if (nearBottom && nearRight) {
+          showControls()
+        }
+      }
+      document.addEventListener('touchstart', this._immersiveTouchHandler, { passive: true })
 
       // Show controls initially when entering immersive mode
       const originalClick = toggleBtn.onclick
@@ -1888,8 +1902,11 @@ class LandingApp {
     // Entry #134: Cleanup immersive controls handlers
     if (this._immersiveMouseHandler) {
       document.removeEventListener('mousemove', this._immersiveMouseHandler)
-      document.removeEventListener('touchstart', this._immersiveMouseHandler)
       this._immersiveMouseHandler = null
+    }
+    if (this._immersiveTouchHandler) {
+      document.removeEventListener('touchstart', this._immersiveTouchHandler)
+      this._immersiveTouchHandler = null
     }
     if (this._immersiveAutoHideTimeout) {
       clearTimeout(this._immersiveAutoHideTimeout)
