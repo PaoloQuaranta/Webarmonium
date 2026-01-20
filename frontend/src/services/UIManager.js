@@ -47,11 +47,6 @@ class UIManager {
 
     // Mobile state
     this.isMobile = false
-    this.mobileMenuOpen = false
-    this.mobileMenuBtn = null
-    this.mobileInfoBtn = null
-    this.mobileBackdrop = null
-    this.mobileSheet = null
 
     // Entry #74: Settings panel
     this.settingsPanel = null
@@ -261,24 +256,11 @@ class UIManager {
   }
 
   /**
-   * Setup mobile UI with single bottom sheet menu
+   * Setup mobile UI - same UI bar as desktop, just smaller buttons
    */
   _setupMobileMenu() {
-    // Hide controls bar and instructions (keep header with logo + user count visible)
-    const roomControls = document.querySelector('.room-controls')
-    const instructions = document.querySelector('.instructions')
-
-    if (roomControls) roomControls.classList.add('mobile-hidden')
-    if (instructions) instructions.classList.add('mobile-hidden')
-
-    // Create menu button
-    this._createMobileMenuButton()
-
-    // Create info button (bottom-left, shows instructions popup)
-    this._createMobileInfoButton()
-
-    // Create bottom sheet
-    this._createMobileBottomSheet()
+    // Add settings button to mobile UI (same as desktop)
+    this._createDesktopSettingsButton()
 
     // Create central start button always - it will hide itself if audio already started
     // This avoids race condition with attemptAutoStartAudio()
@@ -288,323 +270,6 @@ class UIManager {
     if (window.webarmoniumApp?.isAudioStarted) {
       this.hideMobileCentralStartButton()
     }
-  }
-
-  /**
-   * Create mobile menu button (hamburger)
-   */
-  _createMobileMenuButton() {
-    this.mobileMenuBtn = document.createElement('button')
-    this.mobileMenuBtn.className = 'mobile-menu-btn'
-    // Force all styles inline for iPad (screen > 768px bypasses media query)
-    // Unified style: transparent bg with accent border
-    this.mobileMenuBtn.style.cssText = `
-      display: flex;
-      position: fixed;
-      top: max(60px, calc(env(safe-area-inset-top, 12px) + 48px));
-      right: max(12px, env(safe-area-inset-right, 12px));
-      z-index: 1002;
-      background: rgba(10, 10, 20, 0.55);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 2px solid #3a3a50;
-      color: #9090a8;
-      border-radius: 50%;
-      width: 52px;
-      height: 52px;
-      cursor: pointer;
-      align-items: center;
-      justify-content: center;
-      font-size: 24px;
-      font-weight: bold;
-      transition: border-color 0.2s, color 0.2s;
-    `
-    this.mobileMenuBtn.innerHTML = '&#9776;' // Hamburger icon (☰)
-    this.mobileMenuBtn.setAttribute('aria-label', 'Open menu')
-    this.mobileMenuBtn.onclick = () => this.toggleMobileMenu()
-
-    // Hover/touch states - change to lighter gray (only when menu is closed)
-    const setHoverState = () => {
-      if (!this.mobileMenuOpen) {
-        this.mobileMenuBtn.style.borderColor = '#5a5a70'
-        this.mobileMenuBtn.style.color = '#b0b0c0'
-      }
-    }
-    const resetState = () => {
-      if (!this.mobileMenuOpen) {
-        this.mobileMenuBtn.style.borderColor = '#3a3a50'
-        this.mobileMenuBtn.style.color = '#9090a8'
-      }
-    }
-    this.mobileMenuBtn.addEventListener('mouseenter', setHoverState)
-    this.mobileMenuBtn.addEventListener('mouseleave', resetState)
-    this.mobileMenuBtn.addEventListener('touchstart', setHoverState, { passive: true })
-    this.mobileMenuBtn.addEventListener('touchend', resetState, { passive: true })
-
-    document.body.appendChild(this.mobileMenuBtn)
-  }
-
-  /**
-   * Create mobile info button (bottom-left, shows instructions popup)
-   */
-  _createMobileInfoButton() {
-    this.mobileInfoBtn = document.createElement('button')
-    this.mobileInfoBtn.className = 'mobile-info-btn'
-    // Unified style: circular button matching burger menu
-    this.mobileInfoBtn.style.cssText = `
-      display: flex;
-      position: fixed;
-      bottom: max(12px, env(safe-area-inset-bottom, 12px));
-      left: max(12px, env(safe-area-inset-left, 12px));
-      z-index: 1002;
-      background: rgba(10, 10, 20, 0.55);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 2px solid #3a3a50;
-      color: #9090a8;
-      border-radius: 50%;
-      width: 52px;
-      height: 52px;
-      cursor: pointer;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--font-display, 'Space Grotesk', system-ui, sans-serif);
-      font-size: 24px;
-      font-weight: 500;
-      transition: border-color 0.2s, color 0.2s;
-    `
-    this.mobileInfoBtn.textContent = '?'
-    this.mobileInfoBtn.setAttribute('aria-label', 'Show instructions')
-    this.mobileInfoBtn.setAttribute('aria-expanded', 'false')
-
-    // Track popup state
-    this.mobileInfoPopupOpen = false
-
-    this.mobileInfoBtn.onclick = () => this._toggleMobileInfoPopup()
-
-    // Hover/touch states
-    const setHoverState = () => {
-      if (!this.mobileInfoPopupOpen) {
-        this.mobileInfoBtn.style.borderColor = '#5a5a70'
-        this.mobileInfoBtn.style.color = '#b0b0c0'
-      }
-    }
-    const resetState = () => {
-      if (!this.mobileInfoPopupOpen) {
-        this.mobileInfoBtn.style.borderColor = '#3a3a50'
-        this.mobileInfoBtn.style.color = '#9090a8'
-      }
-    }
-    this.mobileInfoBtn.addEventListener('mouseenter', setHoverState)
-    this.mobileInfoBtn.addEventListener('mouseleave', resetState)
-    this.mobileInfoBtn.addEventListener('touchstart', setHoverState, { passive: true })
-    this.mobileInfoBtn.addEventListener('touchend', resetState, { passive: true })
-
-    document.body.appendChild(this.mobileInfoBtn)
-
-    // Create the popup (hidden by default)
-    this._createMobileInfoPopup()
-  }
-
-  /**
-   * Create mobile info popup
-   */
-  _createMobileInfoPopup() {
-    this.mobileInfoPopup = document.createElement('div')
-    this.mobileInfoPopup.className = 'mobile-info-popup'
-    this.mobileInfoPopup.style.cssText = `
-      display: none;
-      position: fixed;
-      bottom: max(76px, calc(env(safe-area-inset-bottom, 12px) + 64px));
-      left: max(12px, env(safe-area-inset-left, 12px));
-      z-index: 1001;
-      background: rgba(10, 10, 20, 0.85);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid #3a3a50;
-      border-radius: 12px;
-      padding: 12px 16px;
-      max-width: 280px;
-      color: #9090a8;
-      font-family: var(--font-mono, 'JetBrains Mono', monospace);
-      font-size: 12px;
-      line-height: 1.5;
-    `
-    this.mobileInfoPopup.innerHTML = `
-      <div style="margin-bottom: 8px;"><strong>Tap</strong> for notes (hold longer for sustained tones)</div>
-      <div style="margin-bottom: 8px;"><strong>Drag</strong> to create melodic phrases</div>
-      <div><strong>Hover</strong> to modulate filters and effects</div>
-    `
-
-    document.body.appendChild(this.mobileInfoPopup)
-  }
-
-  /**
-   * Toggle mobile info popup
-   */
-  _toggleMobileInfoPopup() {
-    this.mobileInfoPopupOpen = !this.mobileInfoPopupOpen
-
-    if (this.mobileInfoPopupOpen) {
-      this.mobileInfoPopup.style.display = 'block'
-      this.mobileInfoBtn.style.borderColor = '#2dd4bf'
-      this.mobileInfoBtn.style.color = '#2dd4bf'
-      this.mobileInfoBtn.setAttribute('aria-expanded', 'true')
-
-      // Auto-hide after 5 seconds
-      this._mobileInfoAutoHide = setTimeout(() => {
-        this._closeMobileInfoPopup()
-      }, 5000)
-    } else {
-      this._closeMobileInfoPopup()
-    }
-  }
-
-  /**
-   * Close mobile info popup
-   */
-  _closeMobileInfoPopup() {
-    this.mobileInfoPopupOpen = false
-    this.mobileInfoPopup.style.display = 'none'
-    this.mobileInfoBtn.style.borderColor = '#3a3a50'
-    this.mobileInfoBtn.style.color = '#9090a8'
-    this.mobileInfoBtn.setAttribute('aria-expanded', 'false')
-
-    if (this._mobileInfoAutoHide) {
-      clearTimeout(this._mobileInfoAutoHide)
-      this._mobileInfoAutoHide = null
-    }
-  }
-
-  /**
-   * Create mobile bottom sheet with all controls
-   */
-  _createMobileBottomSheet() {
-    // Backdrop - force base styles for iPad (screen > 768px)
-    this.mobileBackdrop = document.createElement('div')
-    this.mobileBackdrop.className = 'mobile-menu-backdrop'
-    this.mobileBackdrop.style.cssText = `
-      display: block;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 1000;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease;
-    `
-    this.mobileBackdrop.onclick = () => this.closeMobileMenu()
-    document.body.appendChild(this.mobileBackdrop)
-
-    // Bottom sheet - force base styles for iPad (screen > 768px)
-    // Unified style matching other UI elements
-    this.mobileSheet = document.createElement('div')
-    this.mobileSheet.className = 'mobile-bottom-sheet'
-    this.mobileSheet.style.cssText = `
-      display: block;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(10, 10, 20, 0.85);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-radius: 20px 20px 0 0;
-      border-top: 1px solid #3a3a50;
-      padding: 20px;
-      padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
-      z-index: 1003;
-      transform: translateY(100%);
-      transition: transform 0.3s ease;
-      max-height: 70vh;
-      overflow-y: auto;
-    `
-
-    this.mobileSheet.innerHTML = `
-      <div class="mobile-sheet-handle"></div>
-      <div class="mobile-sheet-content">
-        <div class="mobile-sheet-section mobile-controls-row" id="mobileAudioControls">
-          <!-- Audio controls will be added here: play, volume, settings in a row -->
-        </div>
-        <div class="mobile-sheet-section mobile-instructions">
-          <div><strong>Tap</strong> for notes (hold longer for sustained tones)</div>
-          <div><strong>Drag</strong> to create melodic phrases</div>
-        </div>
-      </div>
-    `
-
-    document.body.appendChild(this.mobileSheet)
-
-    // Create audio toggle button that directly calls app method
-    const audioToggle = document.getElementById('audioToggle')
-    if (audioToggle) {
-      const mobileAudioBtn = document.createElement('button')
-      mobileAudioBtn.id = 'mobileAudioToggle'
-      mobileAudioBtn.className = 'mobile-node-btn'
-      mobileAudioBtn.innerHTML = audioToggle.innerHTML
-      // Directly call app method (clicking hidden elements unreliable)
-      mobileAudioBtn.onclick = () => {
-        if (window.webarmoniumApp?.toggleAudio) {
-          window.webarmoniumApp.toggleAudio()
-          // Update both buttons' text after toggle
-          setTimeout(() => {
-            mobileAudioBtn.innerHTML = audioToggle.innerHTML
-          }, 100)
-        }
-      }
-      document.getElementById('mobileAudioControls')?.appendChild(mobileAudioBtn)
-
-      // Store reference for state sync
-      this.mobileAudioBtn = mobileAudioBtn
-      this.originalAudioToggle = audioToggle
-
-      // Hide central start button if audio starts via menu or auto-start
-      // Store observer reference for cleanup and use robust state check
-      this.audioToggleObserver = new MutationObserver(() => {
-        // Check actual audio state instead of relying on button text
-        if (window.webarmoniumApp?.isAudioStarted) {
-          this.hideMobileCentralStartButton()
-          // Disconnect after triggering - no longer needed
-          this.audioToggleObserver?.disconnect()
-        }
-      })
-      this.audioToggleObserver.observe(audioToggle, { childList: true, characterData: true, subtree: true })
-    }
-
-    // Create volume slider that directly controls audio service
-    const mobileVolumeSlider = document.createElement('input')
-    mobileVolumeSlider.type = 'range'
-    mobileVolumeSlider.id = 'mobileVolumeSlider'
-    mobileVolumeSlider.min = '0'
-    mobileVolumeSlider.max = '100'
-    mobileVolumeSlider.step = '1'
-    mobileVolumeSlider.value = '70' // Default 70%
-    mobileVolumeSlider.className = 'mobile-volume-slider'
-
-    // Directly control audio service volume
-    mobileVolumeSlider.oninput = () => {
-      const volume = parseInt(mobileVolumeSlider.value, 10) / 100 // Convert to 0-1
-      if (window.webarmoniumApp?.audioService?.setVolume) {
-        window.webarmoniumApp.audioService.setVolume(volume)
-      }
-    }
-
-    document.getElementById('mobileAudioControls')?.appendChild(mobileVolumeSlider)
-
-    this.mobileVolumeSlider = mobileVolumeSlider
-
-    // Entry #74: Create Settings button (round, matches play button)
-    const settingsBtn = document.createElement('button')
-    settingsBtn.id = 'mobileSettingsBtn'
-    settingsBtn.className = 'mobile-node-btn'
-    settingsBtn.innerHTML = '&#9881;' // Gear icon only
-    settingsBtn.onclick = () => this.openSettingsPanel()
-
-    document.getElementById('mobileAudioControls')?.appendChild(settingsBtn)
-    this.mobileSettingsBtn = settingsBtn
   }
 
   /**
@@ -692,10 +357,6 @@ class UIManager {
   hideMobileCentralStartButton() {
     if (this.mobileCentralStartBtn) {
       // Transfer focus to menu button before removing (accessibility)
-      if (document.activeElement === this.mobileCentralStartBtn) {
-        this.mobileMenuBtn?.focus()
-      }
-
       this.mobileCentralStartBtn.style.opacity = '0'
       this.mobileCentralStartBtn.style.pointerEvents = 'none'
 
@@ -708,19 +369,6 @@ class UIManager {
       }, 300)
     }
 
-    // Disconnect observer if still active
-    if (this.audioToggleObserver) {
-      this.audioToggleObserver.disconnect()
-      this.audioToggleObserver = null
-    }
-
-    // Sync mobile audio button text based on actual audio state
-    if (this.mobileAudioBtn) {
-      // Use audio state directly - more reliable than reading original toggle text
-      const isPlaying = window.webarmoniumApp?.isAudioStarted
-      this.mobileAudioBtn.innerHTML = isPlaying ? '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>' : '▶'
-      this.mobileAudioBtn.classList.toggle('playing', isPlaying)
-    }
   }
 
   // ==========================================
@@ -731,11 +379,6 @@ class UIManager {
    * Open the settings panel
    */
   openSettingsPanel () {
-    // Close mobile menu if open
-    if (this.mobileMenuOpen) {
-      this.closeMobileMenu()
-    }
-
     // Create panel instance if needed
     if (!this.settingsPanel && typeof SettingsPanel !== 'undefined') {
       this.settingsPanel = new SettingsPanel()
@@ -865,65 +508,6 @@ class UIManager {
       mode: this.currentAudioMode,
       stressFactor: this.audioStressFactor
     }
-  }
-
-  /**
-   * Toggle mobile menu open/close
-   */
-  toggleMobileMenu() {
-    if (this.mobileMenuOpen) {
-      this.closeMobileMenu()
-    } else {
-      this.openMobileMenu()
-    }
-  }
-
-  /**
-   * Open mobile menu
-   */
-  openMobileMenu() {
-    this.mobileMenuOpen = true
-    this.mobileBackdrop?.classList.add('open')
-    this.mobileSheet?.classList.add('open')
-    this.mobileMenuBtn?.classList.add('open')
-    // Set inline styles for iPad (CSS .open class inside media query doesn't apply)
-    if (this.mobileBackdrop) {
-      this.mobileBackdrop.style.opacity = '1'
-      this.mobileBackdrop.style.pointerEvents = 'auto'
-    }
-    if (this.mobileSheet) {
-      this.mobileSheet.style.transform = 'translateY(0)'
-    }
-    if (this.mobileMenuBtn) {
-      // Accent border when open
-      this.mobileMenuBtn.style.borderColor = '#2dd4bf'
-      this.mobileMenuBtn.style.color = '#2dd4bf'
-    }
-    this.mobileMenuBtn.innerHTML = '&#10005;' // X icon
-  }
-
-  /**
-   * Close mobile menu
-   */
-  closeMobileMenu() {
-    this.mobileMenuOpen = false
-    this.mobileBackdrop?.classList.remove('open')
-    this.mobileSheet?.classList.remove('open')
-    this.mobileMenuBtn?.classList.remove('open')
-    // Reset inline styles
-    if (this.mobileBackdrop) {
-      this.mobileBackdrop.style.opacity = '0'
-      this.mobileBackdrop.style.pointerEvents = 'none'
-    }
-    if (this.mobileSheet) {
-      this.mobileSheet.style.transform = 'translateY(100%)'
-    }
-    if (this.mobileMenuBtn) {
-      // Reset to default border color
-      this.mobileMenuBtn.style.borderColor = '#3a3a50'
-      this.mobileMenuBtn.style.color = '#9090a8'
-    }
-    this.mobileMenuBtn.innerHTML = '&#9776;' // Hamburger icon
   }
 
   /**
@@ -1126,35 +710,10 @@ class UIManager {
     }
 
     // Remove mobile elements
-    if (this.mobileMenuBtn) {
-      this.mobileMenuBtn.remove()
-    }
-    if (this.mobileInfoBtn) {
-      this.mobileInfoBtn.remove()
-    }
-    if (this.mobileInfoPopup) {
-      this.mobileInfoPopup.remove()
-    }
-    if (this._mobileInfoAutoHide) {
-      clearTimeout(this._mobileInfoAutoHide)
-    }
-    if (this.mobileBackdrop) {
-      this.mobileBackdrop.remove()
-    }
-    if (this.mobileSheet) {
-      this.mobileSheet.remove()
-    }
-
     // Clean up mobile central start button
     if (this.mobileCentralStartBtn) {
       this.mobileCentralStartBtn.remove()
       this.mobileCentralStartBtn = null
-    }
-
-    // Disconnect MutationObserver
-    if (this.audioToggleObserver) {
-      this.audioToggleObserver.disconnect()
-      this.audioToggleObserver = null
     }
 
     // Remove audio mode indicator (Entry #73)
@@ -1172,12 +731,6 @@ class UIManager {
       this.settingsPanel.close()
       this.settingsPanel = null
     }
-
-    // Restore hidden elements
-    const roomControls = document.querySelector('.room-controls')
-    const instructions = document.querySelector('.instructions')
-    if (roomControls) roomControls.classList.remove('mobile-hidden')
-    if (instructions) instructions.classList.remove('mobile-hidden')
 
     this.currentRoom = null
     this.userCount = 1

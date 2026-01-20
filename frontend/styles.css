@@ -2495,40 +2495,46 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     padding: 0.5rem 1rem;
   }
 
-  /* User count stays visible on mobile - same style as desktop */
-
+  /* Room controls - horizontal row like index mobile */
   .room-controls {
-    display: none;
+    display: flex;
+    gap: 1rem;
+    height: auto;
   }
 
+  /* Hide connection lines on mobile */
   .room-controls::before,
   .room-controls::after,
   .room-controls .node-btn-wrapper:first-child::after {
     display: none;
   }
 
+  /* Reset wrapper padding for mobile */
   .room-controls .node-btn-wrapper,
   .room-controls .slider-node {
     height: auto;
     padding-top: 0;
   }
 
+  /* Hide labels on mobile */
+  .room-controls .node-label {
+    display: none;
+  }
+
+  /* 44px buttons on mobile */
+  .room-controls .audio-toggle,
+  .room-controls .desktop-settings-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 1rem;
+  }
+
   .instructions {
-    bottom: max(10px, calc(env(safe-area-inset-bottom, 10px) + 50px));
+    bottom: max(10px, calc(env(safe-area-inset-bottom, 10px) + 10px));
     font-size: 11px;
     padding: 10px 15px;
-  }
-
-  .mobile-menu-btn {
-    display: flex;
-  }
-
-  .mobile-menu-backdrop {
-    display: block;
-  }
-
-  .mobile-bottom-sheet {
-    display: block;
   }
 
   .accelerometer-calibrate {
