@@ -171,6 +171,7 @@ class LandingApp {
     // Entry #93: Immersive mode handlers (stored for cleanup)
     this._immersiveResizeHandler = null
     this._immersiveKeyHandler = null
+    this._fullscreenChangeHandler = null
 
     // Entry #134: Immersive controls auto-hide state
     this._immersiveMouseHandler = null
@@ -1603,9 +1604,47 @@ class LandingApp {
     }
 
     // Toggle immersive mode on button click
-    toggleBtn.addEventListener('click', () => {
+    toggleBtn.addEventListener('click', async () => {
+      const wasImmersive = document.body.classList.contains('immersive-mode')
+      const isImmersive = !wasImmersive
+
       document.body.classList.toggle('immersive-mode')
-      const isImmersive = document.body.classList.contains('immersive-mode')
+
+      // Desktop: Use Fullscreen API (must be called synchronously from user gesture)
+      const isMobile = window.PlatformDetection?.isMobile?.() || false
+      if (!isMobile) {
+        if (isImmersive) {
+          // Enter fullscreen
+          try {
+            const docEl = document.documentElement
+            const requestFullscreen = docEl.requestFullscreen ||
+              docEl.webkitRequestFullscreen ||
+              docEl.mozRequestFullScreen ||
+              docEl.msRequestFullscreen
+            if (requestFullscreen) {
+              await requestFullscreen.call(docEl)
+              this._showFullscreenEscNotice()
+            }
+          } catch (err) {
+            // Fullscreen denied, continue without
+          }
+        } else {
+          // Exit fullscreen
+          const fullscreenElement = document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            document.mozFullScreenElement ||
+            document.msFullscreenElement
+          if (fullscreenElement) {
+            const exitFullscreen = document.exitFullscreen ||
+              document.webkitExitFullscreen ||
+              document.mozCancelFullScreen ||
+              document.msExitFullscreen
+            if (exitFullscreen) {
+              exitFullscreen.call(document).catch(() => {})
+            }
+          }
+        }
+      }
 
       // Update button label
       if (labelSpan) {
@@ -1641,6 +1680,35 @@ class LandingApp {
       }
     }
     document.addEventListener('keydown', this._immersiveKeyHandler)
+
+    // Fullscreen change handler - sync immersive mode with fullscreen state
+    this._fullscreenChangeHandler = () => {
+      const fullscreenElement = document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+      // If user exits fullscreen (via browser ESC) while in immersive mode, exit immersive too
+      if (!fullscreenElement && document.body.classList.contains('immersive-mode')) {
+        document.body.classList.remove('immersive-mode')
+        if (labelSpan) labelSpan.textContent = 'Immersive'
+        if (ariaLive) ariaLive.textContent = 'Exited immersive mode.'
+        // Restore canvas size
+        if (this.visualService && this.canvasContainer) {
+          requestAnimationFrame(() => {
+            const rect = this.canvasContainer.getBoundingClientRect()
+            this.visualService.resize(rect.width, rect.height)
+            this._resizeTrailCanvas()
+          })
+        }
+        // Hide controls
+        const controls = document.getElementById('immersive-controls')
+        if (controls) controls.classList.remove('visible')
+      }
+    }
+    document.addEventListener('fullscreenchange', this._fullscreenChangeHandler)
+    document.addEventListener('webkitfullscreenchange', this._fullscreenChangeHandler)
+    document.addEventListener('mozfullscreenchange', this._fullscreenChangeHandler)
+    document.addEventListener('MSFullscreenChange', this._fullscreenChangeHandler)
 
     // Entry #136: Show immersive toggle when mouse enters bottom-right corner
     // This is the opposite corner from explainer (which uses left side of bottom edge)
@@ -1778,6 +1846,18 @@ class LandingApp {
   }
 
   /**
+   * Show ESC notice when entering fullscreen (desktop only)
+   * @private
+   */
+  _showFullscreenEscNotice() {
+    const notice = document.getElementById('fullscreen-esc-notice')
+    if (notice) {
+      notice.classList.add('visible')
+      setTimeout(() => notice.classList.remove('visible'), 3000)
+    }
+  }
+
+  /**
    * Cleanup and dispose
    */
   dispose() {
@@ -1796,6 +1876,13 @@ class LandingApp {
     if (this._immersiveResizeHandler) {
       window.removeEventListener('resize', this._immersiveResizeHandler)
       this._immersiveResizeHandler = null
+    }
+    if (this._fullscreenChangeHandler) {
+      document.removeEventListener('fullscreenchange', this._fullscreenChangeHandler)
+      document.removeEventListener('webkitfullscreenchange', this._fullscreenChangeHandler)
+      document.removeEventListener('mozfullscreenchange', this._fullscreenChangeHandler)
+      document.removeEventListener('MSFullscreenChange', this._fullscreenChangeHandler)
+      this._fullscreenChangeHandler = null
     }
 
     // Entry #134: Cleanup immersive controls handlers
