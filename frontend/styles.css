@@ -892,7 +892,8 @@ button:disabled {
   transform: translateY(-50%) translateX(-4px);
   width: 220px;
   padding: 0.75rem 1rem;
-  background: var(--ui-bg-solid);
+  background: var(--ui-bg);
+  backdrop-filter: blur(20px);
   border: 1px solid var(--line);
   border-radius: 8px;
   font-family: var(--font-body);
@@ -925,7 +926,7 @@ button:disabled {
   transform: translateY(-50%);
   margin-right: -1px;
   border: 5px solid transparent;
-  border-right-color: var(--ui-bg-solid);
+  border-right-color: var(--ui-bg);
 }
 
 .join-section .node-btn-wrapper:hover .join-tooltip {
