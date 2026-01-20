@@ -879,8 +879,63 @@ button:disabled {
 }
 
 .node-btn.join-btn:hover {
+  background: var(--surface);
   border-color: var(--light);
   color: var(--light);
+}
+
+/* Join button tooltip */
+.join-tooltip {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  width: 220px;
+  padding: 0.75rem 1rem;
+  background: var(--ui-bg);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--light);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.join-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  right: 20px;
+  border: 6px solid transparent;
+  border-bottom-color: var(--line);
+}
+
+.join-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  right: 21px;
+  border: 5px solid transparent;
+  border-bottom-color: var(--ui-bg);
+}
+
+.join-section .node-btn-wrapper:hover .join-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Hide tooltip on touch devices */
+@media (hover: none) {
+  .join-tooltip {
+    display: none;
+  }
 }
 
 .node-label {
