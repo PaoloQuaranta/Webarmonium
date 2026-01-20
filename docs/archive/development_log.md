@@ -2505,3 +2505,58 @@ Created `frontend/src/services/ImmersiveManager.js` to handle immersive mode:
 v1.0.195
 
 ---
+
+## Entry #151 - Fullscreen API for Index & Mobile Minibar Corner Tap
+
+**Date**: 2026-01-20
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Added browser Fullscreen API to index page immersive mode (matching rooms behavior). Changed mobile immersive minibar to only appear on bottom-right corner tap instead of any touch.
+
+---
+
+### Changes
+
+#### 1. Index Page Fullscreen API
+
+Added same fullscreen behavior as rooms to `frontend/src/landing/main.js`:
+
+- Request fullscreen with vendor prefixes (webkit/moz/ms) on enter
+- Exit fullscreen on exit
+- Fullscreen change handler to sync immersive state when user exits via browser ESC
+- Show ESC notice for 3 seconds on desktop
+- Added `fullscreen-esc-notice` HTML element to `index.html`
+
+#### 2. Mobile Minibar Corner Tap
+
+Changed touch behavior for immersive mode minibar:
+
+| Platform | Before | After |
+|----------|--------|-------|
+| Desktop | Any mouse movement shows minibar | Same |
+| Mobile | Any touch shows minibar | Only tap in bottom-right corner (100x100px) |
+
+This prevents accidental minibar display when interacting with the canvas on mobile.
+
+**Files:** `frontend/src/services/ImmersiveManager.js`, `frontend/src/landing/main.js`
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/index.html` | Added fullscreen-esc-notice element |
+| `frontend/src/landing/main.js` | Fullscreen API, ESC notice, corner tap for mobile |
+| `frontend/src/services/ImmersiveManager.js` | Corner tap for mobile touch handler |
+
+---
+
+### Version
+
+v1.0.196
+
+---
