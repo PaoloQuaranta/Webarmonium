@@ -39,10 +39,13 @@ class NeonNebulaSystem {
     MIN_ALPHA_THRESHOLD: 2,
 
     // Visual parameters
-    BASE_SATURATION: 80,
-    BASE_LIGHTNESS: 60,
-    BASE_ALPHA: 35,
+    BASE_SATURATION: 90,        // Increased for vibrancy
+    BASE_LIGHTNESS: 65,         // Increased for visibility
+    BASE_ALPHA: 40,             // Slightly more presence
     NOISE_SCALE: 0.003,
+    SATURATION_VARIATION: 25,   // +/- range for noise-based variation
+    LIGHTNESS_VARIATION: 20,    // +/- range for noise-based variation
+    HUE_VARIATION_RANGE: 80,    // +/- 40 degrees (was 50 = +/- 25)
 
     // Transitions
     BIAS_TRANSITION_SPEED: 0.02,
@@ -70,18 +73,18 @@ class NeonNebulaSystem {
     this.performanceMode = 'normal'
 
     // Composition influences the hue bias, distributed across full 360° spectrum
-    // Each composition type shifts toward different hues for maximum color variety
+    // Weight reduced to 0.15 → 85% of color driven by noise for maximum variety
     this.compositionBias = {
-      ambient: { center: 200, weight: 0.3 },   // blu-cyan (cool)
-      riff: { center: 30, weight: 0.3 },       // arancio (warm)
-      phrase: { center: 280, weight: 0.3 },    // viola (cool)
-      arpeggio: { center: 120, weight: 0.3 },  // verde (neutral)
-      drone: { center: 330, weight: 0.3 }      // magenta (warm)
+      ambient: { center: 195, weight: 0.15 },  // cyan-blue (cool)
+      riff: { center: 20, weight: 0.15 },      // red-orange (warm)
+      phrase: { center: 310, weight: 0.15 },   // magenta-pink (bridge)
+      arpeggio: { center: 85, weight: 0.15 },  // yellow-green (warm)
+      drone: { center: 260, weight: 0.15 }     // blue-violet (cool)
     }
 
     // Current composition bias (start with ambient)
-    this.currentBias = { center: 200, weight: 0.3 }
-    this.targetBias = { center: 200, weight: 0.3 }
+    this.currentBias = { center: 195, weight: 0.15 }
+    this.targetBias = { center: 195, weight: 0.15 }
     this.biasTransitionSpeed = C.BIAS_TRANSITION_SPEED
 
     // Color settings - soft, diffuse appearance
@@ -177,7 +180,9 @@ class NeonNebulaSystem {
       // Edge chaos - how much noise distorts the shape (0.2 to 0.5)
       edgeChaos: 0.2 + Math.random() * 0.3,
       // Rotation for asymmetry
-      rotation: Math.random() * Math.PI * 2
+      rotation: Math.random() * Math.PI * 2,
+      // Per-blob hue offset for inter-blob color variety (+/- 30 degrees)
+      hueOffset: Math.random() * 60 - 30
     }
   }
 
@@ -220,6 +225,8 @@ class NeonNebulaSystem {
     blob.alphaMultiplier = 0.4 + Math.random() * 0.6
     blob.edgeChaos = 0.2 + Math.random() * 0.3
     blob.rotation = Math.random() * Math.PI * 2
+    // New hue offset for color variety
+    blob.hueOffset = Math.random() * 60 - 30
   }
 
   /**
@@ -411,8 +418,16 @@ class NeonNebulaSystem {
         const texNoiseY = (y + blob.noiseOffsetY) * this.noiseScale * 2
         const texNoise = buf.noise(texNoiseX, texNoiseY, this.time * 0.5)
 
-        const hueVariation = (texNoise - 0.5) * 50
-        const hue = (baseHue + hueVariation + 360) % 360
+        // Enhanced hue variation with per-blob offset
+        const hueVariation = (texNoise - 0.5) * C.HUE_VARIATION_RANGE
+        const blobHueOffset = blob.hueOffset || 0
+        const hue = (baseHue + hueVariation + blobHueOffset + 360) % 360
+
+        // Noise-based saturation and lightness variation (reuses existing texNoise)
+        const satVariation = (texNoise - 0.5) * C.SATURATION_VARIATION * 2
+        const lightVariation = (texNoise - 0.5) * C.LIGHTNESS_VARIATION * 2
+        const sat = Math.max(50, Math.min(100, this.baseSaturation + satVariation))
+        const light = Math.max(40, Math.min(80, this.baseLightness + lightVariation))
 
         const alphaVariation = 0.7 + texNoise * 0.3
         const alpha = this.baseAlpha * falloff * alphaVariation * lifecycleOpacity * blobAlpha
@@ -429,11 +444,11 @@ class NeonNebulaSystem {
         const cellCenterX = x + cellSize / 2 + jitterX
         const cellCenterY = y + cellSize / 2 + jitterY
 
-        // Simplified 2-layer rendering for buffer (scaled blur handles the rest)
-        buf.fill(hue, this.baseSaturation * 0.8, this.baseLightness * 0.7, alpha * 0.4)
+        // 2-layer rendering with vibrant colors (less aggressive multipliers)
+        buf.fill(hue, sat * 0.92, light * 0.88, alpha * 0.4)
         buf.ellipse(cellCenterX, cellCenterY, cellSize * 2, cellSize * 2)
 
-        buf.fill(hue, this.baseSaturation, this.baseLightness, alpha * 0.7)
+        buf.fill(hue, sat, light, alpha * 0.7)
         buf.ellipse(cellCenterX, cellCenterY, cellSize, cellSize)
       }
     }

@@ -2657,3 +2657,107 @@ Added `--success` CSS variable for green notification/indicator colors that adap
 v1.1.01
 
 ---
+
+## Entry #153 - NeonNebulaSystem Vibrant Multicolor Enhancement
+
+**Date**: 2026-01-20
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Enhanced the NeonNebulaSystem to produce more varied and vibrant nebula colors. Previously, nebulas appeared mostly green-gray due to constrained color parameters. Now nebulas display full spectrum colors including warm tones (reds, oranges, pinks, magentas) with dynamic internal variation.
+
+---
+
+### Problem Statement
+
+The nebula system was producing colors too similar (green-gray tones) due to:
+
+1. **High bias weight (0.3)** - Pushed 30% of color toward fixed centers
+2. **Fixed saturation/lightness** - No spatial variation within blobs
+3. **Limited hue variation (±25°)** - Too narrow color spread
+4. **Cool-tone bias clustering** - Centers at blue (200°) and green (120°)
+5. **Reducing multipliers** - `sat * 0.8`, `light * 0.7` muted vibrancy
+
+---
+
+### Solution
+
+Combined approach: **noise-based variation + revised parameters** with near-zero computational cost by reusing existing noise calculations.
+
+---
+
+### Changes
+
+#### 1. Updated CONFIG Constants
+
+| Parameter | Before | After |
+|-----------|--------|-------|
+| `BASE_SATURATION` | 80 | 90 |
+| `BASE_LIGHTNESS` | 60 | 65 |
+| `BASE_ALPHA` | 35 | 40 |
+| `SATURATION_VARIATION` | - | 25 (new) |
+| `LIGHTNESS_VARIATION` | - | 20 (new) |
+| `HUE_VARIATION_RANGE` | 50 (hardcoded) | 80 |
+
+#### 2. Redistributed Composition Bias
+
+| Type | Before | After |
+|------|--------|-------|
+| ambient | 200°, 0.3 | 195°, 0.15 |
+| riff | 30°, 0.3 | 20°, 0.15 |
+| phrase | 280°, 0.3 | 310°, 0.15 |
+| arpeggio | 120°, 0.3 | 85°, 0.15 |
+| drone | 330°, 0.3 | 260°, 0.15 |
+
+Weight reduced to 0.15 → 85% of color driven by noise for maximum variety.
+
+#### 3. Per-Blob Hue Offset
+
+Added `hueOffset` property (±30°) to `createBlob()` and `respawnBlob()` for inter-blob color diversity.
+
+#### 4. Noise-Based Saturation/Lightness Variation
+
+Reuses existing `texNoise` value to vary saturation and lightness spatially within each blob:
+
+```javascript
+const satVariation = (texNoise - 0.5) * C.SATURATION_VARIATION * 2
+const lightVariation = (texNoise - 0.5) * C.LIGHTNESS_VARIATION * 2
+const sat = Math.max(50, Math.min(100, this.baseSaturation + satVariation))
+const light = Math.max(40, Math.min(80, this.baseLightness + lightVariation))
+```
+
+#### 5. Less Aggressive Multipliers
+
+Changed rendering multipliers from 0.8/0.7 to 0.92/0.88 for more vibrant output.
+
+---
+
+### Resource Cost
+
+| Change | Cost |
+|--------|------|
+| New CONFIG parameters | Zero |
+| Bias redistribution | Zero |
+| Per-blob hueOffset | 1 random() at respawn |
+| Sat/light variation | 4 ops/cell (reuses texNoise) |
+| Multiplier changes | Zero |
+
+**Total: Near-zero** - No new noise calculations, no additional render passes.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/visual/NeonNebulaSystem.js` | CONFIG constants, compositionBias, currentBias/targetBias, hueOffset in createBlob/respawnBlob, noise-based sat/light variation in renderBlobToBuffer |
+
+---
+
+### Version
+
+v1.1.02
+
+---
