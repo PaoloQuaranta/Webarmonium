@@ -81,8 +81,19 @@ class GenerativeVisualService {
    * @param {CustomEvent} event - theme-change event with { theme: 'dark' | 'light' }
    */
   _handleThemeChange(event) {
-    const theme = event.detail?.theme || 'dark'
+    // Read from event detail, fallback to DOM attribute, fallback to 'dark'
+    let theme = event?.detail?.theme
+    if (!theme) {
+      // Fallback: read directly from DOM
+      const attr = document.documentElement.getAttribute('data-theme')
+      theme = attr === 'light' ? 'light' : 'dark'
+    }
     this.bgColor = this.bgColors[theme] || this.bgColors.dark
+
+    // Wake from idle state to ensure background is redrawn
+    // This fixes the issue where theme change doesn't update canvas when paused
+    this.isPaused = false
+    this.lastActivityTime = Date.now()
   }
 
   /**
