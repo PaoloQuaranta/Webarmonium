@@ -1657,6 +1657,10 @@ class WebarmoniumApp {
           button.classList.remove('disabled')
           button.classList.add('playing')
 
+          // Update room label to "Stop"
+          const roomLabel = document.querySelector('.room-controls .node-btn-wrapper:first-child .node-label')
+          if (roomLabel) roomLabel.textContent = 'Stop'
+
           // Sync audio-playing class for immersive mode play/stop icon
           document.body.classList.add('audio-playing')
           const immersiveLabel = document.querySelector('#immersive-controls .node-btn-wrapper:first-child .node-label')
@@ -1690,8 +1694,12 @@ class WebarmoniumApp {
       // console.log('🔇 Stopping audio...')
       this.audioService.stop()
       this.isAudioStarted = false
-      button.textContent = '▶'
+      button.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><polygon points="4,2 14,8 4,14"/></svg>'
       button.classList.remove('playing')
+
+      // Update room label to "Start"
+      const roomLabel = document.querySelector('.room-controls .node-btn-wrapper:first-child .node-label')
+      if (roomLabel) roomLabel.textContent = 'Start'
 
       // Sync audio-playing class for immersive mode play/stop icon
       document.body.classList.remove('audio-playing')
