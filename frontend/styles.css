@@ -962,7 +962,7 @@ button:disabled {
   pointer-events: auto;
 }
 
-/* Got it button in tooltip */
+/* Got it button in tooltip - positioned right */
 .join-tooltip-gotit {
   background: none;
   border: none;
@@ -971,8 +971,9 @@ button:disabled {
   font-size: inherit;
   cursor: pointer;
   padding: 0;
-  margin-left: 0.5em;
+  margin-left: 1em;
   text-decoration: underline;
+  float: right;
 }
 
 .join-tooltip-gotit:hover {
