@@ -17,15 +17,20 @@ class ImmersiveManager {
   }
 
   initialize() {
+    alert('DEBUG: initialize() called')
     const toggleBtn = document.getElementById('immersive-toggle')
     const controls = document.getElementById('immersive-controls')
     const playBtn = document.getElementById('immersive-play-btn')
     const exitBtn = document.getElementById('immersive-exit-btn')
 
+    alert('DEBUG: toggleBtn found? ' + !!toggleBtn)
     if (!toggleBtn) return
 
     // Toggle button click
-    toggleBtn.addEventListener('click', () => this.toggle())
+    toggleBtn.addEventListener('click', () => {
+      alert('DEBUG: toggle button clicked')
+      this.toggle()
+    })
 
     // Exit button
     exitBtn?.addEventListener('click', () => this.exit())
