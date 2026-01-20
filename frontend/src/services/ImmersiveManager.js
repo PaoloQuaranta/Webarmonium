@@ -120,7 +120,10 @@ class ImmersiveManager {
     document.body.classList.add('immersive-mode')
 
     // Desktop: request fullscreen with vendor prefixes
-    if (!this._isMobile()) {
+    const isMobile = this._isMobile()
+    console.log('[ImmersiveManager] enter() - isMobile:', isMobile)
+
+    if (!isMobile) {
       try {
         const docEl = document.documentElement
         const requestFullscreen = docEl.requestFullscreen ||
@@ -128,12 +131,15 @@ class ImmersiveManager {
           docEl.mozRequestFullScreen ||
           docEl.msRequestFullscreen
 
+        console.log('[ImmersiveManager] requestFullscreen available:', !!requestFullscreen)
+
         if (requestFullscreen) {
           await requestFullscreen.call(docEl)
+          console.log('[ImmersiveManager] Fullscreen requested successfully')
           this._showEscNotice()
         }
       } catch (err) {
-        // Fullscreen denied, continue without
+        console.error('[ImmersiveManager] Fullscreen request failed:', err)
       }
     }
 
@@ -222,7 +228,9 @@ class ImmersiveManager {
   _isMobile() {
     // Use PlatformDetection if available (Entry #46)
     if (window.PlatformDetection && typeof window.PlatformDetection.isMobile === 'function') {
-      return window.PlatformDetection.isMobile()
+      const result = window.PlatformDetection.isMobile()
+      console.log('[ImmersiveManager] PlatformDetection.isMobile():', result)
+      return result
     }
 
     // Fallback: hover capability check (most reliable for touch-only devices)
