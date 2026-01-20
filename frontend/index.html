@@ -92,7 +92,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css?v=22">
+  <link rel="stylesheet" href="styles.css?v=23">
 
   <!-- p5.js for canvas rendering -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
@@ -348,7 +348,7 @@
           <a href="rooms.html" class="node-btn primary join-btn" aria-label="Join a Room">Join</a>
           <span class="node-label">Rooms</span>
           <span id="rooms-activity" class="rooms-activity"></span>
-          <span class="join-tooltip">Join rooms to interact with other hoomans, or web sources if the room is empty. Free. No account required.</span>
+          <span class="join-tooltip" id="join-tooltip">Join rooms to interact with other hoomans, or web sources if the room is empty. Free. No account required.<button class="join-tooltip-dismiss" id="join-tooltip-dismiss" aria-label="Dismiss">&times;</button></span>
         </div>
       </div>
     </section>
@@ -552,6 +552,43 @@
         landingSettingsPanel.open()
       }
     }
+
+    // Mobile join tooltip: show after 5 minutes if user hasn't clicked Join
+    (function() {
+      var TOOLTIP_KEY = 'webarmonium_join_tooltip_dismissed';
+      var DELAY = 5 * 60 * 1000; // 5 minutes
+      var tooltip = document.getElementById('join-tooltip');
+      var dismissBtn = document.getElementById('join-tooltip-dismiss');
+      var joinBtn = document.querySelector('.join-btn');
+
+      // Only on touch devices
+      if (window.matchMedia('(hover: none)').matches) {
+        // Already dismissed or clicked Join?
+        if (localStorage.getItem(TOOLTIP_KEY) === 'true') return;
+
+        var timerId = setTimeout(function() {
+          if (tooltip) tooltip.classList.add('visible');
+        }, DELAY);
+
+        // Dismiss button
+        if (dismissBtn) {
+          dismissBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            localStorage.setItem(TOOLTIP_KEY, 'true');
+            if (tooltip) tooltip.classList.remove('visible');
+          });
+        }
+
+        // If user clicks Join, mark as dismissed and clear timer
+        if (joinBtn) {
+          joinBtn.addEventListener('click', function() {
+            clearTimeout(timerId);
+            localStorage.setItem(TOOLTIP_KEY, 'true');
+          });
+        }
+      }
+    })();
 
     // Pause looping animations when off-screen (Intersection Observer)
     if ('IntersectionObserver' in window) {
