@@ -261,6 +261,145 @@ class UIManager {
   _setupMobileMenu() {
     // Add settings button to mobile UI (same as desktop)
     this._createDesktopSettingsButton()
+
+    // Hide instructions by default on mobile, show via info button
+    const instructions = document.querySelector('.instructions')
+    if (instructions) instructions.style.display = 'none'
+
+    // Create info button to toggle instructions
+    this._createMobileInfoButton()
+  }
+
+  /**
+   * Create mobile info button (bottom-left, toggles instructions)
+   */
+  _createMobileInfoButton() {
+    this.mobileInfoBtn = document.createElement('button')
+    this.mobileInfoBtn.className = 'mobile-info-btn'
+    this.mobileInfoBtn.style.cssText = `
+      display: flex;
+      position: fixed;
+      bottom: max(12px, env(safe-area-inset-bottom, 12px));
+      left: max(12px, env(safe-area-inset-left, 12px));
+      z-index: 1002;
+      background: rgba(10, 10, 20, 0.55);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 2px solid #3a3a50;
+      color: #9090a8;
+      border-radius: 50%;
+      width: 44px;
+      height: 44px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display, 'Space Grotesk', system-ui, sans-serif);
+      font-size: 20px;
+      font-weight: 500;
+      transition: border-color 0.2s, color 0.2s;
+    `
+    this.mobileInfoBtn.textContent = '?'
+    this.mobileInfoBtn.setAttribute('aria-label', 'Show instructions')
+    this.mobileInfoBtn.setAttribute('aria-expanded', 'false')
+
+    this.mobileInfoPopupOpen = false
+    this.mobileInfoBtn.onclick = () => this._toggleMobileInfoPopup()
+
+    // Hover/touch states
+    const setHoverState = () => {
+      if (!this.mobileInfoPopupOpen) {
+        this.mobileInfoBtn.style.borderColor = '#5a5a70'
+        this.mobileInfoBtn.style.color = '#b0b0c0'
+      }
+    }
+    const resetState = () => {
+      if (!this.mobileInfoPopupOpen) {
+        this.mobileInfoBtn.style.borderColor = '#3a3a50'
+        this.mobileInfoBtn.style.color = '#9090a8'
+      }
+    }
+    this.mobileInfoBtn.addEventListener('mouseenter', setHoverState)
+    this.mobileInfoBtn.addEventListener('mouseleave', resetState)
+    this.mobileInfoBtn.addEventListener('touchstart', setHoverState, { passive: true })
+    this.mobileInfoBtn.addEventListener('touchend', resetState, { passive: true })
+
+    document.body.appendChild(this.mobileInfoBtn)
+
+    // Create the popup (hidden by default)
+    this._createMobileInfoPopup()
+  }
+
+  /**
+   * Create mobile info popup
+   */
+  _createMobileInfoPopup() {
+    this.mobileInfoPopup = document.createElement('div')
+    this.mobileInfoPopup.className = 'mobile-info-popup'
+    this.mobileInfoPopup.style.cssText = `
+      display: none;
+      position: fixed;
+      bottom: max(68px, calc(env(safe-area-inset-bottom, 12px) + 56px));
+      left: max(12px, env(safe-area-inset-left, 12px));
+      z-index: 1001;
+      background: rgba(10, 10, 20, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid #3a3a50;
+      border-radius: 12px;
+      padding: 12px 16px;
+      max-width: 280px;
+      color: #9090a8;
+      font-family: var(--font-mono, 'JetBrains Mono', monospace);
+      font-size: 12px;
+      line-height: 1.5;
+    `
+    this.mobileInfoPopup.innerHTML = `
+      <div style="margin-bottom: 8px;"><strong>Tap</strong> for notes (hold longer for sustained tones)</div>
+      <div><strong>Drag</strong> to create melodic phrases</div>
+    `
+
+    document.body.appendChild(this.mobileInfoPopup)
+  }
+
+  /**
+   * Toggle mobile info popup
+   */
+  _toggleMobileInfoPopup() {
+    this.mobileInfoPopupOpen = !this.mobileInfoPopupOpen
+
+    if (this.mobileInfoPopupOpen) {
+      this.mobileInfoPopup.style.display = 'block'
+      this.mobileInfoBtn.style.borderColor = '#2dd4bf'
+      this.mobileInfoBtn.style.color = '#2dd4bf'
+      this.mobileInfoBtn.setAttribute('aria-expanded', 'true')
+
+      // Auto-hide after 5 seconds
+      this._mobileInfoAutoHide = setTimeout(() => {
+        this._closeMobileInfoPopup()
+      }, 5000)
+    } else {
+      this._closeMobileInfoPopup()
+    }
+  }
+
+  /**
+   * Close mobile info popup
+   */
+  _closeMobileInfoPopup() {
+    this.mobileInfoPopupOpen = false
+    if (this.mobileInfoPopup) {
+      this.mobileInfoPopup.style.display = 'none'
+    }
+    if (this.mobileInfoBtn) {
+      this.mobileInfoBtn.style.borderColor = '#3a3a50'
+      this.mobileInfoBtn.style.color = '#9090a8'
+      this.mobileInfoBtn.setAttribute('aria-expanded', 'false')
+    }
+
+    if (this._mobileInfoAutoHide) {
+      clearTimeout(this._mobileInfoAutoHide)
+      this._mobileInfoAutoHide = null
+    }
   }
 
   // ==========================================
@@ -600,6 +739,23 @@ class UIManager {
     if (this._boundEdgeHandler) {
       document.removeEventListener('mousemove', this._boundEdgeHandler)
     }
+
+    // Remove mobile info button and popup
+    if (this.mobileInfoBtn) {
+      this.mobileInfoBtn.remove()
+      this.mobileInfoBtn = null
+    }
+    if (this.mobileInfoPopup) {
+      this.mobileInfoPopup.remove()
+      this.mobileInfoPopup = null
+    }
+    if (this._mobileInfoAutoHide) {
+      clearTimeout(this._mobileInfoAutoHide)
+    }
+
+    // Restore instructions visibility
+    const instructions = document.querySelector('.instructions')
+    if (instructions) instructions.style.display = ''
 
     // Remove audio mode indicator (Entry #73)
     if (this.audioModeIndicator) {
