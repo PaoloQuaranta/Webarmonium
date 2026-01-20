@@ -1985,7 +1985,9 @@ body.audio-playing .immersive-ctrl-btn .play-icon {
 }
 
 body.audio-playing .immersive-ctrl-btn .stop-icon {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Update label text when playing */

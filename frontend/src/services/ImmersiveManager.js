@@ -17,20 +17,15 @@ class ImmersiveManager {
   }
 
   initialize() {
-    alert('DEBUG: initialize() called')
     const toggleBtn = document.getElementById('immersive-toggle')
     const controls = document.getElementById('immersive-controls')
     const playBtn = document.getElementById('immersive-play-btn')
     const exitBtn = document.getElementById('immersive-exit-btn')
 
-    alert('DEBUG: toggleBtn found? ' + !!toggleBtn)
     if (!toggleBtn) return
 
     // Toggle button click
-    toggleBtn.addEventListener('click', () => {
-      alert('DEBUG: toggle button clicked')
-      this.toggle()
-    })
+    toggleBtn.addEventListener('click', () => this.toggle())
 
     // Exit button
     exitBtn?.addEventListener('click', () => this.exit())
@@ -121,14 +116,12 @@ class ImmersiveManager {
   }
 
   async enter() {
-    alert('DEBUG: enter() called, isMobile=' + this._isMobile())
     this.isImmersive = true
     document.body.classList.add('immersive-mode')
 
     // Desktop: request fullscreen with vendor prefixes
-    const isMobile = this._isMobile()
-
-    if (!isMobile) {
+    // IMPORTANT: No alerts/prompts before this - would break user gesture chain
+    if (!this._isMobile()) {
       try {
         const docEl = document.documentElement
         const requestFullscreen = docEl.requestFullscreen ||
@@ -136,15 +129,12 @@ class ImmersiveManager {
           docEl.mozRequestFullScreen ||
           docEl.msRequestFullscreen
 
-        console.log('[ImmersiveManager] requestFullscreen available:', !!requestFullscreen)
-
         if (requestFullscreen) {
           await requestFullscreen.call(docEl)
-          console.log('[ImmersiveManager] Fullscreen requested successfully')
           this._showEscNotice()
         }
       } catch (err) {
-        console.error('[ImmersiveManager] Fullscreen request failed:', err)
+        // Fullscreen denied, continue without
       }
     }
 
@@ -233,9 +223,7 @@ class ImmersiveManager {
   _isMobile() {
     // Use PlatformDetection if available (Entry #46)
     if (window.PlatformDetection && typeof window.PlatformDetection.isMobile === 'function') {
-      const result = window.PlatformDetection.isMobile()
-      console.log('[ImmersiveManager] PlatformDetection.isMobile():', result)
-      return result
+      return window.PlatformDetection.isMobile()
     }
 
     // Fallback: hover capability check (most reliable for touch-only devices)

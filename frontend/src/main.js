@@ -91,10 +91,8 @@ class WebarmoniumApp {
       this.uiManager.initCollapsibleUI()
 
       // Initialize immersive mode
-      alert('DEBUG main.js: About to initialize ImmersiveManager')
       this.immersiveManager = new ImmersiveManager(this)
       this.immersiveManager.initialize()
-      alert('DEBUG main.js: ImmersiveManager initialized')
 
       // Entry #69: Initialize visual service BEFORE connecting to server
       // This ensures springMesh exists when virtual user events arrive
