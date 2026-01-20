@@ -116,12 +116,12 @@ class ImmersiveManager {
   }
 
   async enter() {
+    alert('DEBUG: enter() called, isMobile=' + this._isMobile())
     this.isImmersive = true
     document.body.classList.add('immersive-mode')
 
     // Desktop: request fullscreen with vendor prefixes
     const isMobile = this._isMobile()
-    console.log('[ImmersiveManager] enter() - isMobile:', isMobile)
 
     if (!isMobile) {
       try {
