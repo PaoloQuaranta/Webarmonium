@@ -2560,3 +2560,100 @@ This prevents accidental minibar display when interacting with the canvas on mob
 v1.0.196
 
 ---
+
+## Entry #152 - Light Mode Theme Support
+
+**Date**: 2026-01-20
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Added comprehensive light mode theme support across all pages using CSS custom properties. The light mode uses the original dark mode colors reassigned to different elements (inverted approach), not new color values. Node colors and accent remain unchanged.
+
+---
+
+### Color Palette: Inverted Assignment
+
+| Variable | Dark Mode | Light Mode |
+|----------|-----------|------------|
+| `--void` | `#020208` | `#e0e0f0` (was --bright) |
+| `--deep` | `#0a0a14` | `#9090a8` (was --light) |
+| `--surface` | `#14141f` | `#5a5a70` (was --dim) |
+| `--dim` | `#5a5a70` | `#14141f` (was --surface) |
+| `--light` | `#9090a8` | `#0a0a14` (was --deep) |
+| `--bright` | `#020208` | `#020208` (was --void) |
+| `--ui-bg` | `rgba(10, 10, 20, 0.55)` | `rgba(144, 144, 168, 0.85)` |
+| `--success` | `#22c55e` | `#059669` (darker for contrast) |
+
+**Unchanged colors (both themes):**
+- `--accent`: `#2dd4bf`
+- `--node-1`: `#ff2d92` (Wikipedia/Magenta)
+- `--node-2`: `#00d4ff` (HackerNews/Cyan)
+- `--node-3`: `#a855f7` (GitHub/Viola)
+
+---
+
+### Changes
+
+#### 1. CSS Variables for Light Mode
+
+Added `:root[data-theme="light"]` block in `styles.css` with inverted color assignments.
+
+#### 2. UserSettings Theme Support
+
+- Added `theme: 'dark'` to `DEFAULTS`
+- Added `getEffectiveTheme()` method
+- Added `applyTheme()` method with `theme-change` custom event
+
+#### 3. Settings Panel Toggle
+
+Added APPEARANCE group as first settings group with Light Mode toggle switch.
+
+#### 4. Canvas Background Adaptation
+
+Updated `GenerativeVisualService.js` to listen for `theme-change` events and switch p5.js background between `[2, 2, 8]` (dark) and `[224, 224, 240]` (light).
+
+#### 5. Inline Theme Initialization
+
+Added early inline script to all HTML pages to prevent flash of wrong theme:
+- `index.html`
+- `rooms.html`
+- `how-it-works.html`
+- `technical-appendix.html`
+
+#### 6. Secondary Pages CSS Variables
+
+Updated `technical-appendix.html` to use CSS variables instead of hardcoded colors for full theme support.
+
+#### 7. Button Hover Fix
+
+Added light mode specific hover rule using `--surface` for lighter hover effect (instead of `--bright` which is darker in light mode).
+
+#### 8. Success Color Adaptation
+
+Added `--success` CSS variable for green notification/indicator colors that adapts to theme for proper contrast.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/styles.css` | `:root[data-theme="light"]` block, `--success` variable, button hover rule |
+| `frontend/src/services/UserSettings.js` | Theme setting, `getEffectiveTheme()`, `applyTheme()` |
+| `frontend/src/components/SettingsPanel.js` | APPEARANCE group with Light Mode toggle |
+| `frontend/src/services/GenerativeVisualService.js` | Dynamic background color based on theme |
+| `frontend/src/services/NotificationService.js` | Use `var(--success)` for success border |
+| `frontend/index.html` | Inline theme initialization |
+| `frontend/rooms.html` | Inline theme initialization |
+| `frontend/how-it-works.html` | Inline theme initialization, footer border variable |
+| `frontend/technical-appendix.html` | Full CSS variable conversion, inline theme initialization |
+
+---
+
+### Version
+
+v1.1.01
+
+---
