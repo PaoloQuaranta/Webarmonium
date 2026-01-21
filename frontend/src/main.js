@@ -1770,48 +1770,31 @@ class WebarmoniumApp {
       const style = document.createElement('style')
       style.id = 'audio-recovery-styles'
       style.textContent = `
-        .audio-recovery-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.6);
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
-          z-index: 9999;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          animation: audio-recovery-fade-in 0.3s ease-out;
-        }
-        :root[data-theme="light"] .audio-recovery-overlay {
-          background: rgba(255, 255, 255, 0.6);
-        }
-        @keyframes audio-recovery-fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
         .audio-recovery-card {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          z-index: 9999;
           background: var(--ui-bg, rgba(10, 10, 20, 0.55));
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
           border: 1px solid var(--line, rgba(42, 42, 56, 0.8));
           border-radius: 12px;
-          padding: 2rem 2.5rem;
+          padding: 1rem 1.5rem;
           display: flex;
-          flex-direction: column;
           align-items: center;
-          gap: 1.25rem;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+          gap: 1rem;
+          animation: audio-recovery-fade-in 0.3s ease-out;
         }
-        :root[data-theme="light"] .audio-recovery-card {
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        @keyframes audio-recovery-fade-in {
+          from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+          to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
         }
         .audio-recovery-text {
           color: var(--bright, #e0e0f0);
           font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
-          font-size: 1rem;
+          font-size: 0.9rem;
           font-weight: 500;
           margin: 0;
         }
@@ -1819,14 +1802,14 @@ class WebarmoniumApp {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 0.5rem;
-          padding: 0.75rem 1.5rem;
-          background: var(--ui-bg, rgba(10, 10, 20, 0.55));
+          gap: 0.4rem;
+          padding: 0.5rem 1rem;
+          background: transparent;
           border: 1.5px solid var(--accent, #2dd4bf);
-          border-radius: 8px;
+          border-radius: 6px;
           color: var(--accent, #2dd4bf);
           font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
-          font-size: 0.95rem;
+          font-size: 0.85rem;
           font-weight: 500;
           cursor: pointer;
           transition: background 0.15s, transform 0.1s;
@@ -1841,29 +1824,27 @@ class WebarmoniumApp {
           transform: scale(0.97);
         }
         .audio-recovery-btn svg {
-          width: 1.1em;
-          height: 1.1em;
+          width: 1em;
+          height: 1em;
           fill: currentColor;
         }
       `
       document.head.appendChild(style)
     }
 
-    const overlay = document.createElement('div')
-    overlay.id = 'audio-recovery-prompt'
-    overlay.className = 'audio-recovery-overlay'
-    overlay.innerHTML = `
-      <div class="audio-recovery-card">
-        <p class="audio-recovery-text">Audio paused</p>
-        <button class="audio-recovery-btn" aria-label="Resume audio">
-          <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="4,2 14,8 4,14"/>
-          </svg>
-          Resume
-        </button>
-      </div>
+    const card = document.createElement('div')
+    card.id = 'audio-recovery-prompt'
+    card.className = 'audio-recovery-card'
+    card.innerHTML = `
+      <p class="audio-recovery-text">Audio paused</p>
+      <button class="audio-recovery-btn" aria-label="Resume audio">
+        <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="4,2 14,8 4,14"/>
+        </svg>
+        Resume
+      </button>
     `
-    document.body.appendChild(overlay)
+    document.body.appendChild(card)
   }
 
   /**
