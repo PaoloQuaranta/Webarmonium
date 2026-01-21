@@ -1,0 +1,152 @@
+/**
+ * VersionChecker - Automatic cache invalidation on version update
+ * Checks version.json on page load, clears cache and reloads if version changed
+ */
+(function() {
+  'use strict';
+
+  var STORAGE_KEY = 'webarmonium:version';
+  var CHECK_INTERVAL = 5 * 60 * 1000; // Re-check every 5 minutes while page is open
+
+  /**
+   * Fetch version.json with cache-busting
+   */
+  function fetchVersion() {
+    var url = '/version.json?t=' + Date.now();
+    return fetch(url, { cache: 'no-store' })
+      .then(function(res) {
+        if (!res.ok) throw new Error('Version fetch failed');
+        return res.json();
+      });
+  }
+
+  /**
+   * Get stored version from localStorage
+   */
+  function getStoredVersion() {
+    try {
+      return localStorage.getItem(STORAGE_KEY);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Store version in localStorage
+   */
+  function storeVersion(version) {
+    try {
+      localStorage.setItem(STORAGE_KEY, version);
+    } catch (e) {
+      // localStorage not available
+    }
+  }
+
+  /**
+   * Clear all caches (Service Worker caches + force reload)
+   */
+  function clearCachesAndReload() {
+    // Clear Service Worker caches if available
+    if ('caches' in window) {
+      caches.keys().then(function(names) {
+        return Promise.all(names.map(function(name) {
+          return caches.delete(name);
+        }));
+      }).then(function() {
+        forceReload();
+      }).catch(function() {
+        forceReload();
+      });
+    } else {
+      forceReload();
+    }
+  }
+
+  /**
+   * Force reload bypassing cache
+   */
+  function forceReload() {
+    // Add cache-busting to current URL
+    var url = new URL(window.location.href);
+    url.searchParams.set('_v', Date.now());
+    window.location.replace(url.toString());
+  }
+
+  /**
+   * Show update notification using NotificationService or fallback
+   */
+  function showUpdateNotification(newVersion, callback) {
+    var message = 'New version ' + newVersion + ' available. Updating...';
+
+    // Try to use NotificationService if available
+    if (window.NotificationService && typeof window.NotificationService.show === 'function') {
+      window.NotificationService.show(message, 2000, 'info');
+      setTimeout(callback, 1500);
+    } else {
+      // Fallback: create simple notification
+      var el = document.createElement('div');
+      el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999999;' +
+        'background:rgba(10,10,20,0.9);backdrop-filter:blur(12px);color:#e0e0f0;' +
+        'padding:12px 24px;border-radius:8px;font-family:system-ui,sans-serif;font-size:14px;' +
+        'box-shadow:0 4px 20px rgba(0,0,0,0.5);border:1px solid #3a3a50;';
+      el.textContent = message;
+      document.body.appendChild(el);
+      setTimeout(callback, 1500);
+    }
+  }
+
+  /**
+   * Check version and update if needed
+   */
+  function checkVersion(isInitial) {
+    fetchVersion()
+      .then(function(data) {
+        var newVersion = data.version;
+        var storedVersion = getStoredVersion();
+
+        // First visit - just store version
+        if (!storedVersion) {
+          storeVersion(newVersion);
+          return;
+        }
+
+        // Version changed - clear cache and reload
+        if (storedVersion !== newVersion) {
+          storeVersion(newVersion); // Store new version before reload
+
+          // For minor updates, skip notification if flagged
+          if (data.minorUpdate && !isInitial) {
+            clearCachesAndReload();
+          } else {
+            showUpdateNotification(newVersion, clearCachesAndReload);
+          }
+        }
+      })
+      .catch(function(err) {
+        // Silently fail - don't block app if version check fails
+        // console.warn('Version check failed:', err);
+      });
+  }
+
+  // Initial check on page load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      checkVersion(true);
+    });
+  } else {
+    checkVersion(true);
+  }
+
+  // Periodic check while page is open (catches updates during long sessions)
+  setInterval(function() {
+    checkVersion(false);
+  }, CHECK_INTERVAL);
+
+  // Also check when page becomes visible (user returns to tab)
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+      checkVersion(false);
+    }
+  });
+
+})();
