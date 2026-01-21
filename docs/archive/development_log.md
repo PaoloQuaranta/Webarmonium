@@ -2885,3 +2885,72 @@ setTimeout(() => {
 v1.1.04
 
 ---
+
+## Entry #156 - Audio State Machine Public API & Recovery Overlay Redesign
+
+**Date**: 2026-01-21
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Added public API methods for AudioService state machine, improved error recovery, added conditional debug logging, and completely redesigned the audio recovery overlay to match the application UI style with dark/light mode support.
+
+---
+
+### Problem Statement
+
+1. **Encapsulation violation**: External code directly accessed `_audioState` private property
+2. **Stuck RESUMING state**: `resumeFromTap()` could leave audio in RESUMING state indefinitely if recovery failed
+3. **Console spam**: 16+ `[AudioState]` log statements in production
+4. **Inconsistent UI**: Recovery overlay used deprecated green button that didn't match app style
+5. **Button state bug**: Navigating from index to rooms without pressing play showed "Stop" instead of "Start"
+
+---
+
+### Solution
+
+**1. Public API for State Checks (AudioService.js)**
+```javascript
+isAudioStopped() { return this._audioState === 'STOPPED' }
+isAudioPlaying() { return this._audioState === 'PLAYING' }
+getAudioState() { return this._audioState }
+```
+
+**2. Error Recovery in resumeFromTap()**
+- Transition to STOPPED on failure instead of leaving in RESUMING
+- Try/catch with proper state transition on error
+
+**3. Conditional Debug Logging**
+```javascript
+const DEBUG_AUDIO_STATE = typeof window !== 'undefined' &&
+  (window.location?.search?.includes('debug=audio') || false)
+```
+
+**4. Disabled attemptAutoStartAudio()**
+- Removed auto-start logic that violated user-gesture principle
+- Audio only starts from explicit Play button click
+
+**5. Recovery Overlay Redesign**
+- Card-based design with `var(--ui-bg)` background
+- Teal border/accent matching UI bar buttons
+- Full dark/light mode support via CSS variables
+- Proper backdrop blur and rounded corners
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Added public API, error recovery, DEBUG flag |
+| `frontend/src/main.js` | Disabled attemptAutoStartAudio(), redesigned overlay |
+| `frontend/src/landing/main.js` | Updated to use public API, redesigned overlay |
+
+---
+
+### Version
+
+v0.1.3
+
+---

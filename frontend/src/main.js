@@ -81,8 +81,8 @@ class WebarmoniumApp {
       // Hold indicator rendering REMOVED - SpringMeshNetwork handles hold visualization via node pulsing
       // this.startRenderLoop()  // DISABLED
 
-      // Try to auto-start audio (may require user interaction)
-      this.attemptAutoStartAudio()
+      // Audio start REMOVED - must only start from explicit user click on Play button
+      // this.attemptAutoStartAudio()  // DISABLED: violates audio-only-from-user-gesture principle
 
       // Hide loading screen FIRST
       this.showApp()
@@ -834,12 +834,15 @@ class WebarmoniumApp {
     const audioToggle = document.getElementById('audioToggle')
     audioToggle.addEventListener('click', () => this.toggleAudio())
 
-    // SLEEP RECOVERY: Listen for audio gesture required event (store reference for cleanup)
-    this._audioGestureRequiredHandler = (event) => {
-      this._showAudioRecoveryPrompt()
-      this._attachRecoveryClickHandlers() // Add click handlers only when needed
+    // SLEEP RECOVERY: Listen for tap-to-resume event (state machine approach)
+    // This event is dispatched when audio needs user tap to resume (visibility/focus change)
+    this._audioTapToResumeHandler = (event) => {
+      if (this.isAudioStarted) {
+        this._showAudioRecoveryPrompt()
+        this._attachRecoveryClickHandlers()
+      }
     }
-    window.addEventListener('audio:gesture-required', this._audioGestureRequiredHandler)
+    window.addEventListener('audio:tap-to-resume', this._audioTapToResumeHandler)
 
     // iOS Safari: Setup proactive check on any interaction (fallback for event failures)
     this._setupProactiveRecoveryCheck()
@@ -1773,52 +1776,74 @@ class WebarmoniumApp {
           left: 0;
           right: 0;
           bottom: 0;
-          background: var(--ui-bg, rgba(10, 10, 20, 0.55));
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
+          background: rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
           z-index: 9999;
           display: flex;
-          flex-direction: column;
           align-items: center;
           justify-content: center;
           animation: audio-recovery-fade-in 0.3s ease-out;
+        }
+        :root[data-theme="light"] .audio-recovery-overlay {
+          background: rgba(255, 255, 255, 0.6);
         }
         @keyframes audio-recovery-fade-in {
           from { opacity: 0; }
           to { opacity: 1; }
         }
-        .audio-recovery-play-btn {
-          width: 100px;
-          height: 100px;
-          border-radius: 50%;
-          background: #2dd4bf;
-          border: none;
-          cursor: pointer;
+        .audio-recovery-card {
+          background: var(--ui-bg, rgba(10, 10, 20, 0.55));
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: 1px solid var(--line, rgba(42, 42, 56, 0.8));
+          border-radius: 12px;
+          padding: 2rem 2.5rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1.25rem;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        :root[data-theme="light"] .audio-recovery-card {
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        }
+        .audio-recovery-text {
+          color: var(--bright, #e0e0f0);
+          font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+          font-size: 1rem;
+          font-weight: 500;
+          margin: 0;
+        }
+        .audio-recovery-btn {
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 30px rgba(45, 212, 191, 0.5);
-          transition: transform 0.15s, box-shadow 0.15s;
+          gap: 0.5rem;
+          padding: 0.75rem 1.5rem;
+          background: var(--ui-bg, rgba(10, 10, 20, 0.55));
+          border: 1.5px solid var(--accent, #2dd4bf);
+          border-radius: 8px;
+          color: var(--accent, #2dd4bf);
+          font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+          font-size: 0.95rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background 0.15s, transform 0.1s;
         }
-        .audio-recovery-play-btn:hover {
-          transform: scale(1.1);
-          box-shadow: 0 6px 40px rgba(45, 212, 191, 0.7);
+        .audio-recovery-btn:hover {
+          background: rgba(45, 212, 191, 0.15);
         }
-        .audio-recovery-play-btn:active {
-          transform: scale(0.95);
+        :root[data-theme="light"] .audio-recovery-btn:hover {
+          background: rgba(45, 212, 191, 0.25);
         }
-        .audio-recovery-play-btn svg {
-          width: 40px;
-          height: 40px;
-          fill: white;
-          margin-left: 6px; /* Visual centering for play triangle */
+        .audio-recovery-btn:active {
+          transform: scale(0.97);
         }
-        .audio-recovery-text {
-          margin-top: 20px;
-          color: white;
-          font-family: system-ui, -apple-system, sans-serif;
-          font-size: 16px;
-          opacity: 0.9;
+        .audio-recovery-btn svg {
+          width: 1.1em;
+          height: 1.1em;
+          fill: currentColor;
         }
       `
       document.head.appendChild(style)
@@ -1828,12 +1853,15 @@ class WebarmoniumApp {
     overlay.id = 'audio-recovery-prompt'
     overlay.className = 'audio-recovery-overlay'
     overlay.innerHTML = `
-      <button class="audio-recovery-play-btn" aria-label="Resume audio">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M8 5v14l11-7z"/>
-        </svg>
-      </button>
-      <p class="audio-recovery-text">Tap to resume audio</p>
+      <div class="audio-recovery-card">
+        <p class="audio-recovery-text">Audio paused</p>
+        <button class="audio-recovery-btn" aria-label="Resume audio">
+          <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="4,2 14,8 4,14"/>
+          </svg>
+          Resume
+        </button>
+      </div>
     `
     document.body.appendChild(overlay)
   }
@@ -1876,7 +1904,7 @@ class WebarmoniumApp {
 
   /**
    * Handle click/touch for audio recovery
-   * Removes prompt and triggers AudioService recovery
+   * Removes prompt and triggers AudioService recovery via resumeFromTap()
    */
   async _handleAudioRecoveryClick() {
     const prompt = document.getElementById('audio-recovery-prompt')
@@ -1887,9 +1915,9 @@ class WebarmoniumApp {
       this._audioRecoveryClickHandler = null
       this._audioRecoveryTouchHandler = null
 
-      // Trigger audio recovery via AudioService
-      if (this.audioService && this.audioService.handleUserGestureForRecovery) {
-        await this.audioService.handleUserGestureForRecovery()
+      // Trigger audio recovery via AudioService state machine
+      if (this.audioService && this.audioService.resumeFromTap) {
+        await this.audioService.resumeFromTap()
       }
     }
   }
@@ -1898,10 +1926,10 @@ class WebarmoniumApp {
    * Cleanup audio recovery listeners (call on app teardown)
    */
   _cleanupAudioRecoveryListeners() {
-    // Remove gesture-required listener
-    if (this._audioGestureRequiredHandler) {
-      window.removeEventListener('audio:gesture-required', this._audioGestureRequiredHandler)
-      this._audioGestureRequiredHandler = null
+    // Remove tap-to-resume listener (new state machine approach)
+    if (this._audioTapToResumeHandler) {
+      window.removeEventListener('audio:tap-to-resume', this._audioTapToResumeHandler)
+      this._audioTapToResumeHandler = null
     }
 
     // Remove click/touch handlers
@@ -1913,57 +1941,14 @@ class WebarmoniumApp {
   }
 
   /**
-   * Attempt to auto-start audio context
-   * Browser policies may require user interaction, but we try
+   * DEPRECATED: Auto-start audio removed
+   * Audio should ONLY start from explicit user click on Play button.
+   * This method violated the principle that audio must start from user gesture.
+   * Left as empty stub in case any code still references it.
    */
   async attemptAutoStartAudio() {
-    try {
-      // Try to start audio context automatically
-      if (this.audioService && !this.isAudioStarted) {
-        // console.log('🔊 Attempting auto-start audio...')
-
-        // Force manual interaction by creating a dummy click event
-        const startResult = await this.audioService.start()
-        // console.log('🔊 AudioService.start() result:', startResult)
-
-        if (startResult) {
-          this.isAudioStarted = true
-
-          // Entry #27: CRITICAL - Unmute audio when starting (localStorage may have saved muted=true)
-          this.audioService.setMuted(false)
-          if (this.audioControls) {
-            this.audioControls.setMuted(false)
-          }
-
-          // Update button state
-          const button = document.getElementById('audioToggle')
-          if (button) {
-            button.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>'
-            button.classList.remove('disabled')
-            button.classList.add('playing')
-          }
-
-          // Play pending drone if saved
-          if (this.pendingDrone) {
-            // console.log('🎵 Playing pending drone (auto-start)...')
-            this.audioService.playComposition(this.pendingDrone, true)
-            this.pendingDrone = null
-          } else if (this.socketService?.socket?.connected) {
-            // Entry #27: No pending drone, request from backend
-            this.socketService.socket.emit('request-drone')
-          }
-
-          // console.log('🔊 Audio auto-started successfully')
-        } else {
-          // console.warn('⚠️ AudioService.start() returned false')
-        }
-      } else {
-        // console.log('🔊 Audio already started or service not available')
-      }
-    } catch (error) {
-      // console.error('❌ Auto-start audio failed:', error)
-      // console.warn('⚠️ User may need to click Start Audio button manually')
-    }
+    // NO-OP: Audio auto-start disabled to fix bug where button showed "Stop" on page load
+    // Use toggleAudio() via Play button click instead
   }
 
   // Sprint 4: Delegate to GestureProcessor

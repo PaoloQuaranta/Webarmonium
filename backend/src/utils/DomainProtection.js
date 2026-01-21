@@ -30,10 +30,12 @@ function getAllowedDomains () {
     return envDomains.split(',').map(d => d.trim().toLowerCase())
   }
 
-  // Production-only allowed domains
+  // Default allowed domains (production + localhost for development)
   return [
     'webarmonium.net',
-    'www.webarmonium.net'
+    'www.webarmonium.net',
+    'localhost',
+    '127.0.0.1'
   ]
 }
 

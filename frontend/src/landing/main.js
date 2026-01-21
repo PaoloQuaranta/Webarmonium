@@ -309,6 +309,15 @@ class LandingApp {
       // Entry #92: Setup collapsible explainer section
       this._setupCollapsibleExplainer()
 
+      // SLEEP RECOVERY: Listen for tap-to-resume event (state machine approach)
+      this._audioTapToResumeHandler = () => {
+        if (this.isRunning) {
+          this._showAudioRecoveryPrompt()
+          this._attachRecoveryClickHandlers()
+        }
+      }
+      window.addEventListener('audio:tap-to-resume', this._audioTapToResumeHandler)
+
       this.isInitialized = true
       // console.log('✅ Landing page initialized (waiting for Start)')
 
@@ -369,9 +378,9 @@ class LandingApp {
       // AudioService is now created early in initialize(), so check isAudioReady instead
       if (this.isAudioReady || isInitializing) return
 
-      // Entry #124: If user stopped via DashboardUI Stop button, don't auto-init audio
+      // STATE MACHINE: If user stopped via DashboardUI Stop button, don't auto-init audio
       // This prevents the race condition where Stop click bubbles to document and triggers this listener
-      if (this.audioService?._userStoppedAudio) {
+      if (this.audioService?.isAudioStopped()) {
         return
       }
 
@@ -1871,6 +1880,176 @@ class LandingApp {
     }
   }
 
+  // ========================
+  // Audio Recovery Overlay (Tap to Resume)
+  // ========================
+
+  /**
+   * Show audio recovery prompt overlay
+   * Matches styling from main.js for consistency
+   */
+  _showAudioRecoveryPrompt() {
+    // Only show if audio was previously started
+    if (!this.isRunning) return
+
+    // Check if prompt already exists
+    if (document.getElementById('audio-recovery-prompt')) return
+
+    // Inject CSS if not already present
+    if (!document.getElementById('audio-recovery-styles')) {
+      const style = document.createElement('style')
+      style.id = 'audio-recovery-styles'
+      style.textContent = `
+        .audio-recovery-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          animation: audio-recovery-fade-in 0.3s ease-out;
+        }
+        :root[data-theme="light"] .audio-recovery-overlay {
+          background: rgba(255, 255, 255, 0.6);
+        }
+        @keyframes audio-recovery-fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .audio-recovery-card {
+          background: var(--ui-bg, rgba(10, 10, 20, 0.55));
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: 1px solid var(--line, rgba(42, 42, 56, 0.8));
+          border-radius: 12px;
+          padding: 2rem 2.5rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1.25rem;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        :root[data-theme="light"] .audio-recovery-card {
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        }
+        .audio-recovery-text {
+          color: var(--bright, #e0e0f0);
+          font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+          font-size: 1rem;
+          font-weight: 500;
+          margin: 0;
+        }
+        .audio-recovery-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          padding: 0.75rem 1.5rem;
+          background: var(--ui-bg, rgba(10, 10, 20, 0.55));
+          border: 1.5px solid var(--accent, #2dd4bf);
+          border-radius: 8px;
+          color: var(--accent, #2dd4bf);
+          font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+          font-size: 0.95rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background 0.15s, transform 0.1s;
+        }
+        .audio-recovery-btn:hover {
+          background: rgba(45, 212, 191, 0.15);
+        }
+        :root[data-theme="light"] .audio-recovery-btn:hover {
+          background: rgba(45, 212, 191, 0.25);
+        }
+        .audio-recovery-btn:active {
+          transform: scale(0.97);
+        }
+        .audio-recovery-btn svg {
+          width: 1.1em;
+          height: 1.1em;
+          fill: currentColor;
+        }
+      `
+      document.head.appendChild(style)
+    }
+
+    const overlay = document.createElement('div')
+    overlay.id = 'audio-recovery-prompt'
+    overlay.className = 'audio-recovery-overlay'
+    overlay.innerHTML = `
+      <div class="audio-recovery-card">
+        <p class="audio-recovery-text">Audio paused</p>
+        <button class="audio-recovery-btn" aria-label="Resume audio">
+          <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="4,2 14,8 4,14"/>
+          </svg>
+          Resume
+        </button>
+      </div>
+    `
+    document.body.appendChild(overlay)
+  }
+
+  /**
+   * Attach click/touch handlers for audio recovery
+   */
+  _attachRecoveryClickHandlers() {
+    if (this._audioRecoveryClickHandler) return
+
+    this._audioRecoveryClickHandler = () => this._handleAudioRecoveryClick()
+    this._audioRecoveryTouchHandler = (e) => {
+      e.preventDefault()
+      this._handleAudioRecoveryClick()
+    }
+
+    document.addEventListener('click', this._audioRecoveryClickHandler, { once: true })
+    document.addEventListener('touchstart', this._audioRecoveryTouchHandler, { once: true, passive: false })
+  }
+
+  /**
+   * Handle click/touch for audio recovery
+   */
+  async _handleAudioRecoveryClick() {
+    const prompt = document.getElementById('audio-recovery-prompt')
+    if (prompt) {
+      prompt.remove()
+
+      this._audioRecoveryClickHandler = null
+      this._audioRecoveryTouchHandler = null
+
+      // Trigger audio recovery via AudioService state machine
+      if (this.audioService && this.audioService.resumeFromTap) {
+        await this.audioService.resumeFromTap()
+      }
+    }
+  }
+
+  /**
+   * Cleanup audio recovery listeners
+   */
+  _cleanupAudioRecoveryListeners() {
+    if (this._audioTapToResumeHandler) {
+      window.removeEventListener('audio:tap-to-resume', this._audioTapToResumeHandler)
+      this._audioTapToResumeHandler = null
+    }
+    if (this._audioRecoveryClickHandler) {
+      document.removeEventListener('click', this._audioRecoveryClickHandler)
+      this._audioRecoveryClickHandler = null
+    }
+    if (this._audioRecoveryTouchHandler) {
+      document.removeEventListener('touchstart', this._audioRecoveryTouchHandler)
+      this._audioRecoveryTouchHandler = null
+    }
+    const prompt = document.getElementById('audio-recovery-prompt')
+    if (prompt) prompt.remove()
+  }
+
   /**
    * Cleanup and dispose
    */
@@ -1878,6 +2057,9 @@ class LandingApp {
     // console.log('🧹 Cleaning up LandingApp...')
 
     this.stop()
+
+    // Cleanup audio recovery listeners
+    this._cleanupAudioRecoveryListeners()
 
     // Stop trail fade animation
     this._stopTrailFade()

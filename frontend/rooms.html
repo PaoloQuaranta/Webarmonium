@@ -10,7 +10,7 @@
     <!-- Entry #115: Frontend domain protection - MUST be first script -->
     <script>
     (function() {
-      var ALLOWED = ['webarmonium.net','www.webarmonium.net'];
+      var ALLOWED = ['webarmonium.net','www.webarmonium.net','localhost','127.0.0.1'];
       var host = window.location.hostname.toLowerCase();
       var isAllowed = ALLOWED.some(function(d) { return host === d || host.endsWith('.' + d); });
 

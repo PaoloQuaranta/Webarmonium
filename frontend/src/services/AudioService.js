@@ -9,12 +9,23 @@
 // DEBUG: Verify file is loaded
 // console.log('🔴🔴🔴 AudioService.js v36 LOADING 🔴🔴🔴')
 
+// DEBUG FLAG: Enable/disable audio state machine logging
+// Set to true for debugging, false for production to reduce console spam
+// Can also be enabled via URL: ?debug=audio
+const DEBUG_AUDIO_STATE = typeof window !== 'undefined' &&
+  (window.location?.search?.includes('debug=audio') || false)
+
 // Note: MusicalScheduler and LFOManager will be loaded via global scripts
 class AudioService {
   constructor() {
     this.isInitialized = false
     this.audioEngine = null
     this.gestureCapture = null
+
+    // AUDIO STATE MACHINE (replaces _userStoppedAudio and _userExplicitlyStartedAudio)
+    // States: IDLE, STARTING, PLAYING, PAUSED, RESUMING, STOPPED
+    this._audioState = 'IDLE'
+    this._handlersRegistered = false
 
     // Entry #73: Device-Adaptive Audio Architecture
     this.stressMonitor = null
@@ -162,23 +173,15 @@ class AudioService {
       isLFOActive() { return false }
     }
 
-    // VISIBILITY FIX: Handle tab visibility changes to prevent synth state corruption
-    // When Chrome tab loses focus, AudioContext may suspend and timing gets stale
+    // DEFERRED HANDLER REGISTRATION: Handlers are now registered only when start() is called
+    // This prevents audio from auto-starting before user clicks Start button
+    // See _registerRecoveryHandlers() and _unregisterRecoveryHandlers()
     this._boundVisibilityHandler = this._handleVisibilityChange.bind(this)
-    document.addEventListener('visibilitychange', this._boundVisibilityHandler)
-
-    // SLEEP RECOVERY FIX: Additional event handlers for device sleep scenarios
-    // window focus/blur catches cases where visibilitychange doesn't fire (especially mobile)
     this._boundFocusHandler = this._handleWindowFocus.bind(this)
     this._boundBlurHandler = this._handleWindowBlur.bind(this)
-    window.addEventListener('focus', this._boundFocusHandler)
-    window.addEventListener('blur', this._boundBlurHandler)
-
-    // Page Lifecycle API for iOS (freeze/resume) and cache scenarios (pageshow/pagehide)
     this._boundPageShowHandler = this._handlePageShow.bind(this)
     this._boundPageHideHandler = this._handlePageHide.bind(this)
-    window.addEventListener('pageshow', this._boundPageShowHandler)
-    window.addEventListener('pagehide', this._boundPageHideHandler)
+    // NOTE: Event listeners are NOT added here - they are added in _registerRecoveryHandlers()
 
     // Audio recovery configuration constants
     this._recoveryConfig = {
@@ -214,54 +217,146 @@ class AudioService {
       ? PlatformDetection.isMobile()
       : /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
-    // Track if audio was intentionally stopped by user (not just suspended)
-    this._userStoppedAudio = false
-
-    // Entry #129: Track if user explicitly started audio (prevents recovery without Start)
-    this._userExplicitlyStartedAudio = false
+    // REMOVED: _userStoppedAudio and _userExplicitlyStartedAudio
+    // These boolean flags have been replaced by the _audioState state machine
+    // See constructor: this._audioState = 'IDLE' | 'STARTING' | 'PLAYING' | 'PAUSED' | 'RESUMING' | 'STOPPED'
   }
 
   /**
-   * Handle visibility change - reset synth states when tab becomes visible
-   * Fixes issues with notes skipping or having wrong envelopes after window switch
-   * REFACTORED: Now properly awaits context resume before checking Transport state
+   * Helper to set audio state with logging for debugging
+   * @param {string} newState - New state to set
+   * @param {string} trigger - What triggered this state change
+   */
+  _setState(newState, trigger = 'unknown') {
+    const oldState = this._audioState
+    this._audioState = newState
+    if (DEBUG_AUDIO_STATE) {
+      console.log(`[AudioState] ${oldState} -> ${newState} (trigger: ${trigger})`)
+    }
+  }
+
+  /**
+   * PUBLIC API: Check if audio is in STOPPED state
+   * Use this instead of accessing _audioState directly
+   * @returns {boolean} True if audio has been stopped by user
+   */
+  isAudioStopped() {
+    return this._audioState === 'STOPPED'
+  }
+
+  /**
+   * PUBLIC API: Check if audio is currently playing
+   * @returns {boolean} True if audio is in PLAYING state
+   */
+  isAudioPlaying() {
+    return this._audioState === 'PLAYING'
+  }
+
+  /**
+   * PUBLIC API: Get current audio state (for debugging/UI)
+   * @returns {string} Current state: IDLE, STARTING, PLAYING, RESUMING, or STOPPED
+   */
+  getAudioState() {
+    return this._audioState
+  }
+
+  /**
+   * Register recovery event handlers - called only when audio starts
+   * This prevents unwanted auto-recovery before user clicks Start
+   */
+  _registerRecoveryHandlers() {
+    if (this._handlersRegistered) return
+
+    document.addEventListener('visibilitychange', this._boundVisibilityHandler)
+    window.addEventListener('focus', this._boundFocusHandler)
+    window.addEventListener('blur', this._boundBlurHandler)
+    window.addEventListener('pageshow', this._boundPageShowHandler)
+    window.addEventListener('pagehide', this._boundPageHideHandler)
+
+    this._handlersRegistered = true
+    if (DEBUG_AUDIO_STATE) console.log('[AudioState] Recovery handlers registered')
+  }
+
+  /**
+   * Unregister recovery event handlers - called when audio stops
+   */
+  _unregisterRecoveryHandlers() {
+    if (!this._handlersRegistered) return
+
+    document.removeEventListener('visibilitychange', this._boundVisibilityHandler)
+    window.removeEventListener('focus', this._boundFocusHandler)
+    window.removeEventListener('blur', this._boundBlurHandler)
+    window.removeEventListener('pageshow', this._boundPageShowHandler)
+    window.removeEventListener('pagehide', this._boundPageHideHandler)
+
+    this._handlersRegistered = false
+    if (DEBUG_AUDIO_STATE) console.log('[AudioState] Recovery handlers unregistered')
+  }
+
+  /**
+   * Request user tap to resume audio - dispatches event for UI to show overlay
+   * NEVER auto-resumes - always requires explicit user interaction
+   */
+  _requestTapToResume() {
+    if (DEBUG_AUDIO_STATE) console.log('[AudioState] Requesting user tap to resume audio')
+    window.dispatchEvent(new CustomEvent('audio:tap-to-resume'))
+  }
+
+  /**
+   * Handle visibility change - SMART RECOVERY VERSION
+   * When hidden: Just stop health checks, audio continues playing
+   * When visible: Check if context needs recovery. Only show overlay if context is NOT running.
    */
   async _handleVisibilityChange() {
     if (document.hidden) {
-      this._stopAudioHealthCheck()
+      // Tab becoming hidden - audio keeps playing, just stop monitoring
+      if (this._audioState === 'PLAYING') {
+        this._stopAudioHealthCheck()
+      }
       return
     }
 
-    // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
-    if (this._userStoppedAudio) {
-      return
+    // Tab becoming visible - only request tap if context actually needs recovery
+    if (this._audioState === 'PLAYING') {
+      const contextState = Tone.context?.state
+      if (contextState !== 'running') {
+        // Context got suspended/interrupted - need user tap to recover
+        if (DEBUG_AUDIO_STATE) console.log(`[AudioState] Context is ${contextState}, needs recovery`)
+        this._setState('RESUMING', 'visibility-context-suspended')
+        this._requestTapToResume()
+      } else {
+        // Context still running - just restart health check
+        this._startAudioHealthCheck()
+      }
     }
-
-    await this._performAudioRecovery('visibility')
   }
 
   /**
-   * Handle window focus - catches device wake scenarios that miss visibilitychange
-   * Mobile devices especially may not fire visibilitychange after sleep
+   * Handle window focus - SMART RECOVERY VERSION
+   * Only show overlay if context actually needs recovery
    */
   async _handleWindowFocus() {
-    // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
-    if (this._userStoppedAudio) {
-      return
-    }
-
-
     // Small delay to let the system stabilize after wake
     await new Promise(resolve => setTimeout(resolve, this._recoveryConfig.FOCUS_STABILIZATION_DELAY_MS))
 
-    await this._performAudioRecovery('focus')
+    // Only check if we're supposed to be playing
+    if (this._audioState === 'PLAYING') {
+      const contextState = Tone.context?.state
+      if (contextState !== 'running') {
+        if (DEBUG_AUDIO_STATE) console.log(`[AudioState] Focus returned, context is ${contextState}, needs recovery`)
+        this._setState('RESUMING', 'focus-context-suspended')
+        this._requestTapToResume()
+      }
+    }
   }
 
   /**
    * Handle window blur - prepare for potential sleep
    */
   _handleWindowBlur() {
-    this._stopAudioHealthCheck()
+    if (this._audioState === 'PLAYING') {
+      this._stopAudioHealthCheck()
+    }
   }
 
   /**
@@ -269,18 +364,19 @@ class AudioService {
    * @param {PageTransitionEvent} event
    */
   async _handlePageShow(event) {
-    // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
-    if (this._userStoppedAudio) {
-      return
+    // Only check if we're supposed to be playing
+    if (this._audioState === 'PLAYING') {
+      const contextState = Tone.context?.state
+      if (contextState !== 'running') {
+        if (DEBUG_AUDIO_STATE) console.log(`[AudioState] Pageshow, context is ${contextState}, needs recovery`)
+        this._setState('RESUMING', event.persisted ? 'pageshow-cached' : 'pageshow-context-suspended')
+        this._requestTapToResume()
+      } else {
+        // Context still running - just restart health check
+        this._startAudioHealthCheck()
+      }
     }
-
-    if (event.persisted) {
-      await this._performAudioRecovery('pageshow-cached')
-    } else if (this._isIOS && this.isInitialized && Tone.context?.state !== 'running') {
-      // iOS Safari: Even non-persisted pageshow may need recovery after device wake
-      await this._performAudioRecovery('pageshow-ios')
-    } else {
-    }
+    // If IDLE or STOPPED, do nothing - user must click Start
   }
 
   /**
@@ -292,10 +388,96 @@ class AudioService {
   }
 
   /**
-   * Centralized audio recovery logic - called by all wake/visibility handlers
+   * Resume audio from user tap - called when user taps the "Tap to Resume" overlay
+   * This is the ONLY way to transition from RESUMING to PLAYING
+   * Includes iOS-specific unlock logic (Tone.start() + quiet buffer)
+   * @returns {Promise<boolean>} True if recovery was successful
+   */
+  async resumeFromTap() {
+    if (this._audioState !== 'RESUMING') {
+      if (DEBUG_AUDIO_STATE) console.log(`[AudioState] resumeFromTap ignored - state is ${this._audioState}`)
+      return false
+    }
+
+    if (DEBUG_AUDIO_STATE) console.log('[AudioState] resumeFromTap starting...')
+
+    try {
+      // iOS CRITICAL: Tone.start() from user gesture to unlock AudioContext
+      if (this._isIOS || Tone.context?.state === 'interrupted' || Tone.context?.state === 'suspended') {
+        await Tone.start()
+        if (DEBUG_AUDIO_STATE) console.log('[AudioState] Tone.start() called from user gesture')
+      }
+
+      // iOS: Play very quiet buffer (not silent) for complete unlock
+      if (Tone.context?.state === 'running') {
+        try {
+          const player = new Tone.Player().toDestination()
+          player.volume.value = this._isIOS ? this._recoveryConfig.IOS_UNLOCK_VOLUME_DB : -Infinity
+          player.start()
+          const unlockDuration = this._isIOS ? this._recoveryConfig.IOS_UNLOCK_DURATION_MS : 50
+          await new Promise(resolve => setTimeout(resolve, unlockDuration))
+          player.stop()
+          player.dispose()
+        } catch (e) {
+          // Ignore unlock errors
+        }
+      }
+
+      // Resume AudioContext with retry logic
+      const contextResumed = await this._resumeAudioContext('user-tap')
+
+      if (Tone.context?.state === 'running') {
+        // Restore masterVolume if stuck
+        if (this.masterVolume && this.masterVolume.volume.value === -Infinity) {
+          this.masterVolume.volume.value = -10
+        }
+
+        // Restart Transport
+        if (Tone.Transport?.state !== 'started') {
+          Tone.Transport.start()
+        }
+
+        // Reset synth states
+        if (this.userSynthManager) {
+          this.userSynthManager.resetAllSynthStates()
+        }
+
+        // Restart generation
+        this.evolvingGenerationActive = false
+        this.startEvolvingGeneration()
+
+        // Restart drone controller
+        if (this.droneVoidController) {
+          this.droneVoidController.reset()
+          this.droneVoidController.start()
+        }
+
+        // Start health check
+        this._startAudioHealthCheck()
+
+        // Transition to PLAYING
+        this._setState('PLAYING', 'resumeFromTap-success')
+        return true
+      } else {
+        // CRITICAL: Don't leave state stuck in RESUMING - transition to STOPPED
+        // User can try pressing Start again
+        if (DEBUG_AUDIO_STATE) console.log('[AudioState] resumeFromTap failed - context still not running, transitioning to STOPPED')
+        this._setState('STOPPED', 'resumeFromTap-failed-context')
+        return false
+      }
+    } catch (error) {
+      // CRITICAL: Don't leave state stuck in RESUMING on error
+      if (DEBUG_AUDIO_STATE) console.error('[AudioState] resumeFromTap error:', error)
+      this._setState('STOPPED', 'resumeFromTap-error')
+      return false
+    }
+  }
+
+  /**
+   * Internal audio recovery logic - called ONLY from resumeFromTap()
+   * NEVER called automatically - always requires explicit user tap
    * Properly sequences: context resume -> masterVolume restore -> Transport restart -> health check
-   * Includes concurrency guard to prevent racing recovery attempts
-   * @param {string} trigger - What triggered this recovery ('visibility', 'focus', 'pageshow', etc.)
+   * @param {string} trigger - What triggered this recovery (for logging)
    */
   async _performAudioRecovery(trigger) {
     // Concurrency guard - prevent multiple simultaneous recovery attempts
@@ -311,14 +493,9 @@ class AudioService {
       return
     }
 
-    // Respect user's explicit stop - don't auto-resume if user stopped audio
-    if (this._userStoppedAudio) {
-      this._recoveryInProgress = false
-      return
-    }
-
-    // Entry #129: Only recover if user explicitly started audio (prevents unwanted auto-restart)
-    if (!this._userExplicitlyStartedAudio) {
+    // STATE MACHINE CHECK: Only recover if in RESUMING state (user tapped overlay)
+    if (this._audioState !== 'RESUMING') {
+      if (DEBUG_AUDIO_STATE) console.log(`[AudioState] Recovery skipped - state is ${this._audioState}, not RESUMING`)
       this._recoveryInProgress = false
       return
     }
@@ -509,34 +686,34 @@ class AudioService {
   _checkAudioHealth() {
     if (!this.isInitialized) return
 
-    // Respect user's explicit stop - don't attempt recovery if user stopped audio
-    if (this._userStoppedAudio) return
+    // STATE MACHINE: Only check health if in PLAYING state
+    if (this._audioState !== 'PLAYING') return
 
     const contextState = Tone.context?.state
 
     // Check 1: Context state - must be "running"
-    // iOS Safari can have "interrupted" state after device sleep
+    // If context is suspended or interrupted, request tap to resume
     if (contextState !== 'running') {
-      // iOS "interrupted" state requires user gesture - request it
-      if (contextState === 'interrupted') {
-        this._requestUserGestureForAudio()
-        return
-      }
-      this._attemptSilentRecovery()
+      if (DEBUG_AUDIO_STATE) console.log(`[AudioState] Health check detected context ${contextState}, requesting tap to resume`)
+      this._setState('RESUMING', 'health-check-context-suspended')
+      this._requestTapToResume()
       return
     }
 
-    // Check 2: MasterVolume not stuck at -Infinity (only if not muted)
+    // Check 2: MasterVolume stuck at -Infinity (only if not muted) - this is safe to auto-fix
+    // This doesn't start audio, just restores volume on already-playing audio
     if (this.masterVolume && this.masterVolume.volume.value === -Infinity && !this.muted) {
       this.masterVolume.volume.value = -10
     }
 
-    // Check 3: Transport should be running
+    // Check 3: Transport should be running - this is safe to auto-fix
+    // Transport manages scheduled events, not audio playback itself
     if (Tone.Transport?.state !== 'started') {
       Tone.Transport.start()
     }
 
-    // Check 4: Evolving generation should be active (only if not muted)
+    // Check 4: Evolving generation should be active - this is safe to auto-fix
+    // This just restarts the background composition loop, doesn't start new audio
     if (!this.evolvingGenerationActive && !this.muted) {
       this.startEvolvingGeneration()
     }
@@ -579,9 +756,10 @@ class AudioService {
    * Includes iOS-specific handling (very quiet tone instead of silent)
    */
   async handleUserGestureForRecovery() {
+    // DEPRECATED: Use resumeFromTap() instead (state machine approach)
+    // This method is kept for backward compatibility
     // Entry #122: Respect user's explicit stop - don't auto-recover if user stopped audio
-    // User must click Start button to resume, not just any gesture
-    if (this._userStoppedAudio) {
+    if (this._audioState === 'STOPPED' || this._audioState === 'IDLE') {
       return
     }
 
@@ -1100,11 +1278,18 @@ class AudioService {
    */
   async start() {
     try {
-      // Clear user-stopped flag when explicitly starting audio
-      this._userStoppedAudio = false
+      // STATE MACHINE: Check if already playing or starting
+      if (this._audioState === 'PLAYING') {
+        if (DEBUG_AUDIO_STATE) console.log('[AudioState] start() called but already PLAYING')
+        return true
+      }
+      if (this._audioState === 'STARTING') {
+        if (DEBUG_AUDIO_STATE) console.log('[AudioState] start() called but already STARTING')
+        return false
+      }
 
-      // Entry #129: Mark that user explicitly started audio (enables recovery after sleep)
-      this._userExplicitlyStartedAudio = true
+      // Transition to STARTING state
+      this._setState('STARTING', 'start()')
 
       // Initialize Tone.js audio context
       if (window.Tone) {
@@ -1308,14 +1493,22 @@ class AudioService {
 
         // Return true only if context is actually running
         const contextRunning = Tone.context.state === 'running'
-        if (!contextRunning) {
+        if (contextRunning) {
+          // STATE MACHINE: Transition to PLAYING and register recovery handlers
+          this._registerRecoveryHandlers()
+          this._setState('PLAYING', 'start()-success')
+        } else {
+          // Failed to start - return to IDLE
+          this._setState('IDLE', 'start()-context-not-running')
         }
         return contextRunning
       } else {
+        this._setState('IDLE', 'start()-no-tone')
         throw new Error('Tone.js not available')
       }
     } catch (error) {
       // console.error('❌ Failed to start AudioService:', error)
+      this._setState('IDLE', 'start()-error')
       throw error
     }
   }
@@ -1866,8 +2059,8 @@ class AudioService {
   startEvolvingGeneration() {
     if (this.evolvingGenerationActive) return
 
-    // Entry #124: Respect user's explicit stop - don't start if user stopped audio
-    if (this._userStoppedAudio) {
+    // STATE MACHINE: Don't start if audio is stopped
+    if (this._audioState === 'STOPPED') {
       return
     }
 
@@ -2263,10 +2456,12 @@ class AudioService {
    * Stop the audio engine
    */
   stop() {
-    // Entry #129: ALWAYS set flag when user presses Stop, regardless of initialization state
-    // This prevents audio recovery from restarting audio after visibility/focus changes
-    this._userStoppedAudio = true
-    this._userExplicitlyStartedAudio = false
+    // STATE MACHINE: Transition to STOPPED
+    // This prevents any recovery from happening (handlers check state)
+    this._setState('STOPPED', 'stop()')
+
+    // Unregister recovery handlers - no more visibility/focus events
+    this._unregisterRecoveryHandlers()
 
     if (this.isInitialized) {
 
@@ -2982,8 +3177,8 @@ class AudioService {
   playComposition(composition, isDrone = false) {
     // console.log(`🎼 playComposition called - isDrone: ${isDrone}, isInitialized: ${this.isInitialized}, muted: ${this.muted}, type: ${composition?.type}`)
 
-    // Entry #124: Respect user's explicit stop - don't play if user stopped audio
-    if (this._userStoppedAudio) {
+    // STATE MACHINE: Don't play if audio is stopped
+    if (this._audioState === 'STOPPED') {
       return
     }
 
