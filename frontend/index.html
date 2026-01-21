@@ -143,6 +143,7 @@
 
   <script src="src/services/AudioService.js?v=41"></script> <!-- Entry #123 FIX: audio auto-restart prevention -->
   <script src="src/services/DroneVoidController.js?v=2"></script>
+  <script src="src/services/NotificationService.js?v=2"></script>
 </head>
 <body>
   <!-- Theme initialization (before content renders) -->
@@ -156,144 +157,23 @@
     } catch(e) {}
   })();
   </script>
-  <!-- Photosensitivity Warning Modal -->
-  <div id="photosensitivity-warning" class="warning-modal" role="dialog" aria-modal="true" aria-labelledby="warning-title">
-    <div class="warning-content">
-      <div class="warning-icon">&#x26A0;</div>
-      <h2 id="warning-title">Photosensitivity Warning</h2>
-      <p class="warning-text">
-        This experience contains <strong>flashing lights, rapid visual changes, and dynamic animations</strong> that may potentially trigger seizures in people with photosensitive epilepsy or other photosensitive conditions.
-      </p>
-      <p class="warning-text">
-        If you or someone in your family has a history of epilepsy or seizures, please consult a physician before using this application.
-      </p>
-      <p class="warning-text warning-small">
-        User discretion is advised. If you experience any discomfort, dizziness, or disorientation, please stop immediately.
-      </p>
-      <button id="warning-accept" class="warning-btn">I understand, continue</button>
-    </div>
-  </div>
-
-  <style>
-    .warning-modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(2, 2, 8, 0.98);
-      z-index: 100000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      opacity: 1;
-      transition: opacity 0.3s ease;
-    }
-    .warning-modal.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-    .warning-content {
-      background: var(--ui-bg, rgba(10, 10, 20, 0.55));
-      border: 1px solid var(--line, #3a3a50);
-      border-radius: 16px;
-      padding: 2rem;
-      max-width: 480px;
-      text-align: center;
-      backdrop-filter: blur(20px);
-    }
-    .warning-icon {
-      font-size: 3rem;
-      color: #ffc107;
-      margin-bottom: 1rem;
-    }
-    .warning-content h2 {
-      font-family: var(--font-display, 'Space Grotesk', sans-serif);
-      font-size: 1.5rem;
-      color: var(--bright, #e0e0f0);
-      margin-bottom: 1rem;
-    }
-    .warning-text {
-      font-family: var(--font-body, 'Space Grotesk', sans-serif);
-      font-size: 0.95rem;
-      color: var(--light, #9090a8);
-      line-height: 1.6;
-      margin-bottom: 1rem;
-    }
-    .warning-text strong {
-      color: #ffc107;
-    }
-    .warning-small {
-      font-size: 0.85rem;
-      color: var(--dim, #5a5a70);
-    }
-    .warning-btn {
-      margin-top: 1.5rem;
-      padding: 0.75rem 2rem;
-      background: transparent;
-      border: 2px solid var(--accent, #2dd4bf);
-      color: var(--accent, #2dd4bf);
-      font-family: var(--font-display, 'Space Grotesk', sans-serif);
-      font-size: 1rem;
-      font-weight: 500;
-      border-radius: 25px;
-      cursor: pointer;
-      transition: background 0.2s ease, color 0.2s ease;
-    }
-    .warning-btn:hover {
-      background: var(--accent, #2dd4bf);
-      color: var(--void, #020208);
-    }
-    /* Mobile: compact warning modal */
-    @media (max-width: 768px) {
-      .warning-modal {
-        padding: 12px;
-        align-items: flex-start;
-        padding-top: max(12px, env(safe-area-inset-top, 12px));
-      }
-      .warning-content {
-        padding: 1.25rem 1rem;
-        max-width: 100%;
-        max-height: calc(100dvh - 24px);
-        overflow-y: auto;
-      }
-      .warning-icon {
-        font-size: 2rem;
-        margin-bottom: 0.5rem;
-      }
-      .warning-content h2 {
-        font-size: 1.15rem;
-        margin-bottom: 0.75rem;
-      }
-      .warning-text {
-        font-size: 0.85rem;
-        line-height: 1.5;
-        margin-bottom: 0.75rem;
-      }
-      .warning-small {
-        font-size: 0.75rem;
-      }
-      .warning-btn {
-        margin-top: 1rem;
-        padding: 0.6rem 1.5rem;
-        font-size: 0.9rem;
-        width: 100%;
-      }
-    }
-  </style>
-
+  <!-- Photosensitivity Warning (non-blocking notification) -->
   <script>
     (function() {
-      var WARNING_KEY = 'webarmonium_photosensitivity_accepted';
-      var modal = document.getElementById('photosensitivity-warning');
-      var btn = document.getElementById('warning-accept');
-
-      if (localStorage.getItem(WARNING_KEY) === 'true') {
-        modal.classList.add('hidden');
-        setTimeout(function() { modal.style.display = 'none'; }, 300);
-      } else {
-        btn.addEventListener('click', function() {
-          localStorage.setItem(WARNING_KEY, 'true');
-          modal.classList.add('hidden');
-          setTimeout(function() { modal.style.display = 'none'; }, 300);
+      var WARNING_KEY = 'webarmonium_photosensitivity_shown';
+      if (localStorage.getItem(WARNING_KEY) !== 'true') {
+        localStorage.setItem(WARNING_KEY, 'true');
+        // Wait for NotificationService to be ready, then show warning
+        window.addEventListener('load', function() {
+          setTimeout(function() {
+            if (window.NotificationService) {
+              window.NotificationService.show(
+                'This experience contains flashing lights and rapid visual changes. User discretion advised.',
+                6000,
+                'warning'
+              );
+            }
+          }, 800);
         });
       }
     })();
