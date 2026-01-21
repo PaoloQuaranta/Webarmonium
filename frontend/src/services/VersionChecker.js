@@ -1,12 +1,11 @@
 /**
  * VersionChecker - Automatic cache invalidation on version update
- * Checks version.json on page load, clears cache and reloads if version changed
+ * Checks version.json on page load only, clears cache and reloads if version changed
  */
 (function() {
   'use strict';
 
   var STORAGE_KEY = 'webarmonium:version';
-  var CHECK_INTERVAL = 5 * 60 * 1000; // Re-check every 5 minutes while page is open
 
   /**
    * Fetch version.json with cache-busting
@@ -98,7 +97,7 @@
   /**
    * Check version and update if needed
    */
-  function checkVersion(isInitial) {
+  function checkVersion() {
     fetchVersion()
       .then(function(data) {
         var newVersion = data.version;
@@ -113,40 +112,21 @@
         // Version changed - clear cache and reload
         if (storedVersion !== newVersion) {
           storeVersion(newVersion); // Store new version before reload
-
-          // For minor updates, skip notification if flagged
-          if (data.minorUpdate && !isInitial) {
-            clearCachesAndReload();
-          } else {
-            showUpdateNotification(newVersion, clearCachesAndReload);
-          }
+          showUpdateNotification(newVersion, clearCachesAndReload);
         }
       })
-      .catch(function(err) {
+      .catch(function() {
         // Silently fail - don't block app if version check fails
-        // console.warn('Version check failed:', err);
       });
   }
 
-  // Initial check on page load
+  // Check on page load only
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
-      checkVersion(true);
+      checkVersion();
     });
   } else {
-    checkVersion(true);
+    checkVersion();
   }
-
-  // Periodic check while page is open (catches updates during long sessions)
-  setInterval(function() {
-    checkVersion(false);
-  }, CHECK_INTERVAL);
-
-  // Also check when page becomes visible (user returns to tab)
-  document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible') {
-      checkVersion(false);
-    }
-  });
 
 })();
