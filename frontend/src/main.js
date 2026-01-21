@@ -1773,7 +1773,9 @@ class WebarmoniumApp {
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0, 0, 0, 0.7);
+          background: var(--ui-bg, rgba(10, 10, 20, 0.55));
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
           z-index: 9999;
           display: flex;
           flex-direction: column;

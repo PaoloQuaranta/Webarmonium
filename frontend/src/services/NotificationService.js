@@ -52,7 +52,7 @@ class NotificationService {
     const style = document.createElement('style')
     style.textContent = `
       .webarmonium-notification {
-        background: var(--ui-bg, rgba(10, 10, 20, 0.4));
+        background: var(--ui-bg, rgba(10, 10, 20, 0.55));
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         color: var(--bright, #e0e0f0);

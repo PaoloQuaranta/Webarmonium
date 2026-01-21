@@ -689,11 +689,12 @@ settingsStyles.textContent = `
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(2, 2, 8, 0.6);
+    background: var(--ui-bg, rgba(10, 10, 20, 0.55));
     z-index: 10000;
     opacity: 0;
     transition: opacity 0.3s ease;
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     /* Desktop: align panel to right */
     display: flex;
     align-items: flex-start;
