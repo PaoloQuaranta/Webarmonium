@@ -1921,7 +1921,7 @@ class LandingApp {
         }
         .audio-recovery-text {
           color: var(--bright, #e0e0f0);
-          font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+          font-family: var(--font-body, 'Space Grotesk', system-ui, -apple-system, sans-serif);
           font-size: 0.9rem;
           font-weight: 500;
           margin: 0;
@@ -1936,7 +1936,7 @@ class LandingApp {
           border: 1.5px solid var(--accent, #2dd4bf);
           border-radius: 6px;
           color: var(--accent, #2dd4bf);
-          font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+          font-family: var(--font-body, 'Space Grotesk', system-ui, -apple-system, sans-serif);
           font-size: 0.85rem;
           font-weight: 500;
           cursor: pointer;
