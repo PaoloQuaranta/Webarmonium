@@ -124,14 +124,14 @@ a:hover {
   color: var(--accent-hover);
 }
 
-/* Light mode: orange for links on light background */
+/* Light mode: use dark teal for links (readable on gray background) */
 :root[data-theme="light"] a,
 :root[data-theme="light"] a:visited {
-  color: #f97316;
+  color: var(--success);  /* #059669 - dark teal/green */
 }
 
 :root[data-theme="light"] a:hover {
-  color: #ea580c;
+  color: #047857;  /* slightly darker on hover */
 }
 
 html {
@@ -399,11 +399,11 @@ header p {
   color: #5eead4;
 }
 
-/* Light mode: use orange for status messages (matches link color) */
+/* Light mode: use dark teal for status messages (matches link color) */
 :root[data-theme="light"] .message.status {
-  background: rgba(249, 115, 22, 0.15);
-  border: 1px solid rgba(249, 115, 22, 0.4);
-  color: #ea580c;
+  background: rgba(5, 150, 105, 0.15);
+  border: 1px solid rgba(5, 150, 105, 0.4);
+  color: var(--success);
 }
 
 /* ============================================ */
