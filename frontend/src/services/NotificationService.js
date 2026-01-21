@@ -89,6 +89,10 @@ class NotificationService {
         border-color: var(--success, #22c55e);
       }
 
+      :root[data-theme="light"] .webarmonium-notification.success {
+        border-color: #f97316;  /* Orange for light mode - matches link color */
+      }
+
       .webarmonium-notification.warning {
         border-color: #f97316;  /* Semantic orange for warnings */
       }

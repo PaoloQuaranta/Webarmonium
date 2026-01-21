@@ -403,6 +403,13 @@ header p {
   color: #5eead4;
 }
 
+/* Light mode: use orange for status messages (matches link color) */
+:root[data-theme="light"] .message.status {
+  background: rgba(249, 115, 22, 0.15);
+  border: 1px solid rgba(249, 115, 22, 0.4);
+  color: #ea580c;
+}
+
 /* ============================================ */
 /* Controls Bar (Node-Based Design)            */
 /* ============================================ */
