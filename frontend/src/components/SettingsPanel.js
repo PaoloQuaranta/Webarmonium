@@ -689,12 +689,10 @@ settingsStyles.textContent = `
     left: 0;
     right: 0;
     bottom: 0;
-    background: var(--ui-bg, rgba(10, 10, 20, 0.55));
+    background: transparent;
     z-index: 10000;
     opacity: 0;
     transition: opacity 0.3s ease;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     /* Desktop: align panel to right */
     display: flex;
     align-items: flex-start;
@@ -714,7 +712,6 @@ settingsStyles.textContent = `
     height: 100%;
     max-height: 100vh;
     overflow-y: auto;
-    box-shadow: -10px 0 40px rgba(0, 0, 0, 0.4);
     border-left: 1px solid var(--line, #1e1e2d);
     border-radius: 0;
     /* Slide in from right */
@@ -1051,7 +1048,6 @@ settingsStyles.textContent = `
     opacity: 0;
     transition: opacity 0.3s ease, transform 0.3s ease;
     pointer-events: none;
-    box-shadow: 0 4px 20px rgba(45, 212, 191, 0.3);
   }
 
   .settings-canvas-notification.visible {
@@ -1061,7 +1057,6 @@ settingsStyles.textContent = `
 
   .settings-canvas-notification.warning {
     background: var(--node-2, #00d4ff);
-    box-shadow: 0 4px 20px rgba(255, 169, 77, 0.4);
   }
 `
 document.head.appendChild(settingsStyles)

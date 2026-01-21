@@ -48,10 +48,6 @@
   --hackernews-color: var(--node-2);
   --github-color: var(--node-3);
 
-  /* Cluster glow effects (Electric Triad) */
-  --glow-1: rgba(255, 45, 146, 0.3);   /* magenta */
-  --glow-2: rgba(0, 212, 255, 0.3);    /* cyan */
-  --glow-3: rgba(168, 85, 247, 0.3);   /* viola */
 
   /* Logo alignment (SVG viewBox: 512x512, W starts at y=165) */
   --logo-h: 48px;
@@ -74,7 +70,7 @@
   --ui-bg: rgba(144, 144, 168, 0.85);
   --ui-bg-solid: #9090a8;
   --success: #059669;  /* Darker green for light mode contrast */
-  /* accent, node-*, glow-* ereditano da :root (invariati) */
+  /* accent, node-* ereditano da :root (invariati) */
 }
 
 /* Reset and Base Styles */
@@ -709,32 +705,6 @@ header p {
   display: block;
 }
 
-/* Canvas glow effect when audio is active */
-#canvas-container.active {
-  box-shadow:
-    inset 0 0 100px rgba(45, 212, 191, 0.1),
-    inset 0 0 200px rgba(45, 212, 191, 0.05);
-  animation: canvas-glow 4s ease-in-out infinite;
-}
-
-@keyframes canvas-glow {
-  0%, 100% {
-    box-shadow:
-      inset 0 0 100px rgba(45, 212, 191, 0.1),
-      inset 0 0 200px rgba(45, 212, 191, 0.05);
-  }
-  50% {
-    box-shadow:
-      inset 0 0 150px rgba(45, 212, 191, 0.15),
-      inset 0 0 300px rgba(45, 212, 191, 0.08);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #canvas-container.active {
-    animation: none;
-  }
-}
 
 /* Virtual User Cursor Indicators */
 .cursor-indicator {
@@ -2339,16 +2309,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   margin: 0 0.25rem;
 }
 
-/* ============================================ */
-/* Entry #93: Sound-Reactive UI                */
-/* ============================================ */
-
-/* Disable metric flash glow for reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .metric-card.flash {
-    box-shadow: none;
-  }
-}
 
 /* ============================================ */
 /* Room Page Styles                             */
