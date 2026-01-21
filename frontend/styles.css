@@ -2037,6 +2037,9 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 
 .immersive-icon {
   font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Hide label in circular button */
