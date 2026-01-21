@@ -2954,3 +2954,116 @@ const DEBUG_AUDIO_STATE = typeof window !== 'undefined' &&
 v0.1.3
 
 ---
+
+## Entry #157 - SEO Anti-Piracy Implementation
+
+**Date**: 2026-01-21
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented comprehensive SEO improvements to combat mirror/piracy sites that were ranking higher than the official webarmonium.net in Google and DuckDuckGo search results.
+
+---
+
+### Problem Statement
+
+Pirate mirror sites were appearing before webarmonium.net in search engine results. The user initiated DMCA takedown requests and Google Search Console verification, but needed technical SEO improvements to strengthen the official site's authority.
+
+---
+
+### Solution
+
+#### 1. Canonical URLs (All Pages)
+
+Added `<link rel="canonical">` to declare the official URL for each page:
+
+| File | Canonical URL |
+|------|---------------|
+| index.html | ✅ Already present |
+| rooms.html | https://webarmonium.net/rooms.html |
+| how-it-works.html | https://webarmonium.net/how-it-works.html |
+| technical-appendix.html | https://webarmonium.net/technical-appendix.html |
+
+#### 2. Open Graph Meta Tags (All Pages)
+
+Added Facebook/LinkedIn sharing metadata:
+
+```html
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://webarmonium.net/...">
+<meta property="og:title" content="...">
+<meta property="og:description" content="...">
+<meta property="og:image" content="https://webarmonium.net/og-image.png">
+<meta property="og:site_name" content="Webarmonium">
+```
+
+#### 3. Twitter Card Meta Tags (All Pages)
+
+Added Twitter/X sharing metadata:
+
+```html
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="...">
+<meta name="twitter:description" content="...">
+<meta name="twitter:image" content="https://webarmonium.net/og-image.png">
+```
+
+#### 4. Schema.org Structured Data (All Pages)
+
+Added JSON-LD structured data appropriate to each page type:
+
+| Page | Schema Type |
+|------|-------------|
+| index.html | ✅ Already present (WebApplication) |
+| rooms.html | WebApplication |
+| how-it-works.html | Article |
+| technical-appendix.html | TechArticle |
+
+#### 5. Sitemap Update
+
+Added missing page to sitemap.xml:
+
+```xml
+<url>
+  <loc>https://webarmonium.net/how-it-works.html</loc>
+  <lastmod>2026-01-21</lastmod>
+  <changefreq>monthly</changefreq>
+  <priority>0.7</priority>
+</url>
+```
+
+---
+
+### Pre-existing Anti-Piracy Measures
+
+The codebase already includes Entry #115 domain protection which displays an "UNAUTHORIZED MIRROR SITE" overlay on pirated copies, redirecting users to the official site.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/rooms.html` | Canonical URL, Open Graph, Twitter Card, Schema.org |
+| `frontend/how-it-works.html` | Canonical URL, Open Graph, Twitter Card, Schema.org |
+| `frontend/technical-appendix.html` | Canonical URL, Open Graph, Twitter Card, Schema.org |
+| `frontend/sitemap.xml` | Added how-it-works.html entry |
+
+---
+
+### Next Steps (User Action Required)
+
+1. Complete Google Search Console domain verification
+2. Submit sitemap via Google Search Console
+3. File DMCA takedown requests for each mirror site
+4. Monitor search rankings over coming weeks
+
+---
+
+### Version
+
+v0.1.2
+
+---

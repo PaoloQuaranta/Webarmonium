@@ -13,6 +13,12 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://webarmonium.net/how-it-works.html</loc>
+    <lastmod>2026-01-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://webarmonium.net/technical-appendix.html</loc>
     <lastmod>2026-01-16</lastmod>
     <changefreq>monthly</changefreq>
