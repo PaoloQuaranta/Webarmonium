@@ -158,6 +158,16 @@
   })();
   </script>
   <!-- Photosensitivity Warning (non-blocking notification) -->
+  <style>
+    /* Mobile: position notification below cards */
+    @media (max-width: 768px) {
+      #notification-container {
+        top: auto !important;
+        bottom: 6rem !important;
+        transform: translateX(-50%) !important;
+      }
+    }
+  </style>
   <script>
     (function() {
       var WARNING_KEY = 'webarmonium_photosensitivity_shown';
