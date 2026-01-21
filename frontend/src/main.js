@@ -1777,8 +1777,6 @@ class WebarmoniumApp {
           transform: translate(-50%, -50%);
           z-index: 9999;
           background: var(--ui-bg, rgba(10, 10, 20, 0.55));
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
           border: 1px solid var(--line, rgba(42, 42, 56, 0.8));
           border-radius: 12px;
           padding: 1rem 1.5rem;

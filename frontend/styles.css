@@ -893,7 +893,6 @@ button:disabled {
   width: 220px;
   padding: 0.75rem 1rem;
   background: var(--ui-bg);
-  backdrop-filter: blur(20px);
   border: 1px solid var(--line);
   border-radius: 8px;
   font-family: var(--font-body);
@@ -1253,7 +1252,6 @@ input[type="range"]::-moz-range-thumb {
   max-height: none;
   overflow-y: auto;
   background: var(--ui-bg);
-  backdrop-filter: blur(20px);
   border-top: 1px solid var(--line);
   z-index: 100;
   transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
@@ -2259,8 +2257,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   left: 50%;
   transform: translateX(-50%);
   background: var(--ui-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   color: var(--light);
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
@@ -2573,7 +2569,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   align-items: center;
   justify-content: center;
   background: var(--ui-bg);
-  backdrop-filter: blur(10px);
   color: var(--dim);
   padding: 8px 14px;
   border-radius: 20px;
@@ -2640,8 +2635,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   left: 50%;
   transform: translate(-50%, -50%);
   background: var(--ui-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 2px solid #ff4444;
   border-radius: 12px;
   padding: 20px;

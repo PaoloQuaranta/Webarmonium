@@ -706,8 +706,6 @@ settingsStyles.textContent = `
   .settings-panel {
     /* Unified semi-transparent background like other UI elements */
     background: var(--ui-bg, rgba(10, 10, 20, 0.55));
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
     width: 360px;
     height: 100%;
     max-height: 100vh;
@@ -732,8 +730,6 @@ settingsStyles.textContent = `
     position: sticky;
     top: 0;
     background: var(--ui-bg, rgba(10, 10, 20, 0.55));
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
     z-index: 1;
   }
 
@@ -923,8 +919,6 @@ settingsStyles.textContent = `
     position: sticky;
     bottom: 0;
     background: var(--ui-bg, rgba(10, 10, 20, 0.55));
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
   }
 
   .settings-reset,

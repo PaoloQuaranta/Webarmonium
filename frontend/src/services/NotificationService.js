@@ -53,8 +53,6 @@ class NotificationService {
     style.textContent = `
       .webarmonium-notification {
         background: var(--ui-bg, rgba(10, 10, 20, 0.55));
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
         color: var(--bright, #e0e0f0);
         padding: 12px 24px;
         border-radius: 25px;

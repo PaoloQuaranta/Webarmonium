@@ -282,8 +282,6 @@ class UIManager {
       bottom: max(12px, env(safe-area-inset-bottom, 12px));
       left: max(12px, env(safe-area-inset-left, 12px));
       z-index: 1002;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
       border-radius: 50%;
       width: 44px;
       height: 44px;
@@ -320,8 +318,6 @@ class UIManager {
       bottom: max(68px, calc(env(safe-area-inset-bottom, 12px) + 56px));
       left: max(12px, env(safe-area-inset-left, 12px));
       z-index: 1001;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
       border-radius: 12px;
       padding: 12px 16px;
       max-width: 280px;

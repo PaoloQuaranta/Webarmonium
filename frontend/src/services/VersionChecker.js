@@ -85,7 +85,7 @@
       // Fallback: create simple notification
       var el = document.createElement('div');
       el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999999;' +
-        'background:rgba(10,10,20,0.9);backdrop-filter:blur(12px);color:#e0e0f0;' +
+        'background:rgba(10,10,20,0.9);color:#e0e0f0;' +
         'padding:12px 24px;border-radius:8px;font-family:system-ui,sans-serif;font-size:14px;' +
         'box-shadow:0 4px 20px rgba(0,0,0,0.5);border:1px solid #3a3a50;';
       el.textContent = message;
