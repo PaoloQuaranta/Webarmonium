@@ -1333,6 +1333,11 @@ input[type="range"]::-moz-range-thumb {
     visibility: visible;
   }
 
+  :root[data-theme="light"] #mapping-explainer::before,
+  :root[data-theme="light"] .landing-explainer::before {
+    background: rgba(245, 245, 250, 0.92);
+  }
+
   /* Hide backdrop when collapsed - use visibility to fully remove from rendering */
   #mapping-explainer.collapsed::before,
   .landing-explainer.collapsed::before {
@@ -1950,6 +1955,49 @@ input[type="range"]:focus-visible {
 
 input[type="range"]:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 3px var(--accent), 0 0 0 5px rgba(45, 212, 191, 0.3);
+}
+
+/* ============================================ */
+/* Mobile Info Button & Popup (rooms page)     */
+/* ============================================ */
+
+.mobile-info-btn {
+  background: var(--ui-bg);
+  border: 2px solid var(--line);
+  color: var(--light);
+}
+
+.mobile-info-btn:hover {
+  border-color: var(--dim);
+  color: var(--bright);
+}
+
+:root[data-theme="light"] .mobile-info-btn {
+  background: var(--ui-bg);
+  border-color: var(--surface);
+  color: var(--dim);
+}
+
+:root[data-theme="light"] .mobile-info-btn:hover {
+  border-color: var(--light);
+  color: var(--bright);
+}
+
+.mobile-info-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mobile-info-popup {
+  background: var(--ui-bg);
+  border: 1px solid var(--line);
+  color: var(--light);
+}
+
+:root[data-theme="light"] .mobile-info-popup {
+  background: var(--ui-bg);
+  border-color: var(--surface);
+  color: var(--dim);
 }
 
 /* ============================================ */

@@ -282,11 +282,8 @@ class UIManager {
       bottom: max(12px, env(safe-area-inset-bottom, 12px));
       left: max(12px, env(safe-area-inset-left, 12px));
       z-index: 1002;
-      background: rgba(10, 10, 20, 0.55);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
-      border: 2px solid #3a3a50;
-      color: #9090a8;
       border-radius: 50%;
       width: 44px;
       height: 44px;
@@ -304,24 +301,6 @@ class UIManager {
 
     this.mobileInfoPopupOpen = false
     this.mobileInfoBtn.onclick = () => this._toggleMobileInfoPopup()
-
-    // Hover/touch states
-    const setHoverState = () => {
-      if (!this.mobileInfoPopupOpen) {
-        this.mobileInfoBtn.style.borderColor = '#5a5a70'
-        this.mobileInfoBtn.style.color = '#b0b0c0'
-      }
-    }
-    const resetState = () => {
-      if (!this.mobileInfoPopupOpen) {
-        this.mobileInfoBtn.style.borderColor = '#3a3a50'
-        this.mobileInfoBtn.style.color = '#9090a8'
-      }
-    }
-    this.mobileInfoBtn.addEventListener('mouseenter', setHoverState)
-    this.mobileInfoBtn.addEventListener('mouseleave', resetState)
-    this.mobileInfoBtn.addEventListener('touchstart', setHoverState, { passive: true })
-    this.mobileInfoBtn.addEventListener('touchend', resetState, { passive: true })
 
     document.body.appendChild(this.mobileInfoBtn)
 
@@ -341,14 +320,11 @@ class UIManager {
       bottom: max(68px, calc(env(safe-area-inset-bottom, 12px) + 56px));
       left: max(12px, env(safe-area-inset-left, 12px));
       z-index: 1001;
-      background: rgba(10, 10, 20, 0.85);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      border: 1px solid #3a3a50;
       border-radius: 12px;
       padding: 12px 16px;
       max-width: 280px;
-      color: #9090a8;
       font-family: var(--font-mono, 'JetBrains Mono', monospace);
       font-size: 12px;
       line-height: 1.5;
@@ -369,8 +345,7 @@ class UIManager {
 
     if (this.mobileInfoPopupOpen) {
       this.mobileInfoPopup.style.display = 'block'
-      this.mobileInfoBtn.style.borderColor = '#2dd4bf'
-      this.mobileInfoBtn.style.color = '#2dd4bf'
+      this.mobileInfoBtn.classList.add('active')
       this.mobileInfoBtn.setAttribute('aria-expanded', 'true')
 
       // Auto-hide after 5 seconds
@@ -391,8 +366,7 @@ class UIManager {
       this.mobileInfoPopup.style.display = 'none'
     }
     if (this.mobileInfoBtn) {
-      this.mobileInfoBtn.style.borderColor = '#3a3a50'
-      this.mobileInfoBtn.style.color = '#9090a8'
+      this.mobileInfoBtn.classList.remove('active')
       this.mobileInfoBtn.setAttribute('aria-expanded', 'false')
     }
 
