@@ -2828,3 +2828,60 @@ Also updated `initializeTheme()` functions in both `main.js` files to use `UserS
 v1.1.03
 
 ---
+
+## Entry #155 - Theme Switching Complete Fix (p5.js Canvas)
+
+**Date**: 2026-01-20
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Completed the theme switching fix by addressing Chrome CSS update issues and p5.js canvas idle state.
+
+---
+
+### Problem Statement
+
+After Entry #154, theme switching still didn't work reliably. Some UI elements and the p5.js canvas wouldn't update when switching themes multiple times.
+
+---
+
+### Root Causes
+
+1. **Chrome CSS Variable Updates**: Chrome doesn't always re-evaluate CSS variables when the `data-theme` attribute changes on dynamically styled elements.
+
+2. **p5.js Canvas Idle State**: GenerativeVisualService pauses its draw loop when inactive (`isPaused = true`). When paused, the canvas wouldn't redraw with the new background color on theme change.
+
+---
+
+### Solution
+
+1. **Stylesheet Toggle Hack**: Force Chrome to re-parse all CSS by toggling the `disabled` property on stylesheets:
+
+```javascript
+const styleSheets = document.querySelectorAll('style, link[rel="stylesheet"]')
+styleSheets.forEach(sheet => { sheet.disabled = true })
+setTimeout(() => {
+  styleSheets.forEach(sheet => { sheet.disabled = false })
+}, 0)
+```
+
+2. **Wake Canvas from Idle**: In GenerativeVisualService `_handleThemeChange()`, set `isPaused = false` and update `lastActivityTime` to wake the canvas from idle state.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/UserSettings.js` | Added stylesheet toggle hack in `applyTheme()` |
+| `frontend/src/services/GenerativeVisualService.js` | Wake canvas from idle in `_handleThemeChange()` |
+
+---
+
+### Version
+
+v1.1.04
+
+---
