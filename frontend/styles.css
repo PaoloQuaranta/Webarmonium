@@ -1335,7 +1335,7 @@ input[type="range"]::-moz-range-thumb {
 
   :root[data-theme="light"] #mapping-explainer::before,
   :root[data-theme="light"] .landing-explainer::before {
-    background: rgba(245, 245, 250, 0.92);
+    background: rgba(144, 144, 168, 0.95);
   }
 
   /* Hide backdrop when collapsed - use visibility to fully remove from rendering */
