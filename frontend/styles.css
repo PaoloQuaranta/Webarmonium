@@ -935,6 +935,14 @@ button:disabled {
   pointer-events: auto;
 }
 
+/* Keep tooltip visible when hovering over it (for clicking "got it") */
+.join-tooltip:hover {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(0);
+  pointer-events: auto;
+}
+
 /* Got it button in tooltip - positioned right */
 .join-tooltip-gotit {
   background: none;
