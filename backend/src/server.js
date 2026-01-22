@@ -3,7 +3,10 @@
  * Real-time collaborative music platform with WebSocket support
  */
 
-// Sentry Error Tracking - Must be imported first
+// Load environment variables FIRST (before any other imports that need them)
+require('dotenv').config()
+
+// Sentry Error Tracking - Must be imported after dotenv
 const Sentry = require('@sentry/node')
 
 const express = require('express')
