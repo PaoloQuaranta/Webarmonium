@@ -229,6 +229,12 @@ app.get('/health', (req, res) => {
   })
 })
 
+// Temporary Sentry test endpoint - REMOVE AFTER TESTING
+app.get('/api/test-sentry', (req, res) => {
+  serverLogger.info('Sentry test endpoint called - throwing test error')
+  throw new Error('Backend Sentry test error - if you see this in Sentry, it works!')
+})
+
 // Room discovery endpoint
 app.get('/api/rooms', (req, res) => {
   try {
