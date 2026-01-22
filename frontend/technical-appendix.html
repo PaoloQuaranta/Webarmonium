@@ -91,6 +91,34 @@
   <!-- Version checker - auto-refresh on updates -->
   <script src="src/services/VersionChecker.js?v=1"></script>
 
+  <!-- Google Analytics 4 - Google Analytics 4 - Measurement ID: G-3YYLZLSKQ3 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-3YYLZLSKQ3"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    // Basic configuration with privacy-respecting settings
+    gtag('config', 'G-3YYLZLSKQ3', {
+      'send_page_view': true,
+      'anonymize_ip': true, // GDPR compliance
+      'allow_google_signals': false, // No cross-device tracking
+      'cookie_flags': 'SameSite=None;Secure'
+    });
+
+    // Custom dimensions
+    gtag('set', 'user_properties', {
+      'device_type': /mobile/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
+      'page_type': 'technical_docs'
+    });
+  </script>
+
+  <!-- Sentry Error Tracking - Frontend monitoring -->
+  <script
+    src="https://js-de.sentry-cdn.com/aa4a0f672096817919dd58fa674ac09c.min.js"
+    crossorigin="anonymous">
+  </script>
+
   <!-- Google Fonts - Archivo -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1082,6 +1110,15 @@
     <footer style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--line, #3a3a50);">
       <p><a href="how-it-works.html">&larr; How It Works</a> | <a href="rooms.html">Join a Room &rarr;</a></p>
       <p class="footer-note">Webarmonium Technical Documentation</p>
+      <p style="margin-top: 1.5rem; font-size: 0.9rem;">
+        <a href="/">Home</a> |
+        <a href="/rooms.html">Rooms</a> |
+        <a href="/how-it-works.html">How It Works</a> |
+        <a href="/privacy.html">Privacy Policy</a> |
+        <a href="/terms.html">Terms of Service</a> |
+        <a href="mailto:contact@webarmonium.net">Contact</a>
+      </p>
+      <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--dim, #5a5a70);">&copy; 2026 Webarmonium. All rights reserved.</p>
     </footer>
   </main>
 </body>

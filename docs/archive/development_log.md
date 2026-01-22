@@ -3067,3 +3067,102 @@ The codebase already includes Entry #115 domain protection which displays an "UN
 v0.1.2
 
 ---
+
+## Entry #158 - Pre-Launch Analytics & Error Tracking Setup
+
+**Date**: 2026-01-22
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented Google Analytics 4 and Sentry error tracking across all frontend pages and backend as part of pre-launch preparation. This enables user behavior tracking and real-time error monitoring for production deployment.
+
+---
+
+### Problem Statement
+
+Before public launch, the site needed:
+1. **Analytics tracking**: No visibility into user behavior, traffic sources, or engagement metrics
+2. **Error monitoring**: Silent failures in production with no visibility into client-side errors
+3. **Production readiness**: Missing critical observability tools for post-launch monitoring
+
+---
+
+### Solution
+
+#### 1. Google Analytics 4 Configuration
+
+Implemented GA4 tracking with privacy-respecting configuration across all pages:
+
+**Configuration:**
+- Measurement ID: `G-3YYLZLSKQ3`
+- IP anonymization enabled (`anonymize_ip: true`)
+- No cross-device tracking (`allow_google_signals: false`)
+- Custom dimension: `device_type` (mobile/desktop)
+- Page-specific `page_type` property (landing, rooms, how_it_works, technical_docs)
+
+**Files Modified:**
+- `frontend/index.html` - Landing page tracking
+- `frontend/rooms.html` - Rooms page tracking (to be added)
+- `frontend/how-it-works.html` - Documentation tracking
+- `frontend/technical-appendix.html` - Technical docs tracking
+
+#### 2. Sentry Error Tracking (Frontend)
+
+Implemented Sentry using pre-configured loader script approach:
+
+**Configuration:**
+- Loader URL: `https://js-de.sentry-cdn.com/aa4a0f672096817919dd58fa674ac09c.min.js`
+- Default settings: `tracesSampleRate: 1`, `replaysSessionSampleRate: 0.1`, `replaysOnErrorSampleRate: 1`
+- Automatic error capturing for all JavaScript errors
+- Session replay on errors for debugging
+
+**Files Modified:**
+- `frontend/index.html`
+- `frontend/rooms.html` (to be added)
+- `frontend/how-it-works.html`
+- `frontend/technical-appendix.html`
+
+#### 3. Sentry Error Tracking (Backend)
+
+Configured backend error tracking using existing integration:
+
+**Configuration:**
+- DSN: `https://349c8816fa5125b5c5fffaa8251001cb@o4510755384459264.ingest.de.sentry.io/4510755435839568`
+- Environment: production
+- Express middleware integration (already present in `server.js`)
+
+**Files Modified:**
+- `backend/.env` - Added `SENTRY_DSN` environment variable
+
+**Note:** Backend already had `@sentry/node` dependency and integration code in `server.js` (lines 56-88).
+
+---
+
+### Benefits
+
+1. **User Behavior Insights**: Track page views, engagement, traffic sources via GA4
+2. **Error Visibility**: Real-time error tracking with stack traces and context via Sentry
+3. **Session Replay**: Reproduce user sessions when errors occur for faster debugging
+4. **Privacy Compliance**: IP anonymization and no cross-device tracking respect GDPR
+5. **Launch Readiness**: Critical observability tools in place before public launch
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/index.html` | Added GA4 + Sentry scripts with privacy-respecting config |
+| `frontend/how-it-works.html` | Added GA4 + Sentry scripts |
+| `frontend/technical-appendix.html` | Added GA4 + Sentry scripts |
+| `backend/.env` | Added `SENTRY_DSN` environment variable |
+
+---
+
+### Version
+
+v0.1.4
+
+---

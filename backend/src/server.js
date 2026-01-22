@@ -3,6 +3,9 @@
  * Real-time collaborative music platform with WebSocket support
  */
 
+// Sentry Error Tracking - Must be imported first
+const Sentry = require('@sentry/node')
+
 const express = require('express')
 const http = require('http')
 const socketIo = require('socket.io')
@@ -52,6 +55,21 @@ const limiter = rateLimit({
 
 const app = express()
 const server = http.createServer(app)
+
+// Initialize Sentry - Replace YOUR_SENTRY_DSN with actual DSN from sentry.io
+Sentry.init({
+  dsn: process.env.SENTRY_DSN || 'YOUR_SENTRY_DSN',
+  environment: NODE_ENV,
+  tracesSampleRate: NODE_ENV === 'production' ? 0.1 : 1.0,
+  integrations: [
+    new Sentry.Integrations.Http({ tracing: true }),
+    new Sentry.Integrations.Express({ app })
+  ]
+})
+
+// Sentry request handler must be first middleware
+app.use(Sentry.Handlers.requestHandler())
+app.use(Sentry.Handlers.tracingHandler())
 
 // Trust proxy for rate limiter (behind nginx/cloudflare)
 // Fixes ERR_ERL_UNEXPECTED_X_FORWARDED_FOR error
@@ -566,6 +584,9 @@ function generateRoomId () {
 
   return `${adjective}-${noun}-${number}`
 }
+
+// Sentry error handler must be last middleware (after all routes)
+app.use(Sentry.Handlers.errorHandler())
 
 // Expose room manager for tests
 app.locals.roomManager = roomManager

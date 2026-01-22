@@ -86,6 +86,34 @@
     <!-- Version checker - auto-refresh on updates -->
     <script src="src/services/VersionChecker.js?v=1"></script>
 
+    <!-- Google Analytics 4 - Google Analytics 4 - Measurement ID: G-3YYLZLSKQ3 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-3YYLZLSKQ3"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      // Basic configuration with privacy-respecting settings
+      gtag('config', 'G-3YYLZLSKQ3', {
+        'send_page_view': true,
+        'anonymize_ip': true, // GDPR compliance
+        'allow_google_signals': false, // No cross-device tracking
+        'cookie_flags': 'SameSite=None;Secure'
+      });
+
+      // Custom dimensions
+      gtag('set', 'user_properties', {
+        'device_type': /mobile/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
+        'page_type': 'room'
+      });
+    </script>
+
+    <!-- Sentry Error Tracking - Frontend monitoring -->
+    <script
+      src="https://js-de.sentry-cdn.com/aa4a0f672096817919dd58fa674ac09c.min.js"
+      crossorigin="anonymous">
+    </script>
+
     <!-- Google Fonts - Space Grotesk + Fira Code -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -407,6 +435,18 @@
         }, 1000)
     </script>
     <script src="src/main.js?v=76"></script> <!-- Entry #123: Removed hold indicator rendering -->
+
+    <!-- Legal Footer - Minimal fixed footer for interactive canvas page -->
+    <footer style="position: fixed; bottom: 0; left: 0; right: 0; background: rgba(10, 10, 20, 0.8); backdrop-filter: blur(8px); border-top: 1px solid rgba(255, 255, 255, 0.05); padding: 0.5rem 1rem; font-size: 0.75rem; text-align: center; z-index: 50; color: #5a5a70;">
+      <p style="margin: 0; line-height: 1.4;">
+        <a href="/" style="color: #2dd4bf; text-decoration: none; margin: 0 0.3rem;">Home</a> |
+        <a href="/how-it-works.html" style="color: #2dd4bf; text-decoration: none; margin: 0 0.3rem;">How It Works</a> |
+        <a href="/privacy.html" style="color: #2dd4bf; text-decoration: none; margin: 0 0.3rem;">Privacy</a> |
+        <a href="/terms.html" style="color: #2dd4bf; text-decoration: none; margin: 0 0.3rem;">Terms</a> |
+        <a href="mailto:contact@webarmonium.net" style="color: #2dd4bf; text-decoration: none; margin: 0 0.3rem;">Contact</a>
+        <span style="margin-left: 0.5rem;">&copy; 2026</span>
+      </p>
+    </footer>
 </body>
 
 </html>
