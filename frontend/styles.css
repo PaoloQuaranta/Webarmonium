@@ -2467,7 +2467,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Desktop settings button */
 .desktop-settings-btn {
   background: var(--ui-bg);
-  color: var(--light);
+  color: var(--dim);
   border: 2px solid var(--line);
   padding: 0;
   border-radius: 50%;
@@ -2484,8 +2484,8 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 }
 
 .desktop-settings-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--light);
+  color: var(--light);
 }
 
 /* Room instructions */
