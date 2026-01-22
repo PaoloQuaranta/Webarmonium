@@ -3166,3 +3166,139 @@ Configured backend error tracking using existing integration:
 v0.1.4
 
 ---
+
+## Entry #159 - Sentry Backend Error Tracking Fix (Missing dotenv)
+
+**Date**: 2026-01-22
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed critical issue where backend Sentry error tracking was not functioning due to missing `dotenv` package. The backend was unable to read `SENTRY_DSN` from `.env` file, causing initialization with invalid DSN and preventing error reports from reaching Sentry dashboard.
+
+---
+
+### Problem Statement
+
+After implementing Sentry in Entry #158, frontend error tracking worked immediately but backend errors were not appearing in Sentry dashboard despite:
+- `SENTRY_DSN` being correctly set in backend `.env` file
+- Sentry initialization code present in `server.js`
+- Error handler middleware order corrected
+- Test endpoint throwing errors successfully
+- "Allowed Domains" configuration removed from backend project settings
+
+**Root Cause Investigation:**
+1. Initial hypothesis: "Allowed Domains" misconfiguration → Fixed, but issue persisted
+2. Enabled debug logging: Discovered `Invalid Sentry Dsn: YOUR_SENTRY_DSN` error
+3. Server logs showed fallback DSN being used instead of environment variable
+4. **Root cause identified**: Backend was not loading `.env` file - missing `dotenv` package
+
+---
+
+### Solution
+
+#### 1. Install dotenv Package
+
+```bash
+npm install dotenv --save
+```
+
+#### 2. Load Environment Variables Before Sentry Initialization
+
+Added `require('dotenv').config()` at the very top of `server.js`:
+
+```javascript
+/**
+ * Webarmonium Server
+ * Real-time collaborative music platform with WebSocket support
+ */
+
+// Load environment variables FIRST (before any other imports that need them)
+require('dotenv').config()
+
+// Sentry Error Tracking - Must be imported after dotenv
+const Sentry = require('@sentry/node')
+```
+
+**Critical ordering:**
+1. Load dotenv FIRST
+2. Then initialize Sentry (which needs `process.env.SENTRY_DSN`)
+3. Then load other modules
+
+#### 3. Clean Up Debug Code
+
+After confirming fix worked, removed all debug logging:
+- Removed `console.log()` statements for DSN and environment
+- Removed `debug: true` from Sentry.init()
+- Removed `beforeSend` hook used for logging
+- Removed temporary `/api/test-sentry` test endpoint
+
+**Final production configuration:**
+
+```javascript
+// Initialize Sentry for error tracking
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: NODE_ENV,
+  tracesSampleRate: NODE_ENV === 'production' ? 0.1 : 1.0,
+  integrations: [
+    new Sentry.Integrations.Http({ tracing: true }),
+    new Sentry.Integrations.Express({ app })
+  ]
+})
+```
+
+---
+
+### Technical Details
+
+**Why dotenv was missing:**
+- Backend typically runs via systemd service which can load environment variables directly from service file
+- Development/local runs assumed environment variables would be available
+- Production deployment copies code but `.env` file is not tracked in git (for security)
+- Without dotenv, Node.js process cannot read `.env` file
+
+**Verification steps:**
+1. Logs showed: `[dotenv@17.2.3] injecting env (20) from .env`
+2. Logs showed: `[Sentry] Initializing with DSN: https://349c8816fa5125b5c5fffa...`
+3. No more `Invalid Sentry Dsn` errors
+4. Test endpoint successfully sent error to Sentry dashboard
+5. Event ID `c8878e4e3e6f499d9567d06c6fa5f4a2` visible in Sentry with message: "Backend Sentry test error - if you see this in Sentry, it works!"
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/server.js` | Added `require('dotenv').config()` at top, cleaned up debug logging, removed test endpoint |
+| `backend/package.json` | Added `dotenv` dependency |
+| `backend/package-lock.json` | Updated with dotenv package tree |
+
+---
+
+### Benefits
+
+1. **Backend error tracking functional**: Errors now reach Sentry dashboard with full stack traces
+2. **Consistent configuration**: Both frontend and backend error tracking operational
+3. **Production ready**: Critical observability tool working correctly before launch
+4. **Clean code**: Debug artifacts removed, production configuration clean
+5. **Proper environment management**: `.env` file correctly loaded on all environments
+
+---
+
+### Lessons Learned
+
+1. **Check dependencies first**: Before investigating complex configuration issues, verify all required packages are installed
+2. **Debug systematically**: Enabled debug logging revealed the exact error message needed to identify root cause
+3. **Test thoroughly**: Test endpoints are essential for verifying integrations work end-to-end
+4. **Environment variables**: When using `.env` files in Node.js, `dotenv` package is essential unless environment variables are injected by system/container
+
+---
+
+### Version
+
+v0.1.4 (no version bump - same as Entry #158, just completing the implementation)
+
+---

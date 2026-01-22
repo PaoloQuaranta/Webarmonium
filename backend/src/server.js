@@ -59,24 +59,15 @@ const limiter = rateLimit({
 const app = express()
 const server = http.createServer(app)
 
-// Initialize Sentry - Replace YOUR_SENTRY_DSN with actual DSN from sentry.io
-const sentryDsn = process.env.SENTRY_DSN || 'YOUR_SENTRY_DSN'
-console.log('[Sentry] Initializing with DSN:', sentryDsn ? `${sentryDsn.substring(0, 30)}...` : 'NOT SET')
-console.log('[Sentry] Environment:', NODE_ENV)
-
+// Initialize Sentry for error tracking
 Sentry.init({
-  dsn: sentryDsn,
+  dsn: process.env.SENTRY_DSN,
   environment: NODE_ENV,
-  debug: true, // Enable debug logging to see what Sentry is doing
   tracesSampleRate: NODE_ENV === 'production' ? 0.1 : 1.0,
   integrations: [
     new Sentry.Integrations.Http({ tracing: true }),
     new Sentry.Integrations.Express({ app })
-  ],
-  beforeSend(event, hint) {
-    console.log('[Sentry] Sending event:', event.event_id, 'Error:', hint?.originalException?.message)
-    return event
-  }
+  ]
 })
 
 // Sentry request handler must be first middleware
@@ -239,12 +230,6 @@ app.get('/health', (req, res) => {
     users: totalUsers,
     environment: NODE_ENV
   })
-})
-
-// Temporary Sentry test endpoint - REMOVE AFTER TESTING
-app.get('/api/test-sentry', (req, res) => {
-  serverLogger.info('Sentry test endpoint called - throwing test error')
-  throw new Error('Backend Sentry test error - if you see this in Sentry, it works!')
 })
 
 // Room discovery endpoint
