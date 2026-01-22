@@ -534,6 +534,9 @@ setInterval(() => {
   })
 }, 5000) // Broadcast every 5 seconds
 
+// Sentry error handler - MUST be before generic error handler
+app.use(Sentry.Handlers.errorHandler())
+
 // Error handling middleware
 app.use((error, req, res, next) => {
   // console.error('Server error:', error)
@@ -590,9 +593,6 @@ function generateRoomId () {
 
   return `${adjective}-${noun}-${number}`
 }
-
-// Sentry error handler must be last middleware (after all routes)
-app.use(Sentry.Handlers.errorHandler())
 
 // Expose room manager for tests
 app.locals.roomManager = roomManager
