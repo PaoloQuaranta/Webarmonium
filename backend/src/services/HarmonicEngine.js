@@ -131,17 +131,25 @@ class HarmonicEngine {
     }
 
     // Select progression type based on dominant genre, passing complexity and compositionCount
+    let progression
     if (genreWeights.jazz > 0.7) {
-      return this.generateJazzProgression(phraseLength, complexity, compositionCount)
+      progression = this.generateJazzProgression(phraseLength, complexity, compositionCount)
     } else if (genreWeights.classical > 0.7) {
-      return this.generateClassicalProgression(phraseLength, complexity, compositionCount)
+      progression = this.generateClassicalProgression(phraseLength, complexity, compositionCount)
     } else if (genreWeights.electronic > 0.7) {
-      return this.generateElectronicProgression(phraseLength, complexity, compositionCount)
+      progression = this.generateElectronicProgression(phraseLength, complexity, compositionCount)
     } else if (genreWeights.rock > 0.7) {
-      return this.generateRockProgression(phraseLength, complexity, compositionCount)
+      progression = this.generateRockProgression(phraseLength, complexity, compositionCount)
     } else {
-      return this.generatePopProgression(phraseLength, complexity, compositionCount)
+      progression = this.generatePopProgression(phraseLength, complexity, compositionCount)
     }
+
+    // Update currentChord with the first chord of the progression
+    if (progression && progression.length > 0) {
+      this.currentChord = progression[0].chord || progression[0].extension || `${this.currentKey}maj`
+    }
+
+    return progression
   }
 
   generateJazzProgression(bars, complexity = 0.5, compositionCount = 0) {
