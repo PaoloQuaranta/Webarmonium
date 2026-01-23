@@ -1335,6 +1335,11 @@ class LandingCompositionService {
   updateMetrics(newMetrics) {
     this.metrics = newMetrics
 
+    // Entry #162: Initialize HarmonicEngine key from web metrics (once, on first data)
+    if (this.harmonicEngine && !this.harmonicEngine.keyInitialized) {
+      this.harmonicEngine.initializeKeyFromMetrics(newMetrics)
+    }
+
     // Update statistical tracking for DYNAMIC NORMALIZATION
     // This builds historical min/max for MAXIMUM musical variety
     for (const [source, metrics] of Object.entries(newMetrics)) {

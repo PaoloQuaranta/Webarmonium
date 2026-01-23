@@ -2,20 +2,11 @@ const { PHI } = require('../utils/constants')
 
 class HarmonicEngine {
   constructor() {
-    // Entry #162: Initialize starting key based on time of day (deterministic, not random)
-    // Maps 24 hours to circle of fifths using golden ratio for musical distribution
-    // Morning (6-12) tends toward bright keys, evening toward warmer keys
-    const circleOfFifths = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F']
-    const hour = new Date().getHours()
-    const minute = new Date().getMinutes()
-    // Combine hour and minute for finer granularity (changes every ~5 minutes)
-    const timeIndex = Math.floor(((hour * 60 + minute) / 5 * PHI) % 1 * 12)
-    this.currentKey = circleOfFifths[timeIndex]
-
-    // Also vary starting mode based on time
-    const modes = ['ionian', 'dorian', 'mixolydian', 'aeolian', 'lydian']
-    const modeIndex = Math.floor(((hour * PHI) % 1) * modes.length)
-    this.currentMode = modes[modeIndex]
+    // Entry #162: Default key/mode - will be overridden by initializeKeyFromMetrics()
+    // when WebMetricsPoller data becomes available
+    this.currentKey = 'C'
+    this.currentMode = 'ionian'
+    this.keyInitialized = false
     this.currentChord = null
     this.progressionHistory = []
 
@@ -697,6 +688,45 @@ class HarmonicEngine {
     const scaleIntervals = this.scales[useMode] || this.scales.ionian
 
     return scaleIntervals.map(interval => tonic + interval)
+  }
+
+  /**
+   * Entry #162: Initialize starting key/mode from WebMetrics data
+   * Uses Wikipedia edits, HackerNews posts, and GitHub commits as seed
+   * Called once when first metrics arrive from WebMetricsPoller
+   * @param {Object} metrics - Metrics from WebMetricsPoller.getMetrics()
+   */
+  initializeKeyFromMetrics(metrics) {
+    if (this.keyInitialized) return // Only initialize once
+
+    const circleOfFifths = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F']
+    const modes = ['ionian', 'dorian', 'mixolydian', 'aeolian', 'lydian', 'phrygian', 'locrian']
+
+    // Sum all available metrics for maximum variability
+    const wikiEdits = metrics?.wikipedia?.editsPerMinute || 0
+    const hnPosts = metrics?.hackernews?.postsPerMinute || 0
+    const ghCommits = metrics?.github?.commitsPerMinute || 0
+    const totalActivity = wikiEdits + hnPosts * 10 + ghCommits // Weight HN more (fewer posts)
+
+    // Use golden ratio mapping for musical distribution
+    const keyIndex = Math.floor((totalActivity * PHI) % 1 * 12)
+    this.currentKey = circleOfFifths[keyIndex]
+
+    // Mode based on which source is most active
+    const dominantSource = wikiEdits >= hnPosts && wikiEdits >= ghCommits ? 'wikipedia' :
+                          hnPosts >= ghCommits ? 'hackernews' : 'github'
+    // Wikipedia → ionian/lydian (informational), HN → dorian/mixolydian (discussion), GitHub → aeolian/phrygian (technical)
+    const modeBySource = {
+      wikipedia: ['ionian', 'lydian'],
+      hackernews: ['dorian', 'mixolydian'],
+      github: ['aeolian', 'phrygian']
+    }
+    const sourceModes = modeBySource[dominantSource]
+    const modeIndex = Math.floor((totalActivity * PHI * 2) % 1 * sourceModes.length)
+    this.currentMode = sourceModes[modeIndex]
+
+    this.keyInitialized = true
+    // console.log(`🎹 HarmonicEngine initialized from web metrics: ${this.currentKey} ${this.currentMode} (activity: ${totalActivity})`)
   }
 }
 
