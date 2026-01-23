@@ -389,8 +389,9 @@ app.get('/api/rooms/:id/stats', (req, res) => {
 
 // Admin authentication middleware for protected endpoints
 // Entry #Security: Logs failed attempts and successful admin actions
+// Accepts API key via header (X-Admin-Key) or query param (apiKey)
 const adminAuth = (req, res, next) => {
-  const apiKey = req.headers['x-admin-key']
+  const apiKey = req.headers['x-admin-key'] || req.query.apiKey
   const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
                    req.socket?.remoteAddress ||
                    'unknown'
