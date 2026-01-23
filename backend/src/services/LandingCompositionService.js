@@ -123,6 +123,9 @@ class LandingCompositionService {
     // WebMetricsPoller reference (set by server) for velocity/acceleration
     this.webMetricsPoller = null
 
+    // Composition monitor (injected by server)
+    this.compositionMonitor = null
+
     // Gesture generation config - UNIFIED with VirtualUserService
     // Inverse modulation with SMALL amplitude (0.05 swing, matching gestureIntent swing)
     // This provides light correction without dominating the raw activity signal
@@ -1058,6 +1061,27 @@ class LandingCompositionService {
 
       // Entry #115: Update drone if keyCenter changed during composition
       this.updateDroneIfKeyChanged(previousKeyCenter)
+
+      // Record snapshot for monitoring (non-blocking)
+      if (this.compositionMonitor && this.compositionMonitor.enabled) {
+        setImmediate(() => {
+          try {
+            const snapshot = this.compositionMonitor.createSnapshot(
+              this.landingRoomId,
+              this.compositionEngine,
+              this.harmonicEngine,
+              this.styleAnalyzer,
+              this.materialLibrary,
+              { gestureCount: virtualGestures.length, compositionStarted: true }
+            )
+            if (snapshot) {
+              this.compositionMonitor.recordSnapshot(this.landingRoomId, snapshot)
+            }
+          } catch (err) {
+            // Silent fail - monitoring should not impact main flow
+          }
+        })
+      }
 
     } catch (error) {
       console.error(`🎵 Error generating composition:`, error)
