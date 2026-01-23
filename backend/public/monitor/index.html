@@ -647,7 +647,10 @@
 
     function formatSnapshot(snapshot) {
       const core = snapshot.core || {};
-      return `${core.keyCenter || 'C'} ${core.mode || 'ionian'} | ${core.formStructure || 'ABA'} [${core.currentSection || 'A'}] | ${core.tempo || 120} BPM`;
+      const source = snapshot.source || 'room';
+      const roomId = snapshot.roomId || '-';
+      const sourceLabel = source === 'landing' ? '🏠 LANDING' : `🚪 ${roomId.slice(0, 8)}`;
+      return `[${sourceLabel}] ${core.keyCenter || 'C'} ${core.mode || 'ionian'} | ${core.formStructure || 'ABA'} [${core.currentSection || 'A'}] | ${core.tempo || 120} BPM`;
     }
 
     function showError(message) {
