@@ -98,6 +98,32 @@ class HarmonicEngine {
   }
 
   /**
+   * Convert quality name to chord suffix for display
+   * @param {string} quality - Chord quality (major, minor, minor7, etc.)
+   * @returns {string} Chord suffix
+   */
+  _getQualitySuffix(quality) {
+    const suffixMap = {
+      'major': '',
+      'minor': 'm',
+      'minor7': 'm7',
+      'major7': 'maj7',
+      'dominant7': '7',
+      'diminished': 'dim',
+      'augmented': 'aug',
+      'sus2': 'sus2',
+      'sus4': 'sus4',
+      'add9': 'add9',
+      'minor9': 'm9',
+      'major9': 'maj9',
+      'dominant9': '9',
+      'suspended2': 'sus2',
+      'suspended4': 'sus4'
+    }
+    return suffixMap[quality] || ''
+  }
+
+  /**
    * Generate harmonic progression based on style analysis
    * Entry #117: Added compositionCount for temporal variation
    * @param {Object} styleAnalysis - Style analysis with genreWeights and harmonicComplexity
@@ -144,9 +170,13 @@ class HarmonicEngine {
       progression = this.generatePopProgression(phraseLength, complexity, compositionCount)
     }
 
-    // Update currentChord with the first chord of the progression
+    // Update currentChord with the first chord of the progression (using transposed root)
     if (progression && progression.length > 0) {
-      this.currentChord = progression[0].chord || progression[0].extension || `${this.currentKey}maj`
+      const firstChord = progression[0]
+      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+      const rootName = noteNames[firstChord.root % 12]
+      const qualitySuffix = this._getQualitySuffix(firstChord.quality)
+      this.currentChord = rootName + qualitySuffix
     }
 
     return progression
