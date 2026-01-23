@@ -1,0 +1,702 @@
+/**
+ * CompositionMonitor
+ * Real-time monitoring of compositional algorithm parameters
+ * Collects snapshots, provides statistics, and streams to dashboard
+ *
+ * Features:
+ * - Real-time parameter collection from all composition engines
+ * - In-memory buffer for fast access (last 100 snapshots)
+ * - File-based persistence for 24-hour statistics (JSON Lines format)
+ * - WebSocket streaming to monitoring dashboard
+ * - REST API for historical stats and reports
+ */
+
+const fs = require('fs')
+const path = require('path')
+
+class CompositionMonitor {
+  constructor() {
+    // Enable/disable via environment variable
+    this.enabled = process.env.COMPOSITION_MONITOR === 'true'
+
+    // In-memory buffer for real-time access
+    this.buffer = []
+    this.maxBufferSize = 100
+
+    // Write buffer for batched file writes
+    this.writeBuffer = []
+    this.flushInterval = null
+
+    // WebSocket subscribers
+    this.subscribers = new Set()
+
+    // Statistics aggregator
+    this.stats = {
+      hourly: new Map(), // hour -> aggregated stats
+      eventCounts: {
+        compositions: 0,
+        keyChanges: 0,
+        modeChanges: 0,
+        formChanges: 0,
+        styleShifts: 0
+      },
+      lastKeyCenter: null,
+      lastMode: null,
+      lastForm: null,
+      startTime: Date.now()
+    }
+
+    // Log file configuration
+    this.logsDir = path.join(__dirname, '../../logs/composition-metrics')
+    this.currentLogFile = null
+    this.currentLogDate = null
+
+    // Initialize if enabled
+    if (this.enabled) {
+      this._ensureLogsDirectory()
+      this._startFlushInterval()
+      console.log('CompositionMonitor: Enabled and initialized')
+    } else {
+      console.log('CompositionMonitor: Disabled (set COMPOSITION_MONITOR=true to enable)')
+    }
+  }
+
+  /**
+   * Record a composition snapshot
+   * @param {string} roomId - Room identifier
+   * @param {Object} data - Snapshot data from composition engines
+   */
+  recordSnapshot(roomId, data) {
+    if (!this.enabled) return
+
+    const snapshot = {
+      timestamp: Date.now(),
+      roomId,
+      ...data
+    }
+
+    // Add to in-memory buffer
+    this.buffer.push(snapshot)
+    if (this.buffer.length > this.maxBufferSize) {
+      this.buffer.shift()
+    }
+
+    // Track event counts and changes
+    this._trackChanges(snapshot)
+
+    // Update hourly aggregates
+    this._updateHourlyStats(snapshot)
+
+    // Add to write buffer for persistence
+    this.writeBuffer.push(snapshot)
+
+    // Broadcast to subscribers (throttled internally)
+    this._broadcastSnapshot(snapshot)
+  }
+
+  /**
+   * Create a snapshot from composition state
+   * @param {string} roomId - Room identifier
+   * @param {Object} compositionEngine - CompositionEngine instance
+   * @param {Object} harmonicEngine - HarmonicEngine instance
+   * @param {Object} styleAnalyzer - StyleAnalyzer instance
+   * @param {Object} materialLibrary - MaterialLibrary instance
+   * @param {Object} roomState - Room composition state
+   * @returns {Object} Complete snapshot
+   */
+  createSnapshot(roomId, compositionEngine, harmonicEngine, styleAnalyzer, materialLibrary, roomState) {
+    if (!this.enabled) return null
+
+    const style = styleAnalyzer.getCurrentStyle()
+    const materialStats = materialLibrary.getStats()
+
+    return {
+      // Core composition parameters
+      core: {
+        keyCenter: compositionEngine.keyCenter,
+        mode: compositionEngine.mode,
+        tempo: compositionEngine.tempo,
+        timeSignature: compositionEngine.timeSignature || '4/4',
+        formStructure: compositionEngine.formStructure,
+        currentSection: compositionEngine.currentSection,
+        sectionHistory: compositionEngine.sectionHistory?.slice(-5) || [],
+        complexityLevel: compositionEngine.complexityLevel,
+        density: compositionEngine.density,
+        tensionLevel: compositionEngine.tensionLevel,
+        compositionCount: roomState?.compositionCount || 0
+      },
+
+      // Harmonic engine state
+      harmony: {
+        currentKey: harmonicEngine.currentKey,
+        currentMode: harmonicEngine.currentMode,
+        currentChord: harmonicEngine.currentChord,
+        progressionLength: harmonicEngine.progressionHistory?.length || 0
+      },
+
+      // Style analysis
+      style: {
+        energy: style.energy,
+        tempo: style.tempo,
+        timeSignature: style.timeSignature,
+        rhythmicCharacter: style.rhythmicCharacter,
+        melodicCharacter: style.melodicCharacter,
+        harmonicComplexity: style.harmonicComplexity,
+        genreWeights: style.genreWeights
+      },
+
+      // Material library state
+      materials: {
+        total: materialStats.totalMaterials || 0,
+        byFunction: materialStats.byFunction || {},
+        byCharacter: materialStats.byCharacter || {},
+        activeCount: materialStats.activeMaterials || 0
+      },
+
+      // Room state
+      room: {
+        gestureCount: roomState?.gestureCount || 0,
+        compositionStarted: roomState?.compositionStarted || false,
+        sessionDuration: roomState?.startTime ? Date.now() - roomState.startTime : 0
+      }
+    }
+  }
+
+  /**
+   * Get real-time state (current + recent snapshots)
+   */
+  getRealtimeState() {
+    if (!this.enabled) {
+      return { enabled: false }
+    }
+
+    return {
+      enabled: true,
+      currentSnapshot: this.buffer[this.buffer.length - 1] || null,
+      recentSnapshots: this.buffer.slice(-20),
+      eventCounts: { ...this.stats.eventCounts },
+      uptime: Date.now() - this.stats.startTime,
+      subscriberCount: this.subscribers.size
+    }
+  }
+
+  /**
+   * Get 24-hour daily statistics
+   */
+  getDailyStats() {
+    if (!this.enabled) {
+      return { enabled: false }
+    }
+
+    const now = Date.now()
+    const oneDayAgo = now - 24 * 60 * 60 * 1000
+
+    // Collect all snapshots from last 24 hours
+    const recentSnapshots = this.buffer.filter(s => s.timestamp > oneDayAgo)
+
+    // Also load from file if available
+    const fileSnapshots = this._loadSnapshotsFromFile(oneDayAgo)
+    const allSnapshots = [...fileSnapshots, ...recentSnapshots]
+
+    if (allSnapshots.length === 0) {
+      return {
+        enabled: true,
+        timeRange: { start: oneDayAgo, end: now },
+        distributions: {},
+        counts: this.stats.eventCounts,
+        message: 'No data available yet'
+      }
+    }
+
+    return {
+      enabled: true,
+      timeRange: { start: oneDayAgo, end: now },
+      snapshotCount: allSnapshots.length,
+      distributions: this._calculateDistributions(allSnapshots),
+      metrics: this._calculateMetrics(allSnapshots),
+      trends: this._calculateTrends(allSnapshots),
+      counts: { ...this.stats.eventCounts }
+    }
+  }
+
+  /**
+   * Get hourly breakdown
+   * @param {number} hours - Number of hours to include
+   */
+  getHourlyStats(hours = 24) {
+    if (!this.enabled) {
+      return { enabled: false }
+    }
+
+    const hourlyData = []
+    const now = new Date()
+
+    for (let i = 0; i < hours; i++) {
+      const hourDate = new Date(now.getTime() - i * 60 * 60 * 1000)
+      const hourKey = this._getHourKey(hourDate)
+      const hourStats = this.stats.hourly.get(hourKey)
+
+      if (hourStats) {
+        hourlyData.unshift({
+          hour: hourDate.toISOString().slice(0, 13) + ':00:00Z',
+          ...hourStats
+        })
+      }
+    }
+
+    return {
+      enabled: true,
+      hourly: hourlyData
+    }
+  }
+
+  /**
+   * Get room-specific history
+   * @param {string} roomId - Room identifier
+   * @param {number} limit - Max snapshots to return
+   */
+  getRoomHistory(roomId, limit = 50) {
+    if (!this.enabled) {
+      return { enabled: false }
+    }
+
+    const roomSnapshots = this.buffer
+      .filter(s => s.roomId === roomId)
+      .slice(-limit)
+
+    return {
+      enabled: true,
+      roomId,
+      snapshots: roomSnapshots,
+      count: roomSnapshots.length
+    }
+  }
+
+  /**
+   * Add a WebSocket subscriber
+   * @param {Socket} socket - Socket.io socket
+   */
+  addSubscriber(socket) {
+    if (!this.enabled) return
+
+    this.subscribers.add(socket)
+
+    // Send initial state
+    socket.emit('monitor:init', this.getRealtimeState())
+
+    socket.on('disconnect', () => {
+      this.subscribers.delete(socket)
+    })
+  }
+
+  /**
+   * Remove a WebSocket subscriber
+   * @param {Socket} socket - Socket.io socket
+   */
+  removeSubscriber(socket) {
+    this.subscribers.delete(socket)
+  }
+
+  // --- Private methods ---
+
+  _trackChanges(snapshot) {
+    this.stats.eventCounts.compositions++
+
+    const core = snapshot.core || {}
+
+    // Track key changes
+    if (this.stats.lastKeyCenter && core.keyCenter !== this.stats.lastKeyCenter) {
+      this.stats.eventCounts.keyChanges++
+      this._emitEvent('monitor:key_change', {
+        from: this.stats.lastKeyCenter,
+        to: core.keyCenter,
+        timestamp: snapshot.timestamp
+      })
+    }
+    this.stats.lastKeyCenter = core.keyCenter
+
+    // Track mode changes
+    if (this.stats.lastMode && core.mode !== this.stats.lastMode) {
+      this.stats.eventCounts.modeChanges++
+      this._emitEvent('monitor:mode_change', {
+        from: this.stats.lastMode,
+        to: core.mode,
+        timestamp: snapshot.timestamp
+      })
+    }
+    this.stats.lastMode = core.mode
+
+    // Track form changes
+    if (this.stats.lastForm && core.formStructure !== this.stats.lastForm) {
+      this.stats.eventCounts.formChanges++
+      this._emitEvent('monitor:form_change', {
+        from: this.stats.lastForm,
+        to: core.formStructure,
+        timestamp: snapshot.timestamp
+      })
+    }
+    this.stats.lastForm = core.formStructure
+  }
+
+  _updateHourlyStats(snapshot) {
+    const hourKey = this._getHourKey(new Date(snapshot.timestamp))
+
+    if (!this.stats.hourly.has(hourKey)) {
+      this.stats.hourly.set(hourKey, {
+        compositions: 0,
+        avgTempo: 0,
+        avgEnergy: 0,
+        avgComplexity: 0,
+        keyChanges: 0,
+        modeChanges: 0,
+        _tempoSum: 0,
+        _energySum: 0,
+        _complexitySum: 0
+      })
+    }
+
+    const hourStats = this.stats.hourly.get(hourKey)
+    hourStats.compositions++
+
+    const core = snapshot.core || {}
+    const style = snapshot.style || {}
+
+    hourStats._tempoSum += core.tempo || 120
+    hourStats._energySum += style.energy || 0.5
+    hourStats._complexitySum += core.complexityLevel || 0.5
+
+    hourStats.avgTempo = Math.round(hourStats._tempoSum / hourStats.compositions)
+    hourStats.avgEnergy = hourStats._energySum / hourStats.compositions
+    hourStats.avgComplexity = hourStats._complexitySum / hourStats.compositions
+
+    // Cleanup old hours (keep last 48 hours)
+    this._cleanupOldHours()
+  }
+
+  _cleanupOldHours() {
+    const cutoff = Date.now() - 48 * 60 * 60 * 1000
+    const cutoffHour = this._getHourKey(new Date(cutoff))
+
+    for (const [hourKey] of this.stats.hourly) {
+      if (hourKey < cutoffHour) {
+        this.stats.hourly.delete(hourKey)
+      }
+    }
+  }
+
+  _getHourKey(date) {
+    return date.toISOString().slice(0, 13) // YYYY-MM-DDTHH
+  }
+
+  _broadcastSnapshot(snapshot) {
+    if (this.subscribers.size === 0) return
+
+    const event = {
+      type: 'snapshot',
+      data: snapshot,
+      timestamp: Date.now()
+    }
+
+    // Collect sockets to remove after iteration (avoid modifying during iteration)
+    const toRemove = []
+    for (const socket of this.subscribers) {
+      try {
+        socket.emit('monitor:snapshot', event)
+      } catch (err) {
+        toRemove.push(socket)
+      }
+    }
+    toRemove.forEach(s => this.subscribers.delete(s))
+  }
+
+  _emitEvent(eventName, data) {
+    // Collect sockets to remove after iteration
+    const toRemove = []
+    for (const socket of this.subscribers) {
+      try {
+        socket.emit(eventName, data)
+      } catch (err) {
+        toRemove.push(socket)
+      }
+    }
+    toRemove.forEach(s => this.subscribers.delete(s))
+  }
+
+  _ensureLogsDirectory() {
+    if (!fs.existsSync(this.logsDir)) {
+      fs.mkdirSync(this.logsDir, { recursive: true })
+    }
+    // Cleanup old logs on startup
+    this._cleanupOldLogs()
+  }
+
+  _cleanupOldLogs() {
+    try {
+      const files = fs.readdirSync(this.logsDir)
+        .filter(f => f.startsWith('metrics-') && f.endsWith('.jsonl'))
+
+      // Keep only last 3 days
+      const cutoffDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+      const cutoffStr = cutoffDate.toISOString().slice(0, 10)
+
+      for (const file of files) {
+        const fileDate = file.slice(8, 18) // Extract YYYY-MM-DD from metrics-YYYY-MM-DD.jsonl
+        if (fileDate < cutoffStr) {
+          fs.unlinkSync(path.join(this.logsDir, file))
+          console.log(`CompositionMonitor: Cleaned up old log file ${file}`)
+        }
+      }
+    } catch (err) {
+      console.error('CompositionMonitor: Cleanup error:', err.message)
+    }
+  }
+
+  _getLogFilePath() {
+    const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+
+    if (today !== this.currentLogDate) {
+      this.currentLogDate = today
+      this.currentLogFile = path.join(this.logsDir, `metrics-${today}.jsonl`)
+    }
+
+    return this.currentLogFile
+  }
+
+  _startFlushInterval() {
+    // Flush write buffer every 5 seconds
+    this.flushInterval = setInterval(() => {
+      this._flushToFile()
+    }, 5000)
+  }
+
+  _flushToFile() {
+    if (this.writeBuffer.length === 0) return
+
+    // Copy and clear buffer immediately (non-blocking)
+    const linesToFlush = this.writeBuffer
+    this.writeBuffer = []
+
+    // Write asynchronously to avoid blocking event loop
+    setImmediate(() => {
+      try {
+        const logFile = this._getLogFilePath()
+        const content = linesToFlush.map(s => JSON.stringify(s)).join('\n') + '\n'
+
+        fs.appendFile(logFile, content, (err) => {
+          if (err) {
+            console.error('CompositionMonitor: Error writing to log file:', err.message)
+          }
+        })
+      } catch (err) {
+        console.error('CompositionMonitor: Error preparing log write:', err.message)
+      }
+    })
+  }
+
+  _loadSnapshotsFromFile(sinceTimestamp) {
+    const snapshots = []
+
+    try {
+      const files = fs.readdirSync(this.logsDir)
+        .filter(f => f.startsWith('metrics-') && f.endsWith('.jsonl'))
+        .sort()
+        .slice(-2) // Last 2 days
+
+      for (const file of files) {
+        const filePath = path.join(this.logsDir, file)
+        const content = fs.readFileSync(filePath, 'utf8')
+        const lines = content.split('\n').filter(l => l.trim())
+
+        for (const line of lines) {
+          try {
+            const snapshot = JSON.parse(line)
+            if (snapshot.timestamp >= sinceTimestamp) {
+              snapshots.push(snapshot)
+            }
+          } catch (e) {
+            // Skip malformed lines
+          }
+        }
+      }
+    } catch (err) {
+      // No files available yet
+    }
+
+    return snapshots
+  }
+
+  _calculateDistributions(snapshots) {
+    const distributions = {
+      keyCenter: {},
+      mode: {},
+      formStructure: {},
+      genreWeights: {
+        ambient: 0, rhythmic: 0, melodic: 0, experimental: 0,
+        jazz: 0, classical: 0, electronic: 0, rock: 0
+      }
+    }
+
+    let genreCount = 0
+
+    for (const snapshot of snapshots) {
+      const core = snapshot.core || {}
+      const style = snapshot.style || {}
+
+      // Count key centers
+      if (core.keyCenter) {
+        distributions.keyCenter[core.keyCenter] = (distributions.keyCenter[core.keyCenter] || 0) + 1
+      }
+
+      // Count modes
+      if (core.mode) {
+        distributions.mode[core.mode] = (distributions.mode[core.mode] || 0) + 1
+      }
+
+      // Count form structures
+      if (core.formStructure) {
+        distributions.formStructure[core.formStructure] = (distributions.formStructure[core.formStructure] || 0) + 1
+      }
+
+      // Accumulate genre weights
+      if (style.genreWeights) {
+        for (const [genre, weight] of Object.entries(style.genreWeights)) {
+          if (distributions.genreWeights[genre] !== undefined) {
+            distributions.genreWeights[genre] += weight
+          }
+        }
+        genreCount++
+      }
+    }
+
+    // Convert counts to percentages
+    const total = snapshots.length
+    for (const key of ['keyCenter', 'mode', 'formStructure']) {
+      for (const [value, count] of Object.entries(distributions[key])) {
+        distributions[key][value] = Math.round((count / total) * 100)
+      }
+    }
+
+    // Average genre weights
+    if (genreCount > 0) {
+      for (const genre of Object.keys(distributions.genreWeights)) {
+        distributions.genreWeights[genre] = distributions.genreWeights[genre] / genreCount
+      }
+    }
+
+    return distributions
+  }
+
+  _calculateMetrics(snapshots) {
+    if (snapshots.length === 0) return {}
+
+    const tempos = []
+    const energies = []
+    const complexities = []
+    const densities = []
+
+    for (const snapshot of snapshots) {
+      const core = snapshot.core || {}
+      const style = snapshot.style || {}
+
+      if (core.tempo) tempos.push(core.tempo)
+      if (style.energy !== undefined) energies.push(style.energy)
+      if (core.complexityLevel !== undefined) complexities.push(core.complexityLevel)
+      if (core.density !== undefined) densities.push(core.density)
+    }
+
+    return {
+      tempo: this._calcStats(tempos),
+      energy: this._calcStats(energies),
+      complexity: this._calcStats(complexities),
+      density: this._calcStats(densities)
+    }
+  }
+
+  _calcStats(values) {
+    if (values.length === 0) return null
+
+    const sorted = [...values].sort((a, b) => a - b)
+    const sum = values.reduce((a, b) => a + b, 0)
+    const mean = sum / values.length
+
+    const variance = values.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / values.length
+    const stdDev = Math.sqrt(variance)
+
+    return {
+      min: Math.round(sorted[0] * 100) / 100,
+      max: Math.round(sorted[sorted.length - 1] * 100) / 100,
+      avg: Math.round(mean * 100) / 100,
+      median: Math.round(sorted[Math.floor(sorted.length / 2)] * 100) / 100,
+      stdDev: Math.round(stdDev * 100) / 100
+    }
+  }
+
+  _calculateTrends(snapshots) {
+    if (snapshots.length < 10) return {}
+
+    // Split into first half and second half
+    const mid = Math.floor(snapshots.length / 2)
+    const firstHalf = snapshots.slice(0, mid)
+    const secondHalf = snapshots.slice(mid)
+
+    const trends = {}
+
+    for (const key of ['tempo', 'energy', 'complexity']) {
+      const firstAvg = this._getAverage(firstHalf, key)
+      const secondAvg = this._getAverage(secondHalf, key)
+
+      const diff = secondAvg - firstAvg
+      const threshold = key === 'tempo' ? 5 : 0.05
+
+      if (diff > threshold) {
+        trends[key] = 'increasing'
+      } else if (diff < -threshold) {
+        trends[key] = 'decreasing'
+      } else {
+        trends[key] = 'stable'
+      }
+    }
+
+    return trends
+  }
+
+  _getAverage(snapshots, key) {
+    let sum = 0
+    let count = 0
+
+    for (const s of snapshots) {
+      let value
+      if (key === 'tempo') {
+        value = s.core?.tempo
+      } else if (key === 'energy') {
+        value = s.style?.energy
+      } else if (key === 'complexity') {
+        value = s.core?.complexityLevel
+      }
+
+      if (value !== undefined) {
+        sum += value
+        count++
+      }
+    }
+
+    return count > 0 ? sum / count : 0
+  }
+
+  /**
+   * Cleanup resources
+   */
+  shutdown() {
+    if (this.flushInterval) {
+      clearInterval(this.flushInterval)
+    }
+
+    // Final flush
+    this._flushToFile()
+
+    // Clear subscribers
+    this.subscribers.clear()
+  }
+}
+
+module.exports = CompositionMonitor

@@ -27,6 +27,8 @@ const {
   getBlockedDomains,
   getAllowedDomains
 } = require('./utils/DomainProtection')
+const CompositionMonitor = require('./services/CompositionMonitor')
+const { createMonitorRoutes } = require('./api/monitorRoutes')
 
 
 // Configuration
@@ -202,10 +204,19 @@ app.use((req, res, next) => {
   next()
 })
 
+// Initialize CompositionMonitor (before container for injection)
+const compositionMonitor = new CompositionMonitor()
+
 // Initialize services using dependency injection container
 const container = createServiceContainer({ io })
 container.initializeAll()
 wireServices(container, { io })
+
+// Inject CompositionMonitor into BackgroundCompositionService
+const backgroundService = container.get('backgroundCompositionService')
+if (backgroundService) {
+  backgroundService.compositionMonitor = compositionMonitor
+}
 
 // Extract services for backward compatibility
 const roomManager = container.get('roomManager')
@@ -508,12 +519,64 @@ app.get('/api/domain/validate', (req, res) => {
   })
 })
 
+// Composition Monitor routes (protected by adminAuth)
+app.use('/api/admin/monitor', adminAuth, createMonitorRoutes(compositionMonitor))
+
+// Composition Monitor dashboard (protected)
+app.get('/monitor', (req, res) => {
+  const apiKey = req.query.apiKey || req.headers['x-admin-key']
+
+  // In development without ADMIN_API_KEY, allow access
+  if (!process.env.ADMIN_API_KEY && NODE_ENV !== 'production') {
+    return res.sendFile(require('path').join(__dirname, '../public/monitor/index.html'))
+  }
+
+  // Validate API key
+  if (apiKey !== process.env.ADMIN_API_KEY) {
+    return res.status(401).send('Unauthorized - Invalid or missing API key')
+  }
+
+  res.sendFile(require('path').join(__dirname, '../public/monitor/index.html'))
+})
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   // console.log(`🔌 Socket connected: ${socket.id}`)
 
   // Properly initialize socket handlers using the object structure
   socketHandlers.initializeSocket(socket, services)
+})
+
+// Composition Monitor WebSocket namespace (protected)
+const monitorNamespace = io.of('/monitor')
+
+monitorNamespace.use((socket, next) => {
+  const apiKey = socket.handshake.query.apiKey
+
+  // In development without ADMIN_API_KEY, allow access
+  if (!process.env.ADMIN_API_KEY && NODE_ENV !== 'production') {
+    return next()
+  }
+
+  // Validate API key
+  if (apiKey !== process.env.ADMIN_API_KEY) {
+    serverLogger.warn('Monitor WebSocket auth failed', {
+      ip: socket.handshake.address
+    })
+    return next(new Error('Unauthorized'))
+  }
+
+  next()
+})
+
+monitorNamespace.on('connection', (socket) => {
+  serverLogger.info('Monitor dashboard connected', { socketId: socket.id })
+  compositionMonitor.addSubscriber(socket)
+
+  socket.on('disconnect', () => {
+    serverLogger.info('Monitor dashboard disconnected', { socketId: socket.id })
+    compositionMonitor.removeSubscriber(socket)
+  })
 })
 
 // Periodic broadcast of compositional parameters to all rooms
@@ -561,6 +624,11 @@ function gracefulShutdown (signal) {
 
   // Stop rate limiter cleanup
   RateLimiter.stopCleanup()
+
+  // Shutdown composition monitor
+  if (compositionMonitor) {
+    compositionMonitor.shutdown()
+  }
 
   server.close(() => {
     serverLogger.info('HTTP server closed')

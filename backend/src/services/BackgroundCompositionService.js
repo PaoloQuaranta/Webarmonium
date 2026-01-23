@@ -49,6 +49,9 @@ class BackgroundCompositionService {
     // Reference to GestureToMusicService for harmonic synchronization
     this.gestureToMusicService = null
 
+    // Composition monitor (injected by server)
+    this.compositionMonitor = null
+
 // console.log('🎼 BackgroundCompositionService initialized')
   }
 
@@ -588,6 +591,27 @@ class BackgroundCompositionService {
 
       // Entry #115: Update drone if keyCenter changed during composition
       this.updateDroneIfKeyChanged(roomId, previousKeyCenter)
+
+      // Record snapshot for monitoring (non-blocking)
+      if (this.compositionMonitor && this.compositionMonitor.enabled) {
+        setImmediate(() => {
+          try {
+            const snapshot = this.compositionMonitor.createSnapshot(
+              roomId,
+              this.compositionEngine,
+              this.harmonicEngine,
+              this.styleAnalyzer,
+              this.materialLibrary,
+              roomState
+            )
+            if (snapshot) {
+              this.compositionMonitor.recordSnapshot(roomId, snapshot)
+            }
+          } catch (err) {
+            // Silent fail - monitoring should not impact main flow
+          }
+        })
+      }
 
     } catch (error) {
 // console.error(`🎼 Error generating composition for room ${roomId}:`, error)
