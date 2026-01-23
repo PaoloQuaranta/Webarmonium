@@ -602,7 +602,8 @@ class BackgroundCompositionService {
               this.harmonicEngine,
               this.styleAnalyzer,
               this.materialLibrary,
-              roomState
+              roomState,
+              'room'
             )
             if (snapshot) {
               this.compositionMonitor.recordSnapshot(roomId, snapshot)

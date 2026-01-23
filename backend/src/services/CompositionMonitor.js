@@ -102,15 +102,19 @@ class CompositionMonitor {
    * @param {Object} styleAnalyzer - StyleAnalyzer instance
    * @param {Object} materialLibrary - MaterialLibrary instance
    * @param {Object} roomState - Room composition state
+   * @param {string} source - Source of composition ('landing' or 'room')
    * @returns {Object} Complete snapshot
    */
-  createSnapshot(roomId, compositionEngine, harmonicEngine, styleAnalyzer, materialLibrary, roomState) {
+  createSnapshot(roomId, compositionEngine, harmonicEngine, styleAnalyzer, materialLibrary, roomState, source = 'room') {
     if (!this.enabled) return null
 
     const style = styleAnalyzer.getCurrentStyle()
     const materialStats = materialLibrary.getStats()
 
     return {
+      // Source indicator (landing or room)
+      source,
+
       // Core composition parameters
       core: {
         keyCenter: compositionEngine.keyCenter,

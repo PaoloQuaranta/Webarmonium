@@ -1072,7 +1072,8 @@ class LandingCompositionService {
               this.harmonicEngine,
               this.styleAnalyzer,
               this.materialLibrary,
-              { gestureCount: virtualGestures.length, compositionStarted: true }
+              { gestureCount: virtualGestures.length, compositionStarted: true },
+              'landing'
             )
             if (snapshot) {
               this.compositionMonitor.recordSnapshot(this.landingRoomId, snapshot)
