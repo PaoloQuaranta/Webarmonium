@@ -524,6 +524,10 @@ app.use('/api/admin/monitor', adminAuth, createMonitorRoutes(compositionMonitor)
 
 // Composition Monitor dashboard (protected)
 app.get('/monitor', (req, res) => {
+  // Disable COEP/CORP for this route to allow CDN scripts
+  res.removeHeader('Cross-Origin-Embedder-Policy')
+  res.removeHeader('Cross-Origin-Resource-Policy')
+
   const apiKey = req.query.apiKey || req.headers['x-admin-key']
 
   // In development without ADMIN_API_KEY, allow access
