@@ -486,6 +486,7 @@ header p {
   flex-shrink: 0;
   position: relative;
   transform-style: preserve-3d;
+  overflow: hidden; /* Prevent meters/labels from escaping at high zoom */
 }
 
 .metric-card.flash {
@@ -572,12 +573,15 @@ header p {
   flex-direction: column;
   align-items: center;
   gap: 0.35rem;
+  min-width: 0; /* Allow shrinking in grid at high zoom */
+  overflow: hidden; /* Contain overflowing content */
 }
 
 /* SVG Meter */
 .meter-svg {
   width: 52px;
   height: 52px;
+  max-width: 100%; /* Scale down at high zoom levels */
   transform: rotate(90deg); /* Start at 6 o'clock (bottom) */
 }
 
@@ -618,6 +622,9 @@ header p {
   font-weight: 500;
   color: var(--bright);
   font-variant-numeric: tabular-nums;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .point-label,
@@ -626,6 +633,10 @@ header p {
   font-size: 0.55rem;
   text-transform: uppercase;
   color: var(--dim);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Source-specific colors */
