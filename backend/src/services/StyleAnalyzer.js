@@ -213,7 +213,7 @@ class StyleAnalyzer {
   }
 
   findPeriodicGroupings(variations) {
-    // Find repeating patterns in timing variations
+    // Entry #162: Find repeating patterns with increased tolerance (40%)
     const groupings = []
 
     for (let groupSize = 2; groupSize <= 8; groupSize++) {
@@ -224,7 +224,7 @@ class StyleAnalyzer {
         let groupMatch = true
         for (let i = 0; i < groupSize && (group * groupSize + i + groupSize) < variations.length; i++) {
           const diff = Math.abs(variations[group * groupSize + i] - variations[group * groupSize + i + groupSize])
-          if (diff > 0.2) { // Allow 20% variation
+          if (diff > 0.4) { // Increased tolerance from 20% to 40%
             groupMatch = false
             break
           }
@@ -233,7 +233,7 @@ class StyleAnalyzer {
       }
 
       if (matches > 0) {
-        groupings.push({ size: groupSize, strength: matches / total })
+        groupings.push({ size: groupSize, strength: matches / Math.max(1, total) })
       }
     }
 
@@ -241,8 +241,23 @@ class StyleAnalyzer {
   }
 
   classifyMeter(groupings) {
-    if (groupings.length === 0) {
-      return '4/4' // Default
+    // Entry #162: Enhanced meter classification with swing/energy fallback
+    const swing = this.currentStyle.rhythmicCharacter?.swing || 0
+    const energy = this.currentStyle.energy || 0.5
+    const syncopation = this.currentStyle.rhythmicCharacter?.syncopation || 0
+
+    // If no clear grouping, use swing/energy/syncopation to suggest meter
+    if (groupings.length === 0 || groupings[0].strength < 0.3) {
+      // High swing suggests compound meters (6/8, 12/8)
+      if (swing > 0.4) return energy > 0.6 ? '6/8' : '12/8'
+      // High syncopation with moderate energy suggests odd meters
+      if (syncopation > 0.5 && energy > 0.4) return '5/4'
+      // Low energy suggests slower meters
+      if (energy < 0.3) return '3/4'
+      // High energy suggests driving meters
+      if (energy > 0.7) return syncopation > 0.3 ? '7/8' : '4/4'
+      // Default
+      return '4/4'
     }
 
     const strongest = groupings[0]
@@ -250,17 +265,22 @@ class StyleAnalyzer {
     // Map grouping sizes to meters
     const meterMap = {
       2: ['2/4', '6/8'],
-      3: ['3/4', '3/8'],
-      4: ['4/4'],
-      5: ['5/4'],
-      6: ['6/8', '12/8'],
-      7: ['7/8', '7/4']
+      3: ['3/4', '6/8'],
+      4: ['4/4', '12/8'],
+      5: ['5/4', '5/8'],
+      6: ['6/8', '3/4'],
+      7: ['7/8', '7/4'],
+      8: ['4/4', '8/8']
     }
 
     const possibleMeters = meterMap[strongest.size] || ['4/4']
 
-    // Choose based on energy (faster for high energy)
-    if (this.currentStyle.energy > 0.7) {
+    // Choose based on swing and energy
+    if (swing > 0.35) {
+      // Swing feel → compound meters (x/8)
+      return possibleMeters.find(m => m.includes('8')) || possibleMeters[0]
+    } else if (energy > 0.65) {
+      // High energy → faster subdivisions
       return possibleMeters.find(m => m.includes('8')) || possibleMeters[0]
     } else {
       return possibleMeters.find(m => m.includes('4')) || possibleMeters[0]
@@ -471,41 +491,51 @@ class StyleAnalyzer {
   }
 
   detectChromaticism(gestures) {
-    // Chromaticism based on complex gesture paths and velocity irregularity
-    if (gestures.length < 3) return 0
+    // Entry #162: Enhanced chromaticism detection with multiple factors
+    if (gestures.length < 2) return 0
 
-    // Method 1: Path complexity (turn angles)
+    // Method 1: Path complexity (turn angles) - lowered threshold to 15°
     let turnScore = 0
     let turnCount = 0
     for (let i = 1; i < gestures.length - 1; i++) {
-      const prev = gestures[i - 1].position || { x: 0, y: 0 }
-      const curr = gestures[i].position || { x: 0, y: 0 }
-      const next = gestures[i + 1].position || { x: 0, y: 0 }
+      const prev = gestures[i - 1].position || { x: 0.5, y: 0.5 }
+      const curr = gestures[i].position || { x: 0.5, y: 0.5 }
+      const next = gestures[i + 1].position || { x: 0.5, y: 0.5 }
 
-      // Calculate turn angle
+      // Skip if positions are identical (no movement)
+      if (prev.x === curr.x && prev.y === curr.y) continue
+      if (curr.x === next.x && curr.y === next.y) continue
+
       const angle1 = Math.atan2(curr.y - prev.y, curr.x - prev.x)
       const angle2 = Math.atan2(next.y - curr.y, next.x - curr.x)
       let turnAngle = Math.abs(angle2 - angle1)
-      // Normalize to 0-PI range
       if (turnAngle > Math.PI) turnAngle = 2 * Math.PI - turnAngle
 
-      // Lowered threshold from 45° to 30° (PI/6)
-      // Also give partial credit for smaller turns
-      if (turnAngle > Math.PI / 6) { // 30 degree turn
-        turnScore += Math.min(1, turnAngle / (Math.PI / 2)) // Scale by how sharp
+      // Lowered to 15° (PI/12) and give partial credit for any turn
+      if (turnAngle > Math.PI / 12) {
+        turnScore += Math.min(1, turnAngle / (Math.PI / 3)) // Scale by sharpness
         turnCount++
       }
     }
-    const pathComplexity = turnCount > 0 ? Math.min(1, turnScore / gestures.length) : 0
+    const pathComplexity = gestures.length > 2 ? Math.min(1, turnScore / (gestures.length - 2)) : 0
 
     // Method 2: Y-position variance (pitch irregularity)
     const yPositions = gestures.map(g => g.position?.y || 0.5)
     const avgY = yPositions.reduce((sum, y) => sum + y, 0) / yPositions.length
     const yVariance = yPositions.reduce((sum, y) => sum + Math.pow(y - avgY, 2), 0) / yPositions.length
-    const pitchComplexity = Math.min(1, Math.sqrt(yVariance) * 4) // Scale up
+    const pitchComplexity = Math.min(1, Math.sqrt(yVariance) * 5) // Increased scaling
 
-    // Combine both methods
-    return (pathComplexity * 0.6 + pitchComplexity * 0.4)
+    // Method 3: Velocity variance (new)
+    const velocities = gestures.map(g => {
+      const v = g.velocity || g.properties?.velocity || 0.5
+      return v > 1 ? v / 127 : v
+    })
+    const avgVel = velocities.reduce((sum, v) => sum + v, 0) / velocities.length
+    const velVariance = velocities.reduce((sum, v) => sum + Math.pow(v - avgVel, 2), 0) / velocities.length
+    const velocityComplexity = Math.min(1, Math.sqrt(velVariance) * 4)
+
+    // Combine all methods
+    return (pathComplexity * 0.35 + pitchComplexity * 0.35 + velocityComplexity * 0.3)
   }
 
   calculateDissonance(gestures) {
@@ -560,16 +590,55 @@ class StyleAnalyzer {
   }
 
   detectModalFlavor(gestures) {
-    // Simple modal detection based on gesture character
+    // Entry #162: More nuanced modal detection using multiple factors
+    if (!gestures || gestures.length < 2) return 'ionian'
+
     const energy = this.calculateEnergy(gestures)
     const contour = this.detectContour(gestures)
+    const swing = this.detectSwing(gestures)
 
-    // Map gesture character to modal flavor
-    if (energy > 0.7) {
-      return contour === 'ascending' ? 'major' : 'mixolydian'
-    } else if (energy < 0.3) {
-      return contour === 'descending' ? 'aeolian' : 'phrygian'
+    // Calculate Y position variance (higher = darker modes)
+    const yPositions = gestures.map(g => g.position?.y || 0.5)
+    const avgY = yPositions.reduce((sum, y) => sum + y, 0) / yPositions.length
+    const yVariance = yPositions.reduce((sum, y) => sum + Math.pow(y - avgY, 2), 0) / yPositions.length
+    const ySpread = Math.min(1, Math.sqrt(yVariance) * 4)
+
+    // Calculate velocity trend (increasing = brighter, decreasing = darker)
+    const velocities = gestures.map(g => g.velocity || g.properties?.velocity || 0.5)
+    let velocityTrend = 0
+    if (velocities.length > 2) {
+      const firstHalf = velocities.slice(0, Math.floor(velocities.length / 2))
+      const secondHalf = velocities.slice(Math.floor(velocities.length / 2))
+      const avgFirst = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length
+      const avgSecond = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length
+      velocityTrend = (avgSecond - avgFirst) / Math.max(0.1, avgFirst) // -1 to 1 range roughly
+    }
+
+    // Combine factors to select mode
+    // High energy + ascending + bright trend → major/lydian
+    // High energy + swing → mixolydian
+    // Low energy + descending → aeolian/phrygian
+    // High variance → dorian (flexible)
+    // Low variance + moderate → ionian
+
+    if (energy > 0.65) {
+      if (swing > 0.4) return 'mixolydian'
+      if (contour === 'ascending' && velocityTrend > 0.1) return 'lydian'
+      if (contour === 'ascending') return 'ionian'
+      return 'mixolydian'
+    } else if (energy < 0.35) {
+      if (contour === 'descending' && ySpread > 0.3) return 'phrygian'
+      if (contour === 'descending') return 'aeolian'
+      if (ySpread > 0.4) return 'locrian'
+      return 'aeolian'
     } else {
+      // Moderate energy - use variance and trend to differentiate
+      if (swing > 0.3) return 'dorian'
+      if (ySpread > 0.35) return 'dorian'
+      if (velocityTrend > 0.15) return 'lydian'
+      if (velocityTrend < -0.15) return 'aeolian'
+      if (contour === 'ascending') return 'ionian'
+      if (contour === 'descending') return 'aeolian'
       return 'dorian'
     }
   }

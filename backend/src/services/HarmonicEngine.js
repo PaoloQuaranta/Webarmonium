@@ -2,8 +2,20 @@ const { PHI } = require('../utils/constants')
 
 class HarmonicEngine {
   constructor() {
-    this.currentKey = 'C'
-    this.currentMode = 'ionian'
+    // Entry #162: Initialize starting key based on time of day (deterministic, not random)
+    // Maps 24 hours to circle of fifths using golden ratio for musical distribution
+    // Morning (6-12) tends toward bright keys, evening toward warmer keys
+    const circleOfFifths = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F']
+    const hour = new Date().getHours()
+    const minute = new Date().getMinutes()
+    // Combine hour and minute for finer granularity (changes every ~5 minutes)
+    const timeIndex = Math.floor(((hour * 60 + minute) / 5 * PHI) % 1 * 12)
+    this.currentKey = circleOfFifths[timeIndex]
+
+    // Also vary starting mode based on time
+    const modes = ['ionian', 'dorian', 'mixolydian', 'aeolian', 'lydian']
+    const modeIndex = Math.floor(((hour * PHI) % 1) * modes.length)
+    this.currentMode = modes[modeIndex]
     this.currentChord = null
     this.progressionHistory = []
 
@@ -138,15 +150,15 @@ class HarmonicEngine {
                        harmonicComplexity?.modalFlavor === 'major' ? 0.4 :
                        typeof harmonicComplexity === 'number' ? harmonicComplexity : 0.5
 
-    // Entry #161: Vary key based on compositionCount using circle of fifths
-    // SLOWED DOWN: Only change key ~8% of the time (keySelector > 0.92)
-    // This gives ~2-3 minutes between key changes (~50 keyChanges/day target)
+    // Entry #162: Vary key based on compositionCount using circle of fifths
+    // Change key ~15% of the time (keySelector > 0.85)
+    // This gives ~1 minute between key changes on average
     const circleOfFifths = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F']
     const keySelector = (compositionCount * PHI) % 1
-    if (keySelector > 0.92) {
+    if (keySelector > 0.85) {
       // Move by fifths (more musical than random jumps)
       const currentKeyIndex = circleOfFifths.indexOf(this.currentKey)
-      const direction = keySelector > 0.96 ? 1 : -1 // Up or down the circle
+      const direction = keySelector > 0.925 ? 1 : -1 // Up or down the circle
       const newKeyIndex = (currentKeyIndex + direction + 12) % 12
       this.currentKey = circleOfFifths[newKeyIndex]
     }
