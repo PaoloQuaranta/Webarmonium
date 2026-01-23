@@ -138,23 +138,33 @@ class HarmonicEngine {
                        harmonicComplexity?.modalFlavor === 'major' ? 0.4 :
                        typeof harmonicComplexity === 'number' ? harmonicComplexity : 0.5
 
-    // Entry #117: Vary key based on compositionCount using circle of fifths
-    // This ensures melodic variety across compositions
+    // Entry #161: Vary key based on compositionCount using circle of fifths
+    // SLOWED DOWN: Only change key ~8% of the time (keySelector > 0.92)
+    // This gives ~2-3 minutes between key changes (~50 keyChanges/day target)
     const circleOfFifths = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F']
-    const temporalOffset = (compositionCount * PHI) % 1
-    const keyIndex = Math.floor(temporalOffset * circleOfFifths.length)
-    this.currentKey = circleOfFifths[keyIndex]
-
-    // Also vary mode occasionally for more variety
-    const modes = ['ionian', 'dorian', 'mixolydian', 'aeolian']
-    const modeSelector = ((compositionCount * PHI * 2) % 1)
-    // Only change mode every ~3 compositions to avoid too much variety
-    if (modeSelector > 0.7) {
-      const modeIndex = Math.floor(modeSelector * modes.length) % modes.length
-      this.currentMode = modes[modeIndex]
-    } else {
-      this.currentMode = 'ionian'
+    const keySelector = (compositionCount * PHI) % 1
+    if (keySelector > 0.92) {
+      // Move by fifths (more musical than random jumps)
+      const currentKeyIndex = circleOfFifths.indexOf(this.currentKey)
+      const direction = keySelector > 0.96 ? 1 : -1 // Up or down the circle
+      const newKeyIndex = (currentKeyIndex + direction + 12) % 12
+      this.currentKey = circleOfFifths[newKeyIndex]
     }
+    // If key not in circle (shouldn't happen), default to C
+    if (!circleOfFifths.includes(this.currentKey)) {
+      this.currentKey = 'C'
+    }
+
+    // Entry #161: Expanded mode selection - all 7 church modes
+    // Changed from 70% ionian bias to uniform distribution
+    const modes = ['ionian', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian']
+    const modeSelector = ((compositionCount * PHI * 2) % 1)
+    // Change mode ~25% of the time (was 30% but now with more modes)
+    if (modeSelector > 0.75) {
+      const modeIndex = Math.floor(modeSelector * modes.length * 4) % modes.length
+      this.currentMode = modes[modeIndex]
+    }
+    // Keep current mode if not changing (no default to ionian)
 
     // Select progression type based on dominant genre, passing complexity and compositionCount
     let progression
@@ -177,6 +187,19 @@ class HarmonicEngine {
       const rootName = noteNames[firstChord.root % 12]
       const qualitySuffix = this._getQualitySuffix(firstChord.quality)
       this.currentChord = rootName + qualitySuffix
+
+      // Entry #161: Populate progressionHistory for monitoring
+      this.progressionHistory.push({
+        key: this.currentKey,
+        mode: this.currentMode,
+        chord: this.currentChord,
+        timestamp: Date.now(),
+        compositionCount
+      })
+      // Keep history manageable (last 100 progressions)
+      if (this.progressionHistory.length > 100) {
+        this.progressionHistory.shift()
+      }
     }
 
     return progression

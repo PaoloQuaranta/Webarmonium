@@ -3302,3 +3302,229 @@ Sentry.init({
 v0.1.4 (no version bump - same as Entry #158, just completing the implementation)
 
 ---
+
+## Entry #160 - Compositional Algorithm Real-time Monitoring System
+
+**Date**: 2026-01-23
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented a comprehensive real-time monitoring system for the compositional algorithm. Features include WebSocket-based live dashboard, JSON Lines file persistence for 24-hour statistics, monitoring for both room compositions and landing page virtual users, and REST API endpoints for historical data access.
+
+---
+
+### Problem Statement
+
+During testing of the algorithmic music generation system, there was no visibility into:
+- Real-time parameter values (tonic, mode, tempo, form structure, etc.)
+- How parameters change over time
+- Whether the algorithm is functioning correctly
+- Statistical patterns over 24-hour periods
+- Differences between landing page and room compositions
+
+---
+
+### Solution
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    COMPOSITION ENGINES                       │
+│  CompositionEngine │ HarmonicEngine │ StyleAnalyzer │ etc.  │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ emit snapshots
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   CompositionMonitor                         │
+│  - In-memory buffer (last 100 snapshots)                    │
+│  - JSON Lines file persistence                              │
+│  - Statistics aggregation                                    │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+           ┌───────────────┼───────────────┐
+           ▼               ▼               ▼
+┌─────────────────┐ ┌─────────────┐ ┌─────────────────┐
+│ WebSocket       │ │ REST API    │ │ File Logs       │
+│ /monitor        │ │ /api/admin/ │ │ logs/metrics/   │
+│ (real-time)     │ │ monitor/*   │ │ (persistence)   │
+└────────┬────────┘ └──────┬──────┘ └─────────────────┘
+         │                 │
+         ▼                 ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Dashboard HTML                            │
+│  - Chart.js real-time graphs                                │
+│  - Parameter distributions                                   │
+│  - Event log with source identification                      │
+│  - 24h statistics                                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 1. CompositionMonitor Service
+
+Central service collecting snapshots from all composition sources:
+
+```javascript
+class CompositionMonitor {
+  createSnapshot(roomId, compositionEngine, harmonicEngine,
+                 styleAnalyzer, materialLibrary, roomState, source = 'room') {
+    return {
+      source,      // 'landing' or 'room'
+      roomId,
+      core: { keyCenter, mode, tempo, formStructure, currentSection, complexity, density, tension },
+      harmony: { currentKey, currentMode, currentChord, progressionType, chromaticism, dissonance },
+      style: { energy, tempo, genreWeights, rhythmicCharacter, melodicCharacter },
+      materials: { total, byFunction, byCharacter }
+    }
+  }
+}
+```
+
+#### 2. REST API Endpoints
+
+All protected by `ADMIN_API_KEY` (header or query param):
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/admin/monitor/realtime` | Current state + last 100 snapshots |
+| `GET /api/admin/monitor/stats/daily` | 24-hour statistics |
+| `GET /api/admin/monitor/stats/hourly?hours=N` | Hourly breakdown |
+| `GET /api/admin/monitor/rooms/:roomId` | Room-specific history |
+| `GET /api/admin/monitor/status` | Monitor configuration |
+
+#### 3. Dashboard Features
+
+- **Real-time graphs**: Tempo, energy, complexity, tension with Chart.js
+- **Current state display**: Key, mode, chord, form, BPM
+- **Parameter distributions**: Mode, key, form structure percentages
+- **Event log**: Shows source (🏠 LANDING or 🚪 ROOM-ID) and parameters
+- **24h statistics**: Accessible via API
+
+#### 4. Source Identification
+
+Added `source` field to distinguish compositions:
+- `'landing'` - Virtual user compositions on homepage
+- `'room'` - Real user compositions in rooms
+
+---
+
+### Files Created
+
+| File | Description |
+|------|-------------|
+| `backend/src/services/CompositionMonitor.js` | Central monitoring service |
+| `backend/src/api/monitorRoutes.js` | REST API endpoints |
+| `backend/public/monitor/index.html` | Dashboard UI with Chart.js |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/server.js` | Added monitor namespace, routes, query param auth |
+| `backend/src/services/BackgroundCompositionService.js` | Hook to emit snapshots with source 'room' |
+| `backend/src/services/LandingCompositionService.js` | Hook to emit snapshots with source 'landing' |
+| `backend/src/services/HarmonicEngine.js` | Fixed currentChord generation |
+| `backend/src/utils/DomainProtection.js` | Added CDN domains to CSP |
+
+---
+
+### Technical Details
+
+#### HarmonicEngine currentChord Fix
+
+The `currentChord` field was showing "C" constantly because it used the original chord name before transposition. Fixed by generating the chord name from the transposed root number:
+
+```javascript
+_getQualitySuffix(quality) {
+  const suffixMap = {
+    'major': '', 'minor': 'm', 'minor7': 'm7', 'major7': 'maj7',
+    'dominant7': '7', 'diminished': 'dim', 'augmented': 'aug', ...
+  }
+  return suffixMap[quality] || ''
+}
+
+// In generateProgression():
+const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+const rootName = noteNames[firstChord.root % 12]
+const qualitySuffix = this._getQualitySuffix(firstChord.quality)
+this.currentChord = rootName + qualitySuffix
+```
+
+#### Query Param Authentication
+
+Added support for API key in query string for easier dashboard access:
+
+```javascript
+const adminAuth = (req, res, next) => {
+  const apiKey = req.headers['x-admin-key'] || req.query.apiKey
+  // ...
+}
+```
+
+#### Nginx CSP Configuration
+
+Updated nginx to allow required CDNs for the monitor dashboard:
+- `script-src`: cdn.jsdelivr.net, cdn.socket.io, cdnjs.cloudflare.com
+- `worker-src`: 'self' blob: (for Tone.js audio workers)
+
+---
+
+### Configuration
+
+```bash
+# .env
+COMPOSITION_MONITOR=true    # Enable monitoring (default: false)
+ADMIN_API_KEY=your-key      # Required for dashboard access
+```
+
+**Access URL**: `https://webarmonium.net/monitor?apiKey=YOUR_KEY`
+
+---
+
+### 24-Hour Report Format
+
+The daily stats endpoint returns:
+
+```json
+{
+  "success": true,
+  "distributions": {
+    "keyCenter": { "C": 15, "G": 12, "D": 8, ... },
+    "mode": { "ionian": 20, "dorian": 15, ... },
+    "formStructure": { "ABA": 10, "rondo": 8, ... }
+  },
+  "metrics": {
+    "tempo": { "min": 60, "max": 140, "avg": 95, "stdDev": 18.5 },
+    "energy": { "min": 0.2, "max": 0.9, "avg": 0.55 },
+    "complexity": { "min": 0.1, "max": 0.8, "avg": 0.45 }
+  },
+  "counts": {
+    "totalCompositions": 150,
+    "keyChanges": 25,
+    "modeChanges": 30,
+    "formChanges": 12
+  },
+  "hourlyBreakdown": [ ... ]
+}
+```
+
+---
+
+### Benefits
+
+1. **Real-time visibility**: See algorithm parameters as music generates
+2. **Testing confidence**: Verify algorithm works correctly with visual feedback
+3. **Statistical insights**: 24-hour patterns reveal algorithm behavior
+4. **Source tracking**: Distinguish landing page vs room compositions
+5. **Zero overhead when disabled**: Controlled by env variable
+6. **Persistence**: JSON Lines survive server restarts
+
+---
+
+### Version
+
+v0.1.5
+
+---

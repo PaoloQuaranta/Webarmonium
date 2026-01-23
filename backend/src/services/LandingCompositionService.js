@@ -832,9 +832,10 @@ class LandingCompositionService {
     }
 
     // Accumulate gestures for analysis
+    // Entry #161: Increased analysis window from 10 to 25 gestures per source
     this.virtualGestureHistory[source].push(normalizedGesture)
-    if (this.virtualGestureHistory[source].length > 10) {
-      this.virtualGestureHistory[source] = this.virtualGestureHistory[source].slice(-10)
+    if (this.virtualGestureHistory[source].length > 25) {
+      this.virtualGestureHistory[source] = this.virtualGestureHistory[source].slice(-25)
     }
 
     // Update style analyzer with combined gesture history from all sources

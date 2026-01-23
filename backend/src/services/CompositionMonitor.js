@@ -43,6 +43,7 @@ class CompositionMonitor {
       lastKeyCenter: null,
       lastMode: null,
       lastForm: null,
+      lastDominantGenre: null, // Track dominant genre for style shifts
       startTime: Date.now()
     }
 
@@ -144,8 +145,18 @@ class CompositionMonitor {
         tempo: style.tempo,
         timeSignature: style.timeSignature,
         rhythmicCharacter: style.rhythmicCharacter,
-        melodicCharacter: style.melodicCharacter,
-        harmonicComplexity: style.harmonicComplexity,
+        // Explicitly extract melodicCharacter with nested properties
+        melodicCharacter: {
+          ...(style.melodicCharacter || {}),
+          intervalProfile: style.melodicCharacter?.intervalProfile || null,
+          contourType: style.melodicCharacter?.contourType || null
+        },
+        // Explicitly extract harmonicComplexity with nested properties
+        harmonicComplexity: {
+          chromaticism: style.harmonicComplexity?.chromaticism ?? 0,
+          dissonance: style.harmonicComplexity?.dissonance ?? 0,
+          modalFlavor: style.harmonicComplexity?.modalFlavor || null
+        },
         genreWeights: style.genreWeights
       },
 
@@ -340,6 +351,38 @@ class CompositionMonitor {
       })
     }
     this.stats.lastForm = core.formStructure
+
+    // Track style shifts (dominant genre changes)
+    const style = snapshot.style || {}
+    if (style.genreWeights) {
+      const dominantGenre = this._getDominantGenre(style.genreWeights)
+      if (this.stats.lastDominantGenre && dominantGenre !== this.stats.lastDominantGenre) {
+        this.stats.eventCounts.styleShifts++
+        this._emitEvent('monitor:style_shift', {
+          from: this.stats.lastDominantGenre,
+          to: dominantGenre,
+          timestamp: snapshot.timestamp
+        })
+      }
+      this.stats.lastDominantGenre = dominantGenre
+    }
+  }
+
+  /**
+   * Get the dominant genre from genre weights
+   * @param {Object} genreWeights - Genre weights object
+   * @returns {string} Name of dominant genre
+   */
+  _getDominantGenre(genreWeights) {
+    let maxWeight = 0
+    let dominantGenre = 'none'
+    for (const [genre, weight] of Object.entries(genreWeights)) {
+      if (weight > maxWeight) {
+        maxWeight = weight
+        dominantGenre = genre
+      }
+    }
+    return dominantGenre
   }
 
   _updateHourlyStats(snapshot) {

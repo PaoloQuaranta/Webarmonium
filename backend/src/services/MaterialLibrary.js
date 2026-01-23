@@ -81,26 +81,30 @@ class MaterialLibrary {
 
   analyzeHarmonicFunction(material) {
     // Analyze material to determine harmonic function
+    // Entry #161: Rebalanced thresholds for better distribution
+    // Old: tonic >0.7, subdominant >0.4, dominant >0.2, chromatic else
+    // New: tonic >0.8, subdominant 0.5-0.8, dominant 0.2-0.5, chromatic <0.2
     if (material.notes && material.notes.length > 0) {
       const pitches = material.notes.map(note => note.pitch % 12) // Mod 12 for pitch class
       const stability = this.calculateStability(pitches)
 
-      if (stability > 0.7) return 'tonic'
-      if (stability > 0.4) return 'subdominant'
+      if (stability > 0.8) return 'tonic'
+      if (stability > 0.5) return 'subdominant'
       if (stability > 0.2) return 'dominant'
       return 'chromatic'
     }
 
     // For non-pitch material, analyze other characteristics
+    // Entry #161: Rebalanced energy thresholds
     if (material.gestureData) {
       const energy = material.gestureData.velocity || 50
-      if (energy < 30) return 'tonic'
-      if (energy < 60) return 'subdominant'
-      if (energy < 80) return 'dominant'
+      if (energy < 20) return 'tonic'
+      if (energy < 50) return 'subdominant'
+      if (energy < 75) return 'dominant'
       return 'chromatic'
     }
 
-    return 'tonic' // Default
+    return 'subdominant' // Default changed from tonic
   }
 
   analyzeCharacter(material) {
@@ -426,8 +430,22 @@ class MaterialLibrary {
   }
 
   getStats() {
+    // Entry #161: Calculate active materials from lifetimes
+    let activeMaterials = 0
+    const now = Date.now()
+    for (const [id, lifetime] of this.lifetimes) {
+      // Material is active if it's not expired and still vital
+      const age = now - lifetime.createdAt
+      const isExpired = age > this.maxAge
+      const isTired = lifetime.usageCount >= this.usageThreshold
+      if (!isExpired && !isTired) {
+        activeMaterials++
+      }
+    }
+
     return {
       totalMaterials: this.getTotalCount(),
+      activeMaterials, // Entry #161: Added active materials count
       byFunction: {
         tonic: this.materials.tonic.length,
         dominant: this.materials.dominant.length,

@@ -102,22 +102,36 @@ class CompositionEngine {
 
     // Forms ordered by energy level (low to high)
     // DERIVATION: energy level determines form selection within genre
+    // Entry #161: Expanded default forms for more variety
     const formsByEnergy = {
       classical: ['theme_and_variations', 'ABA', 'rondo', 'sonata'],
       electronic: ['through_composed', 'strophic', 'verse_chorus', 'build_drop'],
       jazz: ['modal', 'AABA', 'blues', 'rhythm_changes'],
       rock: ['strophic', 'AABA', 'verse_chorus', 'intro_verse_chorus_bridge_outro'],
-      default: ['strophic', 'ABA', 'verse_chorus']
+      ambient: ['through_composed', 'strophic', 'ABA'],
+      melodic: ['ABA', 'verse_chorus', 'rondo'],
+      default: ['strophic', 'ABA', 'verse_chorus', 'rondo', 'through_composed']
     }
 
-    // Determine dominant genre
+    // Entry #161: Lowered threshold from 0.7 to 0.4 for more genre-specific forms
+    // Also added progressive fallback using top 2 genres
     let genre = 'default'
-    if (genreWeights.classical > 0.7) genre = 'classical'
-    else if (genreWeights.electronic > 0.7) genre = 'electronic'
-    else if (genreWeights.jazz > 0.7) genre = 'jazz'
-    else if (genreWeights.rock > 0.7) genre = 'rock'
+    const sortedGenres = Object.entries(genreWeights)
+      .filter(([g]) => formsByEnergy[g]) // Only genres with defined forms
+      .sort((a, b) => b[1] - a[1]) // Sort by weight descending
 
-    const forms = formsByEnergy[genre]
+    if (sortedGenres.length > 0 && sortedGenres[0][1] > 0.4) {
+      genre = sortedGenres[0][0]
+    } else if (sortedGenres.length > 1) {
+      // Progressive fallback: use top genre if it's significantly higher than average
+      const topWeight = sortedGenres[0][1]
+      const avgWeight = Object.values(genreWeights).reduce((a, b) => a + b, 0) / Object.keys(genreWeights).length
+      if (topWeight > avgWeight * 1.5) {
+        genre = sortedGenres[0][0]
+      }
+    }
+
+    const forms = formsByEnergy[genre] || formsByEnergy.default
 
     // Entry #117: Use compositionCount for temporal variation in form selection
     // This ensures different forms are selected as compositions progress
@@ -130,7 +144,8 @@ class CompositionEngine {
     const historyVariation = (historyLength * PHI) % 1
     // Combine all factors: energy (40%), composition progress (40%), history (20%)
     const combinedIndex = energy * 0.4 + temporalOffset * 0.4 + historyVariation * 0.2
-    const index = Math.min(Math.floor(combinedIndex * forms.length), forms.length - 1)
+    // Guard against negative index (though unlikely with clamped energy)
+    const index = Math.max(0, Math.min(Math.floor(combinedIndex * forms.length), forms.length - 1))
     return forms[index]
   }
 
@@ -599,13 +614,14 @@ class CompositionEngine {
 
   generateAccompaniment(progression, style, sectionLength) {
     // Generate accompaniment based on genre
+    // Entry #161: Lowered threshold from 0.7 to 0.4
     const genreWeights = style.genreWeights || {}
 
-    if (genreWeights.jazz > 0.7) {
+    if (genreWeights.jazz > 0.4) {
       return this.generateJazzComping(progression)
-    } else if (genreWeights.electronic > 0.7) {
+    } else if (genreWeights.electronic > 0.4) {
       return this.generateArpeggio(progression)
-    } else if (genreWeights.rock > 0.7) {
+    } else if (genreWeights.rock > 0.4) {
       return this.generateRockGroove(progression)
     } else {
       return this.generateChordPads(progression)

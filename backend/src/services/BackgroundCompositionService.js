@@ -374,9 +374,10 @@ class BackgroundCompositionService {
 
     // ACCUMULATE gestures for tempo calculation (StyleAnalyzer needs 2+ for tempo)
     roomState.gestureHistory.push(normalizedGesture)
-    // Keep only recent 10 gestures for analysis window
-    if (roomState.gestureHistory.length > 10) {
-      roomState.gestureHistory = roomState.gestureHistory.slice(-10)
+    // Entry #161: Increased analysis window from 10 to 25 gestures
+    // This gives StyleAnalyzer more data for statistical reliability
+    if (roomState.gestureHistory.length > 25) {
+      roomState.gestureHistory = roomState.gestureHistory.slice(-25)
     }
 
 // console.log(`🔍 Gesture history size: ${roomState.gestureHistory.length} gestures`)

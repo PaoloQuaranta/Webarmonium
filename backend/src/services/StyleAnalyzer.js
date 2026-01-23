@@ -275,76 +275,113 @@ class StyleAnalyzer {
     for (let i = 1; i < gestures.length; i++) {
       const prevTime = gestures[i - 1].timestamp || Date.now() - 500
       const currTime = gestures[i].timestamp || Date.now()
-      intervals.push(currTime - prevTime)
+      const interval = currTime - prevTime
+      // Filter out unreasonable intervals (network jitter)
+      if (interval > 30 && interval < 3000) {
+        intervals.push(interval)
+      }
     }
 
-    // Look for long-short patterns (2:1 ratio indicates swing)
+    if (intervals.length < 3) return 0
+
+    // Look for long-short OR short-long patterns
+    // Widened ratio range: 1.2-4.0 (was 1.5-3.5)
     let swingPairs = 0
     let totalPairs = 0
 
-    for (let i = 0; i < intervals.length - 1; i += 2) {
-      if (i + 1 < intervals.length) {
-        const long = intervals[i]
-        const short = intervals[i + 1]
-        const ratio = long / short
+    for (let i = 0; i < intervals.length - 1; i++) {
+      const first = intervals[i]
+      const second = intervals[i + 1]
+      // Check both directions (long-short or short-long)
+      const ratio = Math.max(first, second) / Math.min(first, second)
 
-        // Swing is typically around 2:1 or 3:1 ratio
-        if (ratio >= 1.5 && ratio <= 3.5) {
-          swingPairs++
-        }
-        totalPairs++
+      // Swing is 1.2-4.0 ratio (widened from 1.5-3.5)
+      if (ratio >= 1.2 && ratio <= 4.0) {
+        swingPairs++
       }
+      totalPairs++
     }
 
     return totalPairs > 0 ? swingPairs / totalPairs : 0
   }
 
   detectSyncopation(gestures) {
-    // Syncopation: accents on weak beats
-    if (gestures.length < 4) return 0
+    // Syncopation: accents on weak beats and velocity contrast
+    if (gestures.length < 3) return 0
 
-    // Simple syncopation detection based on velocity variations
-    const velocities = gestures.map(g => g.velocity || g.properties?.velocity || 50)
+    // Get velocities, normalize to 0-1 range
+    const velocities = gestures.map(g => {
+      const v = g.velocity || g.properties?.velocity || 0.5
+      // Handle both 0-1 and 0-127 MIDI ranges
+      return v > 1 ? v / 127 : v
+    })
+
     const avgVelocity = velocities.reduce((sum, v) => sum + v, 0) / velocities.length
+    if (avgVelocity === 0) return 0
 
-    // Count accents (velocities above average)
-    const accents = velocities.map((v, i) => ({
-      index: i,
-      velocity: v,
-      isAccent: v > avgVelocity * 1.2
-    }))
+    // Calculate velocity variance (contrast)
+    const variance = velocities.reduce((sum, v) => sum + Math.pow(v - avgVelocity, 2), 0) / velocities.length
+    const velocityContrast = Math.min(1, Math.sqrt(variance) * 3) // Scale up for visibility
 
-    // Check if accents fall on "off-beats" (odd indices in 4/4)
+    // Count accents (velocities above average) on unexpected positions
     let syncopatedAccents = 0
-    let totalAccents = accents.filter(a => a.isAccent).length
+    let totalAccents = 0
 
-    accents.forEach((accent, i) => {
-      if (accent.isAccent && i % 2 === 1) { // Off-beat
-        syncopatedAccents++
+    velocities.forEach((v, i) => {
+      const isAccent = v > avgVelocity * 1.15 // Lowered threshold from 1.2
+      if (isAccent) {
+        totalAccents++
+        // Off-beat positions (odd indices, or after a weak note)
+        const prevWeak = i > 0 && velocities[i - 1] < avgVelocity
+        if (i % 2 === 1 || prevWeak) {
+          syncopatedAccents++
+        }
       }
     })
 
-    return totalAccents > 0 ? syncopatedAccents / totalAccents : 0
+    // Combine position-based syncopation with velocity contrast
+    const positionSyncopation = totalAccents > 0 ? syncopatedAccents / totalAccents : 0
+    return (positionSyncopation * 0.6 + velocityContrast * 0.4)
   }
 
   detectRhythmicRegularity(gestures) {
     // How regular are the timing patterns?
     if (gestures.length < 3) return 0.5
 
-    const intervals = []
+    let intervals = []
     for (let i = 1; i < gestures.length; i++) {
       const prevTime = gestures[i - 1].timestamp || Date.now() - 500
       const currTime = gestures[i].timestamp || Date.now()
-      intervals.push(currTime - prevTime)
+      const interval = currTime - prevTime
+      // Filter reasonable intervals (50ms - 3000ms)
+      if (interval > 50 && interval < 3000) {
+        intervals.push(interval)
+      }
     }
+
+    if (intervals.length < 2) return 0.5
+
+    // Remove outliers using IQR method
+    const sorted = [...intervals].sort((a, b) => a - b)
+    const q1 = sorted[Math.floor(sorted.length * 0.25)]
+    const q3 = sorted[Math.floor(sorted.length * 0.75)]
+    const iqr = q3 - q1
+    const lowerBound = q1 - 1.5 * iqr
+    const upperBound = q3 + 1.5 * iqr
+
+    intervals = intervals.filter(i => i >= lowerBound && i <= upperBound)
+
+    if (intervals.length < 2) return 0.5
 
     const avgInterval = intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length
     const variance = intervals.reduce((sum, interval) => sum + Math.pow(interval - avgInterval, 2), 0) / intervals.length
     const standardDeviation = Math.sqrt(variance)
 
     // Regularity is inverse of coefficient of variation
-    const coefficientOfVariation = standardDeviation / avgInterval
-    return Math.max(0, 1 - coefficientOfVariation)
+    // Clamp CV to max 2.0 to avoid extreme negative values
+    const coefficientOfVariation = Math.min(2, standardDeviation / avgInterval)
+    // Scale to 0-1 range where CV=0 -> 1.0, CV=1 -> 0.5, CV=2 -> 0
+    return Math.max(0, 1 - coefficientOfVariation * 0.5)
   }
 
   analyzeIntervals(gestures) {
@@ -434,11 +471,12 @@ class StyleAnalyzer {
   }
 
   detectChromaticism(gestures) {
-    // Chromaticism based on complex gesture paths
+    // Chromaticism based on complex gesture paths and velocity irregularity
     if (gestures.length < 3) return 0
 
-    // Calculate path complexity
-    let totalTurns = 0
+    // Method 1: Path complexity (turn angles)
+    let turnScore = 0
+    let turnCount = 0
     for (let i = 1; i < gestures.length - 1; i++) {
       const prev = gestures[i - 1].position || { x: 0, y: 0 }
       const curr = gestures[i].position || { x: 0, y: 0 }
@@ -447,34 +485,78 @@ class StyleAnalyzer {
       // Calculate turn angle
       const angle1 = Math.atan2(curr.y - prev.y, curr.x - prev.x)
       const angle2 = Math.atan2(next.y - curr.y, next.x - curr.x)
-      const turnAngle = Math.abs(angle2 - angle1)
+      let turnAngle = Math.abs(angle2 - angle1)
+      // Normalize to 0-PI range
+      if (turnAngle > Math.PI) turnAngle = 2 * Math.PI - turnAngle
 
-      if (turnAngle > Math.PI / 4) { // 45 degree turn
-        totalTurns++
+      // Lowered threshold from 45° to 30° (PI/6)
+      // Also give partial credit for smaller turns
+      if (turnAngle > Math.PI / 6) { // 30 degree turn
+        turnScore += Math.min(1, turnAngle / (Math.PI / 2)) // Scale by how sharp
+        turnCount++
       }
     }
+    const pathComplexity = turnCount > 0 ? Math.min(1, turnScore / gestures.length) : 0
 
-    return Math.min(1, totalTurns / gestures.length)
+    // Method 2: Y-position variance (pitch irregularity)
+    const yPositions = gestures.map(g => g.position?.y || 0.5)
+    const avgY = yPositions.reduce((sum, y) => sum + y, 0) / yPositions.length
+    const yVariance = yPositions.reduce((sum, y) => sum + Math.pow(y - avgY, 2), 0) / yPositions.length
+    const pitchComplexity = Math.min(1, Math.sqrt(yVariance) * 4) // Scale up
+
+    // Combine both methods
+    return (pathComplexity * 0.6 + pitchComplexity * 0.4)
   }
 
   calculateDissonance(gestures) {
     // Dissonance based on gesture irregularity and tension
     if (gestures.length < 2) return 0.2
 
-    // Calculate velocity irregularity
-    const velocities = gestures.map(g => g.velocity || g.properties?.velocity || 50)
+    // Normalize velocities to 0-1 range first
+    const velocities = gestures.map(g => {
+      const v = g.velocity || g.properties?.velocity || 0.5
+      return v > 1 ? v / 127 : v // Handle MIDI range
+    })
+
     const avgVelocity = velocities.reduce((sum, v) => sum + v, 0) / velocities.length
-    const velocityVariance = velocities.reduce((sum, v) => sum + Math.pow(v - avgVelocity, 2), 0) / velocities.length
+    // Guard against division by zero or very small values
+    if (avgVelocity < 0.01) return 0.2
 
-    // Calculate acceleration changes
-    const accelerations = gestures.map(g => Math.abs(g.acceleration || g.properties?.acceleration || 0))
+    // Calculate coefficient of variation (normalized measure of variance)
+    const variance = velocities.reduce((sum, v) => sum + Math.pow(v - avgVelocity, 2), 0) / velocities.length
+    const stdDev = Math.sqrt(variance)
+    // Clamp CV to prevent extreme values from very small avgVelocity
+    const coeffOfVariation = Math.min(2, stdDev / Math.max(0.01, avgVelocity))
+    // CV of 0.5 is moderate irregularity, scale to 0-1
+    const velocityIrregularity = Math.min(1, coeffOfVariation * 2)
+
+    // Calculate acceleration changes (use relative acceleration)
+    const accelerations = gestures.map(g => {
+      const a = Math.abs(g.acceleration || g.properties?.acceleration || 0)
+      return a > 1 ? a / 100 : a // Normalize if needed
+    })
     const avgAcceleration = accelerations.reduce((sum, a) => sum + a, 0) / accelerations.length
+    // High acceleration = tension, scale appropriately
+    const accelerationTension = Math.min(1, avgAcceleration * 2)
 
-    // Combine factors
-    const velocityIrregularity = Math.min(1, velocityVariance / 1000)
-    const accelerationTension = Math.min(1, avgAcceleration / 50)
+    // Also factor in timing irregularity
+    let timingTension = 0
+    if (gestures.length > 2) {
+      const intervals = []
+      for (let i = 1; i < gestures.length; i++) {
+        const interval = (gestures[i].timestamp || 0) - (gestures[i-1].timestamp || 0)
+        if (interval > 0 && interval < 3000) intervals.push(interval)
+      }
+      if (intervals.length > 1) {
+        const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length
+        const intervalVariance = intervals.reduce((sum, i) => sum + Math.pow(i - avgInterval, 2), 0) / intervals.length
+        const intervalCV = Math.sqrt(intervalVariance) / avgInterval
+        timingTension = Math.min(1, intervalCV)
+      }
+    }
 
-    return (velocityIrregularity * 0.6 + accelerationTension * 0.4)
+    // Combine factors with balanced weights
+    return (velocityIrregularity * 0.4 + accelerationTension * 0.3 + timingTension * 0.3)
   }
 
   detectModalFlavor(gestures) {
