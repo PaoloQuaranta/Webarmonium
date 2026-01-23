@@ -52,6 +52,10 @@ class BackgroundCompositionService {
     // Composition monitor (injected by server)
     this.compositionMonitor = null
 
+    // WebMetricsPoller reference (set by ServiceContainer)
+    // Entry #163: Used to initialize key from web metrics (same as LandingCompositionService)
+    this.webMetricsPoller = null
+
 // console.log('🎼 BackgroundCompositionService initialized')
   }
 
@@ -73,6 +77,16 @@ class BackgroundCompositionService {
     // Initial sync
     this.syncHarmonicContext()
 // console.log('🎼 BackgroundCompositionService: GestureToMusicService linked for harmonic sync')
+  }
+
+  /**
+   * Set WebMetricsPoller reference for key initialization
+   * Entry #163: Initialize starting key from web metrics (same as LandingCompositionService)
+   * @param {WebMetricsPoller} poller - WebMetricsPoller instance
+   */
+  setWebMetricsPoller(poller) {
+    this.webMetricsPoller = poller
+// console.log('🎼 BackgroundCompositionService: WebMetricsPoller connected')
   }
 
   /**
@@ -100,6 +114,20 @@ class BackgroundCompositionService {
     }
 
 // console.log(`🎼 Starting with DRONE (waiting for gestures to define composition)`)
+
+    // Entry #163: Initialize HarmonicEngine key from web metrics (same as LandingCompositionService)
+    // This ensures rooms start with varied keys based on current web activity
+    if (this.webMetricsPoller && !this.harmonicEngine.keyInitialized) {
+      const metrics = this.webMetricsPoller.getMetrics()
+      if (metrics) {
+        this.harmonicEngine.initializeKeyFromMetrics(metrics)
+        // Sync to CompositionEngine
+        this.compositionEngine.keyCenter = this.harmonicEngine.currentKey
+        this.compositionEngine.mode = this.harmonicEngine.currentMode
+        // Sync to GestureToMusicService
+        this.syncHarmonicContext()
+      }
+    }
 
     // Initialize room composition state with SESSION PROFILING
     // Entry #117: Deterministic offset based on timestamp (not random!)
@@ -282,6 +310,20 @@ class BackgroundCompositionService {
 
     // INCREMENT GESTURE COUNT for session profiling
     roomState.gestureCount++
+
+    // Entry #163: Initialize key from web metrics if not done yet
+    // Fallback for cases where metrics weren't available at startComposition
+    if (this.webMetricsPoller && !this.harmonicEngine.keyInitialized) {
+      const metrics = this.webMetricsPoller.getMetrics()
+      if (metrics) {
+        this.harmonicEngine.initializeKeyFromMetrics(metrics)
+        // Sync to CompositionEngine
+        this.compositionEngine.keyCenter = this.harmonicEngine.currentKey
+        this.compositionEngine.mode = this.harmonicEngine.currentMode
+        // Sync to GestureToMusicService
+        this.syncHarmonicContext()
+      }
+    }
 
     // CALCULATE GESTURE WEIGHT: First gestures have maximum influence
     const gestureWeight = this.calculateGestureWeight(roomState.gestureCount, roomState.initialGestureWindow)

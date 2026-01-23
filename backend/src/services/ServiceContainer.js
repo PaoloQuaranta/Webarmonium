@@ -233,6 +233,11 @@ function wireServices (container, config = {}) {
       const gestureToMusicService = c.get('gestureToMusicService')
       service.setGestureToMusicService(gestureToMusicService)
 
+      // Entry #163: Link WebMetricsPoller for key initialization (same as LandingCompositionService)
+      // This allows rooms to initialize starting key from web metrics
+      const webMetricsPoller = c.get('webMetricsPoller')
+      service.setWebMetricsPoller(webMetricsPoller)
+
       // Set Socket.IO for broadcasting
       if (config.io) {
         service.setSocketIO(config.io)
