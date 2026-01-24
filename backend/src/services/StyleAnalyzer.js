@@ -671,43 +671,61 @@ class StyleAnalyzer {
       rock: 0
     }
 
+    // Entry #166: Rebalanced genre weights - was melodic 19%, rock 22%, ambient 5%, jazz 7%
+    // Problem: easy conditions for melodic/rock, hard conditions for ambient/jazz
+
     // Ambient: low energy, slow tempo, regular rhythm
-    weights.ambient += (1 - energy) * 0.3
-    weights.ambient += (tempo < 80 ? 0.3 : 0)
-    weights.ambient += rhythmicCharacter.regularity * 0.2
+    // Widened tempo range and added low syncopation path
+    weights.ambient += (1 - energy) * 0.35
+    weights.ambient += (tempo < 100 ? 0.25 : 0)  // Widened from <80
+    weights.ambient += (1 - rhythmicCharacter.syncopation) * 0.2  // Low syncopation = ambient
+    weights.ambient += rhythmicCharacter.regularity * 0.15
 
     // Rhythmic: high energy, regular rhythm, strong tempo
-    weights.rhythmic += energy * 0.3
-    weights.rhythmic += rhythmicCharacter.regularity * 0.3
-    weights.rhythmic += (tempo > 120 ? 0.2 : 0)
+    weights.rhythmic += energy * 0.25
+    weights.rhythmic += rhythmicCharacter.regularity * 0.25
+    weights.rhythmic += (tempo > 110 ? 0.2 : 0)  // Lowered from 120
+    weights.rhythmic += rhythmicCharacter.syncopation * 0.15
 
-    // Melodic: clear contours, balanced intervals
-    weights.melodic += melodicCharacter.intervalProfile.step * 0.3
-    weights.melodic += (melodicCharacter.contourType !== 'complex' ? 0.3 : 0)
+    // Melodic: clear contours, balanced intervals - REDUCED bias
+    // Was getting 0.51 guaranteed, now more conditional
+    weights.melodic += melodicCharacter.intervalProfile.step * 0.2  // Reduced from 0.3
+    weights.melodic += (melodicCharacter.contourType === 'ascending' || melodicCharacter.contourType === 'descending' ? 0.25 : 0)  // Specific contours only
+    weights.melodic += (1 - harmonicComplexity.chromaticism) * 0.15  // Diatonic = melodic
 
-    // Experimental: high chromaticism, irregular rhythm
-    weights.experimental += harmonicComplexity.chromaticism * 0.4
-    weights.experimental += (1 - rhythmicCharacter.regularity) * 0.3
+    // Experimental: high chromaticism, irregular rhythm, complex contours
+    // Added more paths since chromaticism/dissonance are often low
+    weights.experimental += harmonicComplexity.chromaticism * 0.25
+    weights.experimental += (1 - rhythmicCharacter.regularity) * 0.2
+    weights.experimental += harmonicComplexity.dissonance * 0.2
+    weights.experimental += (melodicCharacter.contourType === 'complex' || melodicCharacter.contourType === 'wave' ? 0.2 : 0)  // Complex contours
+    weights.experimental += melodicCharacter.intervalProfile.leap * 0.2  // Large intervals = experimental
 
-    // Jazz: swing feel, moderate complexity
-    weights.jazz += rhythmicCharacter.swing * 0.4
-    weights.jazz += harmonicComplexity.dissonance * 0.2
-    weights.jazz += (tempo >= 100 && tempo <= 140 ? 0.2 : 0)
+    // Jazz: swing feel, moderate complexity - INCREASED paths
+    // Added more ways to reach jazz
+    weights.jazz += rhythmicCharacter.swing * 0.3  // Reduced from 0.4 but added other paths
+    weights.jazz += harmonicComplexity.dissonance * 0.25  // Increased from 0.2
+    weights.jazz += (tempo >= 90 && tempo <= 150 ? 0.2 : 0)  // Widened from 100-140
+    weights.jazz += melodicCharacter.intervalProfile.skip * 0.15  // Skips = jazz
 
     // Classical: smooth contours, moderate tempo
-    weights.classical += (melodicCharacter.contourType === 'arch' || melodicCharacter.contourType === 'wave') * 0.3
-    weights.classical += (tempo >= 60 && tempo <= 120 ? 0.3 : 0)
+    weights.classical += (melodicCharacter.contourType === 'arch' || melodicCharacter.contourType === 'wave' || melodicCharacter.contourType === 'static') * 0.25
+    weights.classical += (tempo >= 50 && tempo <= 130 ? 0.25 : 0)  // Widened from 60-120
     weights.classical += (1 - rhythmicCharacter.syncopation) * 0.2
+    weights.classical += melodicCharacter.intervalProfile.step * 0.15
 
-    // Electronic: regular rhythm, moderate to high energy
-    weights.electronic += rhythmicCharacter.regularity * 0.3
-    weights.electronic += (energy > 0.5 ? 0.2 : 0)
-    weights.electronic += rhythmicCharacter.syncopation * 0.2
+    // Electronic: regular rhythm, syncopation, energy variety
+    weights.electronic += rhythmicCharacter.regularity * 0.25
+    weights.electronic += rhythmicCharacter.syncopation * 0.25  // Increased from 0.2
+    weights.electronic += (energy > 0.4 ? 0.15 : 0)  // Lowered from 0.5
+    weights.electronic += (tempo > 100 ? 0.15 : 0)
 
-    // Rock: high energy, strong rhythm
-    weights.rock += energy * 0.4
-    weights.rock += (tempo >= 100 && tempo <= 160 ? 0.3 : 0)
-    weights.rock += rhythmicCharacter.regularity * 0.2
+    // Rock: high energy, strong rhythm - REDUCED bias
+    // Was getting easy 0.5+, now more conditional
+    weights.rock += (energy > 0.5 ? energy * 0.3 : 0)  // Only high energy counts
+    weights.rock += (tempo >= 110 && tempo <= 150 ? 0.2 : 0)  // Narrowed from 100-160
+    weights.rock += rhythmicCharacter.regularity * 0.15
+    weights.rock += (1 - rhythmicCharacter.swing) * 0.15  // Low swing = rock
 
     // Normalize weights to sum to 1
     const total = Object.values(weights).reduce((sum, weight) => sum + weight, 0)
