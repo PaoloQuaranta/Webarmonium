@@ -537,75 +537,32 @@ class PhraseMorphology {
 
     // Use section complexity for syncopation threshold if available
     const effectiveComplexity = sectionComplexity !== null ? sectionComplexity : curvature
-    const safeCurvature = curvature || 0.5
 
-    // Entry #171 Addendum 4: Rhythmic patterns for variety even with constant velocity
-    // These multipliers create musical interest regardless of acceleration/curvature
-    // Pattern selection based on velocity bracket and noteCount for determinism
-    const rhythmPatterns = {
-      // Short phrases (2-4 notes): simple patterns
-      short: [
-        [1.0, 1.0],                    // equal
-        [1.5, 0.5],                    // long-short
-        [0.5, 1.5],                    // short-long
-        [1.0, 0.5, 1.5],               // varied
-        [1.5, 1.0, 0.5]                // decreasing
-      ],
-      // Medium phrases (5-8 notes): more complex patterns
-      medium: [
-        [1.0, 0.5, 1.0, 0.5, 1.0],     // alternating
-        [1.5, 0.5, 1.0, 1.0, 0.5],     // long-short-medium
-        [0.5, 1.0, 1.5, 1.0, 0.5],     // arch
-        [1.0, 1.0, 0.5, 0.5, 1.5],     // two equal, two short, one long
-        [0.75, 1.25, 0.75, 1.25, 1.0]  // swung
-      ],
-      // Long phrases (9+ notes): extended patterns
-      long: [
-        [1.0, 0.5, 0.5, 1.0, 1.5, 0.5, 1.0, 0.5, 1.5],
-        [1.5, 0.5, 1.0, 0.5, 1.5, 0.5, 1.0, 0.5, 1.0],
-        [0.5, 1.0, 0.5, 1.5, 0.5, 1.0, 0.5, 1.5, 1.0],
-        [1.0, 1.0, 0.5, 0.5, 1.5, 1.0, 0.5, 0.5, 1.5],
-        [0.75, 0.75, 1.5, 0.5, 1.0, 0.75, 0.75, 1.5, 0.5]
-      ]
-    }
-
-    // Select pattern category based on noteCount
-    const category = noteCount <= 4 ? 'short' : noteCount <= 8 ? 'medium' : 'long'
-    const patterns = rhythmPatterns[category]
-
-    // Select specific pattern deterministically from velocity and curvature
-    // Entry #171: Use PHI for better distribution
-    const patternSelector = ((velocity / 100) * 0.4 + safeCurvature * 0.3 + ((noteCount * PHI) % 1) * 0.3)
-    const patternIndex = Math.floor(patternSelector * patterns.length) % patterns.length
-    const basePattern = patterns[patternIndex]
-
-    // Generate rhythm with pattern-based variation
+    // Generate rhythm with DETERMINISTIC variation
     for (let i = 0; i < noteCount; i++) {
-      // Get pattern value (cycle through pattern if noteCount > pattern length)
-      const patternValue = basePattern[i % basePattern.length]
-
-      // Start with pattern-modified base duration
-      let duration = baseDuration * patternValue
-
-      // ADDITIONAL: variation from acceleration and position (additive, not sole source)
+      // DERIVATION: variation from acceleration and position
       // Positive acceleration → notes get shorter (rushing)
       // Negative acceleration → notes get longer (dragging)
       const positionFactor = (i / noteCount) - 0.5 // -0.5 to 0.5
-      const accelVariation = (acceleration / 100) * positionFactor * 0.3
-      duration = duration * (1 + accelVariation)
+      const variation = (acceleration / 100) * positionFactor * 0.4
+      let duration = baseDuration * (1 + variation)
 
-      // ADDITIONAL: syncopation from curvature/complexity
+      // DERIVATION: syncopation from curvature/complexity
       // High curvature/complexity → more syncopation at phrase midpoint
       const syncopationThreshold = 1 - effectiveComplexity // High complexity = low threshold
       const phrasePosition = i / noteCount
 
       if (phrasePosition > syncopationThreshold && phrasePosition < (1 - syncopationThreshold / 2)) {
-        // Apply syncopation multiplier on top of pattern
-        const rhythmicDevices = [0.8, 0.9, 1.1, 1.2, 1.3]
+        // Apply syncopation - device index derived from position + curvature + note index
+        // WEIGHTING: position (40%) for musical flow, curvature (30%) for gesture character,
+        // PHI stepping (30%) for non-repeating variety
+        const rhythmicDevices = [0.5, 0.75, 1.5, 0.33, 0.67]
+        const safeCurvature = curvature || 0.5
         const mixedIndex = phrasePosition * 0.4 + safeCurvature * 0.3 + ((i * PHI) % 1) * 0.3
-        const clampedIndex = Math.max(0, Math.min(0.99, mixedIndex))
+        // Clamp to valid range before floor to ensure valid array access
+        const clampedIndex = Math.max(0, Math.min(1, mixedIndex))
         const deviceIndex = Math.floor(clampedIndex * rhythmicDevices.length)
-        duration = duration * rhythmicDevices[deviceIndex]
+        duration = baseDuration * rhythmicDevices[deviceIndex]
       }
 
       duration = Math.max(0.125, Math.min(4.0, duration))
