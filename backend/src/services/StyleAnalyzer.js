@@ -138,7 +138,8 @@ class StyleAnalyzer {
     const accelerationFactor = Math.min(1, avgAcceleration / 50)
     const densityFactor = Math.min(1, gestureDensity / 5)
 
-    return (velocityFactor * 0.5 + accelerationFactor * 0.3 + densityFactor * 0.2)
+    // Entry #165: Clamp to [0, 1] to prevent negative values (was returning -0.07)
+    return Math.max(0, Math.min(1, velocityFactor * 0.5 + accelerationFactor * 0.3 + densityFactor * 0.2))
   }
 
   estimateTempo(gestures) {
@@ -470,14 +471,15 @@ class StyleAnalyzer {
     }
 
     // Classify contour
-    if (Math.abs(overallDirection) < 0.1) {
+    if (Math.abs(overallDirection) < 0.15) {
       if (peaks > valleys) return 'wave'
       if (valleys > peaks) return 'inverted_wave'
       return 'static'
     }
 
-    if (overallDirection > 0.2) return 'ascending' // Going up in pitch
-    if (overallDirection < -0.2) return 'descending' // Going down in pitch
+    // Entry #165: Raised threshold from 0.2 to 0.35 to reduce ascending bias
+    if (overallDirection > 0.35) return 'ascending' // Going up in pitch
+    if (overallDirection < -0.35) return 'descending' // Going down in pitch
 
     if (peaks === 1 && valleys === 0) return 'arch'
     if (valleys === 1 && peaks === 0) return 'inverted_arch'
@@ -597,8 +599,8 @@ class StyleAnalyzer {
   }
 
   detectModalFlavor(gestures) {
-    // Entry #162: More nuanced modal detection using multiple factors
-    if (!gestures || gestures.length < 2) return 'ionian'
+    // Entry #165: Rebalanced modal detection to reduce ionian dominance (was 44%)
+    if (!gestures || gestures.length < 2) return 'dorian'  // Changed from ionian
 
     const energy = this.calculateEnergy(gestures)
     const contour = this.detectContour(gestures)
@@ -618,36 +620,43 @@ class StyleAnalyzer {
       const secondHalf = velocities.slice(Math.floor(velocities.length / 2))
       const avgFirst = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length
       const avgSecond = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length
-      velocityTrend = (avgSecond - avgFirst) / Math.max(0.1, avgFirst) // -1 to 1 range roughly
+      velocityTrend = (avgSecond - avgFirst) / Math.max(0.1, avgFirst)
     }
 
-    // Combine factors to select mode
-    // High energy + ascending + bright trend → major/lydian
-    // High energy + swing → mixolydian
-    // Low energy + descending → aeolian/phrygian
-    // High variance → dorian (flexible)
-    // Low variance + moderate → ionian
+    // Calculate syncopation for additional differentiation
+    const syncopation = this.detectSyncopation(gestures)
 
-    if (energy > 0.65) {
-      if (swing > 0.4) return 'mixolydian'
-      if (contour === 'ascending' && velocityTrend > 0.1) return 'lydian'
-      if (contour === 'ascending') return 'ionian'
-      return 'mixolydian'
-    } else if (energy < 0.35) {
-      if (contour === 'descending' && ySpread > 0.3) return 'phrygian'
+    // Entry #165: Lowered thresholds and diversified paths
+    // High energy branch
+    if (energy > 0.6) {
+      if (swing > 0.25) return 'mixolydian'  // Lowered from 0.4
+      if (ySpread > 0.3) return 'lydian'     // New path
+      if (contour === 'ascending' && velocityTrend > 0.05) return 'lydian'  // Lowered from 0.1
+      if (contour === 'ascending') return ySpread > 0.2 ? 'mixolydian' : 'ionian'  // Split path
+      if (syncopation > 0.3) return 'mixolydian'  // New path
+      return 'lydian'  // Changed from mixolydian for variety
+    }
+
+    // Low energy branch
+    if (energy < 0.4) {
+      if (contour === 'descending' && ySpread > 0.25) return 'phrygian'  // Lowered from 0.3
       if (contour === 'descending') return 'aeolian'
-      if (ySpread > 0.4) return 'locrian'
+      if (ySpread > 0.35) return 'locrian'
+      if (swing > 0.2) return 'phrygian'  // New path
+      if (syncopation > 0.25) return 'locrian'  // New path
       return 'aeolian'
-    } else {
-      // Moderate energy - use variance and trend to differentiate
-      if (swing > 0.3) return 'dorian'
-      if (ySpread > 0.35) return 'dorian'
-      if (velocityTrend > 0.15) return 'lydian'
-      if (velocityTrend < -0.15) return 'aeolian'
-      if (contour === 'ascending') return 'ionian'
-      if (contour === 'descending') return 'aeolian'
-      return 'dorian'
     }
+
+    // Moderate energy branch - most selections fall here
+    if (swing > 0.2) return 'dorian'  // Lowered from 0.3
+    if (ySpread > 0.25) return 'dorian'  // Lowered from 0.35
+    if (velocityTrend > 0.1) return 'lydian'  // Lowered from 0.15
+    if (velocityTrend < -0.1) return 'aeolian'  // Lowered from -0.15
+    if (syncopation > 0.3) return 'mixolydian'  // New path
+    if (contour === 'ascending') return ySpread > 0.15 ? 'lydian' : 'ionian'  // Split path
+    if (contour === 'descending') return ySpread > 0.15 ? 'phrygian' : 'aeolian'  // Split path
+    if (contour === 'wave' || contour === 'complex') return 'dorian'  // New path
+    return 'mixolydian'  // Changed from dorian for variety
   }
 
   calculateGenreWeights(energy, tempo, rhythmicCharacter, melodicCharacter, harmonicComplexity) {

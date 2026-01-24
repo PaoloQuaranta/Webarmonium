@@ -133,19 +133,24 @@ class CompositionEngine {
 
     const forms = formsByEnergy[genre] || formsByEnergy.default
 
-    // Entry #117: Use compositionCount for temporal variation in form selection
-    // This ensures different forms are selected as compositions progress
+    // Entry #165: Fixed form distribution - was ABA 48%, through_composed 1%
+    // Problem: combinedIndex * forms.length biases toward lower indices
+    // Solution: Use PHI stepping directly on array to ensure uniform distribution
     const compCount = this.compositionCount || 0
-    const temporalOffset = (compCount * PHI) % 1
-
-    // DETERMINISTIC: energy + compositionCount + history variation determines form
-    // Golden ratio stepping creates non-repeating sequences
     const historyLength = this.sectionHistory?.length || 0
-    const historyVariation = (historyLength * PHI) % 1
-    // Combine all factors: energy (40%), composition progress (40%), history (20%)
-    const combinedIndex = energy * 0.4 + temporalOffset * 0.4 + historyVariation * 0.2
-    // Guard against negative index (though unlikely with clamped energy)
-    const index = Math.max(0, Math.min(Math.floor(combinedIndex * forms.length), forms.length - 1))
+
+    // PHI stepping through forms array - each composition steps by PHI indices
+    // This creates maximally spread sequence: 0, 1.618, 3.236, 4.854, 1.472, ...
+    const phiStep = (compCount * PHI + historyLength * PHI * PHI) % forms.length
+
+    // Energy still influences selection but with reduced weight
+    // Energy shifts the PHI sequence by up to 1 position
+    const energyShift = energy * 0.8
+
+    // Final index combines PHI stepping with energy influence
+    const rawIndex = (phiStep + energyShift) % forms.length
+    const index = Math.floor(rawIndex)
+
     return forms[index]
   }
 

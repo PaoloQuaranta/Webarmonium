@@ -577,6 +577,7 @@ class CompositionMonitor {
       keyCenter: {},
       mode: {},
       formStructure: {},
+      timeSignature: {},  // Entry #165: Added timeSignature tracking
       genreWeights: {
         ambient: 0, rhythmic: 0, melodic: 0, experimental: 0,
         jazz: 0, classical: 0, electronic: 0, rock: 0
@@ -604,6 +605,11 @@ class CompositionMonitor {
         distributions.formStructure[core.formStructure] = (distributions.formStructure[core.formStructure] || 0) + 1
       }
 
+      // Entry #165: Count time signatures
+      if (core.timeSignature) {
+        distributions.timeSignature[core.timeSignature] = (distributions.timeSignature[core.timeSignature] || 0) + 1
+      }
+
       // Accumulate genre weights
       if (style.genreWeights) {
         for (const [genre, weight] of Object.entries(style.genreWeights)) {
@@ -617,7 +623,7 @@ class CompositionMonitor {
 
     // Convert counts to percentages
     const total = snapshots.length
-    for (const key of ['keyCenter', 'mode', 'formStructure']) {
+    for (const key of ['keyCenter', 'mode', 'formStructure', 'timeSignature']) {  // Entry #165: Added timeSignature
       for (const [value, count] of Object.entries(distributions[key])) {
         distributions[key][value] = Math.round((count / total) * 100)
       }
