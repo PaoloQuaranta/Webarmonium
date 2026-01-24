@@ -84,7 +84,9 @@ class GenerativeMusicEngine {
           lastInversion: 0,
           phrasePosition: 0,
           phraseLength: 4,
-          lastVoicingType: 0
+          lastVoicingType: 0,
+          lastAttackStyle: 0,
+          chordEventCount: 0  // Counter for chord-specific PHI stepping
         }
       },
 
@@ -338,6 +340,10 @@ class GenerativeMusicEngine {
           console.warn('Chord playback error:', error.message)
         }
       }
+
+      // 7. Increment chord event counter for next chord variation
+      layer.chordEventCount = (layer.chordEventCount || 0) + 1
+
       return // Skip default playback below
     }
 
@@ -642,31 +648,31 @@ class GenerativeMusicEngine {
   // ============================================
 
   /**
-   * Select voicing type based on harmonic tension
+   * Select voicing type based on harmonic tension and chord event count
    * @param {Object} state - Generative state
    * @param {Object} layer - Layer config
    * @returns {number} Voicing type (0-3)
    */
   _selectVoicingType(state, layer) {
-    const voicingSelector = ((state.evolutionCycle * PHI) + state.harmonicTension) % 1
+    // Use chord event count for true per-chord variation
+    const chordCount = layer.chordEventCount || 0
+    const voicingSelector = ((chordCount * PHI) + (state.currentChord * 0.25)) % 1
 
-    // Avoid repeating same voicing
+    // All 4 voicings available, weighted by tension
+    const tensionBias = state.harmonicTension || 0.3
     let voicingType
-    if (state.harmonicTension > 0.7) {
-      // High tension: favor open and spread voicings
-      voicingType = voicingSelector < 0.5 ? 1 : 3
-    } else if (state.harmonicTension > 0.4) {
-      // Medium tension: all voicings possible
-      const voicings = [0, 1, 2, 0]
-      voicingType = voicings[Math.floor(voicingSelector * voicings.length)]
-    } else {
-      // Low tension: favor close voicing
-      voicingType = voicingSelector < 0.7 ? 0 : 1
-    }
 
-    // Avoid immediate repetition
-    if (voicingType === layer.lastVoicingType && state.evolutionCycle > 1) {
-      voicingType = (voicingType + 1) % 4
+    // PHI stepping through all voicings with tension influence
+    const voicingIndex = Math.floor(voicingSelector * 4)
+    const voicings = tensionBias > 0.5
+      ? [1, 3, 2, 0]  // High tension: prefer open/spread first
+      : [0, 1, 2, 3]  // Low tension: prefer close first
+
+    voicingType = voicings[voicingIndex]
+
+    // Avoid immediate repetition by stepping to next
+    if (voicingType === layer.lastVoicingType && chordCount > 0) {
+      voicingType = voicings[(voicingIndex + 1) % 4]
     }
     layer.lastVoicingType = voicingType
 
@@ -735,24 +741,19 @@ class GenerativeMusicEngine {
    * @returns {number} Inversion (0-2)
    */
   _selectInversion(state, layer, chordRootIndex) {
-    const inversionSelector = ((state.evolutionCycle * PHI) + (chordRootIndex * 0.3)) % 1
+    // Use chord event count + chord root for variety
+    const chordCount = layer.chordEventCount || 0
+    const inversionSelector = ((chordCount * PHI) + (chordRootIndex * PHI * 0.5)) % 1
 
-    let targetInversion
-    if (inversionSelector < 0.5) {
-      targetInversion = 0 // Root position most common
-    } else if (inversionSelector < 0.8) {
-      targetInversion = 1 // First inversion
-    } else {
-      targetInversion = 2 // Second inversion (cadential)
-    }
+    // Cycle through inversions with PHI stepping
+    const inversions = [0, 1, 0, 2, 1, 0]  // Weighted: root position more common
+    const invIndex = Math.floor(inversionSelector * inversions.length)
+    let targetInversion = inversions[invIndex]
 
-    // Voice leading: prefer inversions close to previous when complexity low
-    const lastInv = layer.lastInversion || 0
-    const stepSize = Math.abs(targetInversion - lastInv)
-
-    if (stepSize > 1 && state.complexity < 0.5) {
-      targetInversion = lastInv + (targetInversion > lastInv ? 1 : -1)
-      targetInversion = Math.max(0, Math.min(2, targetInversion))
+    // Avoid same inversion twice in a row
+    const lastInv = layer.lastInversion
+    if (targetInversion === lastInv && chordCount > 0) {
+      targetInversion = (targetInversion + 1) % 3
     }
 
     layer.lastInversion = targetInversion
@@ -796,19 +797,22 @@ class GenerativeMusicEngine {
    * @returns {number} Attack style (0-3)
    */
   _selectAttackStyle(state, layer) {
-    const attackSelector = ((layer.patternPosition * PHI) + state.rhythmicComplexity) % 1
+    // Use chord event count for true per-chord variation
+    const chordCount = layer.chordEventCount || 0
+    const attackSelector = ((chordCount * PHI * 1.3) + (layer.patternPosition * 0.2)) % 1
 
-    if (state.rhythmicComplexity > 0.7) {
-      // High complexity: arpeggiated or staggered
-      return attackSelector < 0.6 ? 1 : 2
-    } else if (state.rhythmicComplexity > 0.4) {
-      // Medium: mix of styles
-      const styles = [0, 0, 1, 2]
-      return styles[Math.floor(attackSelector * styles.length)]
-    } else {
-      // Low complexity: mostly block chords
-      return attackSelector < 0.8 ? 0 : 3
+    // All styles available with balanced distribution
+    const styles = [0, 1, 2, 3, 0, 1]  // Block and arpeggio slightly more common
+    const styleIndex = Math.floor(attackSelector * styles.length)
+    let attackStyle = styles[styleIndex]
+
+    // Avoid same attack style twice in a row
+    if (attackStyle === layer.lastAttackStyle && chordCount > 0) {
+      attackStyle = styles[(styleIndex + 1) % styles.length]
     }
+    layer.lastAttackStyle = attackStyle
+
+    return attackStyle
   }
 
   /**
@@ -828,8 +832,9 @@ class GenerativeMusicEngine {
       ? layer.phrasePosition / (layer.phraseLength - 1)
       : 0
 
-    // Select arc type using PHI
-    const arcSelector = ((state.evolutionCycle * PHI * 0.5) % 1)
+    // Select arc type using chord event count for per-chord variation
+    const chordCount = layer.chordEventCount || 0
+    const arcSelector = ((chordCount * PHI * 0.7) % 1)
     let arcMultiplier
     if (arcSelector < 0.4) {
       // Swell: crescendo to middle, decrescendo
