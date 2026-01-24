@@ -1156,8 +1156,24 @@ class LandingCompositionService {
     // Map activity level to frequency within tessitura for AUDIO
     let rawFreq = freqMin + (activityLevel * (freqMax - freqMin))
 
-    // Convert to MIDI pitch for scale constraint
-    const rawPitch = Math.round(12 * Math.log2(rawFreq / 440) + 69)
+    // Entry #171: Web metrics-driven variation (deterministic, no randomness)
+    const webMetrics = this._normalizeWebMetrics() || {
+      wikipedia: { normalized: 0.5 },
+      hackernews: { normalized: 0.5 },
+      github: { normalized: 0.5 }
+    }
+    const wiki = webMetrics.wikipedia.normalized
+    const hn = webMetrics.hackernews.normalized
+    const gh = webMetrics.github.normalized
+
+    // Convert to MIDI pitch with metrics offset
+    let rawPitch = Math.round(12 * Math.log2(rawFreq / 440) + 69)
+
+    // Entry #171: Pitch variation ±3 semitones based on combined metrics
+    const pitchOffset = Math.floor((wiki + hn - 1) * 3)
+    rawPitch = rawPitch + pitchOffset
+
+    // Constrain to scale AFTER adding variation (preserves harmonic coherence)
     const pitch = this.harmonicEngine.constrainToScale(rawPitch, musicalContext.key, musicalContext.mode)
     let frequency = 440 * Math.pow(2, (pitch - 69) / 12)
 
@@ -1180,12 +1196,15 @@ class LandingCompositionService {
     const beatDuration = 60 / tempo
     const tapDuration = quantizedBeats * beatDuration
 
+    // Entry #171: Velocity variation 0.75-1.0 based on GitHub activity
+    const tapVelocity = 0.75 + (gh * 0.25)
+
     // 4. Emit musical event with reverse-mapped position
     this.io.to(this.landingRoomId).emit('musical:event', {
       type: 'tap',
       userId: user.userId,
       frequency: frequency,
-      velocity: 0.9,
+      velocity: tapVelocity,
       duration: tapDuration,
       position: position,
       userColor: user.color,
@@ -1236,12 +1255,31 @@ class LandingCompositionService {
       return
     }
 
+    // Entry #171: Web metrics-driven variation for drag phrases
+    const webMetrics = this._normalizeWebMetrics() || {
+      wikipedia: { normalized: 0.5 },
+      hackernews: { normalized: 0.5 },
+      github: { normalized: 0.5 }
+    }
+    const wiki = webMetrics.wikipedia.normalized
+    const hn = webMetrics.hackernews.normalized
+    const gh = webMetrics.github.normalized
+
+    // Entry #171: Pitch offset ±3 semitones based on combined metrics
+    const pitchOffset = Math.floor((wiki + hn - 1) * 3)
+
+    // Entry #171: Velocity multiplier based on GitHub activity (0.75-1.0)
+    const velocityMultiplier = 0.75 + (gh * 0.25)
+
     // HARMONIC COHERENCE: Constrain all phrase notes to room's scale/mode
     // PhraseMorphology uses mood-based scale selection; this ensures room coherence
     const { key, mode } = musicalContext
     phrase.notes = phrase.notes.map(note => ({
       ...note,
-      pitch: this.harmonicEngine.constrainToScale(note.pitch, key, mode)
+      // Add pitch offset BEFORE constraining to scale
+      pitch: this.harmonicEngine.constrainToScale(note.pitch + pitchOffset, key, mode),
+      // Modulate velocity while preserving relative dynamics
+      velocity: Math.min(127, Math.max(1, Math.round((note.velocity || 80) * velocityMultiplier)))
     }))
 
     const beatDurationMs = (60 / musicalContext.tempo) * 1000
