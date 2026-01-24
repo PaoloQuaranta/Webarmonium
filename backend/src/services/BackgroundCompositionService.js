@@ -107,10 +107,32 @@ class BackgroundCompositionService {
     const raw = this.webMetricsPoller.getMetrics()
     if (!raw) return null
 
+    // Entry #171: Centralized normalization - ALL values returned in 0-1 range
+    // Reference ranges based on observed production data:
+    // - Wikipedia: 50 edits/min max, 2000 bytes avg edit, velocity ±30, acceleration ±15
+    // - HackerNews: 5 posts/min max, 100 upvotes avg, 100 comments max, velocity ±5, acceleration ±5
+    // - GitHub: 30 commits/min max, 10 creates/min, 5 deletes/min, velocity ±10, acceleration ±10
     return {
-      wikipedia: { normalized: Math.min(1, (raw.wikipedia?.editsPerMinute || 0) / 50) },
-      hackernews: { normalized: Math.min(1, (raw.hackernews?.postsPerMinute || 0) / 5) },
-      github: { normalized: Math.min(1, (raw.github?.commitsPerMinute || 0) / 30) }
+      wikipedia: {
+        normalized: Math.min(1, Math.max(0, (raw.wikipedia?.editsPerMinute || 0) / 50)),
+        avgEditSizeNorm: Math.min(1, Math.max(0, (raw.wikipedia?.avgEditSize || 0) / 2000)),
+        velocityNorm: Math.min(1, Math.max(0, ((raw.wikipedia?.velocity || 0) + 30) / 60)), // -30 to +30 → 0 to 1
+        accelerationNorm: Math.min(1, Math.max(0, ((raw.wikipedia?.acceleration || 0) + 15) / 30)) // -15 to +15 → 0 to 1
+      },
+      hackernews: {
+        normalized: Math.min(1, Math.max(0, (raw.hackernews?.postsPerMinute || 0) / 5)),
+        avgUpvotesNorm: Math.min(1, Math.max(0, (raw.hackernews?.avgUpvotes || 0) / 100)),
+        commentCountNorm: Math.min(1, Math.max(0, (raw.hackernews?.commentCount || 0) / 100)), // Increased ceiling to 100
+        velocityNorm: Math.min(1, Math.max(0, ((raw.hackernews?.velocity || 0) + 5) / 10)), // -5 to +5 → 0 to 1
+        accelerationNorm: Math.min(1, Math.max(0, ((raw.hackernews?.acceleration || 0) + 5) / 10))
+      },
+      github: {
+        normalized: Math.min(1, Math.max(0, (raw.github?.commitsPerMinute || 0) / 30)),
+        createsNorm: Math.min(1, Math.max(0, (raw.github?.createsPerMinute || 0) / 10)), // 10 creates/min max
+        deletesNorm: Math.min(1, Math.max(0, (raw.github?.deletesPerMinute || 0) / 5)), // 5 deletes/min max
+        velocityNorm: Math.min(1, Math.max(0, ((raw.github?.velocity || 0) + 10) / 20)), // -10 to +10 → 0 to 1
+        accelerationNorm: Math.min(1, Math.max(0, ((raw.github?.acceleration || 0) + 10) / 20))
+      }
     }
   }
 
@@ -360,6 +382,10 @@ class BackgroundCompositionService {
         return
       }
     }
+
+    // Entry #171: Sync webMetrics before processing gesture for freshness
+    // This ensures gestures use current metrics, not stale ones from last composition
+    this.syncHarmonicContext()
 
     // INCREMENT GESTURE COUNT for session profiling
     roomState.gestureCount++

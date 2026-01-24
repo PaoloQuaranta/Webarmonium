@@ -167,7 +167,8 @@ class GestureToMusicService {
     switch (gestureData.gestureAction) {
       case 'drag': {
 // console.log('🎵 DRAG: Generating musical phrase')
-        const dragPhrase = this.phraseMorphology.generatePhrase(gestureData, musicalContext)
+        // Entry #171: Pass webMetrics to PhraseMorphology for contour/rhythm/ornamentation variation
+        const dragPhrase = this.phraseMorphology.generatePhrase(gestureData, musicalContext, null, this.webMetrics)
 
         // Entry #171: Web metrics-driven variation for drag phrases
         const wiki = this.webMetrics?.wikipedia?.normalized || 0.5

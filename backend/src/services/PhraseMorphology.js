@@ -29,12 +29,14 @@ class PhraseMorphology {
 
   /**
    * Generate phrase from gesture data (original method - kept for backward compatibility)
+   * Entry #171: Now accepts webMetrics for contour/rhythm/ornamentation variation
    * Fix #6: Now applies development techniques even when using old code path
    * @param {Object} gestureData - Gesture input
    * @param {Object} musicalContext - Musical context (key, mode, tempo, etc.)
    * @param {Object} sectionContext - Optional SectionContext for section-aware generation
+   * @param {Object} webMetrics - Optional web metrics for deterministic variation
    */
-  generatePhrase(gestureData, musicalContext, sectionContext = null) {
+  generatePhrase(gestureData, musicalContext, sectionContext = null, webMetrics = null) {
     // If we have a SectionContext and explicit contour, use section-aware generation
     if (sectionContext && gestureData.contour) {
       return this.generatePhraseFromContour(gestureData.contour, musicalContext, sectionContext, gestureData)
@@ -48,15 +50,17 @@ class PhraseMorphology {
     const gestureDurationMs = gestureData.duration || 1000 // Default 1 second if missing
     const phraseDurationBeats = this.quantizeGestureDuration(gestureDurationMs, tempo)
 
-    // 1. Determine phrase length (note count) based on quantized duration and velocity
-    const phraseLength = this.calculatePhraseLengthFromDuration(phraseDurationBeats, velocity, tempo)
+    // 1. Determine phrase length (note count) based on quantized duration, velocity, and webMetrics
+    // Entry #171: webMetrics.hackernews.commentCount affects rhythmic density
+    const phraseLength = this.calculatePhraseLengthFromDuration(phraseDurationBeats, velocity, tempo, webMetrics)
 
     // 2. Select appropriate scale based on mood, mode, and optional section tension
     const harmonicTension = sectionContext?.harmonicTension ?? 0
     const scale = this.selectScaleWithTension(mode, gestureData, harmonicTension)
 
-    // 3. Generate melodic contour from gesture trajectory
-    let contour = this.generateMelodicContour(trajectory, curvature, phraseLength)
+    // 3. Generate melodic contour from gesture trajectory + webMetrics
+    // Entry #171: webMetrics affects contour type and amplitude
+    let contour = this.generateMelodicContour(trajectory, curvature, phraseLength, webMetrics)
 
     // Fix #6: Apply development technique if we have sectionContext
     if (sectionContext && contour && contour.length > 0) {
@@ -85,8 +89,9 @@ class PhraseMorphology {
       rhythmParams.density, rhythmParams.complexity
     )
 
-    // 6. Add ornamentation based on gesture character
-    const ornamented = this.applyOrnamentation(pitches, rhythm, gestureData)
+    // 6. Add ornamentation based on gesture character + webMetrics
+    // Entry #171: webMetrics.github affects ornamentation style
+    const ornamented = this.applyOrnamentation(pitches, rhythm, gestureData, webMetrics)
 
     // 7. Generate dynamics (velocity curve) - section-aware if available
     const velocityParams = sectionContext?.getVelocityParams?.() || {}
@@ -473,9 +478,14 @@ class PhraseMorphology {
 
   /**
    * Calculate phrase length (note count) from quantized duration
-   * Faster velocity = more notes in same duration
+   * Entry #171: commentCount from webMetrics affects rhythmic density
+   * @param {number} phraseDurationBeats - Duration in beats
+   * @param {number} velocity - Gesture velocity
+   * @param {number} tempo - Tempo in BPM
+   * @param {Object} webMetrics - Optional web metrics for density variation
+   * @returns {number} Note count for phrase
    */
-  calculatePhraseLengthFromDuration(phraseDurationBeats, velocity, tempo) {
+  calculatePhraseLengthFromDuration(phraseDurationBeats, velocity, tempo, webMetrics = null) {
     // Determine base note duration based on velocity
     let baseDuration
     if (velocity > 80) baseDuration = 0.25   // Fast = 16th notes
@@ -484,20 +494,23 @@ class PhraseMorphology {
     else if (velocity > 20) baseDuration = 1.5  // Medium-slow = dotted quarters
     else baseDuration = 2.0                     // Slow = half notes
 
+    // Entry #171: WebMetrics commentCount influences rhythmic density
+    // Uses pre-normalized values from BackgroundCompositionService (0-1 range, ceiling 100 comments)
+    const commentDensity = webMetrics?.hackernews?.commentCountNorm ?? 0
+
+    if (commentDensity > 0) {
+      // More comments → more notes (up to 1.5x density)
+      // Fewer comments → fewer notes (down to 0.7x density)
+      const densityMultiplier = 0.7 + (commentDensity * 0.8)
+      baseDuration = baseDuration / densityMultiplier
+    }
+
     // Calculate how many notes fit in the phrase duration
     const idealNoteCount = Math.floor(phraseDurationBeats / baseDuration)
 
     // Clamp to reasonable range (min 2, max 12 notes)
     // Reduced from 32 to prevent explosive phrase generation
     const noteCount = Math.max(2, Math.min(12, idealNoteCount))
-
-// console.log('📏 Phrase length calculation:', {
-//      phraseDurationBeats,
-//      velocity,
-//      baseDuration,
-//      idealNoteCount,
-//      clampedNoteCount: noteCount
-////    })
 
     return noteCount
   }
@@ -792,25 +805,85 @@ class PhraseMorphology {
     return 'neutral'
   }
 
-  generateMelodicContour(trajectory, curvature, length) {
-    // Generate melodic contour based on gesture trajectory and curvature
+  /**
+   * Generate melodic contour based on gesture trajectory and web metrics
+   * Entry #171: WebMetrics add deterministic variety to contour selection
+   * @param {Object} trajectory - Gesture trajectory with angle/direction
+   * @param {number} curvature - Gesture curvature 0-1
+   * @param {number} length - Contour length (note count)
+   * @param {Object} webMetrics - Optional web metrics for variation
+   * @returns {Array} Contour values 0-1
+   */
+  generateMelodicContour(trajectory, curvature, length, webMetrics = null) {
+    // Contour types ordered by "movement" (stable → dramatic)
+    const contourTypes = [
+      'level',               // 0.0-0.15: minimal movement
+      'linear',              // 0.15-0.3: gradual
+      'wave',                // 0.3-0.5: undulating
+      'arch',                // 0.5-0.7: melodic arch
+      'ascending',           // 0.7-0.85: rising
+      'descending',          // 0.85-1.0: falling
+      'ascending_descending' // alternative for high activity
+    ]
 
+    // Base contour from gesture (existing logic)
+    let contourType
     if (!trajectory) {
-      return this.generateDefaultContour(length)
+      // No trajectory: use default contour selection
+      const contourIndex = Math.floor((length % 4 + curvature * 2) % 4)
+      contourType = ['level', 'wave', 'arch', 'ascending_descending'][contourIndex]
+    } else {
+      const angle = trajectory.angle || 0
+      if (angle > 45) contourType = 'ascending'
+      else if (angle < -45) contourType = 'descending'
+      else if (curvature > 0.7) contourType = 'arch'
+      else if (curvature < 0.3) contourType = 'linear'
+      else contourType = 'wave'
     }
 
-    const angle = trajectory.angle || 0
-    const direction = trajectory.direction || 'horizontal'
+    // Entry #171: WebMetrics override for highly variable contour selection
+    // Uses pre-normalized values from BackgroundCompositionService (all in 0-1 range)
+    if (webMetrics) {
+      const wiki = webMetrics.wikipedia || {}
+      const hn = webMetrics.hackernews || {}
+      const gh = webMetrics.github || {}
 
-    // Determine contour type
-    let contourType
-    if (angle > 45) contourType = 'ascending'
-    else if (angle < -45) contourType = 'descending'
-    else if (curvature > 0.7) contourType = 'arch'
-    else if (curvature < 0.3) contourType = 'linear'
-    else contourType = 'wave'
+      // Use pre-normalized values (0-1 range from BackgroundCompositionService)
+      const editSizeNorm = wiki.avgEditSizeNorm ?? 0.5
+      const upvotesNorm = hn.avgUpvotesNorm ?? 0.5
 
-    return this.createContour(contourType, length, curvature)
+      // Velocity values are now pre-normalized to 0-1, convert to -1 to +1 for combination
+      const wikiVel = (wiki.velocityNorm ?? 0.5) * 2 - 1  // 0-1 → -1 to +1
+      const hnVel = (hn.velocityNorm ?? 0.5) * 2 - 1
+      const ghVel = (gh.velocityNorm ?? 0.5) * 2 - 1
+
+      // Combined velocity for contour selection
+      const combinedVelocity = (wikiVel + hnVel + ghVel) / 3
+
+      // Velocity fallback: when all sources have near-zero velocity, use acceleration
+      // This maintains contour variety during stable activity periods
+      const effectiveVelocity = Math.abs(combinedVelocity) < 0.1
+        ? ((wiki.accelerationNorm ?? 0.5) - 0.5) * 2  // Use acceleration as fallback
+        : combinedVelocity
+
+      // FORMULA: editSize (40%) + upvotes (30%) + velocity (30%)
+      // Explicit clamp to 0-1 for safety
+      const contourScore = Math.min(1, Math.max(0,
+        (editSizeNorm * 0.4) + (upvotesNorm * 0.3) + ((effectiveVelocity + 1) / 2 * 0.3)
+      ))
+
+      // Map score to contour type index
+      const contourIndex = Math.floor(contourScore * contourTypes.length)
+      contourType = contourTypes[Math.min(contourIndex, contourTypes.length - 1)]
+
+      // Negative velocity → invert contour (ascending ↔ descending)
+      if (combinedVelocity < -0.3) {
+        if (contourType === 'ascending') contourType = 'descending'
+        else if (contourType === 'descending') contourType = 'ascending'
+      }
+    }
+
+    return this.createContour(contourType, length, curvature, webMetrics)
   }
 
   generateDefaultContour(length, curvature = 0.5) {
@@ -824,27 +897,58 @@ class PhraseMorphology {
     return this.createContour(contourType, length, curvature)
   }
 
-  createContour(type, length, curvature) {
+  /**
+   * Create contour pattern with web metrics-driven amplitude variation
+   * Entry #171: Acceleration from webMetrics affects contour amplitude
+   * @param {string} type - Contour type
+   * @param {number} length - Contour length
+   * @param {number} curvature - Base curvature 0-1
+   * @param {Object} webMetrics - Optional web metrics for amplitude variation
+   * @returns {Array} Contour values 0-1
+   */
+  createContour(type, length, curvature, webMetrics = null) {
     const contour = []
 
-    // DERIVATION: deterministic variation based on position and curvature
+    // Base amplitude (existing: 0.1 * curvature)
+    const baseAmplitude = 0.1 * curvature
+    let amplitude = baseAmplitude
+
+    // Entry #171: WebMetrics acceleration modulates amplitude
+    // Uses pre-normalized values from BackgroundCompositionService (0-1 range)
+    if (webMetrics) {
+      // Convert 0-1 normalized to -1 to +1 for acceleration factor
+      const wikiAcc = (webMetrics.wikipedia?.accelerationNorm ?? 0.5) * 2 - 1
+      const hnAcc = (webMetrics.hackernews?.accelerationNorm ?? 0.5) * 2 - 1
+
+      // Positive acceleration → more dramatic contour
+      // Negative acceleration → flatter contour
+      const accFactor = (wikiAcc + hnAcc) / 2
+      amplitude = baseAmplitude * (1 + accFactor * 0.5) // ±50% variation
+
+      // Symmetric clamping around base amplitude (±50% of base)
+      const minAmplitude = Math.max(0.02, baseAmplitude * 0.5)
+      const maxAmplitude = Math.min(0.3, baseAmplitude * 1.5)
+      amplitude = Math.max(minAmplitude, Math.min(maxAmplitude, amplitude))
+    }
+
+    // DERIVATION: deterministic variation based on position and amplitude
     // Uses sine wave modulation for natural-sounding variation
-    const positionVariation = (i, amplitude) => {
+    const positionVariation = (i, amp) => {
       const phaseOffset = curvature * Math.PI * 2
-      return Math.sin((i / length) * Math.PI * 3 + phaseOffset) * amplitude
+      return Math.sin((i / length) * Math.PI * 3 + phaseOffset) * amp
     }
 
     switch (type) {
       case 'ascending':
         for (let i = 0; i < length; i++) {
-          const variation = positionVariation(i, 0.1 * curvature)
+          const variation = positionVariation(i, amplitude)
           contour.push(1 - (i / length) + variation)
         }
         break
 
       case 'descending':
         for (let i = 0; i < length; i++) {
-          const variation = positionVariation(i, 0.1 * curvature)
+          const variation = positionVariation(i, amplitude)
           contour.push(i / length + variation)
         }
         break
@@ -853,14 +957,18 @@ class PhraseMorphology {
         for (let i = 0; i < length; i++) {
           const peak = 0.5
           const distance = Math.abs(i / length - peak)
-          const variation = positionVariation(i, 0.1 * curvature)
+          const variation = positionVariation(i, amplitude)
           contour.push(1 - distance * 2 + variation)
         }
         break
 
       case 'wave':
         for (let i = 0; i < length; i++) {
-          const wave = Math.sin((i / length) * Math.PI * 2 * curvature)
+          // Wave uses different amplitude calculation than other contours
+          // With webMetrics: 0.5 + amplitude (more dramatic, 0.52-0.8 range)
+          // Without webMetrics: curvature-based (0-1)
+          const waveAmplitude = webMetrics ? (0.5 + amplitude) : curvature
+          const wave = Math.sin((i / length) * Math.PI * 2 * waveAmplitude)
           contour.push((wave + 1) / 2)
         }
         break
@@ -868,26 +976,35 @@ class PhraseMorphology {
       case 'ascending_descending':
         const midPoint = Math.floor(length / 2)
         for (let i = 0; i < length; i++) {
+          const variation = positionVariation(i, amplitude * 0.5)
           if (i < midPoint) {
-            contour.push(i / midPoint)
+            contour.push(i / midPoint + variation)
           } else {
-            contour.push(1 - ((i - midPoint) / midPoint))
+            contour.push(1 - ((i - midPoint) / midPoint) + variation)
           }
         }
         break
 
       case 'level':
         for (let i = 0; i < length; i++) {
-          // DERIVATION: subtle variation from position and curvature
-          const variation = positionVariation(i, 0.05)
+          // DERIVATION: subtle variation from position and amplitude
+          const variation = positionVariation(i, amplitude * 0.5)
           contour.push(0.5 + variation)
+        }
+        break
+
+      case 'linear':
+        // Entry #171: Linear contour with subtle variation
+        for (let i = 0; i < length; i++) {
+          const variation = positionVariation(i, amplitude * 0.3)
+          contour.push(0.3 + (i / length) * 0.4 + variation)
         }
         break
 
       default:
         for (let i = 0; i < length; i++) {
           // DERIVATION: moderate variation for default case
-          const variation = positionVariation(i, 0.15 * curvature)
+          const variation = positionVariation(i, amplitude)
           contour.push(0.5 + variation)
         }
     }
@@ -895,7 +1012,12 @@ class PhraseMorphology {
     // Normalize contour to 0-1 range
     const min = Math.min(...contour)
     const max = Math.max(...contour)
-    return contour.map(val => (val - min) / (max - min))
+    const range = max - min
+    // Prevent division by zero for flat contours
+    if (range < 0.001) {
+      return contour.map(() => 0.5)
+    }
+    return contour.map(val => (val - min) / range)
   }
 
   contourToPitches(contour, scale, rootNote) {
@@ -997,12 +1119,21 @@ class PhraseMorphology {
     return rhythm
   }
 
-  applyOrnamentation(pitches, rhythm, gestureData) {
+  /**
+   * Apply ornamentation based on gesture character and web metrics
+   * Entry #171: GitHub creates/deletes affects ornamentation style
+   * @param {Array} pitches - MIDI pitch array
+   * @param {Array} rhythm - Duration array
+   * @param {Object} gestureData - Gesture data with curvature/velocity
+   * @param {Object} webMetrics - Optional web metrics for style variation
+   * @returns {Array} Ornamented pitch array
+   */
+  applyOrnamentation(pitches, rhythm, gestureData, webMetrics = null) {
     const { curvature = 0.5, velocity = 50 } = gestureData
     const ornamented = [...pitches]
 
     // Determine ornamentation style based on gesture character
-    let ornamentationStyle
+    let ornamentationStyle = null
     if (curvature > 0.8 && velocity < 30) {
       ornamentationStyle = 'baroque'  // Trills, mordents
     } else if (curvature > 0.6 && velocity > 70) {
@@ -1011,10 +1142,27 @@ class PhraseMorphology {
       ornamentationStyle = 'blues'    // Bends, slides
     } else if (curvature > 0.7) {
       ornamentationStyle = 'romantic' // Arpeggios
-    } else {
-      return ornamented // No ornamentation
     }
 
+    // Entry #171: WebMetrics override based on GitHub activity patterns
+    // Uses pre-normalized values from BackgroundCompositionService (0-1 range)
+    if (webMetrics?.github) {
+      const createsNorm = webMetrics.github.createsNorm ?? 0.5
+      const deletesNorm = webMetrics.github.deletesNorm ?? 0.5
+
+      // High creation activity → more ornaments (jazz/baroque)
+      // High deletion activity → fewer ornaments (blues/none)
+      // Creates:deletes ratio determines style
+      if (createsNorm > 0.5 && deletesNorm < 0.4) {
+        ornamentationStyle = 'baroque'  // Constructive → elaborate
+      } else if (deletesNorm > 0.6) {
+        ornamentationStyle = null       // Destructive → simple
+      } else if (createsNorm > 0.3) {
+        ornamentationStyle = 'jazz'     // Moderate → jazz runs
+      }
+    }
+
+    if (!ornamentationStyle) return ornamented
     return this.addOrnaments(ornamented, rhythm, ornamentationStyle)
   }
 

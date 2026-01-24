@@ -732,3 +732,90 @@ Modes have inherent "brightness" based on raised/lowered scale degrees. High act
 v0.2.0
 
 ---
+
+## Entry #171 Addendum: Code Review Fixes
+
+**Date**: 2026-01-24
+**Focus**: Fixes for issues identified during code review of Entry #171
+
+---
+
+### Issues Fixed
+
+#### High Priority
+
+1. **Inconsistent Normalization** (BackgroundCompositionService.js)
+   - **Problem**: PhraseMorphology was doing its own normalization, duplicating logic and risking inconsistency
+   - **Fix**: Centralized ALL normalization in `_normalizeWebMetrics()` - now returns pre-normalized values with `*Norm` suffix fields (avgEditSizeNorm, avgUpvotesNorm, velocityNorm, etc.)
+
+2. **Zero-Velocity Edge Case** (PhraseMorphology.js)
+   - **Problem**: When all sources have near-zero velocity, `effectiveVelocity` dominated by noise
+   - **Fix**: Added fallback to acceleration when `|combinedVelocity| < 0.1`:
+   ```javascript
+   const effectiveVelocity = Math.abs(combinedVelocity) < 0.1
+     ? ((wiki.accelerationNorm ?? 0.5) - 0.5) * 2
+     : combinedVelocity
+   ```
+
+3. **Array Bounds Safety** (PhraseMorphology.js)
+   - **Problem**: contourScore could theoretically exceed 1.0 from floating-point accumulation
+   - **Fix**: Explicit clamp: `Math.min(1, Math.max(0, contourScore))`
+
+#### Medium Priority
+
+4. **Magic Numbers in Ornamentation** (PhraseMorphology.js)
+   - **Problem**: Used raw values (5, 3, 2) instead of normalized thresholds
+   - **Fix**: Now uses pre-normalized createsNorm/deletesNorm with thresholds 0.5, 0.3, 0.6
+
+5. **commentCount Ceiling Too Low** (BackgroundCompositionService.js)
+   - **Problem**: Ceiling of 50 caused saturation on active threads
+   - **Fix**: Increased ceiling to 100 for better dynamic range
+
+6. **Asymmetric Amplitude Clamping** (PhraseMorphology.js)
+   - **Problem**: Fixed bounds [0.05, 0.25] didn't scale with curvature
+   - **Fix**: Symmetric clamping around base amplitude (±50% of base):
+   ```javascript
+   const minAmplitude = Math.max(0.02, baseAmplitude * 0.5)
+   const maxAmplitude = Math.min(0.3, baseAmplitude * 1.5)
+   ```
+
+7. **WebMetrics Sync Timing** (BackgroundCompositionService.js)
+   - **Problem**: Metrics only synced on composition cycle, gestures got stale data
+   - **Fix**: Added `this._syncWebMetrics()` call at start of `addMaterial()` for fresh data on every gesture
+
+8. **Italian Comments** (PhraseMorphology.js)
+   - **Problem**: Mixed Italian/English comments reduced readability
+   - **Fix**: Translated all Italian comments to English
+
+#### Low Priority
+
+9. **Null-Safety Patterns** (PhraseMorphology.js)
+   - **Problem**: Inconsistent use of || vs ?? for defaults
+   - **Fix**: Standardized to ?? operator for cleaner null/undefined handling
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/BackgroundCompositionService.js` | Centralized normalization with *Norm fields, commentCount ceiling 100, sync in addMaterial() |
+| `backend/src/services/PhraseMorphology.js` | Uses pre-normalized values, velocity fallback, symmetric clamping, English comments, ?? operator |
+
+---
+
+### Verification
+
+Tested with LOW activity metrics (all 0.1) vs HIGH activity metrics (all 0.9):
+- LOW: 2 notes, level contour, minimal amplitude
+- HIGH: 7 notes, ascending_descending contour, wide amplitude
+
+All normalized values confirmed in 0-1 range.
+
+---
+
+### Version
+
+v0.2.1
+
+---
