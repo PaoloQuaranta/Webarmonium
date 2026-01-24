@@ -241,23 +241,30 @@ class StyleAnalyzer {
   }
 
   classifyMeter(groupings) {
-    // Entry #162: Enhanced meter classification with swing/energy fallback
+    // Entry #164: Lowered thresholds for more meter variety
     const swing = this.currentStyle.rhythmicCharacter?.swing || 0
     const energy = this.currentStyle.energy || 0.5
     const syncopation = this.currentStyle.rhythmicCharacter?.syncopation || 0
+    const regularity = this.currentStyle.rhythmicCharacter?.regularity || 0.5
 
     // If no clear grouping, use swing/energy/syncopation to suggest meter
-    if (groupings.length === 0 || groupings[0].strength < 0.3) {
-      // High swing suggests compound meters (6/8, 12/8)
-      if (swing > 0.4) return energy > 0.6 ? '6/8' : '12/8'
-      // High syncopation with moderate energy suggests odd meters
-      if (syncopation > 0.5 && energy > 0.4) return '5/4'
-      // Low energy suggests slower meters
-      if (energy < 0.3) return '3/4'
-      // High energy suggests driving meters
-      if (energy > 0.7) return syncopation > 0.3 ? '7/8' : '4/4'
-      // Default
-      return '4/4'
+    if (groupings.length === 0 || groupings[0].strength < 0.2) {
+      // Entry #164: Lowered thresholds significantly for more variation
+      // Swing suggests compound meters (6/8, 12/8)
+      if (swing > 0.25) return energy > 0.5 ? '6/8' : '12/8'
+      // Syncopation suggests odd meters
+      if (syncopation > 0.35) return energy > 0.5 ? '5/4' : '7/8'
+      // Low energy + high regularity → waltz feel
+      if (energy < 0.4 && regularity > 0.5) return '3/4'
+      // Low regularity → asymmetric meters
+      if (regularity < 0.35) return syncopation > 0.2 ? '7/8' : '5/4'
+      // High energy + low swing → driving 4/4 or 2/4
+      if (energy > 0.6 && swing < 0.15) return regularity > 0.6 ? '2/4' : '4/4'
+      // Moderate everything → pick based on energy band
+      if (energy < 0.35) return '3/4'
+      if (energy > 0.55) return '4/4'
+      // Default for mid-energy
+      return '6/8'
     }
 
     const strongest = groupings[0]
@@ -276,11 +283,11 @@ class StyleAnalyzer {
     const possibleMeters = meterMap[strongest.size] || ['4/4']
 
     // Choose based on swing and energy
-    if (swing > 0.35) {
+    if (swing > 0.2) {
       // Swing feel → compound meters (x/8)
       return possibleMeters.find(m => m.includes('8')) || possibleMeters[0]
-    } else if (energy > 0.65) {
-      // High energy → faster subdivisions
+    } else if (energy > 0.55) {
+      // Higher energy → faster subdivisions
       return possibleMeters.find(m => m.includes('8')) || possibleMeters[0]
     } else {
       return possibleMeters.find(m => m.includes('4')) || possibleMeters[0]
