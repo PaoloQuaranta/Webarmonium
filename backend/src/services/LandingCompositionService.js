@@ -186,6 +186,25 @@ class LandingCompositionService {
   }
 
   /**
+   * Normalize web metrics to 0-1 range for use by HarmonicEngine
+   * Entry #171: Centralized normalization to eliminate code duplication
+   * Uses fixed reference ranges for deterministic output
+   * @returns {Object|null} Normalized metrics or null if poller not available
+   * @private
+   */
+  _normalizeWebMetrics() {
+    if (!this.webMetricsPoller) return null
+    const raw = this.webMetricsPoller.getMetrics()
+    if (!raw) return null
+
+    return {
+      wikipedia: { normalized: Math.min(1, (raw.wikipedia?.editsPerMinute || 0) / 50) },
+      hackernews: { normalized: Math.min(1, (raw.hackernews?.postsPerMinute || 0) / 5) },
+      github: { normalized: Math.min(1, (raw.github?.commitsPerMinute || 0) / 30) }
+    }
+  }
+
+  /**
    * Set WebMetricsPoller for velocity/acceleration data
    * @param {WebMetricsPoller} poller - WebMetricsPoller instance
    */
@@ -990,6 +1009,7 @@ class LandingCompositionService {
       // Entry #115: Save keyCenter before composition to detect changes
       const previousKeyCenter = this.compositionEngine.keyCenter
       // Pass compositionCount for temporal variation (Entry #114)
+      // Entry #171: Pass webMetrics for deterministic progression selection
       const composition = this.compositionEngine.compose({
         roomId: this.landingRoomId,
         userCount: 3,
@@ -998,7 +1018,8 @@ class LandingCompositionService {
           this.virtualUsers.hackernews.userId,
           this.virtualUsers.github.userId
         ],
-        compositionCount: this.compositionCount
+        compositionCount: this.compositionCount,
+        webMetrics: this._normalizeWebMetrics()
       })
 
       // DEBUG Entry #117: Log melody pitches and material source to verify variation
