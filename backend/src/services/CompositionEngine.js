@@ -63,10 +63,13 @@ class CompositionEngine {
 // console.log(`🎼 Available material: ${availableMaterial.length} items`)
 
       // 4. Generate current section
-      const section = this.composeSection(this.currentSection, currentStyle, availableMaterial)
+      // Entry #163: Save composed section BEFORE getNextSection() modifies currentSection
+      const composedSection = this.currentSection
+      const section = this.composeSection(composedSection, currentStyle, availableMaterial)
 
       // 5. Determine next section using form logic
-      this.nextSection = this.getNextSection(this.formStructure)
+      this.getNextSection(this.formStructure)
+      // After getNextSection(), this.currentSection is now the NEXT section
 
       // 6. Update material library with new composition
       this.updateMaterialLibrary(section)
@@ -76,8 +79,8 @@ class CompositionEngine {
         type: section.type,
         structure: {
           form: this.formStructure,
-          currentSection: this.currentSection,
-          nextSection: this.nextSection,
+          currentSection: composedSection,        // Section that was just composed
+          nextSection: this.currentSection,       // Section that will be composed next
           sectionHistory: [...this.sectionHistory]
         },
         content: section,
