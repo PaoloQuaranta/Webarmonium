@@ -1,4 +1,5 @@
 const CounterpointEngine = require('./CounterpointEngine')
+const PhraseMorphology = require('./PhraseMorphology')
 const { PHI } = require('../utils/constants')
 
 class CompositionEngine {
@@ -7,6 +8,8 @@ class CompositionEngine {
     this.styleAnalyzer = styleAnalyzer
     this.harmonicEngine = harmonicEngine
     this.counterpointEngine = new CounterpointEngine()
+    // Fix #5: Add PhraseMorphology for raw gesture contour processing
+    this.phraseMorphology = new PhraseMorphology()
 
     // Form structure management
     this.formStructure = null     // ABA, rondo, sonata, verse-chorus, etc.
@@ -41,6 +44,9 @@ class CompositionEngine {
 
       // Store compositionCount for temporal variation (Entry #114)
       this.compositionCount = roomContext.compositionCount || 0
+
+      // Entry #169: Store sectionContext for section-aware composition
+      this.sectionContext = roomContext.sectionContext || null
 
       // DEBUG Entry #117: Log compositionCount to verify it changes
 
@@ -262,12 +268,79 @@ class CompositionEngine {
     // Combine and prioritize
     const allMaterial = [...libraryMaterial, ...recentMaterial]
 
+    // Fix #5: Retrieve raw gestures for the current section and convert to material
+    if (this.sectionContext) {
+      const rawGestures = this.materialLibrary.getRawGesturesForSection(this.sectionContext, 3)
+      const rawGestureMaterial = this._convertRawGesturesToMaterial(rawGestures)
+      allMaterial.push(...rawGestureMaterial)
+    }
+
     // Sort by relevance and freshness
     return allMaterial.sort((a, b) => {
       const scoreA = this.calculateMaterialScore(a, roomContext)
       const scoreB = this.calculateMaterialScore(b, roomContext)
       return scoreB - scoreA
     }).slice(0, 5) // Use top 5 most relevant materials
+  }
+
+  /**
+   * Fix #5: Convert raw gestures to material entries using PhraseMorphology
+   * This allows raw gesture contours to be used in the composition flow
+   * @param {RawGestureData[]} rawGestures - Raw gestures from MaterialLibrary
+   * @returns {Object[]} Material entries compatible with composition flow
+   * @private
+   */
+  _convertRawGesturesToMaterial(rawGestures) {
+    if (!rawGestures || rawGestures.length === 0) return []
+
+    const musicalContext = {
+      key: this.keyCenter,
+      mode: this.mode,
+      tempo: this.tempo
+    }
+
+    return rawGestures.map(rawGesture => {
+      // Get the raw contour from the gesture (stored as property on RawGestureData)
+      const contour = rawGesture.contour
+
+      if (!contour || contour.length === 0) return null
+
+      // Use PhraseMorphology to generate phrase from raw contour
+      const phrase = this.phraseMorphology.generatePhraseFromContour(
+        contour,
+        musicalContext,
+        this.sectionContext,
+        {
+          gestureType: rawGesture.gestalt || 'linear',
+          velocity: rawGesture.velocity || 0.5,
+          curvature: rawGesture.curvature || 0.5
+        }
+      )
+
+      if (!phrase) return null
+
+      // Wrap as material entry
+      return {
+        id: `raw_phrase_${rawGesture.id || Date.now()}`,
+        content: {
+          notes: phrase.notes || [],
+          type: 'melody',
+          fromRawGesture: true
+        },
+        metadata: {
+          harmonicFunction: rawGesture.harmonicFunction || 'subdominant',
+          character: rawGesture.character || 'melodic',
+          keyCenter: this.keyCenter,
+          mode: this.mode,
+          tempo: this.tempo,
+          createdAt: rawGesture.timestamp || Date.now(),
+          userId: rawGesture.userId,
+          complexity: rawGesture.getComplexity(),
+          emotionalValence: 0.5,
+          fromRawGesture: true
+        }
+      }
+    }).filter(m => m !== null)
   }
 
   calculateMaterialScore(material, roomContext) {
@@ -312,7 +385,10 @@ class CompositionEngine {
 
     // Generate harmonic progression for the section
     // Entry #117: Pass compositionCount for temporal variation in progression selection
-    const progression = this.harmonicEngine.generateProgression(style, sectionLength, this.compositionCount)
+    // Entry #169: Pass sectionContext for tension-aware progression
+    const progression = this.harmonicEngine.generateProgression(
+      style, sectionLength, this.compositionCount, this.sectionContext
+    )
     // Entry #117: Sync keyCenter from HarmonicEngine (which now varies by compositionCount)
     this.keyCenter = this.harmonicEngine.currentKey
     this.mode = this.harmonicEngine.currentMode
@@ -320,17 +396,18 @@ class CompositionEngine {
     // Compose based on material availability and user count
     if (material.length > 1) {
       // Multi-user: create polyphonic texture
-      return this.composePolyphonic(material, progression, style, sectionLength)
+      // Entry #169: Pass sectionContext for voice role application
+      return this.composePolyphonic(material, progression, style, sectionLength, this.sectionContext)
     } else if (material.length === 1) {
       // Single-user: elaborate material with accompaniment
-      return this.composeMonophonic(material[0], progression, style, sectionLength)
+      return this.composeMonophonic(material[0], progression, style, sectionLength, this.sectionContext)
     } else {
       // No material: generate ambient/sectional material
-      return this.composeAmbient(progression, style, sectionLength)
+      return this.composeAmbient(progression, style, sectionLength, this.sectionContext)
     }
   }
 
-  composePolyphonic(materials, progression, style, sectionLength) {
+  composePolyphonic(materials, progression, style, sectionLength, sectionContext = null) {
     // LIMIT to 4 voices max for clarity (melody, harmony, bass, pad)
     const maxVoices = Math.min(materials.length, 4)
     const selectedMaterials = materials.slice(0, maxVoices)
@@ -340,7 +417,8 @@ class CompositionEngine {
     // Create voices for each material/user with DISTINCT ROLES
     const voices = selectedMaterials.map((material, i) => {
       // Pass compositionCount for temporal variation (Entry #114)
-      const voice = this.counterpointEngine.createVoice(material, i, progression, this.compositionCount)
+      // Entry #169: Pass sectionContext for voice role application
+      const voice = this.counterpointEngine.createVoice(material, i, progression, this.compositionCount, sectionContext)
 // console.log(`🎼   Voice ${i} (${voice.voiceRole}): ${voice.notes?.length || 0} notes, timbre=${voice.timbre}`)
       return {
         ...voice,
@@ -378,11 +456,12 @@ class CompositionEngine {
     }
   }
 
-  composeMonophonic(material, progression, style, sectionLength) {
+  composeMonophonic(material, progression, style, sectionLength, sectionContext = null) {
 // console.log(`🎼 Composing monophonic section from material ${material.id}`)
 
     // Elaborate the primary material
-    const melody = this.elaborateMaterial(material, progression, sectionLength)
+    // Entry #169: Pass sectionContext for development technique application
+    const melody = this.elaborateMaterial(material, progression, sectionLength, sectionContext)
 
     // Generate accompaniment
     const accompaniment = this.generateAccompaniment(progression, style, sectionLength)
@@ -393,12 +472,28 @@ class CompositionEngine {
       accompaniment,
       progression,
       duration: sectionLength,
-      materialId: material.id
+      materialId: material.id,
+      sectionParams: sectionContext ? {
+        thematicRole: sectionContext.thematicRole,
+        developmentTechnique: sectionContext.developmentTechnique
+      } : null
     }
   }
 
-  composeAmbient(progression, style, sectionLength) {
+  composeAmbient(progression, style, sectionLength, sectionContext = null) {
 // console.log(`🎼 Composing ambient section (no material available)`)
+
+    // Fix #5: Try to use raw gestures for melodic content before falling back to pure ambient
+    if (sectionContext) {
+      const rawGestures = this.materialLibrary.getRawGesturesForSection(sectionContext, 2)
+      if (rawGestures && rawGestures.length > 0) {
+        const rawMaterial = this._convertRawGesturesToMaterial(rawGestures)
+        if (rawMaterial.length > 0) {
+          // Use raw gesture material for a more melodic ambient section
+          return this.composeMonophonic(rawMaterial[0], progression, style, sectionLength, sectionContext)
+        }
+      }
+    }
 
     // Generate textural material based on style
     const texture = this.generateAmbientTexture(style, sectionLength)

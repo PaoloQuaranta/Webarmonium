@@ -1,4 +1,5 @@
 const { PHI } = require('../utils/constants')
+const DevelopmentTechniques = require('../composition/DevelopmentTechniques')
 
 class PhraseMorphology {
   constructor() {
@@ -26,7 +27,19 @@ class PhraseMorphology {
     }
   }
 
-  generatePhrase(gestureData, musicalContext) {
+  /**
+   * Generate phrase from gesture data (original method - kept for backward compatibility)
+   * Fix #6: Now applies development techniques even when using old code path
+   * @param {Object} gestureData - Gesture input
+   * @param {Object} musicalContext - Musical context (key, mode, tempo, etc.)
+   * @param {Object} sectionContext - Optional SectionContext for section-aware generation
+   */
+  generatePhrase(gestureData, musicalContext, sectionContext = null) {
+    // If we have a SectionContext and explicit contour, use section-aware generation
+    if (sectionContext && gestureData.contour) {
+      return this.generatePhraseFromContour(gestureData.contour, musicalContext, sectionContext, gestureData)
+    }
+
     const { velocity, trajectory, curvature, acceleration, intensity } = gestureData
     const { key = 'C', mode = 'major', tempo = 120, currentHarmony } = musicalContext
 
@@ -35,38 +48,61 @@ class PhraseMorphology {
     const gestureDurationMs = gestureData.duration || 1000 // Default 1 second if missing
     const phraseDurationBeats = this.quantizeGestureDuration(gestureDurationMs, tempo)
 
-// console.log('🎵 DRAG PHRASE - Gesture duration:', {
-//      durationMs: gestureDurationMs,
-//      tempo: tempo,
-//      quantizedBeats: phraseDurationBeats
-////    })
-
     // 1. Determine phrase length (note count) based on quantized duration and velocity
     const phraseLength = this.calculatePhraseLengthFromDuration(phraseDurationBeats, velocity, tempo)
 
-    // 2. Select appropriate scale based on mood and mode
-    const scale = this.selectScale(mode, gestureData)
+    // 2. Select appropriate scale based on mood, mode, and optional section tension
+    const harmonicTension = sectionContext?.harmonicTension ?? 0
+    const scale = this.selectScaleWithTension(mode, gestureData, harmonicTension)
 
     // 3. Generate melodic contour from gesture trajectory
-    const contour = this.generateMelodicContour(trajectory, curvature, phraseLength)
+    let contour = this.generateMelodicContour(trajectory, curvature, phraseLength)
+
+    // Fix #6: Apply development technique if we have sectionContext
+    if (sectionContext && contour && contour.length > 0) {
+      const technique = sectionContext.developmentTechnique || 'statement'
+      const techniqueOptions = this._getTechniqueOptions(sectionContext, gestureData)
+      // Convert contour to expected format {pitch, time, intensity}
+      const normalizedContour = contour.map((value, idx) => ({
+        pitch: value,
+        time: idx / (contour.length - 1 || 1),
+        intensity: intensity || 0.5
+      }))
+      const developedContour = DevelopmentTechniques.applyTechnique(normalizedContour, technique, techniqueOptions)
+      // Extract pitch values back
+      if (developedContour && developedContour.length > 0) {
+        contour = developedContour.map(p => p.pitch)
+      }
+    }
 
     // 4. Convert contour to actual pitches
     const pitches = this.contourToPitches(contour, scale, key)
 
     // 5. Generate rhythm that fits EXACTLY in phraseDurationBeats
-    const rhythm = this.generateRhythmForDuration(velocity, acceleration, phraseLength, phraseDurationBeats, tempo, curvature)
+    const rhythmParams = sectionContext?.getRhythmParams?.() || {}
+    const rhythm = this.generateRhythmForDuration(
+      velocity, acceleration, phraseLength, phraseDurationBeats, tempo, curvature,
+      rhythmParams.density, rhythmParams.complexity
+    )
 
     // 6. Add ornamentation based on gesture character
     const ornamented = this.applyOrnamentation(pitches, rhythm, gestureData)
 
-    // 7. Generate dynamics (velocity curve) - pass actual note count
-    const dynamics = this.generateDynamics(acceleration, velocity, ornamented.length)
+    // 7. Generate dynamics (velocity curve) - section-aware if available
+    const velocityParams = sectionContext?.getVelocityParams?.() || {}
+    const dynamics = this.generateDynamicsWithSection(
+      acceleration, velocity, ornamented.length,
+      velocityParams.baseVelocity, velocityParams.contour
+    )
 
-    // 8. Create articulation pattern - pass actual note count
-    const articulations = this.generateArticulations(velocity, curvature, ornamented.length)
+    // 8. Create articulation pattern - section-aware if available
+    const articulationParams = sectionContext?.getArticulationParams?.() || {}
+    const articulations = this.generateArticulationsWithSection(
+      velocity, curvature, ornamented.length,
+      sectionContext?.articulationStyle
+    )
 
     // 9. CRITICAL: Extend rhythm array if ornamentation added extra notes
-    // Ornament notes get short durations (1/4 of average original duration)
     const avgDuration = rhythm.length > 0
       ? rhythm.reduce((sum, d) => sum + d, 0) / rhythm.length
       : 0.25
@@ -74,12 +110,6 @@ class PhraseMorphology {
     while (rhythm.length < ornamented.length) {
       rhythm.push(ornamentDuration)
     }
-
-// console.log('🎵 Generated phrase:', {
-//      noteCount: phraseLength,
-//      totalDurationBeats: phraseDurationBeats,
-//      actualDurationBeats: rhythm.reduce((sum, dur) => sum + dur, 0).toFixed(2)
-////    })
 
     return {
       notes: ornamented.map((pitch, i) => ({
@@ -98,9 +128,318 @@ class PhraseMorphology {
         phraseDurationBeats: phraseDurationBeats,  // NEW: Total phrase duration
         gestureDurationMs: gestureDurationMs,      // NEW: Original gesture duration
         contour: contour,
-        gestureMood: this.analyzeMood(gestureData)
+        gestureMood: this.analyzeMood(gestureData),
+        developmentTechnique: sectionContext?.developmentTechnique || 'statement',
+        thematicRole: sectionContext?.thematicRole || 'exposition'
       }
     }
+  }
+
+  /**
+   * Generate phrase from raw contour with section-aware development techniques
+   * This is the NEW section-aware phrase generation method
+   *
+   * @param {Array} rawContour - Array of {pitch, time, intensity} points (0-1 range)
+   * @param {Object} musicalContext - Musical context (key, mode, tempo, etc.)
+   * @param {Object} sectionContext - SectionContext with all section parameters
+   * @param {Object} gestureMetadata - Optional gesture metadata for additional context
+   * @returns {Object} Generated phrase with notes and metadata
+   */
+  generatePhraseFromContour(rawContour, musicalContext, sectionContext, gestureMetadata = {}) {
+    const { key = 'C', mode = 'major', tempo = 120 } = musicalContext
+
+    // 1. Apply development technique to contour BEFORE quantization
+    const technique = sectionContext.developmentTechnique || 'statement'
+    const techniqueOptions = this._getTechniqueOptions(sectionContext, gestureMetadata)
+    const developedContour = DevelopmentTechniques.applyTechnique(rawContour, technique, techniqueOptions)
+
+    // Fix #4: Handle null return from applyTechnique (invalid input)
+    if (!developedContour) {
+      return null
+    }
+
+    // 2. Resample contour to target phrase length
+    const rhythmParams = sectionContext.getRhythmParams?.() || { density: 0.5, complexity: 0.3 }
+    const targetLength = this._calculateTargetLength(developedContour, rhythmParams.density, tempo)
+    const resampledContour = DevelopmentTechniques.resampleContour(developedContour, targetLength)
+
+    // 3. Select scale based on harmonic tension (late binding)
+    const harmonicTension = sectionContext.harmonicTension ?? 0.3
+    const scale = this.selectScaleWithTension(mode, gestureMetadata, harmonicTension)
+
+    // 4. Quantize contour to scale NOW (late binding)
+    const registerParams = sectionContext.getRegisterParams?.() || { min: 48, max: 84, center: 66 }
+    const pitches = this._contourToScalePitches(resampledContour, scale, key, registerParams)
+
+    // 5. Generate rhythm from contour timing + section density
+    const phraseDurationBeats = this._calculatePhraseDuration(resampledContour, tempo)
+    const rhythm = this._generateRhythmFromContour(
+      resampledContour, phraseDurationBeats, rhythmParams.density, rhythmParams.complexity
+    )
+
+    // 6. Generate dynamics from contour intensity + section parameters
+    const velocityParams = sectionContext.getVelocityParams?.() || { baseVelocity: 80, variation: 15, contour: 'stable' }
+    const dynamics = this._generateDynamicsFromContour(resampledContour, velocityParams)
+
+    // 7. Generate articulations from section style
+    const articulationParams = sectionContext.getArticulationParams?.() || { overlap: 0, gateTime: 0.8 }
+    const articulations = this._generateArticulationsFromSection(
+      resampledContour.length, sectionContext.articulationStyle || 'portato', articulationParams
+    )
+
+    // Fix #8: Removed unused smoothedContour calculation
+    // Contour in metadata uses resampledContour directly
+
+    return {
+      notes: pitches.map((pitch, i) => ({
+        pitch,
+        duration: rhythm[i] || 0.5,
+        velocity: dynamics[i] || velocityParams.baseVelocity,
+        articulation: articulations[i] || 'portato',
+        position: i / pitches.length,
+        startBeat: this.calculateStartBeat(rhythm, i),
+        gateTime: articulationParams.gateTime
+      })),
+      metadata: {
+        scale: scale,
+        key: key,
+        length: pitches.length,
+        tempo: tempo,
+        phraseDurationBeats: phraseDurationBeats,
+        contour: resampledContour,  // Fix #8: Use resampledContour directly
+        developmentTechnique: technique,
+        thematicRole: sectionContext.thematicRole || 'exposition',
+        harmonicTension: harmonicTension,
+        sectionType: sectionContext.sectionType,
+        formType: sectionContext.formType
+      }
+    }
+  }
+
+  /**
+   * Get technique-specific options based on section context
+   */
+  _getTechniqueOptions(sectionContext, gestureMetadata) {
+    const technique = sectionContext.developmentTechnique || 'statement'
+    const progress = sectionContext.progressionPosition || 0
+
+    const baseOptions = {
+      complexity: sectionContext.rhythmicComplexity || 0.3
+    }
+
+    switch (technique) {
+      case 'variation':
+        return { ...baseOptions, complexity: 0.3 + progress * 0.4 }
+
+      case 'sequence':
+        // Sequence interval based on harmonic function
+        const intervals = { tonic: 0.15, dominant: 0.1, predominant: 0.12 }
+        return {
+          ...baseOptions,
+          interval: intervals[sectionContext.harmonicFunction] || 0.1,
+          repetitions: Math.floor(2 + progress),
+          direction: sectionContext.dynamicContour === 'crescendo' ? 'up' : 'down'
+        }
+
+      case 'fragmentation':
+        // Fragment type varies with progress
+        const fragmentTypes = ['beginning', 'motive', 'end', 'middle']
+        const fragmentIndex = Math.floor(progress * fragmentTypes.length)
+        return {
+          ...baseOptions,
+          fragmentType: fragmentTypes[fragmentIndex] || 'beginning',
+          fragmentSize: 0.3 + progress * 0.3,
+          repeat: progress > 0.5,
+          repeatCount: 2
+        }
+
+      case 'augmentation':
+        return { ...baseOptions, factor: 2.0 - progress * 0.5 }
+
+      case 'diminution':
+        return { ...baseOptions, factor: 0.5 + progress * 0.25 }
+
+      case 'inversion':
+        // Axis shifts with progress
+        return { ...baseOptions, axis: 0.5 + (progress - 0.5) * 0.2 }
+
+      case 'retrograde':
+      case 'retrograde_inversion':
+        return baseOptions
+
+      default:
+        return baseOptions
+    }
+  }
+
+  /**
+   * Calculate target phrase length based on contour and density
+   */
+  _calculateTargetLength(contour, density, tempo) {
+    const baseLength = contour.length
+    const densityMultiplier = 0.5 + density * 1.5 // 0.5x to 2x
+
+    // Clamp to reasonable range
+    return Math.max(3, Math.min(16, Math.round(baseLength * densityMultiplier)))
+  }
+
+  /**
+   * Calculate phrase duration in beats from contour
+   */
+  _calculatePhraseDuration(contour, tempo) {
+    // Each contour point represents roughly 1/8 to 1/2 beat depending on density
+    const baseDuration = contour.length * 0.5
+    return Math.max(1, Math.min(16, baseDuration))
+  }
+
+  /**
+   * Convert contour to scale-quantized pitches with register awareness
+   */
+  _contourToScalePitches(contour, scale, rootNote, registerParams) {
+    const rootMidi = this.pitchClasses[rootNote] || 60
+    const { min: regMin, max: regMax, center: regCenter } = registerParams
+
+    const pitches = []
+    let prevPitch = regCenter
+
+    contour.forEach((point, i) => {
+      // Map contour pitch (0-1) to register range
+      const targetMidi = regMin + point.pitch * (regMax - regMin)
+
+      // Find nearest scale pitch with voice leading preference
+      const scalePitch = this._findNearestScalePitch(targetMidi, scale, rootMidi, prevPitch)
+
+      // Clamp to register
+      const clampedPitch = Math.max(regMin, Math.min(regMax, scalePitch))
+      pitches.push(clampedPitch)
+      prevPitch = clampedPitch
+    })
+
+    return pitches
+  }
+
+  /**
+   * Find nearest pitch in scale with voice leading preference
+   */
+  _findNearestScalePitch(targetMidi, scale, rootMidi, prevPitch) {
+    // Build all scale pitches in range
+    const scalePitches = []
+    for (let octave = -2; octave <= 2; octave++) {
+      scale.forEach(interval => {
+        const pitch = rootMidi + interval + (octave * 12)
+        if (pitch >= 24 && pitch <= 108) {
+          scalePitches.push(pitch)
+        }
+      })
+    }
+
+    // Find nearest with voice leading weighting
+    let bestPitch = scalePitches[0] || targetMidi
+    let bestScore = Infinity
+
+    scalePitches.forEach(pitch => {
+      const distanceToTarget = Math.abs(pitch - targetMidi)
+      const distanceToPrev = Math.abs(pitch - prevPitch)
+
+      // Weight: closer to target (60%) + stepwise motion preference (40%)
+      const score = distanceToTarget * 0.6 + distanceToPrev * 0.4
+
+      if (score < bestScore) {
+        bestScore = score
+        bestPitch = pitch
+      }
+    })
+
+    return bestPitch
+  }
+
+  /**
+   * Generate rhythm from contour timing
+   */
+  _generateRhythmFromContour(contour, totalDurationBeats, density, complexity) {
+    if (contour.length === 0) return [1]
+    if (contour.length === 1) return [totalDurationBeats]
+
+    const rhythm = []
+
+    // Calculate durations from time deltas in contour
+    for (let i = 0; i < contour.length; i++) {
+      const currentTime = contour[i].time
+      const nextTime = i < contour.length - 1 ? contour[i + 1].time : 1
+
+      let duration = (nextTime - currentTime) * totalDurationBeats
+
+      // Apply complexity-based variation
+      if (complexity > 0.5) {
+        const syncopation = Math.sin(i * PHI * Math.PI) * complexity * 0.3
+        duration *= (1 + syncopation)
+      }
+
+      // Clamp duration
+      duration = Math.max(0.125, Math.min(4, duration))
+      rhythm.push(duration)
+    }
+
+    // Normalize to fit exactly in totalDurationBeats
+    const actualTotal = rhythm.reduce((sum, d) => sum + d, 0)
+    const scaleFactor = totalDurationBeats / actualTotal
+
+    return rhythm.map(d => d * scaleFactor)
+  }
+
+  /**
+   * Generate dynamics from contour intensity
+   */
+  _generateDynamicsFromContour(contour, velocityParams) {
+    const { baseVelocity, variation, contour: dynamicContour } = velocityParams
+
+    return contour.map((point, i) => {
+      const position = i / contour.length
+      let velocity = baseVelocity
+
+      // Apply contour-based dynamics
+      switch (dynamicContour) {
+        case 'crescendo':
+          velocity = baseVelocity + position * 40
+          break
+        case 'diminuendo':
+          velocity = baseVelocity + (1 - position) * 40
+          break
+        case 'terraced':
+          velocity = baseVelocity + Math.floor(position * 3) * 15
+          break
+        default:
+          // Use contour intensity
+          velocity = baseVelocity + (point.intensity - 0.5) * variation * 2
+      }
+
+      return Math.round(Math.max(30, Math.min(127, velocity)))
+    })
+  }
+
+  /**
+   * Generate articulations from section style
+   */
+  _generateArticulationsFromSection(noteCount, style, params) {
+    const articulations = []
+
+    for (let i = 0; i < noteCount; i++) {
+      const position = i / noteCount
+
+      // Vary articulation based on position in phrase
+      let articulation = style
+
+      // First and last notes may have different articulation
+      if (i === 0 && params.accentFirst) {
+        articulation = 'marcato'
+      } else if (i === noteCount - 1 && style === 'legato') {
+        articulation = 'portato' // End phrase with slight separation
+      }
+
+      articulations.push(articulation)
+    }
+
+    return articulations
   }
 
   /**
@@ -166,11 +505,23 @@ class PhraseMorphology {
   /**
    * Generate rhythm that fits exactly in the target duration
    * DETERMINISTIC: variations derived from acceleration and position, not random
+   * @param {number} velocity - Gesture velocity
+   * @param {number} acceleration - Gesture acceleration
+   * @param {number} noteCount - Number of notes
+   * @param {number} targetDurationBeats - Target duration in beats
+   * @param {number} tempo - Tempo in BPM
+   * @param {number} curvature - Gesture curvature
+   * @param {number} sectionDensity - Optional section rhythmic density (0-1)
+   * @param {number} sectionComplexity - Optional section rhythmic complexity (0-1)
    */
-  generateRhythmForDuration(velocity, acceleration, noteCount, targetDurationBeats, tempo, curvature = 0.5) {
-    // Start with base durations
+  generateRhythmForDuration(velocity, acceleration, noteCount, targetDurationBeats, tempo, curvature = 0.5, sectionDensity = null, sectionComplexity = null) {
+    // Start with base durations - modified by section density if available
     let baseDuration
-    if (velocity > 80) baseDuration = 0.25
+    if (sectionDensity !== null) {
+      // Section density overrides velocity-based duration
+      // High density (0.8-1.0) = 16th notes, Low density (0-0.2) = half notes
+      baseDuration = 2.0 - sectionDensity * 1.75 // Range: 0.25 to 2.0
+    } else if (velocity > 80) baseDuration = 0.25
     else if (velocity > 60) baseDuration = 0.5
     else if (velocity > 40) baseDuration = 1.0
     else if (velocity > 20) baseDuration = 1.5
@@ -178,6 +529,9 @@ class PhraseMorphology {
 
     const rhythm = []
     let totalDuration = 0
+
+    // Use section complexity for syncopation threshold if available
+    const effectiveComplexity = sectionComplexity !== null ? sectionComplexity : curvature
 
     // Generate rhythm with DETERMINISTIC variation
     for (let i = 0; i < noteCount; i++) {
@@ -188,9 +542,9 @@ class PhraseMorphology {
       const variation = (acceleration / 100) * positionFactor * 0.4
       let duration = baseDuration * (1 + variation)
 
-      // DERIVATION: syncopation from curvature
-      // High curvature → more syncopation at phrase midpoint
-      const syncopationThreshold = 1 - curvature // High curvature = low threshold
+      // DERIVATION: syncopation from curvature/complexity
+      // High curvature/complexity → more syncopation at phrase midpoint
+      const syncopationThreshold = 1 - effectiveComplexity // High complexity = low threshold
       const phrasePosition = i / noteCount
 
       if (phrasePosition > syncopationThreshold && phrasePosition < (1 - syncopationThreshold / 2)) {
@@ -279,6 +633,146 @@ class PhraseMorphology {
     }
 
     return this.scales[selectedScale] || this.scales.major
+  }
+
+  /**
+   * Select scale with harmonic tension from section context
+   * Higher tension → more chromatic/complex scales
+   * @param {string} mode - Base mode
+   * @param {Object} gestureData - Gesture data for mood analysis
+   * @param {number} harmonicTension - 0-1 tension level from SectionContext
+   * @returns {Array} Scale intervals
+   */
+  selectScaleWithTension(mode, gestureData, harmonicTension = 0) {
+    const mood = this.analyzeMood(gestureData || {})
+    const curvature = gestureData?.curvature || 0.5
+    const velocity = gestureData?.velocity || 50
+
+    // Tension-based scale tiers
+    // Low tension (0-0.3): Pentatonic, Major, Minor
+    // Medium tension (0.3-0.6): Modal scales (Dorian, Mixolydian, Lydian)
+    // High tension (0.6-0.8): Blues, Harmonic Minor
+    // Very high tension (0.8-1.0): Chromatic, Diminished, Whole Tone
+
+    if (harmonicTension > 0.8) {
+      // Very high tension - dissonant scales
+      const tensionScales = ['chromatic', 'diminished', 'wholeTone']
+      const idx = Math.floor((mood.charCodeAt(0) % 10) / 10 * tensionScales.length)
+      return this.scales[tensionScales[idx]] || this.scales.chromatic
+    }
+
+    if (harmonicTension > 0.6) {
+      // High tension - blues and harmonic minor
+      const tensionScales = ['blues', 'harmonicMinor', 'phrygian']
+      const idx = Math.floor(curvature * tensionScales.length)
+      return this.scales[tensionScales[idx]] || this.scales.blues
+    }
+
+    if (harmonicTension > 0.3) {
+      // Medium tension - modal scales
+      const modalScales = ['dorian', 'mixolydian', 'lydian']
+      const idx = Math.floor((velocity / 100) * modalScales.length)
+      return this.scales[modalScales[idx]] || this.scales.dorian
+    }
+
+    // Low tension - use mood-based selection with preference for simpler scales
+    const scaleMap = {
+      bright: { primary: 'majorPentatonic', secondary: 'major' },
+      happy: { primary: 'majorPentatonic', secondary: 'major' },
+      sad: { primary: 'minorPentatonic', secondary: 'minor' },
+      dark: { primary: 'minor', secondary: 'minorPentatonic' },
+      jazzy: { primary: 'majorPentatonic', secondary: 'dorian' },
+      dreamy: { primary: 'majorPentatonic', secondary: 'lydian' },
+      bluesy: { primary: 'minorPentatonic', secondary: 'blues' },
+      exotic: { primary: 'minorPentatonic', secondary: 'harmonicMinor' },
+      tense: { primary: 'minor', secondary: 'harmonicMinor' },
+      floating: { primary: 'majorPentatonic', secondary: 'major' },
+      neutral: { primary: 'major', secondary: 'majorPentatonic' }
+    }
+
+    const selected = scaleMap[mood] || scaleMap.neutral
+
+    // Use secondary scale based on tension within low range
+    if (harmonicTension > 0.15) {
+      return this.scales[selected.secondary] || this.scales.major
+    }
+
+    return this.scales[selected.primary] || this.scales.major
+  }
+
+  /**
+   * Generate dynamics with section context parameters
+   */
+  generateDynamicsWithSection(acceleration, velocity, noteCount, baseVelocity, dynamicContour) {
+    // If no section params, use original method
+    if (!baseVelocity) {
+      return this.generateDynamics(acceleration, velocity, noteCount)
+    }
+
+    const dynamics = []
+
+    for (let i = 0; i < noteCount; i++) {
+      const position = i / noteCount
+      let vel = baseVelocity
+
+      // Apply contour
+      switch (dynamicContour) {
+        case 'crescendo':
+          vel = baseVelocity + position * 40
+          break
+        case 'diminuendo':
+          vel = baseVelocity + (1 - position) * 40
+          break
+        case 'terraced':
+          vel = baseVelocity + Math.floor(position * 3) * 15
+          break
+        default:
+          // Stable with subtle variation from acceleration
+          const accEffect = (acceleration / 100) * position * 15
+          vel = baseVelocity + accEffect
+      }
+
+      // Add gesture-based micro-variation
+      const microVar = Math.sin(position * Math.PI * 3) * 5
+      vel = Math.round(vel + microVar)
+
+      dynamics.push(Math.max(30, Math.min(127, vel)))
+    }
+
+    return dynamics
+  }
+
+  /**
+   * Generate articulations with section style
+   */
+  generateArticulationsWithSection(velocity, curvature, noteCount, sectionStyle) {
+    // If no section style, use original method
+    if (!sectionStyle) {
+      return this.generateArticulations(velocity, curvature, noteCount)
+    }
+
+    const articulations = []
+
+    for (let i = 0; i < noteCount; i++) {
+      const position = i / noteCount
+
+      // Use section style as base
+      let articulation = sectionStyle
+
+      // Adjust based on position and gesture
+      if (i === 0 && velocity > 70) {
+        articulation = 'marcato' // Strong downbeat
+      } else if (position > 0.9 && sectionStyle === 'legato') {
+        articulation = 'portato' // Phrase ending
+      } else if (curvature > 0.8 && velocity > 60 && position > 0.3 && position < 0.7) {
+        // Gesture character overrides in middle of phrase
+        articulation = velocity > 80 ? 'staccato' : 'legato'
+      }
+
+      articulations.push(articulation)
+    }
+
+    return articulations
   }
 
   analyzeMood(gestureData) {

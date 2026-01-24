@@ -17,6 +17,8 @@ const StyleAnalyzer = require('./StyleAnalyzer')
 const HarmonicEngine = require('./HarmonicEngine')
 const CompositionEngine = require('./CompositionEngine')
 const PhraseMorphology = require('./PhraseMorphology')
+const { getSectionStateManager } = require('./SectionStateManager')
+const RawGestureData = require('../composition/RawGestureData')
 const { PHI } = require('../utils/constants')
 
 class BackgroundCompositionService {
@@ -31,6 +33,9 @@ class BackgroundCompositionService {
       this.styleAnalyzer,
       this.harmonicEngine
     )
+
+    // Entry #169: Section state manager for centralized section broadcast (singleton)
+    this.sectionStateManager = getSectionStateManager()
 
     // Composition state per room
     this.roomCompositions = new Map() // roomId -> composition state
@@ -133,6 +138,10 @@ class BackgroundCompositionService {
     // Entry #117: Deterministic offset based on timestamp (not random!)
     const PHI = 1.618033988749894848
     const initialCompositionCount = Math.floor(((Date.now() / 1000) * PHI) % 100)
+
+    // Entry #169: Initialize section state for room
+    const formType = roomContext.formType || 'ABA'
+    this.sectionStateManager.initializeState(roomId, formType)
 
     this.roomCompositions.set(roomId, {
       roomId,
@@ -285,8 +294,29 @@ class BackgroundCompositionService {
       clearTimeout(timer)
       this.compositionTimers.delete(roomId)
       this.roomCompositions.delete(roomId)
+      // Entry #169: Clean up section state
+      this.sectionStateManager.cleanupRoom(roomId)
 // console.log(`🎼 Stopped composition for room ${roomId}`)
     }
+  }
+
+  /**
+   * Get section state manager for external access
+   * Entry #169: Allows other services to subscribe to section changes
+   * @returns {SectionStateManager}
+   */
+  getSectionStateManager() {
+    return this.sectionStateManager
+  }
+
+  /**
+   * Get current section context for a room
+   * Entry #169
+   * @param {string} roomId - Room ID
+   * @returns {Object|null} Current SectionContext or null
+   */
+  getSectionContext(roomId) {
+    return this.sectionStateManager.getState(roomId)
   }
 
   /**
@@ -342,6 +372,18 @@ class BackgroundCompositionService {
 
     // Add to material library
     const materialId = this.materialLibrary.addMaterial(material)
+
+    // Entry #169: Also store raw gesture data for section-aware phrase generation
+    const rawGesture = new RawGestureData(gestureData.gesture, {
+      userId: gestureData.userId,
+      roomId: roomId,
+      weight: gestureWeight
+    })
+    this.materialLibrary.addRawGesture(gestureData.gesture, {
+      userId: gestureData.userId,
+      roomId: roomId,
+      weight: gestureWeight
+    })
 
     // NORMALIZE gesture properties for StyleAnalyzer
     // StyleAnalyzer expects: velocity (0-100), acceleration (0-50), timestamp
@@ -587,14 +629,23 @@ class BackgroundCompositionService {
       // Entry #115: Save keyCenter before composition to detect changes
       const previousKeyCenter = this.compositionEngine.keyCenter
 
-      // Generate composition using CompositionEngine
+      // Entry #169: Get current section context and update progress
+      const sectionContext = this.sectionStateManager.updateProgress(roomId)
+
+      // Generate composition using CompositionEngine with section context
       // Pass compositionCount for temporal variation (Entry #114)
       const composition = this.compositionEngine.compose({
         roomId,
         userCount: roomContext.userCount || 1,
         activeUsers: roomContext.activeUsers || [],
-        compositionCount: roomState.compositionCount
+        compositionCount: roomState.compositionCount,
+        sectionContext: sectionContext // Entry #169: Add section context
       })
+
+      // Entry #169: Check if we should transition to next section
+      if (sectionContext && sectionContext.shouldTransition(3)) {
+        this.sectionStateManager.transitionSection(roomId)
+      }
 
 // console.log(`🎼 Generated ${composition.type} composition:`, {
 //        form: composition.structure.form,

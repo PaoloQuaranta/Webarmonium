@@ -1,4 +1,5 @@
 const { PHI } = require('../utils/constants')
+const { applyVoiceRole, VOICE_ROLE_MODIFIERS } = require('../composition/FormDefinitions')
 
 class CounterpointEngine {
   constructor() {
@@ -34,13 +35,23 @@ class CounterpointEngine {
     this.dissonantIntervals = [1, 2, 5, 6, 8, 10, 11] // m2, M2, P4, TT, m6, m7, M7
   }
 
-  createVoice(material, voiceIndex, progression, compositionCount = 0) {
-    // Create a voice with DISTINCT ROLE based on index
-    // Voice 0: MELODY (lead, soprano, fast notes)
-    // Voice 1: HARMONY (supporting, alto, medium notes)
-    // Voice 2: BASS (foundation, bass, long notes)
-    // Voice 3: PAD (texture, tenor, very long notes)
+  /**
+   * Create a voice with section-aware parameters
+   * Uses SectionContext for dynamic level, articulation, and register adjustments
+   * @param {Object} material - Musical material
+   * @param {number} voiceIndex - Voice index (0=soprano, 1=alto, 2=tenor, 3=bass)
+   * @param {Array} progression - Harmonic progression
+   * @param {number} compositionCount - Composition count for temporal variation
+   * @param {Object} sectionContext - Optional SectionContext for section-aware generation
+   * @returns {Object} Voice with notes and metadata
+   */
+  createVoice(material, voiceIndex, progression, compositionCount = 0, sectionContext = null) {
+    // If we have a SectionContext, use section-aware voice creation
+    if (sectionContext) {
+      return this.createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext)
+    }
 
+    // Original behavior for backward compatibility
     const voiceRole = this.getVoiceRole(voiceIndex)
     const voiceType = voiceRole.type
     const range = this.voiceRanges[voiceType]
@@ -67,6 +78,281 @@ class CounterpointEngine {
       voiceIndex: voiceIndex,
       timbre: voiceRole.timbre
     }
+  }
+
+  /**
+   * Create a voice with section-aware parameters from SectionContext
+   * Applies voice role modifiers and section parameters for coherent musical texture
+   * @param {Object} material - Musical material
+   * @param {number} voiceIndex - Voice index
+   * @param {Array} progression - Harmonic progression
+   * @param {number} compositionCount - Composition count
+   * @param {Object} sectionContext - SectionContext with section parameters
+   * @returns {Object} Voice with notes and metadata
+   */
+  createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext) {
+    const voiceRole = this.getVoiceRole(voiceIndex)
+    const voiceType = voiceRole.type
+
+    // Apply voice role modifiers to section context
+    const voiceContext = sectionContext.forVoice ?
+      sectionContext.forVoice(voiceType) :
+      applyVoiceRole(sectionContext, voiceType)
+
+    // Get section-adjusted range from register parameters
+    const registerParams = voiceContext.getRegisterParams ?
+      voiceContext.getRegisterParams() :
+      this._getRegisterFromContext(voiceContext, voiceType)
+
+    const range = {
+      min: Math.max(this.voiceRanges[voiceType].min, registerParams.min),
+      max: Math.min(this.voiceRanges[voiceType].max, registerParams.max)
+    }
+
+    // Analyze material for melodic characteristics
+    const melodicProfile = this.analyzeMaterialForVoice(material)
+
+    // Apply section parameters to profile
+    melodicProfile.role = voiceRole.name
+    melodicProfile.density = this._densityFromSection(voiceContext.rhythmicDensity, voiceRole)
+    melodicProfile.noteLength = this._noteLengthFromSection(voiceContext.rhythmicDensity, voiceRole)
+    melodicProfile.activity = this._activityFromSection(voiceContext.dynamicLevel, voiceRole)
+
+    // Section-aware articulation
+    melodicProfile.articulationStyle = voiceContext.articulationStyle || voiceRole.timbre
+
+    // Generate voice based on role with section context
+    const voiceNotes = this.generateVoiceNotesWithSection(
+      material, range, melodicProfile, progression, compositionCount, voiceContext
+    )
+
+    return {
+      voiceType,
+      voiceRole: voiceRole.name,
+      userId: material.userId,
+      notes: voiceNotes,
+      range: range,
+      character: melodicProfile,
+      voiceIndex: voiceIndex,
+      timbre: voiceRole.timbre,
+      sectionParams: {
+        dynamicLevel: voiceContext.dynamicLevel,
+        harmonicTension: voiceContext.harmonicTension,
+        developmentTechnique: voiceContext.developmentTechnique,
+        thematicRole: voiceContext.thematicRole
+      }
+    }
+  }
+
+  /**
+   * Get register parameters from voice context when getRegisterParams is not available
+   */
+  _getRegisterFromContext(voiceContext, voiceType) {
+    const baseRange = this.voiceRanges[voiceType]
+    const registerCenter = voiceContext.registerCenter ?? 0.5
+    const registerSpread = voiceContext.registerSpread ?? 0.5
+
+    const fullRange = { min: 36, max: 96 }
+    const rangeSize = (fullRange.max - fullRange.min) * registerSpread
+    const centerNote = fullRange.min + (fullRange.max - fullRange.min) * registerCenter
+
+    return {
+      min: Math.max(baseRange.min, Math.round(centerNote - rangeSize / 2)),
+      max: Math.min(baseRange.max, Math.round(centerNote + rangeSize / 2)),
+      center: Math.round(centerNote)
+    }
+  }
+
+  /**
+   * Calculate density string from section rhythmic density and voice role
+   */
+  _densityFromSection(rhythmicDensity, voiceRole) {
+    // Voice role provides base density modifier
+    const roleModifiers = {
+      melody: 1.2,
+      harmony: 0.8,
+      bass: 0.5,
+      pad: 0.3
+    }
+    const modifier = roleModifiers[voiceRole.name] || 1.0
+    const effectiveDensity = rhythmicDensity * modifier
+
+    if (effectiveDensity > 0.7) return 'high'
+    if (effectiveDensity > 0.4) return 'medium'
+    if (effectiveDensity > 0.2) return 'low'
+    return 'sparse'
+  }
+
+  /**
+   * Calculate note length from section density and voice role
+   */
+  _noteLengthFromSection(rhythmicDensity, voiceRole) {
+    // Inverse relationship: higher density = shorter notes
+    const roleLengthBias = {
+      melody: -0.2,    // Tends shorter
+      harmony: 0,      // Neutral
+      bass: 0.2,       // Tends longer
+      pad: 0.4         // Much longer
+    }
+    const bias = roleLengthBias[voiceRole.name] || 0
+    const effectiveLength = (1 - rhythmicDensity) + bias
+
+    if (effectiveLength > 0.7) return 'verylong'
+    if (effectiveLength > 0.5) return 'long'
+    if (effectiveLength > 0.3) return 'medium'
+    return 'short'
+  }
+
+  /**
+   * Calculate activity level from dynamic level and voice role
+   */
+  _activityFromSection(dynamicLevel, voiceRole) {
+    const roleActivityBias = {
+      melody: 0.2,     // More active
+      harmony: 0,      // Neutral
+      bass: -0.1,      // Less active
+      pad: -0.2        // Much less active
+    }
+    const bias = roleActivityBias[voiceRole.name] || 0
+    const effectiveActivity = dynamicLevel + bias
+
+    if (effectiveActivity > 0.7) return 'high'
+    if (effectiveActivity > 0.4) return 'medium'
+    return 'low'
+  }
+
+  /**
+   * Generate voice notes with section context awareness
+   */
+  generateVoiceNotesWithSection(material, range, profile, progression, compositionCount, voiceContext) {
+    const voiceNotes = []
+    let currentBeat = 0
+
+    // Extract chord tones from progression
+    const chordTones = this._extractChordTonesFromProgression(progression, range)
+
+    // Store compositionCount for temporal variation
+    this._currentCompositionCount = compositionCount
+
+    // Get section parameters
+    const dynamicLevel = voiceContext.dynamicLevel ?? 0.5
+    const velocityParams = voiceContext.getVelocityParams ?
+      voiceContext.getVelocityParams() :
+      { baseVelocity: 40 + dynamicLevel * 80, variation: 15 }
+
+    const articulationStyle = voiceContext.articulationStyle || 'portato'
+
+    if (material.notes && material.notes.length > 0) {
+      // Adapt existing material with section parameters
+      const compCount = this._currentCompositionCount || 0
+      const temporalOffset = (compCount * PHI) % 1
+      const transposeInterval = Math.floor(temporalOffset * 5) - 2
+
+      material.notes.forEach((note, i) => {
+        const transposedPitch = note.pitch + transposeInterval
+        let adaptedPitch = this.adaptPitchToRange(transposedPitch, range, profile)
+
+        if (i > 0) {
+          const prevNote = voiceNotes[i-1]
+          adaptedPitch = this.applyVoiceLeading(prevNote.pitch, adaptedPitch, range)
+        }
+
+        // Section-aware duration
+        const baseDuration = note.duration || 1
+        const densityFactor = 1.5 - (voiceContext.rhythmicDensity || 0.5) // Higher density = shorter
+        const durationVariation = 0.8 + (((i * PHI) + temporalOffset) % 1) * 0.4
+        const duration = baseDuration * durationVariation * densityFactor
+
+        // Section-aware velocity
+        const baseVel = velocityParams.baseVelocity
+        const velVariation = Math.sin((i / material.notes.length) * Math.PI) * velocityParams.variation
+        const velocity = Math.round(Math.max(30, Math.min(127, baseVel + velVariation)))
+
+        voiceNotes.push({
+          pitch: adaptedPitch,
+          duration: duration,
+          velocity: velocity,
+          articulation: articulationStyle,
+          startBeat: currentBeat
+        })
+
+        const baseGap = (i / material.notes.length) * 0.25 + 0.125
+        const gapVariation = Math.sin((i + temporalOffset) * Math.PI) * 0.1
+        currentBeat += duration + baseGap + gapVariation
+      })
+    } else {
+      // Generate new voice based on role with section parameters
+      const role = profile.role || 'melody'
+
+      // Note count influenced by section density
+      const baseCounts = { melody: 8, harmony: 5, bass: 3, pad: 2 }
+      const densityMultiplier = 0.5 + (voiceContext.rhythmicDensity || 0.5) * 1.0
+      const noteCount = Math.round((baseCounts[role] || 5) * densityMultiplier)
+
+      for (let i = 0; i < noteCount; i++) {
+        let pitch = this.generatePitchFromChordTones(chordTones, range, profile, i, noteCount, role)
+
+        if (i > 0) {
+          const prevNote = voiceNotes[i-1]
+          pitch = this.applyVoiceLeading(prevNote.pitch, pitch, range)
+        }
+
+        const duration = this.generateDurationByRoleWithSection(role, i, noteCount, voiceContext)
+
+        // Section-aware velocity
+        const position = i / noteCount
+        const velCurve = this._getVelocityCurve(voiceContext.dynamicContour, position)
+        const velocity = Math.round(velocityParams.baseVelocity * velCurve)
+
+        voiceNotes.push({
+          pitch,
+          duration: duration,
+          velocity: Math.max(30, Math.min(127, velocity)),
+          articulation: articulationStyle,
+          startBeat: currentBeat
+        })
+
+        const gap = this.generateGapByRole(role, i, noteCount)
+        currentBeat += duration + gap
+      }
+    }
+
+    return voiceNotes
+  }
+
+  /**
+   * Get velocity curve multiplier based on dynamic contour
+   */
+  _getVelocityCurve(contour, position) {
+    switch (contour) {
+      case 'crescendo':
+        return 0.7 + position * 0.5 // 0.7 to 1.2
+      case 'diminuendo':
+        return 1.2 - position * 0.5 // 1.2 to 0.7
+      case 'terraced':
+        return 0.8 + Math.floor(position * 3) * 0.15 // Step increases
+      default:
+        // Stable with slight arch
+        return 0.9 + Math.sin(position * Math.PI) * 0.2
+    }
+  }
+
+  /**
+   * Generate duration by role with section context
+   */
+  generateDurationByRoleWithSection(role, index, total, voiceContext) {
+    const baseDuration = this.generateDurationByRole(role, index, total)
+
+    // Adjust based on section rhythmic density
+    const densityFactor = 1.5 - (voiceContext.rhythmicDensity || 0.5)
+
+    // Development sections may have more varied durations
+    if (voiceContext.thematicRole === 'development') {
+      const variationFactor = 0.7 + (((index * PHI) + (this._currentCompositionCount || 0) * PHI) % 1) * 0.6
+      return baseDuration * densityFactor * variationFactor
+    }
+
+    return baseDuration * densityFactor
   }
 
   getVoiceRole(voiceIndex) {

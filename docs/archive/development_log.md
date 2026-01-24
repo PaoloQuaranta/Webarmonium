@@ -3861,3 +3861,158 @@ Forms with longer cycles (verse_chorus, rondo) will remain stable longer, creati
 v0.1.7
 
 ---
+
+## Entry #169 - Section-Aware Compositional Architecture (Code Review Fixes)
+
+**Date**: 2026-01-24
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Completed code review fixes for the section-aware compositional architecture. This entry implements rich musical section parameters based on classical form theory, replacing simple "mood" values with comprehensive musical context that influences all composition layers.
+
+---
+
+### Problem Statement
+
+Code review of the Entry #169 implementation identified 14 issues across new and modified files:
+
+| # | Priority | Issue | File |
+|---|----------|-------|------|
+| 1 | Critical | Division by zero in `evolve()` | SectionContext.js |
+| 2 | Critical | Memory leak - no cleanup of inactive rooms | SectionStateManager.js |
+| 3 | Critical | Race condition in `updateProgress()` | SectionStateManager.js |
+| 4 | High | Return value indicates valid contour on invalid input | DevelopmentTechniques.js |
+| 5 | High | Raw gesture retrieval never called in composition flow | CompositionEngine.js |
+| 6 | High | Missing unified technique application in PhraseMorphology | PhraseMorphology.js |
+| 7 | High | Need fallback indicator when material missing | MaterialLibrary.js |
+| 8 | Medium | Unused PHI constant | RawGestureData.js |
+| 9 | Medium | Magic numbers | SectionStateManager.js |
+| 10 | Medium | Missing JSDoc parameter types | FormDefinitions.js |
+| 11 | Medium | Array bounds issue in `resampleContour()` | DevelopmentTechniques.js |
+| 12 | Low | Inconsistent semicolons | - (already consistent) |
+| 13 | Low | Naming convention inconsistency | SectionStateManager.js |
+| 14 | Low | Complex conditionals | DevelopmentTechniques.js |
+
+---
+
+### Fixes Applied
+
+#### Critical Fixes
+
+**Fix #1 - Division by Zero Protection**
+```javascript
+// Before
+const stepDelta = Math.floor((this.sectionIndex / (this.totalSections - 1)) * 12)
+
+// After
+const denominator = Math.max(1, this.totalSections - 1)
+const stepDelta = Math.floor((this.sectionIndex / denominator) * 12)
+```
+
+**Fix #2 - Memory Leak Prevention**
+Added activity tracking and periodic cleanup for inactive rooms:
+- `_lastActivityTime` Map to track per-room activity
+- `_cleanupInactiveRooms()` method running every 60 seconds
+- Rooms inactive for 5+ minutes are automatically cleaned up
+
+**Fix #3 - Race Condition Prevention**
+Added locking mechanism to `updateProgress()`:
+```javascript
+if (this._updateLocks.get(roomId)) {
+  return this.getState(roomId)  // Another update in progress
+}
+this._updateLocks.set(roomId, true)
+try {
+  // ... update logic
+} finally {
+  this._updateLocks.set(roomId, false)
+}
+```
+
+#### High Priority Fixes
+
+**Fix #4 - Invalid Input Handling**
+`applyTechnique()` and `resampleContour()` now return `null` for invalid input instead of default contours.
+
+**Fix #5 - Raw Gesture Retrieval Integration**
+Added `_convertRawGesturesToMaterial()` to CompositionEngine that:
+- Retrieves raw gestures via `materialLibrary.getRawGesturesForSection()`
+- Converts them to usable material using PhraseMorphology
+- Integrates with `getAvailableMaterial()` and `composeAmbient()`
+
+**Fix #6 - Unified Technique Application**
+PhraseMorphology now applies development techniques via `DevelopmentTechniques.applyTechnique()`.
+
+**Fix #7 - Fallback Indicator**
+`getRawGesturesForSection()` returns `{ gestures, usedFallback }` to indicate when category fallback was used.
+
+#### Medium Priority Fixes
+
+**Fix #8** - Removed unused PHI constant from RawGestureData.js
+**Fix #9** - Extracted magic numbers to named constants (CLEANUP_INTERVAL_MS, ROOM_INACTIVITY_THRESHOLD_MS)
+**Fix #10** - Added JSDoc @param and @returns types to FormDefinitions.js
+**Fix #11** - Added array bounds protection with `maxIdx` and clamped interpolation
+
+#### Low Priority Fixes
+
+**Fix #13** - Renamed `lastActivityTime` to `_lastActivityTime` for naming convention consistency
+**Fix #14** - Refactored `getTechniqueForRole()` to use lookup table structure
+
+---
+
+### New Files Created
+
+| File | Purpose |
+|------|---------|
+| `backend/src/composition/SectionContext.js` | 20+ musical parameters per section (thematic role, dynamics, harmonic tension, etc.) |
+| `backend/src/composition/FormDefinitions.js` | Mappings from form types to section parameters |
+| `backend/src/composition/DevelopmentTechniques.js` | Classical thematic transformations (statement, variation, sequence, fragmentation, etc.) |
+| `backend/src/composition/RawGestureData.js` | Raw gesture storage before quantization ("late binding") |
+| `backend/src/services/SectionStateManager.js` | Singleton pub/sub manager for section state broadcasting |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/CompositionEngine.js` | Integrated PhraseMorphology, added `_convertRawGesturesToMaterial()` |
+| `backend/src/services/PhraseMorphology.js` | Uses DevelopmentTechniques, section-aware phrase generation |
+| `backend/src/services/MaterialLibrary.js` | Raw gesture storage/retrieval with fallback indicator |
+
+---
+
+### Architecture
+
+```
+User Gesture → RawGestureData → MaterialLibrary (raw storage)
+                                       │
+                                       ▼
+                         SectionStateManager ←── CompositionEngine
+                                │                 (section transitions)
+               ┌────────────────┼────────────────┐
+               ▼                ▼                ▼
+   GestureToMusicService  CounterpointEngine  VirtualUserService
+               │                │                │
+               └────────────────┼────────────────┘
+                                ▼
+                     PhraseMorphology.gestureToPhrase()
+                                │
+               ┌────────────────┼────────────────┐
+               ▼                ▼                ▼
+       applyDevelopment   selectScale      generateRhythm
+               │                │                │
+               └────────────────┼────────────────┘
+                                ▼
+                    QUANTIZED NOTES (late binding)
+```
+
+---
+
+### Version
+
+v0.1.8
+
+---

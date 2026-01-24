@@ -132,9 +132,15 @@ class HarmonicEngine {
    * @param {Object} styleAnalysis - Style analysis with genreWeights and harmonicComplexity
    * @param {number} phraseLength - Length in bars
    * @param {number} compositionCount - Composition counter for variation
+   * @param {Object} sectionContext - Optional SectionContext for section-aware generation
    * @returns {Array} Chord progression
    */
-  generateProgression(styleAnalysis, phraseLength, compositionCount = 0) {
+  generateProgression(styleAnalysis, phraseLength, compositionCount = 0, sectionContext = null) {
+    // If we have a SectionContext, use tension-aware generation
+    if (sectionContext) {
+      return this.generateProgressionForSection(styleAnalysis, phraseLength, compositionCount, sectionContext)
+    }
+
     const { genreWeights, harmonicComplexity } = styleAnalysis
     // Extract complexity value (0-1), default to 0.5
     const complexity = harmonicComplexity?.modalFlavor === 'minor' ? 0.6 :
@@ -206,6 +212,334 @@ class HarmonicEngine {
     }
 
     return progression
+  }
+
+  /**
+   * Generate harmonic progression with section-aware tension and harmonic function
+   * Entry #169: Section-aware progression generation
+   * @param {Object} styleAnalysis - Style analysis with genreWeights
+   * @param {number} phraseLength - Length in bars
+   * @param {number} compositionCount - Composition counter
+   * @param {Object} sectionContext - SectionContext with tension and harmonic function
+   * @returns {Array} Chord progression
+   */
+  generateProgressionForSection(styleAnalysis, phraseLength, compositionCount, sectionContext) {
+    const { genreWeights } = styleAnalysis
+    const harmonicTension = sectionContext.harmonicTension ?? 0.5
+    const harmonicFunction = sectionContext.harmonicFunction || 'tonic'
+    const thematicRole = sectionContext.thematicRole || 'exposition'
+
+    // Use tension as complexity for progression selection
+    const complexity = harmonicTension
+
+    // Select key variation based on thematic role
+    // Development sections are more likely to modulate
+    const circleOfFifths = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F']
+    const keySelector = (compositionCount * PHI) % 1
+
+    if (thematicRole === 'development' && keySelector > 0.7) {
+      // Development: modulate more frequently (30% vs 15%)
+      const currentKeyIndex = circleOfFifths.indexOf(this.currentKey)
+      const direction = keySelector > 0.85 ? 1 : -1
+      const distance = harmonicTension > 0.6 ? 2 : 1 // Higher tension = further modulation
+      const newKeyIndex = (currentKeyIndex + direction * distance + 12) % 12
+      this.currentKey = circleOfFifths[newKeyIndex]
+    } else if (thematicRole === 'recapitulation' && keySelector > 0.9) {
+      // Recapitulation: return to tonic key (rarely modulate)
+      // Stay in current key mostly
+    } else if (keySelector > 0.85) {
+      // Other sections: standard 15% modulation rate
+      const currentKeyIndex = circleOfFifths.indexOf(this.currentKey)
+      const direction = keySelector > 0.925 ? 1 : -1
+      const newKeyIndex = (currentKeyIndex + direction + 12) % 12
+      this.currentKey = circleOfFifths[newKeyIndex]
+    }
+
+    // Mode selection based on tension and thematic role
+    const modes = ['ionian', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian']
+    const modeSelector = ((compositionCount * PHI * 2) % 1)
+
+    if (modeSelector > 0.75) {
+      // Mode changes based on tension
+      if (harmonicTension > 0.7) {
+        // High tension: prefer darker modes (phrygian, locrian, aeolian)
+        const darkModes = ['phrygian', 'locrian', 'aeolian']
+        const darkIndex = Math.floor(modeSelector * darkModes.length * 4) % darkModes.length
+        this.currentMode = darkModes[darkIndex]
+      } else if (harmonicTension < 0.3) {
+        // Low tension: prefer brighter modes (ionian, lydian, mixolydian)
+        const brightModes = ['ionian', 'lydian', 'mixolydian']
+        const brightIndex = Math.floor(modeSelector * brightModes.length * 4) % brightModes.length
+        this.currentMode = brightModes[brightIndex]
+      } else {
+        // Medium tension: any mode
+        const modeIndex = Math.floor(modeSelector * modes.length * 4) % modes.length
+        this.currentMode = modes[modeIndex]
+      }
+    }
+
+    // Generate genre-specific progression with tension-aware complexity
+    let progression
+    if (genreWeights.jazz > 0.7) {
+      progression = this.generateJazzProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext)
+    } else if (genreWeights.classical > 0.7) {
+      progression = this.generateClassicalProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext)
+    } else if (genreWeights.electronic > 0.7) {
+      progression = this.generateElectronicProgression(phraseLength, complexity, compositionCount)
+    } else if (genreWeights.rock > 0.7) {
+      progression = this.generateRockProgression(phraseLength, complexity, compositionCount)
+    } else {
+      progression = this.generatePopProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext)
+    }
+
+    // Add appropriate cadence based on thematic role and progress
+    const progressPosition = sectionContext.progressionPosition || 0
+    if (progressPosition > 0.8) {
+      // Near end of section: add cadence
+      const cadence = this.selectCadenceForRole(thematicRole, harmonicFunction)
+      if (cadence) {
+        progression = progression.concat(cadence)
+      }
+    }
+
+    // Update currentChord with the first chord of the progression
+    if (progression && progression.length > 0) {
+      const firstChord = progression[0]
+      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+      const rootName = noteNames[firstChord.root % 12]
+      const qualitySuffix = this._getQualitySuffix(firstChord.quality)
+      this.currentChord = rootName + qualitySuffix
+
+      this.progressionHistory.push({
+        key: this.currentKey,
+        mode: this.currentMode,
+        chord: this.currentChord,
+        timestamp: Date.now(),
+        compositionCount,
+        harmonicTension,
+        thematicRole
+      })
+
+      if (this.progressionHistory.length > 100) {
+        this.progressionHistory.shift()
+      }
+    }
+
+    return progression
+  }
+
+  /**
+   * Select appropriate cadence based on thematic role
+   * Entry #169: Role-specific cadence selection
+   */
+  selectCadenceForRole(thematicRole, harmonicFunction) {
+    switch (thematicRole) {
+      case 'exposition':
+        // Perfect authentic cadence for clear statement
+        return this.addCadence('authentic')
+
+      case 'development':
+        // Deceptive or half cadence for continuation
+        return harmonicFunction === 'dominant'
+          ? this.addCadence('deceptive')
+          : this.addCadence('half')
+
+      case 'recapitulation':
+        // Strong authentic cadence for resolution
+        return this.addCadence('authentic')
+
+      case 'transition':
+        // Half cadence for forward motion
+        return this.addCadence('half')
+
+      case 'coda':
+        // Plagal cadence for finality
+        return this.addCadence('plagal')
+
+      default:
+        return this.addCadence('authentic')
+    }
+  }
+
+  /**
+   * Jazz progression with tension-aware extensions
+   * Entry #169
+   */
+  generateJazzProgressionWithTension(bars, complexity, compositionCount, sectionContext) {
+    const harmonicTension = sectionContext.harmonicTension ?? 0.5
+
+    // Tension affects chord extensions and alterations
+    const progressions = [
+      // Low tension: Basic ii-V-I
+      [
+        { chord: 'Dm7', function: 'subdominant', bars: 1, extension: 'ii7' },
+        { chord: 'G7', function: 'dominant', bars: 1, extension: 'V7' },
+        { chord: 'Cmaj7', function: 'tonic', bars: 2, extension: 'Imaj7' }
+      ],
+      // Medium tension: Tritone substitution
+      [
+        { chord: 'Dm7', function: 'subdominant', bars: 1, extension: 'ii7' },
+        { chord: 'Db7', function: 'dominant', bars: 1, extension: 'bII7' }, // Tritone sub
+        { chord: 'Cmaj7', function: 'tonic', bars: 2, extension: 'Imaj7' }
+      ],
+      // High tension: Coltrane changes
+      [
+        { chord: 'Cmaj7', function: 'tonic', bars: 1, extension: 'Imaj7' },
+        { chord: 'Eb7', function: 'dominant', bars: 1, extension: 'bIII7' },
+        { chord: 'Abmaj7', function: 'tonic', bars: 1, extension: 'bVImaj7' },
+        { chord: 'B7', function: 'dominant', bars: 1, extension: 'bVII7' }
+      ],
+      // Very high tension: Chromatic descent
+      [
+        { chord: 'Cm7', function: 'tonic', bars: 1, extension: 'Im7' },
+        { chord: 'Bm7', function: 'passing', bars: 1, extension: 'bVIIm7' },
+        { chord: 'Bbm7', function: 'passing', bars: 1, extension: 'bVIIm7' },
+        { chord: 'Am7', function: 'subdominant', bars: 1, extension: 'VIm7' }
+      ]
+    ]
+
+    const selected = this._selectProgressionByComplexity(progressions, harmonicTension, bars, compositionCount)
+
+    return this._transposeToCurrentKey(selected.map(chord => ({
+      ...chord,
+      root: this.getChordRoot(chord.chord),
+      quality: this.getChordQuality(chord.chord),
+      notes: this.buildChord(chord.chord)
+    })))
+  }
+
+  /**
+   * Classical progression with tension-aware dissonance
+   * Entry #169
+   */
+  generateClassicalProgressionWithTension(bars, complexity, compositionCount, sectionContext) {
+    const harmonicTension = sectionContext.harmonicTension ?? 0.5
+    const thematicRole = sectionContext.thematicRole || 'exposition'
+
+    // Role affects progression character
+    let progressions
+    if (thematicRole === 'development') {
+      // Development: more unstable progressions
+      progressions = [
+        // Sequential modulation
+        [
+          { chord: 'I', function: 'tonic', bars: 1 },
+          { chord: 'V/ii', function: 'secondary', bars: 1 },
+          { chord: 'ii', function: 'subdominant', bars: 1 },
+          { chord: 'V', function: 'dominant', bars: 1 }
+        ],
+        // Diminished chord sequence
+        [
+          { chord: 'viidim7', function: 'dominant', bars: 1 },
+          { chord: 'I', function: 'tonic', bars: 1 },
+          { chord: 'viidim7/V', function: 'secondary', bars: 1 },
+          { chord: 'V', function: 'dominant', bars: 1 }
+        ]
+      ]
+    } else if (thematicRole === 'recapitulation') {
+      // Recapitulation: return to stability
+      progressions = [
+        [
+          { chord: 'I', function: 'tonic', bars: 2 },
+          { chord: 'IV', function: 'subdominant', bars: 1 },
+          { chord: 'I', function: 'tonic', bars: 1 }
+        ],
+        [
+          { chord: 'I', function: 'tonic', bars: 1 },
+          { chord: 'V', function: 'dominant', bars: 1 },
+          { chord: 'I', function: 'tonic', bars: 2 }
+        ]
+      ]
+    } else {
+      // Exposition/other: standard progressions with tension variation
+      progressions = [
+        [
+          { chord: 'IV', function: 'subdominant', bars: 2 },
+          { chord: 'I', function: 'tonic', bars: 2 }
+        ],
+        [
+          { chord: 'IV', function: 'subdominant', bars: 1 },
+          { chord: 'V', function: 'dominant', bars: 1 },
+          { chord: 'I', function: 'tonic', bars: 2 }
+        ],
+        [
+          { chord: 'V', function: 'dominant', bars: 1 },
+          { chord: 'vi', function: 'tonic', bars: 1 },
+          { chord: 'IV', function: 'subdominant', bars: 1 },
+          { chord: 'V', function: 'dominant', bars: 1 }
+        ]
+      ]
+    }
+
+    const selected = this._selectProgressionByComplexity(progressions, harmonicTension, bars, compositionCount)
+
+    return this._transposeToCurrentKey(selected.map(chord => ({
+      ...chord,
+      root: this.getChordRoot(chord.chord),
+      quality: this.getChordQuality(chord.chord),
+      notes: this.buildChord(chord.chord)
+    })))
+  }
+
+  /**
+   * Pop progression with tension-aware variation
+   * Entry #169
+   */
+  generatePopProgressionWithTension(bars, complexity, compositionCount, sectionContext) {
+    const harmonicTension = sectionContext.harmonicTension ?? 0.5
+    const thematicRole = sectionContext.thematicRole || 'exposition'
+
+    // Different progressions for different roles
+    let progressions
+    if (thematicRole === 'development' || harmonicTension > 0.6) {
+      // Higher tension progressions
+      progressions = [
+        // vi-IV-I-V (more movement)
+        [
+          { chord: 'Am', function: 'tonic', bars: 1 },
+          { chord: 'F', function: 'subdominant', bars: 1 },
+          { chord: 'C', function: 'tonic', bars: 1 },
+          { chord: 'G', function: 'dominant', bars: 1 }
+        ],
+        // I-iii-IV-iv (minor iv for tension)
+        [
+          { chord: 'C', function: 'tonic', bars: 1 },
+          { chord: 'Em', function: 'mediant', bars: 1 },
+          { chord: 'F', function: 'subdominant', bars: 1 },
+          { chord: 'Fm', function: 'subdominant', bars: 1 }
+        ]
+      ]
+    } else {
+      // Standard pop progressions
+      progressions = [
+        [
+          { chord: 'C', function: 'tonic', bars: 2 },
+          { chord: 'G', function: 'dominant', bars: 1 },
+          { chord: 'Am', function: 'tonic', bars: 1 }
+        ],
+        [
+          { chord: 'C', function: 'tonic', bars: 1 },
+          { chord: 'Am', function: 'tonic', bars: 1 },
+          { chord: 'F', function: 'subdominant', bars: 1 },
+          { chord: 'G', function: 'dominant', bars: 1 }
+        ],
+        [
+          { chord: 'C', function: 'tonic', bars: 1 },
+          { chord: 'G', function: 'dominant', bars: 1 },
+          { chord: 'Am', function: 'tonic', bars: 1 },
+          { chord: 'F', function: 'subdominant', bars: 1 }
+        ]
+      ]
+    }
+
+    const selected = this._selectProgressionByComplexity(progressions, harmonicTension, bars, compositionCount)
+
+    return this._transposeToCurrentKey(selected.map(chord => ({
+      ...chord,
+      root: this.getChordRoot(chord.chord),
+      quality: this.getChordQuality(chord.chord),
+      notes: this.buildChord(chord.chord)
+    })))
   }
 
   generateJazzProgression(bars, complexity = 0.5, compositionCount = 0) {

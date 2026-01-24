@@ -1,7 +1,11 @@
+// Entry #169: Import RawGestureData for raw gesture storage
+const RawGestureData = require('../composition/RawGestureData')
+
 class MaterialLibrary {
   constructor() {
     // Deterministic ID counter
     this.materialCounter = 0
+    this.rawGestureCounter = 0  // Entry #169: Counter for raw gestures
 
     // Organize materials by harmonic function
     this.materials = {
@@ -18,6 +22,22 @@ class MaterialLibrary {
       rhythmic: [],   // Rhythmic patterns and grooves
       textural: []    // Atmospheric and textural elements
     }
+
+    // Entry #169: Raw gesture storage (before quantization)
+    this.rawGestures = []
+    this.rawGesturesByFunction = {
+      tonic: [],
+      dominant: [],
+      subdominant: [],
+      chromatic: []
+    }
+    this.rawGesturesByCharacter = {
+      melodic: [],
+      harmonic: [],
+      rhythmic: [],
+      textural: []
+    }
+    this.maxRawGestures = 200  // Keep more raw gestures since they're smaller
 
     // Musical context tracking
     this.keyCenter = null        // Current tonal center (e.g., 'C', 'Am')
@@ -402,6 +422,214 @@ class MaterialLibrary {
     }
   }
 
+  // ============================================================================
+  // Entry #169: Raw Gesture Storage Methods
+  // ============================================================================
+
+  /**
+   * Add raw gesture data (before quantization)
+   * @param {Object} gestureData - Raw gesture from frontend
+   * @param {Object} metadata - Additional metadata (userId, roomId, etc.)
+   * @returns {RawGestureData} The stored raw gesture
+   */
+  addRawGesture(gestureData, metadata = {}) {
+    try {
+      this.rawGestureCounter++
+
+      // Create RawGestureData instance
+      const rawGesture = new RawGestureData(gestureData, {
+        ...metadata,
+        id: `raw_${this.rawGestureCounter}_${Date.now()}`
+      })
+
+      // Classify harmonic function based on gesture energy
+      const energy = rawGesture.getEnergy()
+      let harmonicFunction
+      if (energy < 0.25) harmonicFunction = 'tonic'
+      else if (energy < 0.5) harmonicFunction = 'subdominant'
+      else if (energy < 0.75) harmonicFunction = 'dominant'
+      else harmonicFunction = 'chromatic'
+
+      rawGesture.harmonicFunction = harmonicFunction
+
+      // Classify character based on gesture type
+      let character
+      if (rawGesture.isMelodicCandidate()) character = 'melodic'
+      else if (rawGesture.isRhythmicCandidate()) character = 'rhythmic'
+      else if (rawGesture.isTexturalCandidate()) character = 'textural'
+      else character = 'melodic'
+
+      rawGesture.character = character
+
+      // Store in main array
+      this.rawGestures.push(rawGesture)
+
+      // Store in indexed arrays
+      if (this.rawGesturesByFunction[harmonicFunction]) {
+        this.rawGesturesByFunction[harmonicFunction].push(rawGesture)
+      }
+      if (this.rawGesturesByCharacter[character]) {
+        this.rawGesturesByCharacter[character].push(rawGesture)
+      }
+
+      // Prune if over limit
+      this._pruneRawGestures()
+
+      return rawGesture
+    } catch (error) {
+      console.error('Error adding raw gesture:', error)
+      return null
+    }
+  }
+
+  /**
+   * Get raw gestures suitable for a section context
+   * @param {Object} sectionContext - SectionContext object
+   * @param {number} count - Number of gestures to return
+   * @returns {RawGestureData[]} Matching raw gestures
+   */
+  getRawGesturesForSection(sectionContext, count = 5) {
+    if (!sectionContext) {
+      return this.rawGestures.slice(-count)
+    }
+
+    const targetEnergy = sectionContext.dynamicLevel || 0.5
+    const targetComplexity = sectionContext.rhythmicComplexity || 0.5
+    const thematicRole = sectionContext.thematicRole || 'exposition'
+
+    // Filter and score gestures
+    const scored = this.rawGestures
+      .filter(g => g.getAge() < this.maxAge * 2) // Not too old
+      .map(gesture => {
+        let score = 0
+
+        // Energy match
+        const energyDiff = Math.abs(gesture.getEnergy() - targetEnergy)
+        score += (1 - energyDiff) * 0.3
+
+        // Complexity match
+        const complexityDiff = Math.abs(gesture.getComplexity() - targetComplexity)
+        score += (1 - complexityDiff) * 0.2
+
+        // Freshness (newer = better for exposition, older = better for development)
+        const age = gesture.getAge()
+        const ageFactor = age / (this.maxAge * 2)
+        if (thematicRole === 'exposition') {
+          // Prefer newer gestures for exposition (introduce new themes)
+          score += (1 - ageFactor) * 0.2
+        } else if (thematicRole === 'development' || thematicRole === 'recapitulation') {
+          // Prefer older gestures for development (develop existing material)
+          score += ageFactor * 0.3
+        }
+
+        // Weight factor
+        score += (gesture.weight || 1) * 0.1
+
+        // Character bonus for matching section needs
+        if (sectionContext.textureType === 'polyphonic' && gesture.isMelodicCandidate()) {
+          score += 0.1
+        }
+        if (sectionContext.rhythmicDensity > 0.7 && gesture.isRhythmicCandidate()) {
+          score += 0.1
+        }
+
+        return { gesture, score }
+      })
+
+    // Sort by score and return top gestures
+    scored.sort((a, b) => b.score - a.score)
+
+    return scored.slice(0, count).map(s => s.gesture)
+  }
+
+  /**
+   * Get raw gestures by harmonic function
+   * @param {string} harmonicFunction - tonic, dominant, subdominant, chromatic
+   * @param {number} count - Number to return
+   * @returns {RawGestureData[]}
+   */
+  getRawGesturesByFunction(harmonicFunction, count = 5) {
+    const gestures = this.rawGesturesByFunction[harmonicFunction] || []
+    return gestures.slice(-count)
+  }
+
+  /**
+   * Get raw gestures by character
+   * @param {string} character - melodic, harmonic, rhythmic, textural
+   * @param {number} count - Number to return
+   * @returns {RawGestureData[]}
+   */
+  getRawGesturesByCharacter(character, count = 5) {
+    const gestures = this.rawGesturesByCharacter[character] || []
+    return gestures.slice(-count)
+  }
+
+  /**
+   * Get most recent raw gestures
+   * @param {number} count - Number to return
+   * @returns {RawGestureData[]}
+   */
+  getRecentRawGestures(count = 10) {
+    return this.rawGestures.slice(-count)
+  }
+
+  /**
+   * Prune raw gestures when over limit
+   * @private
+   */
+  _pruneRawGestures() {
+    if (this.rawGestures.length <= this.maxRawGestures) return
+
+    // Sort by score (weight + recency)
+    const scored = this.rawGestures.map(g => ({
+      gesture: g,
+      score: (g.weight || 1) * 0.5 + (1 - g.getAge() / (this.maxAge * 4)) * 0.5
+    }))
+
+    scored.sort((a, b) => b.score - a.score)
+
+    // Keep top gestures
+    const toKeep = new Set(scored.slice(0, this.maxRawGestures).map(s => s.gesture.id))
+
+    // Filter main array
+    this.rawGestures = this.rawGestures.filter(g => toKeep.has(g.id))
+
+    // Rebuild indexed arrays
+    this._rebuildRawGestureIndexes()
+  }
+
+  /**
+   * Rebuild raw gesture indexes
+   * @private
+   */
+  _rebuildRawGestureIndexes() {
+    // Clear indexes
+    Object.keys(this.rawGesturesByFunction).forEach(key => {
+      this.rawGesturesByFunction[key] = []
+    })
+    Object.keys(this.rawGesturesByCharacter).forEach(key => {
+      this.rawGesturesByCharacter[key] = []
+    })
+
+    // Rebuild
+    this.rawGestures.forEach(gesture => {
+      if (gesture.harmonicFunction && this.rawGesturesByFunction[gesture.harmonicFunction]) {
+        this.rawGesturesByFunction[gesture.harmonicFunction].push(gesture)
+      }
+      if (gesture.character && this.rawGesturesByCharacter[gesture.character]) {
+        this.rawGesturesByCharacter[gesture.character].push(gesture)
+      }
+    })
+  }
+
+  /**
+   * Get count of raw gestures
+   * @returns {number}
+   */
+  getRawGestureCount() {
+    return this.rawGestures.length
+  }
+
   setKeyCenter(key, mode = 'ionian') {
     // Update tonal center and track modulation
     if (this.keyCenter && this.keyCenter !== key) {
@@ -485,6 +713,21 @@ class MaterialLibrary {
       textural: []
     }
 
+    // Entry #169: Clear raw gesture storage
+    this.rawGestures = []
+    this.rawGesturesByFunction = {
+      tonic: [],
+      dominant: [],
+      subdominant: [],
+      chromatic: []
+    }
+    this.rawGesturesByCharacter = {
+      melodic: [],
+      harmonic: [],
+      rhythmic: [],
+      textural: []
+    }
+
     // Clear lifecycle tracking
     this.lifetimes.clear()
 
@@ -495,6 +738,33 @@ class MaterialLibrary {
     this.keyCenter = null
     this.mode = 'ionian'
     this.tempo = 120
+  }
+
+  /**
+   * Get extended stats including raw gestures
+   * Entry #169
+   */
+  getExtendedStats() {
+    const baseStats = this.getStats()
+
+    return {
+      ...baseStats,
+      rawGestures: {
+        total: this.rawGestures.length,
+        byFunction: {
+          tonic: this.rawGesturesByFunction.tonic.length,
+          dominant: this.rawGesturesByFunction.dominant.length,
+          subdominant: this.rawGesturesByFunction.subdominant.length,
+          chromatic: this.rawGesturesByFunction.chromatic.length
+        },
+        byCharacter: {
+          melodic: this.rawGesturesByCharacter.melodic.length,
+          harmonic: this.rawGesturesByCharacter.harmonic.length,
+          rhythmic: this.rawGesturesByCharacter.rhythmic.length,
+          textural: this.rawGesturesByCharacter.textural.length
+        }
+      }
+    }
   }
 }
 
