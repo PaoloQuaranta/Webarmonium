@@ -172,8 +172,8 @@ class DragStreamProcessor {
     const speed = this.calculateSpeed(velocity)
     const normalizedSpeed = Math.min(speed, 1)
 
-    // Duration based on speed
-    const duration = this.getDurationFromSpeed(normalizedSpeed)
+    // Duration based on speed AND note position (Entry #171)
+    const duration = this.getDurationFromSpeed(normalizedSpeed, noteIndex)
 
     // Articulation from pattern
     const articulation = this.articulationPatterns[noteIndex % this.articulationPatterns.length]
@@ -259,17 +259,33 @@ class DragStreamProcessor {
   }
 
   /**
-   * Get duration string from speed
+   * Get duration string from speed and note position
+   * Entry #171: More varied durations based on phrase position and speed
    * @param {number} normalizedSpeed - Normalized speed (0-1)
+   * @param {number} noteIndex - Current note index in phrase
    * @returns {string} Duration string
    */
-  getDurationFromSpeed(normalizedSpeed) {
-    if (normalizedSpeed > 0.6) {
-      return '32n'
-    } else if (normalizedSpeed > 0.3) {
-      return '16n'
-    }
-    return '8n'
+  getDurationFromSpeed(normalizedSpeed, noteIndex = 0) {
+    // Base duration from speed (existing logic)
+    let baseDurationIndex
+    if (normalizedSpeed > 0.7) baseDurationIndex = 0      // Very fast
+    else if (normalizedSpeed > 0.5) baseDurationIndex = 1 // Fast
+    else if (normalizedSpeed > 0.3) baseDurationIndex = 2 // Medium
+    else if (normalizedSpeed > 0.15) baseDurationIndex = 3 // Slow
+    else baseDurationIndex = 4                             // Very slow
+
+    // Duration options from short to long
+    const durations = ['32n', '16n', '8n', '4n', '2n']
+
+    // Entry #171: Phrase position variation (deterministic, no random)
+    // Uses golden ratio stepping for musical variety
+    const PHI = 1.618033988749895
+    const positionVariation = Math.floor((noteIndex * PHI) % 3) - 1 // -1, 0, or 1
+
+    // Combine base with variation, clamped to valid range
+    const finalIndex = Math.max(0, Math.min(durations.length - 1, baseDurationIndex + positionVariation))
+
+    return durations[finalIndex]
   }
 
   /**

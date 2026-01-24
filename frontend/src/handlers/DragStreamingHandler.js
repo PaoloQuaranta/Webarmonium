@@ -23,11 +23,15 @@ class DragStreamingHandler {
     this.lastDragY = null
 
     // Duration map for note length parsing
+    // Entry #171: Expanded duration options for more variety
     this.durationMap = {
-      '32n': 0.0625,  // 1/32 note at 120 BPM
-      '16n': 0.125,   // 1/16 note at 120 BPM
-      '8n': 0.25,     // 1/8 note at 120 BPM
-      '4n': 0.5       // 1/4 note at 120 BPM
+      '64n': 0.03125, // 1/64 note
+      '32n': 0.0625,  // 1/32 note
+      '16n': 0.125,   // 1/16 note
+      '8n': 0.25,     // 1/8 note
+      '4n': 0.5,      // 1/4 note
+      '2n': 1.0,      // 1/2 note
+      '1n': 2.0       // whole note
     }
   }
 
@@ -169,27 +173,41 @@ class DragStreamingHandler {
   }
 
   /**
-   * Calculate fast arpeggio pattern
+   * Calculate fast melodic pattern with variety
+   * Entry #171: Removed hardcoded patterns, uses dynamic generation
    * @param {boolean} isAscending - Whether ascending
    * @param {boolean} isDescending - Whether descending
    * @param {number} noteIndex - Current note index
    * @returns {number} Scale index
    */
   calculateFastArpeggio(isAscending, isDescending, noteIndex) {
+    const PHI = 1.618033988749895
+    const lastNote = this.melodicMemory.lastNotes[this.melodicMemory.lastNotes.length - 1] || 0
+
+    // Entry #171: Dynamic interval selection based on phrase position
+    // Uses PHI stepping for non-repeating variety
+    const phrasePosition = (noteIndex * PHI) % 1
+    const intervalOptions = [1, 2, 3, 2, 1, 3, 2, 4] // More variety than single pattern
+    const intervalIndex = Math.floor(phrasePosition * intervalOptions.length)
+    const interval = intervalOptions[intervalIndex]
+
     if (isAscending) {
-      const arpPattern = [0, 2, 4, 5, 7]
-      return arpPattern[noteIndex % arpPattern.length]
+      // Ascending with varied intervals
+      return (lastNote + interval) % 8
     } else if (isDescending) {
-      const arpPattern = [7, 5, 4, 2, 0]
-      return arpPattern[noteIndex % arpPattern.length]
+      // Descending with varied intervals
+      return Math.max(0, lastNote - interval)
     } else {
-      const arpPattern = [0, 4, 2, 5, 0, 3, 4, 2]
-      return arpPattern[noteIndex % arpPattern.length]
+      // Wave motion with varied intervals
+      const direction = Math.floor(noteIndex * PHI) % 2 === 0 ? 1 : -1
+      const newNote = lastNote + (interval * direction)
+      return Math.max(0, Math.min(7, newNote))
     }
   }
 
   /**
-   * Calculate medium-speed contour melody
+   * Calculate medium-speed contour melody with dynamic intervals
+   * Entry #171: Removed hardcoded patterns, uses position-based generation
    * @param {number} x - X position
    * @param {boolean} isAscending - Whether ascending
    * @param {boolean} isDescending - Whether descending
@@ -197,27 +215,31 @@ class DragStreamingHandler {
    * @returns {number} Scale index
    */
   calculateMediumContour(x, isAscending, isDescending, noteIndex) {
-    const xInfluence = Math.floor(x * 3)
+    const PHI = 1.618033988749895
+    const lastNote = this.melodicMemory.lastNotes[this.melodicMemory.lastNotes.length - 1] || 3
+
+    // X position influences interval size (left = small, right = large)
+    const baseInterval = 1 + Math.floor(x * 2) // 1-3
+
+    // Phrase position determines variation
+    const phrasePosition = (noteIndex * PHI) % 1
+    const intervalVariation = Math.floor(phrasePosition * 3) - 1 // -1, 0, 1
+    const interval = Math.max(1, baseInterval + intervalVariation)
 
     if (isAscending) {
-      const patterns = [
-        [0, 1, 2, 3, 4, 5, 6],
-        [0, 2, 1, 3, 2, 4, 5],
-        [0, 2, 4, 3, 5, 4, 6]
-      ]
-      const pattern = patterns[xInfluence]
-      return pattern[noteIndex % pattern.length]
+      // Gradual ascent with varied steps
+      const newNote = lastNote + interval
+      return Math.min(7, newNote)
     } else if (isDescending) {
-      const patterns = [
-        [6, 5, 4, 3, 2, 1, 0],
-        [6, 4, 5, 3, 4, 2, 0],
-        [6, 4, 2, 3, 1, 2, 0]
-      ]
-      const pattern = patterns[xInfluence]
-      return pattern[noteIndex % pattern.length]
+      // Gradual descent with varied steps
+      const newNote = lastNote - interval
+      return Math.max(0, newNote)
     } else {
-      const wavePattern = [0, 2, 1, 3, 2, 4, 3, 5, 4, 3, 2, 1]
-      return wavePattern[noteIndex % wavePattern.length]
+      // Wave motion: alternate direction based on phrase position
+      const wavePhase = Math.sin(noteIndex * PHI * Math.PI)
+      const direction = wavePhase > 0 ? 1 : -1
+      const newNote = lastNote + (interval * direction)
+      return Math.max(0, Math.min(7, newNote))
     }
   }
 
