@@ -72,7 +72,7 @@
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 20px;
       margin-bottom: 20px;
     }
@@ -105,10 +105,16 @@
       border-radius: 6px;
     }
 
+    .param-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 4px;
+    }
+
     .param-label {
       font-size: 0.75rem;
       color: var(--text-secondary);
-      margin-bottom: 4px;
     }
 
     .param-value {
@@ -122,18 +128,24 @@
     }
 
     .progress-bar {
-      height: 8px;
-      background: var(--bg-tertiary);
-      border-radius: 4px;
+      height: 6px;
+      background: var(--bg-primary);
+      border-radius: 3px;
       margin-top: 4px;
       overflow: hidden;
     }
 
     .progress-fill {
       height: 100%;
-      background: var(--accent);
-      border-radius: 4px;
+      border-radius: 3px;
       transition: width 0.3s ease;
+    }
+
+    /* Inline mini-chart under each parameter */
+    .inline-chart {
+      height: 40px;
+      margin-top: 6px;
+      position: relative;
     }
 
     .genre-bars {
@@ -205,49 +217,6 @@
 
     .event-data {
       color: var(--text-primary);
-    }
-
-    .chart-container {
-      height: 200px;
-      position: relative;
-    }
-
-    .history-section {
-      margin-top: 20px;
-    }
-
-    .history-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 16px;
-    }
-
-    .mini-chart-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-    }
-
-    .mini-chart-title {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--text-secondary);
-      margin-bottom: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .mini-chart-value {
-      font-size: 0.875rem;
-      color: var(--accent);
-      font-weight: 600;
-    }
-
-    .mini-chart-container {
-      height: 80px;
-      position: relative;
     }
 
     .stats-row {
@@ -324,23 +293,19 @@
     let pendingHistoryUpdate = null;
     let lastHistoryData = null;
 
-    // Mini charts for 5-minute history
+    // Mini charts for 5-minute history (inline under each param)
     const historyCharts = {};
     const HISTORY_FIELDS = {
-      'core.tempo': { label: 'Tempo', unit: 'BPM', color: '#58a6ff', min: 60, max: 180 },
-      'core.complexityLevel': { label: 'Complexity', unit: '%', color: '#3fb950', min: 0, max: 1, scale: 100 },
-      'core.density': { label: 'Density', unit: '%', color: '#d29922', min: 0, max: 1, scale: 100 },
-      'core.tensionLevel': { label: 'Tension', unit: '%', color: '#f85149', min: 0, max: 1, scale: 100 },
-      'core.compositionCount': { label: 'Compositions', unit: '', color: '#a371f7', min: 0 },
-      'core.compositionsInSection': { label: 'Comps/Section', unit: '', color: '#58a6ff', min: 0 },
-      'style.energy': { label: 'Energy', unit: '%', color: '#f778ba', min: 0, max: 1, scale: 100 },
-      'style.harmonicComplexity.chromaticism': { label: 'Chromaticism', unit: '%', color: '#79c0ff', min: 0, max: 1, scale: 100 },
-      'style.harmonicComplexity.dissonance': { label: 'Dissonance', unit: '%', color: '#ffa657', min: 0, max: 1, scale: 100 },
-      'harmony.progressionLength': { label: 'Progression Length', unit: '', color: '#7ee787', min: 0 },
-      'materials.total': { label: 'Total Materials', unit: '', color: '#d2a8ff', min: 0 },
-      'materials.activeCount': { label: 'Active Materials', unit: '', color: '#a5d6ff', min: 0 },
-      'room.gestureCount': { label: 'Gestures', unit: '', color: '#ffc658', min: 0 },
-      'room.sessionDuration': { label: 'Session (sec)', unit: 's', color: '#ffd700', min: 0, scale: 0.001 }
+      'core.tempo': { color: '#58a6ff', min: 60, max: 180 },
+      'core.complexityLevel': { color: '#3fb950', min: 0, max: 1, scale: 100 },
+      'core.density': { color: '#d29922', min: 0, max: 1, scale: 100 },
+      'core.tensionLevel': { color: '#f85149', min: 0, max: 1, scale: 100 },
+      'core.compositionCount': { color: '#a371f7', min: 0 },
+      'style.energy': { color: '#f778ba', min: 0, max: 1, scale: 100 },
+      'style.harmonicComplexity.chromaticism': { color: '#79c0ff', min: 0, max: 1, scale: 100 },
+      'style.harmonicComplexity.dissonance': { color: '#ffa657', min: 0, max: 1, scale: 100 },
+      'materials.total': { color: '#d2a8ff', min: 0 },
+      'room.gestureCount': { color: '#ffc658', min: 0 }
     };
 
     // Initialize
@@ -387,7 +352,6 @@
       });
 
       // History updates are sent separately (throttled every 5 seconds)
-      // Use requestAnimationFrame for smoother chart updates
       socket.on('monitor:history_update', (event) => {
         if (event.numericHistory) {
           lastHistoryData = event.numericHistory;
@@ -421,7 +385,6 @@
 
         if (data.success) {
           renderDashboard(data);
-          // Initialize charts after DOM is rendered
           setTimeout(() => {
             initHistoryCharts();
             if (data.numericHistory) {
@@ -447,7 +410,6 @@
 
       const genreWeights = style.genreWeights || {};
       const rhythmic = style.rhythmicCharacter || {};
-      const melodic = style.melodicCharacter || {};
       const harmonic = style.harmonicComplexity || {};
 
       document.getElementById('app').innerHTML = `
@@ -457,28 +419,46 @@
             <div class="card-title">Core Composition</div>
             <div class="param-grid">
               <div class="param">
-                <div class="param-label">Key Center</div>
+                <div class="param-header">
+                  <span class="param-label">Key Center</span>
+                </div>
                 <div class="param-value" id="keyCenter">${core.keyCenter || 'C'}</div>
               </div>
               <div class="param">
-                <div class="param-label">Mode</div>
+                <div class="param-header">
+                  <span class="param-label">Mode</span>
+                </div>
                 <div class="param-value small" id="mode">${core.mode || 'ionian'}</div>
               </div>
               <div class="param">
-                <div class="param-label">Tempo</div>
+                <div class="param-header">
+                  <span class="param-label">Tempo</span>
+                </div>
                 <div class="param-value" id="tempo">${core.tempo || 120} <small>BPM</small></div>
+                <div class="inline-chart">
+                  <canvas id="chart-core-tempo" role="img" aria-label="Tempo history"></canvas>
+                </div>
               </div>
               <div class="param">
-                <div class="param-label">Form</div>
+                <div class="param-header">
+                  <span class="param-label">Form</span>
+                </div>
                 <div class="param-value small" id="form">${core.formStructure || 'ABA'}</div>
               </div>
               <div class="param">
-                <div class="param-label">Section</div>
+                <div class="param-header">
+                  <span class="param-label">Section</span>
+                </div>
                 <div class="param-value small" id="section">${core.currentSection || 'A'}</div>
               </div>
               <div class="param">
-                <div class="param-label">Composition #</div>
+                <div class="param-header">
+                  <span class="param-label">Composition #</span>
+                </div>
                 <div class="param-value" id="compCount">${core.compositionCount || 0}</div>
+                <div class="inline-chart">
+                  <canvas id="chart-core-compositionCount" role="img" aria-label="Composition count history"></canvas>
+                </div>
               </div>
             </div>
           </div>
@@ -488,31 +468,51 @@
             <div class="card-title">Intensity</div>
             <div class="param-grid">
               <div class="param">
-                <div class="param-label">Energy</div>
+                <div class="param-header">
+                  <span class="param-label">Energy</span>
+                </div>
                 <div class="param-value" id="energy">${((style.energy || 0.5) * 100).toFixed(0)}%</div>
                 <div class="progress-bar">
-                  <div class="progress-fill" id="energyBar" style="width: ${(style.energy || 0.5) * 100}%"></div>
+                  <div class="progress-fill" id="energyBar" style="width: ${(style.energy || 0.5) * 100}%; background: #f778ba"></div>
+                </div>
+                <div class="inline-chart">
+                  <canvas id="chart-style-energy" role="img" aria-label="Energy history"></canvas>
                 </div>
               </div>
               <div class="param">
-                <div class="param-label">Complexity</div>
+                <div class="param-header">
+                  <span class="param-label">Complexity</span>
+                </div>
                 <div class="param-value" id="complexity">${((core.complexityLevel || 0.5) * 100).toFixed(0)}%</div>
                 <div class="progress-bar">
-                  <div class="progress-fill" id="complexityBar" style="width: ${(core.complexityLevel || 0.5) * 100}%"></div>
+                  <div class="progress-fill" id="complexityBar" style="width: ${(core.complexityLevel || 0.5) * 100}%; background: #3fb950"></div>
+                </div>
+                <div class="inline-chart">
+                  <canvas id="chart-core-complexityLevel" role="img" aria-label="Complexity history"></canvas>
                 </div>
               </div>
               <div class="param">
-                <div class="param-label">Density</div>
+                <div class="param-header">
+                  <span class="param-label">Density</span>
+                </div>
                 <div class="param-value" id="density">${((core.density || 0.5) * 100).toFixed(0)}%</div>
                 <div class="progress-bar">
-                  <div class="progress-fill" id="densityBar" style="width: ${(core.density || 0.5) * 100}%"></div>
+                  <div class="progress-fill" id="densityBar" style="width: ${(core.density || 0.5) * 100}%; background: #d29922"></div>
+                </div>
+                <div class="inline-chart">
+                  <canvas id="chart-core-density" role="img" aria-label="Density history"></canvas>
                 </div>
               </div>
               <div class="param">
-                <div class="param-label">Tension</div>
+                <div class="param-header">
+                  <span class="param-label">Tension</span>
+                </div>
                 <div class="param-value" id="tension">${((core.tensionLevel || 0.5) * 100).toFixed(0)}%</div>
                 <div class="progress-bar">
-                  <div class="progress-fill" id="tensionBar" style="width: ${(core.tensionLevel || 0.5) * 100}%"></div>
+                  <div class="progress-fill" id="tensionBar" style="width: ${(core.tensionLevel || 0.5) * 100}%; background: #f85149"></div>
+                </div>
+                <div class="inline-chart">
+                  <canvas id="chart-core-tensionLevel" role="img" aria-label="Tension history"></canvas>
                 </div>
               </div>
             </div>
@@ -523,25 +523,39 @@
             <div class="card-title">Harmonic Analysis</div>
             <div class="param-grid">
               <div class="param">
-                <div class="param-label">Chromaticism</div>
+                <div class="param-header">
+                  <span class="param-label">Chromaticism</span>
+                </div>
                 <div class="param-value" id="chromaticism">${((harmonic.chromaticism || 0) * 100).toFixed(0)}%</div>
                 <div class="progress-bar">
-                  <div class="progress-fill" style="width: ${(harmonic.chromaticism || 0) * 100}%"></div>
+                  <div class="progress-fill" id="chromaticismBar" style="width: ${(harmonic.chromaticism || 0) * 100}%; background: #79c0ff"></div>
+                </div>
+                <div class="inline-chart">
+                  <canvas id="chart-style-harmonicComplexity-chromaticism" role="img" aria-label="Chromaticism history"></canvas>
                 </div>
               </div>
               <div class="param">
-                <div class="param-label">Dissonance</div>
+                <div class="param-header">
+                  <span class="param-label">Dissonance</span>
+                </div>
                 <div class="param-value" id="dissonance">${((harmonic.dissonance || 0) * 100).toFixed(0)}%</div>
                 <div class="progress-bar">
-                  <div class="progress-fill" style="width: ${(harmonic.dissonance || 0) * 100}%"></div>
+                  <div class="progress-fill" id="dissonanceBar" style="width: ${(harmonic.dissonance || 0) * 100}%; background: #ffa657"></div>
+                </div>
+                <div class="inline-chart">
+                  <canvas id="chart-style-harmonicComplexity-dissonance" role="img" aria-label="Dissonance history"></canvas>
                 </div>
               </div>
               <div class="param">
-                <div class="param-label">Modal Flavor</div>
+                <div class="param-header">
+                  <span class="param-label">Modal Flavor</span>
+                </div>
                 <div class="param-value small" id="modalFlavor">${harmonic.modalFlavor || 'major'}</div>
               </div>
               <div class="param">
-                <div class="param-label">Current Chord</div>
+                <div class="param-header">
+                  <span class="param-label">Current Chord</span>
+                </div>
                 <div class="param-value small" id="currentChord">${harmony.currentChord || '-'}</div>
               </div>
             </div>
@@ -552,28 +566,36 @@
             <div class="card-title">Rhythmic Character</div>
             <div class="param-grid">
               <div class="param">
-                <div class="param-label">Swing</div>
+                <div class="param-header">
+                  <span class="param-label">Swing</span>
+                </div>
                 <div class="param-value" id="swing">${((rhythmic.swing || 0) * 100).toFixed(0)}%</div>
                 <div class="progress-bar">
                   <div class="progress-fill" style="width: ${(rhythmic.swing || 0) * 100}%"></div>
                 </div>
               </div>
               <div class="param">
-                <div class="param-label">Syncopation</div>
+                <div class="param-header">
+                  <span class="param-label">Syncopation</span>
+                </div>
                 <div class="param-value" id="syncopation">${((rhythmic.syncopation || 0) * 100).toFixed(0)}%</div>
                 <div class="progress-bar">
                   <div class="progress-fill" style="width: ${(rhythmic.syncopation || 0) * 100}%"></div>
                 </div>
               </div>
               <div class="param">
-                <div class="param-label">Regularity</div>
+                <div class="param-header">
+                  <span class="param-label">Regularity</span>
+                </div>
                 <div class="param-value" id="regularity">${((rhythmic.regularity || 0.5) * 100).toFixed(0)}%</div>
                 <div class="progress-bar">
                   <div class="progress-fill" style="width: ${(rhythmic.regularity || 0.5) * 100}%"></div>
                 </div>
               </div>
               <div class="param">
-                <div class="param-label">Time Sig</div>
+                <div class="param-header">
+                  <span class="param-label">Time Sig</span>
+                </div>
                 <div class="param-value small" id="timeSig">${style.timeSignature || '4/4'}</div>
               </div>
             </div>
@@ -590,7 +612,27 @@
           <!-- Statistics -->
           <div class="card">
             <div class="card-title">Session Statistics</div>
-            <div class="stats-row">
+            <div class="param-grid">
+              <div class="param">
+                <div class="param-header">
+                  <span class="param-label">Gestures</span>
+                </div>
+                <div class="param-value" id="statGestures">${room.gestureCount || 0}</div>
+                <div class="inline-chart">
+                  <canvas id="chart-room-gestureCount" role="img" aria-label="Gesture count history"></canvas>
+                </div>
+              </div>
+              <div class="param">
+                <div class="param-header">
+                  <span class="param-label">Materials</span>
+                </div>
+                <div class="param-value" id="statMaterials">${materials.total || 0}</div>
+                <div class="inline-chart">
+                  <canvas id="chart-materials-total" role="img" aria-label="Materials history"></canvas>
+                </div>
+              </div>
+            </div>
+            <div class="stats-row" style="margin-top: 12px;">
               <div class="stat-item">
                 <span class="stat-label">Compositions</span>
                 <span class="stat-value" id="statCompositions">${data.eventCounts?.compositions || 0}</span>
@@ -607,14 +649,6 @@
                 <span class="stat-label">Form Changes</span>
                 <span class="stat-value" id="statFormChanges">${data.eventCounts?.formChanges || 0}</span>
               </div>
-              <div class="stat-item">
-                <span class="stat-label">Gestures</span>
-                <span class="stat-value" id="statGestures">${room.gestureCount || 0}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">Materials</span>
-                <span class="stat-value" id="statMaterials">${materials.total || 0}</span>
-              </div>
             </div>
           </div>
 
@@ -626,31 +660,7 @@
             </div>
           </div>
         </div>
-
-        <!-- 5-Minute History Charts -->
-        <div class="history-section">
-          <div class="card">
-            <div class="card-title">5-Minute History (Linear Graphs)</div>
-            <div class="history-grid" id="historyGrid">
-              ${renderHistoryChartPlaceholders()}
-            </div>
-          </div>
-        </div>
       `;
-    }
-
-    function renderHistoryChartPlaceholders() {
-      return Object.entries(HISTORY_FIELDS).map(([field, config]) => `
-        <div class="mini-chart-card">
-          <div class="mini-chart-title">
-            <span>${config.label}</span>
-            <span class="mini-chart-value" id="current-${field.replace(/\./g, '-')}">--${config.unit}</span>
-          </div>
-          <div class="mini-chart-container">
-            <canvas id="chart-${field.replace(/\./g, '-')}"></canvas>
-          </div>
-        </div>
-      `).join('');
     }
 
     function renderGenreBars(weights) {
@@ -690,7 +700,7 @@
       // Update core params
       updateElement('keyCenter', core.keyCenter || 'C');
       updateElement('mode', core.mode || 'ionian');
-      updateElement('tempo', `${core.tempo || 120} <small>BPM</small>`);
+      updateElement('tempo', `${core.tempo || 120} BPM`);
       updateElement('form', core.formStructure || 'ABA');
       updateElement('section', core.currentSection || 'A');
       updateElement('compCount', core.compositionCount || 0);
@@ -731,8 +741,6 @@
     function updateElement(id, value) {
       const el = document.getElementById(id);
       if (el) {
-        // ALWAYS use textContent for XSS prevention
-        // HTML should only be set via trusted template literals in renderDashboard()
         el.textContent = String(value);
       }
     }
@@ -768,13 +776,8 @@
     }
 
     function initHistoryCharts() {
-      // Check if Chart.js is loaded
       if (typeof Chart === 'undefined') {
-        console.error('Chart.js not loaded - history charts unavailable');
-        const grid = document.getElementById('historyGrid');
-        if (grid) {
-          grid.innerHTML = '<div class="error">Chart.js failed to load. Please refresh.</div>';
-        }
+        console.error('Chart.js not loaded');
         return;
       }
 
@@ -782,15 +785,11 @@
         // Destroy existing charts
         Object.values(historyCharts).forEach(chart => chart?.destroy());
 
-        // Create new charts for each field
+        // Create inline chart for each field
         for (const [field, config] of Object.entries(HISTORY_FIELDS)) {
           const canvasId = `chart-${field.replace(/\./g, '-')}`;
           const canvas = document.getElementById(canvasId);
           if (!canvas) continue;
-
-          // Add accessibility attributes
-          canvas.setAttribute('role', 'img');
-          canvas.setAttribute('aria-label', `${config.label} over last 5 minutes`);
 
           const ctx = canvas.getContext('2d');
           historyCharts[field] = new Chart(ctx, {
@@ -800,52 +799,25 @@
               datasets: [{
                 data: [],
                 borderColor: config.color,
-                backgroundColor: config.color + '20',
-                borderWidth: 2,
+                backgroundColor: config.color + '15',
+                borderWidth: 1.5,
                 fill: true,
-                tension: 0.3,
-                pointRadius: 0,
-                pointHoverRadius: 3
+                tension: 0.4,
+                pointRadius: 0
               }]
             },
             options: {
               responsive: true,
               maintainAspectRatio: false,
-              animation: { duration: 300 },
+              animation: false,
               plugins: {
                 legend: { display: false },
-                tooltip: {
-                  callbacks: {
-                    label: (context) => {
-                      const val = context.parsed.y;
-                      return `${val.toFixed(1)}${config.unit}`;
-                    }
-                  }
-                }
+                tooltip: { enabled: false }
               },
               scales: {
-                x: {
-                  display: true,
-                  grid: { display: false, color: '#30363d' },
-                  ticks: {
-                    display: true,
-                    color: '#8b949e',
-                    font: { size: 9 },
-                    maxTicksLimit: 5,
-                    callback: (val, idx, ticks) => {
-                      const label = historyCharts[field]?.data?.labels?.[idx];
-                      return label ? `-${label}s` : '';
-                    }
-                  }
-                },
+                x: { display: false },
                 y: {
-                  display: true,
-                  grid: { color: '#30363d40' },
-                  ticks: {
-                    color: '#8b949e',
-                    font: { size: 9 },
-                    maxTicksLimit: 4
-                  },
+                  display: false,
                   min: config.min,
                   max: config.max !== undefined ? (config.scale ? config.max * config.scale : config.max) : undefined
                 }
@@ -854,11 +826,7 @@
           });
         }
       } catch (error) {
-        console.error('Failed to initialize history charts:', error);
-        const grid = document.getElementById('historyGrid');
-        if (grid) {
-          grid.innerHTML = '<div class="error">Chart initialization failed. Please refresh.</div>';
-        }
+        console.error('Failed to initialize charts:', error);
       }
     }
 
@@ -868,33 +836,20 @@
       for (const [field, config] of Object.entries(HISTORY_FIELDS)) {
         const chart = historyCharts[field];
         const data = numericHistory[field];
-        const valueEl = document.getElementById(`current-${field.replace(/\./g, '-')}`);
 
-        if (!chart || !data || data.length === 0) {
-          if (valueEl) valueEl.textContent = `--${config.unit}`;
-          continue;
-        }
+        if (!chart || !data || data.length === 0) continue;
 
-        // Data format from backend: [[relativeSeconds, value], ...]
-        // Sort by time (oldest first)
+        // Data format: [[relativeSeconds, value], ...]
         const sorted = [...data].sort((a, b) => b[0] - a[0]);
 
-        // Apply scale if needed
         const scaledData = sorted.map(([time, val]) => ({
           x: time,
           y: config.scale ? val * config.scale : val
         }));
 
-        // Update chart
         chart.data.labels = scaledData.map(d => d.x);
         chart.data.datasets[0].data = scaledData.map(d => d.y);
         chart.update('none');
-
-        // Update current value display
-        if (valueEl && scaledData.length > 0) {
-          const currentVal = scaledData[scaledData.length - 1].y;
-          valueEl.textContent = `${currentVal.toFixed(1)}${config.unit}`;
-        }
       }
     }
 
