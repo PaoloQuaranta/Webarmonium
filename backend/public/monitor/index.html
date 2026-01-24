@@ -143,9 +143,17 @@
 
     /* Inline mini-chart under each parameter */
     .inline-chart {
-      height: 40px;
-      margin-top: 6px;
+      height: 30px;
+      margin-top: 4px;
       position: relative;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .inline-chart canvas {
+      width: 100% !important;
+      height: 30px !important;
+      display: block;
     }
 
     .genre-bars {
@@ -810,6 +818,7 @@
               responsive: true,
               maintainAspectRatio: false,
               animation: false,
+              layout: { padding: 0 },
               plugins: {
                 legend: { display: false },
                 tooltip: { enabled: false }
@@ -821,6 +830,9 @@
                   min: config.min,
                   max: config.max !== undefined ? (config.scale ? config.max * config.scale : config.max) : undefined
                 }
+              },
+              elements: {
+                line: { borderWidth: 1 }
               }
             }
           });
