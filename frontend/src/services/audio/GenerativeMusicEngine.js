@@ -3,6 +3,9 @@
  * Handles background music generation, harmonic progressions, and composition
  * Extracted from AudioService.js for Phase 2 refactoring
  */
+// Golden ratio for non-repeating sequences
+const PHI = 1.618033988749894848
+
 class GenerativeMusicEngine {
   constructor() {
     // Reference to ambient layer synths (set by AudioService)
@@ -76,7 +79,12 @@ class GenerativeMusicEngine {
           velocity: 0.40,
           lastFrequencies: [],
           currentPatternIndex: 10,
-          patternPosition: 0
+          patternPosition: 0,
+          // Enhanced voicing state
+          lastInversion: 0,
+          phrasePosition: 0,
+          phraseLength: 4,
+          lastVoicingType: 0
         }
       },
 
@@ -114,6 +122,14 @@ class GenerativeMusicEngine {
    */
   setMuted(muted) {
     this.muted = muted
+  }
+
+  /**
+   * Set ambient filter references
+   * @param {Object} ambientFilters - Ambient filter instances
+   */
+  setAmbientFilters(ambientFilters) {
+    this.ambientFilters = ambientFilters
   }
 
   /**
@@ -282,24 +298,54 @@ class GenerativeMusicEngine {
       layer.lastFrequencies = frequencies
 
     } else if (layerName === 'chords') {
+      // Enhanced chord generation with varied voicing, inversions, rhythm, velocity
       const root = chordRoot
       const third = scale[(chordRootIndex + 2) % scale.length]
       const fifth = scale[(chordRootIndex + 4) % scale.length]
 
-      const freqR = state.currentTonic * Math.pow(2, (root / 12) + layer.octave)
-      const freq3 = state.currentTonic * Math.pow(2, (third / 12) + layer.octave)
-      const freq5 = state.currentTonic * Math.pow(2, (fifth / 12) + layer.octave)
-      frequencies = [freqR, freq3, freq5]
+      // 1. Select voicing type based on harmonic tension
+      const voicingType = this._selectVoicingType(state, layer)
+
+      // 2. Generate frequencies with voicing spread
+      frequencies = this._generateChordVoicing(
+        root, third, fifth,
+        layer.octave, state.currentTonic,
+        voicingType
+      )
+
+      // 3. Select and apply inversion with voice leading
+      const inversion = this._selectInversion(state, layer, chordRootIndex)
+      frequencies = this._applyInversion(frequencies, inversion)
+
+      // 4. Select attack style based on rhythmic complexity
+      const attackStyle = this._selectAttackStyle(state, layer)
+
+      // 5. Calculate per-note velocities with dynamic arcs
+      const velocities = this._calculateChordVelocities(
+        state, layer, layer.velocity, frequencies.length
+      )
 
       try { synth.releaseAll() } catch (e) {}
       layer.lastFrequencies = frequencies
+
+      // 6. Play chord with style and velocities
+      try {
+        const triggerTime = typeof Tone !== 'undefined' ? Tone.now() : undefined
+        this._playChordWithStyle(synth, frequencies, duration, velocities, attackStyle, triggerTime)
+      } catch (error) {
+        // Log context for debugging (only in development)
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('Chord playback error:', error.message)
+        }
+      }
+      return // Skip default playback below
     }
 
-    // Velocity variation
+    // Velocity variation for bass and pad
     let velocityVariation
     if (layerName === 'bass') velocityVariation = 0.8 + Math.random() * 0.4
     else if (layerName === 'pad') velocityVariation = 0.85 + Math.random() * 0.3
-    else if (layerName === 'chords') velocityVariation = 0.75 + Math.random() * 0.5
+    else velocityVariation = 1.0
 
     const dynamicFactor = 0.9 + (Math.random() * 0.2) * state.complexity
     const playVelocity = layer.velocity * velocityVariation * dynamicFactor
@@ -589,6 +635,278 @@ class GenerativeMusicEngine {
    */
   isActive() {
     return this.evolvingGenerationActive
+  }
+
+  // ============================================
+  // Enhanced Chord Voicing Methods
+  // ============================================
+
+  /**
+   * Select voicing type based on harmonic tension
+   * @param {Object} state - Generative state
+   * @param {Object} layer - Layer config
+   * @returns {number} Voicing type (0-3)
+   */
+  _selectVoicingType(state, layer) {
+    const voicingSelector = ((state.evolutionCycle * PHI) + state.harmonicTension) % 1
+
+    // Avoid repeating same voicing
+    let voicingType
+    if (state.harmonicTension > 0.7) {
+      // High tension: favor open and spread voicings
+      voicingType = voicingSelector < 0.5 ? 1 : 3
+    } else if (state.harmonicTension > 0.4) {
+      // Medium tension: all voicings possible
+      const voicings = [0, 1, 2, 0]
+      voicingType = voicings[Math.floor(voicingSelector * voicings.length)]
+    } else {
+      // Low tension: favor close voicing
+      voicingType = voicingSelector < 0.7 ? 0 : 1
+    }
+
+    // Avoid immediate repetition
+    if (voicingType === layer.lastVoicingType && state.evolutionCycle > 1) {
+      voicingType = (voicingType + 1) % 4
+    }
+    layer.lastVoicingType = voicingType
+
+    return voicingType
+  }
+
+  /**
+   * Generate chord frequencies with voicing spread
+   * @param {number} root - Root scale degree
+   * @param {number} third - Third scale degree
+   * @param {number} fifth - Fifth scale degree
+   * @param {number} octave - Base octave
+   * @param {number} tonic - Tonic frequency
+   * @param {number} voicingType - Voicing type (0-3)
+   * @returns {Array} Array of frequencies (clamped to 80-1200Hz for ambient)
+   */
+  _generateChordVoicing(root, third, fifth, octave, tonic, voicingType) {
+    // Input validation
+    if (!tonic || tonic <= 0 || isNaN(tonic)) {
+      tonic = 220 // Fallback to A3
+    }
+    if (!Number.isFinite(octave)) {
+      octave = 1
+    }
+
+    let frequencies
+    switch (voicingType) {
+      case 1: // Open voicing - root low, fifth high
+        frequencies = [
+          tonic * Math.pow(2, (root / 12) + octave - 1),
+          tonic * Math.pow(2, (third / 12) + octave),
+          tonic * Math.pow(2, (fifth / 12) + octave + 0.5)
+        ]
+        break
+      case 2: // Drop-2 voicing - third dropped
+        frequencies = [
+          tonic * Math.pow(2, (root / 12) + octave),
+          tonic * Math.pow(2, (third / 12) + octave - 1),
+          tonic * Math.pow(2, (fifth / 12) + octave)
+        ]
+        break
+      case 3: // Wide spread
+        frequencies = [
+          tonic * Math.pow(2, (root / 12) + octave - 1),
+          tonic * Math.pow(2, (third / 12) + octave),
+          tonic * Math.pow(2, (fifth / 12) + octave + 1)
+        ]
+        break
+      default: // Close voicing (0)
+        frequencies = [
+          tonic * Math.pow(2, (root / 12) + octave),
+          tonic * Math.pow(2, (third / 12) + octave),
+          tonic * Math.pow(2, (fifth / 12) + octave)
+        ]
+    }
+
+    // Clamp to ambient frequency range (80Hz - 1200Hz)
+    return frequencies.map(f => Math.max(80, Math.min(1200, f)))
+  }
+
+  /**
+   * Select inversion with voice leading preference
+   * @param {Object} state - Generative state
+   * @param {Object} layer - Layer config
+   * @param {number} chordRootIndex - Index in scale
+   * @returns {number} Inversion (0-2)
+   */
+  _selectInversion(state, layer, chordRootIndex) {
+    const inversionSelector = ((state.evolutionCycle * PHI) + (chordRootIndex * 0.3)) % 1
+
+    let targetInversion
+    if (inversionSelector < 0.5) {
+      targetInversion = 0 // Root position most common
+    } else if (inversionSelector < 0.8) {
+      targetInversion = 1 // First inversion
+    } else {
+      targetInversion = 2 // Second inversion (cadential)
+    }
+
+    // Voice leading: prefer inversions close to previous when complexity low
+    const lastInv = layer.lastInversion || 0
+    const stepSize = Math.abs(targetInversion - lastInv)
+
+    if (stepSize > 1 && state.complexity < 0.5) {
+      targetInversion = lastInv + (targetInversion > lastInv ? 1 : -1)
+      targetInversion = Math.max(0, Math.min(2, targetInversion))
+    }
+
+    layer.lastInversion = targetInversion
+    return targetInversion
+  }
+
+  /**
+   * Apply inversion to frequency array
+   * @param {Array} frequencies - [root, third, fifth] frequencies
+   * @param {number} inversion - Inversion type (0-2)
+   * @returns {Array} Reordered frequencies with proper voice leading
+   */
+  _applyInversion(frequencies, inversion) {
+    // Bounds check
+    if (!frequencies || frequencies.length < 3) {
+      return frequencies
+    }
+
+    switch (inversion) {
+      case 1: // First inversion: 3rd in bass (third, fifth, root up)
+        return [
+          frequencies[1],
+          frequencies[2],
+          frequencies[0] * 2
+        ]
+      case 2: // Second inversion: 5th in bass (fifth, root up, third up)
+        return [
+          frequencies[2],
+          frequencies[0] * 2,
+          frequencies[1] * 2
+        ]
+      default: // Root position
+        return frequencies
+    }
+  }
+
+  /**
+   * Select attack style based on rhythmic complexity
+   * @param {Object} state - Generative state
+   * @param {Object} layer - Layer config
+   * @returns {number} Attack style (0-3)
+   */
+  _selectAttackStyle(state, layer) {
+    const attackSelector = ((layer.patternPosition * PHI) + state.rhythmicComplexity) % 1
+
+    if (state.rhythmicComplexity > 0.7) {
+      // High complexity: arpeggiated or staggered
+      return attackSelector < 0.6 ? 1 : 2
+    } else if (state.rhythmicComplexity > 0.4) {
+      // Medium: mix of styles
+      const styles = [0, 0, 1, 2]
+      return styles[Math.floor(attackSelector * styles.length)]
+    } else {
+      // Low complexity: mostly block chords
+      return attackSelector < 0.8 ? 0 : 3
+    }
+  }
+
+  /**
+   * Calculate per-note velocities with musical dynamics
+   * @param {Object} state - Generative state
+   * @param {Object} layer - Layer config
+   * @param {number} baseVelocity - Base velocity
+   * @param {number} noteCount - Number of notes
+   * @returns {Array} Per-note velocities
+   */
+  _calculateChordVelocities(state, layer, baseVelocity, noteCount) {
+    const velocities = []
+
+    // Normalize phrase position to [0, 1] range for arc calculations
+    // phraseLength=4: positions 0,1,2,3 map to 0, 0.33, 0.67, 1.0
+    const phrasePos = layer.phraseLength > 1
+      ? layer.phrasePosition / (layer.phraseLength - 1)
+      : 0
+
+    // Select arc type using PHI
+    const arcSelector = ((state.evolutionCycle * PHI * 0.5) % 1)
+    let arcMultiplier
+    if (arcSelector < 0.4) {
+      // Swell: crescendo to middle, decrescendo
+      arcMultiplier = 0.85 + Math.sin(phrasePos * Math.PI) * 0.25
+    } else if (arcSelector < 0.7) {
+      // Fade: start strong, diminish
+      arcMultiplier = 1.1 - (phrasePos * 0.3)
+    } else {
+      // Steady with slight PHI variation
+      arcMultiplier = 0.95 + ((phrasePos * PHI) % 1) * 0.1
+    }
+
+    // Voice hierarchy: root loud, third soft, fifth medium
+    const voiceWeights = [1.0, 0.85, 0.95]
+
+    // Accent on first note of pattern
+    const isAccent = layer.patternPosition === 0
+    const accentBoost = isAccent ? 1.15 : 1.0
+
+    // Tension scaling
+    const tensionRange = 0.8 + (state.harmonicTension * 0.4)
+
+    for (let i = 0; i < noteCount; i++) {
+      const noteVel = baseVelocity
+        * arcMultiplier
+        * voiceWeights[i % voiceWeights.length]
+        * accentBoost
+        * tensionRange
+
+      velocities.push(Math.max(0.1, Math.min(1.0, noteVel)))
+    }
+
+    // Advance phrase position
+    layer.phrasePosition = (layer.phrasePosition + 1) % layer.phraseLength
+
+    return velocities
+  }
+
+  /**
+   * Play chord with selected attack style and velocities
+   * @param {Object} synth - Tone.js synth
+   * @param {Array} frequencies - Note frequencies
+   * @param {number} duration - Note duration
+   * @param {Array} velocities - Per-note velocities
+   * @param {number} attackStyle - Attack style (0-3)
+   * @param {number} triggerTime - Tone.now() time
+   */
+  _playChordWithStyle(synth, frequencies, duration, velocities, attackStyle, triggerTime) {
+    switch (attackStyle) {
+      case 1: // Arpeggiated - notes in sequence
+        frequencies.forEach((freq, i) => {
+          const noteTime = triggerTime + (i * 0.08)
+          const noteDur = Math.max(0.1, duration - (i * 0.08))
+          synth.triggerAttackRelease(freq, noteDur, noteTime, velocities[i])
+        })
+        break
+
+      case 2: // Staggered - PHI-based offsets
+        frequencies.forEach((freq, i) => {
+          const offset = ((i * PHI) % 1) * 0.05
+          const noteTime = triggerTime + offset
+          synth.triggerAttackRelease(freq, duration, noteTime, velocities[i])
+        })
+        break
+
+      case 3: // Broken - two notes then third
+        synth.triggerAttackRelease(frequencies[0], duration, triggerTime, velocities[0])
+        synth.triggerAttackRelease(frequencies[1], duration, triggerTime, velocities[1])
+        const delayedTime = triggerTime + 0.15
+        synth.triggerAttackRelease(frequencies[2], Math.max(0.1, duration - 0.15), delayedTime, velocities[2])
+        break
+
+      default: // Block chord (0)
+        frequencies.forEach((freq, i) => {
+          synth.triggerAttackRelease(freq, duration, triggerTime, velocities[i])
+        })
+    }
   }
 }
 
