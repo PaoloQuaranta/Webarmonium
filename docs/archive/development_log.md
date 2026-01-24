@@ -951,3 +951,85 @@ With duration now passing through:
 v0.2.3
 
 ---
+
+## Entry #171 Addendum 4: Separate Note Durations from Phrase Structure
+
+**Date**: 2026-01-24
+**Focus**: WebMetrics should affect phrase STRUCTURE, not note durations
+
+---
+
+### Problem Identified
+
+User feedback: "i drag di real users avevano durate delle note variabili rispetto alla velocità del drag. ora non funziona più. le metriche dovrebbero variare la struttura della frase (non sempre arpeggio/scala) non le durate delle note."
+
+Two issues discovered:
+
+1. **Note durations affected by webMetrics** - `calculatePhraseLengthFromDuration()` used `commentCountNorm` to modify `baseDuration`, but note durations should only come from gesture velocity (faster drag = shorter notes)
+
+2. **Contour always 'arch' with default metrics** - `generateMelodicContour()` would override the gesture-based contour even when all webMetrics values were defaults (0.5). This caused phrases to always have the same structure regardless of gesture.
+
+---
+
+### Design Principle
+
+**Separation of concerns:**
+- **Note durations** → from GESTURE (velocity, duration)
+- **Phrase structure** (contour type) → from WEB METRICS (when meaningful)
+
+---
+
+### Fixes Applied
+
+**1. PhraseMorphology.js - calculatePhraseLengthFromDuration():**
+```javascript
+// Entry #171 Addendum 4: Note durations are ONLY from gesture velocity
+// WebMetrics affect phrase STRUCTURE (contour), not note durations
+// REMOVED: commentCountNorm influence on baseDuration
+let baseDuration
+if (velocity > 80) baseDuration = 0.25   // Fast = 16th notes
+else if (velocity > 60) baseDuration = 0.5  // Medium-fast = 8th notes
+// ... velocity-only mapping
+```
+
+**2. PhraseMorphology.js - generateMelodicContour():**
+```javascript
+// Entry #171 Addendum 4: Only override gesture contour when metrics deviate from defaults
+const editDeviation = Math.abs(editSizeNorm - 0.5)
+const upvotesDeviation = Math.abs(upvotesNorm - 0.5)
+const createsDeviation = Math.abs(createsNorm - 0.5)
+const maxDeviation = Math.max(editDeviation, upvotesDeviation, createsDeviation)
+
+// Only apply webMetrics override if there's meaningful signal (>0.1 deviation)
+if (maxDeviation > 0.1) {
+  // Apply webMetrics-based contour selection
+}
+// Else: keep gesture-based contourType
+```
+
+---
+
+### Behavior Summary
+
+| Condition | Note Durations | Phrase Structure |
+|-----------|----------------|------------------|
+| Fast drag | Short (16th notes) | From gesture trajectory/curvature |
+| Slow drag | Long (half notes) | From gesture trajectory/curvature |
+| High webMetrics variation | Velocity-based | WebMetrics-driven contour |
+| Default webMetrics (all 0.5) | Velocity-based | Gesture-driven contour |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/PhraseMorphology.js` | Remove webMetrics from duration calc, add deviation check for contour override |
+
+---
+
+### Version
+
+v0.2.4
+
+---

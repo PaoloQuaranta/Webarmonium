@@ -478,32 +478,24 @@ class PhraseMorphology {
 
   /**
    * Calculate phrase length (note count) from quantized duration
-   * Entry #171: commentCount from webMetrics affects rhythmic density
+   * Entry #171 Addendum 4: Note durations are ONLY from gesture velocity
+   * WebMetrics affect phrase STRUCTURE (contour), not note durations
    * @param {number} phraseDurationBeats - Duration in beats
    * @param {number} velocity - Gesture velocity
    * @param {number} tempo - Tempo in BPM
-   * @param {Object} webMetrics - Optional web metrics for density variation
+   * @param {Object} webMetrics - Unused, kept for API compatibility
    * @returns {number} Note count for phrase
    */
   calculatePhraseLengthFromDuration(phraseDurationBeats, velocity, tempo, webMetrics = null) {
-    // Determine base note duration based on velocity
+    // Determine base note duration based on velocity ONLY
+    // Entry #171 Addendum 4: webMetrics removed from duration calculation
+    // Note durations should reflect gesture speed, not web activity
     let baseDuration
     if (velocity > 80) baseDuration = 0.25   // Fast = 16th notes
     else if (velocity > 60) baseDuration = 0.5  // Medium-fast = 8th notes
     else if (velocity > 40) baseDuration = 1.0  // Medium = quarter notes
     else if (velocity > 20) baseDuration = 1.5  // Medium-slow = dotted quarters
     else baseDuration = 2.0                     // Slow = half notes
-
-    // Entry #171: WebMetrics commentCount influences rhythmic density
-    // Uses pre-normalized values from BackgroundCompositionService (0-1 range, ceiling 100 comments)
-    const commentDensity = webMetrics?.hackernews?.commentCountNorm ?? 0
-
-    if (commentDensity > 0) {
-      // More comments → more notes (up to 1.5x density)
-      // Fewer comments → fewer notes (down to 0.7x density)
-      const densityMultiplier = 0.7 + (commentDensity * 0.8)
-      baseDuration = baseDuration / densityMultiplier
-    }
 
     // Calculate how many notes fit in the phrase duration
     const idealNoteCount = Math.floor(phraseDurationBeats / baseDuration)
@@ -841,7 +833,8 @@ class PhraseMorphology {
       else contourType = 'wave'
     }
 
-    // Entry #171: WebMetrics override for highly variable contour selection
+    // Entry #171 Addendum 4: WebMetrics COMBINE with gesture-based contour selection
+    // Only override when metrics have meaningful deviation from defaults
     // Uses pre-normalized values from BackgroundCompositionService (all in 0-1 range)
     if (webMetrics) {
       const wiki = webMetrics.wikipedia || {}
@@ -851,36 +844,48 @@ class PhraseMorphology {
       // Use pre-normalized values (0-1 range from BackgroundCompositionService)
       const editSizeNorm = wiki.avgEditSizeNorm ?? 0.5
       const upvotesNorm = hn.avgUpvotesNorm ?? 0.5
+      const createsNorm = gh.createsNorm ?? 0.5
 
-      // Velocity values are now pre-normalized to 0-1, convert to -1 to +1 for combination
-      const wikiVel = (wiki.velocityNorm ?? 0.5) * 2 - 1  // 0-1 → -1 to +1
-      const hnVel = (hn.velocityNorm ?? 0.5) * 2 - 1
-      const ghVel = (gh.velocityNorm ?? 0.5) * 2 - 1
+      // Check if metrics have meaningful deviation from defaults (0.5)
+      // If all values are near 0.5 (±0.1), keep gesture-based contour
+      const editDeviation = Math.abs(editSizeNorm - 0.5)
+      const upvotesDeviation = Math.abs(upvotesNorm - 0.5)
+      const createsDeviation = Math.abs(createsNorm - 0.5)
+      const maxDeviation = Math.max(editDeviation, upvotesDeviation, createsDeviation)
 
-      // Combined velocity for contour selection
-      const combinedVelocity = (wikiVel + hnVel + ghVel) / 3
+      // Only apply webMetrics override if there's meaningful signal (>0.1 deviation)
+      if (maxDeviation > 0.1) {
+        // Velocity values are now pre-normalized to 0-1, convert to -1 to +1 for combination
+        const wikiVel = (wiki.velocityNorm ?? 0.5) * 2 - 1  // 0-1 → -1 to +1
+        const hnVel = (hn.velocityNorm ?? 0.5) * 2 - 1
+        const ghVel = (gh.velocityNorm ?? 0.5) * 2 - 1
 
-      // Velocity fallback: when all sources have near-zero velocity, use acceleration
-      // This maintains contour variety during stable activity periods
-      const effectiveVelocity = Math.abs(combinedVelocity) < 0.1
-        ? ((wiki.accelerationNorm ?? 0.5) - 0.5) * 2  // Use acceleration as fallback
-        : combinedVelocity
+        // Combined velocity for contour selection
+        const combinedVelocity = (wikiVel + hnVel + ghVel) / 3
 
-      // FORMULA: editSize (40%) + upvotes (30%) + velocity (30%)
-      // Explicit clamp to 0-1 for safety
-      const contourScore = Math.min(1, Math.max(0,
-        (editSizeNorm * 0.4) + (upvotesNorm * 0.3) + ((effectiveVelocity + 1) / 2 * 0.3)
-      ))
+        // Velocity fallback: when all sources have near-zero velocity, use acceleration
+        // This maintains contour variety during stable activity periods
+        const effectiveVelocity = Math.abs(combinedVelocity) < 0.1
+          ? ((wiki.accelerationNorm ?? 0.5) - 0.5) * 2  // Use acceleration as fallback
+          : combinedVelocity
 
-      // Map score to contour type index
-      const contourIndex = Math.floor(contourScore * contourTypes.length)
-      contourType = contourTypes[Math.min(contourIndex, contourTypes.length - 1)]
+        // FORMULA: editSize (40%) + upvotes (30%) + velocity (30%)
+        // Explicit clamp to 0-1 for safety
+        const contourScore = Math.min(1, Math.max(0,
+          (editSizeNorm * 0.4) + (upvotesNorm * 0.3) + ((effectiveVelocity + 1) / 2 * 0.3)
+        ))
 
-      // Negative velocity → invert contour (ascending ↔ descending)
-      if (combinedVelocity < -0.3) {
-        if (contourType === 'ascending') contourType = 'descending'
-        else if (contourType === 'descending') contourType = 'ascending'
+        // Map score to contour type index
+        const contourIndex = Math.floor(contourScore * contourTypes.length)
+        contourType = contourTypes[Math.min(contourIndex, contourTypes.length - 1)]
+
+        // Negative velocity → invert contour (ascending ↔ descending)
+        if (combinedVelocity < -0.3) {
+          if (contourType === 'ascending') contourType = 'descending'
+          else if (contourType === 'descending') contourType = 'ascending'
+        }
       }
+      // If maxDeviation <= 0.1, keep the gesture-based contourType selected above
     }
 
     return this.createContour(contourType, length, curvature, webMetrics)
