@@ -125,6 +125,10 @@ class CompositionMonitor {
         formStructure: compositionEngine.formStructure,
         currentSection: compositionEngine.currentSection,
         sectionHistory: compositionEngine.sectionHistory?.slice(-5) || [],
+        // Entry #168: Track form cycle completion
+        formCycleLength: compositionEngine.formCycleLength || 1,
+        formCycleProgress: `${compositionEngine.sectionHistory?.length || 0}/${compositionEngine.formCycleLength || 1}`,
+        hasCompletedCycle: (compositionEngine.sectionHistory?.length || 0) >= (compositionEngine.formCycleLength || 1),
         complexityLevel: compositionEngine.complexityLevel,
         density: compositionEngine.density,
         tensionLevel: compositionEngine.tensionLevel,

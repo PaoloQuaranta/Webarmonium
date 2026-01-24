@@ -13,6 +13,7 @@ class CompositionEngine {
     this.currentSection = 'A'     // Current section label
     this.sectionHistory = []      // History of sections visited
     this.sectionLengths = {}      // Length of each section in bars
+    this.formCycleLength = 1      // Minimum sections to complete one full cycle (Entry #168)
 
     // Composition parameters
     this.tempo = 120
@@ -47,8 +48,10 @@ class CompositionEngine {
       // 2. Determine or maintain form structure
       // Entry #117: Reset form every ~8 compositions to avoid repetitive structure
       // Using PHI to determine when to reset creates natural variety
-      const shouldResetForm = !this.formStructure ||
-        (this.compositionCount > 0 && ((this.compositionCount * PHI) % 1) < 0.12)
+      // Entry #168: Form can only change AFTER completing at least one full cycle through all sections
+      const hasCompletedCycle = this.sectionHistory.length >= this.formCycleLength
+      const wantsToReset = this.compositionCount > 0 && ((this.compositionCount * PHI) % 1) < 0.12
+      const shouldResetForm = !this.formStructure || (hasCompletedCycle && wantsToReset)
       if (shouldResetForm) {
         this.formStructure = this.selectForm(currentStyle)
         this.initializeFormStructure(this.formStructure)
@@ -161,30 +164,76 @@ class CompositionEngine {
     this.currentSection = 'A'
     this.sectionHistory = ['A']
 
-    // Set section lengths based on form
+    // Set section lengths and cycle length based on form
+    // Entry #168: formCycleLength = minimum sections to complete one full form cycle
     switch (form) {
       case 'ABA':
         this.sectionLengths = { 'A': 8, 'B': 8 }
+        this.formCycleLength = 3  // A → B → A
         break
       case 'rondo':
         this.sectionLengths = { 'A': 4, 'B': 4, 'C': 4 }
+        this.formCycleLength = 5  // A → B → A → C → A
         break
       case 'sonata':
         this.sectionLengths = { 'exposition': 16, 'development': 16, 'recapitulation': 16 }
         this.currentSection = 'exposition'
+        this.sectionHistory = ['exposition']
+        this.formCycleLength = 3  // exposition → development → recapitulation
         break
       case 'AABA':
         this.sectionLengths = { 'A': 8, 'B': 8 }
+        this.formCycleLength = 4  // A → A → B → A
         break
       case 'verse_chorus':
         this.sectionLengths = { 'verse': 8, 'chorus': 8, 'bridge': 8, 'intro': 4, 'outro': 4 }
         this.currentSection = 'intro'
+        this.sectionHistory = ['intro']
+        this.formCycleLength = 8  // intro → verse → chorus → verse → chorus → bridge → chorus → outro
         break
       case 'blues':
         this.sectionLengths = { 'blues': 12 }
+        this.formCycleLength = 1  // Single 12-bar cycle
+        break
+      case 'theme_and_variations':
+        this.sectionLengths = { 'theme': 8, 'var1': 8, 'var2': 8, 'var3': 8 }
+        this.currentSection = 'theme'
+        this.sectionHistory = ['theme']
+        this.formCycleLength = 4  // theme + 3 variations
+        break
+      case 'through_composed':
+        this.sectionLengths = { 'A': 8 }
+        this.formCycleLength = 3  // At least 3 sections before changing
+        break
+      case 'strophic':
+        this.sectionLengths = { 'strophe': 8 }
+        this.currentSection = 'strophe'
+        this.sectionHistory = ['strophe']
+        this.formCycleLength = 3  // At least 3 strophes before changing
+        break
+      case 'build_drop':
+        this.sectionLengths = { 'build': 8, 'drop': 8, 'breakdown': 4 }
+        this.currentSection = 'build'
+        this.sectionHistory = ['build']
+        this.formCycleLength = 3  // build → drop → breakdown
+        break
+      case 'modal':
+        this.sectionLengths = { 'A': 8, 'B': 8 }
+        this.formCycleLength = 4  // At least 4 modal explorations
+        break
+      case 'rhythm_changes':
+        this.sectionLengths = { 'A': 8, 'B': 8 }
+        this.formCycleLength = 4  // A → A → B → A (32-bar form)
+        break
+      case 'intro_verse_chorus_bridge_outro':
+        this.sectionLengths = { 'intro': 4, 'verse': 8, 'chorus': 8, 'bridge': 8, 'outro': 4 }
+        this.currentSection = 'intro'
+        this.sectionHistory = ['intro']
+        this.formCycleLength = 5  // Full song structure
         break
       default:
         this.sectionLengths = { 'A': 8 }
+        this.formCycleLength = 3  // Default: at least 3 sections
     }
   }
 
@@ -769,39 +818,97 @@ class CompositionEngine {
     this.sectionHistory.push(this.currentSection)
 
     switch (form) {
-      case 'ABA':
+      case 'ABA': {
         const abaSequence = ['A', 'B', 'A']
         const nextIndex = (this.sectionHistory.length - 1) % 3
         this.currentSection = abaSequence[nextIndex]
         break
+      }
 
-      case 'rondo':
+      case 'rondo': {
         const rondoSequence = ['A', 'B', 'A', 'C', 'A']
         const rondoIndex = (this.sectionHistory.length - 1) % 5
         this.currentSection = rondoSequence[rondoIndex]
         break
+      }
 
-      case 'AABA':
-        if (this.sectionHistory.filter(s => s === 'A').length < 2) {
-          this.currentSection = 'A'
-        } else if (this.sectionHistory.filter(s => s === 'B').length === 0) {
-          this.currentSection = 'B'
-        } else {
-          this.currentSection = 'A'
-        }
+      case 'AABA': {
+        const aabaSequence = ['A', 'A', 'B', 'A']
+        const aabaIndex = (this.sectionHistory.length - 1) % 4
+        this.currentSection = aabaSequence[aabaIndex]
         break
+      }
 
-      case 'verse_chorus':
+      case 'verse_chorus': {
         const vcSequence = ['intro', 'verse', 'chorus', 'verse', 'chorus', 'bridge', 'chorus', 'outro']
         const vcIndex = (this.sectionHistory.length - 1) % 8
         this.currentSection = vcSequence[vcIndex]
         break
+      }
 
-      case 'sonata':
+      case 'sonata': {
         const sonataSequence = ['exposition', 'development', 'recapitulation']
-        const sonataIndex = Math.min(2, Math.floor((this.sectionHistory.length - 1) / 2))
+        const sonataIndex = (this.sectionHistory.length - 1) % 3
         this.currentSection = sonataSequence[sonataIndex]
         break
+      }
+
+      case 'theme_and_variations': {
+        const tavSequence = ['theme', 'var1', 'var2', 'var3']
+        const tavIndex = (this.sectionHistory.length - 1) % 4
+        this.currentSection = tavSequence[tavIndex]
+        break
+      }
+
+      case 'through_composed': {
+        // Through-composed: each section is unique, cycle through A, B, C
+        const tcSequence = ['A', 'B', 'C']
+        const tcIndex = (this.sectionHistory.length - 1) % 3
+        this.currentSection = tcSequence[tcIndex]
+        break
+      }
+
+      case 'strophic': {
+        // Strophic: same section repeated
+        this.currentSection = 'strophe'
+        break
+      }
+
+      case 'build_drop': {
+        const bdSequence = ['build', 'drop', 'breakdown']
+        const bdIndex = (this.sectionHistory.length - 1) % 3
+        this.currentSection = bdSequence[bdIndex]
+        break
+      }
+
+      case 'modal': {
+        // Modal jazz: alternate between A and B sections
+        const modalSequence = ['A', 'A', 'B', 'A']
+        const modalIndex = (this.sectionHistory.length - 1) % 4
+        this.currentSection = modalSequence[modalIndex]
+        break
+      }
+
+      case 'rhythm_changes': {
+        // Rhythm changes: AABA like standard jazz form
+        const rcSequence = ['A', 'A', 'B', 'A']
+        const rcIndex = (this.sectionHistory.length - 1) % 4
+        this.currentSection = rcSequence[rcIndex]
+        break
+      }
+
+      case 'intro_verse_chorus_bridge_outro': {
+        const fullSequence = ['intro', 'verse', 'chorus', 'bridge', 'outro']
+        const fullIndex = (this.sectionHistory.length - 1) % 5
+        this.currentSection = fullSequence[fullIndex]
+        break
+      }
+
+      case 'blues': {
+        // 12-bar blues: single repeated section
+        this.currentSection = 'blues'
+        break
+      }
 
       default:
         this.currentSection = 'A'

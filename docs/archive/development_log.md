@@ -3528,3 +3528,336 @@ The daily stats endpoint returns:
 v0.1.5
 
 ---
+
+## Entry #162 - Compositional Parameter Tuning ("Accordare lo Strumento")
+
+**Date**: 2026-01-23
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Comprehensive tuning of compositional algorithm parameters to ensure user input triggers the full range of musical parameters. Fixed multiple issues where parameters were either constant (always 0 or null) or had limited ranges. Additionally fixed autodeploy script that was failing silently when local changes blocked git pull.
+
+---
+
+### Problem Statement
+
+After implementing the composition monitoring system (Entry #160), analysis revealed several parameter issues:
+
+**Category A: Values Always Constant**
+| Parameter | Value | Cause |
+|-----------|-------|-------|
+| `chromaticism` | 0 | Required turn angles >45° (rare in fluid gestures) |
+| `modalFlavor` | null | Not extracted in snapshot |
+| `intervalProfile` | null | Not extracted in snapshot |
+| `contourType` | null | Not extracted in snapshot |
+| `styleShifts` | 0 | Counter never incremented |
+
+**Category B: Range Too Limited**
+| Parameter | Actual Range | Theoretical | Cause |
+|-----------|--------------|-------------|-------|
+| `timeSignature` | "4/4" | 3/4,6/8,5/4... | Never updated by StyleAnalyzer |
+| `formStructure` | 2 forms | 5+ forms | Genre threshold >0.7 too strict |
+| `keyCenter` | Almost always C | All 12 keys | No initialization from external seed |
+
+**Category C: Modulations Too Infrequent**
+| Parameter | Frequency | Ideal | Cause |
+|-----------|-----------|-------|-------|
+| `keyCenter` | ~1/day | 1/30min | Threshold 0.92 too high |
+
+---
+
+### Solution
+
+#### 1. Enhanced StyleAnalyzer Detection Methods
+
+**File:** `backend/src/services/StyleAnalyzer.js`
+
+**detectModalFlavor()** - Now uses multiple factors:
+- Energy level (high → lydian/mixolydian, low → aeolian/phrygian)
+- Contour direction (ascending → brighter, descending → darker)
+- Swing amount (high swing → mixolydian/dorian)
+- Y-position variance (high spread → dorian)
+- Velocity trend (increasing → brighter, decreasing → darker)
+
+```javascript
+if (energy > 0.65) {
+  if (swing > 0.4) return 'mixolydian'
+  if (contour === 'ascending' && velocityTrend > 0.1) return 'lydian'
+  if (contour === 'ascending') return 'ionian'
+  return 'mixolydian'
+} else if (energy < 0.35) {
+  if (contour === 'descending' && ySpread > 0.3) return 'phrygian'
+  // ...
+}
+```
+
+**detectChromaticism()** - Lowered threshold, added multiple methods:
+- Path complexity: Turn angle threshold 45° → 15°, partial credit for any turn
+- Y-position variance: Pitch irregularity scoring
+- Velocity variance: New factor for expressive variation
+
+**classifyMeter()** - Added swing/energy/syncopation fallback:
+- High swing → compound meters (6/8, 12/8)
+- High syncopation + moderate energy → 5/4
+- Low energy → 3/4
+- High energy → 7/8 or 4/4
+
+#### 2. HarmonicEngine Key Modulation & Initialization
+
+**File:** `backend/src/services/HarmonicEngine.js`
+
+**Lowered key change threshold** from 0.92 to 0.85:
+```javascript
+const keySelector = (compositionCount * PHI) % 1
+if (keySelector > 0.85) {  // Was 0.92
+  // Move by fifths (more musical than random jumps)
+  const direction = keySelector > 0.925 ? 1 : -1
+  // ...
+}
+```
+
+**Added initializeKeyFromMetrics()** - Uses WebMetricsPoller data as seed:
+```javascript
+initializeKeyFromMetrics(metrics) {
+  if (this.keyInitialized) return
+
+  const wikiEdits = metrics?.wikipedia?.editsPerMinute || 0
+  const hnPosts = metrics?.hackernews?.postsPerMinute || 0
+  const ghCommits = metrics?.github?.commitsPerMinute || 0
+  const totalActivity = wikiEdits + hnPosts * 10 + ghCommits
+
+  // Key from total activity
+  const keyIndex = Math.floor((totalActivity * PHI) % 1 * 12)
+  this.currentKey = circleOfFifths[keyIndex]
+
+  // Mode based on dominant source
+  const modeBySource = {
+    wikipedia: ['ionian', 'lydian'],      // informational
+    hackernews: ['dorian', 'mixolydian'], // discussion
+    github: ['aeolian', 'phrygian']       // technical
+  }
+  // ...
+  this.keyInitialized = true
+}
+```
+
+#### 3. CompositionEngine Form Selection
+
+**File:** `backend/src/services/CompositionEngine.js`
+
+Improved form selection to use multiple factors:
+```javascript
+const historyVariation = (historyLength * PHI) % 1
+const combinedIndex = energy * 0.4 + temporalOffset * 0.4 + historyVariation * 0.2
+const index = Math.max(0, Math.min(Math.floor(combinedIndex * forms.length), forms.length - 1))
+```
+
+#### 4. CompositionMonitor Snapshot Enhancement
+
+**File:** `backend/src/services/CompositionMonitor.js`
+
+- Extract `modalFlavor` from `style.harmonicComplexity.modalFlavor`
+- Extract `intervalProfile` from `style.melodicCharacter.intervalProfile`
+- Extract `contourType` from `style.melodicCharacter.contourType`
+- Track `styleShifts` (dominant genre changes)
+- Added `_getDominantGenre()` helper
+
+#### 5. BackgroundCompositionService Gesture Window
+
+**File:** `backend/src/services/BackgroundCompositionService.js`
+
+Increased gesture analysis window from 10 to 25 for more stable readings.
+
+#### 6. LandingCompositionService Integration
+
+**File:** `backend/src/services/LandingCompositionService.js`
+
+Added call to initialize HarmonicEngine from web metrics on first data arrival:
+```javascript
+updateMetrics(newMetrics) {
+  this.metrics = newMetrics
+  if (this.harmonicEngine && !this.harmonicEngine.keyInitialized) {
+    this.harmonicEngine.initializeKeyFromMetrics(newMetrics)
+  }
+}
+```
+
+---
+
+### Autodeploy Fix
+
+**Problem:** The autodeploy script (`/home/polden/auto-deploy.sh`) used `set -euo pipefail`, causing silent exit when `git pull` failed due to local changes. Logs showed a gap from 22:17 to 23:22 where the script ran but failed silently.
+
+**Solution:** Rewrote script to:
+1. Check for local changes before pulling
+2. Auto-reset local changes with logging
+3. Capture git pull exit code and log errors explicitly
+
+```bash
+# Check for local changes that would block pull
+if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+    log "=== ERROR: Local changes detected - resetting to allow pull ==="
+    git checkout -- . 2>&1 | while read line; do log "  $line"; done
+fi
+
+# Try git pull and capture output + exit code
+PULL_OUTPUT=$(git pull origin prod 2>&1)
+PULL_EXIT=$?
+
+if [ $PULL_EXIT -ne 0 ]; then
+    log "=== ERROR: git pull failed (exit $PULL_EXIT) ==="
+    log "Git error: $PULL_OUTPUT"
+    exit 1
+fi
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/StyleAnalyzer.js` | Enhanced detectModalFlavor(), detectChromaticism(), classifyMeter() |
+| `backend/src/services/HarmonicEngine.js` | Key threshold 0.92→0.85, initializeKeyFromMetrics() |
+| `backend/src/services/CompositionEngine.js` | Multi-factor form selection |
+| `backend/src/services/CompositionMonitor.js` | Extract modalFlavor/intervalProfile/contourType, styleShifts tracking |
+| `backend/src/services/BackgroundCompositionService.js` | Gesture window 10→25 |
+| `backend/src/services/LandingCompositionService.js` | Initialize key from web metrics |
+| `/home/polden/auto-deploy.sh` (production) | Error handling for local changes |
+
+---
+
+### Commits
+
+- `9f7c101` - fix(composition): Tune algorithmic parameters for full range coverage
+- `04399a7` - fix(harmony): Dynamic starting key and improved parameter sensitivity
+- `6dd3a8f` - fix(harmony): Initialize starting key from web metrics
+
+---
+
+### Expected Results
+
+After these changes:
+- **Starting key**: Varies based on web metrics activity at startup
+- **Key changes**: ~15% of compositions (vs ~8% before)
+- **Modal flavor**: Now varies based on gesture characteristics
+- **chromaticism**: Non-zero when gestures have turns or velocity variation
+- **timeSignature**: Can be 3/4, 5/4, 6/8, 7/8, 12/8 based on swing/energy
+- **styleShifts**: Tracked and reported in monitoring
+
+---
+
+### Version
+
+v0.1.6
+
+---
+
+## Entry #163 - Form Cycle Completion Constraint
+
+**Date**: 2026-01-24
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed issue where musical forms were changing too quickly before completing a full cycle through all their sections. A form (ABA, rondo, sonata, etc.) must now complete at least one full cycle through all its sections before it can change to a different form.
+
+---
+
+### Problem Statement
+
+During compositional algorithm tuning, forms were observed to change frequently (with ~12% probability per composition) regardless of whether they had played through all their sections. For example:
+- An ABA form might change after only playing A→B, never reaching the final A
+- A rondo (ABACA) might change after A→B→A, never playing the C section
+- A verse_chorus form might change mid-song, creating incoherent structure
+
+This violated basic musical form principles where a form should complete its statement before transitioning.
+
+---
+
+### Solution
+
+#### 1. Added `formCycleLength` Property
+
+Added new property to track how many sections constitute one complete cycle for each form type:
+
+| Form | Cycle Length | Sequence |
+|------|--------------|----------|
+| ABA | 3 | A → B → A |
+| rondo | 5 | A → B → A → C → A |
+| AABA | 4 | A → A → B → A |
+| verse_chorus | 8 | intro → verse → chorus → verse → chorus → bridge → chorus → outro |
+| sonata | 3 | exposition → development → recapitulation |
+| theme_and_variations | 4 | theme → var1 → var2 → var3 |
+| build_drop | 3 | build → drop → breakdown |
+| blues | 1 | 12-bar cycle |
+| strophic | 3 | 3 strophes minimum |
+| through_composed | 3 | A → B → C |
+| modal | 4 | A → A → B → A |
+| rhythm_changes | 4 | A → A → B → A |
+| intro_verse_chorus_bridge_outro | 5 | full song |
+| default | 3 | 3 sections minimum |
+
+#### 2. Updated Form Reset Logic
+
+Changed `shouldResetForm` condition to require cycle completion:
+
+```javascript
+// Before: Could change at any time
+const shouldResetForm = !this.formStructure ||
+  (this.compositionCount > 0 && ((this.compositionCount * PHI) % 1) < 0.12)
+
+// After: Must complete cycle first
+const hasCompletedCycle = this.sectionHistory.length >= this.formCycleLength
+const wantsToReset = this.compositionCount > 0 && ((this.compositionCount * PHI) % 1) < 0.12
+const shouldResetForm = !this.formStructure || (hasCompletedCycle && wantsToReset)
+```
+
+#### 3. Updated `getNextSection()` for All Form Types
+
+Added proper section sequences for all form types including new ones:
+- `theme_and_variations`, `through_composed`, `strophic`, `build_drop`, `modal`, `rhythm_changes`, `intro_verse_chorus_bridge_outro`, `blues`
+
+Fixed AABA to use correct 4-section sequence instead of conditional logic.
+
+#### 4. Added Monitoring Fields
+
+CompositionMonitor now tracks:
+- `formCycleLength`: Sections needed for complete cycle
+- `formCycleProgress`: Current progress (e.g., "2/5")
+- `hasCompletedCycle`: Boolean indicating if form can change
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/CompositionEngine.js` | Added `formCycleLength` property, updated `shouldResetForm` logic, expanded `initializeFormStructure()` and `getNextSection()` |
+| `backend/src/services/CompositionMonitor.js` | Added `formCycleLength`, `formCycleProgress`, `hasCompletedCycle` to snapshots |
+
+---
+
+### Expected Behavior
+
+| Form | Min Compositions Before Change |
+|------|-------------------------------|
+| ABA | 3 |
+| rondo | 5 |
+| verse_chorus | 8 |
+| sonata | 3 |
+| AABA | 4 |
+| blues | 1 (shortest) |
+
+Forms with longer cycles (verse_chorus, rondo) will remain stable longer, creating more coherent musical structures.
+
+---
+
+### Version
+
+v0.1.7
+
+---
