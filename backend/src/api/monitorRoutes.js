@@ -105,6 +105,50 @@ function createMonitorRoutes(compositionMonitor) {
   })
 
   /**
+   * GET /api/admin/monitor/history/numeric
+   * Get 5-minute history for all numeric fields (for linear graphs)
+   */
+  router.get('/history/numeric', (req, res) => {
+    try {
+      const history = compositionMonitor.getNumericHistory()
+      res.json({
+        success: true,
+        ...history,
+        timestamp: Date.now()
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'numeric_history_error',
+        message: error.message
+      })
+    }
+  })
+
+  /**
+   * GET /api/admin/monitor/history/:fieldPath
+   * Get 5-minute history for a specific field
+   * Example: /api/admin/monitor/history/core.tempo
+   */
+  router.get('/history/:fieldPath', (req, res) => {
+    try {
+      const { fieldPath } = req.params
+      const history = compositionMonitor.getFieldHistory(fieldPath)
+      res.json({
+        success: true,
+        ...history,
+        timestamp: Date.now()
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'field_history_error',
+        message: error.message
+      })
+    }
+  })
+
+  /**
    * GET /api/admin/monitor/status
    * Get monitor status and configuration
    */
@@ -115,6 +159,8 @@ function createMonitorRoutes(compositionMonitor) {
       config: {
         bufferSize: 100,
         flushInterval: 5000,
+        historyDuration: compositionMonitor.historyDuration,
+        historyBroadcastInterval: compositionMonitor.historyBroadcastInterval,
         persistenceEnabled: true
       },
       timestamp: Date.now()

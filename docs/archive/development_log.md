@@ -4016,3 +4016,81 @@ User Gesture → RawGestureData → MaterialLibrary (raw storage)
 v0.1.8
 
 ---
+
+## Entry #170: CompositionMonitor 5-Minute History Graphs
+
+**Date:** 2026-01-24
+
+### Summary
+
+Added 5-minute history linear graphs for all numeric fields in the CompositionMonitor dashboard. Implemented comprehensive history buffer system with real-time Chart.js visualization.
+
+---
+
+### Implementation
+
+#### History Buffer System
+- Added `historyBuffer` tracking 15 numeric fields:
+  - Core: tempo, compositionsInSection, complexityLevel, density, tensionLevel, compositionCount
+  - Harmony: progressionLength
+  - Style: energy, tempo, harmonicComplexity.chromaticism, harmonicComplexity.dissonance
+  - Materials: total, activeCount
+  - Room: gestureCount, sessionDuration
+- `_updateHistoryBuffer()`: Extracts numeric values from snapshots with nested object support
+- `_pruneHistoryBuffer()`: Removes entries older than 5 minutes (optimized to skip if oldest entry is valid)
+- `getNumericHistory()` / `getFieldHistory()`: API methods for history retrieval
+
+#### WebSocket Optimization
+- Separated history broadcasts from snapshot broadcasts
+- History updates throttled to every 5 seconds via `_startHistoryBroadcastInterval()`
+- Added `maxHistoryEntriesPerField` (600) safeguard against memory leaks
+
+#### REST API Endpoints
+- `GET /api/admin/monitor/history/numeric`: All numeric fields history
+- `GET /api/admin/monitor/history/:fieldPath`: Specific field history
+
+#### Dashboard Visualization
+- Added 14 Chart.js mini-graphs with field-specific colors, units, and scales
+- Pinned Chart.js to v4.4.1 with SRI hash for security
+- `requestAnimationFrame` throttling for smooth chart updates
+- Accessibility labels (role="img", aria-label) on all canvas elements
+- XSS prevention: simplified `updateElement()` to always use `textContent`
+
+---
+
+### Testing
+
+Created `/backend/tests/unit/CompositionMonitor.history.test.js` with 18 unit tests:
+- `_updateHistoryBuffer()`: numeric values, undefined/null/NaN handling, nested objects, max size limit
+- `_pruneHistoryBuffer()`: time-based removal, retention of valid entries, optimization skip
+- `getNumericHistory()`: relative time calculation, disabled state
+- `getFieldHistory()`: specific field retrieval, unknown field error, available fields list
+- `_getCompactHistory()`: formatting, empty buffer handling
+- Integration: recordSnapshot with history
+- Configuration: environment variable support, default 5-minute duration
+
+All 18 tests pass.
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/CompositionMonitor.js` | History buffer, pruning, API methods, throttled broadcasts |
+| `backend/src/api/monitorRoutes.js` | REST endpoints for history data |
+| `backend/public/monitor/index.html` | Chart.js graphs, accessibility, security fixes |
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `backend/tests/unit/CompositionMonitor.history.test.js` | 18 unit tests for history buffer system |
+
+---
+
+### Version
+
+v0.1.9
+
+---

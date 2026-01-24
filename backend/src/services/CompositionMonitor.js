@@ -30,6 +30,33 @@ class CompositionMonitor {
     // WebSocket subscribers
     this.subscribers = new Set()
 
+    // 5-minute history buffer for numeric fields (for linear graphs)
+    // Each entry: { timestamp, value }
+    this.historyDuration = parseInt(process.env.HISTORY_DURATION_MS) || (5 * 60 * 1000) // 5 minutes default
+    this.maxHistoryEntriesPerField = 600 // Safety limit: ~1 entry/sec for 10 minutes
+    this.historyBuffer = {
+      // Core metrics
+      'core.tempo': [],
+      'core.compositionsInSection': [],
+      'core.complexityLevel': [],
+      'core.density': [],
+      'core.tensionLevel': [],
+      'core.compositionCount': [],
+      // Harmony metrics
+      'harmony.progressionLength': [],
+      // Style metrics
+      'style.energy': [],
+      'style.tempo': [],
+      'style.harmonicComplexity.chromaticism': [],
+      'style.harmonicComplexity.dissonance': [],
+      // Materials metrics
+      'materials.total': [],
+      'materials.activeCount': [],
+      // Room metrics
+      'room.gestureCount': [],
+      'room.sessionDuration': []
+    }
+
     // Statistics aggregator
     this.stats = {
       hourly: new Map(), // hour -> aggregated stats
@@ -52,10 +79,16 @@ class CompositionMonitor {
     this.currentLogFile = null
     this.currentLogDate = null
 
+    // History broadcast throttling (reduce WebSocket payload)
+    this.historyBroadcastInterval = 5000 // Send history every 5 seconds max
+    this.lastHistoryBroadcast = 0
+    this.historyBroadcastTimer = null
+
     // Initialize if enabled
     if (this.enabled) {
       this._ensureLogsDirectory()
       this._startFlushInterval()
+      this._startHistoryBroadcastInterval()
       console.log('CompositionMonitor: Enabled and initialized')
     } else {
       console.log('CompositionMonitor: Disabled (set COMPOSITION_MONITOR=true to enable)')
@@ -81,6 +114,9 @@ class CompositionMonitor {
     if (this.buffer.length > this.maxBufferSize) {
       this.buffer.shift()
     }
+
+    // Update 5-minute history buffer for numeric fields
+    this._updateHistoryBuffer(snapshot)
 
     // Track event counts and changes
     this._trackChanges(snapshot)
@@ -192,14 +228,39 @@ class CompositionMonitor {
       return { enabled: false }
     }
 
+    // Prune history buffer before returning
+    this._pruneHistoryBuffer()
+
     return {
       enabled: true,
       currentSnapshot: this.buffer[this.buffer.length - 1] || null,
       recentSnapshots: this.buffer.slice(-20),
       eventCounts: { ...this.stats.eventCounts },
       uptime: Date.now() - this.stats.startTime,
-      subscriberCount: this.subscribers.size
+      subscriberCount: this.subscribers.size,
+      // Include 5-minute history for numeric fields
+      numericHistory: this._getCompactHistory()
     }
+  }
+
+  /**
+   * Get compact history format for WebSocket transmission
+   * @returns {Object} Compact history data
+   */
+  _getCompactHistory() {
+    const history = {}
+    const now = Date.now()
+
+    for (const [field, entries] of Object.entries(this.historyBuffer)) {
+      if (entries.length > 0) {
+        history[field] = entries.map(e => [
+          Math.round((now - e.timestamp) / 1000), // relative seconds ago
+          Math.round(e.value * 1000) / 1000 // rounded value
+        ])
+      }
+    }
+
+    return history
   }
 
   /**
@@ -319,7 +380,155 @@ class CompositionMonitor {
     this.subscribers.delete(socket)
   }
 
+  /**
+   * Get 5-minute history for all numeric fields (for linear graphs)
+   * @returns {Object} History data for each numeric field
+   */
+  getNumericHistory() {
+    if (!this.enabled) {
+      return { enabled: false }
+    }
+
+    // Prune old entries first
+    this._pruneHistoryBuffer()
+
+    const history = {}
+    for (const [field, entries] of Object.entries(this.historyBuffer)) {
+      history[field] = entries.map(e => ({
+        timestamp: e.timestamp,
+        value: e.value,
+        // Relative time in seconds for easier graphing
+        relativeTime: Math.round((Date.now() - e.timestamp) / 1000)
+      }))
+    }
+
+    return {
+      enabled: true,
+      duration: this.historyDuration,
+      durationSeconds: this.historyDuration / 1000,
+      timestamp: Date.now(),
+      fields: history
+    }
+  }
+
+  /**
+   * Get 5-minute history for a specific field
+   * @param {string} fieldPath - Field path (e.g., 'core.tempo')
+   * @returns {Object} History data for the field
+   */
+  getFieldHistory(fieldPath) {
+    if (!this.enabled) {
+      return { enabled: false }
+    }
+
+    if (!this.historyBuffer[fieldPath]) {
+      return {
+        enabled: true,
+        error: `Unknown field: ${fieldPath}`,
+        availableFields: Object.keys(this.historyBuffer)
+      }
+    }
+
+    // Prune old entries first
+    this._pruneHistoryBuffer()
+
+    const entries = this.historyBuffer[fieldPath]
+    return {
+      enabled: true,
+      field: fieldPath,
+      duration: this.historyDuration,
+      timestamp: Date.now(),
+      data: entries.map(e => ({
+        timestamp: e.timestamp,
+        value: e.value,
+        relativeTime: Math.round((Date.now() - e.timestamp) / 1000)
+      }))
+    }
+  }
+
   // --- Private methods ---
+
+  /**
+   * Update the 5-minute history buffer with numeric values from snapshot
+   * @param {Object} snapshot - Composition snapshot
+   */
+  _updateHistoryBuffer(snapshot) {
+    const timestamp = snapshot.timestamp
+    const core = snapshot.core || {}
+    const harmony = snapshot.harmony || {}
+    const style = snapshot.style || {}
+    const materials = snapshot.materials || {}
+    const room = snapshot.room || {}
+
+    // Helper to add value to history if defined (with max size safeguard)
+    const addToHistory = (field, value) => {
+      if (value !== undefined && value !== null && !isNaN(value)) {
+        const buffer = this.historyBuffer[field]
+        buffer.push({ timestamp, value })
+        // Safety guard: prevent unbounded growth
+        if (buffer.length > this.maxHistoryEntriesPerField) {
+          buffer.shift()
+        }
+      }
+    }
+
+    // Core metrics
+    addToHistory('core.tempo', core.tempo)
+    addToHistory('core.compositionsInSection', core.compositionsInSection)
+    addToHistory('core.complexityLevel', core.complexityLevel)
+    addToHistory('core.density', core.density)
+    addToHistory('core.tensionLevel', core.tensionLevel)
+    addToHistory('core.compositionCount', core.compositionCount)
+
+    // Harmony metrics
+    addToHistory('harmony.progressionLength', harmony.progressionLength)
+
+    // Style metrics
+    addToHistory('style.energy', style.energy)
+    addToHistory('style.tempo', style.tempo)
+    addToHistory('style.harmonicComplexity.chromaticism', style.harmonicComplexity?.chromaticism)
+    addToHistory('style.harmonicComplexity.dissonance', style.harmonicComplexity?.dissonance)
+
+    // Materials metrics
+    addToHistory('materials.total', materials.total)
+    addToHistory('materials.activeCount', materials.activeCount)
+
+    // Room metrics
+    addToHistory('room.gestureCount', room.gestureCount)
+    addToHistory('room.sessionDuration', room.sessionDuration)
+
+    // Prune entries older than 5 minutes
+    this._pruneHistoryBuffer()
+  }
+
+  /**
+   * Remove entries older than 5 minutes from history buffer
+   * Optimized to avoid unnecessary array allocations
+   */
+  _pruneHistoryBuffer() {
+    const cutoff = Date.now() - this.historyDuration
+
+    for (const field of Object.keys(this.historyBuffer)) {
+      const buffer = this.historyBuffer[field]
+
+      // Skip if buffer is empty
+      if (buffer.length === 0) continue
+
+      // Check if oldest entry is still valid (common case: no pruning needed)
+      if (buffer[0].timestamp > cutoff) continue
+
+      // Find first valid index
+      let firstValidIndex = 0
+      while (firstValidIndex < buffer.length && buffer[firstValidIndex].timestamp <= cutoff) {
+        firstValidIndex++
+      }
+
+      // Only create new array if we actually need to prune
+      if (firstValidIndex > 0) {
+        this.historyBuffer[field] = buffer.slice(firstValidIndex)
+      }
+    }
+  }
 
   _trackChanges(snapshot) {
     this.stats.eventCounts.compositions++
@@ -445,6 +654,7 @@ class CompositionMonitor {
   _broadcastSnapshot(snapshot) {
     if (this.subscribers.size === 0) return
 
+    // Don't include history on every snapshot - it's sent separately via throttled interval
     const event = {
       type: 'snapshot',
       data: snapshot,
@@ -462,6 +672,39 @@ class CompositionMonitor {
       }
     }
     toRemove.forEach(s => this.subscribers.delete(s))
+  }
+
+  /**
+   * Start periodic history broadcast interval
+   */
+  _startHistoryBroadcastInterval() {
+    this.historyBroadcastTimer = setInterval(() => {
+      this._broadcastHistoryUpdate()
+    }, this.historyBroadcastInterval)
+  }
+
+  /**
+   * Broadcast history update to all subscribers (throttled)
+   */
+  _broadcastHistoryUpdate() {
+    if (this.subscribers.size === 0) return
+
+    const historyEvent = {
+      type: 'history_update',
+      numericHistory: this._getCompactHistory(),
+      timestamp: Date.now()
+    }
+
+    const toRemove = []
+    for (const socket of this.subscribers) {
+      try {
+        socket.emit('monitor:history_update', historyEvent)
+      } catch (err) {
+        toRemove.push(socket)
+      }
+    }
+    toRemove.forEach(s => this.subscribers.delete(s))
+    this.lastHistoryBroadcast = Date.now()
   }
 
   _emitEvent(eventName, data) {
@@ -750,6 +993,10 @@ class CompositionMonitor {
   shutdown() {
     if (this.flushInterval) {
       clearInterval(this.flushInterval)
+    }
+
+    if (this.historyBroadcastTimer) {
+      clearInterval(this.historyBroadcastTimer)
     }
 
     // Final flush

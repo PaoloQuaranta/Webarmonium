@@ -4,8 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Webarmonium Composition Monitor</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
+          integrity="sha384-gVdTGmGqcPfuD0GkCrSYbjqVYZhY1v3N4HBqMYrXPKC+1e3VDwfvJfIuXgOQaMll"
+          crossorigin="anonymous"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"
+          integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO"
+          crossorigin="anonymous"></script>
   <style>
     :root {
       --bg-primary: #0d1117;
@@ -208,6 +212,44 @@
       position: relative;
     }
 
+    .history-section {
+      margin-top: 20px;
+    }
+
+    .history-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .mini-chart-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .mini-chart-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .mini-chart-value {
+      font-size: 0.875rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .mini-chart-container {
+      height: 80px;
+      position: relative;
+    }
+
     .stats-row {
       display: flex;
       gap: 20px;
@@ -275,10 +317,31 @@
 
     // State
     let socket = null;
-    let tempoChart = null;
-    let energyChart = null;
     let events = [];
     const MAX_EVENTS = 50;
+
+    // Chart update throttling with requestAnimationFrame
+    let pendingHistoryUpdate = null;
+    let lastHistoryData = null;
+
+    // Mini charts for 5-minute history
+    const historyCharts = {};
+    const HISTORY_FIELDS = {
+      'core.tempo': { label: 'Tempo', unit: 'BPM', color: '#58a6ff', min: 60, max: 180 },
+      'core.complexityLevel': { label: 'Complexity', unit: '%', color: '#3fb950', min: 0, max: 1, scale: 100 },
+      'core.density': { label: 'Density', unit: '%', color: '#d29922', min: 0, max: 1, scale: 100 },
+      'core.tensionLevel': { label: 'Tension', unit: '%', color: '#f85149', min: 0, max: 1, scale: 100 },
+      'core.compositionCount': { label: 'Compositions', unit: '', color: '#a371f7', min: 0 },
+      'core.compositionsInSection': { label: 'Comps/Section', unit: '', color: '#58a6ff', min: 0 },
+      'style.energy': { label: 'Energy', unit: '%', color: '#f778ba', min: 0, max: 1, scale: 100 },
+      'style.harmonicComplexity.chromaticism': { label: 'Chromaticism', unit: '%', color: '#79c0ff', min: 0, max: 1, scale: 100 },
+      'style.harmonicComplexity.dissonance': { label: 'Dissonance', unit: '%', color: '#ffa657', min: 0, max: 1, scale: 100 },
+      'harmony.progressionLength': { label: 'Progression Length', unit: '', color: '#7ee787', min: 0 },
+      'materials.total': { label: 'Total Materials', unit: '', color: '#d2a8ff', min: 0 },
+      'materials.activeCount': { label: 'Active Materials', unit: '', color: '#a5d6ff', min: 0 },
+      'room.gestureCount': { label: 'Gestures', unit: '', color: '#ffc658', min: 0 },
+      'room.sessionDuration': { label: 'Session (sec)', unit: 's', color: '#ffd700', min: 0, scale: 0.001 }
+    };
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
@@ -310,11 +373,31 @@
 
       socket.on('monitor:init', (data) => {
         renderDashboard(data);
+        if (data.numericHistory) {
+          setTimeout(() => {
+            initHistoryCharts();
+            updateHistoryCharts(data.numericHistory);
+          }, 100);
+        }
       });
 
       socket.on('monitor:snapshot', (event) => {
         updateFromSnapshot(event.data, event.eventCounts);
         addEvent('SNAPSHOT', formatSnapshot(event.data));
+      });
+
+      // History updates are sent separately (throttled every 5 seconds)
+      // Use requestAnimationFrame for smoother chart updates
+      socket.on('monitor:history_update', (event) => {
+        if (event.numericHistory) {
+          lastHistoryData = event.numericHistory;
+          if (!pendingHistoryUpdate) {
+            pendingHistoryUpdate = requestAnimationFrame(() => {
+              updateHistoryCharts(lastHistoryData);
+              pendingHistoryUpdate = null;
+            });
+          }
+        }
       });
 
       socket.on('monitor:key_change', (data) => {
@@ -338,6 +421,13 @@
 
         if (data.success) {
           renderDashboard(data);
+          // Initialize charts after DOM is rendered
+          setTimeout(() => {
+            initHistoryCharts();
+            if (data.numericHistory) {
+              updateHistoryCharts(data.numericHistory);
+            }
+          }, 100);
         } else {
           showError(data.message || 'Failed to load data');
         }
@@ -536,7 +626,31 @@
             </div>
           </div>
         </div>
+
+        <!-- 5-Minute History Charts -->
+        <div class="history-section">
+          <div class="card">
+            <div class="card-title">5-Minute History (Linear Graphs)</div>
+            <div class="history-grid" id="historyGrid">
+              ${renderHistoryChartPlaceholders()}
+            </div>
+          </div>
+        </div>
       `;
+    }
+
+    function renderHistoryChartPlaceholders() {
+      return Object.entries(HISTORY_FIELDS).map(([field, config]) => `
+        <div class="mini-chart-card">
+          <div class="mini-chart-title">
+            <span>${config.label}</span>
+            <span class="mini-chart-value" id="current-${field.replace(/\./g, '-')}">--${config.unit}</span>
+          </div>
+          <div class="mini-chart-container">
+            <canvas id="chart-${field.replace(/\./g, '-')}"></canvas>
+          </div>
+        </div>
+      `).join('');
     }
 
     function renderGenreBars(weights) {
@@ -617,14 +731,9 @@
     function updateElement(id, value) {
       const el = document.getElementById(id);
       if (el) {
-        // Use textContent for safety (XSS prevention)
-        // Only use innerHTML for trusted, pre-rendered HTML
-        if (typeof value === 'string' && value.includes('<')) {
-          // Sanitize HTML by escaping
-          el.textContent = value.replace(/<[^>]*>/g, '');
-        } else {
-          el.textContent = value;
-        }
+        // ALWAYS use textContent for XSS prevention
+        // HTML should only be set via trusted template literals in renderDashboard()
+        el.textContent = String(value);
       }
     }
 
@@ -656,6 +765,137 @@
       const roomId = snapshot.roomId || '-';
       const sourceLabel = source === 'landing' ? '🏠 LANDING' : `🚪 ${roomId.slice(0, 8)}`;
       return `[${sourceLabel}] ${core.keyCenter || 'C'} ${core.mode || 'ionian'} | ${core.formStructure || 'ABA'} [${core.currentSection || 'A'}] | ${core.tempo || 120} BPM`;
+    }
+
+    function initHistoryCharts() {
+      // Check if Chart.js is loaded
+      if (typeof Chart === 'undefined') {
+        console.error('Chart.js not loaded - history charts unavailable');
+        const grid = document.getElementById('historyGrid');
+        if (grid) {
+          grid.innerHTML = '<div class="error">Chart.js failed to load. Please refresh.</div>';
+        }
+        return;
+      }
+
+      try {
+        // Destroy existing charts
+        Object.values(historyCharts).forEach(chart => chart?.destroy());
+
+        // Create new charts for each field
+        for (const [field, config] of Object.entries(HISTORY_FIELDS)) {
+          const canvasId = `chart-${field.replace(/\./g, '-')}`;
+          const canvas = document.getElementById(canvasId);
+          if (!canvas) continue;
+
+          // Add accessibility attributes
+          canvas.setAttribute('role', 'img');
+          canvas.setAttribute('aria-label', `${config.label} over last 5 minutes`);
+
+          const ctx = canvas.getContext('2d');
+          historyCharts[field] = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: [],
+              datasets: [{
+                data: [],
+                borderColor: config.color,
+                backgroundColor: config.color + '20',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 0,
+                pointHoverRadius: 3
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              animation: { duration: 300 },
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: (context) => {
+                      const val = context.parsed.y;
+                      return `${val.toFixed(1)}${config.unit}`;
+                    }
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  display: true,
+                  grid: { display: false, color: '#30363d' },
+                  ticks: {
+                    display: true,
+                    color: '#8b949e',
+                    font: { size: 9 },
+                    maxTicksLimit: 5,
+                    callback: (val, idx, ticks) => {
+                      const label = historyCharts[field]?.data?.labels?.[idx];
+                      return label ? `-${label}s` : '';
+                    }
+                  }
+                },
+                y: {
+                  display: true,
+                  grid: { color: '#30363d40' },
+                  ticks: {
+                    color: '#8b949e',
+                    font: { size: 9 },
+                    maxTicksLimit: 4
+                  },
+                  min: config.min,
+                  max: config.max !== undefined ? (config.scale ? config.max * config.scale : config.max) : undefined
+                }
+              }
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Failed to initialize history charts:', error);
+        const grid = document.getElementById('historyGrid');
+        if (grid) {
+          grid.innerHTML = '<div class="error">Chart initialization failed. Please refresh.</div>';
+        }
+      }
+    }
+
+    function updateHistoryCharts(numericHistory) {
+      if (!numericHistory) return;
+
+      for (const [field, config] of Object.entries(HISTORY_FIELDS)) {
+        const chart = historyCharts[field];
+        const data = numericHistory[field];
+        const valueEl = document.getElementById(`current-${field.replace(/\./g, '-')}`);
+
+        if (!chart || !data || data.length === 0) {
+          if (valueEl) valueEl.textContent = `--${config.unit}`;
+          continue;
+        }
+
+        // Data format from backend: [[relativeSeconds, value], ...]
+        // Sort by time (oldest first)
+        const sorted = [...data].sort((a, b) => b[0] - a[0]);
+
+        // Apply scale if needed
+        const scaledData = sorted.map(([time, val]) => ({
+          x: time,
+          y: config.scale ? val * config.scale : val
+        }));
+
+        // Update chart
+        chart.data.labels = scaledData.map(d => d.x);
+        chart.data.datasets[0].data = scaledData.map(d => d.y);
+        chart.update('none');
+
+        // Update current value display
+        if (valueEl && scaledData.length > 0) {
+          const currentVal = scaledData[scaledData.length - 1].y;
+          valueEl.textContent = `${currentVal.toFixed(1)}${config.unit}`;
+        }
+      }
     }
 
     function showError(message) {
