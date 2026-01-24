@@ -95,6 +95,16 @@
   }
 
   /**
+   * Update version tag elements in the DOM
+   */
+  function updateVersionDisplay(version) {
+    var versionTags = document.querySelectorAll('.version-tag');
+    versionTags.forEach(function(el) {
+      el.textContent = 'v' + version;
+    });
+  }
+
+  /**
    * Check version and update if needed
    */
   function checkVersion() {
@@ -102,6 +112,9 @@
       .then(function(data) {
         var newVersion = data.version;
         var storedVersion = getStoredVersion();
+
+        // Always update the displayed version from version.json
+        updateVersionDisplay(newVersion);
 
         // First visit - just store version
         if (!storedVersion) {
