@@ -890,3 +890,64 @@ gestureToMusicService: (service, c) => {
 v0.2.2
 
 ---
+
+## Entry #171 Addendum 3: Duration Passthrough Fix
+
+**Date**: 2026-01-24
+**Focus**: Fix missing duration in real user gesture normalization
+
+---
+
+### Problem Identified
+
+Real user drag gestures always produced the same phrase pattern because:
+- `normalizeGestureData()` didn't extract `duration` from the gesture
+- PhraseMorphology.generatePhrase() always defaulted to 1000ms
+- Same duration → same phrase length → same pattern
+
+Frontend DOES send duration (in ms) with gesture data, but backend wasn't extracting it.
+
+---
+
+### Fix Applied
+
+**GestureToMusicService.js - normalizeGestureData():**
+```javascript
+// Entry #171 fix: Extract duration for phrase length calculation
+// Frontend sends duration in ms - critical for webMetrics-driven phrase generation
+const duration = gesture.duration || gestureData.duration || 1000
+
+// Added to return object:
+return {
+  // ... other fields ...
+  duration,  // Entry #171 fix: Include duration for phrase length variation
+  trajectory,
+  timestamp: Date.now()
+}
+```
+
+---
+
+### Impact on Phrase Generation
+
+With duration now passing through:
+1. **calculatePhraseLengthFromDuration()** uses actual gesture duration
+2. **Longer drags** → more notes (up to 12)
+3. **Shorter drags** → fewer notes (min 2)
+4. **webMetrics.commentCountNorm** modulates density on top of duration
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/GestureToMusicService.js` | Extract and return `duration` in normalizeGestureData() |
+
+---
+
+### Version
+
+v0.2.3
+
+---

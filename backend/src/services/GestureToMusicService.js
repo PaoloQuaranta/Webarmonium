@@ -149,6 +149,10 @@ class GestureToMusicService {
     const intensity = gesture.intensity || gestureData.intensity || (velocity / 100)
     const curvature = gesture.curvature || gestureData.curvature || 0.5
 
+    // Entry #171 fix: Extract duration for phrase length calculation
+    // Frontend sends duration in ms - critical for webMetrics-driven phrase generation
+    const duration = gesture.duration || gestureData.duration || 1000
+
     // Create trajectory data
     const trajectory = gesture.trajectory || {
       angle: this.calculateTrajectoryAngle(position),
@@ -175,6 +179,7 @@ class GestureToMusicService {
       acceleration,
       intensity,
       curvature,
+      duration,  // Entry #171 fix: Include duration for phrase length variation
       trajectory,
       timestamp: Date.now()
     }
