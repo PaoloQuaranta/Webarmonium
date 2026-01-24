@@ -123,9 +123,12 @@ class CompositionMonitor {
         tempo: compositionEngine.tempo,
         timeSignature: compositionEngine.timeSignature || '4/4',
         formStructure: compositionEngine.formStructure,
-        currentSection: compositionEngine.currentSection,
+        // Entry #163: Use lastComposedSection (what was actually composed) not currentSection (next to compose)
+        currentSection: compositionEngine.lastComposedSection || compositionEngine.currentSection,
+        nextSection: compositionEngine.currentSection,
+        compositionsInSection: compositionEngine.compositionsInSection || 0,
         sectionHistory: compositionEngine.sectionHistory?.slice(-5) || [],
-        // Entry #168: Track form cycle completion
+        // Entry #163: Track form cycle completion
         formCycleLength: compositionEngine.formCycleLength || 1,
         formCycleProgress: `${compositionEngine.sectionHistory?.length || 0}/${compositionEngine.formCycleLength || 1}`,
         hasCompletedCycle: (compositionEngine.sectionHistory?.length || 0) >= (compositionEngine.formCycleLength || 1),

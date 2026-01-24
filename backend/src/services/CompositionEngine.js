@@ -11,9 +11,12 @@ class CompositionEngine {
     // Form structure management
     this.formStructure = null     // ABA, rondo, sonata, verse-chorus, etc.
     this.currentSection = 'A'     // Current section label
+    this.lastComposedSection = 'A' // Entry #163: Track what was actually composed (for monitor)
     this.sectionHistory = []      // History of sections visited
     this.sectionLengths = {}      // Length of each section in bars
-    this.formCycleLength = 1      // Minimum sections to complete one full cycle (Entry #168)
+    this.formCycleLength = 1      // Minimum sections to complete one full cycle (Entry #163)
+    this.compositionsInSection = 0 // Entry #163: Track compositions within current section
+    this.minCompositionsPerSection = 3 // Entry #163: Minimum compositions before section can advance
 
     // Composition parameters
     this.tempo = 120
@@ -63,13 +66,19 @@ class CompositionEngine {
 // console.log(`🎼 Available material: ${availableMaterial.length} items`)
 
       // 4. Generate current section
-      // Entry #163: Save composed section BEFORE getNextSection() modifies currentSection
+      // Entry #163: Track composed section for monitor and section persistence
       const composedSection = this.currentSection
+      this.lastComposedSection = composedSection
+      this.compositionsInSection++
       const section = this.composeSection(composedSection, currentStyle, availableMaterial)
 
-      // 5. Determine next section using form logic
-      this.getNextSection(this.formStructure)
-      // After getNextSection(), this.currentSection is now the NEXT section
+      // 5. Determine next section - only advance after minimum compositions in current section
+      // Entry #163: Sections persist for multiple compositions to allow music to develop
+      if (this.compositionsInSection >= this.minCompositionsPerSection) {
+        this.getNextSection(this.formStructure)
+        this.compositionsInSection = 0  // Reset counter for new section
+      }
+      // After getNextSection(), this.currentSection may be the NEXT section (if advanced)
 
       // 6. Update material library with new composition
       this.updateMaterialLibrary(section)
@@ -79,8 +88,9 @@ class CompositionEngine {
         type: section.type,
         structure: {
           form: this.formStructure,
-          currentSection: composedSection,        // Section that was just composed
-          nextSection: this.currentSection,       // Section that will be composed next
+          currentSection: composedSection,              // Section that was just composed
+          nextSection: this.currentSection,             // Section that will be composed next
+          compositionsInSection: this.compositionsInSection, // How many compositions in this section
           sectionHistory: [...this.sectionHistory]
         },
         content: section,
@@ -167,6 +177,7 @@ class CompositionEngine {
     // Entry #163: sectionHistory starts EMPTY - first section added when getNextSection() is called
     // This ensures linear progression: index = history.length % cycleLength
     this.sectionHistory = []
+    this.compositionsInSection = 0  // Entry #163: Reset counter for new form
 
     // Set section lengths, starting section, and cycle length based on form
     // Entry #163: formCycleLength = minimum sections to complete one full form cycle
