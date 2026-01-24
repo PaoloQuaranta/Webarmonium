@@ -17,7 +17,7 @@ class StyleAnalyzer {
       harmonicComplexity: {
         chromaticism: 0,
         dissonance: 0.2,
-        modalFlavor: 'major'
+        modalFlavor: 'ionian'  // Entry #164: Use church mode name (matches detectModalFlavor output)
       },
       genreWeights: {
         ambient: 0,
@@ -722,18 +722,46 @@ class StyleAnalyzer {
         return
       }
 
+      // Entry #164: STRING VALUES cannot be smoothed - pass through directly
+      // timeSignature is a string like '4/4', '3/4', etc.
+      if (key === 'timeSignature') {
+        // Use new value if weight is significant (>0.3), otherwise keep current
+        evolved[key] = gestureWeight > 0.3 ? newAnalysis[key] : (currentStyle[key] || newAnalysis[key])
+        return
+      }
+
       // Other properties: Apply weighted smoothing
       if (typeof newAnalysis[key] === 'object' && !Array.isArray(newAnalysis[key])) {
         evolved[key] = {}
         Object.keys(newAnalysis[key]).forEach(subKey => {
-          const current = currentStyle[key]?.[subKey] || newAnalysis[key][subKey]
-          // Apply weighted smoothing
-          evolved[key][subKey] = current * (1 - alpha) + newAnalysis[key][subKey] * alpha
+          const newValue = newAnalysis[key][subKey]
+          const current = currentStyle[key]?.[subKey]
+
+          // Entry #164: STRING VALUES cannot be smoothed mathematically
+          // modalFlavor is a string like 'ionian', 'dorian', etc.
+          if (typeof newValue === 'string') {
+            // Use new value if weight is significant, otherwise keep current
+            evolved[key][subKey] = gestureWeight > 0.3 ? newValue : (current || newValue)
+            return
+          }
+
+          // Numeric values: Apply weighted smoothing
+          const currentNum = current !== undefined ? current : newValue
+          evolved[key][subKey] = currentNum * (1 - alpha) + newValue * alpha
         })
       } else {
-        const current = currentStyle[key] || newAnalysis[key]
+        const newValue = newAnalysis[key]
+        const current = currentStyle[key]
+
+        // Entry #164: Handle string values at top level too
+        if (typeof newValue === 'string') {
+          evolved[key] = gestureWeight > 0.3 ? newValue : (current || newValue)
+          return
+        }
+
+        const currentNum = current !== undefined ? current : newValue
         // Apply weighted smoothing
-        evolved[key] = current * (1 - alpha) + newAnalysis[key] * alpha
+        evolved[key] = currentNum * (1 - alpha) + newValue * alpha
       }
     })
 
