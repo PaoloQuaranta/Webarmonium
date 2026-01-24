@@ -797,7 +797,6 @@
         for (const [field, config] of Object.entries(HISTORY_FIELDS)) {
           const canvasId = `chart-${field.replace(/\./g, '-')}`;
           const canvas = document.getElementById(canvasId);
-          console.log(`Chart ${field}: canvas=${canvasId}, found=${!!canvas}`);
           if (!canvas) continue;
 
           const ctx = canvas.getContext('2d');
@@ -845,7 +844,6 @@
 
     function updateHistoryCharts(numericHistory) {
       if (!numericHistory) return;
-      console.log('updateHistoryCharts called, tempo data:', numericHistory['core.tempo']);
 
       for (const [field, config] of Object.entries(HISTORY_FIELDS)) {
         const chart = historyCharts[field];
