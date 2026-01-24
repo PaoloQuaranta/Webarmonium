@@ -28,6 +28,9 @@ class GestureToMusicService {
     this.currentKey = 'C'
     this.currentMode = 'major'
     this.currentTempo = 120
+
+    // Entry #171: Web metrics for deterministic gesture variation
+    this.webMetrics = null
   }
 
   processGesture(gestureData) {
@@ -201,10 +204,29 @@ class GestureToMusicService {
     const frequency = octaveBase + withinOctave // 110Hz to 1210Hz total range
 
     // Convert frequency to MIDI pitch for backend processing
-    const rawPitch = Math.round(12 * Math.log2(frequency / 440) + 69)
+    let rawPitch = Math.round(12 * Math.log2(frequency / 440) + 69)
+
+    // Entry #171: Web metrics-driven variation (deterministic, no randomness)
+    const wiki = this.webMetrics?.wikipedia?.normalized || 0.5
+    const hn = this.webMetrics?.hackernews?.normalized || 0.5
+    const gh = this.webMetrics?.github?.normalized || 0.5
+
+    // Pitch variation: ±3 semitones based on combined metrics offset
+    // (wiki + hn - 1) ranges from -1 to +1, scaled to -3 to +3 semitones
+    const pitchOffset = Math.floor((wiki + hn - 1) * 3)
+    rawPitch = rawPitch + pitchOffset
 
     // HARMONIC COHERENCE: Constrain pitch to current scale
     const pitch = this.harmonicEngine.constrainToScale(rawPitch, this.currentKey, this.currentMode)
+
+    // Velocity variation: 75-105 based on GitHub activity (code intensity → musical intensity)
+    const velocity = 75 + Math.floor(gh * 30)
+
+    // Duration variation: 0.08-0.15s based on HackerNews activity (discussion → longer sustain)
+    const duration = 0.08 + (hn * 0.07)
+
+    // Articulation: Wikipedia activity determines staccato (high) vs legato (low)
+    const articulation = wiki > 0.5 ? 'staccato' : 'legato'
 
 // console.log('🎯 TAP (HARMONIC COHERENCE):', {
 //      key: this.currentKey,
@@ -228,9 +250,9 @@ class GestureToMusicService {
     return {
       notes: [{
         pitch: pitch,
-        duration: 0.1, // Fixed short duration for percussive taps
-        velocity: 90, // Strong velocity for clear articulation
-        articulation: 'staccato',
+        duration: duration, // Entry #171: Variable duration from web metrics
+        velocity: velocity, // Entry #171: Variable velocity from web metrics
+        articulation: articulation, // Entry #171: Variable articulation from web metrics
         position: 0,
         startBeat: 0
       }],
@@ -246,16 +268,29 @@ class GestureToMusicService {
 
   generateHoverPhrase(gestureData, musicalContext) {
     // Long, sustained notes for hover gestures
-    const rawPitch = 48 + Math.round(gestureData.position.y * 24) // Y-based pitch
+    // Entry #171: Web metrics-driven variation
+    const wiki = this.webMetrics?.wikipedia?.normalized || 0.5
+    const hn = this.webMetrics?.hackernews?.normalized || 0.5
+    const gh = this.webMetrics?.github?.normalized || 0.5
+
+    // Pitch with metrics offset
+    const pitchOffset = Math.floor((wiki + hn - 1) * 3)
+    const rawPitch = 48 + Math.round(gestureData.position.y * 24) + pitchOffset
 
     // HARMONIC COHERENCE: Constrain pitch to current scale
     const pitch = this.harmonicEngine.constrainToScale(rawPitch, this.currentKey, this.currentMode)
 
+    // Duration: base + curvature + HN influence (longer discussion → longer sustain)
+    const duration = 2.0 + gestureData.curvature + (hn * 0.5)
+
+    // Velocity: base + intensity + GitHub influence (code activity → dynamic range)
+    const velocity = 50 + (gestureData.intensity * 20) + Math.floor(gh * 20)
+
     return {
       notes: [{
         pitch: pitch,
-        duration: 2.0 + gestureData.curvature, // Curvature affects length
-        velocity: 60 + (gestureData.intensity * 20), // Intensity affects volume
+        duration: duration,
+        velocity: Math.min(velocity, 110), // Cap at 110
         articulation: 'legato',
         position: 0,
         startBeat: 0
@@ -272,16 +307,29 @@ class GestureToMusicService {
 
   generateBasicPhrase(gestureData, musicalContext) {
     // Simple melodic contour for unknown gestures
-    const rawPitch = 60 + Math.round(gestureData.position.x * 12) // Chromatic pitch
+    // Entry #171: Web metrics-driven variation
+    const wiki = this.webMetrics?.wikipedia?.normalized || 0.5
+    const hn = this.webMetrics?.hackernews?.normalized || 0.5
+    const gh = this.webMetrics?.github?.normalized || 0.5
+
+    // Pitch with metrics offset
+    const pitchOffset = Math.floor((wiki + hn - 1) * 3)
+    const rawPitch = 60 + Math.round(gestureData.position.x * 12) + pitchOffset
 
     // HARMONIC COHERENCE: Constrain pitch to current scale
     const pitch = this.harmonicEngine.constrainToScale(rawPitch, this.currentKey, this.currentMode)
 
+    // Velocity: 60-90 based on GitHub activity
+    const velocity = 60 + Math.floor(gh * 30)
+
+    // Duration: 0.4-0.6s based on HN activity
+    const duration = 0.4 + (hn * 0.2)
+
     return {
       notes: [{
         pitch: pitch, // Diatonic pitch in current scale
-        duration: 0.5,
-        velocity: 70,
+        duration: duration,
+        velocity: velocity,
         articulation: 'normal',
         position: 0,
         startBeat: 0

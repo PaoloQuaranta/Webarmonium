@@ -95,7 +95,27 @@ class BackgroundCompositionService {
   }
 
   /**
-   * Sync harmonic context to GestureToMusicService
+   * Entry #171: Normalize raw web metrics to 0-1 range
+   * Normalization divisors based on typical activity levels:
+   * - Wikipedia: ~50 edits/min max during peak activity
+   * - HackerNews: ~5 posts/min max
+   * - GitHub: ~30 commits/min max (public events API)
+   * @returns {Object|null} Normalized web metrics or null if unavailable
+   */
+  _normalizeWebMetrics() {
+    if (!this.webMetricsPoller) return null
+    const raw = this.webMetricsPoller.getMetrics()
+    if (!raw) return null
+
+    return {
+      wikipedia: { normalized: Math.min(1, (raw.wikipedia?.editsPerMinute || 0) / 50) },
+      hackernews: { normalized: Math.min(1, (raw.hackernews?.postsPerMinute || 0) / 5) },
+      github: { normalized: Math.min(1, (raw.github?.commitsPerMinute || 0) / 30) }
+    }
+  }
+
+  /**
+   * Sync harmonic context and web metrics to GestureToMusicService
    */
   syncHarmonicContext() {
     if (this.gestureToMusicService) {
@@ -103,6 +123,9 @@ class BackgroundCompositionService {
       this.gestureToMusicService.currentMode = this.compositionEngine.mode
       this.gestureToMusicService.harmonicEngine.currentKey = this.compositionEngine.keyCenter
       this.gestureToMusicService.harmonicEngine.currentMode = this.compositionEngine.mode
+
+      // Entry #171: Sync web metrics for deterministic gesture variation
+      this.gestureToMusicService.webMetrics = this._normalizeWebMetrics()
 // console.log(`🎵 Synced harmonic context: ${this.compositionEngine.keyCenter} ${this.compositionEngine.mode}`)
     }
   }
@@ -639,7 +662,8 @@ class BackgroundCompositionService {
         userCount: roomContext.userCount || 1,
         activeUsers: roomContext.activeUsers || [],
         compositionCount: roomState.compositionCount,
-        sectionContext: sectionContext // Entry #169: Add section context
+        sectionContext: sectionContext, // Entry #169: Add section context
+        webMetrics: this._normalizeWebMetrics() // Entry #171: Add web metrics for harmonic variety
       })
 
       // Entry #169: Check if we should transition to next section

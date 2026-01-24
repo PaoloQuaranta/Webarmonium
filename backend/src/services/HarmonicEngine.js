@@ -45,28 +45,80 @@ class HarmonicEngine {
   }
 
   /**
-   * Select progression by complexity with golden ratio context variation
-   * WEIGHTING: Complexity dominates (70%) for harmonic appropriateness, bars provide drift (30%)
-   * Entry #117: Added compositionCount for temporal variation across compositions
+   * Select progression by complexity with web metrics-driven variation
+   * Entry #171: Web metrics add deterministic variety without randomness
    * @param {Array} progressions - Array of progression options
    * @param {number} complexity - 0-1 complexity value
    * @param {number} bars - Number of bars for context variation
    * @param {number} compositionCount - Composition counter for temporal variation
+   * @param {Object} webMetrics - Optional web metrics for deterministic variation
    * @returns {Array} Selected progression
    */
-  _selectProgressionByComplexity(progressions, complexity, bars, compositionCount = 0) {
+  _selectProgressionByComplexity(progressions, complexity, bars, compositionCount = 0, webMetrics = null) {
     const safeComplexity = complexity || 0.5
     const safeBars = bars || 4
-    // Entry #117: Add compositionCount to temporal variation
-    // This ensures different progressions are selected across compositions
-    const temporalOffset = ((compositionCount * PHI) % 1) * 0.4
-    const contextVariation = ((safeBars * PHI) % 1) * 0.2
-    const combinedIndex = safeComplexity * 0.5 + contextVariation + temporalOffset
+
+    // Base: complexity determines primary selection range (38%)
+    // Entry #171: Weights sum to 0.95 max (0.38 + 0.38 + 0.19) to prevent edge case
+    const complexityWeight = safeComplexity * 0.38
+
+    // Web metrics add deterministic variation (38%)
+    let metricsOffset = 0
+    if (webMetrics) {
+      const wiki = webMetrics.wikipedia?.normalized || 0.5
+      const hn = webMetrics.hackernews?.normalized || 0.5
+      const gh = webMetrics.github?.normalized || 0.5
+
+      // Entry #171: PHI power scaling normalizes different metric ranges
+      // Wikipedia: high volume (50 edits/min max) → PHI^1 = 1.618
+      // HackerNews: medium volume (5 posts/min max) → PHI^2 = 2.618
+      // GitHub: variable volume (30 commits/min max) → PHI^3 = 4.236
+      // The powers compensate for different activity scales, creating equal musical influence
+      // Modulo 1 wraps to [0,1], then scaled to 38% of index range
+      metricsOffset = ((wiki * PHI + hn * PHI * PHI + gh * PHI * PHI * PHI) % 1) * 0.38
+    }
+
+    // Temporal drift from composition count (19%) - preserves determinism
+    const temporalOffset = ((compositionCount * PHI) % 1) * 0.19
+
+    const combinedIndex = complexityWeight + metricsOffset + temporalOffset
     const index = Math.min(
       Math.floor(combinedIndex * progressions.length),
       progressions.length - 1
     )
     return progressions[index]
+  }
+
+  /**
+   * Entry #171: Transpose key by semitones
+   * @param {string} key - Current key name
+   * @param {number} semitones - Semitones to transpose (positive or negative)
+   * @returns {string} New key name
+   */
+  _transposeKey(key, semitones) {
+    const keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+    const keyMap = {
+      'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
+      'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8,
+      'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+    }
+    const currentIndex = keyMap[key] ?? 0
+    const newIndex = ((currentIndex + semitones) % 12 + 12) % 12
+    return keys[newIndex]
+  }
+
+  /**
+   * Entry #171: Get relative major/minor key
+   * @param {string} key - Current key name
+   * @param {string} mode - Current mode
+   * @returns {string} Relative key name
+   */
+  _getRelativeKey(key, mode) {
+    // Minor modes → relative major (+3 semitones)
+    // Major modes → relative minor (-3 semitones)
+    const minorModes = ['aeolian', 'dorian', 'phrygian', 'locrian']
+    const semitones = minorModes.includes(mode) ? 3 : -3
+    return this._transposeKey(key, semitones)
   }
 
   /**
@@ -128,17 +180,18 @@ class HarmonicEngine {
 
   /**
    * Generate harmonic progression based on style analysis
-   * Entry #117: Added compositionCount for temporal variation
+   * Entry #171: Web metrics drive key/mode selection for deterministic variety
    * @param {Object} styleAnalysis - Style analysis with genreWeights and harmonicComplexity
    * @param {number} phraseLength - Length in bars
    * @param {number} compositionCount - Composition counter for variation
    * @param {Object} sectionContext - Optional SectionContext for section-aware generation
+   * @param {Object} webMetrics - Optional web metrics for deterministic variation
    * @returns {Array} Chord progression
    */
-  generateProgression(styleAnalysis, phraseLength, compositionCount = 0, sectionContext = null) {
+  generateProgression(styleAnalysis, phraseLength, compositionCount = 0, sectionContext = null, webMetrics = null) {
     // If we have a SectionContext, use tension-aware generation
     if (sectionContext) {
-      return this.generateProgressionForSection(styleAnalysis, phraseLength, compositionCount, sectionContext)
+      return this.generateProgressionForSection(styleAnalysis, phraseLength, compositionCount, sectionContext, webMetrics)
     }
 
     const { genreWeights, harmonicComplexity } = styleAnalysis
@@ -147,46 +200,70 @@ class HarmonicEngine {
                        harmonicComplexity?.modalFlavor === 'major' ? 0.4 :
                        typeof harmonicComplexity === 'number' ? harmonicComplexity : 0.5
 
-    // Entry #162: Vary key based on compositionCount using circle of fifths
-    // Change key ~15% of the time (keySelector > 0.85)
-    // This gives ~1 minute between key changes on average
-    const circleOfFifths = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F']
+    // Entry #171: Extract web metrics for key/mode selection
+    const wiki = webMetrics?.wikipedia?.normalized || 0.5
+    const hn = webMetrics?.hackernews?.normalized || 0.5
+    const gh = webMetrics?.github?.normalized || 0.5
+    const combinedActivity = (wiki + hn + gh) / 3
+
+    // Entry #171: Dynamic key threshold based on web metrics
+    // High activity → lower threshold → more key changes
+    // Range: 0.70 (high activity) to 0.92 (low activity)
+    const keyThreshold = 0.92 - (combinedActivity * 0.22)
     const keySelector = (compositionCount * PHI) % 1
-    if (keySelector > 0.85) {
-      // Move by fifths (more musical than random jumps)
-      const currentKeyIndex = circleOfFifths.indexOf(this.currentKey)
-      const direction = keySelector > 0.925 ? 1 : -1 // Up or down the circle
-      const newKeyIndex = (currentKeyIndex + direction + 12) % 12
-      this.currentKey = circleOfFifths[newKeyIndex]
-    }
-    // If key not in circle (shouldn't happen), default to C
-    if (!circleOfFifths.includes(this.currentKey)) {
-      this.currentKey = 'C'
+
+    if (keySelector > keyThreshold) {
+      // Entry #171: Modulation type based on metric dominance
+      const wikiDominance = wiki / (wiki + hn + gh + 0.001)
+      const hnDominance = hn / (wiki + hn + gh + 0.001)
+      const ghDominance = gh / (wiki + hn + gh + 0.001)
+
+      if (wikiDominance > 0.4) {
+        // Wikipedia dominant → mediant modulation (±4 semitones)
+        const direction = (compositionCount % 2 === 0) ? 4 : -4
+        this.currentKey = this._transposeKey(this.currentKey, direction)
+      } else if (ghDominance > 0.4) {
+        // GitHub dominant → whole step modulation (±2 semitones)
+        // Entry #171: Changed from ±1 (too jarring) to ±2 for smoother transition
+        const direction = wiki > hn ? 2 : -2
+        this.currentKey = this._transposeKey(this.currentKey, direction)
+      } else if (hnDominance > 0.4) {
+        // HackerNews dominant → Circle of Fifths (±7 semitones)
+        const direction = gh > wiki ? 7 : -7
+        this.currentKey = this._transposeKey(this.currentKey, direction)
+      } else {
+        // No dominance → relative key modulation
+        this.currentKey = this._getRelativeKey(this.currentKey, this.currentMode)
+      }
     }
 
-    // Entry #161: Expanded mode selection - all 7 church modes
-    // Changed from 70% ionian bias to uniform distribution
-    const modes = ['ionian', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian']
+    // Entry #171: Mode selection based on brightness from combined metrics
+    // Modes ordered by brightness: locrian (dark) → lydian (bright)
+    const modesByBrightness = ['locrian', 'phrygian', 'aeolian', 'dorian', 'mixolydian', 'ionian', 'lydian']
     const modeSelector = ((compositionCount * PHI * 2) % 1)
-    // Change mode ~25% of the time (was 30% but now with more modes)
-    if (modeSelector > 0.75) {
-      const modeIndex = Math.floor(modeSelector * modes.length * 4) % modes.length
-      this.currentMode = modes[modeIndex]
-    }
-    // Keep current mode if not changing (no default to ionian)
 
-    // Select progression type based on dominant genre, passing complexity and compositionCount
+    // Dynamic mode threshold: high activity → more mode changes
+    const modeThreshold = 0.80 - (combinedActivity * 0.20) // Range: 0.60-0.80
+
+    if (modeSelector > modeThreshold) {
+      // Brightness based on weighted metrics combination
+      const brightnessFactor = (wiki * 0.5 + hn * 0.3 + gh * 0.2)
+      const modeIndex = Math.floor(brightnessFactor * modesByBrightness.length)
+      this.currentMode = modesByBrightness[Math.min(modeIndex, modesByBrightness.length - 1)]
+    }
+
+    // Select progression type based on dominant genre, passing webMetrics for selection
     let progression
     if (genreWeights.jazz > 0.7) {
-      progression = this.generateJazzProgression(phraseLength, complexity, compositionCount)
+      progression = this.generateJazzProgression(phraseLength, complexity, compositionCount, webMetrics)
     } else if (genreWeights.classical > 0.7) {
-      progression = this.generateClassicalProgression(phraseLength, complexity, compositionCount)
+      progression = this.generateClassicalProgression(phraseLength, complexity, compositionCount, webMetrics)
     } else if (genreWeights.electronic > 0.7) {
-      progression = this.generateElectronicProgression(phraseLength, complexity, compositionCount)
+      progression = this.generateElectronicProgression(phraseLength, complexity, compositionCount, webMetrics)
     } else if (genreWeights.rock > 0.7) {
-      progression = this.generateRockProgression(phraseLength, complexity, compositionCount)
+      progression = this.generateRockProgression(phraseLength, complexity, compositionCount, webMetrics)
     } else {
-      progression = this.generatePopProgression(phraseLength, complexity, compositionCount)
+      progression = this.generatePopProgression(phraseLength, complexity, compositionCount, webMetrics)
     }
 
     // Update currentChord with the first chord of the progression (using transposed root)
@@ -197,13 +274,14 @@ class HarmonicEngine {
       const qualitySuffix = this._getQualitySuffix(firstChord.quality)
       this.currentChord = rootName + qualitySuffix
 
-      // Entry #161: Populate progressionHistory for monitoring
+      // Entry #171: Enhanced progressionHistory with web metrics info
       this.progressionHistory.push({
         key: this.currentKey,
         mode: this.currentMode,
         chord: this.currentChord,
         timestamp: Date.now(),
-        compositionCount
+        compositionCount,
+        webMetrics: webMetrics ? { wiki, hn, gh, combined: combinedActivity } : null
       })
       // Keep history manageable (last 100 progressions)
       if (this.progressionHistory.length > 100) {
@@ -217,13 +295,15 @@ class HarmonicEngine {
   /**
    * Generate harmonic progression with section-aware tension and harmonic function
    * Entry #169: Section-aware progression generation
+   * Entry #171: Added webMetrics for deterministic variation
    * @param {Object} styleAnalysis - Style analysis with genreWeights
    * @param {number} phraseLength - Length in bars
    * @param {number} compositionCount - Composition counter
    * @param {Object} sectionContext - SectionContext with tension and harmonic function
+   * @param {Object} webMetrics - Optional web metrics for variation
    * @returns {Array} Chord progression
    */
-  generateProgressionForSection(styleAnalysis, phraseLength, compositionCount, sectionContext) {
+  generateProgressionForSection(styleAnalysis, phraseLength, compositionCount, sectionContext, webMetrics = null) {
     const { genreWeights } = styleAnalysis
     const harmonicTension = sectionContext.harmonicTension ?? 0.5
     const harmonicFunction = sectionContext.harmonicFunction || 'tonic'
@@ -281,15 +361,15 @@ class HarmonicEngine {
     // Generate genre-specific progression with tension-aware complexity
     let progression
     if (genreWeights.jazz > 0.7) {
-      progression = this.generateJazzProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext)
+      progression = this.generateJazzProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext, webMetrics)
     } else if (genreWeights.classical > 0.7) {
-      progression = this.generateClassicalProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext)
+      progression = this.generateClassicalProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext, webMetrics)
     } else if (genreWeights.electronic > 0.7) {
-      progression = this.generateElectronicProgression(phraseLength, complexity, compositionCount)
+      progression = this.generateElectronicProgression(phraseLength, complexity, compositionCount, webMetrics)
     } else if (genreWeights.rock > 0.7) {
-      progression = this.generateRockProgression(phraseLength, complexity, compositionCount)
+      progression = this.generateRockProgression(phraseLength, complexity, compositionCount, webMetrics)
     } else {
-      progression = this.generatePopProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext)
+      progression = this.generatePopProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext, webMetrics)
     }
 
     // Add appropriate cadence based on thematic role and progress
@@ -365,7 +445,7 @@ class HarmonicEngine {
    * Jazz progression with tension-aware extensions
    * Entry #169
    */
-  generateJazzProgressionWithTension(bars, complexity, compositionCount, sectionContext) {
+  generateJazzProgressionWithTension(bars, complexity, compositionCount, sectionContext, webMetrics = null) {
     const harmonicTension = sectionContext.harmonicTension ?? 0.5
 
     // Tension affects chord extensions and alterations
@@ -398,7 +478,7 @@ class HarmonicEngine {
       ]
     ]
 
-    const selected = this._selectProgressionByComplexity(progressions, harmonicTension, bars, compositionCount)
+    const selected = this._selectProgressionByComplexity(progressions, harmonicTension, bars, compositionCount, webMetrics)
 
     return this._transposeToCurrentKey(selected.map(chord => ({
       ...chord,
@@ -412,7 +492,7 @@ class HarmonicEngine {
    * Classical progression with tension-aware dissonance
    * Entry #169
    */
-  generateClassicalProgressionWithTension(bars, complexity, compositionCount, sectionContext) {
+  generateClassicalProgressionWithTension(bars, complexity, compositionCount, sectionContext, webMetrics = null) {
     const harmonicTension = sectionContext.harmonicTension ?? 0.5
     const thematicRole = sectionContext.thematicRole || 'exposition'
 
@@ -471,7 +551,7 @@ class HarmonicEngine {
       ]
     }
 
-    const selected = this._selectProgressionByComplexity(progressions, harmonicTension, bars, compositionCount)
+    const selected = this._selectProgressionByComplexity(progressions, harmonicTension, bars, compositionCount, webMetrics)
 
     return this._transposeToCurrentKey(selected.map(chord => ({
       ...chord,
@@ -485,7 +565,7 @@ class HarmonicEngine {
    * Pop progression with tension-aware variation
    * Entry #169
    */
-  generatePopProgressionWithTension(bars, complexity, compositionCount, sectionContext) {
+  generatePopProgressionWithTension(bars, complexity, compositionCount, sectionContext, webMetrics = null) {
     const harmonicTension = sectionContext.harmonicTension ?? 0.5
     const thematicRole = sectionContext.thematicRole || 'exposition'
 
@@ -532,7 +612,7 @@ class HarmonicEngine {
       ]
     }
 
-    const selected = this._selectProgressionByComplexity(progressions, harmonicTension, bars, compositionCount)
+    const selected = this._selectProgressionByComplexity(progressions, harmonicTension, bars, compositionCount, webMetrics)
 
     return this._transposeToCurrentKey(selected.map(chord => ({
       ...chord,
@@ -542,32 +622,89 @@ class HarmonicEngine {
     })))
   }
 
-  generateJazzProgression(bars, complexity = 0.5, compositionCount = 0) {
-    // Jazz progressions ordered by complexity (simple → complex)
+  generateJazzProgression(bars, complexity = 0.5, compositionCount = 0, webMetrics = null) {
+    // Entry #171: Expanded jazz progressions (12 total) ordered by complexity
     const progressions = [
-      // Simple: Classic ii-V-I progression (complexity ~0.3)
+      // 0.1 - Dorian vamp (modal jazz)
+      [
+        { chord: 'Dm7', function: 'tonic', bars: 2, extension: 'im7' },
+        { chord: 'G7', function: 'dominant', bars: 2, extension: 'IV7' }
+      ],
+      // 0.2 - Basic ii-V-I
       [
         { chord: 'Dm7', function: 'subdominant', bars: 1, extension: 'ii7' },
         { chord: 'G7', function: 'dominant', bars: 1, extension: 'V7' },
         { chord: 'Cmaj7', function: 'tonic', bars: 2, extension: 'Imaj7' }
       ],
-      // Medium: Minor blues progression (complexity ~0.5)
+      // 0.25 - Minor ii-V-i
       [
-        { chord: 'Cm7', function: 'tonic', bars: 1, extension: 'Im7' },
-        { chord: 'Fm7', function: 'subdominant', bars: 1, extension: 'IVm7' },
-        { chord: 'Cm7', function: 'tonic', bars: 1, extension: 'Im7' },
-        { chord: 'Cm7', function: 'tonic', bars: 1, extension: 'Im7' }
+        { chord: 'Dm7', function: 'subdominant', bars: 1, extension: 'iim7b5' },
+        { chord: 'G7', function: 'dominant', bars: 1, extension: 'V7b9' },
+        { chord: 'Cm7', function: 'tonic', bars: 2, extension: 'im7' }
       ],
-      // Complex: Jazz turnaround with vi (complexity ~0.8)
+      // 0.3 - I-vi-ii-V (Rhythm Changes A section)
       [
-        { chord: 'Imaj7', function: 'tonic', bars: 1, extension: 'Imaj7' },
-        { chord: 'VI7', function: 'subdominant', bars: 1, extension: 'VI7' },
-        { chord: 'ii7', function: 'subdominant', bars: 1, extension: 'ii7' },
-        { chord: 'V7', function: 'dominant', bars: 1, extension: 'V7' }
+        { chord: 'Cmaj7', function: 'tonic', bars: 1, extension: 'Imaj7' },
+        { chord: 'Am7', function: 'tonic', bars: 1, extension: 'vim7' },
+        { chord: 'Dm7', function: 'subdominant', bars: 1, extension: 'iim7' },
+        { chord: 'G7', function: 'dominant', bars: 1, extension: 'V7' }
+      ],
+      // 0.4 - iii-VI-ii-V (Extended turnaround)
+      [
+        { chord: 'Em7', function: 'mediant', bars: 1, extension: 'iiim7' },
+        { chord: 'A7', function: 'secondary_dominant', bars: 1, extension: 'VI7' },
+        { chord: 'Dm7', function: 'subdominant', bars: 1, extension: 'iim7' },
+        { chord: 'G7', function: 'dominant', bars: 1, extension: 'V7' }
+      ],
+      // 0.5 - Minor blues
+      [
+        { chord: 'Cm7', function: 'tonic', bars: 2, extension: 'im7' },
+        { chord: 'Fm7', function: 'subdominant', bars: 1, extension: 'ivm7' },
+        { chord: 'G7', function: 'dominant', bars: 1, extension: 'V7' }
+      ],
+      // 0.55 - Backdoor ii-V
+      [
+        { chord: 'Fm7', function: 'subdominant', bars: 1, extension: 'ivm7' },
+        { chord: 'Bb7', function: 'backdoor_dominant', bars: 1, extension: 'bVII7' },
+        { chord: 'Cmaj7', function: 'tonic', bars: 2, extension: 'Imaj7' }
+      ],
+      // 0.6 - Modal interchange (major to minor borrowed)
+      [
+        { chord: 'Cmaj7', function: 'tonic', bars: 1, extension: 'Imaj7' },
+        { chord: 'Ebmaj7', function: 'borrowed', bars: 1, extension: 'bIIImaj7' },
+        { chord: 'Abmaj7', function: 'borrowed', bars: 1, extension: 'bVImaj7' },
+        { chord: 'Dm7', function: 'subdominant', bars: 1, extension: 'iim7' }
+      ],
+      // 0.7 - Tritone substitution
+      [
+        { chord: 'Dm7', function: 'subdominant', bars: 1, extension: 'iim7' },
+        { chord: 'Db7', function: 'tritone_sub', bars: 1, extension: 'bII7' },
+        { chord: 'Cmaj7', function: 'tonic', bars: 2, extension: 'Imaj7' }
+      ],
+      // 0.8 - Coltrane changes (Giant Steps fragment)
+      [
+        { chord: 'Cmaj7', function: 'tonic', bars: 1, extension: 'Imaj7' },
+        { chord: 'Eb7', function: 'secondary_dominant', bars: 1, extension: 'bIII7' },
+        { chord: 'Abmaj7', function: 'tonic', bars: 1, extension: 'bVImaj7' },
+        { chord: 'B7', function: 'secondary_dominant', bars: 1, extension: 'VII7' }
+      ],
+      // 0.85 - Altered dominant chain
+      [
+        { chord: 'Cmaj7', function: 'tonic', bars: 1, extension: 'Imaj7' },
+        { chord: 'A7', function: 'secondary_dominant', bars: 1, extension: 'VI7alt' },
+        { chord: 'Dm7', function: 'subdominant', bars: 1, extension: 'iim7' },
+        { chord: 'G7', function: 'dominant', bars: 1, extension: 'V7alt' }
+      ],
+      // 0.95 - Complex bebop turnaround
+      [
+        { chord: 'Cmaj7', function: 'tonic', bars: 1, extension: 'Imaj7' },
+        { chord: 'Bm7', function: 'passing', bars: 1, extension: 'viim7b5' },
+        { chord: 'E7', function: 'secondary_dominant', bars: 1, extension: 'III7' },
+        { chord: 'Am7', function: 'tonic', bars: 1, extension: 'vim7' }
       ]
     ]
 
-    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount, webMetrics)
 
     // Entry #117: Transpose to current key
     return this._transposeToCurrentKey(selected.map(chord => ({
@@ -578,30 +715,76 @@ class HarmonicEngine {
     })))
   }
 
-  generateClassicalProgression(bars, complexity = 0.5, compositionCount = 0) {
-    // Classical progressions ordered by complexity (simple → complex)
+  generateClassicalProgression(bars, complexity = 0.5, compositionCount = 0, webMetrics = null) {
+    // Entry #171: Expanded classical progressions (10 total) ordered by complexity
     const progressions = [
-      // Simple: Plagal cadence (complexity ~0.2)
+      // 0.1 - Plagal cadence (Amen)
       [
-        { chord: 'IV', function: 'subdominant', bars: 2 },
-        { chord: 'I', function: 'tonic', bars: 2 }
+        { chord: 'F', function: 'subdominant', bars: 2 },
+        { chord: 'C', function: 'tonic', bars: 2 }
       ],
-      // Medium: Perfect authentic cadence preparation (complexity ~0.5)
+      // 0.2 - Perfect authentic cadence
       [
-        { chord: 'IV', function: 'subdominant', bars: 1 },
-        { chord: 'V', function: 'dominant', bars: 1 },
-        { chord: 'I', function: 'tonic', bars: 2 }
+        { chord: 'G', function: 'dominant', bars: 2 },
+        { chord: 'C', function: 'tonic', bars: 2 }
       ],
-      // Complex: Deceptive cadence followed by authentic (complexity ~0.8)
+      // 0.3 - IV-V-I preparation
       [
-        { chord: 'V', function: 'dominant', bars: 1 },
-        { chord: 'vi', function: 'tonic', bars: 1 },
-        { chord: 'IV', function: 'subdominant', bars: 1 },
-        { chord: 'V', function: 'dominant', bars: 1 }
+        { chord: 'F', function: 'subdominant', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 },
+        { chord: 'C', function: 'tonic', bars: 2 }
+      ],
+      // 0.35 - I-IV-I-V (hymn style)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 },
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 }
+      ],
+      // 0.45 - Deceptive cadence
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 },
+        { chord: 'Am', function: 'deceptive', bars: 2 }
+      ],
+      // 0.5 - Romanesca (descending bass)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 },
+        { chord: 'Am', function: 'submediant', bars: 1 },
+        { chord: 'E', function: 'dominant', bars: 1 }
+      ],
+      // 0.6 - Circle of fifths (partial)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 },
+        { chord: 'Bdim', function: 'leading_tone', bars: 1 },
+        { chord: 'Em', function: 'mediant', bars: 1 }
+      ],
+      // 0.7 - Secondary dominant to vi
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'E7', function: 'secondary_dominant', bars: 1 },
+        { chord: 'Am', function: 'submediant', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 }
+      ],
+      // 0.8 - Neapolitan approach
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'Db', function: 'neapolitan', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 },
+        { chord: 'C', function: 'tonic', bars: 1 }
+      ],
+      // 0.9 - Chromatic mediant relationships
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'E', function: 'chromatic_mediant', bars: 1 },
+        { chord: 'Ab', function: 'chromatic_mediant', bars: 1 },
+        { chord: 'C', function: 'tonic', bars: 1 }
       ]
     ]
 
-    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount, webMetrics)
 
     // Entry #117: Transpose to current key
     return this._transposeToCurrentKey(selected.map(chord => ({
@@ -612,100 +795,227 @@ class HarmonicEngine {
     })))
   }
 
-  generateElectronicProgression(bars, complexity = 0.5, compositionCount = 0) {
-    // Electronic progressions ordered by complexity (simple → complex)
+  generateElectronicProgression(bars, complexity = 0.5, compositionCount = 0, webMetrics = null) {
+    // Entry #171: Expanded electronic progressions (10 total) ordered by complexity
     const progressions = [
-      // Simple: Ambient pads - single chord (complexity ~0.2)
+      // 0.1 - Single chord drone (ambient)
       [
         { chord: 'Cmaj7', function: 'tonic', bars: 4 }
       ],
-      // Medium: Basic house progression (complexity ~0.5)
+      // 0.2 - Dorian vamp (house)
       [
-        { chord: 'Cm', function: 'tonic', bars: 2 },
-        { chord: 'Ab', function: 'subdominant', bars: 1 },
-        { chord: 'G', function: 'dominant', bars: 1 }
+        { chord: 'Dm', function: 'tonic', bars: 2 },
+        { chord: 'G', function: 'dominant', bars: 2 }
       ],
-      // Complex: Techno minor progression (complexity ~0.8)
+      // 0.3 - Minor with flat VII (EDM)
+      [
+        { chord: 'Am', function: 'tonic', bars: 2 },
+        { chord: 'G', function: 'subtonic', bars: 2 }
+      ],
+      // 0.4 - i-bVI-bVII (dark progressive)
       [
         { chord: 'Am', function: 'tonic', bars: 1 },
-        { chord: 'G', function: 'dominant', bars: 1 },
-        { chord: 'F', function: 'subdominant', bars: 1 },
-        { chord: 'E', function: 'dominant', bars: 1 }
-      ]
-    ]
-
-    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
-
-    // Entry #117: Transpose to current key
-    return this._transposeToCurrentKey(selected.map(chord => ({
-      ...chord,
-      root: this.getChordRoot(chord.chord),
-      quality: this.getChordQuality(chord.chord),
-      notes: this.buildChord(chord.chord)
-    })))
-  }
-
-  generateRockProgression(bars, complexity = 0.5, compositionCount = 0) {
-    // Rock progressions ordered by complexity (simple → complex)
-    const progressions = [
-      // Simple: Power chord progression (complexity ~0.2)
-      [
-        { chord: 'E5', function: 'tonic', bars: 2 },
-        { chord: 'A5', function: 'subdominant', bars: 1 },
-        { chord: 'B5', function: 'dominant', bars: 1 }
+        { chord: 'F', function: 'submediant', bars: 1 },
+        { chord: 'G', function: 'subtonic', bars: 2 }
       ],
-      // Medium: Classic rock progression (complexity ~0.5)
+      // 0.5 - i-bVI-bIII-bVII (emotional trance)
       [
-        { chord: 'G', function: 'tonic', bars: 1 },
-        { chord: 'C', function: 'subdominant', bars: 1 },
-        { chord: 'D', function: 'dominant', bars: 1 },
-        { chord: 'G', function: 'tonic', bars: 1 }
+        { chord: 'Am', function: 'tonic', bars: 1 },
+        { chord: 'F', function: 'submediant', bars: 1 },
+        { chord: 'C', function: 'mediant', bars: 1 },
+        { chord: 'G', function: 'subtonic', bars: 1 }
       ],
-      // Complex: 12-bar blues variation (complexity ~0.8)
+      // 0.55 - Phrygian flavor (psytrance)
       [
-        { chord: 'I7', function: 'tonic', bars: 1 },
-        { chord: 'IV7', function: 'subdominant', bars: 1 },
-        { chord: 'I7', function: 'tonic', bars: 2 }
-      ]
-    ]
-
-    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
-
-    // Entry #117: Transpose to current key
-    return this._transposeToCurrentKey(selected.map(chord => ({
-      ...chord,
-      root: this.getChordRoot(chord.chord),
-      quality: this.getChordQuality(chord.chord),
-      notes: this.buildChord(chord.chord)
-    })))
-  }
-
-  generatePopProgression(bars, complexity = 0.5, compositionCount = 0) {
-    // Pop progressions ordered by complexity (simple → complex)
-    const progressions = [
-      // Simple: Vieni-qua progression (complexity ~0.2)
+        { chord: 'Em', function: 'tonic', bars: 2 },
+        { chord: 'F', function: 'phrygian_second', bars: 2 }
+      ],
+      // 0.6 - Parallel minor/major shift
       [
         { chord: 'C', function: 'tonic', bars: 2 },
-        { chord: 'G', function: 'dominant', bars: 1 },
-        { chord: 'Am', function: 'tonic', bars: 1 }
+        { chord: 'Cm', function: 'parallel_minor', bars: 2 }
       ],
-      // Medium: 50s progression (complexity ~0.5)
+      // 0.7 - Lydian float (ambient techno)
       [
-        { chord: 'C', function: 'tonic', bars: 1 },
-        { chord: 'Am', function: 'tonic', bars: 1 },
-        { chord: 'F', function: 'subdominant', bars: 1 },
-        { chord: 'G', function: 'dominant', bars: 1 }
+        { chord: 'Cmaj7', function: 'tonic', bars: 2 },
+        { chord: 'D', function: 'lydian_II', bars: 2 }
       ],
-      // Complex: Classic I-V-vi-IV (complexity ~0.8)
+      // 0.8 - Modal interchange chain
       [
-        { chord: 'C', function: 'tonic', bars: 1 },
-        { chord: 'G', function: 'dominant', bars: 1 },
         { chord: 'Am', function: 'tonic', bars: 1 },
-        { chord: 'F', function: 'subdominant', bars: 1 }
+        { chord: 'Fm', function: 'borrowed', bars: 1 },
+        { chord: 'Cmaj7', function: 'tonic', bars: 1 },
+        { chord: 'E7', function: 'secondary_dominant', bars: 1 }
+      ],
+      // 0.9 - Whole tone ambiguity
+      [
+        { chord: 'Caug', function: 'tonic', bars: 2 },
+        { chord: 'Ebaug', function: 'chromatic', bars: 2 }
       ]
     ]
 
-    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount)
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount, webMetrics)
+
+    // Entry #117: Transpose to current key
+    return this._transposeToCurrentKey(selected.map(chord => ({
+      ...chord,
+      root: this.getChordRoot(chord.chord),
+      quality: this.getChordQuality(chord.chord),
+      notes: this.buildChord(chord.chord)
+    })))
+  }
+
+  generateRockProgression(bars, complexity = 0.5, compositionCount = 0, webMetrics = null) {
+    // Entry #171: Expanded rock progressions (10 total) ordered by complexity
+    const progressions = [
+      // 0.1 - Power chord I-V
+      [
+        { chord: 'C5', function: 'tonic', bars: 2 },
+        { chord: 'G5', function: 'dominant', bars: 2 }
+      ],
+      // 0.2 - I-IV-V (classic rock)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 2 }
+      ],
+      // 0.3 - I-bVII-IV (mixolydian rock)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'Bb', function: 'subtonic', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 2 }
+      ],
+      // 0.4 - i-bVII-bVI-bVII (Andalusian)
+      [
+        { chord: 'Am', function: 'tonic', bars: 1 },
+        { chord: 'G', function: 'subtonic', bars: 1 },
+        { chord: 'F', function: 'submediant', bars: 1 },
+        { chord: 'G', function: 'subtonic', bars: 1 }
+      ],
+      // 0.5 - 12-bar blues (compressed)
+      [
+        { chord: 'C7', function: 'tonic', bars: 1 },
+        { chord: 'F7', function: 'subdominant', bars: 1 },
+        { chord: 'G7', function: 'dominant', bars: 1 },
+        { chord: 'C7', function: 'tonic', bars: 1 }
+      ],
+      // 0.55 - sus4 resolution (arena rock)
+      [
+        { chord: 'Csus4', function: 'tonic', bars: 1 },
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'Gsus4', function: 'dominant', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 }
+      ],
+      // 0.6 - Borrowed iv (Beatles style)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'Fm', function: 'borrowed_iv', bars: 1 },
+        { chord: 'C', function: 'tonic', bars: 2 }
+      ],
+      // 0.7 - Modal rock (Dorian)
+      [
+        { chord: 'Am', function: 'tonic', bars: 1 },
+        { chord: 'D', function: 'dorian_IV', bars: 1 },
+        { chord: 'Am', function: 'tonic', bars: 1 },
+        { chord: 'G', function: 'subtonic', bars: 1 }
+      ],
+      // 0.8 - Chromatic descent (prog rock)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'B', function: 'chromatic', bars: 1 },
+        { chord: 'Bb', function: 'chromatic', bars: 1 },
+        { chord: 'A', function: 'chromatic', bars: 1 }
+      ],
+      // 0.9 - Tritone movement (heavy metal)
+      [
+        { chord: 'E5', function: 'tonic', bars: 2 },
+        { chord: 'Bb5', function: 'tritone', bars: 2 }
+      ]
+    ]
+
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount, webMetrics)
+
+    // Entry #117: Transpose to current key
+    return this._transposeToCurrentKey(selected.map(chord => ({
+      ...chord,
+      root: this.getChordRoot(chord.chord),
+      quality: this.getChordQuality(chord.chord),
+      notes: this.buildChord(chord.chord)
+    })))
+  }
+
+  generatePopProgression(bars, complexity = 0.5, compositionCount = 0, webMetrics = null) {
+    // Entry #171: Expanded pop progressions (10 total) ordered by complexity
+    const progressions = [
+      // 0.1 - I-V simple
+      [
+        { chord: 'C', function: 'tonic', bars: 2 },
+        { chord: 'G', function: 'dominant', bars: 2 }
+      ],
+      // 0.2 - I-IV-V
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 2 }
+      ],
+      // 0.3 - I-V-vi-IV (Axis progression)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 },
+        { chord: 'Am', function: 'submediant', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 }
+      ],
+      // 0.4 - vi-IV-I-V (Emotional pop)
+      [
+        { chord: 'Am', function: 'submediant', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 },
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 }
+      ],
+      // 0.5 - I-vi-IV-V (50s doo-wop)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'Am', function: 'submediant', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 }
+      ],
+      // 0.55 - I-iii-IV-iv (minor iv surprise)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'Em', function: 'mediant', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 },
+        { chord: 'Fm', function: 'borrowed_iv', bars: 1 }
+      ],
+      // 0.6 - I-V/vi-vi-IV (secondary dominant)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'E7', function: 'secondary_dominant', bars: 1 },
+        { chord: 'Am', function: 'submediant', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 1 }
+      ],
+      // 0.7 - I-bVII-IV (rock-influenced pop)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'Bb', function: 'subtonic', bars: 1 },
+        { chord: 'F', function: 'subdominant', bars: 2 }
+      ],
+      // 0.8 - Chromatic bass line
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'C', function: 'passing', bars: 1 },
+        { chord: 'Am', function: 'submediant', bars: 1 },
+        { chord: 'Am', function: 'passing', bars: 1 }
+      ],
+      // 0.9 - Modal mixture (major/minor blend)
+      [
+        { chord: 'C', function: 'tonic', bars: 1 },
+        { chord: 'Cm', function: 'parallel_minor', bars: 1 },
+        { chord: 'Ab', function: 'borrowed', bars: 1 },
+        { chord: 'G', function: 'dominant', bars: 1 }
+      ]
+    ]
+
+    const selected = this._selectProgressionByComplexity(progressions, complexity, bars, compositionCount, webMetrics)
 
     // Entry #117: Transpose to current key
     return this._transposeToCurrentKey(selected.map(chord => ({

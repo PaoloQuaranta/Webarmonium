@@ -48,6 +48,9 @@ class CompositionEngine {
       // Entry #169: Store sectionContext for section-aware composition
       this.sectionContext = roomContext.sectionContext || null
 
+      // Entry #171: Store webMetrics for deterministic harmonic variety
+      this.webMetrics = roomContext.webMetrics || null
+
       // DEBUG Entry #117: Log compositionCount to verify it changes
 
       // 1. Analyze current musical context
@@ -386,8 +389,9 @@ class CompositionEngine {
     // Generate harmonic progression for the section
     // Entry #117: Pass compositionCount for temporal variation in progression selection
     // Entry #169: Pass sectionContext for tension-aware progression
+    // Entry #171: Pass webMetrics for deterministic harmonic variety
     const progression = this.harmonicEngine.generateProgression(
-      style, sectionLength, this.compositionCount, this.sectionContext
+      style, sectionLength, this.compositionCount, this.sectionContext, this.webMetrics
     )
     // Entry #117: Sync keyCenter from HarmonicEngine (which now varies by compositionCount)
     this.keyCenter = this.harmonicEngine.currentKey
