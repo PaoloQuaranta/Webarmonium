@@ -168,12 +168,27 @@ class GestureToMusicService {
       case 'drag': {
 // console.log('🎵 DRAG: Generating musical phrase')
         const dragPhrase = this.phraseMorphology.generatePhrase(gestureData, musicalContext)
+
+        // Entry #171: Web metrics-driven variation for drag phrases
+        const wiki = this.webMetrics?.wikipedia?.normalized || 0.5
+        const hn = this.webMetrics?.hackernews?.normalized || 0.5
+        const gh = this.webMetrics?.github?.normalized || 0.5
+
+        // Pitch offset ±3 semitones based on combined metrics
+        const pitchOffset = Math.floor((wiki + hn - 1) * 3)
+
+        // Velocity multiplier based on GitHub activity (0.75-1.0)
+        const velocityMultiplier = 0.75 + (gh * 0.25)
+
         // HARMONIC COHERENCE: Constrain all phrase notes to room's scale/mode
         // PhraseMorphology uses mood-based scale selection; this ensures room coherence
         if (dragPhrase && dragPhrase.notes) {
           dragPhrase.notes = dragPhrase.notes.map(note => ({
             ...note,
-            pitch: this.harmonicEngine.constrainToScale(note.pitch, this.currentKey, this.currentMode)
+            // Add pitch offset BEFORE constraining to scale
+            pitch: this.harmonicEngine.constrainToScale(note.pitch + pitchOffset, this.currentKey, this.currentMode),
+            // Modulate velocity while preserving relative dynamics
+            velocity: Math.min(127, Math.max(1, Math.round((note.velocity || 80) * velocityMultiplier)))
           }))
         }
         return dragPhrase

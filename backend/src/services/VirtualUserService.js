@@ -648,8 +648,21 @@ class VirtualUserService {
     // Map activity level to frequency within tessitura for AUDIO
     let rawFreq = freqMin + (activityLevel * (freqMax - freqMin))
 
-    // Convert to MIDI pitch and constrain to scale
-    const rawPitch = Math.round(12 * Math.log2(rawFreq / 440) + 69)
+    // Entry #171: Web metrics-driven variation (deterministic, no randomness)
+    const webMetrics = this._normalizeWebMetrics()
+    const wiki = webMetrics.wikipedia.normalized
+    const hn = webMetrics.hackernews.normalized
+    const gh = webMetrics.github.normalized
+
+    // Convert to MIDI pitch with metrics offset
+    let rawPitch = Math.round(12 * Math.log2(rawFreq / 440) + 69)
+
+    // Entry #171: Pitch variation ±3 semitones based on combined metrics
+    // (wiki + hn - 1) ranges from -1 to +1, scaled to -3 to +3 semitones
+    const pitchOffset = Math.floor((wiki + hn - 1) * 3)
+    rawPitch = rawPitch + pitchOffset
+
+    // Constrain to scale AFTER adding variation (preserves harmonic coherence)
     const pitch = this.harmonicEngine.constrainToScale(rawPitch, roomState.musicalContext.key, roomState.musicalContext.mode)
     let frequency = 440 * Math.pow(2, (pitch - 69) / 12)
 
@@ -685,13 +698,16 @@ class VirtualUserService {
       return
     }
 
+    // Entry #171: Velocity variation 0.75-1.0 based on GitHub activity
+    const tapVelocity = 0.75 + (gh * 0.25)
+
     // 4. Emit hold:start with reverse-mapped position
     this.io.to(roomId).emit('hold:start', {
       type: 'hold:start',
       userId: config.userId,
       noteId: noteId,
       frequency: frequency,
-      velocity: 0.9,
+      velocity: tapVelocity,
       duration: tapDuration,
       position: position,
       userColor: config.color,
@@ -716,7 +732,7 @@ class VirtualUserService {
         notes: [{
           pitch: pitch,
           duration: tapDurationMs,
-          velocity: 0.9,
+          velocity: tapVelocity,
           timestamp: Date.now()
         }],
         duration: tapDurationMs,
@@ -764,6 +780,12 @@ class VirtualUserService {
     // FIX #7: Add modulo to prevent gesture counter overflow at MAX_SAFE_INTEGER
     this.gestureCounters[source] = ((this.gestureCounters[source] || 0) + 1) % Number.MAX_SAFE_INTEGER
 
+    // Entry #171: Web metrics-driven variation (deterministic, no randomness)
+    const webMetrics = this._normalizeWebMetrics()
+    const wiki = webMetrics.wikipedia.normalized
+    const hn = webMetrics.hackernews.normalized
+    const gh = webMetrics.github.normalized
+
     // Calculate metrics for gesture generation
     const density = this._calculateDensityMetric(source)
     const acceleration = this.webMetricsPoller?.getAcceleration(source) || 0
@@ -797,10 +819,21 @@ class VirtualUserService {
 
     // HARMONIC COHERENCE: Constrain all phrase notes to room's scale/mode
     // PhraseMorphology uses mood-based scale selection; this ensures room coherence
+    // Entry #171: Add web metrics-driven pitch offset and velocity variation
     const { key, mode } = roomState.musicalContext
+
+    // Entry #171: Pitch offset ±3 semitones based on combined metrics
+    const pitchOffset = Math.floor((wiki + hn - 1) * 3)
+
+    // Entry #171: Velocity variation based on GitHub activity (0.75-1.0 range for 0-127 MIDI)
+    const velocityMultiplier = 0.75 + (gh * 0.25)
+
     phrase.notes = phrase.notes.map(note => ({
       ...note,
-      pitch: this.harmonicEngine.constrainToScale(note.pitch, key, mode)
+      // Add pitch offset BEFORE constraining to scale (preserves harmonic coherence)
+      pitch: this.harmonicEngine.constrainToScale(note.pitch + pitchOffset, key, mode),
+      // Modulate velocity while preserving relative dynamics
+      velocity: Math.min(127, Math.max(1, Math.round((note.velocity || 80) * velocityMultiplier)))
     }))
 
     const beatDurationMs = (60 / (roomState.musicalContext.tempo || 120)) * 1000
@@ -968,6 +1001,30 @@ class VirtualUserService {
         return this._normalizeValue(source, 'commitsPerMinute', metrics[source].commitsPerMinute || 0)
       default:
         return 0.5
+    }
+  }
+
+  /**
+   * Normalize web metrics to 0-1 range for gesture variation
+   * Entry #171: Centralized normalization matching BackgroundCompositionService
+   * Uses fixed reference ranges for deterministic output
+   * @returns {Object} Normalized metrics {wikipedia, hackernews, github}
+   * @private
+   */
+  _normalizeWebMetrics() {
+    const raw = this.webMetricsPoller?.getMetrics()
+    if (!raw) {
+      return {
+        wikipedia: { normalized: 0.5 },
+        hackernews: { normalized: 0.5 },
+        github: { normalized: 0.5 }
+      }
+    }
+
+    return {
+      wikipedia: { normalized: Math.min(1, (raw.wikipedia?.editsPerMinute || 0) / 50) },
+      hackernews: { normalized: Math.min(1, (raw.hackernews?.postsPerMinute || 0) / 5) },
+      github: { normalized: Math.min(1, (raw.github?.commitsPerMinute || 0) / 30) }
     }
   }
 
