@@ -445,6 +445,7 @@ class CompositionMonitor {
     const event = {
       type: 'snapshot',
       data: snapshot,
+      eventCounts: { ...this.stats.eventCounts },
       timestamp: Date.now()
     }
 

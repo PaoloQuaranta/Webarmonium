@@ -313,7 +313,7 @@
       });
 
       socket.on('monitor:snapshot', (event) => {
-        updateFromSnapshot(event.data);
+        updateFromSnapshot(event.data, event.eventCounts);
         addEvent('SNAPSHOT', formatSnapshot(event.data));
       });
 
@@ -562,7 +562,7 @@
       `;
     }
 
-    function updateFromSnapshot(snapshot) {
+    function updateFromSnapshot(snapshot, eventCounts) {
       const core = snapshot.core || {};
       const style = snapshot.style || {};
       const harmony = snapshot.harmony || {};
@@ -571,6 +571,7 @@
       const genreWeights = style.genreWeights || {};
       const room = snapshot.room || {};
       const materials = snapshot.materials || {};
+      const counts = eventCounts || {};
 
       // Update core params
       updateElement('keyCenter', core.keyCenter || 'C');
@@ -605,6 +606,10 @@
       }
 
       // Update stats
+      updateElement('statCompositions', counts.compositions || 0);
+      updateElement('statKeyChanges', counts.keyChanges || 0);
+      updateElement('statModeChanges', counts.modeChanges || 0);
+      updateElement('statFormChanges', counts.formChanges || 0);
       updateElement('statGestures', room.gestureCount || 0);
       updateElement('statMaterials', materials.total || 0);
     }
