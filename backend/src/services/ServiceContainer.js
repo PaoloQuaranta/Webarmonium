@@ -228,6 +228,12 @@ function createServiceContainer (config = {}) {
  */
 function wireServices (container, config = {}) {
   container.wire({
+    gestureToMusicService: (service, c) => {
+      // Entry #171 fix: Link WebMetricsPoller for fresh metrics on real user gestures
+      // Without this, real users would use stale metrics synced only during composition cycles
+      const webMetricsPoller = c.get('webMetricsPoller')
+      service.setWebMetricsPoller(webMetricsPoller)
+    },
     backgroundCompositionService: (service, c) => {
       // Link to gesture service for harmonic sync
       const gestureToMusicService = c.get('gestureToMusicService')

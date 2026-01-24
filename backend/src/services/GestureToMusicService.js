@@ -31,9 +31,57 @@ class GestureToMusicService {
 
     // Entry #171: Web metrics for deterministic gesture variation
     this.webMetrics = null
+    this.webMetricsPoller = null
+  }
+
+  /**
+   * Set WebMetricsPoller for fresh metrics on every gesture
+   * Entry #171 fix: Ensures real user gestures get current metrics, not stale ones
+   * @param {WebMetricsPoller} poller - WebMetricsPoller instance
+   */
+  setWebMetricsPoller(poller) {
+    this.webMetricsPoller = poller
+  }
+
+  /**
+   * Normalize web metrics to 0-1 range with *Norm suffix fields
+   * Entry #171: Matches BackgroundCompositionService normalization for consistency
+   * @returns {Object|null} Normalized metrics or null if poller not available
+   * @private
+   */
+  _normalizeWebMetrics() {
+    if (!this.webMetricsPoller) return this.webMetrics // Fallback to synced metrics
+    const raw = this.webMetricsPoller.getMetrics()
+    if (!raw) return this.webMetrics
+
+    return {
+      wikipedia: {
+        normalized: Math.min(1, Math.max(0, (raw.wikipedia?.editsPerMinute || 0) / 50)),
+        avgEditSizeNorm: Math.min(1, Math.max(0, (raw.wikipedia?.avgEditSize || 0) / 2000)),
+        velocityNorm: Math.min(1, Math.max(0, ((raw.wikipedia?.velocity || 0) + 30) / 60)),
+        accelerationNorm: Math.min(1, Math.max(0, ((raw.wikipedia?.acceleration || 0) + 15) / 30))
+      },
+      hackernews: {
+        normalized: Math.min(1, Math.max(0, (raw.hackernews?.postsPerMinute || 0) / 5)),
+        avgUpvotesNorm: Math.min(1, Math.max(0, (raw.hackernews?.avgUpvotes || 0) / 100)),
+        commentCountNorm: Math.min(1, Math.max(0, (raw.hackernews?.commentCount || 0) / 100)),
+        velocityNorm: Math.min(1, Math.max(0, ((raw.hackernews?.velocity || 0) + 5) / 10)),
+        accelerationNorm: Math.min(1, Math.max(0, ((raw.hackernews?.acceleration || 0) + 5) / 10))
+      },
+      github: {
+        normalized: Math.min(1, Math.max(0, (raw.github?.commitsPerMinute || 0) / 30)),
+        createsNorm: Math.min(1, Math.max(0, (raw.github?.createsPerMinute || 0) / 10)),
+        deletesNorm: Math.min(1, Math.max(0, (raw.github?.deletesPerMinute || 0) / 5)),
+        velocityNorm: Math.min(1, Math.max(0, ((raw.github?.velocity || 0) + 10) / 20)),
+        accelerationNorm: Math.min(1, Math.max(0, ((raw.github?.acceleration || 0) + 10) / 20))
+      }
+    }
   }
 
   processGesture(gestureData) {
+    // Entry #171 fix: Sync fresh metrics BEFORE processing gesture
+    // This ensures real user gestures use current web metrics, not stale ones
+    this.webMetrics = this._normalizeWebMetrics()
     try {
 // console.log('🎵 GestureToMusicService processing gesture:', gestureData)
 

@@ -819,3 +819,74 @@ All normalized values confirmed in 0-1 range.
 v0.2.1
 
 ---
+
+## Entry #171 Addendum 2: Real User WebMetrics Fix
+
+**Date**: 2026-01-24
+**Focus**: Fix webMetrics for real user gestures (not just virtual users)
+
+---
+
+### Problem Identified
+
+Real users' gesture processing followed a different code path than virtual users:
+- Virtual users: LandingCompositionService/VirtualUserService → have direct WebMetricsPoller access
+- Real users: GestureToMusicService → relied on stale webMetrics synced from BackgroundCompositionService
+
+The sync timing was wrong:
+1. `gestureToMusicService.processGesture()` generates phrase with STALE webMetrics
+2. `backgroundCompositionService.addMaterial()` syncs fresh metrics (TOO LATE)
+
+---
+
+### Fix Applied
+
+**GestureToMusicService.js:**
+```javascript
+// Added WebMetricsPoller reference
+this.webMetricsPoller = null
+
+setWebMetricsPoller(poller) {
+  this.webMetricsPoller = poller
+}
+
+_normalizeWebMetrics() {
+  if (!this.webMetricsPoller) return this.webMetrics // Fallback to synced metrics
+  const raw = this.webMetricsPoller.getMetrics()
+  if (!raw) return this.webMetrics
+  // Returns same normalized format as BackgroundCompositionService
+  return { wikipedia: { normalized, avgEditSizeNorm, ... }, ... }
+}
+
+processGesture(gestureData) {
+  // Entry #171 fix: Sync fresh metrics BEFORE processing gesture
+  this.webMetrics = this._normalizeWebMetrics()
+  // ... rest of processing
+}
+```
+
+**ServiceContainer.js:**
+```javascript
+gestureToMusicService: (service, c) => {
+  // Entry #171 fix: Link WebMetricsPoller for fresh metrics on real user gestures
+  const webMetricsPoller = c.get('webMetricsPoller')
+  service.setWebMetricsPoller(webMetricsPoller)
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/GestureToMusicService.js` | Added webMetricsPoller, setWebMetricsPoller(), _normalizeWebMetrics(), sync at processGesture start |
+| `backend/src/services/ServiceContainer.js` | Wire WebMetricsPoller to GestureToMusicService |
+
+---
+
+### Version
+
+v0.2.2
+
+---
