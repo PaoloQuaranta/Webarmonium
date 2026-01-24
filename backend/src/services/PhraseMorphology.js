@@ -509,7 +509,8 @@ class PhraseMorphology {
 
   /**
    * Generate rhythm that fits exactly in the target duration
-   * DETERMINISTIC: variations derived from acceleration and position, not random
+   * DETERMINISTIC: variations derived from velocity, curvature, and position, not random
+   * Entry #171 fix: Always creates varied durations, not just when acceleration ≠ 0
    * @param {number} velocity - Gesture velocity
    * @param {number} acceleration - Gesture acceleration
    * @param {number} noteCount - Number of notes
@@ -534,30 +535,41 @@ class PhraseMorphology {
 
     const rhythm = []
     let totalDuration = 0
+    const safeCurvature = curvature || 0.5
 
     // Use section complexity for syncopation threshold if available
-    const effectiveComplexity = sectionComplexity !== null ? sectionComplexity : curvature
+    const effectiveComplexity = sectionComplexity !== null ? sectionComplexity : safeCurvature
 
     // Generate rhythm with DETERMINISTIC variation
     for (let i = 0; i < noteCount; i++) {
-      // DERIVATION: variation from acceleration and position
-      // Positive acceleration → notes get shorter (rushing)
-      // Negative acceleration → notes get longer (dragging)
-      const positionFactor = (i / noteCount) - 0.5 // -0.5 to 0.5
-      const variation = (acceleration / 100) * positionFactor * 0.4
-      let duration = baseDuration * (1 + variation)
+      const phrasePosition = i / noteCount
+
+      // Entry #171 fix: THREE sources of duration variation (all deterministic)
+      // 1. Acceleration-based: rushing/dragging effect
+      const positionFactor = phrasePosition - 0.5 // -0.5 to 0.5
+      const accelerationVariation = (acceleration / 100) * positionFactor * 0.4
+
+      // 2. Phrase shape: Natural musical phrasing (first/last notes slightly longer)
+      // Uses cosine curve: peaks at start and end, dip in middle
+      const phraseShapeVariation = Math.cos(phrasePosition * Math.PI * 2) * 0.15
+
+      // 3. Curvature-based alternation: High curvature = more rhythmic contrast
+      // Creates long-short or short-long patterns based on curvature direction
+      const isOdd = i % 2 === 1
+      const curvatureVariation = (safeCurvature - 0.5) * (isOdd ? 0.3 : -0.3)
+
+      // Combine all variations (they stack but remain bounded)
+      let duration = baseDuration * (1 + accelerationVariation + phraseShapeVariation + curvatureVariation)
 
       // DERIVATION: syncopation from curvature/complexity
       // High curvature/complexity → more syncopation at phrase midpoint
       const syncopationThreshold = 1 - effectiveComplexity // High complexity = low threshold
-      const phrasePosition = i / noteCount
 
       if (phrasePosition > syncopationThreshold && phrasePosition < (1 - syncopationThreshold / 2)) {
         // Apply syncopation - device index derived from position + curvature + note index
         // WEIGHTING: position (40%) for musical flow, curvature (30%) for gesture character,
         // PHI stepping (30%) for non-repeating variety
         const rhythmicDevices = [0.5, 0.75, 1.5, 0.33, 0.67]
-        const safeCurvature = curvature || 0.5
         const mixedIndex = phrasePosition * 0.4 + safeCurvature * 0.3 + ((i * PHI) % 1) * 0.3
         // Clamp to valid range before floor to ensure valid array access
         const clampedIndex = Math.max(0, Math.min(1, mixedIndex))
@@ -1073,13 +1085,28 @@ class PhraseMorphology {
   selectIntervalType(currentDegree, targetDegree, notePosition = 0) {
     const distance = Math.abs(targetDegree - currentDegree)
 
+    // Entry #171 fix: Less restrictive voice leading to allow contour variety
+    // Old logic forced stepwise motion at edges AND for distance<=1,
+    // making all phrases sound like scale runs/arpeggios
+    //
     // DERIVATION: interval type based on distance and phrase position
-    // Beginning and end of phrases prefer steps (voice leading)
-    // Middle allows more skips/leaps for contour
+    // Edge notes (first/last 20%) prefer smoother motion but can skip if needed
+    // Middle notes follow contour more closely
     const isEdge = notePosition < 0.2 || notePosition > 0.8
 
-    if (distance <= 1 || isEdge) return 'step'
-    if (distance <= 3) return 'skip'
+    // No movement needed
+    if (distance === 0) return 'step'
+
+    // Small distances: stepwise is natural
+    if (distance === 1) return 'step'
+
+    // Medium distances: edges use steps, middle uses skips
+    if (distance <= 2) return isEdge ? 'step' : 'skip'
+
+    // Larger distances: allow skips at edges, leaps in middle
+    if (distance <= 4) return isEdge ? 'skip' : 'leap'
+
+    // Very large distances: always leap to follow contour
     return 'leap'
   }
 
