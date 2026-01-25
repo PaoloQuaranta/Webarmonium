@@ -3252,24 +3252,40 @@ class AudioService {
 
   /**
    * Entry #175: Apply genre-specific envelope settings to synths
+   * Entry #181: Extended to apply delay feedback, delay time, and reverb from synthParams
    * Different genres have distinct attack/release characteristics
-   * @param {Object} style - Style info with dominantGenre
+   * @param {Object} style - Style info with dominantGenre and synthParams
    */
   applyGenreToSynths(style) {
     if (!this.ambientLayers || !style?.dominantGenre) return
 
-    // Skip if genre hasn't changed
-    if (this._lastAppliedGenre === style.dominantGenre) return
+    // Skip if genre hasn't changed (unless synthParams are provided)
+    const hasNewSynthParams = style.synthParams && this._lastSynthParams !== style.synthParams
+    if (this._lastAppliedGenre === style.dominantGenre && !hasNewSynthParams) return
     this._lastAppliedGenre = style.dominantGenre
+    this._lastSynthParams = style.synthParams
 
-    const configs = {
-      ambient:    { attack: 0.5,  decay: 0.8, sustain: 0.7, release: 2.0 },
-      jazz:       { attack: 0.02, decay: 0.3, sustain: 0.5, release: 0.3 },
-      electronic: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 },
-      rock:       { attack: 0.01, decay: 0.2, sustain: 0.6, release: 0.4 },
-      classical:  { attack: 0.1,  decay: 0.4, sustain: 0.6, release: 0.8 }
+    // Entry #181: Use backend synthParams if available, else fallback to hardcoded configs
+    const synthParams = style.synthParams
+    let cfg
+    if (synthParams) {
+      cfg = {
+        attack: synthParams.attackTime ?? 0.03,
+        decay: 0.3,
+        sustain: 0.6,
+        release: synthParams.releaseTime ?? 0.4
+      }
+    } else {
+      // Legacy fallback configs
+      const configs = {
+        ambient:    { attack: 0.5,  decay: 0.8, sustain: 0.7, release: 2.0 },
+        jazz:       { attack: 0.02, decay: 0.3, sustain: 0.5, release: 0.3 },
+        electronic: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 },
+        rock:       { attack: 0.01, decay: 0.2, sustain: 0.6, release: 0.4 },
+        classical:  { attack: 0.1,  decay: 0.4, sustain: 0.6, release: 0.8 }
+      }
+      cfg = configs[style.dominantGenre] || configs.ambient
     }
-    const cfg = configs[style.dominantGenre] || configs.ambient
 
     // Apply envelope to melodic layers (backgroundHigh, backgroundMid, backgroundLow)
     const melodicLayers = ['backgroundHigh', 'backgroundMid', 'backgroundLow']
@@ -3291,7 +3307,62 @@ class AudioService {
       }
     }
 
+    // Entry #181: Apply delay feedback and delay time from synthParams
+    // Entry #181b: Add proper initialization checks to prevent race conditions
+    if (synthParams && this.delay && !this.delay.disposed) {
+      try {
+        if (synthParams.delayFeedback !== undefined && this.delay.feedback) {
+          // Smooth ramp to new feedback value
+          this.delay.feedback.rampTo(synthParams.delayFeedback, 0.5)
+        }
+        if (synthParams.delayTime !== undefined && this.delay.delayTime) {
+          // Smooth ramp to new delay time
+          this.delay.delayTime.rampTo(synthParams.delayTime, 0.5)
+        }
+      } catch (e) {
+        // Delay may not be ready, ignore
+      }
+    }
+
+    // Entry #181: Adjust reverb send levels based on reverbSend parameter
+    // (Reverb decay can't be changed dynamically in Tone.js, but we can adjust wet level)
+    if (synthParams && this.reverbSends) {
+      const reverbLevel = synthParams.reverbSend ?? 0.3
+      try {
+        // Adjust all reverb sends proportionally
+        for (const [layerName, sendGain] of Object.entries(this.reverbSends)) {
+          if (sendGain && sendGain.gain) {
+            // Scale the base send level by the genre's reverb preference
+            const baseLevel = layerName === 'pad' ? 0.3 : layerName === 'bass' ? 0.15 : 0.25
+            sendGain.gain.rampTo(baseLevel * (reverbLevel / 0.3), 0.5)
+          }
+        }
+      } catch (e) {
+        // Sends may not be ready, ignore
+      }
+    }
+
+    // Entry #181: Adjust delay send levels based on delaySend parameter
+    if (synthParams && this.delaySends) {
+      const delayLevel = synthParams.delaySend ?? 0.25
+      try {
+        for (const [layerName, sendGain] of Object.entries(this.delaySends)) {
+          if (sendGain && sendGain.gain) {
+            // Scale the base send level by the genre's delay preference
+            const baseLevel = layerName === 'chords' ? 0.35 : layerName === 'bass' ? 0.15 : 0.2
+            sendGain.gain.rampTo(baseLevel * (delayLevel / 0.25), 0.5)
+          }
+        }
+      } catch (e) {
+        // Sends may not be ready, ignore
+      }
+    }
+
     // console.log(`🎨 Applied ${style.dominantGenre} envelope: attack=${cfg.attack}, release=${cfg.release}`)
+    // Entry #181: Log delay/reverb params if present
+    // if (synthParams) {
+    //   console.log(`🎛️ Applied ${style.dominantGenre} effects: delayFB=${synthParams.delayFeedback}, delayTime=${synthParams.delayTime}, reverbSend=${synthParams.reverbSend}`)
+    // }
   }
 
   /**
@@ -3491,6 +3562,180 @@ class AudioService {
             this.safeMonoSynthTrigger('backgroundLow', frequency, duration, audioTime, velocityConfig.pad)
           }, scheduleTime)
           this.scheduledTransportEvents.push(eventId)
+        }
+      }
+    } else if (type === 'jazz_comping' && accompaniment.chords) {
+      // Entry #181b: Jazz comping with swing timing and anticipations
+      const swingAmount = accompaniment.swingAmount || 0.67
+      const syncopation = accompaniment.syncopation || 0.7
+      const chords = accompaniment.chords
+
+      for (let chordIndex = 0; chordIndex < chords.length; chordIndex++) {
+        const chord = chords[chordIndex]
+        if (!chord) continue
+        const chordNotes = chord.voicing || this.buildChordFromName(chord.chord || 'C')
+        if (!chordNotes || chordNotes.length === 0) continue
+        const rhythm = chord.rhythm || [1.5, 0.5, 1, 1]
+
+        let currentBeat = chordIndex * 4
+        for (let noteIdx = 0; noteIdx < rhythm.length; noteIdx++) {
+          const duration = rhythm[noteIdx]
+          let beatPosition = currentBeat
+          // Apply swing
+          const beatFraction = beatPosition % 1
+          if (swingAmount > 0 && beatFraction >= 0.4 && beatFraction <= 0.6) {
+            beatPosition += (swingAmount - 0.5) * 0.33
+          }
+          // Apply anticipation only if beatPosition allows
+          const shouldAnticipate = chord.anticipate || (noteIdx === 0 && Math.random() < syncopation * 0.4)
+          if (shouldAnticipate && beatPosition >= 0.1) {
+            beatPosition -= 0.1
+          }
+
+          const delay = Math.max(0, beatPosition * beatDuration)
+          const scheduleTime = now + lookahead + delay
+
+          for (let j = 0; j < chordNotes.length; j++) {
+            const pitch = chordNotes[j]
+            const frequency = this.midiToFrequency(pitch)
+            const noteDuration = duration * 0.85  // Portato
+
+            const eventId = Tone.Transport.schedule((audioTime) => {
+              this.safeMonoSynthTrigger('backgroundMid', frequency, noteDuration, audioTime, velocityConfig.harmony * 1.2)
+            }, scheduleTime)
+            this.scheduledTransportEvents.push(eventId)
+          }
+          currentBeat += duration
+        }
+      }
+    } else if (type === 'rock_groove' && accompaniment.chords) {
+      // Entry #181b: Rock groove with backbeat accents and power chords
+      const syncopation = accompaniment.syncopation || 0.4
+      const chords = accompaniment.chords
+
+      for (let chordIndex = 0; chordIndex < chords.length; chordIndex++) {
+        const chord = chords[chordIndex]
+        if (!chord) continue
+        const builtChord = this.buildChordFromName(chord.chord || 'C')
+        if (!builtChord || builtChord.length === 0) continue
+        const rootNote = builtChord[0]
+        const powerChord = [rootNote, rootNote + 7]
+        const rhythm = chord.rhythm || [0.5, 0.5, 0.5, 0.5]
+
+        let currentBeat = chordIndex * 2
+        for (let noteIdx = 0; noteIdx < rhythm.length; noteIdx++) {
+          const duration = rhythm[noteIdx]
+          const isBackbeat = noteIdx % 2 === 1
+          const velocity = isBackbeat ? velocityConfig.harmony * 1.5 : velocityConfig.harmony
+
+          let beatPosition = currentBeat
+          const pushAmount = 0.05 * syncopation
+          if ((chord.pushBeat || (noteIdx === 0 && syncopation > 0.3)) && beatPosition >= pushAmount) {
+            beatPosition -= pushAmount
+          }
+
+          const delay = Math.max(0, beatPosition * beatDuration)
+          const scheduleTime = now + lookahead + delay
+
+          for (let j = 0; j < powerChord.length; j++) {
+            const pitch = powerChord[j]
+            const frequency = this.midiToFrequency(pitch)
+            const noteDuration = duration * 0.8
+
+            const eventId = Tone.Transport.schedule((audioTime) => {
+              this.safeMonoSynthTrigger('backgroundMid', frequency, noteDuration, audioTime, velocity)
+            }, scheduleTime)
+            this.scheduledTransportEvents.push(eventId)
+          }
+          currentBeat += duration
+        }
+      }
+    } else if (type === 'ambient_pads' && accompaniment.chords) {
+      // Entry #181b: Ambient pads with very long sustains
+      const chords = accompaniment.chords
+
+      for (let chordIndex = 0; chordIndex < chords.length; chordIndex++) {
+        const chord = chords[chordIndex]
+        if (!chord) continue
+        const chordNotes = chord.voicing || this.buildChordFromName(chord.chord || 'C')
+        if (!chordNotes || chordNotes.length === 0) continue
+        const duration = chord.duration || 8
+        const baseDelay = chordIndex * duration * beatDuration
+
+        for (let noteIdx = 0; noteIdx < chordNotes.length; noteIdx++) {
+          const pitch = chordNotes[noteIdx]
+          const frequency = this.midiToFrequency(pitch)
+          const velocity = velocityConfig.pad * (0.5 + noteIdx * 0.1)
+          const stagger = noteIdx * 0.15
+          const scheduleTime = now + lookahead + baseDelay + stagger
+
+          const eventId = Tone.Transport.schedule((audioTime) => {
+            this.safeMonoSynthTrigger('backgroundLow', frequency, duration, audioTime, velocity)
+          }, scheduleTime)
+          this.scheduledTransportEvents.push(eventId)
+        }
+      }
+    } else if (type === 'alberti_bass' && accompaniment.chords) {
+      // Entry #181b: Alberti bass pattern (broken chord: root-5th-3rd-5th)
+      const chords = accompaniment.chords
+
+      for (let chordIndex = 0; chordIndex < chords.length; chordIndex++) {
+        const chord = chords[chordIndex]
+        if (!chord) continue
+        const chordNotes = chord.voicing || this.buildChordFromName(chord.chord || 'C')
+        if (!chordNotes || chordNotes.length < 3) continue
+
+        const pattern = [
+          chordNotes[0] - 12,  // Root (octave down)
+          chordNotes[2] - 12,  // 5th (octave down)
+          chordNotes[1] - 12,  // 3rd (octave down)
+          chordNotes[2] - 12   // 5th (octave down)
+        ]
+        const rhythm = chord.rhythm || [0.5, 0.5, 0.5, 0.5]
+
+        let currentBeat = chordIndex * 2
+        for (let noteIdx = 0; noteIdx < pattern.length; noteIdx++) {
+          const pitch = pattern[noteIdx]
+          const frequency = this.midiToFrequency(pitch)
+          const duration = rhythm[noteIdx % rhythm.length] * 0.9
+          const delay = currentBeat * beatDuration
+          const scheduleTime = now + lookahead + delay
+
+          const eventId = Tone.Transport.schedule((audioTime) => {
+            this.safeMonoSynthTrigger('backgroundLow', frequency, duration, audioTime, velocityConfig.bass)
+          }, scheduleTime)
+          this.scheduledTransportEvents.push(eventId)
+          currentBeat += rhythm[noteIdx % rhythm.length]
+        }
+      }
+    } else if (type === 'block_chords' && accompaniment.chords) {
+      // Entry #181b: Block chords (full voicings, legato)
+      const chords = accompaniment.chords
+
+      for (let chordIndex = 0; chordIndex < chords.length; chordIndex++) {
+        const chord = chords[chordIndex]
+        if (!chord) continue
+        const chordNotes = chord.voicing || this.buildChordFromName(chord.chord || 'C')
+        if (!chordNotes || chordNotes.length === 0) continue
+        const rhythm = chord.rhythm || [1, 1, 1, 1]
+
+        let currentBeat = chordIndex * 4
+        for (let noteIdx = 0; noteIdx < rhythm.length; noteIdx++) {
+          const duration = rhythm[noteIdx]
+          const delay = currentBeat * beatDuration
+          const scheduleTime = now + lookahead + delay
+
+          for (let j = 0; j < chordNotes.length; j++) {
+            const pitch = chordNotes[j]
+            const frequency = this.midiToFrequency(pitch)
+            const noteDuration = duration * 0.95  // Legato
+
+            const eventId = Tone.Transport.schedule((audioTime) => {
+              this.safeMonoSynthTrigger('backgroundMid', frequency, noteDuration, audioTime, velocityConfig.harmony)
+            }, scheduleTime)
+            this.scheduledTransportEvents.push(eventId)
+          }
+          currentBeat += duration
         }
       }
     }
@@ -5735,7 +5980,8 @@ class AudioService {
     }
 
     // DELAY MODULATION: Only modulate delay time, keep feedback fixed at 0.55 (like normal rooms)
-    if (this.delay) {
+    // Entry #181b: Add proper initialization checks to prevent race conditions
+    if (this.delay && !this.delay.disposed && this.delay.delayTime) {
       // Delay time: faster with higher rhythmic density (100ms - 200ms range)
       // Matches normal rooms baseline of 0.2s at low density
       if (parameters.rhythmicDensity !== undefined) {

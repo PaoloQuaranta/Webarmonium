@@ -25,6 +25,9 @@ class WebarmoniumApp {
     // (after audioService is available)
     this.gestureProcessor = null
 
+    // Entry #181: DragStreamingHandler for genre-aware melodic generation
+    this.dragStreamingHandler = null
+
     // Multi-user canvas services
     this.cursorOverlayCanvas = null
     this.drawingRenderer = null
@@ -161,6 +164,11 @@ class WebarmoniumApp {
       this.audioService.setSocketService(this.socketService)
     }
 
+    // Entry #181: Initialize DragStreamingHandler for genre-aware melodic generation
+    if (window.DragStreamingHandler) {
+      this.dragStreamingHandler = new window.DragStreamingHandler(this.audioService)
+    }
+
     // Create basic gesture to music mapper for EnhancedGestureCapture
     const basicGestureToMusicMapper = {
       gestureToMusicalEvent: (gesture) => {
@@ -285,183 +293,42 @@ class WebarmoniumApp {
     // Setup drag streaming note callback for real-time feedback
     // CRITICAL: Return note data for backend broadcast
     this.gestureCapture.setDragStreamingNoteCallback((noteData) => {
-      // console.log('🎸🎸 DRAG STREAMING CALLBACK CALLED:', {
-//        hasAudio: this.isAudioStarted,
-//        hasService: !!this.audioService,
-//        noteData
-////      })
-
       if (!this.isAudioStarted || !this.audioService) {
-        // console.warn('🎸🎸 BLOCKED - audio not ready')
         return null // No note played
       }
 
-      // CRITICAL: Use SAME pitch calculation as tap gestures for consistency
-      // Calculate frequency using BOTH X and Y for maximum variation
-      // Y controls octave range, X controls frequency within octave
       const x = noteData.position.x
       const y = noteData.position.y
 
-      // RESET state on first note of new gesture
-      if (noteData.noteIndex === 0) {
-        this.lastDragY = y  // Initialize to current position
-        this.melodicMemory = {
-          lastNotes: [],
-          currentDirection: 0,
-          phrasePosition: 0
-        }
-      }
+      // Entry #181: Use DragStreamingHandler for genre-aware melodic generation
+      // Falls back to basic calculation if handler not available
+      let frequency, midiNote, duration, envelope
 
-      // MELODIC GENERATION: Dynamic melody creation based on gesture properties
-      // PERFORMANCE: Use cached scale instead of looking up on every note
-      const scale = this.cachedScale || window.MusicalScales.getScale('pentatonic')
-      const baseOctave = window.MusicalConstants.getBaseOctaveFromY(y)
-
-      // GESTURE DIRECTION: Calculate vertical direction from position change
-      const prevY = this.lastDragY || y
-      const deltaY = y - prevY
-      this.lastDragY = y
-      const isAscending = deltaY < -0.02  // Moving up
-      const isDescending = deltaY > 0.02  // Moving down
-
-      // MELODIC MEMORY: Keep track of last notes for coherent phrases
-      if (!this.melodicMemory) {
-        this.melodicMemory = {
-          lastNotes: [],
-          currentDirection: 0,  // -1 down, 0 neutral, 1 up
-          phrasePosition: 0
-        }
-      }
-
-      // Create melodic variation based on velocity, direction, and memory
-      const velocity = noteData.velocity
-      let scaleIndex
-
-      if (velocity > 0.7) {
-        // FAST: Dynamic arpeggios that change direction
-        if (isAscending) {
-          // Ascending arpeggio: 0-2-4-5-7 (root-3rd-5th-6th-octave)
-          const arpPattern = [0, 2, 4, 5, 7]
-          scaleIndex = arpPattern[noteData.noteIndex % arpPattern.length]
-        } else if (isDescending) {
-          // Descending arpeggio: 7-5-4-2-0
-          const arpPattern = [7, 5, 4, 2, 0]
-          scaleIndex = arpPattern[noteData.noteIndex % arpPattern.length]
-        } else {
-          // Broken chord pattern with variation
-          const arpPattern = [0, 4, 2, 5, 0, 3, 4, 2]
-          scaleIndex = arpPattern[noteData.noteIndex % arpPattern.length]
-        }
-      } else if (velocity > 0.4) {
-        // MEDIUM: Contour melodies with leaps and steps
-        // Use X position to add horizontal variation
-        const xInfluence = Math.floor(x * 3) // 0, 1, or 2
-
-        if (isAscending) {
-          // Ascending contour with occasional leaps
-          const patterns = [
-            [0, 1, 2, 3, 4, 5, 6],           // Stepwise up
-            [0, 2, 1, 3, 2, 4, 5],           // Steps with neighbor tones
-            [0, 2, 4, 3, 5, 4, 6]            // Leaps mixed with steps
-          ]
-          const pattern = patterns[xInfluence]
-          scaleIndex = pattern[noteData.noteIndex % pattern.length]
-        } else if (isDescending) {
-          // Descending contour
-          const patterns = [
-            [6, 5, 4, 3, 2, 1, 0],           // Stepwise down
-            [6, 4, 5, 3, 4, 2, 0],           // Steps with neighbor tones
-            [6, 4, 2, 3, 1, 2, 0]            // Leaps mixed with steps
-          ]
-          const pattern = patterns[xInfluence]
-          scaleIndex = pattern[noteData.noteIndex % pattern.length]
-        } else {
-          // Wave-like contour (up and down)
-          const wavePattern = [0, 2, 1, 3, 2, 4, 3, 5, 4, 3, 2, 1]
-          scaleIndex = wavePattern[noteData.noteIndex % wavePattern.length]
-        }
+      if (this.dragStreamingHandler) {
+        // Genre-aware calculation via DragStreamingHandler
+        const scale = this.cachedScale || window.MusicalScales.getScale('pentatonic')
+        const calculated = this.dragStreamingHandler.calculateMelodicNote(noteData, scale)
+        frequency = calculated.frequency
+        midiNote = calculated.midiNote
+        duration = calculated.duration
+        envelope = calculated.envelope
       } else {
-        // SLOW: Intervallic exploration based on position
-        // Use both X and Y for melodic choices
+        // Fallback: Basic calculation without genre awareness
+        const scale = this.cachedScale || window.MusicalScales.getScale('pentatonic')
+        const baseOctave = window.MusicalConstants.getBaseOctaveFromY(y)
+
+        // Simple scale index calculation
         const xIndex = Math.floor(x * scale.length)
-        const yIndex = Math.floor((1 - y) * 3) // 0-2 range for intervals
+        const scaleNote = scale[xIndex % scale.length]
+        midiNote = 60 + (baseOctave - 4) * 12 + scaleNote
+        frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
 
-        // Choose intervals based on Y position: thirds, fourths, fifths
-        const intervals = [2, 3, 4] // 3rds, 4ths, 5ths
-        const interval = intervals[yIndex]
+        // Duration from noteData
+        const durationMap = { '32n': 0.0625, '16n': 0.125, '8n': 0.25, '4n': 0.5 }
+        duration = durationMap[noteData.duration] || 0.25
 
-        // Create melodic line using intervals
-        if (noteData.noteIndex % 4 === 0) {
-          scaleIndex = xIndex
-        } else {
-          const lastIndex = this.melodicMemory.lastNotes[this.melodicMemory.lastNotes.length - 1] || 0
-          scaleIndex = (lastIndex + interval) % scale.length
-        }
-      }
-
-      // REMEMBER THIS NOTE for next iteration
-      this.melodicMemory.lastNotes.push(scaleIndex)
-      if (this.melodicMemory.lastNotes.length > 5) {
-        this.melodicMemory.lastNotes.shift() // Keep only last 5 notes
-      }
-
-      // Calculate MIDI note from scale (using collective metrics scale)
-      const scaleNote = scale[scaleIndex % scale.length]
-      const octaveOffset = Math.floor(scaleIndex / scale.length)
-      const midiNote = 60 + (baseOctave - 4) * 12 + scaleNote + octaveOffset * 12
-
-      // Convert MIDI to frequency
-      const frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
-
-      // Use musical duration from noteData (based on velocity)
-      // Convert Tone.js notation to seconds (120 BPM)
-      const durationMap = {
-        '32n': 0.0625,  // 1/32 note at 120 BPM
-        '16n': 0.125,   // 1/16 note at 120 BPM
-        '8n': 0.25,     // 1/8 note at 120 BPM
-        '4n': 0.5,      // 1/4 note at 120 BPM
-      }
-      const duration = durationMap[noteData.duration] || 0.25
-
-      // Configure envelope based on articulation
-      // Envelopes are proportional to note duration for better musicality
-      let envelope
-      switch (noteData.articulation) {
-        case 'staccato':
-          // Fast: short, articulated notes (50% of duration)
-          envelope = {
-            attack: 0.005,
-            decay: duration * 0.2,
-            sustain: 0.3,
-            release: duration * 0.3
-          }
-          break
-        case 'marcato':
-          // Medium: accented notes (70% of duration)
-          envelope = {
-            attack: 0.01,
-            decay: duration * 0.3,
-            sustain: 0.5,
-            release: duration * 0.4
-          }
-          break
-        case 'legato':
-          // Slow: smooth, connected notes (95% of duration)
-          envelope = {
-            attack: duration * 0.1,
-            decay: duration * 0.2,
-            sustain: 0.7,
-            release: duration * 0.7
-          }
-          break
-        default:
-          // Fallback
-          envelope = {
-            attack: 0.005,
-            decay: 0.02,
-            sustain: 0.1,
-            release: 0.05
-          }
+        // Basic envelope
+        envelope = { attack: 0.005, decay: 0.02, sustain: 0.1, release: 0.05 }
       }
 
       // FIX: Use per-user synth via playMusicalEvent instead of gestureSynth directly
@@ -1208,6 +1075,11 @@ class WebarmoniumApp {
       // Entry #175b: Propagate style to userSynthManager for remote user synths
       if (data.style && this.audioService?.userSynthManager) {
         this.audioService.userSynthManager.setCurrentStyle(data.style)
+      }
+
+      // Entry #181: Propagate genre to DragStreamingHandler for genre-aware melodic generation
+      if (data.style?.dominantGenre && this.dragStreamingHandler) {
+        this.dragStreamingHandler.updateGenre(data.style.dominantGenre)
       }
 
       if (this.isAudioStarted && data.composition) {

@@ -41,6 +41,10 @@ class DragStreamingHandler {
     this.audioService = audioService
     this.compositionalParameters = compositionalParameters
 
+    // Entry #181: Current genre for melodic strategy
+    this.currentGenre = 'melodic'
+    this.genreStrategy = null
+
     // Cached scale for performance
     this.cachedScale = null
     this.cachedScaleType = null
@@ -98,11 +102,152 @@ class DragStreamingHandler {
   }
 
   /**
+   * Entry #181: Update current genre for melodic strategy differentiation
+   * Called when genre changes from backend style updates
+   * @param {string} genre - Genre name (electronic, ambient, jazz, rock, classical, etc.)
+   */
+  updateGenre(genre) {
+    if (this.currentGenre === genre) return
+    this.currentGenre = genre || 'melodic'
+
+    // Get genre strategy from GenreMelodicStrategies if available
+    if (window.GenreMelodicStrategies) {
+      this.genreStrategy = window.GenreMelodicStrategies.getGenreMelodicStrategy(this.currentGenre)
+    } else {
+      this.genreStrategy = null
+    }
+
+    // console.log(`🎸 DragStreamingHandler: Genre updated to ${this.currentGenre}`)
+  }
+
+  /**
+   * Entry #181: Get interval range for current genre and velocity tier
+   * @param {string} tier - Velocity tier ('fast', 'medium', 'slow')
+   * @returns {number} Maximum interval in semitones
+   */
+  _getGenreIntervalRange(tier) {
+    if (this.genreStrategy && this.genreStrategy.intervalRange) {
+      return this.genreStrategy.intervalRange[tier.toLowerCase()] || MELODIC_CONFIG.INTERVAL_RANGES[tier.toUpperCase()]
+    }
+    return MELODIC_CONFIG.INTERVAL_RANGES[tier.toUpperCase()] || 5
+  }
+
+  /**
+   * Entry #181: Get preferred interval using genre strategy
+   * @param {number} noteIndex - Note index for variation
+   * @param {number} fallbackInterval - Fallback interval if no strategy
+   * @returns {number} Interval in semitones
+   */
+  _getPreferredInterval(noteIndex, fallbackInterval) {
+    if (this.genreStrategy && this.genreStrategy.preferredIntervals) {
+      const intervals = this.genreStrategy.preferredIntervals
+      const phiIndex = Math.floor((noteIndex * MELODIC_CONFIG.PHI) % intervals.length)
+      return intervals[phiIndex]
+    }
+    return fallbackInterval
+  }
+
+  /**
+   * Entry #181: Check if note should be repeated based on genre
+   * @param {number} phiValue - PHI-based value (0-1)
+   * @returns {boolean} True if should repeat
+   */
+  _shouldRepeatNote(phiValue) {
+    if (this.genreStrategy) {
+      return phiValue < (this.genreStrategy.noteRepetitionChance || 0.2)
+    }
+    return phiValue < 0.2
+  }
+
+  /**
+   * Entry #181: Check if stepwise motion preferred
+   * @param {number} phiValue - PHI-based value (0-1)
+   * @returns {boolean} True if stepwise preferred
+   */
+  _shouldUseStepwise(phiValue) {
+    if (this.genreStrategy && this.genreStrategy.characteristics) {
+      return phiValue < (this.genreStrategy.characteristics.stepwiseChance || 0.5)
+    }
+    return phiValue < 0.5
+  }
+
+  /**
    * Get current scale
    * @returns {Array} Current scale degrees
    */
   getScale() {
     return this.cachedScale || window.MusicalScales?.getScale('pentatonic') || [0, 2, 4, 7, 9]
+  }
+
+  /**
+   * Entry #181: Calculate melodic note data without playing
+   * Used by main.js for genre-aware note calculation while keeping its own playback logic
+   * @param {Object} noteData - Note data from gesture capture
+   * @param {Array} [scale] - Optional scale to use (defaults to cached)
+   * @returns {Object} Calculated note data { frequency, midiNote, scaleIndex, duration, envelope }
+   */
+  calculateMelodicNote(noteData, scale = null) {
+    const x = noteData.position.x
+    const y = noteData.position.y
+    const useScale = scale || this.getScale()
+    const baseOctave = window.MusicalConstants?.getBaseOctaveFromY(y) || 4
+
+    // Calculate gesture direction
+    const prevY = this.lastDragY || y
+    const deltaY = y - prevY
+    this.lastDragY = y
+    const isAscending = deltaY < -0.02
+    const isDescending = deltaY > 0.02
+
+    // Reset state on first note
+    if (noteData.noteIndex === 0) {
+      this.melodicMemory = {
+        lastNotes: [],
+        extendedHistory: [],
+        currentDirection: 0,
+        phrasePosition: 0,
+        phaseAccumulator: 0,
+        lastOctaveShift: -10
+      }
+    }
+
+    // Calculate scale index using genre-aware logic
+    const velocity = noteData.velocity
+    const scaleIndex = this.calculateScaleIndex(velocity, x, y, isAscending, isDescending, noteData.noteIndex, useScale)
+
+    // Update melodic memory
+    this.melodicMemory.lastNotes.push(scaleIndex)
+    if (this.melodicMemory.lastNotes.length > MELODIC_CONFIG.SHORT_MEMORY_SIZE) {
+      this.melodicMemory.lastNotes = this.melodicMemory.lastNotes.slice(-MELODIC_CONFIG.SHORT_MEMORY_SIZE)
+    }
+    this.melodicMemory.extendedHistory.push(scaleIndex)
+    if (this.melodicMemory.extendedHistory.length > MELODIC_CONFIG.LONG_MEMORY_SIZE) {
+      this.melodicMemory.extendedHistory = this.melodicMemory.extendedHistory.slice(-MELODIC_CONFIG.LONG_MEMORY_SIZE)
+    }
+
+    // Calculate MIDI note and frequency
+    const scaleNote = useScale[scaleIndex % useScale.length]
+    const octaveOffset = Math.floor(scaleIndex / useScale.length)
+    const traversalOffset = this.calculateOctaveTraversal(noteData.noteIndex, y)
+    const midiNote = 60 + (baseOctave - 4) * 12 + scaleNote + (octaveOffset + traversalOffset) * 12
+    const frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
+
+    // Calculate duration
+    const duration = this.durationMap[noteData.duration] || 0.25
+
+    // Get envelope
+    const envelope = this.getEnvelopeForArticulation(noteData.articulation, duration)
+
+    return {
+      frequency,
+      midiNote,
+      scaleIndex,
+      duration,
+      envelope,
+      position: { x, y },
+      velocity: noteData.velocity,
+      articulation: noteData.articulation
+    }
   }
 
   /**
@@ -223,6 +368,7 @@ class DragStreamingHandler {
   /**
    * Calculate fast melodic pattern with variety
    * Entry #172: Multi-factor variety with extended memory and wider intervals
+   * Entry #181: Genre-aware interval selection and note repetition
    * @param {boolean} isAscending - Whether ascending
    * @param {boolean} isDescending - Whether descending
    * @param {number} noteIndex - Current note index
@@ -264,9 +410,26 @@ class DragStreamingHandler {
       (phaseOffset / 7) * 0.15                 // Phase offset
     ) % 1
 
-    // Entry #172: Expanded interval range
-    // Entry #173 fix: Use MELODIC_CONFIG constant
-    const interval = 1 + Math.floor(varietyFactor * MELODIC_CONFIG.INTERVAL_RANGES.FAST)
+    // Entry #181: Check for note repetition based on genre
+    if (this._shouldRepeatNote(varietyFactor)) {
+      return lastNote
+    }
+
+    // Entry #181: Use genre-aware interval range or preferred interval
+    const maxInterval = this._getGenreIntervalRange('fast')
+    let interval
+
+    // Entry #181: Use preferred intervals for certain genres
+    if (this.genreStrategy && this.genreStrategy.preferredIntervals && varietyFactor > 0.3) {
+      interval = this._getPreferredInterval(noteIndex, 1 + Math.floor(varietyFactor * maxInterval))
+    } else {
+      interval = 1 + Math.floor(varietyFactor * maxInterval)
+    }
+
+    // Entry #181: For ambient genre, force smaller intervals and prefer stepwise
+    if (this.currentGenre === 'ambient' && this._shouldUseStepwise(varietyFactor)) {
+      interval = Math.min(2, interval)
+    }
 
     if (isAscending) {
       return (lastNote + interval) % 8
@@ -283,6 +446,7 @@ class DragStreamingHandler {
   /**
    * Calculate medium-speed contour melody with dynamic intervals
    * Entry #172: Multi-factor variety with extended memory
+   * Entry #181: Genre-aware interval selection
    * @param {number} x - X position (0-1)
    * @param {boolean} isAscending - Whether ascending
    * @param {boolean} isDescending - Whether descending
@@ -313,10 +477,27 @@ class DragStreamingHandler {
       (phaseOffset / 11) * 0.2
     ) % 1
 
-    // Entry #172: Expanded interval range
-    // Entry #173 fix: Use MELODIC_CONFIG constant
+    // Entry #181: Check for note repetition based on genre
+    if (this._shouldRepeatNote(varietyFactor)) {
+      return lastNote
+    }
+
+    // Entry #181: Use genre-aware interval range
+    const maxInterval = this._getGenreIntervalRange('medium')
     const baseInterval = 1 + Math.floor(x * 2)
-    const interval = Math.max(1, Math.min(MELODIC_CONFIG.INTERVAL_RANGES.MEDIUM, baseInterval + Math.floor(varietyFactor * 3)))
+    let interval = Math.max(1, Math.min(maxInterval, baseInterval + Math.floor(varietyFactor * 3)))
+
+    // Entry #181: Use preferred intervals for jazz (chromatic approaches)
+    if (this.currentGenre === 'jazz' && this.genreStrategy?.characteristics?.chromaticApproachChance) {
+      if (varietyFactor < this.genreStrategy.characteristics.chromaticApproachChance) {
+        interval = 1  // Chromatic approach (semitone)
+      }
+    }
+
+    // Entry #181: Classical prefers stepwise motion
+    if (this.currentGenre === 'classical' && this._shouldUseStepwise(varietyFactor)) {
+      interval = Math.min(2, interval)
+    }
 
     if (isAscending) {
       const newNote = lastNote + interval
@@ -335,6 +516,7 @@ class DragStreamingHandler {
   /**
    * Calculate slow intervallic exploration
    * Entry #172: Multi-factor variety with extended memory and wider intervals
+   * Entry #181: Genre-aware interval selection
    * @param {number} x - X position
    * @param {number} y - Y position
    * @param {number} noteIndex - Current note index
@@ -364,8 +546,15 @@ class DragStreamingHandler {
       (phaseOffset / 13) * 0.2
     ) % 1
 
+    // Entry #181: Check for note repetition based on genre (ambient especially)
+    if (this._shouldRepeatNote(varietyFactor)) {
+      return lastNote
+    }
+
+    // Entry #181: Use genre-aware interval range
+    const maxInterval = this._getGenreIntervalRange('slow')
+
     // Y determines interval size (high Y = large intervals)
-    // Entry #172: Expanded base interval range (1-4 -> 1-5)
     const baseInterval = 1 + Math.floor((1 - y) * 4)
 
     // X determines direction tendency (left = descend, right = ascend)
@@ -374,9 +563,23 @@ class DragStreamingHandler {
     // Direction based on variety + X bias
     const direction = (varietyFactor + directionBias) > 0.5 ? 1 : -1
 
-    // Entry #172: Wider interval variation
-    // Entry #173 fix: Use MELODIC_CONFIG constant
-    const interval = Math.min(MELODIC_CONFIG.INTERVAL_RANGES.SLOW, baseInterval + Math.floor(varietyFactor * 3))
+    // Entry #181: Genre-aware interval calculation
+    let interval = Math.min(maxInterval, baseInterval + Math.floor(varietyFactor * 3))
+
+    // Entry #181: Experimental genre allows extreme intervals
+    if (this.currentGenre === 'experimental' && this.genreStrategy?.characteristics?.extremeRegisters) {
+      if (varietyFactor > 0.8) {
+        interval = maxInterval  // Use full range
+      }
+    }
+
+    // Entry #181: Rock prefers pentatonic-like intervals
+    if (this.currentGenre === 'rock' && this.genreStrategy?.preferredIntervals) {
+      const rockIntervals = this.genreStrategy.preferredIntervals
+      const idx = Math.floor(varietyFactor * rockIntervals.length)
+      interval = rockIntervals[idx] || interval
+    }
+
     const newNote = lastNote + (interval * direction)
 
     // Clamp to scale range

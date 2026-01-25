@@ -266,7 +266,7 @@ class CompositionPlayer {
   }
 
   /**
-   * Play accompaniment (arpeggios, chord pads)
+   * Play accompaniment - Entry #181: Extended to handle all backend accompaniment types
    * @param {Object} accompaniment - Accompaniment data
    * @param {number} tempo - Tempo in BPM
    */
@@ -275,48 +275,327 @@ class CompositionPlayer {
 
     const beatDuration = 60 / tempo
     const type = accompaniment.type
+    const swingAmount = accompaniment.swingAmount || 0
+    const syncopation = accompaniment.syncopation || 0
 
-    if (type === 'arpeggio' && accompaniment.pattern) {
-      accompaniment.pattern.forEach((chord, chordIndex) => {
-        if (!chord.notes || !Array.isArray(chord.notes)) return
+    switch (type) {
+      case 'arpeggio':
+        this._playArpeggio(accompaniment, beatDuration)
+        break
+      case 'chord_pads':
+        this._playChordPads(accompaniment, beatDuration)
+        break
+      case 'jazz_comping':
+        this._playJazzComping(accompaniment, beatDuration, swingAmount, syncopation)
+        break
+      case 'rock_groove':
+        this._playRockGroove(accompaniment, beatDuration, syncopation)
+        break
+      case 'ambient_pads':
+        this._playAmbientPads(accompaniment, beatDuration)
+        break
+      case 'alberti_bass':
+        this._playAlbertiBass(accompaniment, beatDuration)
+        break
+      case 'block_chords':
+        this._playBlockChords(accompaniment, beatDuration)
+        break
+      default:
+        // Fallback to chord_pads for unknown types
+        if (accompaniment.chords) {
+          this._playChordPads(accompaniment, beatDuration)
+        }
+    }
+  }
 
-        chord.notes.forEach((pitch, noteIndex) => {
+  /**
+   * Entry #181: Apply swing timing to beat position
+   * Swing delays upbeats (notes on "and" positions) for triplet feel
+   * @param {number} beatPosition - Position in beats
+   * @param {number} swingAmount - Swing ratio (0=straight, 0.67=jazz swing)
+   * @returns {number} Adjusted beat position
+   */
+  _applySwing(beatPosition, swingAmount) {
+    if (swingAmount === 0) return beatPosition
+    const beatFraction = beatPosition % 1
+    // Swing affects notes around 0.5 position (the "and")
+    if (beatFraction >= 0.4 && beatFraction <= 0.6) {
+      // Delay the upbeat based on swing amount
+      // swingAmount=0.67 means 2:1 ratio (triplet feel)
+      return beatPosition + (swingAmount - 0.5) * 0.33
+    }
+    return beatPosition
+  }
+
+  /**
+   * Play arpeggio accompaniment
+   */
+  _playArpeggio(accompaniment, beatDuration) {
+    if (!accompaniment.pattern) return
+    accompaniment.pattern.forEach((chord, chordIndex) => {
+      if (!chord.notes || !Array.isArray(chord.notes)) return
+
+      chord.notes.forEach((pitch, noteIndex) => {
+        const frequency = this.midiToFrequency(pitch)
+        const duration = chord.rhythm || 0.25
+        const delay = (chordIndex * 2 + noteIndex * 0.25) * beatDuration
+
+        const timeoutId = setTimeout(() => {
+          if (this.ambientLayers && this.ambientLayers.backgroundMid) {
+            this.ambientLayers.backgroundMid.triggerAttackRelease(
+              frequency, duration, undefined, 0.06
+            )
+          }
+        }, delay * 1000)
+
+        this.scheduledTimeouts.push(timeoutId)
+      })
+    })
+  }
+
+  /**
+   * Play chord pads accompaniment
+   */
+  _playChordPads(accompaniment, beatDuration) {
+    // Entry #181b: Input validation
+    if (!accompaniment.chords || !Array.isArray(accompaniment.chords) || accompaniment.chords.length === 0) return
+    accompaniment.chords.forEach((chord, index) => {
+      if (!chord) return
+      const chordNotes = chord.voicing || this.buildChordFromName(chord.chord || 'C')
+      if (!chordNotes || chordNotes.length === 0) return
+      const delay = index * 4 * beatDuration
+
+      chordNotes.forEach(pitch => {
+        const frequency = this.midiToFrequency(pitch)
+        const duration = chord.duration || 4
+
+        const timeoutId = setTimeout(() => {
+          if (this.ambientLayers && this.ambientLayers.backgroundLow) {
+            this.ambientLayers.backgroundLow.triggerAttackRelease(
+              frequency, duration, undefined, 0.05
+            )
+          }
+        }, delay * 1000)
+
+        this.scheduledTimeouts.push(timeoutId)
+      })
+    })
+  }
+
+  /**
+   * Entry #181: Play jazz comping with swing timing and anticipations
+   */
+  _playJazzComping(accompaniment, beatDuration, swingAmount, syncopation) {
+    // Entry #181b: Input validation
+    if (!accompaniment.chords || !Array.isArray(accompaniment.chords) || accompaniment.chords.length === 0) return
+
+    accompaniment.chords.forEach((chord, chordIndex) => {
+      if (!chord) return
+      const chordNotes = chord.voicing || this.buildChordFromName(chord.chord || 'C')
+      if (!chordNotes || chordNotes.length === 0) return
+      const rhythm = chord.rhythm || [1.5, 0.5, 1, 1]
+
+      let currentBeat = chordIndex * 4
+      rhythm.forEach((duration, noteIdx) => {
+        // Apply swing to timing
+        let beatPosition = this._applySwing(currentBeat, swingAmount)
+
+        // Entry #181b: Apply anticipation only if beatPosition >= 0.1 to prevent negative timing
+        const shouldAnticipate = chord.anticipate || (noteIdx === 0 && Math.random() < syncopation * 0.4)
+        if (shouldAnticipate && beatPosition >= 0.1) {
+          beatPosition -= 0.1  // Anticipate by 1/10th beat
+        }
+
+        const delay = beatPosition * beatDuration
+
+        // Schedule all notes of chord (portato articulation - slightly detached)
+        chordNotes.forEach(pitch => {
           const frequency = this.midiToFrequency(pitch)
-          const duration = chord.rhythm || 0.25
-          const delay = (chordIndex * 2 + noteIndex * 0.25) * beatDuration
+          // Portato: slightly shorter than written (85% of duration)
+          const noteDuration = duration * 0.85
 
           const timeoutId = setTimeout(() => {
             if (this.ambientLayers && this.ambientLayers.backgroundMid) {
               this.ambientLayers.backgroundMid.triggerAttackRelease(
-                frequency, duration, undefined, 0.06
+                frequency, noteDuration, undefined, 0.07
               )
             }
-          }, delay * 1000)
+          }, Math.max(0, delay * 1000))
 
           this.scheduledTimeouts.push(timeoutId)
         })
+
+        currentBeat += duration
       })
-    } else if (type === 'chord_pads' && accompaniment.chords) {
-      accompaniment.chords.forEach((chord, index) => {
-        const chordNotes = this.buildChordFromName(chord.chord || 'C')
-        const delay = index * 4 * beatDuration
+    })
+  }
+
+  /**
+   * Entry #181: Play rock groove with backbeat accents and power chords
+   */
+  _playRockGroove(accompaniment, beatDuration, syncopation) {
+    // Entry #181b: Input validation
+    if (!accompaniment.chords || !Array.isArray(accompaniment.chords) || accompaniment.chords.length === 0) return
+
+    accompaniment.chords.forEach((chord, chordIndex) => {
+      if (!chord) return
+      // Power chord: root + 5th only (more aggressive)
+      const builtChord = this.buildChordFromName(chord.chord || 'C')
+      if (!builtChord || builtChord.length === 0) return
+      const rootNote = builtChord[0]
+      const powerChord = [rootNote, rootNote + 7]
+      const rhythm = chord.rhythm || [0.5, 0.5, 0.5, 0.5]
+
+      let currentBeat = chordIndex * 2
+      rhythm.forEach((duration, noteIdx) => {
+        // Accent on backbeats (2 and 4, which are noteIdx 1 and 3)
+        const isBackbeat = noteIdx % 2 === 1
+        const velocity = isBackbeat ? 0.12 : 0.08
+
+        // Entry #181b: Apply push based on syncopation, only if beatPosition allows
+        let beatPosition = currentBeat
+        const pushAmount = 0.05 * syncopation
+        if ((chord.pushBeat || (noteIdx === 0 && syncopation > 0.3)) && beatPosition >= pushAmount) {
+          beatPosition -= pushAmount
+        }
+
+        const delay = beatPosition * beatDuration
+
+        powerChord.forEach(pitch => {
+          const frequency = this.midiToFrequency(pitch)
+          // Tight, punchy notes (80% of duration)
+          const noteDuration = duration * 0.8
+
+          const timeoutId = setTimeout(() => {
+            if (this.ambientLayers && this.ambientLayers.backgroundMid) {
+              this.ambientLayers.backgroundMid.triggerAttackRelease(
+                frequency, noteDuration, undefined, velocity
+              )
+            }
+          }, Math.max(0, delay * 1000))
+
+          this.scheduledTimeouts.push(timeoutId)
+        })
+
+        currentBeat += duration
+      })
+    })
+  }
+
+  /**
+   * Entry #181: Play ambient pads with very long sustains and gentle dynamics
+   */
+  _playAmbientPads(accompaniment, beatDuration) {
+    // Entry #181b: Input validation
+    if (!accompaniment.chords || !Array.isArray(accompaniment.chords) || accompaniment.chords.length === 0) return
+
+    accompaniment.chords.forEach((chord, chordIndex) => {
+      if (!chord) return
+      const chordNotes = chord.voicing || this.buildChordFromName(chord.chord || 'C')
+      if (!chordNotes || chordNotes.length === 0) return
+      const duration = chord.duration || 8  // Long sustain
+      const delay = chordIndex * duration * beatDuration
+
+      // Stagger notes slightly for pad-like attack spread
+      chordNotes.forEach((pitch, noteIdx) => {
+        const frequency = this.midiToFrequency(pitch)
+        // Very low velocity for ambient
+        const velocity = 0.025 + (noteIdx * 0.005)
+        // Slight stagger for organic feel
+        const stagger = noteIdx * 0.15
+
+        const timeoutId = setTimeout(() => {
+          // Use backgroundLow for warmer, deeper sound
+          if (this.ambientLayers && this.ambientLayers.backgroundLow) {
+            this.ambientLayers.backgroundLow.triggerAttackRelease(
+              frequency, duration, undefined, velocity
+            )
+          }
+        }, (delay + stagger) * 1000)
+
+        this.scheduledTimeouts.push(timeoutId)
+      })
+    })
+  }
+
+  /**
+   * Entry #181: Play Alberti bass pattern (broken chord: root-5th-3rd-5th)
+   */
+  _playAlbertiBass(accompaniment, beatDuration) {
+    // Entry #181b: Input validation
+    if (!accompaniment.chords || !Array.isArray(accompaniment.chords) || accompaniment.chords.length === 0) return
+
+    accompaniment.chords.forEach((chord, chordIndex) => {
+      if (!chord) return
+      const chordNotes = chord.voicing || this.buildChordFromName(chord.chord || 'C')
+      // Alberti bass requires at least 3 notes (root, 3rd, 5th)
+      if (!chordNotes || chordNotes.length < 3) return
+
+      // Alberti bass pattern: root-5th-3rd-5th (with octave down)
+      const pattern = [
+        chordNotes[0] - 12,  // Root (octave down)
+        chordNotes[2] - 12,  // 5th (octave down)
+        chordNotes[1] - 12,  // 3rd (octave down)
+        chordNotes[2] - 12   // 5th (octave down)
+      ]
+      const rhythm = chord.rhythm || [0.5, 0.5, 0.5, 0.5]
+
+      let currentBeat = chordIndex * 2
+      pattern.forEach((pitch, noteIdx) => {
+        const frequency = this.midiToFrequency(pitch)
+        const duration = rhythm[noteIdx % rhythm.length] * 0.9
+        const delay = currentBeat * beatDuration
+
+        const timeoutId = setTimeout(() => {
+          if (this.ambientLayers && this.ambientLayers.backgroundLow) {
+            this.ambientLayers.backgroundLow.triggerAttackRelease(
+              frequency, duration, undefined, 0.05
+            )
+          }
+        }, delay * 1000)
+
+        this.scheduledTimeouts.push(timeoutId)
+        currentBeat += rhythm[noteIdx % rhythm.length]
+      })
+    })
+  }
+
+  /**
+   * Entry #181: Play block chords (full voicings, legato)
+   */
+  _playBlockChords(accompaniment, beatDuration) {
+    // Entry #181b: Input validation
+    if (!accompaniment.chords || !Array.isArray(accompaniment.chords) || accompaniment.chords.length === 0) return
+
+    accompaniment.chords.forEach((chord, chordIndex) => {
+      if (!chord) return
+      const chordNotes = chord.voicing || this.buildChordFromName(chord.chord || 'C')
+      if (!chordNotes || chordNotes.length === 0) return
+      const rhythm = chord.rhythm || [1, 1, 1, 1]
+
+      let currentBeat = chordIndex * 4
+      rhythm.forEach((duration) => {
+        const delay = currentBeat * beatDuration
 
         chordNotes.forEach(pitch => {
           const frequency = this.midiToFrequency(pitch)
-          const duration = chord.duration || 4
+          // Legato: nearly full duration (95%)
+          const noteDuration = duration * 0.95
 
           const timeoutId = setTimeout(() => {
-            if (this.ambientLayers && this.ambientLayers.backgroundLow) {
-              this.ambientLayers.backgroundLow.triggerAttackRelease(
-                frequency, duration, undefined, 0.05
+            if (this.ambientLayers && this.ambientLayers.backgroundMid) {
+              this.ambientLayers.backgroundMid.triggerAttackRelease(
+                frequency, noteDuration, undefined, 0.06
               )
             }
           }, delay * 1000)
 
           this.scheduledTimeouts.push(timeoutId)
         })
+
+        currentBeat += duration
       })
-    }
+    })
   }
 
   /**

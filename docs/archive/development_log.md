@@ -2197,3 +2197,156 @@ All modules loaded successfully ✓
 v0.2.27
 
 ---
+
+## Entry #181 - Genre-Aware Melodic Generation & Accompaniment Type Fixes
+
+**Date**: 2026-01-25
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Comprehensive improvements to genre differentiation covering: (1) per-genre melodic strategies for user drags, (2) full accompaniment type support in both CompositionPlayer and AudioService, (3) genre propagation to DragStreamingHandler, and (4) code review fixes for input validation, race conditions, and timing issues.
+
+---
+
+### Problem Statement
+
+1. **Melodic generation ignored genre**: DragStreamingHandler used identical PHI-based intervals for all genres
+2. **Missing accompaniment types**: AudioService only handled 2 of 7 accompaniment types (arpeggio, chord_pads), silently dropping jazz_comping, rock_groove, ambient_pads, alberti_bass, block_chords
+3. **Genre not propagated**: DragStreamingHandler wasn't receiving genre updates from background compositions
+4. **Code quality issues**: Missing input validation, race conditions with delay nodes, negative timing values
+
+---
+
+### Solution
+
+#### Phase 3.1: GenreMelodicStrategies.js (NEW FILE)
+
+Created per-genre melodic behavior definitions:
+
+| Genre | Interval Range | Preferred Intervals | Note Repetition | Special Characteristics |
+|-------|----------------|---------------------|-----------------|------------------------|
+| electronic | fast:5, med:4, slow:3 | 0,3,5,7,12 | 35% | Arpeggiated, 16th notes |
+| ambient | fast:3, med:2, slow:2 | 0,2,5,7,12 | 60% | Minimal movement, long notes |
+| jazz | fast:7, med:5, slow:4 | 1,2,3,4,5,6 | 15% | Chromatic approaches, swing |
+| rock | fast:5, med:4, slow:3 | 0,2,3,5,7 | 25% | Pentatonic, power chord outlines |
+| classical | fast:4, med:3, slow:2 | 1,2 | 10% | Stepwise, strict voice leading |
+| pop | fast:5, med:4, slow:3 | 0,2,4,5,7 | 35% | Hook patterns, simple |
+| rhythmic | fast:4, med:3, slow:3 | 0,2,3,5 | 45% | Syncopation heavy, 16th notes |
+| experimental | fast:8, med:7, slow:6 | 1,4,6,7,11 | 30% | Wide leaps, dissonant |
+
+#### Phase 3.2: DragStreamingHandler Genre Awareness
+
+- Added `updateGenre(genre)` method
+- Modified `calculateScaleIndex()` to use genre-specific interval ranges and preferred intervals
+- Added `calculateMelodicNote()` method for main.js integration
+
+#### Phase 3.3: Genre Propagation in main.js
+
+- Added `dragStreamingHandler` property to WebarmoniumApp
+- Initialized DragStreamingHandler in `initializeServices()`
+- Added genre propagation on `background-composition` events:
+```javascript
+if (data.style?.dominantGenre && this.dragStreamingHandler) {
+  this.dragStreamingHandler.updateGenre(data.style.dominantGenre)
+}
+```
+
+#### Phase 4: Missing Accompaniment Types in AudioService
+
+Added 5 missing accompaniment handlers to `AudioService.playAccompaniment()`:
+
+| Type | Implementation |
+|------|----------------|
+| jazz_comping | Swing timing (delayed upbeats), anticipations, syncopation |
+| rock_groove | Backbeat accents (beats 2,4), power chord voicings |
+| ambient_pads | Staggered note entries, long sustains (8s+) |
+| alberti_bass | Broken chord pattern (root-5th-3rd-5th sequence) |
+| block_chords | Full voicings, 95% duration for legato |
+
+#### Code Review Fixes (Entry #181b)
+
+| Issue | Fix | File |
+|-------|-----|------|
+| Missing input validation | Added null/array checks to all 7 accompaniment handlers | CompositionPlayer.js |
+| Delay node race condition | Added `!this.delay.disposed` and property checks | UserSynthManager.js, AudioService.js |
+| Negative timing in jazz | Added `beatPosition >= 0.1` check before anticipation | CompositionPlayer.js |
+| Late joiner genre sync | Verified existing implementation handles this | (no change needed) |
+
+---
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `frontend/src/services/audio/GenreMelodicStrategies.js` | Per-genre melodic behavior definitions |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/handlers/DragStreamingHandler.js` | Added `updateGenre()`, genre-aware `calculateScaleIndex()`, `calculateMelodicNote()` |
+| `frontend/src/main.js` | Added dragStreamingHandler property, initialization, genre propagation |
+| `frontend/src/services/AudioService.js` | Added 5 missing accompaniment types, delay node checks |
+| `frontend/src/services/audio/CompositionPlayer.js` | Input validation, negative timing fixes |
+| `frontend/src/services/audio/UserSynthManager.js` | Delay node initialization checks |
+
+---
+
+### Technical Details
+
+#### PHI-Based Interval Selection
+
+```javascript
+function getPreferredInterval(genre, index) {
+  const strategy = getGenreMelodicStrategy(genre)
+  const intervals = strategy.preferredIntervals
+  const phiIndex = Math.floor((index * PHI) % intervals.length)
+  return intervals[phiIndex]
+}
+```
+
+#### Swing Implementation in AudioService
+
+```javascript
+// Jazz comping with 2:1 swing ratio
+const swingAmount = accompaniment.swingAmount || 0.67
+const swingDelay = (beatIndex % 2 === 1) ? swingAmount * 0.1 : 0
+const noteTime = chordStartTime + (beatIndex * beatDuration) + swingDelay
+```
+
+#### Race Condition Prevention
+
+```javascript
+if (synthParams && this.delay && !this.delay.disposed) {
+  try {
+    if (synthParams.delayFeedback !== undefined && this.delay.feedback) {
+      this.delay.feedback.rampTo(synthParams.delayFeedback, 0.5)
+    }
+  } catch (e) {
+    console.warn('[UserSynthManager] Delay parameter update failed:', e.message)
+  }
+}
+```
+
+---
+
+### Verification
+
+- Electronic drags produce arpeggiated patterns with octave jumps
+- Ambient drags produce minimal movement with long sustained notes
+- Jazz compositions include swing-timed comping with anticipations
+- Rock compositions include backbeat-accented power chords
+- All 7 accompaniment types now play audio (verified via console logs)
+- No race condition errors when rapidly changing genres
+
+---
+
+### Version
+
+v0.2.28
+
+---

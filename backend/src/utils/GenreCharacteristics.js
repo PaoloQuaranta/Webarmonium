@@ -51,13 +51,15 @@ const GENRE_CHARACTERISTICS = {
     swingAmount: 0,
     syncopation: 0.05,
     synthParams: {
-      filterCutoff: 600,    // Low-pass for warm, dark ambient timbre
-      filterQ: 0.3,         // Gentle slope for smooth texture
-      attackTime: 0.5,      // Slow attack for pad-like fade in
-      releaseTime: 2.0,     // Long release for sustained ambient notes
-      delaySend: 0.5,       // Spacious delay for depth
-      reverbSend: 0.7,      // Very wet for immersive atmosphere
-      reverbDecay: 4.0      // Long reverb tail for expansive space
+      filterCutoff: 500,    // Very low-pass for warm, dark ambient timbre
+      filterQ: 0.2,         // Very gentle slope for ultra-smooth texture
+      attackTime: 1.5,      // Entry #181: Very slow attack (was 0.5) for ethereal fade-in
+      releaseTime: 4.0,     // Entry #181: Very long release (was 2.0) for sustained ambient notes
+      delaySend: 0.6,       // Spacious delay for depth
+      delayFeedback: 0.55,  // Entry #181: Moderate feedback for cascading echoes
+      delayTime: 0.5,       // Entry #181: 500ms for spacious, tempo-disconnected echoes
+      reverbSend: 0.85,     // Entry #181: Very wet (was 0.7) for immersive atmosphere
+      reverbDecay: 10.0     // Entry #181: Very long reverb (was 4.0) for vast expansive space
     }
   },
 
@@ -104,13 +106,15 @@ const GENRE_CHARACTERISTICS = {
     swingAmount: 0,
     syncopation: 0.6,
     synthParams: {
-      filterCutoff: 3500,   // Bright, cutting through mix (synth lead characteristic)
-      filterQ: 2.5,         // Resonant peak for acid/303-style sounds
-      attackTime: 0.005,    // Near-instant attack for punchy transients
-      releaseTime: 0.1,     // Quick release for tight rhythmic precision
-      delaySend: 0.35,      // Rhythmic delay for groove enhancement
-      reverbSend: 0.15,     // Dry-ish, keeps rhythm tight
-      reverbDecay: 1.0      // Short reverb for clarity
+      filterCutoff: 4000,   // Entry #181: Brighter (was 3500), cutting through mix
+      filterQ: 6.0,         // Entry #181: High resonance (was 2.5) for acid/303-style squelch
+      attackTime: 0.002,    // Entry #181: Snappier (was 0.005) for punchy transients
+      releaseTime: 0.06,    // Entry #181: Tighter (was 0.1) for crisp rhythmic precision
+      delaySend: 0.45,      // Entry #181: More delay (was 0.35) for groove enhancement
+      delayFeedback: 0.75,  // Entry #181: High feedback for pronounced echo trails
+      delayTime: 0.15,      // Entry #181: 150ms for rhythmic, tempo-synced echoes
+      reverbSend: 0.12,     // Entry #181: Drier (was 0.15), keeps rhythm tight
+      reverbDecay: 0.8      // Entry #181: Shorter reverb (was 1.0) for clarity
     }
   },
 
@@ -165,6 +169,8 @@ const GENRE_CHARACTERISTICS = {
       attackTime: 0.015,    // Quick but not aggressive, piano-like
       releaseTime: 0.25,    // Natural decay for acoustic feel
       delaySend: 0.2,       // Light delay for depth
+      delayFeedback: 0.4,   // Entry #181: Moderate feedback for jazzy depth
+      delayTime: 0.3,       // Entry #181: 300ms for swung, triplet-feel echoes
       reverbSend: 0.35,     // Club/studio ambience
       reverbDecay: 1.8      // Medium reverb for jazz club feel
     }
@@ -216,12 +222,14 @@ const GENRE_CHARACTERISTICS = {
     syncopation: 0.4,              // Some push/pull but mostly on-beat
     synthParams: {
       filterCutoff: 2800,   // Bright and aggressive, guitar-like presence
-      filterQ: 1.8,         // Some edge/grit from resonance
-      attackTime: 0.008,    // Fast attack for punch and impact
-      releaseTime: 0.2,     // Tight release, keeps rhythm crisp
-      delaySend: 0.1,       // Minimal delay, keeps it raw
+      filterQ: 2.0,         // Entry #181: Slightly more edge (was 1.8) for grit
+      attackTime: 0.005,    // Entry #181: Faster (was 0.008) for punch and impact
+      releaseTime: 0.15,    // Entry #181: Tighter (was 0.2), keeps rhythm crisp
+      delaySend: 0.15,      // Entry #181: Slight slapback (was 0.1)
+      delayFeedback: 0.3,   // Entry #181: Low feedback for raw slapback feel
+      delayTime: 0.2,       // Entry #181: 200ms for slapback/rockabilly echo
       reverbSend: 0.2,      // Room sound, not washy
-      reverbDecay: 1.2      // Short reverb for live room feel
+      reverbDecay: 1.0      // Entry #181: Tighter room (was 1.2) for live feel
     }
   },
 
@@ -272,11 +280,13 @@ const GENRE_CHARACTERISTICS = {
     synthParams: {
       filterCutoff: 1400,   // Warm, not harsh - strings/piano territory
       filterQ: 0.5,         // Smooth, gentle resonance
-      attackTime: 0.06,     // Gentle attack for bowed/struck instruments
-      releaseTime: 0.5,     // Natural acoustic decay
+      attackTime: 0.08,     // Entry #181: Slightly slower (was 0.06) for bowed instruments
+      releaseTime: 0.6,     // Entry #181: Slightly longer (was 0.5) for natural decay
       delaySend: 0.08,      // Minimal delay, preserve clarity
-      reverbSend: 0.45,     // Concert hall ambience
-      reverbDecay: 2.5      // Long reverb for orchestral space
+      delayFeedback: 0.2,   // Entry #181: Very low feedback for subtle depth
+      delayTime: 0.25,      // Entry #181: 250ms for subtle concert hall echo
+      reverbSend: 0.5,      // Entry #181: More reverb (was 0.45) for concert hall
+      reverbDecay: 3.0      // Entry #181: Longer (was 2.5) for orchestral space
     }
   },
 
@@ -325,6 +335,8 @@ const GENRE_CHARACTERISTICS = {
       attackTime: 0.03,
       releaseTime: 0.4,
       delaySend: 0.25,
+      delayFeedback: 0.35,  // Entry #181: Moderate feedback for pop shimmer
+      delayTime: 0.28,      // Entry #181: 280ms for tempo-friendly echoes
       reverbSend: 0.35,
       reverbDecay: 1.8
     }
@@ -373,12 +385,14 @@ const GENRE_CHARACTERISTICS = {
     syncopation: 0.85,
     synthParams: {
       filterCutoff: 2500,
-      filterQ: 1.5,
-      attackTime: 0.01,
-      releaseTime: 0.15,
-      delaySend: 0.2,
-      reverbSend: 0.2,
-      reverbDecay: 1.0
+      filterQ: 1.8,         // Entry #181: More bite (was 1.5) for funk/groove edge
+      attackTime: 0.008,    // Entry #181: Snappier (was 0.01) for tight funk hits
+      releaseTime: 0.12,    // Entry #181: Tighter (was 0.15) for precise grooves
+      delaySend: 0.25,      // Entry #181: Slightly more (was 0.2) for rhythmic depth
+      delayFeedback: 0.5,   // Entry #181: Moderate-high for dub-influenced delays
+      delayTime: 0.12,      // Entry #181: 120ms for tight rhythmic echoes
+      reverbSend: 0.18,     // Entry #181: Slightly less (was 0.2) for clarity
+      reverbDecay: 0.8      // Entry #181: Tighter (was 1.0) for dry funk sound
     }
   },
 
@@ -424,12 +438,14 @@ const GENRE_CHARACTERISTICS = {
     syncopation: 0.6,
     synthParams: {
       filterCutoff: 1500,
-      filterQ: 3.0,
-      attackTime: 0.1,
-      releaseTime: 0.8,
-      delaySend: 0.5,
-      reverbSend: 0.5,
-      reverbDecay: 3.0
+      filterQ: 4.0,         // Entry #181: More extreme (was 3.0) for experimental resonance
+      attackTime: 0.15,     // Entry #181: Slower (was 0.1) for strange evolving attacks
+      releaseTime: 1.2,     // Entry #181: Longer (was 0.8) for textural sustain
+      delaySend: 0.55,      // Entry #181: More delay (was 0.5) for spacey effects
+      delayFeedback: 0.7,   // Entry #181: High feedback for self-oscillating potential
+      delayTime: 0.37,      // Entry #181: 370ms for off-grid, disorienting echoes
+      reverbSend: 0.55,     // Entry #181: More reverb (was 0.5) for texture
+      reverbDecay: 4.0      // Entry #181: Longer (was 3.0) for vast spaces
     }
   },
 
@@ -478,6 +494,8 @@ const GENRE_CHARACTERISTICS = {
       attackTime: 0.02,
       releaseTime: 0.3,
       delaySend: 0.25,
+      delayFeedback: 0.4,   // Entry #181: Moderate feedback for radio-friendly sheen
+      delayTime: 0.22,      // Entry #181: 220ms for tempo-synced pop echoes
       reverbSend: 0.3,
       reverbDecay: 1.5
     }
@@ -521,7 +539,7 @@ function getGenreCharacteristics(genre) {
       articulation: 'normal',
       swingAmount: 0,
       syncopation: 0.3,
-      synthParams: { filterCutoff: 1800, filterQ: 0.6, attackTime: 0.03, releaseTime: 0.4, delaySend: 0.2, reverbSend: 0.3 }
+      synthParams: { filterCutoff: 1800, filterQ: 0.6, attackTime: 0.03, releaseTime: 0.4, delaySend: 0.2, delayFeedback: 0.35, delayTime: 0.25, reverbSend: 0.3, reverbDecay: 1.5 }
     }
   }
   return DEFAULT_CHARACTERISTICS

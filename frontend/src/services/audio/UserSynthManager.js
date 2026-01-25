@@ -131,6 +131,21 @@ class UserSynthManager {
       }
     }
 
+    // Entry #181: Apply delay feedback and delay time to shared delay node
+    // Entry #181b: Add proper initialization checks to prevent race conditions
+    if (synthParams && this.delay && !this.delay.disposed) {
+      try {
+        if (synthParams.delayFeedback !== undefined && this.delay.feedback) {
+          this.delay.feedback.rampTo(synthParams.delayFeedback, 0.5)
+        }
+        if (synthParams.delayTime !== undefined && this.delay.delayTime) {
+          this.delay.delayTime.rampTo(synthParams.delayTime, 0.5)
+        }
+      } catch (e) {
+        // Delay may not be ready, ignore
+      }
+    }
+
     // console.log(`🎨 [Genre] Applied ${genre}: filter=${filterFreq}Hz Q=${filterQ}, attack=${envAttack}s`)
   }
 
