@@ -2641,6 +2641,7 @@ Full code review performed with 10 issues identified and fixed:
 | File | Changes |
 |------|---------|
 | `backend/src/services/VirtualUserService.js` | initialPositions, quadrantBias, hybrid position formula, gestureData metrics, NaN protection, removed triple fallback |
+| `backend/src/services/LandingCompositionService.js` | Same fixes for landing page: initialPositions, quadrantBias, hybrid position formula, gestureData metrics, NaN protection |
 | `backend/src/services/PhraseMorphology.js` | baseAmplitude increase, 2-octave range, contourRange, larger leaps, selectIntervalType with contourRange, MIDI clamping |
 
 ---
