@@ -1281,15 +1281,24 @@ class EnhancedGestureCapture {
     const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2)
     const normalizedSpeed = Math.min(speed, 1) // Clamp to max 1.0
 
-    // DURATION based on speed (rhythm variation)
-    let duration
-    if (normalizedSpeed > 0.6) {
-      duration = '32n'  // Very short for fast movement
-    } else if (normalizedSpeed > 0.3) {
-      duration = '16n'  // Short for medium movement
-    } else {
-      duration = '8n'   // Longer for slow movement
-    }
+    // Entry #171: DURATION based on speed (PRIMARY) + position variation (SUBTLE)
+    // Speed is PRIMARY factor: slow drag → long notes, fast drag → short notes
+    const durations = ['32n', '16n', '8n', '4n', '2n', '1n']
+    const PHI = 1.618033988749895
+
+    let baseDurationIndex
+    if (normalizedSpeed > 0.8) baseDurationIndex = 0      // Very fast → 32n
+    else if (normalizedSpeed > 0.6) baseDurationIndex = 1 // Fast → 16n
+    else if (normalizedSpeed > 0.4) baseDurationIndex = 2 // Medium → 8n
+    else if (normalizedSpeed > 0.2) baseDurationIndex = 3 // Slow → 4n
+    else if (normalizedSpeed > 0.1) baseDurationIndex = 4 // Very slow → 2n
+    else baseDurationIndex = 5                             // Extremely slow → 1n
+
+    // Position adds SUBTLE variation (±1 index max)
+    const positionPhase = (noteIndex * PHI) % 1
+    const positionVariation = Math.floor(positionPhase * 3) - 1 // -1, 0, or 1
+    const finalDurationIndex = Math.max(0, Math.min(durations.length - 1, baseDurationIndex + positionVariation))
+    const duration = durations[finalDurationIndex]
 
     // ARTICULATION: Independent compositional parameter
     // Use pattern for variation (will be influenced by collective metrics later)
