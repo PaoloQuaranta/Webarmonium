@@ -1,20 +1,30 @@
 /**
- * Genre weight sharpening exponent.
- * Higher values create more extreme differentiation between genres.
- * - 1.0 = no sharpening (linear)
- * - 2.0 = quadratic (moderate differentiation, recommended)
- * - 2.5+ = aggressive differentiation
+ * Genre profiles for continuous parameter space calculation.
+ * Each genre is a point in 4D space (energy, directionUniformity, regularity, pathComplexity).
+ * Genre weights are calculated as inverse distance from gesture parameters to each profile.
  *
- * With 8 genres normalized to sum=1.0, average weight is 0.125.
- * Sharpening amplifies leaders: e.g., 0.20 -> 0.28 (with exp 2.0)
+ * Entry #172: Replaced additive threshold-based calculation with distance-based approach
+ * for more natural genre emergence from gesture metrics.
  */
-const GENRE_SHARPENING_EXPONENT = 2.0
+const GENRE_PROFILES = {
+  ambient:      { energy: 0.20, directionUniformity: 0.70, regularity: 0.70, pathComplexity: 0.20 },
+  classical:    { energy: 0.35, directionUniformity: 0.75, regularity: 0.80, pathComplexity: 0.30 },
+  melodic:      { energy: 0.45, directionUniformity: 0.60, regularity: 0.60, pathComplexity: 0.40 },
+  jazz:         { energy: 0.55, directionUniformity: 0.35, regularity: 0.40, pathComplexity: 0.70 },
+  electronic:   { energy: 0.65, directionUniformity: 0.80, regularity: 0.90, pathComplexity: 0.30 },
+  rhythmic:     { energy: 0.70, directionUniformity: 0.65, regularity: 0.85, pathComplexity: 0.40 },
+  rock:         { energy: 0.80, directionUniformity: 0.60, regularity: 0.70, pathComplexity: 0.35 },
+  experimental: { energy: 0.50, directionUniformity: 0.20, regularity: 0.25, pathComplexity: 0.90 }
+}
 
 /**
- * Minimum total after sharpening to avoid underflow.
- * If sharpened weights sum to less than this, return uniform distribution.
+ * Gaussian falloff parameters for genre weight calculation.
+ * sigma controls how quickly weights drop off as distance from profile increases.
+ * Lower sigma = sharper falloff (more genre differentiation)
+ * Higher sigma = gentler falloff (more genre blending)
  */
-const SHARPENING_UNDERFLOW_THRESHOLD = 1e-10
+const GENRE_DISTANCE_SIGMA = 0.5
+const GAUSSIAN_FACTOR = 1 / (2 * GENRE_DISTANCE_SIGMA * GENRE_DISTANCE_SIGMA)  // = 2
 
 class StyleAnalyzer {
   constructor() {
@@ -100,13 +110,16 @@ class StyleAnalyzer {
       modalFlavor: this.detectModalFlavor(gestureArray)
     }
 
-    // Calculate genre weights
+    // Entry #172: Calculate direction uniformity from gesture directions
+    const directionUniformity = this.calculateDirectionUniformity(gestureArray)
+
+    // Entry #172: Calculate genre weights using continuous parameter space
+    // Uses 4 gestural parameters: energy, directionUniformity, regularity, pathComplexity
     const genreWeights = this.calculateGenreWeights(
       energy,
-      tempo,
-      rhythmicCharacter,
-      melodicCharacter,
-      harmonicComplexity
+      directionUniformity,
+      rhythmicCharacter.regularity,
+      harmonicComplexity.chromaticism  // pathComplexity derived from gesture chromaticism
     )
 
     const newStyle = {
@@ -677,130 +690,136 @@ class StyleAnalyzer {
     return 'mixolydian'  // Changed from dorian for variety
   }
 
-  calculateGenreWeights(energy, tempo, rhythmicCharacter, melodicCharacter, harmonicComplexity) {
-    const weights = {
-      ambient: 0,
-      rhythmic: 0,
-      melodic: 0,
-      experimental: 0,
-      jazz: 0,
-      classical: 0,
-      electronic: 0,
-      rock: 0
+  /**
+   * Entry #172: Calculate genre weights using continuous parameter space.
+   * Each genre is a point in 4D space. Weight = inverse distance from gesture point.
+   * Uses gaussian falloff for smooth transitions between genres.
+   *
+   * @param {number} energy - Gesture energy (0-1)
+   * @param {number} directionUniformity - How uniform gesture directions are (0-1)
+   * @param {number} regularity - Timing consistency (0-1)
+   * @param {number} pathComplexity - Gesture path complexity / chromaticism (0-1)
+   * @returns {Object} Genre weights (sum to 1.0)
+   */
+  calculateGenreWeights(energy, directionUniformity, regularity, pathComplexity) {
+    const gesturePoint = {
+      energy: Math.max(0, Math.min(1, energy || 0.5)),
+      directionUniformity: Math.max(0, Math.min(1, directionUniformity || 0.5)),
+      regularity: Math.max(0, Math.min(1, regularity || 0.5)),
+      pathComplexity: Math.max(0, Math.min(1, pathComplexity || 0.5))
     }
 
-    // Entry #166: Rebalanced genre weights - was melodic 19%, rock 22%, ambient 5%, jazz 7%
-    // Problem: easy conditions for melodic/rock, hard conditions for ambient/jazz
+    const weights = {}
 
-    // Ambient: low energy, slow tempo, regular rhythm
-    // Widened tempo range and added low syncopation path
-    weights.ambient += (1 - energy) * 0.35
-    weights.ambient += (tempo < 100 ? 0.25 : 0)  // Widened from <80
-    weights.ambient += (1 - rhythmicCharacter.syncopation) * 0.2  // Low syncopation = ambient
-    weights.ambient += rhythmicCharacter.regularity * 0.15
+    // Calculate weight for each genre based on distance from profile
+    Object.entries(GENRE_PROFILES).forEach(([genre, profile]) => {
+      const distance = this._euclideanDistance(gesturePoint, profile)
+      // Gaussian falloff: closer = higher weight
+      weights[genre] = Math.exp(-distance * distance * GAUSSIAN_FACTOR)
+    })
 
-    // Rhythmic: high energy, regular rhythm, strong tempo
-    weights.rhythmic += energy * 0.25
-    weights.rhythmic += rhythmicCharacter.regularity * 0.25
-    weights.rhythmic += (tempo > 110 ? 0.2 : 0)  // Lowered from 120
-    weights.rhythmic += rhythmicCharacter.syncopation * 0.15
-
-    // Melodic: clear contours, balanced intervals - REDUCED bias
-    // Was getting 0.51 guaranteed, now more conditional
-    weights.melodic += melodicCharacter.intervalProfile.step * 0.2  // Reduced from 0.3
-    weights.melodic += (melodicCharacter.contourType === 'ascending' || melodicCharacter.contourType === 'descending' ? 0.25 : 0)  // Specific contours only
-    weights.melodic += (1 - harmonicComplexity.chromaticism) * 0.15  // Diatonic = melodic
-
-    // Experimental: high chromaticism, irregular rhythm, complex contours
-    // Added more paths since chromaticism/dissonance are often low
-    weights.experimental += harmonicComplexity.chromaticism * 0.25
-    weights.experimental += (1 - rhythmicCharacter.regularity) * 0.2
-    weights.experimental += harmonicComplexity.dissonance * 0.2
-    weights.experimental += (melodicCharacter.contourType === 'complex' || melodicCharacter.contourType === 'wave' ? 0.2 : 0)  // Complex contours
-    weights.experimental += melodicCharacter.intervalProfile.leap * 0.2  // Large intervals = experimental
-
-    // Jazz: swing feel, moderate complexity - INCREASED paths
-    // Added more ways to reach jazz
-    weights.jazz += rhythmicCharacter.swing * 0.3  // Reduced from 0.4 but added other paths
-    weights.jazz += harmonicComplexity.dissonance * 0.25  // Increased from 0.2
-    weights.jazz += (tempo >= 90 && tempo <= 150 ? 0.2 : 0)  // Widened from 100-140
-    weights.jazz += melodicCharacter.intervalProfile.skip * 0.15  // Skips = jazz
-
-    // Classical: smooth contours, moderate tempo
-    weights.classical += (melodicCharacter.contourType === 'arch' || melodicCharacter.contourType === 'wave' || melodicCharacter.contourType === 'static') * 0.25
-    weights.classical += (tempo >= 50 && tempo <= 130 ? 0.25 : 0)  // Widened from 60-120
-    weights.classical += (1 - rhythmicCharacter.syncopation) * 0.2
-    weights.classical += melodicCharacter.intervalProfile.step * 0.15
-
-    // Electronic: regular rhythm, syncopation, energy variety
-    weights.electronic += rhythmicCharacter.regularity * 0.25
-    weights.electronic += rhythmicCharacter.syncopation * 0.25  // Increased from 0.2
-    weights.electronic += (energy > 0.4 ? 0.15 : 0)  // Lowered from 0.5
-    weights.electronic += (tempo > 100 ? 0.15 : 0)
-
-    // Rock: high energy, strong rhythm - REDUCED bias
-    // Was getting easy 0.5+, now more conditional
-    weights.rock += (energy > 0.5 ? energy * 0.3 : 0)  // Only high energy counts
-    weights.rock += (tempo >= 110 && tempo <= 150 ? 0.2 : 0)  // Narrowed from 100-160
-    weights.rock += rhythmicCharacter.regularity * 0.15
-    weights.rock += (1 - rhythmicCharacter.swing) * 0.15  // Low swing = rock
-
-    // Normalize weights to sum to 1
-    const total = Object.values(weights).reduce((sum, weight) => sum + weight, 0)
+    // Normalize to sum to 1.0
+    const total = Object.values(weights).reduce((sum, w) => sum + w, 0)
+    // Note: total should never be 0 since gaussian is always > 0, but kept for defensive programming
     if (total > 0) {
       Object.keys(weights).forEach(key => {
         weights[key] /= total
       })
+    } else {
+      // Fallback to uniform distribution (mathematically unreachable but defensive)
+      const uniform = 1.0 / Object.keys(GENRE_PROFILES).length
+      Object.keys(weights).forEach(key => {
+        weights[key] = uniform
+      })
     }
 
-    // Apply distribution sharpening to create more differentiated weights
-    const sharpened = this._sharpenDistribution(weights, GENRE_SHARPENING_EXPONENT)
-    return sharpened
+    return weights
   }
 
   /**
-   * Sharpens genre weight distribution using power function.
-   * Higher weights get amplified more, creating clearer genre differentiation.
+   * Entry #172: Calculate euclidean distance between two points in 4D parameter space.
+   * Used for genre weight calculation based on proximity to genre profiles.
    *
-   * Mathematical behavior:
-   * - Values < 0.5 are reduced (e.g., 0.2^2 = 0.04)
-   * - Values > 0.5 are reduced less (e.g., 0.8^2 = 0.64)
-   * - Creates wider spread between dominant and weak genres
-   *
-   * Example with exponent 2.0:
-   *   Input:  { jazz: 0.20, rock: 0.18, ambient: 0.15, ... }
-   *   Output: { jazz: 0.28, rock: 0.23, ambient: 0.16, ... }
-   *
-   * @param {Object} weights - Normalized genre weights (sum to 1.0)
-   * @param {number} exponent - Sharpening exponent (1.0 = no change, 2.0 = moderate)
-   * @returns {Object} Sharpened weights (still sum to 1.0)
+   * @param {Object} point1 - First point {energy, directionUniformity, regularity, pathComplexity}
+   * @param {Object} point2 - Second point (genre profile)
+   * @returns {number} Euclidean distance
    */
-  _sharpenDistribution(weights, exponent = GENRE_SHARPENING_EXPONENT) {
-    const keys = Object.keys(weights)
-    const sharpened = {}
+  _euclideanDistance(point1, point2) {
+    return Math.sqrt(
+      Math.pow(point1.energy - point2.energy, 2) +
+      Math.pow(point1.directionUniformity - point2.directionUniformity, 2) +
+      Math.pow(point1.regularity - point2.regularity, 2) +
+      Math.pow(point1.pathComplexity - point2.pathComplexity, 2)
+    )
+  }
 
-    // Apply power function, ensuring non-negative values
-    keys.forEach(key => {
-      sharpened[key] = Math.pow(Math.max(0, weights[key]), exponent)
-    })
-
-    const total = Object.values(sharpened).reduce((sum, w) => sum + w, 0)
-
-    // Underflow protection: if total is extremely small, return uniform distribution
-    if (total < SHARPENING_UNDERFLOW_THRESHOLD) {
-      const uniform = 1.0 / keys.length
-      keys.forEach(key => {
-        sharpened[key] = uniform
-      })
-      return sharpened
+  /**
+   * Entry #172: Calculate direction uniformity from gesture array.
+   * Uses circular mean resultant length (R-bar) to measure angular concentration.
+   * Vectors pointing the same direction sum constructively (R-bar → 1),
+   * uniformly distributed directions cancel out (R-bar → 0).
+   *
+   * @param {Array} gestures - Array of gesture objects
+   * @returns {number} Direction uniformity (0 = diverse directions, 1 = same direction)
+   */
+  calculateDirectionUniformity(gestures) {
+    if (!gestures || gestures.length < 2) {
+      return 0.5 // Default neutral value
     }
 
-    // Re-normalize to sum to 1.0
-    keys.forEach(key => {
-      sharpened[key] /= total
+    // Extract directions from gestures (angle in radians)
+    const directions = gestures.map(g => {
+      // Try to get direction from trajectory (with validation)
+      if (g.trajectory && g.trajectory.length >= 2) {
+        const start = g.trajectory[0]
+        const end = g.trajectory[g.trajectory.length - 1]
+        // Validate that start and end have required x,y properties
+        if (start?.x !== undefined && start?.y !== undefined &&
+            end?.x !== undefined && end?.y !== undefined) {
+          return Math.atan2(end.y - start.y, end.x - start.x)
+        }
+      }
+      // Try to get direction from position changes (with validation)
+      if (g.position && g.startPosition) {
+        if (g.position?.x !== undefined && g.position?.y !== undefined &&
+            g.startPosition?.x !== undefined && g.startPosition?.y !== undefined) {
+          return Math.atan2(g.position.y - g.startPosition.y, g.position.x - g.startPosition.x)
+        }
+      }
+      // Try to parse string direction
+      if (g.direction) {
+        return this._directionToAngle(g.direction)
+      }
+      // Default to 0
+      return 0
     })
 
-    return sharpened
+    // Calculate circular mean resultant length using vector averaging
+    const sinSum = directions.reduce((sum, d) => sum + Math.sin(d), 0)
+    const cosSum = directions.reduce((sum, d) => sum + Math.cos(d), 0)
+    const meanResultant = Math.sqrt(sinSum * sinSum + cosSum * cosSum) / directions.length
+
+    // meanResultant: 1 = all same direction, 0 = uniformly distributed
+    return meanResultant
+  }
+
+  /**
+   * Convert string direction to angle in radians.
+   * @param {string} direction - Direction string (up, down, left, right, diagonal-*)
+   * @returns {number} Angle in radians
+   */
+  _directionToAngle(direction) {
+    const directionMap = {
+      'up': -Math.PI / 2,
+      'down': Math.PI / 2,
+      'left': Math.PI,
+      'right': 0,
+      'diagonal-up-right': -Math.PI / 4,
+      'diagonal-up-left': -3 * Math.PI / 4,
+      'diagonal-down-right': Math.PI / 4,
+      'diagonal-down-left': 3 * Math.PI / 4
+    }
+    return directionMap[direction] || 0
   }
 
   evolveStyle(currentStyle, newAnalysis, gestureWeight = 0.5) {

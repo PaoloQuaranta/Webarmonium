@@ -195,115 +195,179 @@ describe('Musical Components Test Suite', () => {
       assert(['arch', 'inverted_arch', 'complex', 'neutral'].includes(archContour), `Should detect arch-type contour, got: ${archContour}`)
     })
 
-    it('should calculate genre weights based on analysis', () => {
-      const highEnergy = 0.8
-      const fastTempo = 140
-      const rhythmicChar = { swing: 0.2, syncopation: 0.3, regularity: 0.7 }
-      const melodicChar = { intervalProfile: { step: 0.5, skip: 0.3, leap: 0.2 }, contourType: 'arch', range: 12 }
-      const harmonicComplex = { chromaticism: 0.1, dissonance: 0.3, modalFlavor: 'major' }
+    it('should calculate genre weights based on 4D parameter space', () => {
+      // Entry #172: New distance-based genre weight calculation
+      // Parameters: energy, directionUniformity, regularity, curvature
+      const energy = 0.8
+      const directionUniformity = 0.6
+      const regularity = 0.7
+      const curvature = 0.35
 
       const genreWeights = styleAnalyzer.calculateGenreWeights(
-        highEnergy, fastTempo, rhythmicChar, melodicChar, harmonicComplex
+        energy, directionUniformity, regularity, curvature
       )
 
+      // All genres should have non-negative weights
       assert(genreWeights.rock >= 0, 'Rock weight should be non-negative')
       assert(genreWeights.electronic >= 0, 'Electronic weight should be non-negative')
       assert(genreWeights.jazz >= 0, 'Jazz weight should be non-negative')
       assert(genreWeights.classical >= 0, 'Classical weight should be non-negative')
       assert(genreWeights.ambient >= 0, 'Ambient weight should be non-negative')
+      assert(genreWeights.rhythmic >= 0, 'Rhythmic weight should be non-negative')
+      assert(genreWeights.melodic >= 0, 'Melodic weight should be non-negative')
+      assert(genreWeights.experimental >= 0, 'Experimental weight should be non-negative')
 
+      // Weights should sum to 1
       const total = Object.values(genreWeights).reduce((sum, weight) => sum + weight, 0)
       assert(Math.abs(total - 1) < 0.01, 'Genre weights should sum to 1')
     })
 
-    it('should sharpen distribution to create clearer genre differentiation', () => {
-      // Test the _sharpenDistribution method directly
-      const flatWeights = {
-        ambient: 0.125, rhythmic: 0.125, melodic: 0.125, experimental: 0.125,
-        jazz: 0.125, classical: 0.125, electronic: 0.125, rock: 0.125
-      }
+    it('should favor rock genre for high energy parameters', () => {
+      // Rock profile: { energy: 0.80, directionUniformity: 0.60, regularity: 0.70, curvature: 0.35 }
+      const weights = styleAnalyzer.calculateGenreWeights(0.80, 0.60, 0.70, 0.35)
 
-      const sharpened = styleAnalyzer._sharpenDistribution(flatWeights, 2.0)
-
-      // Uniform weights should remain uniform after sharpening
-      const sharpenedValues = Object.values(sharpened)
-      const total = sharpenedValues.reduce((sum, w) => sum + w, 0)
-      assert(Math.abs(total - 1) < 0.001, 'Sharpened weights should sum to 1')
-
-      // All values should be equal for uniform input
-      const firstValue = sharpenedValues[0]
-      sharpenedValues.forEach(v => {
-        assert(Math.abs(v - firstValue) < 0.001, 'Uniform input should produce uniform output')
-      })
+      // Rock should be among the top weighted genres for its profile point
+      const sortedGenres = Object.entries(weights).sort((a, b) => b[1] - a[1])
+      const topGenre = sortedGenres[0][0]
+      assert(topGenre === 'rock', `Expected rock to be top genre, got ${topGenre}`)
     })
 
-    it('should amplify differences when sharpening non-uniform weights', () => {
-      const unevenWeights = {
-        ambient: 0.05, rhythmic: 0.10, melodic: 0.12, experimental: 0.03,
-        jazz: 0.15, classical: 0.15, electronic: 0.20, rock: 0.20
-      }
+    it('should favor ambient genre for low energy and high regularity', () => {
+      // Ambient profile: { energy: 0.20, directionUniformity: 0.70, regularity: 0.70, curvature: 0.20 }
+      const weights = styleAnalyzer.calculateGenreWeights(0.20, 0.70, 0.70, 0.20)
 
-      const sharpened = styleAnalyzer._sharpenDistribution(unevenWeights, 2.0)
-
-      // Leaders (rock, electronic) should have increased share
-      const originalLeaderShare = unevenWeights.rock + unevenWeights.electronic
-      const sharpenedLeaderShare = sharpened.rock + sharpened.electronic
-      assert(sharpenedLeaderShare > originalLeaderShare,
-        `Leaders should gain share after sharpening: ${sharpenedLeaderShare.toFixed(3)} > ${originalLeaderShare.toFixed(3)}`)
-
-      // Weak genres (experimental, ambient) should have decreased share
-      const originalWeakShare = unevenWeights.experimental + unevenWeights.ambient
-      const sharpenedWeakShare = sharpened.experimental + sharpened.ambient
-      assert(sharpenedWeakShare < originalWeakShare,
-        `Weak genres should lose share after sharpening: ${sharpenedWeakShare.toFixed(3)} < ${originalWeakShare.toFixed(3)}`)
-
-      // Total should still sum to 1
-      const total = Object.values(sharpened).reduce((sum, w) => sum + w, 0)
-      assert(Math.abs(total - 1) < 0.001, 'Sharpened weights should sum to 1')
+      const sortedGenres = Object.entries(weights).sort((a, b) => b[1] - a[1])
+      const topGenre = sortedGenres[0][0]
+      assert(topGenre === 'ambient', `Expected ambient to be top genre, got ${topGenre}`)
     })
 
-    it('should handle edge case of very small weights without underflow', () => {
-      const tinyWeights = {
-        ambient: 0.001, rhythmic: 0.001, melodic: 0.001, experimental: 0.001,
-        jazz: 0.001, classical: 0.001, electronic: 0.001, rock: 0.993
-      }
+    it('should favor experimental genre for high curvature and low regularity', () => {
+      // Experimental profile: { energy: 0.50, directionUniformity: 0.20, regularity: 0.25, curvature: 0.90 }
+      const weights = styleAnalyzer.calculateGenreWeights(0.50, 0.20, 0.25, 0.90)
 
-      const sharpened = styleAnalyzer._sharpenDistribution(tinyWeights, 2.0)
+      const sortedGenres = Object.entries(weights).sort((a, b) => b[1] - a[1])
+      const topGenre = sortedGenres[0][0]
+      assert(topGenre === 'experimental', `Expected experimental to be top genre, got ${topGenre}`)
+    })
 
-      // Should not produce NaN or Infinity
-      Object.values(sharpened).forEach(w => {
-        assert(!isNaN(w), 'Sharpened weight should not be NaN')
-        assert(isFinite(w), 'Sharpened weight should be finite')
-        assert(w >= 0, 'Sharpened weight should be non-negative')
+    it('should produce different weights for different parameter combinations', () => {
+      // Test that different inputs produce different genre profiles
+      const rockWeights = styleAnalyzer.calculateGenreWeights(0.80, 0.60, 0.70, 0.35)
+      const ambientWeights = styleAnalyzer.calculateGenreWeights(0.20, 0.70, 0.70, 0.20)
+      const jazzWeights = styleAnalyzer.calculateGenreWeights(0.55, 0.35, 0.40, 0.70)
+
+      // The dominant genre should differ
+      const rockTop = Object.entries(rockWeights).sort((a, b) => b[1] - a[1])[0][0]
+      const ambientTop = Object.entries(ambientWeights).sort((a, b) => b[1] - a[1])[0][0]
+      const jazzTop = Object.entries(jazzWeights).sort((a, b) => b[1] - a[1])[0][0]
+
+      assert(rockTop !== ambientTop, 'Rock and ambient profiles should yield different top genres')
+      assert(rockTop !== jazzTop, 'Rock and jazz profiles should yield different top genres')
+    })
+
+    it('should handle edge case inputs gracefully', () => {
+      // Test with null/undefined values - should use defaults
+      const weightsWithNull = styleAnalyzer.calculateGenreWeights(null, undefined, 0.5, 0.5)
+
+      // Should produce valid weights (defaults to 0.5)
+      Object.values(weightsWithNull).forEach(w => {
+        assert(!isNaN(w), 'Weight should not be NaN')
+        assert(isFinite(w), 'Weight should be finite')
+        assert(w >= 0, 'Weight should be non-negative')
       })
 
-      // Total should sum to 1
-      const total = Object.values(sharpened).reduce((sum, w) => sum + w, 0)
-      assert(Math.abs(total - 1) < 0.001, 'Sharpened weights should sum to 1')
+      const total = Object.values(weightsWithNull).reduce((sum, w) => sum + w, 0)
+      assert(Math.abs(total - 1) < 0.001, 'Weights should sum to 1')
     })
 
-    it('should produce weights that can trigger genre-specific thresholds', () => {
-      // Ambient-like gesture should produce dominant ambient weight
-      const ambientWeights = styleAnalyzer.calculateGenreWeights(
-        0.15,  // very low energy
-        55,    // slow tempo
-        { swing: 0.1, syncopation: 0.1, regularity: 0.8 },
-        { intervalProfile: { step: 0.7, skip: 0.2, leap: 0.1 }, contourType: 'static', range: 5 },
-        { chromaticism: 0.05, dissonance: 0.1, modalFlavor: 'lydian' }
-      )
+    it('should calculate direction uniformity from gestures', () => {
+      // Gestures with same direction should have high uniformity
+      const sameDirectionGestures = [
+        { trajectory: [{ x: 0, y: 0 }, { x: 1, y: 0 }] },  // right
+        { trajectory: [{ x: 0, y: 0 }, { x: 1, y: 0 }] },  // right
+        { trajectory: [{ x: 0, y: 0 }, { x: 1, y: 0 }] }   // right
+      ]
+      const highUniformity = styleAnalyzer.calculateDirectionUniformity(sameDirectionGestures)
+      assert(highUniformity > 0.9, `Same direction should have uniformity > 0.9, got ${highUniformity}`)
 
-      const sortedWeights = Object.entries(ambientWeights).sort((a, b) => b[1] - a[1])
+      // Gestures with varied directions should have lower uniformity
+      const variedDirectionGestures = [
+        { trajectory: [{ x: 0, y: 0 }, { x: 1, y: 0 }] },  // right
+        { trajectory: [{ x: 0, y: 0 }, { x: 0, y: 1 }] },  // down
+        { trajectory: [{ x: 0, y: 0 }, { x: -1, y: 0 }] }, // left
+        { trajectory: [{ x: 0, y: 0 }, { x: 0, y: -1 }] }  // up
+      ]
+      const lowUniformity = styleAnalyzer.calculateDirectionUniformity(variedDirectionGestures)
+      assert(lowUniformity < 0.5, `Varied directions should have uniformity < 0.5, got ${lowUniformity}`)
+    })
+
+    it('should produce genre differentiation from distinct parameter profiles', () => {
+      // Electronic profile: { energy: 0.65, directionUniformity: 0.80, regularity: 0.90, pathComplexity: 0.30 }
+      const electronicWeights = styleAnalyzer.calculateGenreWeights(0.65, 0.80, 0.90, 0.30)
+
+      const sortedWeights = Object.entries(electronicWeights).sort((a, b) => b[1] - a[1])
       const [topGenre, topWeight] = sortedWeights[0]
-      const [secondGenre, secondWeight] = sortedWeights[1]
+      const [, secondWeight] = sortedWeights[1]
 
       // Top genre should have meaningful lead over second
-      const leadRatio = topWeight / secondWeight
-      assert(leadRatio > 1.1, `Top genre should lead by at least 10%: ${topGenre}=${topWeight.toFixed(3)} vs ${secondGenre}=${secondWeight.toFixed(3)}`)
+      assert(topWeight > secondWeight, `Top genre should lead: ${topGenre}=${topWeight.toFixed(3)}`)
 
-      // With strongly characterized gestures, top weight should be able to reach threshold (0.35)
-      // This test documents expected behavior - ambient gestures should produce high ambient weights
-      assert(ambientWeights.ambient > 0.25 || ambientWeights.classical > 0.25,
-        'Ambient-like gesture should produce dominant ambient or classical weight above 0.25')
+      // Electronic should be dominant for its profile
+      assert(topGenre === 'electronic', `Expected electronic to be top, got ${topGenre}`)
+    })
+
+    it('should calculate euclidean distance accurately', () => {
+      // Test distance from origin to (1,1,1,1) should be 2
+      const origin = { energy: 0, directionUniformity: 0, regularity: 0, pathComplexity: 0 }
+      const corner = { energy: 1, directionUniformity: 1, regularity: 1, pathComplexity: 1 }
+      const distance = styleAnalyzer._euclideanDistance(origin, corner)
+      assert(Math.abs(distance - 2.0) < 0.001, `Distance from origin to (1,1,1,1) should be 2, got ${distance}`)
+
+      // Test distance between same point should be 0
+      const samePoint = { energy: 0.5, directionUniformity: 0.5, regularity: 0.5, pathComplexity: 0.5 }
+      const zeroDistance = styleAnalyzer._euclideanDistance(samePoint, samePoint)
+      assert(zeroDistance === 0, `Distance between same point should be 0, got ${zeroDistance}`)
+    })
+
+    it('should yield high weight at exact genre profile point', () => {
+      // Rock profile: { energy: 0.80, directionUniformity: 0.60, regularity: 0.70, pathComplexity: 0.35 }
+      const weights = styleAnalyzer.calculateGenreWeights(0.80, 0.60, 0.70, 0.35)
+      // At exact profile point, rock should have the highest weight
+      const sortedGenres = Object.entries(weights).sort((a, b) => b[1] - a[1])
+      assert(sortedGenres[0][0] === 'rock', `Rock should be top at its profile, got ${sortedGenres[0][0]}`)
+    })
+
+    it('should handle direction uniformity with single gesture', () => {
+      const singleGesture = [{ trajectory: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }]
+      const uniformity = styleAnalyzer.calculateDirectionUniformity(singleGesture)
+      assert.strictEqual(uniformity, 0.5, 'Single gesture should return default 0.5')
+    })
+
+    it('should handle direction uniformity with stationary gestures', () => {
+      // Gestures where start and end are the same position (no movement)
+      const stationaryGestures = [
+        { trajectory: [{ x: 0.5, y: 0.5 }, { x: 0.5, y: 0.5 }] },
+        { trajectory: [{ x: 0.3, y: 0.3 }, { x: 0.3, y: 0.3 }] }
+      ]
+      const uniformity = styleAnalyzer.calculateDirectionUniformity(stationaryGestures)
+      // Should not throw and should return a valid number
+      assert(!isNaN(uniformity), 'Stationary gestures should not produce NaN')
+      assert(uniformity >= 0 && uniformity <= 1, 'Uniformity should be in [0,1] range')
+    })
+
+    it('should handle malformed trajectory data gracefully', () => {
+      // Gestures with missing or malformed trajectory data
+      const malformedGestures = [
+        { trajectory: [{ x: 0 }, { y: 1 }] },  // Missing properties
+        { trajectory: [{ x: 0, y: 0 }] },       // Only one point
+        { position: { x: 1, y: 1 } },           // No startPosition
+        { direction: 'up' },                    // String direction
+        {}                                      // Empty object
+      ]
+      const uniformity = styleAnalyzer.calculateDirectionUniformity(malformedGestures)
+      // Should not throw and should return a valid number
+      assert(!isNaN(uniformity), 'Malformed data should not produce NaN')
+      assert(uniformity >= 0 && uniformity <= 1, 'Uniformity should be in [0,1] range')
     })
   })
 

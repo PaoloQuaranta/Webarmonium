@@ -1177,7 +1177,7 @@ v0.2.9
 
 ---
 
-## Entry #172 - Genre Weight Balance and Differentiation
+## Entry #172 - Genre Weight via Continuous Parameter Space
 
 **Date**: 2026-01-25
 **Author**: Claude Code (AI Assistant)
@@ -1185,115 +1185,128 @@ v0.2.9
 
 ### Summary
 
-Improved genre weight calculation to produce more differentiated weights and enable genre-specific music generation. Previously, genre weights clustered in the 0.10-0.20 range due to normalization across 8 genres, making the 0.7 threshold for genre-specific progressions unreachable.
+Replaced additive threshold-based genre weight calculation with a continuous 4D parameter space approach. Each genre is a point in parameter space, and weights are calculated using Euclidean distance with Gaussian falloff. This produces natural genre emergence from gesture metrics with meaningful variety and alternating dominance.
 
 ---
 
 ### Problem Statement
 
-Monitoring the composition system revealed:
-1. **Genre weights too similar** - All 8 genres hovering around 0.12-0.18
-2. **Genre-specific music never triggered** - 0.7 threshold was unreachable
-3. **Slow style evolution** - 50% smoothing factor made changes too gradual
-4. **Low gesture influence** - Weak gestures had almost no effect on style
+The initial sharpening approach (exponent 2.0) made the problem WORSE:
+- Dominant genres became more dominant
+- Rare genres got crushed
+- No variety or alternating dominance
 
-| Metric | Before | Issue |
-|--------|--------|-------|
-| Typical leader weight | 0.15-0.20 | Too low for 0.7 threshold |
-| Genre activation rate | ~0% | Threshold never reached |
-| Style responsiveness | 25% influence | Too slow to react |
+User feedback: "non voglio soluzioni meccaniche" - genres should emerge naturally from gesture metrics, not from artificial amplification.
+
+Issues with previous approach:
+1. **Conditions too composite** - Multiple thresholds rarely triggered together
+2. **Compositional parameters** - Used tempo, swing instead of gestural metrics
+3. **No natural emergence** - Genres didn't reflect actual gesture characteristics
 
 ---
 
-### Solution
+### Solution: 4D Continuous Parameter Space
 
-#### 1. Distribution Sharpening
+#### Genre Profiles
 
-**File**: `backend/src/services/StyleAnalyzer.js`
+Each genre is a point in 4D space with gestural parameters:
 
-Added power function to amplify weight differences after normalization:
+| Genre | energy | directionUniformity | regularity | pathComplexity |
+|-------|--------|---------------------|------------|----------------|
+| Ambient | 0.20 | 0.70 | 0.70 | 0.20 |
+| Classical | 0.35 | 0.75 | 0.80 | 0.30 |
+| Melodic | 0.45 | 0.60 | 0.60 | 0.40 |
+| Jazz | 0.55 | 0.35 | 0.40 | 0.70 |
+| Electronic | 0.65 | 0.80 | 0.90 | 0.30 |
+| Rhythmic | 0.70 | 0.65 | 0.85 | 0.40 |
+| Rock | 0.80 | 0.60 | 0.70 | 0.35 |
+| Experimental | 0.50 | 0.20 | 0.25 | 0.90 |
+
+#### Distance-Based Weight Calculation
 
 ```javascript
-const GENRE_SHARPENING_EXPONENT = 2.0
-const SHARPENING_UNDERFLOW_THRESHOLD = 1e-10
+const GENRE_DISTANCE_SIGMA = 0.5
+const GAUSSIAN_FACTOR = 1 / (2 * GENRE_DISTANCE_SIGMA * GENRE_DISTANCE_SIGMA)
 
-_sharpenDistribution(weights, exponent = GENRE_SHARPENING_EXPONENT) {
-  const keys = Object.keys(weights)
-  const sharpened = {}
+calculateGenreWeights(energy, directionUniformity, regularity, pathComplexity) {
+  const gesturePoint = { energy, directionUniformity, regularity, pathComplexity }
+  const weights = {}
 
-  // Apply power function, ensuring non-negative values
-  keys.forEach(key => {
-    sharpened[key] = Math.pow(Math.max(0, weights[key]), exponent)
+  Object.entries(GENRE_PROFILES).forEach(([genre, profile]) => {
+    const distance = this._euclideanDistance(gesturePoint, profile)
+    weights[genre] = Math.exp(-distance * distance * GAUSSIAN_FACTOR)
   })
 
-  const total = Object.values(sharpened).reduce((sum, w) => sum + w, 0)
-
-  // Underflow protection
-  if (total < SHARPENING_UNDERFLOW_THRESHOLD) {
-    const uniform = 1.0 / keys.length
-    keys.forEach(key => sharpened[key] = uniform)
-    return sharpened
-  }
-
-  // Re-normalize
-  keys.forEach(key => sharpened[key] /= total)
-  return sharpened
+  // Normalize to sum to 1.0
+  const total = Object.values(weights).reduce((sum, w) => sum + w, 0)
+  Object.keys(weights).forEach(key => weights[key] /= total)
+  return weights
 }
 ```
 
-**Mathematical Effect**:
-- Input: `[0.20, 0.18, 0.15, 0.12, ...]`
-- Output: `[0.28, 0.23, 0.16, 0.10, ...]`
-- Leader advantage amplified from 1.11x to 1.23x
+#### Direction Uniformity Calculation
 
-#### 2. Reduced Smoothing Factor
-
-Changed `smoothingFactor` from 0.5 to 0.3:
-- Before: 50% new influence for initial gestures
-- After: 70% new influence for initial gestures
-
-#### 3. Minimum Alpha Floor
-
-Added floor to ensure weak gestures still have effect:
+New method using circular mean resultant length:
 
 ```javascript
-const alpha = Math.max(0.15, baseAlpha * gestureWeight)
+calculateDirectionUniformity(gestures) {
+  // Extract direction angles from gesture trajectories
+  const directions = gestures.map(g => /* angle from trajectory */)
+
+  // Calculate circular variance
+  const sinSum = directions.reduce((sum, d) => sum + Math.sin(d), 0)
+  const cosSum = directions.reduce((sum, d) => sum + Math.cos(d), 0)
+  return Math.sqrt(sinSum² + cosSum²) / directions.length
+}
 ```
-
-#### 4. Lowered Genre Thresholds
-
-**Files**: `HarmonicEngine.js`, `CounterpointEngine.js`
-
-Changed all genre activation thresholds from 0.7 to 0.35:
-
-```javascript
-// Before
-if (genreWeights.jazz > 0.7) { ... }
-
-// After
-if (genreWeights.jazz > 0.35) { ... }
-```
-
-This enables genre-specific progressions and timbres when a genre has clear dominance.
 
 ---
 
-### Code Review Improvements
+### Virtual User Gesture Improvements
 
-Based on code review feedback, added:
+To ensure virtual users also produce varied genre weights:
 
-1. **Named constants** with documentation
-2. **Underflow protection** for edge cases
-3. **Comprehensive tests** for sharpening behavior
+#### 1. Curved Trajectories
 
-#### Tests Added
+Added metric-based sinusoidal curve offsets to virtual user trajectories:
 
-**File**: `backend/tests/unit/test_musical_components.test.js`
+```javascript
+_calculateCurveAmount(source) {
+  const metrics = this.webMetricsPoller?.getMetrics()
+  const velocity = metrics[source]?.velocityNorm ?? 0.5
+  return (velocity - 0.5) * 0.4  // Range: -0.2 to +0.2
+}
+```
 
-- `should sharpen distribution to create clearer genre differentiation`
-- `should amplify differences when sharpening non-uniform weights`
-- `should handle edge case of very small weights without underflow`
-- `should produce weights that can trigger genre-specific thresholds`
+#### 2. Temporal Jitter
+
+Replaced `Math.random()` with deterministic PHI-based jitter:
+
+```javascript
+const totalGestureCount = Object.values(this.gestureCounters).reduce((sum, c) => sum + c, 0)
+const jitterPhase = (totalGestureCount * PHI) % 1
+jitter = (jitterPhase - 0.5) * jitterRange
+```
+
+#### 3. Cursor/Audio Coherence
+
+Note positions now follow the same curved path as cursor trajectory for visual/audio alignment.
+
+---
+
+### Code Review Fixes
+
+7 issues identified and fixed:
+
+| # | Priority | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | High | Missing input validation in `calculateDirectionUniformity()` | Added `?.x !== undefined` checks |
+| 2 | High | Magic number `4` in gaussian falloff | Extracted `GENRE_DISTANCE_SIGMA` and `GAUSSIAN_FACTOR` constants |
+| 3 | High | Division by zero edge case | Added explicit `lenSq > 0` check |
+| 4 | Medium | Non-deterministic jitter | Replaced `Math.random()` with PHI-based variation |
+| 5 | Medium | Duplicate curve calculation | Extracted `_calculateCurveAmount()` helper |
+| 6 | Medium | Missing unit tests | Added 5 tests for distance and edge cases |
+| 7 | Medium | Naming inconsistency | Renamed `curvature` → `pathComplexity` |
 
 ---
 
@@ -1301,28 +1314,34 @@ Based on code review feedback, added:
 
 | File | Changes |
 |------|---------|
-| `backend/src/services/StyleAnalyzer.js` | Added constants, `_sharpenDistribution()`, reduced smoothing, alpha floor |
-| `backend/src/services/HarmonicEngine.js` | Lowered thresholds 0.7 → 0.35 (lines 257-267, 363-373) |
-| `backend/src/services/CounterpointEngine.js` | Lowered thresholds 0.7 → 0.35 (lines 1092-1100) |
-| `backend/tests/unit/test_musical_components.test.js` | Added 5 new tests for sharpening |
+| `backend/src/services/StyleAnalyzer.js` | `GENRE_PROFILES`, `calculateGenreWeights()` with distance, `calculateDirectionUniformity()`, `_euclideanDistance()` |
+| `backend/src/services/VirtualUserService.js` | `_calculateCurveAmount()`, curved trajectories, PHI jitter, cursor coherence |
+| `backend/tests/unit/test_musical_components.test.js` | Updated tests for 4-parameter signature, added edge case tests |
 
 ---
 
-### Expected Results
+### Verification Results
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Typical leader weight | 0.15-0.20 | 0.28-0.40 |
-| Genre-specific activation | ~0% | ~30-40% |
-| Style responsiveness | 25% influence | 50-70% influence |
+```
+Genre Weight Tests:
+==================
+ROCK params -> Top: rock (25.0%), Sum: 1.0000
+AMBIENT params -> Top: ambient (29.4%), Sum: 1.0000
+JAZZ params -> Top: jazz (34.4%), Sum: 1.0000
+EXPERIMENTAL params -> Top: experimental (51.3%), Sum: 1.0000
 
-**Example**: Ambient-like gestures now produce 44% ambient weight, triggering ambient-specific progressions.
+Direction Uniformity Tests:
+===========================
+Same direction: 1.000
+Varied directions: 0.000
+Partial variation: 0.930
+```
 
 ---
 
 ### Version
 
-v0.2.11
+v0.2.15
 
 ---
 

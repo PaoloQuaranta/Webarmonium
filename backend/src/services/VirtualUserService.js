@@ -514,7 +514,29 @@ class VirtualUserService {
     const beatsPerComposition = 24 - (avgActivity * 8)  // 16-24 beats, emerges from activity
 
     const beatDuration = 60000 / tempo  // milliseconds per beat
-    const interval = beatsPerComposition * beatDuration
+    const baseInterval = beatsPerComposition * beatDuration
+
+    // Entry #172: Add temporal jitter based on metric variance for regularity variation
+    // Uses deterministic PHI-based variation instead of Math.random() for reproducibility
+    const metrics = this.webMetricsPoller?.getMetrics()
+    let jitter = 0
+    if (metrics) {
+      const velocities = [
+        metrics.wikipedia?.velocityNorm ?? 0.5,
+        metrics.hackernews?.velocityNorm ?? 0.5,
+        metrics.github?.velocityNorm ?? 0.5
+      ]
+      // Calculate variance of velocities
+      const mean = velocities.reduce((sum, v) => sum + v, 0) / velocities.length
+      const variance = velocities.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / velocities.length
+      // Jitter proportional to variance (±30% max)
+      const jitterRange = variance * baseInterval * 0.6
+      // Use PHI for deterministic pseudo-randomness based on gesture counter sum
+      const totalGestureCount = Object.values(this.gestureCounters).reduce((sum, c) => sum + c, 0)
+      const jitterPhase = (totalGestureCount * VirtualUserService.PHI) % 1
+      jitter = (jitterPhase - 0.5) * jitterRange
+    }
+    const interval = baseInterval + jitter
 
     // Clamp to reasonable bounds (8-20 seconds) - increased from 4-15s
     const clampedInterval = Math.max(8000, Math.min(20000, interval))
@@ -930,16 +952,37 @@ class VirtualUserService {
       }, pos.timeOffset)
     })
 
-    // 6. Emit notes with HYBRID positions
+    // Entry #172: Calculate curve parameters for note position coherence
+    // Note positions must use same curve as cursor trajectory for visual/audio alignment
+    const curveAmount = this._calculateCurveAmount(source)
+
+    // Calculate perpendicular direction for curve offset
+    const endPosition = this._calculateHybridPosition(source, endFreq)
+    const curveDx = endPosition.x - startPosition.x
+    const curveDy = endPosition.y - startPosition.y
+    // Explicit check for zero length to prevent division by zero
+    const curveLenSq = curveDx * curveDx + curveDy * curveDy
+    const curveLen = curveLenSq > 0 ? Math.sqrt(curveLenSq) : 1
+    const curvePerpX = -curveDy / curveLen
+    const curvePerpY = curveDx / curveLen
+
+    // 6. Emit notes with HYBRID positions + curve offset
     // - audioFreq for sound (tessitura-constrained)
-    // - positionFreq + golden ratio stepIndex for cursor variation
+    // - positionFreq + golden ratio stepIndex + curve offset for cursor coherence
     noteData.forEach((note, noteIndex) => {
       setTimeout(() => {
         if (!this.activeRooms.has(roomId)) return
 
         // Get HYBRID position with noteIndex for golden ratio spacing
-        // Uses different step offset than trajectory for additional variation
-        const notePosition = this._calculateHybridPosition(source, note.positionFreq, noteIndex + 100)
+        const basePosition = this._calculateHybridPosition(source, note.positionFreq, noteIndex + 100)
+
+        // Entry #172: Apply same curve offset as trajectory for coherence
+        const t = phraseDurationMs > 0 ? note.startDelayMs / phraseDurationMs : 0
+        const noteOffset = Math.sin(t * Math.PI) * curveAmount
+        const notePosition = {
+          x: Math.max(0.05, Math.min(0.95, basePosition.x + curvePerpX * noteOffset)),
+          y: Math.max(0.05, Math.min(0.95, basePosition.y + curvePerpY * noteOffset))
+        }
 
         this.io.to(roomId).emit('hold:start', {
           type: 'hold:start',
@@ -1030,6 +1073,31 @@ class VirtualUserService {
       wikipedia: { normalized: Math.min(1, (raw.wikipedia?.editsPerMinute || 0) / 50) },
       hackernews: { normalized: Math.min(1, (raw.hackernews?.postsPerMinute || 0) / 5) },
       github: { normalized: Math.min(1, (raw.github?.commitsPerMinute || 0) / 30) }
+    }
+  }
+
+  /**
+   * Entry #172: Calculate curve amount based on source metrics.
+   * Used for generating curved trajectories that vary based on web activity.
+   * Extracted to avoid code duplication between trajectory generation and note positioning.
+   *
+   * @param {string} source - Source name (wikipedia, hackernews, github)
+   * @returns {number} Curve amount (-0.2 to +0.2)
+   * @private
+   */
+  _calculateCurveAmount(source) {
+    const metrics = this.webMetricsPoller?.getMetrics()
+    if (!metrics) return 0
+
+    const wikiVel = metrics.wikipedia?.velocityNorm ?? 0.5
+    const hnVel = metrics.hackernews?.velocityNorm ?? 0.5
+    const ghVel = metrics.github?.velocityNorm ?? 0.5
+
+    switch (source) {
+      case 'wikipedia': return (wikiVel - 0.5) * 0.4
+      case 'hackernews': return (hnVel - 0.5) * 0.4
+      case 'github': return (ghVel - 0.5) * 0.4
+      default: return ((wikiVel + hnVel + ghVel) / 3 - 0.5) * 0.4
     }
   }
 
@@ -1266,6 +1334,7 @@ class VirtualUserService {
    * Generate trajectory for drag gesture using GOLDEN RATIO distribution:
    * - Interpolate frequency between start and end
    * - Each step gets unique stepIndex for optimal position spacing
+   * - Entry #172: Added curve variation based on metrics for non-linear paths
    * - Reduced emission rate (100ms) to avoid trail spam
    *
    * @param {string} source - Source name
@@ -1280,6 +1349,22 @@ class VirtualUserService {
     const steps = Math.max(1, Math.ceil(durationMs / intervalMs))
     const positions = []
 
+    // Entry #172: Get curve amount for varied trajectories
+    const curveAmount = this._calculateCurveAmount(source)
+
+    // Calculate start and end positions for perpendicular offset calculation
+    const startPos = this._calculateHybridPosition(source, startFreq, 0)
+    const endPos = this._calculateHybridPosition(source, endFreq, steps)
+    const dx = endPos.x - startPos.x
+    const dy = endPos.y - startPos.y
+    // Explicit check for zero length to prevent division by zero
+    const lenSq = dx * dx + dy * dy
+    const len = lenSq > 0 ? Math.sqrt(lenSq) : 1
+
+    // Perpendicular direction (normalized)
+    const perpX = -dy / len
+    const perpY = dx / len
+
     for (let i = 0; i <= steps; i++) {
       const t = steps > 0 ? i / steps : 0
       // Ease-in-out for natural feel
@@ -1291,9 +1376,13 @@ class VirtualUserService {
       // Pass stepIndex (i) for golden ratio variation within trajectory
       const pos = this._calculateHybridPosition(source, currentFreq, i)
 
+      // Entry #172: Add perpendicular curve offset (sinusoidal curve)
+      // Maximum curve at middle of trajectory (t=0.5)
+      const curveOffset = Math.sin(t * Math.PI) * curveAmount
+
       positions.push({
-        x: pos.x,
-        y: pos.y,
+        x: Math.max(0.05, Math.min(0.95, pos.x + perpX * curveOffset)),
+        y: Math.max(0.05, Math.min(0.95, pos.y + perpY * curveOffset)),
         timeOffset: i * intervalMs
       })
     }
