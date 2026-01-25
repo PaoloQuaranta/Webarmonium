@@ -23,8 +23,8 @@ const GENRE_PROFILES = {
  * Lower sigma = sharper falloff (more genre differentiation)
  * Higher sigma = gentler falloff (more genre blending)
  */
-const GENRE_DISTANCE_SIGMA = 0.5
-const GAUSSIAN_FACTOR = 1 / (2 * GENRE_DISTANCE_SIGMA * GENRE_DISTANCE_SIGMA)  // = 2
+const GENRE_DISTANCE_SIGMA = 0.15
+const GAUSSIAN_FACTOR = 1 / (2 * GENRE_DISTANCE_SIGMA * GENRE_DISTANCE_SIGMA)  // = 22.22
 
 class StyleAnalyzer {
   constructor() {
