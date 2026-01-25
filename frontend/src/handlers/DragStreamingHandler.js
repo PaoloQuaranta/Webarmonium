@@ -6,6 +6,10 @@
 
 // Entry #173 fix: Extract magic numbers to named constants
 const MELODIC_CONFIG = {
+  // Mathematical constants (scoped to avoid conflict with GenerativeMusicEngine.js)
+  PHI: 1.618033988749895,
+  PHI_SQ: 2.618033988749895,
+
   // Memory sizes
   SHORT_MEMORY_SIZE: 8,
   LONG_MEMORY_SIZE: 24,
@@ -31,10 +35,6 @@ const MELODIC_CONFIG = {
     MEDIUM: 0.4
   }
 }
-
-// Mathematical constants
-const PHI = 1.618033988749895
-const PHI_SQ = 2.618033988749895
 
 class DragStreamingHandler {
   constructor(audioService, compositionalParameters = null) {
@@ -251,13 +251,13 @@ class DragStreamingHandler {
     }
 
     // Phase accumulator (never resets during drag)
-    this.melodicMemory.phaseAccumulator = (this.melodicMemory.phaseAccumulator || 0) + PHI
+    this.melodicMemory.phaseAccumulator = (this.melodicMemory.phaseAccumulator || 0) + MELODIC_CONFIG.PHI
     const phaseOffset = this.melodicMemory.phaseAccumulator % 7  // Prime modulo
 
     // Entry #172: Combined multi-factor variety
     const varietyFactor = (
-      (noteIndex * PHI) % 1 * 0.25 +           // PHI sequence
-      (noteIndex * PHI_SQ) % 1 * 0.2 +         // PHI^2 sequence (uncorrelated)
+      (noteIndex * MELODIC_CONFIG.PHI) % 1 * 0.25 +           // PHI sequence
+      (noteIndex * MELODIC_CONFIG.PHI_SQ) % 1 * 0.2 +         // PHI^2 sequence (uncorrelated)
       (shortSum * 0.15 + longSum * 0.05) % 1 + // History influence
       (directionChanges * 0.7) % 1 * 0.15 +    // Direction variety
       (x * 2.3) % 1 * 0.1 +                    // Position influence
@@ -301,13 +301,13 @@ class DragStreamingHandler {
     const longSum = longHistory.reduce((a, b) => a + b, 0)
 
     // Phase accumulator
-    this.melodicMemory.phaseAccumulator = (this.melodicMemory.phaseAccumulator || 0) + PHI
+    this.melodicMemory.phaseAccumulator = (this.melodicMemory.phaseAccumulator || 0) + MELODIC_CONFIG.PHI
     const phaseOffset = this.melodicMemory.phaseAccumulator % 11  // Prime modulo
 
     // Entry #172: Combined multi-factor variety
     const varietyFactor = (
-      (noteIndex * PHI) % 1 * 0.25 +
-      (noteIndex * PHI_SQ) % 1 * 0.15 +
+      (noteIndex * MELODIC_CONFIG.PHI) % 1 * 0.25 +
+      (noteIndex * MELODIC_CONFIG.PHI_SQ) % 1 * 0.15 +
       (shortSum * 0.12 + longSum * 0.08) % 1 +
       (x * 2.5 + y * 1.8) % 1 * 0.2 +
       (phaseOffset / 11) * 0.2
@@ -352,13 +352,13 @@ class DragStreamingHandler {
     const longSum = longHistory.reduce((a, b) => a + b, 0)
 
     // Phase accumulator
-    this.melodicMemory.phaseAccumulator = (this.melodicMemory.phaseAccumulator || 0) + PHI
+    this.melodicMemory.phaseAccumulator = (this.melodicMemory.phaseAccumulator || 0) + MELODIC_CONFIG.PHI
     const phaseOffset = this.melodicMemory.phaseAccumulator % 13  // Prime modulo
 
     // Entry #172: Combined multi-factor variety
     const varietyFactor = (
-      (noteIndex * PHI) % 1 * 0.2 +
-      (noteIndex * PHI_SQ) % 1 * 0.15 +
+      (noteIndex * MELODIC_CONFIG.PHI) % 1 * 0.2 +
+      (noteIndex * MELODIC_CONFIG.PHI_SQ) % 1 * 0.15 +
       (shortSum * 0.1 + longSum * 0.1) % 1 +
       (x * 3 + y * 2) % 1 * 0.25 +
       (phaseOffset / 13) * 0.2
@@ -406,7 +406,7 @@ class DragStreamingHandler {
     const yBias = y < 0.33 ? 1 : y > 0.66 ? -1 : 0
 
     // PHI-based phase determines when to shift octave
-    const phase = (noteIndex * PHI) % 1
+    const phase = (noteIndex * MELODIC_CONFIG.PHI) % 1
 
     // Threshold decreases over time (more likely to shift as drag continues)
     // Starts at 0.85, decreases to 0.70 over 100 notes
