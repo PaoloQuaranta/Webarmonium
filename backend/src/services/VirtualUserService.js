@@ -970,54 +970,28 @@ class VirtualUserService {
       timestamp: Date.now()
     })
 
-    // Entry #185: Generate trajectory with note count for amplitude scaling
-    // Fast notes (high density) = wider movements
-    const trajectory = this._generateHybridTrajectory(source, startFreq, endFreq, phraseDurationMs, noteData.length)
-
-    // 5. Emit cursor positions along trajectory (synchronized with phrase duration)
-    trajectory.forEach((pos) => {
-      setTimeout(() => {
-        if (!this.activeRooms.has(roomId)) return
-        this._emitCursorAtPosition(roomId, source, config, pos)
-      }, pos.timeOffset)
-    })
-
-    // Entry #185: Note frequencies derived from trajectory Y position
-    // This ensures visual-audio coherence: cursor position matches note pitch
-
-    // 6. Emit notes with TRAJECTORY positions and Y-derived frequencies
+    // Entry #185c: Cursor position derived from note frequency, synchronized with audio
+    // Each note emission also moves cursor to match its pitch (Y = frequency)
     noteData.forEach((note, noteIndex) => {
       setTimeout(() => {
         if (!this.activeRooms.has(roomId)) return
 
-        // Find trajectory position at note's time
-        const t = phraseDurationMs > 0 ? note.startDelayMs / phraseDurationMs : 0
-        const trajectoryIndex = Math.min(
-          trajectory.length - 1,
-          Math.floor(t * (trajectory.length - 1))
-        )
-        const nextIndex = Math.min(trajectory.length - 1, trajectoryIndex + 1)
+        // Calculate cursor position from note frequency
+        // Y based on pitch: high freq = top (low Y), low freq = bottom (high Y)
+        const notePosition = this._calculateHybridPosition(source, note.audioFreq, noteIndex)
 
-        // Interpolate between trajectory points
-        const trajectoryT = t * (trajectory.length - 1) - trajectoryIndex
-        const currentTrajPos = trajectory[trajectoryIndex]
-        const nextTrajPos = trajectory[nextIndex]
+        // Move cursor to note position (synchronized with audio)
+        this._emitCursorAtPosition(roomId, source, config, notePosition)
 
-        const notePosition = {
-          x: currentTrajPos.x + (nextTrajPos.x - currentTrajPos.x) * trajectoryT,
-          y: currentTrajPos.y + (nextTrajPos.y - currentTrajPos.y) * trajectoryT
-        }
-
-        // Audio frequency from PhraseMorphology (harmonically coherent with scale/mode)
-        // Cursor position follows trajectory visually, but audio stays in tune
+        // Emit note with matching position
         this.io.to(roomId).emit('hold:start', {
           type: 'hold:start',
           userId: config.userId,
           noteId: note.noteId,
-          frequency: note.audioFreq,  // From phrase generation (in scale)
+          frequency: note.audioFreq,  // From PhraseMorphology (in scale)
           velocity: note.velocity,
           duration: note.durationMs / 1000,
-          position: notePosition,
+          position: notePosition,      // Cursor at same position
           userColor: config.color,
           isRemote: true,
           isVirtual: true,

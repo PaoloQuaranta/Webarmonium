@@ -1632,49 +1632,25 @@ class LandingCompositionService {
       style: style  // Entry #175b
     })
 
-    // Entry #185: Generate trajectory with note count for amplitude scaling
-    const trajectory = this._generateHybridTrajectory(gesture.source, startFreq, endFreq, phraseDurationMs, noteData.length)
-
-    // 5. Emit cursor positions along trajectory (synchronized with phrase duration)
-    trajectory.forEach((pos) => {
-      const timeoutId = setTimeout(() => {
-        this.pendingTimeouts.delete(timeoutId)
-        if (!this.io || !this.isRunning) return
-        this._emitCursorAtPosition(gesture.source, user, pos)
-      }, pos.timeOffset)
-      this.pendingTimeouts.add(timeoutId)
-    })
-
-    // Entry #185: Note frequencies derived from trajectory Y position
+    // Entry #185c: Cursor position derived from note frequency, synchronized with audio
     noteData.forEach((note, noteIndex) => {
       const noteTimeoutId = setTimeout(() => {
         this.pendingTimeouts.delete(noteTimeoutId)
         if (!this.io || !this.isRunning) return
 
-        // Find trajectory position at note's time
-        const t = phraseDurationMs > 0 ? note.startDelayMs / phraseDurationMs : 0
-        const trajectoryIndex = Math.min(
-          trajectory.length - 1,
-          Math.floor(t * (trajectory.length - 1))
-        )
-        const nextIndex = Math.min(trajectory.length - 1, trajectoryIndex + 1)
+        // Calculate cursor position from note frequency
+        // Y based on pitch: high freq = top, low freq = bottom
+        const notePosition = this._calculateHybridPosition(gesture.source, note.audioFreq, noteIndex)
 
-        // Interpolate between trajectory points
-        const trajectoryT = t * (trajectory.length - 1) - trajectoryIndex
-        const currentTrajPos = trajectory[trajectoryIndex]
-        const nextTrajPos = trajectory[nextIndex]
+        // Move cursor to note position (synchronized with audio)
+        this._emitCursorAtPosition(gesture.source, user, notePosition)
 
-        const notePosition = {
-          x: currentTrajPos.x + (nextTrajPos.x - currentTrajPos.x) * trajectoryT,
-          y: currentTrajPos.y + (nextTrajPos.y - currentTrajPos.y) * trajectoryT
-        }
-
-        // Audio frequency from PhraseMorphology (harmonically coherent with scale/mode)
+        // Emit note with matching position
         this.io.to(this.landingRoomId).emit('hold:start', {
           type: 'hold:start',
           userId: user.userId,
           noteId: note.noteId,
-          frequency: note.audioFreq,  // From phrase generation (in scale)
+          frequency: note.audioFreq,  // From PhraseMorphology (in scale)
           velocity: note.velocity,
           duration: note.durationMs / 1000,
           position: notePosition,
