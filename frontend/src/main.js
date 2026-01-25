@@ -1554,6 +1554,8 @@ class WebarmoniumApp {
     const emitCursorPosition = (x, y, isDrawingState) => {
       const now = Date.now()
       if (now - lastCursorEmit >= cursorThrottleMs) {
+        // Guard against null socket (can happen during page unload)
+        if (!this.socketService || !this.socketService.socket) return
         // console.log(`📍 Emitting cursor-move: (${x.toFixed(2)}, ${y.toFixed(2)}), drawing: ${isDrawingState}`)
         this.socketService.socket.emit('cursor-move', {
           x,

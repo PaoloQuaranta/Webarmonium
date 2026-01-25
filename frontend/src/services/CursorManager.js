@@ -362,7 +362,6 @@ class CursorManager {
    */
   destroy () {
     // console.log('CursorManager: Destroying instance')
-    this.stopRendering()
     this.clearAll()
 
     // Clear stale check interval
