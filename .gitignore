@@ -58,7 +58,7 @@ temp/
 Thumbs.db
 
 # Marketing (private)
-docs/marketing-launch.md
+docs/marketing/
 
 # Production deployment (sensitive)
 **/deploy-production.sh
