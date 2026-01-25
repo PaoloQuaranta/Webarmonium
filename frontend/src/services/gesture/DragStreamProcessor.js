@@ -260,36 +260,35 @@ class DragStreamProcessor {
 
   /**
    * Get duration string from speed and note position
-   * Entry #171: Aggressive duration variation independent of constant velocity
+   * Entry #171: Speed is PRIMARY factor, position adds subtle variation
    * @param {number} normalizedSpeed - Normalized speed (0-1)
    * @param {number} noteIndex - Current note index in phrase
    * @returns {string} Duration string
    */
   getDurationFromSpeed(normalizedSpeed, noteIndex = 0) {
     // Duration options from short to long
-    const durations = ['32n', '16n', '8n', '4n', '2n']
+    const durations = ['32n', '16n', '8n', '4n', '2n', '1n']
     const PHI = 1.618033988749895
 
-    // Entry #171 fix: Duration pattern based PRIMARILY on note position
-    // This ensures variety even with constant velocity
-    // Pattern: short-medium-long cycling with PHI for non-repetition
+    // Entry #171 fix: Speed is PRIMARY factor for duration
+    // Slow drag (low speed) → long notes, Fast drag (high speed) → short notes
+    // Inverted: low speed = high index = long duration
+    let baseDurationIndex
+    if (normalizedSpeed > 0.8) baseDurationIndex = 0      // Very fast → 32n
+    else if (normalizedSpeed > 0.6) baseDurationIndex = 1 // Fast → 16n
+    else if (normalizedSpeed > 0.4) baseDurationIndex = 2 // Medium → 8n
+    else if (normalizedSpeed > 0.2) baseDurationIndex = 3 // Slow → 4n
+    else if (normalizedSpeed > 0.1) baseDurationIndex = 4 // Very slow → 2n
+    else baseDurationIndex = 5                             // Extremely slow → 1n
+
+    // Position adds SUBTLE variation (±1 index max)
     const positionPhase = (noteIndex * PHI) % 1
+    const positionVariation = Math.floor(positionPhase * 3) - 1 // -1, 0, or 1
 
-    // Map position phase to duration index (0-4)
-    // Creates varied rhythm: short, long, medium, short, long...
-    let durationIndex
-    if (positionPhase < 0.2) durationIndex = 0       // Very short (32n)
-    else if (positionPhase < 0.35) durationIndex = 3 // Long (4n)
-    else if (positionPhase < 0.55) durationIndex = 1 // Short (16n)
-    else if (positionPhase < 0.7) durationIndex = 4  // Very long (2n)
-    else if (positionPhase < 0.85) durationIndex = 2 // Medium (8n)
-    else durationIndex = 1                           // Short (16n)
+    // Combine: speed primary + position variation
+    const finalIndex = Math.max(0, Math.min(durations.length - 1, baseDurationIndex + positionVariation))
 
-    // Speed influence: faster = shift toward shorter durations
-    const speedShift = Math.floor(normalizedSpeed * 2) // 0-2
-    durationIndex = Math.max(0, durationIndex - speedShift)
-
-    return durations[durationIndex]
+    return durations[finalIndex]
   }
 
   /**

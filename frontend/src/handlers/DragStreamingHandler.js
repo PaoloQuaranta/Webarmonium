@@ -161,11 +161,11 @@ class DragStreamingHandler {
    */
   calculateScaleIndex(velocity, x, y, isAscending, isDescending, noteIndex, scale) {
     if (velocity > 0.7) {
-      // FAST: Dynamic arpeggios
-      return this.calculateFastArpeggio(isAscending, isDescending, noteIndex)
+      // FAST: Dynamic arpeggios - pass x for variety
+      return this.calculateFastArpeggio(isAscending, isDescending, noteIndex, x)
     } else if (velocity > 0.4) {
-      // MEDIUM: Contour melodies
-      return this.calculateMediumContour(x, isAscending, isDescending, noteIndex)
+      // MEDIUM: Contour melodies - pass y for variety
+      return this.calculateMediumContour(x, isAscending, isDescending, noteIndex, y)
     } else {
       // SLOW: Intervallic exploration
       return this.calculateSlowIntervals(x, y, noteIndex, scale)
@@ -174,32 +174,32 @@ class DragStreamingHandler {
 
   /**
    * Calculate fast melodic pattern with variety
-   * Entry #171: Removed hardcoded patterns, uses dynamic generation
+   * Entry #171: Uses melodic memory + noteIndex for non-repeating variety
    * @param {boolean} isAscending - Whether ascending
    * @param {boolean} isDescending - Whether descending
    * @param {number} noteIndex - Current note index
+   * @param {number} x - X position (0-1) for additional variety
    * @returns {number} Scale index
    */
-  calculateFastArpeggio(isAscending, isDescending, noteIndex) {
+  calculateFastArpeggio(isAscending, isDescending, noteIndex, x = 0.5) {
     const PHI = 1.618033988749895
     const lastNote = this.melodicMemory.lastNotes[this.melodicMemory.lastNotes.length - 1] || 0
 
-    // Entry #171: Dynamic interval selection based on phrase position
-    // Uses PHI stepping for non-repeating variety
-    const phrasePosition = (noteIndex * PHI) % 1
-    const intervalOptions = [1, 2, 3, 2, 1, 3, 2, 4] // More variety than single pattern
-    const intervalIndex = Math.floor(phrasePosition * intervalOptions.length)
-    const interval = intervalOptions[intervalIndex]
+    // Entry #171: Combine noteIndex AND melodic history for variety
+    // This prevents loops because history accumulates over time
+    const historySum = this.melodicMemory.lastNotes.reduce((a, b) => a + b, 0)
+    const varietyFactor = (noteIndex * PHI + historySum * 0.1 + x * 3) % 1
+
+    // Interval based on combined factors (1-4 range)
+    const interval = 1 + Math.floor(varietyFactor * 4)
 
     if (isAscending) {
-      // Ascending with varied intervals
       return (lastNote + interval) % 8
     } else if (isDescending) {
-      // Descending with varied intervals
       return Math.max(0, lastNote - interval)
     } else {
-      // Wave motion with varied intervals
-      const direction = Math.floor(noteIndex * PHI) % 2 === 0 ? 1 : -1
+      // Wave: direction changes based on variety factor
+      const direction = varietyFactor > 0.5 ? 1 : -1
       const newNote = lastNote + (interval * direction)
       return Math.max(0, Math.min(7, newNote))
     }
@@ -207,37 +207,35 @@ class DragStreamingHandler {
 
   /**
    * Calculate medium-speed contour melody with dynamic intervals
-   * Entry #171: Removed hardcoded patterns, uses position-based generation
-   * @param {number} x - X position
+   * Entry #171: Uses X/Y position + melodic history for non-repeating variety
+   * @param {number} x - X position (0-1)
    * @param {boolean} isAscending - Whether ascending
    * @param {boolean} isDescending - Whether descending
    * @param {number} noteIndex - Current note index
+   * @param {number} y - Y position (0-1) for additional variety
    * @returns {number} Scale index
    */
-  calculateMediumContour(x, isAscending, isDescending, noteIndex) {
+  calculateMediumContour(x, isAscending, isDescending, noteIndex, y = 0.5) {
     const PHI = 1.618033988749895
     const lastNote = this.melodicMemory.lastNotes[this.melodicMemory.lastNotes.length - 1] || 3
 
-    // X position influences interval size (left = small, right = large)
-    const baseInterval = 1 + Math.floor(x * 2) // 1-3
+    // Entry #171: Combine multiple factors for variety
+    const historySum = this.melodicMemory.lastNotes.reduce((a, b) => a + b, 0)
+    const varietyFactor = (noteIndex * PHI + historySum * 0.1 + x * 2 + y * 2) % 1
 
-    // Phrase position determines variation
-    const phrasePosition = (noteIndex * PHI) % 1
-    const intervalVariation = Math.floor(phrasePosition * 3) - 1 // -1, 0, 1
-    const interval = Math.max(1, baseInterval + intervalVariation)
+    // Interval based on X position + variety (1-4 range)
+    const baseInterval = 1 + Math.floor(x * 2)
+    const interval = Math.max(1, baseInterval + Math.floor(varietyFactor * 2))
 
     if (isAscending) {
-      // Gradual ascent with varied steps
       const newNote = lastNote + interval
       return Math.min(7, newNote)
     } else if (isDescending) {
-      // Gradual descent with varied steps
       const newNote = lastNote - interval
       return Math.max(0, newNote)
     } else {
-      // Wave motion: alternate direction based on phrase position
-      const wavePhase = Math.sin(noteIndex * PHI * Math.PI)
-      const direction = wavePhase > 0 ? 1 : -1
+      // Wave: direction based on combined variety factor
+      const direction = varietyFactor > 0.5 ? 1 : -1
       const newNote = lastNote + (interval * direction)
       return Math.max(0, Math.min(7, newNote))
     }
@@ -245,6 +243,7 @@ class DragStreamingHandler {
 
   /**
    * Calculate slow intervallic exploration
+   * Entry #171: Uses X/Y + melodic history for varied slow melodies
    * @param {number} x - X position
    * @param {number} y - Y position
    * @param {number} noteIndex - Current note index
@@ -252,17 +251,28 @@ class DragStreamingHandler {
    * @returns {number} Scale index
    */
   calculateSlowIntervals(x, y, noteIndex, scale) {
-    const xIndex = Math.floor(x * scale.length)
-    const yIndex = Math.floor((1 - y) * 3)
-    const intervals = [2, 3, 4]
-    const interval = intervals[yIndex]
+    const PHI = 1.618033988749895
+    const lastNote = this.melodicMemory.lastNotes[this.melodicMemory.lastNotes.length - 1] || Math.floor(scale.length / 2)
 
-    if (noteIndex % 4 === 0) {
-      return xIndex
-    } else {
-      const lastIndex = this.melodicMemory.lastNotes[this.melodicMemory.lastNotes.length - 1] || 0
-      return (lastIndex + interval) % scale.length
-    }
+    // Entry #171: Combine X/Y position + history for variety
+    const historySum = this.melodicMemory.lastNotes.reduce((a, b) => a + b, 0)
+    const varietyFactor = (noteIndex * PHI + historySum * 0.15 + x * 3 + y * 2) % 1
+
+    // Y determines interval size (high Y = large intervals, exploring range)
+    const baseInterval = 1 + Math.floor((1 - y) * 3) // 1-4
+
+    // X determines direction tendency (left = descend, right = ascend)
+    const directionBias = x - 0.5 // -0.5 to 0.5
+
+    // Direction based on variety + X bias
+    const direction = (varietyFactor + directionBias) > 0.5 ? 1 : -1
+
+    // Calculate new note with variety
+    const interval = baseInterval + Math.floor(varietyFactor * 2)
+    const newNote = lastNote + (interval * direction)
+
+    // Clamp to scale range
+    return Math.max(0, Math.min(scale.length - 1, newNote))
   }
 
   /**
