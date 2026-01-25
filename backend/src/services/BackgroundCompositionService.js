@@ -25,7 +25,7 @@ const { GENRE_BPM_RANGES } = require('../utils/GenreUtils')
 // Entry #179: Style cycling constants
 const STYLE_CYCLE_INTERVAL = 30 * 1000  // 30 secondi (testing) - cambiare a 3*60*1000 per produzione
 const BPM_CHANGE_INTERVAL = 60 * 1000        // 1 minuto
-const BPM_SMOOTHING_STEPS = 10               // transizione graduale
+const BPM_SMOOTHING_STEPS = 30               // transizione più graduale (era 10)
 const ALL_GENRES = ['ambient', 'classical', 'melodic', 'jazz',
                     'electronic', 'rhythmic', 'rock', 'experimental', 'pop']
 
@@ -835,6 +835,10 @@ class BackgroundCompositionService {
       roomState.compositionCount++
       roomState.lastCompositionTime = Date.now()
 
+      // Entry #179: Update style cycling BEFORE generating composition
+      // This ensures forcedGenre and BPM are updated even without gestures
+      this.applyStyleToComposition(roomId)
+
       // Entry #115: Save keyCenter before composition to detect changes
       const previousKeyCenter = this.compositionEngine.keyCenter
 
@@ -879,7 +883,9 @@ class BackgroundCompositionService {
 
       // Broadcast composition to room
       // Entry #175: Include style info for genre-aware audio playback
+      // Entry #179: Use forcedGenre from cycling
       const currentStyle = this.styleAnalyzer.getCurrentStyle()
+      const forcedGenre = roomState.styleCycling?.currentGenre
       if (this.io) {
         this.io.to(roomId).emit('background-composition', {
           roomId,
@@ -888,7 +894,9 @@ class BackgroundCompositionService {
           timestamp: Date.now(),
           style: {
             genreWeights: currentStyle?.genreWeights || {},
-            dominantGenre: this._getDominantGenre(currentStyle?.genreWeights),
+            dominantGenre: forcedGenre || this._getDominantGenre(currentStyle?.genreWeights),
+            forcedGenre: forcedGenre,
+            currentBPM: roomState.styleCycling?.currentBPM,
             energy: currentStyle?.energy || 0.5
           }
         })
