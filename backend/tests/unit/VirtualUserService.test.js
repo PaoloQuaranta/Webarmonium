@@ -407,5 +407,78 @@ describe('VirtualUserService', () => {
         expect(type).toBe('drag')
       })
     })
+
+    describe('_selectDurationCategory() (Entry #174)', () => {
+      test('should cycle through all categories using PHI-based stepping', () => {
+        const categories = new Set()
+
+        // Run 20 gestures to ensure all categories appear
+        for (let i = 0; i < 20; i++) {
+          service.gestureCounters.wikipedia = i
+          const { category } = service._selectDurationCategory('wikipedia')
+          categories.add(category)
+        }
+
+        expect(categories.size).toBe(4) // All 4 categories should appear
+        expect(categories.has('tap')).toBe(true)
+        expect(categories.has('short')).toBe(true)
+        expect(categories.has('medium')).toBe(true)
+        expect(categories.has('long')).toBe(true)
+      })
+
+      test('should return valid duration ranges for each category', () => {
+        const expectedRanges = {
+          tap: { min: 50, max: 300 },
+          short: { min: 300, max: 1500 },
+          medium: { min: 1500, max: 5000 },
+          long: { min: 5000, max: 16000 }
+        }
+
+        for (let i = 0; i < 20; i++) {
+          service.gestureCounters.wikipedia = i
+          const { category, durationRange } = service._selectDurationCategory('wikipedia')
+
+          expect(durationRange.min).toBe(expectedRanges[category].min)
+          expect(durationRange.max).toBe(expectedRanges[category].max)
+        }
+      })
+
+      test('should produce different patterns for different sources', () => {
+        // Same gesture count but different sources should produce different categories
+        service.gestureCounters.wikipedia = 0
+        service.gestureCounters.hackernews = 0
+        service.gestureCounters.github = 0
+
+        const wikiCategory = service._selectDurationCategory('wikipedia')
+        const hnCategory = service._selectDurationCategory('hackernews')
+        const ghCategory = service._selectDurationCategory('github')
+
+        // With gesture count 0, source offsets determine category
+        // 0.17 < 0.20 = tap, 0.53 in [0.50, 0.80) = medium, 0.89 >= 0.80 = long
+        expect(wikiCategory.category).toBe('tap')
+        expect(hnCategory.category).toBe('medium')
+        expect(ghCategory.category).toBe('long')
+      })
+
+      test('should produce balanced distribution over 100 gestures', () => {
+        const counts = { tap: 0, short: 0, medium: 0, long: 0 }
+
+        for (let i = 0; i < 100; i++) {
+          service.gestureCounters.wikipedia = i
+          const { category } = service._selectDurationCategory('wikipedia')
+          counts[category]++
+        }
+
+        // Expected: 20% tap, 30% short, 30% medium, 20% long (±5%)
+        expect(counts.tap).toBeGreaterThanOrEqual(15)
+        expect(counts.tap).toBeLessThanOrEqual(25)
+        expect(counts.short).toBeGreaterThanOrEqual(25)
+        expect(counts.short).toBeLessThanOrEqual(35)
+        expect(counts.medium).toBeGreaterThanOrEqual(25)
+        expect(counts.medium).toBeLessThanOrEqual(35)
+        expect(counts.long).toBeGreaterThanOrEqual(15)
+        expect(counts.long).toBeLessThanOrEqual(25)
+      })
+    })
   })
 })

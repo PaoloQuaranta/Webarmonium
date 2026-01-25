@@ -658,14 +658,16 @@ class LandingCompositionService {
         continue
       }
 
-      // Classify gesture type based on metrics
-      const gestureType = this.classifyGestureType(source)
+      // Entry #174: Select duration category using PHI-based cycling
+      // Guarantees balanced distribution: 20% taps, 30% short, 30% medium, 20% long
+      const { category, durationRange } = this._selectDurationCategory(source)
 
-      // Generate gesture based on type (tap or drag only - hover removed)
-      if (gestureType === 'tap') {
+      // Generate gesture based on category
+      if (category === 'tap') {
         gestures.push(this.generateVirtualTap(source, velocity))
-      } else if (gestureType === 'drag') {
-        gestures.push(this.generateVirtualDrag(source, velocity, acceleration))
+      } else {
+        // Short, medium, and long all use drag with different duration ranges
+        gestures.push(this.generateVirtualDrag(source, velocity, acceleration, durationRange))
       }
 
       // console.log(`🎵 Generated ${gestureType} from ${source} (vel: ${velocity.toFixed(1)}, normVel: ${normalizedVelocity.toFixed(2)})`)
@@ -717,19 +719,19 @@ class LandingCompositionService {
    * @returns {Object} Drag gesture data
    * @private
    */
-  generateVirtualDrag(source, velocity, acceleration) {
+  generateVirtualDrag(source, velocity, acceleration, durationRange) {
     const activity = this.calculateActivityLevel(source)
 
     // Note: Position is now calculated via REVERSE MAPPING in emitDragPhrase()
     // Cursor trajectory is derived FROM generated note frequencies, not from metrics directly
 
-    // ORGANIC DURATION: Correlate phrase duration to density metric
-    // Density represents magnitude of real metrics (avgEditSize, avgUpvotes, newStars)
-    // Higher density = more content magnitude = longer phrase
+    // Entry #174: Duration within category range, modulated by density for musical coherence
+    // Category ranges: short (300-1500ms), medium (1500-5000ms), long (5000-16000ms)
     const density = this.calculateDensityMetric(source)
-    // Entry #172: Extended from 300-3000ms for longer phrases
-    // Entry #173 fix: Extended to 300-16000ms to match PhraseMorphology max 32 beats
-    const dragDurationMs = 300 + (density * 15700)  // 300-16000ms (~32 beats at 120 BPM)
+    const { min: rangeMin, max: rangeMax } = durationRange
+    // Validate density is finite and in expected range (defensive against NaN/Infinity)
+    const safeDensity = Number.isFinite(density) ? Math.max(0, Math.min(1, density)) : 0.5
+    const dragDurationMs = rangeMin + (safeDensity * (rangeMax - rangeMin))
 
     return {
       type: 'drag',
@@ -1540,6 +1542,42 @@ class LandingCompositionService {
    */
   static PHI = 1.618033988749895
   static PHI_SQ = 2.618033988749895  // φ² for Y axis (different sequence)
+
+  /**
+   * Entry #174: Select duration category using PHI-based cycling
+   * Guarantees balanced distribution: 20% taps, 30% short, 30% medium, 20% long
+   *
+   * PHI stepping creates a low-discrepancy sequence that cycles through all categories
+   * naturally without repeating patterns. Source offsets prevent synchronization.
+   *
+   * @param {string} source - Source name (wikipedia, hackernews, github)
+   * @returns {{category: string, durationRange: {min: number, max: number}}}
+   * @private
+   */
+  _selectDurationCategory(source) {
+    const gestureCount = this.gestureCounters[source] || 0
+
+    // Source-specific offset to prevent synchronization between sources
+    // Uses irrational fractions for maximum distribution
+    const sourceOffset = source === 'wikipedia' ? 0.17
+                       : source === 'hackernews' ? 0.53
+                       : 0.89
+
+    // PHI-based selector creates low-discrepancy sequence
+    const selector = ((gestureCount * LandingCompositionService.PHI) + sourceOffset) % 1
+
+    // Category boundaries: tap 20%, short 30%, medium 30%, long 20%
+    if (selector < 0.20) {
+      return { category: 'tap', durationRange: { min: 50, max: 300 } }
+    }
+    if (selector < 0.50) {
+      return { category: 'short', durationRange: { min: 300, max: 1500 } }
+    }
+    if (selector < 0.80) {
+      return { category: 'medium', durationRange: { min: 1500, max: 5000 } }
+    }
+    return { category: 'long', durationRange: { min: 5000, max: 16000 } }
+  }
 
   /**
    * Calculate cursor position using GOLDEN RATIO distribution:

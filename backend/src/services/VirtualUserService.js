@@ -616,13 +616,15 @@ class VirtualUserService {
           continue
         }
 
-        // Classify gesture type using relative metrics (no hardcoded thresholds)
-        const gestureType = this._classifyGestureType(source)
+        // Entry #174: Select duration category using PHI-based cycling
+        // Guarantees balanced distribution: 20% taps, 30% short, 30% medium, 20% long
+        const { category, durationRange } = this._selectDurationCategory(source)
 
-        if (gestureType === 'tap') {
+        if (category === 'tap') {
           this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
-        } else if (gestureType === 'drag') {
-          this._emitDragGesture(roomId, source, config, roomState, normalizedVelocity, velocity)
+        } else {
+          // Short, medium, and long all use drag with different duration ranges
+          this._emitDragGesture(roomId, source, config, roomState, normalizedVelocity, velocity, durationRange)
         }
       } catch (sourceError) {
         console.error(`⚠️ VirtualUserService: Error generating gesture for source "${source}" in room ${roomId}:`, sourceError.message)
@@ -775,7 +777,7 @@ class VirtualUserService {
    * Uses REVERSE MAPPING: cursor trajectory derived from note frequencies
    * @private
    */
-  _emitDragGesture(roomId, source, config, roomState, normalizedVelocity, rawVelocity) {
+  _emitDragGesture(roomId, source, config, roomState, normalizedVelocity, rawVelocity, durationRange) {
     // Increment gesture counter for cyclic position variation
     // FIX #7: Add modulo to prevent gesture counter overflow at MAX_SAFE_INTEGER
     this.gestureCounters[source] = ((this.gestureCounters[source] || 0) + 1) % Number.MAX_SAFE_INTEGER
@@ -798,10 +800,12 @@ class VirtualUserService {
     const curvature = accelerationVariance / (velocityVariance + accelerationVariance + 0.1)
     const clampedCurvature = Math.max(0, Math.min(1, curvature))
 
-    // ORGANIC DURATION: Correlate phrase duration to density metric
-    // Entry #172: Extended from 300-3000ms for longer phrases
-    // Entry #173 fix: Extended to 300-16000ms to match PhraseMorphology max 32 beats
-    const phraseDurationMs = 300 + (density * 15700)  // 300-16000ms (~32 beats at 120 BPM)
+    // Entry #174: Duration within category range, modulated by density for musical coherence
+    // Category ranges: tap (50-300ms), short (300-1500ms), medium (1500-5000ms), long (5000-16000ms)
+    const { min: rangeMin, max: rangeMax } = durationRange
+    // Validate density is finite and in expected range (defensive against NaN/Infinity)
+    const safeDensity = Number.isFinite(density) ? Math.max(0, Math.min(1, density)) : 0.5
+    const phraseDurationMs = rangeMin + (safeDensity * (rangeMax - rangeMin))
 
     // Create gestureData for PhraseMorphology
     const gestureData = {
@@ -1147,6 +1151,42 @@ class VirtualUserService {
    */
   static PHI = 1.618033988749895
   static PHI_SQ = 2.618033988749895  // φ² for Y axis (different sequence)
+
+  /**
+   * Entry #174: Select duration category using PHI-based cycling
+   * Guarantees balanced distribution: 20% taps, 30% short, 30% medium, 20% long
+   *
+   * PHI stepping creates a low-discrepancy sequence that cycles through all categories
+   * naturally without repeating patterns. Source offsets prevent synchronization.
+   *
+   * @param {string} source - Source name (wikipedia, hackernews, github)
+   * @returns {{category: string, durationRange: {min: number, max: number}}}
+   * @private
+   */
+  _selectDurationCategory(source) {
+    const gestureCount = this.gestureCounters[source] || 0
+
+    // Source-specific offset to prevent synchronization between sources
+    // Uses irrational fractions for maximum distribution
+    const sourceOffset = source === 'wikipedia' ? 0.17
+                       : source === 'hackernews' ? 0.53
+                       : 0.89
+
+    // PHI-based selector creates low-discrepancy sequence
+    const selector = ((gestureCount * VirtualUserService.PHI) + sourceOffset) % 1
+
+    // Category boundaries: tap 20%, short 30%, medium 30%, long 20%
+    if (selector < 0.20) {
+      return { category: 'tap', durationRange: { min: 50, max: 300 } }
+    }
+    if (selector < 0.50) {
+      return { category: 'short', durationRange: { min: 300, max: 1500 } }
+    }
+    if (selector < 0.80) {
+      return { category: 'medium', durationRange: { min: 1500, max: 5000 } }
+    }
+    return { category: 'long', durationRange: { min: 5000, max: 16000 } }
+  }
 
   /**
    * Calculate cursor position using GOLDEN RATIO distribution:

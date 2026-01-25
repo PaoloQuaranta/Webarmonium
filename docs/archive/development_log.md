@@ -1510,3 +1510,110 @@ const MELODIC_CONFIG = {
 v0.2.12
 
 ---
+
+## Entry #174 - Virtual User Gesture Duration Variety
+
+**Date**: 2026-01-25
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented PHI-based duration category cycling for virtual users to ensure balanced variety in gesture types. Virtual users now generate a balanced mix of taps (20%), short phrases (30%), medium phrases (30%), and long phrases (20%) instead of almost exclusively long phrases.
+
+---
+
+### Problem Statement
+
+After Entry #173 extended virtual user durations to 300-16000ms, virtual users generated almost exclusively long phrases:
+
+1. **Linear duration formula** - `300 + (density * 15700)` mapped density directly to duration
+   - Even moderate density (0.3) produced 5010ms phrases
+   - No mechanism for variety within same activity level
+
+2. **Tap classification rarely triggered** - `stability > density` comparison used correlated metrics
+   - Both metrics derived from similar web metrics, often correlated
+   - Stability rarely exceeded density
+
+3. **No forced rotation** between gesture types
+
+---
+
+### Solution: PHI-Based Duration Category Cycling
+
+Replaced linear duration mapping with a category system that cycles through tap/short/medium/long using PHI-based stepping (deterministic, non-random).
+
+#### New `_selectDurationCategory()` Method
+
+```javascript
+_selectDurationCategory(source) {
+  const gestureCount = this.gestureCounters[source] || 0
+  const sourceOffset = source === 'wikipedia' ? 0.17
+                     : source === 'hackernews' ? 0.53
+                     : 0.89
+
+  const selector = ((gestureCount * PHI) + sourceOffset) % 1
+
+  if (selector < 0.20) return { category: 'tap', durationRange: { min: 50, max: 300 } }
+  if (selector < 0.50) return { category: 'short', durationRange: { min: 300, max: 1500 } }
+  if (selector < 0.80) return { category: 'medium', durationRange: { min: 1500, max: 5000 } }
+  return { category: 'long', durationRange: { min: 5000, max: 16000 } }
+}
+```
+
+#### Duration Within Category Range
+
+Density still modulates duration WITHIN each category for musical coherence:
+
+```javascript
+const { min: rangeMin, max: rangeMax } = durationRange
+const phraseDurationMs = rangeMin + (density * (rangeMax - rangeMin))
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/VirtualUserService.js` | Added `_selectDurationCategory()`, updated gesture generation to use categories, modified `_emitDragGesture()` to accept durationRange |
+| `backend/src/services/LandingCompositionService.js` | Same changes for landing page virtual users |
+
+---
+
+### Expected Distribution
+
+| Category | Duration Range | Frequency | Musical Result |
+|----------|---------------|-----------|----------------|
+| Tap | 50-300ms | ~20% | Single sustained note |
+| Short | 300-1500ms | ~30% | 2-4 note motif |
+| Medium | 1500-5000ms | ~30% | 6-12 note phrase |
+| Long | 5000-16000ms | ~20% | Extended melodic line |
+
+---
+
+### Design Rationale
+
+**Why PHI-based cycling?**
+- PHI stepping creates a low-discrepancy sequence that maximally spreads consecutive values across [0,1]
+- Guarantees all categories get triggered without predictable patterns
+- Deterministic (reproducible) unlike Math.random()
+- Already used throughout the codebase for position distribution
+
+**Why source-specific offsets?**
+- Uses irrational fractions (0.17, 0.53, 0.89) to prevent synchronization between sources
+- Different sources generate different category sequences
+- Ensures musical variety when multiple sources are active
+
+**Why density still modulates within categories?**
+- Preserves musical coherence: higher activity = slightly longer phrases within a category
+- Maintains the existing relationship between web metrics and musical output
+- Provides micro-variation even within category boundaries
+
+---
+
+### Version
+
+v0.2.13
+
+---
