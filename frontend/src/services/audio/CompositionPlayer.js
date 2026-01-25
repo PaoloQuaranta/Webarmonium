@@ -47,26 +47,71 @@ class CompositionPlayer {
   /**
    * Get genre-aware velocity config for composition voices
    * Entry #NEW: Returns velocity multipliers based on dominant genre
+   * Entry #180: Expanded with all genres and articulation hints
    * @param {Object} style - Style object (optional, uses this.currentStyle if not provided)
-   * @returns {Object} Velocity config per voice role
+   * @returns {Object} Velocity config per voice role with articulation
    */
   getVelocityConfig(style) {
     const targetStyle = style || this.currentStyle
     const genre = targetStyle?.dominantGenre || 'ambient'
 
-    // Genre-specific velocity configs (matching UserSynthManager pattern)
+    // Entry #180: Genre-specific velocity and articulation configs
     const configs = {
-      ambient:      { melody: 0.06, harmony: 0.04, bass: 0.05, pad: 0.03 },
-      classical:    { melody: 0.10, harmony: 0.06, bass: 0.08, pad: 0.04 },
-      jazz:         { melody: 0.12, harmony: 0.08, bass: 0.10, pad: 0.05 },
-      melodic:      { melody: 0.10, harmony: 0.06, bass: 0.08, pad: 0.04 },
-      electronic:   { melody: 0.14, harmony: 0.10, bass: 0.12, pad: 0.06 },
-      rhythmic:     { melody: 0.14, harmony: 0.10, bass: 0.12, pad: 0.06 },
-      rock:         { melody: 0.16, harmony: 0.12, bass: 0.14, pad: 0.07 },
-      experimental: { melody: 0.12, harmony: 0.08, bass: 0.10, pad: 0.05 }
+      ambient: {
+        velocity: { melody: 0.06, harmony: 0.04, bass: 0.05, pad: 0.03 },
+        articulation: 'legato',
+        noteLengthMultiplier: 1.5  // Longer notes
+      },
+      classical: {
+        velocity: { melody: 0.10, harmony: 0.06, bass: 0.08, pad: 0.04 },
+        articulation: 'legato',
+        noteLengthMultiplier: 1.2
+      },
+      jazz: {
+        velocity: { melody: 0.12, harmony: 0.08, bass: 0.10, pad: 0.05 },
+        articulation: 'portato',
+        noteLengthMultiplier: 0.9  // Slightly detached
+      },
+      melodic: {
+        velocity: { melody: 0.10, harmony: 0.06, bass: 0.08, pad: 0.04 },
+        articulation: 'legato',
+        noteLengthMultiplier: 1.0
+      },
+      pop: {
+        velocity: { melody: 0.11, harmony: 0.07, bass: 0.09, pad: 0.05 },
+        articulation: 'normal',
+        noteLengthMultiplier: 1.0
+      },
+      electronic: {
+        velocity: { melody: 0.14, harmony: 0.10, bass: 0.12, pad: 0.06 },
+        articulation: 'staccato',
+        noteLengthMultiplier: 0.7  // Shorter, punchy
+      },
+      rhythmic: {
+        velocity: { melody: 0.14, harmony: 0.10, bass: 0.12, pad: 0.06 },
+        articulation: 'staccato',
+        noteLengthMultiplier: 0.6  // Very short
+      },
+      rock: {
+        velocity: { melody: 0.16, harmony: 0.12, bass: 0.14, pad: 0.07 },
+        articulation: 'marcato',
+        noteLengthMultiplier: 0.8
+      },
+      experimental: {
+        velocity: { melody: 0.12, harmony: 0.08, bass: 0.10, pad: 0.05 },
+        articulation: 'varied',
+        noteLengthMultiplier: 1.0
+      }
     }
 
-    return configs[genre] || configs.ambient
+    const config = configs[genre] || configs.ambient
+
+    // Return velocity object for backward compatibility, with extra properties
+    return {
+      ...config.velocity,
+      articulation: config.articulation,
+      noteLengthMultiplier: config.noteLengthMultiplier
+    }
   }
 
   /**

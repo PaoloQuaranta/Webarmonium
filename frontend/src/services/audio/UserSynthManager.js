@@ -72,44 +72,85 @@ class UserSynthManager {
 
   /**
    * Entry #175b: Apply genre-specific envelope to all existing user synths
-   * @param {Object} style - Style object with dominantGenre (defaults to 'ambient' if missing)
+   * Entry #180: Now also applies filter modulation for genre-specific timbre
+   * Entry #180b: Prioritizes backend synthParams, minimal local fallbacks
+   * @param {Object} style - Style object with dominantGenre, synthParams (defaults to 'ambient' if missing)
    */
   applyStyleToAllSynths(style) {
     // Entry #175b fix: Default to 'ambient' if no style or dominantGenre
     const genre = style?.dominantGenre || 'ambient'
 
-    const envelopes = {
-      ambient:    { attack: 0.3, decay: 0.5, sustain: 0.6, release: 1.5 },
-      jazz:       { attack: 0.02, decay: 0.2, sustain: 0.5, release: 0.2 },
-      electronic: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.15 },
-      rock:       { attack: 0.01, decay: 0.15, sustain: 0.6, release: 0.3 },
-      classical:  { attack: 0.08, decay: 0.3, sustain: 0.6, release: 0.6 }
-    }
-    const env = envelopes[genre] || envelopes.ambient
+    // Entry #180b: Backend synthParams is the primary source of truth
+    // These come from GenreCharacteristics.js on backend
+    const synthParams = style?.synthParams || null
 
+    // Entry #180b: Minimal safe fallback defaults (only used if backend doesn't send synthParams)
+    // These should match GenreCharacteristics.melodic as a reasonable middle ground
+    const SAFE_DEFAULTS = {
+      filterCutoff: 1800,
+      filterQ: 0.6,
+      attackTime: 0.03,
+      releaseTime: 0.4,
+      decay: 0.25,
+      sustain: 0.6
+    }
+
+    // Use backend synthParams exclusively if available
+    const filterFreq = synthParams?.filterCutoff ?? SAFE_DEFAULTS.filterCutoff
+    const filterQ = synthParams?.filterQ ?? SAFE_DEFAULTS.filterQ
+    const envAttack = synthParams?.attackTime ?? SAFE_DEFAULTS.attackTime
+    const envRelease = synthParams?.releaseTime ?? SAFE_DEFAULTS.releaseTime
+    const envDecay = synthParams?.decayTime ?? SAFE_DEFAULTS.decay
+    const envSustain = synthParams?.sustainLevel ?? SAFE_DEFAULTS.sustain
+
+    // Apply to all synths
     for (const [userId, synthData] of this.userSynths) {
-      if (synthData.synth?.set && !synthData.disposing) {
-        try {
-          synthData.synth.set({ envelope: env })
-        } catch (e) {
-          // Synth may be disposed, ignore
+      if (synthData.disposing) continue
+
+      try {
+        // Apply envelope
+        if (synthData.synth?.set) {
+          synthData.synth.set({
+            envelope: {
+              attack: envAttack,
+              decay: envDecay,
+              sustain: envSustain,
+              release: envRelease
+            }
+          })
         }
+
+        // Entry #180: Apply filter modulation
+        if (synthData.filter && !synthData.filter.disposed) {
+          // Use rampTo for smooth transitions
+          synthData.filter.frequency.rampTo(filterFreq, 0.5)
+          synthData.filter.Q.rampTo(filterQ, 0.5)
+        }
+      } catch (e) {
+        // Synth may be disposed, ignore
       }
     }
+
+    // console.log(`🎨 [Genre] Applied ${genre}: filter=${filterFreq}Hz Q=${filterQ}, attack=${envAttack}s`)
   }
 
   /**
    * Entry #175b: Get velocity multiplier based on genre
+   * Entry #180: Expanded to all genres
    * @param {Object} style - Style object with dominantGenre
    * @returns {number} Velocity multiplier (0.6 - 1.4)
    */
   getVelocityMultiplier(style) {
     const multipliers = {
       ambient: 0.6,
+      classical: 0.8,
+      melodic: 1.0,
       jazz: 1.0,
+      pop: 1.0,
       electronic: 1.2,
-      rock: 1.4,
-      classical: 0.8
+      rhythmic: 1.2,
+      experimental: 1.1,
+      rock: 1.4
     }
     return multipliers[style?.dominantGenre] || 1.0
   }

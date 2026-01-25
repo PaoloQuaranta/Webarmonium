@@ -1,5 +1,15 @@
 const { PHI } = require('../utils/constants')
 const { applyVoiceRole, VOICE_ROLE_MODIFIERS } = require('../composition/FormDefinitions')
+const {
+  getGenreCharacteristics,
+  getVoiceConfig,
+  getRoleDensity,
+  getDurationPool,
+  getDuration,
+  getArticulation,
+  getSwingAmount,
+  getSyncopation
+} = require('../utils/GenreCharacteristics')
 
 class CounterpointEngine {
   constructor() {
@@ -38,32 +48,46 @@ class CounterpointEngine {
   /**
    * Create a voice with section-aware parameters
    * Uses SectionContext for dynamic level, articulation, and register adjustments
+   * Entry #180: Added genre parameter for genre-aware voice generation
    * @param {Object} material - Musical material
    * @param {number} voiceIndex - Voice index (0=soprano, 1=alto, 2=tenor, 3=bass)
    * @param {Array} progression - Harmonic progression
    * @param {number} compositionCount - Composition count for temporal variation
    * @param {Object} sectionContext - Optional SectionContext for section-aware generation
+   * @param {string} genre - Optional genre for genre-specific voice characteristics
    * @returns {Object} Voice with notes and metadata
    */
-  createVoice(material, voiceIndex, progression, compositionCount = 0, sectionContext = null) {
+  createVoice(material, voiceIndex, progression, compositionCount = 0, sectionContext = null, genre = 'melodic') {
+    // Store genre for use in other methods
+    this._currentGenre = genre
+
     // If we have a SectionContext, use section-aware voice creation
     if (sectionContext) {
-      return this.createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext)
+      return this.createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext, genre)
     }
 
-    // Original behavior for backward compatibility
-    const voiceRole = this.getVoiceRole(voiceIndex)
+    // Entry #180: Get genre-aware voice role
+    const voiceRole = this.getVoiceRole(voiceIndex, genre)
+
+    // Entry #180: Check if this voice should be created for this genre
+    const voiceConfig = getVoiceConfig(genre)
+    if (voiceIndex >= voiceConfig.voiceCount) {
+      // This genre doesn't need this many voices - return minimal voice
+      return null
+    }
+
     const voiceType = voiceRole.type
     const range = this.voiceRanges[voiceType]
 
     // Analyze material for melodic characteristics
     const melodicProfile = this.analyzeMaterialForVoice(material)
 
-    // Override profile with role-specific characteristics
+    // Override profile with role-specific characteristics (now genre-aware)
     melodicProfile.role = voiceRole.name
     melodicProfile.density = voiceRole.density
     melodicProfile.noteLength = voiceRole.noteLength
     melodicProfile.activity = voiceRole.activity
+    melodicProfile.genre = genre
 
     // Generate voice based on role (pass compositionCount for temporal variation - Entry #114)
     const voiceNotes = this.generateVoiceNotes(material, range, melodicProfile, progression, compositionCount)
@@ -76,22 +100,32 @@ class CounterpointEngine {
       range: range,
       character: melodicProfile,
       voiceIndex: voiceIndex,
-      timbre: voiceRole.timbre
+      timbre: voiceRole.timbre,
+      genre: genre
     }
   }
 
   /**
    * Create a voice with section-aware parameters from SectionContext
    * Applies voice role modifiers and section parameters for coherent musical texture
+   * Entry #180: Added genre parameter for genre-specific voice characteristics
    * @param {Object} material - Musical material
    * @param {number} voiceIndex - Voice index
    * @param {Array} progression - Harmonic progression
    * @param {number} compositionCount - Composition count
    * @param {Object} sectionContext - SectionContext with section parameters
+   * @param {string} genre - Genre for genre-specific voice characteristics
    * @returns {Object} Voice with notes and metadata
    */
-  createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext) {
-    const voiceRole = this.getVoiceRole(voiceIndex)
+  createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext, genre = 'melodic') {
+    // Entry #180: Get genre-aware voice role
+    const voiceRole = this.getVoiceRole(voiceIndex, genre)
+
+    // Entry #180: Check if this voice should be created for this genre
+    const voiceConfig = getVoiceConfig(genre)
+    if (voiceIndex >= voiceConfig.voiceCount) {
+      return null // This genre doesn't need this many voices
+    }
     const voiceType = voiceRole.type
 
     // Apply voice role modifiers to section context
@@ -117,9 +151,10 @@ class CounterpointEngine {
     melodicProfile.density = this._densityFromSection(voiceContext.rhythmicDensity, voiceRole)
     melodicProfile.noteLength = this._noteLengthFromSection(voiceContext.rhythmicDensity, voiceRole)
     melodicProfile.activity = this._activityFromSection(voiceContext.dynamicLevel, voiceRole)
+    melodicProfile.genre = genre
 
-    // Section-aware articulation
-    melodicProfile.articulationStyle = voiceContext.articulationStyle || voiceRole.timbre
+    // Section-aware articulation (Entry #180: prefer genre articulation)
+    melodicProfile.articulationStyle = getArticulation(genre) || voiceContext.articulationStyle || voiceRole.timbre
 
     // Generate voice based on role with section context
     const voiceNotes = this.generateVoiceNotesWithSection(
@@ -135,6 +170,7 @@ class CounterpointEngine {
       character: melodicProfile,
       voiceIndex: voiceIndex,
       timbre: voiceRole.timbre,
+      genre: genre,
       sectionParams: {
         dynamicLevel: voiceContext.dynamicLevel,
         harmonicTension: voiceContext.harmonicTension,
@@ -355,43 +391,97 @@ class CounterpointEngine {
     return baseDuration * densityFactor
   }
 
-  getVoiceRole(voiceIndex) {
-    const roles = [
-      {
-        name: 'melody',
-        type: 'soprano',
-        density: 'high',      // Many notes
-        noteLength: 'short',  // Quick articulation
-        activity: 'high',
-        timbre: 'bright'
-      },
-      {
-        name: 'harmony',
-        type: 'alto',
-        density: 'medium',    // Moderate notes
-        noteLength: 'medium', // Normal articulation
-        activity: 'medium',
-        timbre: 'warm'
-      },
-      {
-        name: 'bass',
-        type: 'bass',
-        density: 'low',       // Few notes
-        noteLength: 'long',   // Sustained notes
-        activity: 'low',
-        timbre: 'deep'
-      },
-      {
-        name: 'pad',
-        type: 'tenor',
-        density: 'sparse',    // Very few notes
-        noteLength: 'verylong', // Very sustained
-        activity: 'low',
-        timbre: 'soft'
-      }
-    ]
+  /**
+   * Get voice role configuration - now genre-aware (Entry #180)
+   * @param {number} voiceIndex - Voice index
+   * @param {string} genre - Genre for genre-specific roles
+   * @returns {Object} Voice role configuration
+   */
+  getVoiceRole(voiceIndex, genre = 'melodic') {
+    // Entry #180: Get genre-specific voice configuration
+    const genreConfig = getVoiceConfig(genre)
+    const genreRoles = genreConfig.roles || ['melody', 'harmony', 'bass', 'pad']
 
-    return roles[voiceIndex % 4]
+    // Get the role name for this voice index
+    const roleName = genreRoles[voiceIndex % genreRoles.length]
+
+    // Get genre-specific density for this role
+    const density = getRoleDensity(genre, roleName)
+
+    // Map role names to voice types
+    const roleToVoiceType = {
+      melody: 'soprano',
+      harmony: 'alto',
+      alto: 'alto',
+      comping: 'alto',
+      powerchord: 'alto',
+      rhythm: 'alto',
+      tenor: 'tenor',
+      bass: 'bass',
+      pad: 'tenor',
+      texture: 'tenor',
+      arpeggio: 'soprano',
+      noise: 'bass'
+    }
+
+    // Map density values to descriptive strings
+    const densityToString = (d) => {
+      if (d >= 0.8) return 'high'
+      if (d >= 0.6) return 'medium-high'
+      if (d >= 0.4) return 'medium'
+      if (d >= 0.2) return 'low'
+      return 'sparse'
+    }
+
+    // Map density to note length
+    const densityToNoteLength = (d, genre) => {
+      // Genre-specific adjustments
+      if (genre === 'ambient') return d > 0.5 ? 'long' : 'verylong'
+      if (genre === 'electronic') return d > 0.5 ? 'short' : 'medium'
+      if (genre === 'rock') return d > 0.7 ? 'short' : 'medium'
+
+      // Default mapping
+      if (d >= 0.7) return 'short'
+      if (d >= 0.4) return 'medium'
+      if (d >= 0.2) return 'long'
+      return 'verylong'
+    }
+
+    // Map density to activity
+    const densityToActivity = (d) => {
+      if (d >= 0.7) return 'high'
+      if (d >= 0.4) return 'medium'
+      return 'low'
+    }
+
+    // Map role to timbre
+    const roleToTimbre = {
+      melody: 'bright',
+      harmony: 'warm',
+      alto: 'warm',
+      comping: 'warm',
+      powerchord: 'bright',
+      rhythm: 'bright',
+      tenor: 'soft',
+      bass: 'deep',
+      pad: 'soft',
+      texture: 'soft',
+      arpeggio: 'bright',
+      noise: 'deep'
+    }
+
+    const voiceType = roleToVoiceType[roleName] || 'alto'
+
+    return {
+      name: roleName,
+      type: voiceType,
+      density: densityToString(density),
+      densityValue: density, // Numeric value for calculations
+      noteLength: densityToNoteLength(density, genre),
+      activity: densityToActivity(density),
+      timbre: roleToTimbre[roleName] || 'warm',
+      genre: genre
+    }
   }
 
   analyzeMaterialForVoice(material) {
@@ -828,62 +918,112 @@ class CounterpointEngine {
     }
   }
 
+  /**
+   * Generate duration based on role - now genre-aware (Entry #180)
+   * @param {string} role - Voice role
+   * @param {number} index - Note index
+   * @param {number} total - Total notes
+   * @returns {number} Duration value
+   */
   generateDurationByRole(role, index, total) {
-    // Role-specific duration generation
-    // DERIVATION: golden ratio stepping breaks predictable cycles
-    // Entry #117: Added compositionCount temporal variation for different rhythms each composition
-
-    // Helper: golden ratio index with temporal offset for non-repeating sequences
-    const safeIndex = index || 0
+    // Entry #180: Use genre-specific duration pools
+    const genre = this._currentGenre || 'melodic'
     const compCount = this._currentCompositionCount || 0
+
+    // Get duration from GenreCharacteristics
+    const duration = getDuration(genre, role, index, compCount)
+
+    // Entry #180b: Strict validation - must be a positive finite number
+    if (typeof duration === 'number' && isFinite(duration) && duration > 0) {
+      return duration
+    }
+
+    // Log warning for debugging
+    console.warn(`CounterpointEngine: Invalid duration from genre ${genre}, role ${role}: ${duration}`)
+
+    // Fallback: original behavior for backward compatibility
+    const safeIndex = index || 0
     const temporalOffset = (compCount * PHI) % 1
-    // Combine note index + temporal offset for variety across compositions
     const phiIndex = (arr) => Math.floor(((safeIndex * PHI) + temporalOffset) % 1 * arr.length)
 
     switch (role) {
       case 'melody':
-        // Fast, varied: 8th and 16th notes with variation
         const melodyOptions = [0.25, 0.5, 0.25, 0.75, 0.375, 0.625]
         return melodyOptions[phiIndex(melodyOptions)]
 
       case 'harmony':
-        // Medium: quarter and half notes with variation
         const harmonyOptions = [1.0, 1.5, 0.75, 1.0, 1.25, 0.5]
         return harmonyOptions[phiIndex(harmonyOptions)]
 
       case 'bass':
-        // Long: whole notes and half notes with variation
         const bassOptions = [3.0, 4.0, 2.0, 2.5, 3.5]
         return bassOptions[phiIndex(bassOptions)]
 
       case 'pad':
-        // Very long: sustained notes with variation
         const padOptions = [6.0, 8.0, 7.0, 5.0, 9.0]
         return padOptions[phiIndex(padOptions)]
 
       default:
-        // DERIVATION: duration based on position in phrase
         const position = index / total
-        return 0.5 + position * 1.5  // 0.5 to 2.0 based on position
+        return 0.5 + position * 1.5
     }
   }
 
+  /**
+   * Generate articulation by role - now genre-aware (Entry #180)
+   * @param {string} role - Voice role
+   * @param {number} noteIndex - Note index for variation
+   * @returns {string} Articulation type
+   */
   generateArticulationByRole(role, noteIndex = 0) {
-    // Role-specific articulation for TIMBRAL DISTINCTION
-    // DERIVATION: uses note index for deterministic variation where needed
-    switch (role) {
-      case 'melody':
-        // DERIVATION: pattern-based articulation (70% staccato equivalent)
-        // Staccato on notes 0,1,2 of every 3, normal on note 3
-        return (noteIndex % 4) < 3 ? 'staccato' : 'normal'  // Bright, detached
-      case 'harmony':
-        return 'normal'                                      // Standard
-      case 'bass':
-        return 'legato'                                      // Smooth, connected
-      case 'pad':
-        return 'legato'                                      // Sustained, flowing
+    // Entry #180: Use genre-specific articulation
+    const genre = this._currentGenre || 'melodic'
+    const genreArticulation = getArticulation(genre)
+
+    // Genre-specific articulation overrides
+    switch (genreArticulation) {
+      case 'staccato':
+        // Electronic, rhythmic: mostly staccato
+        return (noteIndex % 4) === 3 ? 'normal' : 'staccato'
+
+      case 'legato':
+        // Ambient, classical: mostly legato
+        return role === 'melody' ? 'portato' : 'legato'
+
+      case 'marcato':
+        // Rock: accented attacks
+        return (noteIndex % 2) === 0 ? 'marcato' : 'normal'
+
+      case 'portato':
+        // Jazz: connected but articulated
+        return (noteIndex % 3) === 0 ? 'staccato' : 'portato'
+
+      case 'varied':
+        // Experimental: mix everything with PHI-based selection for true variation
+        // Entry #180b: Use PHI instead of simple modulo for unpredictable, non-repeating patterns
+        const options = ['staccato', 'legato', 'normal', 'marcato', 'portato']
+        const compCount = this._currentCompositionCount || 0
+        // Combine note index and composition count for unique sequence each composition
+        const phiIndex = Math.floor(((noteIndex * PHI) + (compCount * PHI * 0.5)) % 1 * options.length)
+        return options[phiIndex]
+
       default:
-        return 'normal'
+        // Fallback to role-based articulation
+        switch (role) {
+          case 'melody':
+            return (noteIndex % 4) < 3 ? 'staccato' : 'normal'
+          case 'harmony':
+          case 'comping':
+          case 'powerchord':
+            return 'normal'
+          case 'bass':
+            return 'legato'
+          case 'pad':
+          case 'texture':
+            return 'legato'
+          default:
+            return 'normal'
+        }
     }
   }
 

@@ -21,13 +21,14 @@ const { getSectionStateManager } = require('./SectionStateManager')
 const RawGestureData = require('../composition/RawGestureData')
 const { PHI } = require('../utils/constants')
 const { GENRE_BPM_RANGES } = require('../utils/GenreUtils')
+const { getSynthParams, getAllGenres } = require('../utils/GenreCharacteristics')
 
 // Entry #179: Style cycling constants
 const STYLE_CYCLE_INTERVAL = 30 * 1000  // 30 secondi (testing) - cambiare a 3*60*1000 per produzione
 const BPM_CHANGE_INTERVAL = 60 * 1000        // 1 minuto
 const BPM_SMOOTHING_STEPS = 30               // transizione più graduale (era 10)
-const ALL_GENRES = ['ambient', 'classical', 'melodic', 'jazz',
-                    'electronic', 'rhythmic', 'rock', 'experimental', 'pop']
+// Entry #180b: Use getAllGenres from GenreCharacteristics to stay in sync
+const ALL_GENRES = getAllGenres()
 
 class BackgroundCompositionService {
   constructor() {
@@ -892,6 +893,9 @@ class BackgroundCompositionService {
       const currentStyle = this.styleAnalyzer.getCurrentStyle()
       const forcedGenre = roomState.styleCycling?.currentGenre
       if (this.io) {
+        // Entry #180: Include synthParams for frontend filter/envelope modulation
+        const synthParams = getSynthParams(forcedGenre || 'melodic')
+
         this.io.to(roomId).emit('background-composition', {
           roomId,
           composition,
@@ -902,7 +906,8 @@ class BackgroundCompositionService {
             dominantGenre: forcedGenre || this._getDominantGenre(currentStyle?.genreWeights),
             forcedGenre: forcedGenre,
             currentBPM: roomState.styleCycling?.currentBPM,
-            energy: currentStyle?.energy || 0.5
+            energy: currentStyle?.energy || 0.5,
+            synthParams: synthParams // Entry #180: Pass synth params for genre-aware audio
           }
         })
 

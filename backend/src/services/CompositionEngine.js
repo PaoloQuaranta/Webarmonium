@@ -1,6 +1,13 @@
 const CounterpointEngine = require('./CounterpointEngine')
 const PhraseMorphology = require('./PhraseMorphology')
 const { PHI } = require('../utils/constants')
+const {
+  getGenreCharacteristics,
+  getRhythmPattern,
+  getArticulation,
+  getSwingAmount,
+  getSyncopation
+} = require('../utils/GenreCharacteristics')
 
 class CompositionEngine {
   constructor(materialLibrary, styleAnalyzer, harmonicEngine) {
@@ -468,25 +475,42 @@ class CompositionEngine {
   }
 
   composePolyphonic(materials, progression, style, sectionLength, sectionContext = null) {
-    // LIMIT to 4 voices max for clarity (melody, harmony, bass, pad)
-    const maxVoices = Math.min(materials.length, 4)
+    // Entry #180: Get genre for genre-aware voice creation
+    const genre = style?.forcedGenre || this._getDominantGenreFromWeights(style?.genreWeights) || 'melodic'
+
+    // Entry #180: Use genre-specific voice count instead of fixed 4
+    const genreConfig = getGenreCharacteristics(genre)
+    const genreVoiceCount = genreConfig?.voiceConfig?.voiceCount || 4
+    const maxVoices = Math.min(materials.length, genreVoiceCount)
     const selectedMaterials = materials.slice(0, maxVoices)
 
-// console.log(`🎼 Composing polyphonic section with ${maxVoices} voices (from ${materials.length} materials)`)
+// console.log(`🎼 Composing polyphonic section with ${maxVoices} voices for genre ${genre}`)
 
     // Create voices for each material/user with DISTINCT ROLES
-    const voices = selectedMaterials.map((material, i) => {
+    const voicesRaw = selectedMaterials.map((material, i) => {
       // Pass compositionCount for temporal variation (Entry #114)
       // Entry #169: Pass sectionContext for voice role application
-      const voice = this.counterpointEngine.createVoice(material, i, progression, this.compositionCount, sectionContext)
+      // Entry #180: Pass genre for genre-aware voice creation
+      const voice = this.counterpointEngine.createVoice(material, i, progression, this.compositionCount, sectionContext, genre)
+
+      // Entry #180: Voice may be null if genre doesn't need this many voices
+      if (!voice) return null
+
 // console.log(`🎼   Voice ${i} (${voice.voiceRole}): ${voice.notes?.length || 0} notes, timbre=${voice.timbre}`)
       return {
         ...voice,
         materialId: material.id,
         userId: material.metadata.userId,
-        pan: this.counterpointEngine.calculatePan(i, maxVoices)
+        genre: genre
       }
-    })
+    }).filter(v => v !== null) // Entry #180: Filter out null voices
+
+    // Entry #180b: Recalculate pan positions AFTER filtering null voices
+    // This ensures pan spread is correct for actual voice count
+    const voices = voicesRaw.map((voice, index) => ({
+      ...voice,
+      pan: this.counterpointEngine.calculatePan(index, voicesRaw.length)
+    }))
 
     // Validate voice leading
     const validation = this.counterpointEngine.validateVoiceLeading(voices)
@@ -842,69 +866,184 @@ class CompositionEngine {
     }
   }
 
+  /**
+   * Generate accompaniment based on genre - Entry #180: Now uses genre-specific rhythm patterns
+   * @param {Array} progression - Chord progression
+   * @param {Object} style - Style object with forcedGenre or genreWeights
+   * @param {number} sectionLength - Section length in bars
+   * @returns {Object} Accompaniment object
+   */
   generateAccompaniment(progression, style, sectionLength) {
-    // Generate accompaniment based on genre
-    // Entry #161: Lowered threshold from 0.7 to 0.4
-    const genreWeights = style.genreWeights || {}
+    // Entry #180: Use forcedGenre if available, otherwise determine from weights
+    const genre = style.forcedGenre || this._getDominantGenreFromWeights(style.genreWeights)
 
-    if (genreWeights.jazz > 0.4) {
-      return this.generateJazzComping(progression)
-    } else if (genreWeights.electronic > 0.4) {
-      return this.generateArpeggio(progression)
-    } else if (genreWeights.rock > 0.4) {
-      return this.generateRockGroove(progression)
-    } else {
-      return this.generateChordPads(progression)
+    // Get genre-specific rhythm pattern (cycles through patterns based on compositionCount)
+    const rhythmPattern = getRhythmPattern(genre, 'accompaniment', this.compositionCount || 0)
+    const articulation = getArticulation(genre)
+    const swingAmount = getSwingAmount(genre)
+    const syncopation = getSyncopation(genre)
+
+    // Route to genre-specific generator with rhythm pattern
+    // Entry #180b: Pass swingAmount and syncopation to all generators
+    switch (genre) {
+      case 'jazz':
+        return this.generateJazzComping(progression, rhythmPattern, swingAmount, syncopation)
+      case 'electronic':
+        return this.generateArpeggio(progression, rhythmPattern, syncopation)
+      case 'rhythmic':
+        // Rhythmic/funk has slight swing and high syncopation
+        return this.generateArpeggio(progression, rhythmPattern, syncopation, swingAmount)
+      case 'rock':
+        return this.generateRockGroove(progression, rhythmPattern, articulation, syncopation)
+      case 'ambient':
+        return this.generateAmbientPads(progression, rhythmPattern)
+      case 'classical':
+        return this.generateClassicalAccompaniment(progression, rhythmPattern, syncopation)
+      case 'experimental':
+        return this.generateArpeggio(progression, rhythmPattern, syncopation, swingAmount)
+      default:
+        return this.generateChordPads(progression, rhythmPattern, genre, syncopation)
     }
   }
 
-  generateJazzComping(progression) {
-    // Generate jazz-style comping with chord voicings
+  /**
+   * Helper to get dominant genre from weights
+   */
+  _getDominantGenreFromWeights(genreWeights) {
+    if (!genreWeights) return 'melodic'
+
+    let maxWeight = 0
+    let dominant = 'melodic'
+
+    for (const [genre, weight] of Object.entries(genreWeights)) {
+      if (weight > maxWeight) {
+        maxWeight = weight
+        dominant = genre
+      }
+    }
+
+    return dominant
+  }
+
+  /**
+   * Generate jazz-style comping with swing feel - Entry #180: Now accepts rhythm pattern
+   * Entry #180b: Added syncopation parameter for anticipation probability
+   */
+  generateJazzComping(progression, rhythmPattern = [1, 0.5, 1.5, 1], swingAmount = 0.67, syncopation = 0.7) {
     return {
       type: 'jazz_comping',
-      chords: progression.map(chord => ({
+      swingAmount: swingAmount,       // 2:1 swing ratio for triplet feel
+      syncopation: syncopation,       // Probability of anticipations/off-beat accents
+      chords: progression.map((chord, index) => ({
         ...chord,
         voicing: this.harmonicEngine.voiceLeadToChord(60, chord, null),
-        rhythm: [1, 0.5, 1.5, 1], // Swing rhythm
-        articulation: 'staccato'
+        rhythm: rhythmPattern,
+        articulation: index % 3 === 0 ? 'staccato' : 'portato', // Varied articulation
+        anticipate: Math.random() < syncopation * 0.5 // Random anticipation based on syncopation
       }))
     }
   }
 
-  generateArpeggio(progression) {
-    // Generate electronic-style arpeggios
+  /**
+   * Generate electronic-style arpeggios - Entry #180: Now accepts rhythm pattern
+   * Entry #180b: Added syncopation and optional swing for rhythmic/funk genres
+   */
+  generateArpeggio(progression, rhythmPattern = [0.25, 0.25, 0.25, 0.25], syncopation = 0.6, swingAmount = 0) {
+    // Entry #180: Vary arpeggio direction based on composition count
+    const directions = ['up', 'down', 'updown', 'random']
+    const dirIndex = (this.compositionCount || 0) % directions.length
+
     return {
       type: 'arpeggio',
-      pattern: progression.map(chord => ({
+      swingAmount: swingAmount,       // 0 for electronic, slight for rhythmic/funk
+      syncopation: syncopation,       // Off-beat probability
+      pattern: progression.map((chord, index) => ({
         ...chord,
         notes: this.harmonicEngine.buildChord(chord.chord),
-        rhythm: 0.25, // Sixteenth notes
-        direction: 'up'
+        rhythm: rhythmPattern,
+        direction: directions[(dirIndex + index) % directions.length],
+        // Entry #180b: Apply syncopation as velocity accent on off-beats
+        accentOffBeats: syncopation > 0.5
       }))
     }
   }
 
-  generateRockGroove(progression) {
-    // Generate rock-style groove
+  /**
+   * Generate rock-style groove - Entry #180: Now accepts rhythm pattern
+   * Entry #180b: Added syncopation for push/pull feel
+   */
+  generateRockGroove(progression, rhythmPattern = [0.5, 0.5, 0.5, 0.5], articulation = 'marcato', syncopation = 0.4) {
     return {
       type: 'rock_groove',
-      chords: progression.map(chord => ({
+      syncopation: syncopation,       // Some push/pull but mostly on-beat
+      chords: progression.map((chord, index) => ({
         ...chord,
-        rhythm: [0.5, 0.5, 1, 1], // Rock rhythm pattern
-        powerChords: true
+        rhythm: rhythmPattern,
+        powerChords: true,
+        articulation: articulation,
+        accent: index % 2 === 1,       // Backbeat accent (beats 2 and 4)
+        // Entry #180b: Random push based on syncopation level
+        pushBeat: Math.random() < syncopation * 0.3
       }))
     }
   }
 
-  generateChordPads(progression) {
-    // Generate sustained chord pads
+  /**
+   * Generate ambient pads - Entry #180: New method for ambient genre
+   */
+  generateAmbientPads(progression, rhythmPattern = [8]) {
     return {
-      type: 'chord_pads',
+      type: 'ambient_pads',
       chords: progression.map(chord => ({
         ...chord,
-        duration: chord.bars * 4, // Whole bars
+        duration: rhythmPattern[0] || chord.bars * 4,
         sustain: true,
-        fade: 'in_out'
+        fade: 'in_out',
+        articulation: 'legato',
+        volume: 0.6 // Softer
+      }))
+    }
+  }
+
+  /**
+   * Generate classical-style accompaniment - Entry #180: New method for classical genre
+   * Entry #180b: Added syncopation (minimal for classical)
+   */
+  generateClassicalAccompaniment(progression, rhythmPattern = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], syncopation = 0.15) {
+    // Alberti bass style or block chords
+    const isAlberti = rhythmPattern.length >= 4 && rhythmPattern[0] <= 0.5
+
+    return {
+      type: isAlberti ? 'alberti_bass' : 'block_chords',
+      syncopation: syncopation,       // Minimal syncopation for classical
+      chords: progression.map(chord => ({
+        ...chord,
+        rhythm: rhythmPattern,
+        voicing: this.harmonicEngine.voiceLeadToChord(48, chord, null), // Lower register
+        articulation: 'legato',
+        pattern: isAlberti ? 'broken' : 'block'
+      }))
+    }
+  }
+
+  /**
+   * Generate sustained chord pads - Entry #180: Now accepts rhythm pattern and genre
+   * Entry #180b: Added syncopation parameter
+   */
+  generateChordPads(progression, rhythmPattern = [4], genre = 'melodic', syncopation = 0.25) {
+    const genreConfig = getGenreCharacteristics(genre)
+    const synthParams = genreConfig?.synthParams || {}
+
+    return {
+      type: 'chord_pads',
+      syncopation: syncopation,
+      chords: progression.map(chord => ({
+        ...chord,
+        duration: rhythmPattern[0] || chord.bars * 4,
+        sustain: true,
+        fade: genre === 'ambient' ? 'in_out' : 'none',
+        articulation: genreConfig?.articulation || 'normal',
+        filterCutoff: synthParams.filterCutoff // Pass to frontend for filter modulation
       }))
     }
   }
