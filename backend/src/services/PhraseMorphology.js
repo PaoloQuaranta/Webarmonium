@@ -472,8 +472,9 @@ class PhraseMorphology {
       }
     }
 
-    // Clamp to reasonable range (min 1 beat, max 16 beats)
-    return Math.max(1, Math.min(16, nearestBeats))
+    // Clamp to reasonable range (min 1 beat, max 32 beats)
+    // Entry #172: Extended from 16 to 32 for longer phrases
+    return Math.max(1, Math.min(32, nearestBeats))
   }
 
   /**
@@ -497,12 +498,31 @@ class PhraseMorphology {
     else if (velocity > 20) baseDuration = 1.5  // Medium-slow = dotted quarters
     else baseDuration = 2.0                     // Slow = half notes
 
-    // Calculate how many notes fit in the phrase duration
-    const idealNoteCount = Math.floor(phraseDurationBeats / baseDuration)
+    // Calculate how many notes would theoretically fit in the phrase duration
+    // Entry #173 fix: Renamed from idealNoteCount for clarity
+    const theoreticalNoteCount = Math.floor(phraseDurationBeats / baseDuration)
 
-    // Clamp to reasonable range (min 2, max 12 notes)
-    // Reduced from 32 to prevent explosive phrase generation
-    const noteCount = Math.max(2, Math.min(12, idealNoteCount))
+    // Entry #172: Progressive limits based on phrase duration
+    // Entry #173 fix: Added ABSOLUTE_MAX_NOTES ceiling for performance protection
+    const ABSOLUTE_MAX_NOTES = 64  // Constitutional limit to prevent performance issues
+    const NOTE_LIMITS = {
+      SHORT: 16,    // <= 4 beats
+      MEDIUM: 32,   // <= 8 beats
+      LONG: 48,     // <= 16 beats
+      EXTENDED: 64  // > 16 beats
+    }
+
+    const maxNotesForDuration = (beats) => {
+      if (beats <= 4) return NOTE_LIMITS.SHORT
+      if (beats <= 8) return NOTE_LIMITS.MEDIUM
+      if (beats <= 16) return NOTE_LIMITS.LONG
+      return NOTE_LIMITS.EXTENDED
+    }
+
+    // Apply progressive limit with absolute ceiling
+    const progressiveMax = maxNotesForDuration(phraseDurationBeats)
+    const maxNotes = Math.min(ABSOLUTE_MAX_NOTES, progressiveMax)
+    const noteCount = Math.max(2, Math.min(maxNotes, theoreticalNoteCount))
 
     return noteCount
   }

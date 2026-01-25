@@ -727,7 +727,9 @@ class LandingCompositionService {
     // Density represents magnitude of real metrics (avgEditSize, avgUpvotes, newStars)
     // Higher density = more content magnitude = longer phrase
     const density = this.calculateDensityMetric(source)
-    const dragDurationMs = 300 + (density * 2700)  // 300-3000ms organic range
+    // Entry #172: Extended from 300-3000ms for longer phrases
+    // Entry #173 fix: Extended to 300-16000ms to match PhraseMorphology max 32 beats
+    const dragDurationMs = 300 + (density * 15700)  // 300-16000ms (~32 beats at 120 BPM)
 
     return {
       type: 'drag',
@@ -1229,7 +1231,9 @@ class LandingCompositionService {
     const absVelocity = Math.abs(gesture.velocity || 0)
     const normalizedVelocity = this.normalizeMetricDynamic(gesture.source, 'velocity', absVelocity)
     const density = this.calculateDensityMetric(gesture.source)
-    const phraseDurationMs = 300 + (density * 2700)
+    // Entry #172: Extended from 300-3000ms for longer phrases
+    // Entry #173 fix: Extended to 300-16000ms to match PhraseMorphology max 32 beats
+    const phraseDurationMs = 300 + (density * 15700)  // 300-16000ms
     const gestureVelocity = normalizedVelocity * 100
 
     const absAccel = Math.abs(gesture.acceleration || 0)

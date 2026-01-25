@@ -1428,8 +1428,8 @@ New `calculateOctaveTraversal()` method:
 | File | Changes |
 |------|---------|
 | `backend/src/services/PhraseMorphology.js` | Progressive note limits (16/32/48/64), duration cap 32 beats |
-| `backend/src/services/VirtualUserService.js` | Duration range 300-6000ms |
-| `backend/src/services/LandingCompositionService.js` | Duration range 300-6000ms (2 locations) |
+| `backend/src/services/VirtualUserService.js` | Duration range 300-16000ms (Entry #173 fix) |
+| `backend/src/services/LandingCompositionService.js` | Duration range 300-16000ms (2 locations, Entry #173 fix) |
 | `frontend/src/handlers/DragStreamingHandler.js` | Two-tier memory, multi-factor variety, expanded intervals, octave traversal |
 
 ---
@@ -1444,8 +1444,8 @@ New `calculateOctaveTraversal()` method:
    GestureToMusicService  VirtualUserService  LandingCompositionService
    (real users in rooms)  (virtual in rooms)  (virtual in index)
            │                  │                  │
-           │            300-6000ms          300-6000ms
-           │             (extended)          (extended)
+           │           300-16000ms         300-16000ms
+           │           (32 beats max)      (32 beats max)
            ↓                  ↓                  ↓
       PhraseMorphology.generatePhrase() → limits 16/32/48/64
 
@@ -1464,7 +1464,7 @@ Frontend (local audio):
 | Max notes (8-16 beats) | 12 | 48 |
 | Max notes (>16 beats) | 12 | 64 |
 | Max phrase duration | 16 beats | 32 beats |
-| Virtual user duration | 300-3000ms | 300-6000ms |
+| Virtual user duration | 300-3000ms | 300-16000ms (~32 beats) |
 | Short-term memory | 5 notes | 8 notes |
 | Long-term memory | N/A | 24 notes |
 | Fast intervals | 1-4 | 1-7 |
@@ -1473,8 +1473,40 @@ Frontend (local audio):
 
 ---
 
+### Code Review Fixes (Entry #173 Addendum)
+
+Code review identified 7 issues, all fixed:
+
+**Critical:**
+1. **Octave shift rate limiting** - Added `lastOctaveShift` tracking and MIN_NOTES_BETWEEN (6) to prevent consecutive shifts. Reduced THRESHOLD_DECAY from 0.3 to 0.15 (final threshold 0.70 instead of 0.55).
+
+2. **Absolute note count ceiling** - Added ABSOLUTE_MAX_NOTES = 64 constant in PhraseMorphology.js as constitutional limit.
+
+**High Priority:**
+3. **Duration consistency** - Extended virtual user duration from 300-6000ms to 300-16000ms to match PhraseMorphology's 32-beat max.
+
+4. **Memory array optimization** - Changed from O(n) `shift()` to O(1) `slice(-N)` operations.
+
+5. **Magic numbers extraction** - Added MELODIC_CONFIG constant with all configuration:
+```javascript
+const MELODIC_CONFIG = {
+  SHORT_MEMORY_SIZE: 8,
+  LONG_MEMORY_SIZE: 24,
+  INTERVAL_RANGES: { FAST: 7, MEDIUM: 5, SLOW: 6 },
+  OCTAVE_TRAVERSAL: { START_THRESHOLD: 12, MIN_NOTES_BETWEEN: 6, ... },
+  VELOCITY_THRESHOLDS: { FAST: 0.7, MEDIUM: 0.4 }
+}
+```
+
+**Medium Priority:**
+6. **Reset phaseAccumulator** - Updated `resetMelodicMemory()` to reset all fields including `extendedHistory`, `phaseAccumulator`, `lastOctaveShift`.
+
+7. **Variable naming** - Renamed `idealNoteCount` to `theoreticalNoteCount` in PhraseMorphology.js.
+
+---
+
 ### Version
 
-v0.3.1
+v0.2.12
 
 ---

@@ -799,7 +799,9 @@ class VirtualUserService {
     const clampedCurvature = Math.max(0, Math.min(1, curvature))
 
     // ORGANIC DURATION: Correlate phrase duration to density metric
-    const phraseDurationMs = 300 + (density * 2700)  // 300-3000ms organic range
+    // Entry #172: Extended from 300-3000ms for longer phrases
+    // Entry #173 fix: Extended to 300-16000ms to match PhraseMorphology max 32 beats
+    const phraseDurationMs = 300 + (density * 15700)  // 300-16000ms (~32 beats at 120 BPM)
 
     // Create gestureData for PhraseMorphology
     const gestureData = {
