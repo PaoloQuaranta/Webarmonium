@@ -267,39 +267,44 @@ class DragStreamingHandler {
 
   /**
    * Get envelope settings based on articulation
+   * Entry #171: All envelopes now scale with duration for audible variety
    * @param {string} articulation - Articulation type
    * @param {number} duration - Note duration
    * @returns {Object} Envelope settings
    */
   getEnvelopeForArticulation(articulation, duration) {
+    // Ensure minimum duration for audible notes
+    const safeDuration = Math.max(0.05, duration)
+
     switch (articulation) {
       case 'staccato':
         return {
           attack: 0.005,
-          decay: duration * 0.2,
-          sustain: 0.3,
-          release: duration * 0.3
+          decay: safeDuration * 0.3,
+          sustain: 0.2,
+          release: safeDuration * 0.2
         }
       case 'marcato':
         return {
           attack: 0.01,
-          decay: duration * 0.3,
-          sustain: 0.5,
-          release: duration * 0.4
+          decay: safeDuration * 0.4,
+          sustain: 0.4,
+          release: safeDuration * 0.3
         }
       case 'legato':
         return {
-          attack: duration * 0.1,
-          decay: duration * 0.2,
-          sustain: 0.7,
-          release: duration * 0.7
+          attack: safeDuration * 0.15,
+          decay: safeDuration * 0.25,
+          sustain: 0.6,
+          release: safeDuration * 0.5
         }
       default:
+        // Entry #171: Default now also scales with duration
         return {
-          attack: 0.005,
-          decay: 0.02,
-          sustain: 0.1,
-          release: 0.05
+          attack: 0.01,
+          decay: safeDuration * 0.3,
+          sustain: 0.3,
+          release: safeDuration * 0.3
         }
     }
   }
