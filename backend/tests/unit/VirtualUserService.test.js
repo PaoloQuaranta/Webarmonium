@@ -454,10 +454,11 @@ describe('VirtualUserService', () => {
         const ghCategory = service._selectDurationCategory('github')
 
         // With gesture count 0, source offsets determine category
-        // 0.17 < 0.20 = tap, 0.53 in [0.50, 0.80) = medium, 0.89 >= 0.80 = long
+        // Entry #174 addendum: New boundaries: tap <0.25, short <0.65, medium <0.90, long >=0.90
+        // 0.17 < 0.25 = tap, 0.53 in [0.25, 0.65) = short, 0.89 in [0.65, 0.90) = medium
         expect(wikiCategory.category).toBe('tap')
-        expect(hnCategory.category).toBe('medium')
-        expect(ghCategory.category).toBe('long')
+        expect(hnCategory.category).toBe('short')
+        expect(ghCategory.category).toBe('medium')
       })
 
       test('should produce balanced distribution over 100 gestures', () => {
@@ -469,15 +470,15 @@ describe('VirtualUserService', () => {
           counts[category]++
         }
 
-        // Expected: 20% tap, 30% short, 30% medium, 20% long (±5%)
-        expect(counts.tap).toBeGreaterThanOrEqual(15)
-        expect(counts.tap).toBeLessThanOrEqual(25)
-        expect(counts.short).toBeGreaterThanOrEqual(25)
-        expect(counts.short).toBeLessThanOrEqual(35)
-        expect(counts.medium).toBeGreaterThanOrEqual(25)
-        expect(counts.medium).toBeLessThanOrEqual(35)
-        expect(counts.long).toBeGreaterThanOrEqual(15)
-        expect(counts.long).toBeLessThanOrEqual(25)
+        // Entry #174 addendum: Expected 25% tap, 40% short, 25% medium, 10% long (±7%)
+        expect(counts.tap).toBeGreaterThanOrEqual(18)
+        expect(counts.tap).toBeLessThanOrEqual(32)
+        expect(counts.short).toBeGreaterThanOrEqual(33)
+        expect(counts.short).toBeLessThanOrEqual(47)
+        expect(counts.medium).toBeGreaterThanOrEqual(18)
+        expect(counts.medium).toBeLessThanOrEqual(32)
+        expect(counts.long).toBeGreaterThanOrEqual(3)
+        expect(counts.long).toBeLessThanOrEqual(17)
       })
     })
   })

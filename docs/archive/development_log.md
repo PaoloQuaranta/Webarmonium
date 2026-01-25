@@ -1617,3 +1617,94 @@ const phraseDurationMs = rangeMin + (density * (rangeMax - rangeMin))
 v0.2.13
 
 ---
+
+## Entry #174 Addendum - Reduce Virtual User Prolixity
+
+**Date**: 2026-01-25
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+After Entry #174, virtual users were generating beautiful but excessively prolific output. This addendum reduces gesture frequency and shifts category distribution to favor shorter phrases.
+
+---
+
+### Problem Statement
+
+User feedback: "virtual users fanno cose bellissime, ma sono diventati eccessivamente prolissi"
+
+Issues identified:
+1. **Too frequent gestures** - 10-16 beats between gestures was too dense
+2. **Too many long phrases** - 20% long phrases was too common
+3. **High density filter pass rate** - 65-70% let too many gestures through
+
+---
+
+### Solution
+
+#### 1. Increased Gesture Interval
+
+```javascript
+// Before: 10-16 beats (4-15 seconds)
+const beatsPerComposition = 16 - (avgActivity * 6)
+const clampedInterval = Math.max(4000, Math.min(15000, interval))
+
+// After: 16-24 beats (8-20 seconds)
+const beatsPerComposition = 24 - (avgActivity * 8)
+const clampedInterval = Math.max(8000, Math.min(20000, interval))
+```
+
+#### 2. Reduced Density Filter Pass Rate
+
+```javascript
+// Before: 65-70% pass rate
+baseDensityMultiplier: 0.65
+maxDensity: 0.70
+
+// After: 45-55% pass rate
+baseDensityMultiplier: 0.45
+maxDensity: 0.55
+```
+
+#### 3. Rebalanced Category Distribution
+
+| Category | Before | After | Duration Range |
+|----------|--------|-------|----------------|
+| Tap | 20% | 25% | 50-300ms |
+| Short | 30% | 40% | 300-1500ms |
+| Medium | 30% | 25% | 1500-5000ms |
+| Long | 20% | 10% | 5000-16000ms |
+
+Long phrases are now rare (10%), short phrases most common (40%).
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/VirtualUserService.js` | Updated gestureConfig, beatsPerComposition, _selectDurationCategory boundaries |
+| `backend/src/services/LandingCompositionService.js` | Same changes |
+| `backend/tests/unit/VirtualUserService.test.js` | Updated test expectations for new distribution |
+
+---
+
+### Expected Behavior
+
+| Parameter | Before | After |
+|-----------|--------|-------|
+| Gesture interval | 4-15 seconds | 8-20 seconds |
+| Density filter pass rate | 65-70% | 45-55% |
+| Long phrase frequency | 20% | 10% |
+| Short phrase frequency | 30% | 40% |
+
+Virtual users should now be more contemplative, with longer pauses between gestures and shorter, more punctual phrases.
+
+---
+
+### Version
+
+v0.2.14
+
+---

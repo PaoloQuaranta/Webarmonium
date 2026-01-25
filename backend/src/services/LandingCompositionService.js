@@ -127,12 +127,11 @@ class LandingCompositionService {
     this.compositionMonitor = null
 
     // Gesture generation config - UNIFIED with VirtualUserService
-    // Inverse modulation with SMALL amplitude (0.05 swing, matching gestureIntent swing)
-    // This provides light correction without dominating the raw activity signal
+    // Entry #174 addendum: Reduced from 0.65-0.70 to 0.45-0.55 to make virtual users less prolific
     this.gestureConfig = {
-      baseDensityMultiplier: 0.65, // 65% pass at HIGH activity (slightly fewer)
+      baseDensityMultiplier: 0.45, // 45% pass at HIGH activity (reduced from 65%)
       minDensity: 0.15,            // Minimum for sparse compositions (unused in current formula)
-      maxDensity: 0.70             // 70% pass at LOW activity (slightly more)
+      maxDensity: 0.55             // 55% pass at LOW activity (reduced from 70%)
     }
 
     // Track pending timeouts for cleanup (prevents memory leaks)
@@ -951,16 +950,15 @@ class LandingCompositionService {
     const githubActivity = this.calculateActivityLevel('github')
     const totalActivity = (wikipediaActivity + hackernewsActivity + githubActivity) / 3  // Average 0-1
 
-    // Map activity to beats: activity 0 → 16 beats, activity 1 → 10 beats
-    // High activity = more frequent (10 beats), Low activity = sparse (16 beats)
-    // Slowed down from 6-12 to 10-16 beats to reduce chaos
-    const beatsPerComposition = 16 - (totalActivity * 6)  // 10-16 beats, emerges from activity
+    // Entry #174 addendum: Increased from 10-16 to 16-24 beats to reduce prolixity
+    // High activity = more frequent (16 beats), Low activity = sparse (24 beats)
+    const beatsPerComposition = 24 - (totalActivity * 8)  // 16-24 beats, emerges from activity
 
     const beatDuration = 60000 / tempo  // milliseconds per beat
     const interval = beatsPerComposition * beatDuration
 
-    // Clamp to reasonable bounds (4-15 seconds) - increased from 2-12s
-    const clampedInterval = Math.max(4000, Math.min(15000, interval))
+    // Clamp to reasonable bounds (8-20 seconds) - increased from 4-15s
+    const clampedInterval = Math.max(8000, Math.min(20000, interval))
 
     this.compositionTimer = setTimeout(() => {
       this.generateAndBroadcastComposition()
@@ -1545,7 +1543,8 @@ class LandingCompositionService {
 
   /**
    * Entry #174: Select duration category using PHI-based cycling
-   * Guarantees balanced distribution: 20% taps, 30% short, 30% medium, 20% long
+   * Addendum: Rebalanced to 25% taps, 40% short, 25% medium, 10% long
+   * Long phrases are now rare, short phrases most common
    *
    * PHI stepping creates a low-discrepancy sequence that cycles through all categories
    * naturally without repeating patterns. Source offsets prevent synchronization.
@@ -1566,14 +1565,15 @@ class LandingCompositionService {
     // PHI-based selector creates low-discrepancy sequence
     const selector = ((gestureCount * LandingCompositionService.PHI) + sourceOffset) % 1
 
-    // Category boundaries: tap 20%, short 30%, medium 30%, long 20%
-    if (selector < 0.20) {
+    // Category boundaries: tap 25%, short 40%, medium 25%, long 10%
+    // Long phrases are rare (10%), short phrases most common (40%)
+    if (selector < 0.25) {
       return { category: 'tap', durationRange: { min: 50, max: 300 } }
     }
-    if (selector < 0.50) {
+    if (selector < 0.65) {
       return { category: 'short', durationRange: { min: 300, max: 1500 } }
     }
-    if (selector < 0.80) {
+    if (selector < 0.90) {
       return { category: 'medium', durationRange: { min: 1500, max: 5000 } }
     }
     return { category: 'long', durationRange: { min: 5000, max: 16000 } }
