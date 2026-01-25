@@ -651,15 +651,18 @@ class BackgroundCompositionService {
     const cycling = roomState.styleCycling
     const style = this.styleAnalyzer.getCurrentStyle()
 
-    // --- STYLE CYCLING (ogni 3 minuti) ---
+    // --- STYLE CYCLING (ogni 30 secondi per testing) ---
     if (now - cycling.lastStyleChangeTime >= STYLE_CYCLE_INTERVAL) {
       // Trova generi disponibili (non ancora usati)
       let available = ALL_GENRES.filter(g => !cycling.usedGenres.has(g))
 
+      console.log(`[StyleCycling] Before: usedGenres=${[...cycling.usedGenres].join(',')}, available=${available.join(',')}`)
+
       // Se tutti usati, reset ciclo
       if (available.length === 0) {
         cycling.usedGenres.clear()
-        available = ALL_GENRES
+        available = [...ALL_GENRES]  // copy array
+        console.log(`[StyleCycling] RESET: all genres used, starting new cycle`)
       }
 
       // Scegli genere con peso più alto tra i disponibili
@@ -674,6 +677,8 @@ class BackgroundCompositionService {
         }
       }
 
+      const prevGenre = cycling.currentGenre
+
       // Applica nuovo genere
       cycling.currentGenre = nextGenre
       cycling.usedGenres.add(nextGenre)
@@ -683,7 +688,7 @@ class BackgroundCompositionService {
       const bpmRange = GENRE_BPM_RANGES[nextGenre] || GENRE_BPM_RANGES.melodic
       cycling.targetBPM = bpmRange.default
 
-      console.log(`[StyleCycling] Room ${roomId}: ${nextGenre} (${cycling.usedGenres.size}/${ALL_GENRES.length})`)
+      console.log(`[StyleCycling] Room ${roomId}: ${prevGenre} -> ${nextGenre} (${cycling.usedGenres.size}/${ALL_GENRES.length}), weight=${maxWeight.toFixed(3)}`)
     }
 
     // --- BPM MODULATION (ogni minuto) ---
