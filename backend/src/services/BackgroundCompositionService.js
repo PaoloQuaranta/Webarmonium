@@ -20,6 +20,14 @@ const PhraseMorphology = require('./PhraseMorphology')
 const { getSectionStateManager } = require('./SectionStateManager')
 const RawGestureData = require('../composition/RawGestureData')
 const { PHI } = require('../utils/constants')
+const { GENRE_BPM_RANGES } = require('../utils/GenreUtils')
+
+// Entry #179: Style cycling constants
+const STYLE_CYCLE_INTERVAL = 3 * 60 * 1000  // 3 minuti
+const BPM_CHANGE_INTERVAL = 60 * 1000        // 1 minuto
+const BPM_SMOOTHING_STEPS = 10               // transizione graduale
+const ALL_GENRES = ['ambient', 'classical', 'melodic', 'jazz',
+                    'electronic', 'rhythmic', 'rock', 'experimental', 'pop']
 
 class BackgroundCompositionService {
   constructor() {
@@ -246,7 +254,17 @@ class BackgroundCompositionService {
       compositionStarted: false,  // Start with drone, transition to composition after gestures
       gestureHistory: [],        // Accumulate gestures for tempo calculation (StyleAnalyzer needs 2+)
       startTime: Date.now(),
-      lastCompositionTime: Date.now()
+      lastCompositionTime: Date.now(),
+
+      // Entry #179: Style cycling state - automatic genre rotation every 3 minutes
+      styleCycling: {
+        currentGenre: 'melodic',           // genere iniziale (neutro)
+        usedGenres: new Set(['melodic']),  // generi già usati in questo ciclo
+        lastStyleChangeTime: Date.now(),   // timestamp ultimo cambio stile
+        lastBPMChangeTime: Date.now(),     // timestamp ultimo cambio BPM
+        targetBPM: 100,                    // BPM target corrente
+        currentBPM: 100                    // BPM attuale (per smoothing)
+      }
     })
 
     // Start with DRONE only (atmospheric pad)
@@ -618,14 +636,93 @@ class BackgroundCompositionService {
   }
 
   /**
+   * Entry #179: Update style cycling - automatic genre rotation every 3 minutes
+   * Also handles BPM modulation (changes at least every minute)
+   * @param {string} roomId - Room ID
+   * @returns {Object} cycling state with currentGenre and currentBPM
+   */
+  updateStyleCycle(roomId) {
+    const now = Date.now()
+    const roomState = this.roomCompositions.get(roomId)
+    if (!roomState || !roomState.styleCycling) {
+      return { currentGenre: 'melodic', currentBPM: 100 }
+    }
+
+    const cycling = roomState.styleCycling
+    const style = this.styleAnalyzer.getCurrentStyle()
+
+    // --- STYLE CYCLING (ogni 3 minuti) ---
+    if (now - cycling.lastStyleChangeTime >= STYLE_CYCLE_INTERVAL) {
+      // Trova generi disponibili (non ancora usati)
+      let available = ALL_GENRES.filter(g => !cycling.usedGenres.has(g))
+
+      // Se tutti usati, reset ciclo
+      if (available.length === 0) {
+        cycling.usedGenres.clear()
+        available = ALL_GENRES
+      }
+
+      // Scegli genere con peso più alto tra i disponibili
+      let maxWeight = -1
+      let nextGenre = available[0]
+
+      for (const genre of available) {
+        const weight = style.genreWeights?.[genre] || 0
+        if (weight > maxWeight) {
+          maxWeight = weight
+          nextGenre = genre
+        }
+      }
+
+      // Applica nuovo genere
+      cycling.currentGenre = nextGenre
+      cycling.usedGenres.add(nextGenre)
+      cycling.lastStyleChangeTime = now
+
+      // Imposta target BPM per nuovo genere
+      const bpmRange = GENRE_BPM_RANGES[nextGenre] || GENRE_BPM_RANGES.melodic
+      cycling.targetBPM = bpmRange.default
+
+      console.log(`[StyleCycling] Room ${roomId}: ${nextGenre} (${cycling.usedGenres.size}/${ALL_GENRES.length})`)
+    }
+
+    // --- BPM MODULATION (ogni minuto) ---
+    if (now - cycling.lastBPMChangeTime >= BPM_CHANGE_INTERVAL) {
+      const bpmRange = GENRE_BPM_RANGES[cycling.currentGenre] || GENRE_BPM_RANGES.melodic
+
+      // Variazione casuale entro il range del genere
+      const variation = (Math.random() - 0.5) * (bpmRange.max - bpmRange.min) * 0.3
+      cycling.targetBPM = Math.round(
+        Math.max(bpmRange.min, Math.min(bpmRange.max, bpmRange.default + variation))
+      )
+      cycling.lastBPMChangeTime = now
+    }
+
+    // --- BPM SMOOTHING (ogni composizione) ---
+    const bpmDiff = cycling.targetBPM - cycling.currentBPM
+    if (Math.abs(bpmDiff) > 1) {
+      cycling.currentBPM += bpmDiff / BPM_SMOOTHING_STEPS
+    }
+
+    return cycling
+  }
+
+  /**
    * Apply analyzed style to composition parameters
+   * Entry #179: Now uses style cycling for automatic genre rotation
    */
   applyStyleToComposition(roomId) {
     const style = this.styleAnalyzer.getCurrentStyle()
 
+    // Entry #179: Update style cycling and get current genre/BPM
+    const cycling = this.updateStyleCycle(roomId)
+
     // MAP STYLE TO COMPOSITION PARAMETERS
-    // Tempo from style
-    this.compositionEngine.tempo = Math.round(style.tempo)
+    // Entry #179: Tempo from cycling (genre-biased) instead of gesture-derived
+    this.compositionEngine.tempo = Math.round(cycling.currentBPM)
+
+    // Entry #179: Set forced genre for HarmonicEngine to use
+    style.forcedGenre = cycling.currentGenre
 
     // Key and mode from harmonic complexity
     const { keyCenter, mode } = this.selectKeyAndMode(style)
@@ -645,7 +742,7 @@ class BackgroundCompositionService {
     const baseDensity = style.energy * 1.2
     this.compositionEngine.density = Math.min(0.9, Math.max(0.1, baseDensity * genreDensityMultiplier))
 
-// console.log(`🎼 Applied style: energy=${style.energy.toFixed(2)}, tempo=${this.compositionEngine.tempo}, complexity=${this.compositionEngine.complexityLevel.toFixed(2)}`)
+// console.log(`🎼 Applied style: genre=${cycling.currentGenre}, tempo=${this.compositionEngine.tempo}, energy=${style.energy.toFixed(2)}`)
   }
 
   /**

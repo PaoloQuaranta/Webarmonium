@@ -1,5 +1,19 @@
 const { PHI } = require('../utils/constants')
 
+// Entry #179: Mapping generi → metodi di progressione esistenti
+// Alcuni generi usano gli stessi generatori perché non hanno implementazione dedicata
+const GENRE_PROGRESSION_MAP = {
+  jazz: 'jazz',
+  classical: 'classical',
+  electronic: 'electronic',
+  rock: 'rock',
+  ambient: 'electronic',     // statico, atmosferico
+  melodic: 'pop',            // bilanciato
+  rhythmic: 'rock',          // energetico, driving
+  experimental: 'jazz',      // complesso, imprevedibile
+  pop: 'pop'
+}
+
 class HarmonicEngine {
   constructor() {
     // Entry #162: Default key/mode - will be overridden by initializeKeyFromMetrics()
@@ -256,10 +270,30 @@ class HarmonicEngine {
       this.currentMode = modesByBrightness[Math.min(modeIndex, modesByBrightness.length - 1)]
     }
 
-    // Select progression type based on dominant genre, passing webMetrics for selection
-    // Entry #178: Threshold lowered from 0.35 to 0.20 for better genre activation
+    // Select progression type based on forced genre or dominant genre weight
     let progression
-    if (genreWeights.jazz > 0.20) {
+
+    // Entry #179: If forcedGenre is set (from style cycling), use it directly
+    if (styleAnalysis.forcedGenre) {
+      const mappedGenre = GENRE_PROGRESSION_MAP[styleAnalysis.forcedGenre] || 'pop'
+      switch (mappedGenre) {
+        case 'jazz':
+          progression = this.generateJazzProgression(phraseLength, complexity, compositionCount, webMetrics)
+          break
+        case 'classical':
+          progression = this.generateClassicalProgression(phraseLength, complexity, compositionCount, webMetrics)
+          break
+        case 'electronic':
+          progression = this.generateElectronicProgression(phraseLength, complexity, compositionCount, webMetrics)
+          break
+        case 'rock':
+          progression = this.generateRockProgression(phraseLength, complexity, compositionCount, webMetrics)
+          break
+        default:
+          progression = this.generatePopProgression(phraseLength, complexity, compositionCount, webMetrics)
+      }
+    } else if (genreWeights.jazz > 0.20) {
+      // Fallback to weight-based selection (legacy)
       progression = this.generateJazzProgression(phraseLength, complexity, compositionCount, webMetrics)
     } else if (genreWeights.classical > 0.20) {
       progression = this.generateClassicalProgression(phraseLength, complexity, compositionCount, webMetrics)
@@ -371,9 +405,29 @@ class HarmonicEngine {
     }
 
     // Generate genre-specific progression with tension-aware complexity
-    // Entry #178: Threshold lowered from 0.35 to 0.20 for better genre activation
     let progression
-    if (genreWeights.jazz > 0.20) {
+
+    // Entry #179: If forcedGenre is set (from style cycling), use it directly
+    if (styleAnalysis.forcedGenre) {
+      const mappedGenre = GENRE_PROGRESSION_MAP[styleAnalysis.forcedGenre] || 'pop'
+      switch (mappedGenre) {
+        case 'jazz':
+          progression = this.generateJazzProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext, webMetrics)
+          break
+        case 'classical':
+          progression = this.generateClassicalProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext, webMetrics)
+          break
+        case 'electronic':
+          progression = this.generateElectronicProgression(phraseLength, complexity, compositionCount, webMetrics)
+          break
+        case 'rock':
+          progression = this.generateRockProgression(phraseLength, complexity, compositionCount, webMetrics)
+          break
+        default:
+          progression = this.generatePopProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext, webMetrics)
+      }
+    } else if (genreWeights.jazz > 0.20) {
+      // Fallback to weight-based selection (legacy)
       progression = this.generateJazzProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext, webMetrics)
     } else if (genreWeights.classical > 0.20) {
       progression = this.generateClassicalProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext, webMetrics)

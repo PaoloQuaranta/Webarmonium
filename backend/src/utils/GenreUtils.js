@@ -33,6 +33,22 @@ const GENRE_DENSITY_MULTIPLIERS = {
 }
 
 /**
+ * Entry #179: Genre-based BPM ranges for style cycling
+ * Each genre has a characteristic tempo range
+ */
+const GENRE_BPM_RANGES = {
+  ambient:      { min: 60,  max: 90,  default: 75 },
+  classical:    { min: 70,  max: 110, default: 90 },
+  melodic:      { min: 80,  max: 120, default: 100 },
+  jazz:         { min: 90,  max: 150, default: 120 },
+  electronic:   { min: 115, max: 150, default: 130 },
+  rhythmic:     { min: 110, max: 160, default: 135 },
+  rock:         { min: 100, max: 150, default: 125 },
+  experimental: { min: 60,  max: 180, default: 100 },
+  pop:          { min: 90,  max: 130, default: 110 }
+}
+
+/**
  * Get velocity multiplier based on style's dominant genre
  * @param {Object} style - Style object with dominantGenre property
  * @returns {number} Velocity multiplier (0.6-1.4)
@@ -55,6 +71,7 @@ function getGenreDensityMultiplier(style) {
 module.exports = {
   GENRE_VELOCITY_MULTIPLIERS,
   GENRE_DENSITY_MULTIPLIERS,
+  GENRE_BPM_RANGES,
   getGenreVelocityMultiplier,
   getGenreDensityMultiplier
 }
