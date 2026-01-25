@@ -23,7 +23,7 @@ const { PHI } = require('../utils/constants')
 const { GENRE_BPM_RANGES } = require('../utils/GenreUtils')
 
 // Entry #179: Style cycling constants
-const STYLE_CYCLE_INTERVAL = 3 * 60 * 1000  // 3 minuti
+const STYLE_CYCLE_INTERVAL = 30 * 1000  // 30 secondi (testing) - cambiare a 3*60*1000 per produzione
 const BPM_CHANGE_INTERVAL = 60 * 1000        // 1 minuto
 const BPM_SMOOTHING_STEPS = 10               // transizione graduale
 const ALL_GENRES = ['ambient', 'classical', 'melodic', 'jazz',

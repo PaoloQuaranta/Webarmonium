@@ -200,7 +200,10 @@ class CompositionMonitor {
           dissonance: style.harmonicComplexity?.dissonance ?? 0,
           modalFlavor: style.harmonicComplexity?.modalFlavor || null
         },
-        genreWeights: style.genreWeights
+        genreWeights: style.genreWeights,
+        // Entry #179: Forced genre from style cycling (if active)
+        forcedGenre: roomState?.styleCycling?.currentGenre || null,
+        currentBPM: roomState?.styleCycling?.currentBPM || null
       },
 
       // Material library state
@@ -569,19 +572,18 @@ class CompositionMonitor {
     this.stats.lastForm = core.formStructure
 
     // Track style shifts (dominant genre changes)
+    // Entry #179: Use forcedGenre from style cycling if available
     const style = snapshot.style || {}
-    if (style.genreWeights) {
-      const dominantGenre = this._getDominantGenre(style.genreWeights)
-      if (this.stats.lastDominantGenre && dominantGenre !== this.stats.lastDominantGenre) {
-        this.stats.eventCounts.styleShifts++
-        this._emitEvent('monitor:style_shift', {
-          from: this.stats.lastDominantGenre,
-          to: dominantGenre,
-          timestamp: snapshot.timestamp
-        })
-      }
-      this.stats.lastDominantGenre = dominantGenre
+    const dominantGenre = style.forcedGenre || (style.genreWeights ? this._getDominantGenre(style.genreWeights) : 'none')
+    if (this.stats.lastDominantGenre && dominantGenre !== this.stats.lastDominantGenre) {
+      this.stats.eventCounts.styleShifts++
+      this._emitEvent('monitor:style_shift', {
+        from: this.stats.lastDominantGenre,
+        to: dominantGenre,
+        timestamp: snapshot.timestamp
+      })
     }
+    this.stats.lastDominantGenre = dominantGenre
   }
 
   /**
