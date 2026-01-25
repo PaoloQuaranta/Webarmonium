@@ -2027,3 +2027,56 @@ Density rock: 1.3
 v0.2.18
 
 ---
+
+## Entry #176 - Fix PM2 Cluster Mode EADDRINUSE
+
+**Date**: 2026-01-25
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed `EADDRINUSE: address already in use :::3001` error caused by incorrect PM2 configuration. The ecosystem.config.js was set to `instances: 'max'` and `exec_mode: 'cluster'`, which spawns multiple Node.js processes that all try to bind to the same port. Socket.io requires sticky sessions and cluster adapters for cluster mode, which weren't configured.
+
+---
+
+### Problem
+
+PM2 cluster mode with `instances: 'max'` spawns one process per CPU core. Without:
+- `@socket.io/cluster-adapter`
+- `@socket.io/sticky` sessions
+- Redis adapter for cross-instance communication
+
+...the second instance fails to bind to port 3001 because the first already holds it.
+
+---
+
+### Solution
+
+Changed PM2 config to single-instance fork mode:
+
+```javascript
+// Before (broken)
+instances: 'max',
+exec_mode: 'cluster',
+
+// After (working)
+instances: 1,
+exec_mode: 'fork',
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/ecosystem.config.js` | Changed to single instance fork mode |
+
+---
+
+### Version
+
+v0.2.19
+
+---
