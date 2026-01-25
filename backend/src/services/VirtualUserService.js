@@ -981,36 +981,35 @@ class VirtualUserService {
       }, pos.timeOffset)
     })
 
-    // Entry #172: Calculate curve parameters for note position coherence
-    // Note positions must use same curve as cursor trajectory for visual/audio alignment
-    const curveAmount = this._calculateCurveAmount(source)
+    // Entry #184: Note positions now follow the same geometric trajectory as cursor
+    // This ensures visual coherence - notes appear where the cursor is during the gesture
 
-    // Calculate perpendicular direction for curve offset
-    const endPosition = this._calculateHybridPosition(source, endFreq)
-    const curveDx = endPosition.x - startPosition.x
-    const curveDy = endPosition.y - startPosition.y
-    // Explicit check for zero length to prevent division by zero
-    const curveLenSq = curveDx * curveDx + curveDy * curveDy
-    const curveLen = curveLenSq > 0 ? Math.sqrt(curveLenSq) : 1
-    const curvePerpX = -curveDy / curveLen
-    const curvePerpY = curveDx / curveLen
-
-    // 6. Emit notes with HYBRID positions + curve offset
+    // 6. Emit notes with TRAJECTORY positions (same path as cursor)
     // - audioFreq for sound (tessitura-constrained)
-    // - positionFreq + golden ratio stepIndex + curve offset for cursor coherence
+    // - position from trajectory for visual coherence with cursor movement
     noteData.forEach((note, noteIndex) => {
       setTimeout(() => {
         if (!this.activeRooms.has(roomId)) return
 
-        // Get HYBRID position with noteIndex for golden ratio spacing
-        const basePosition = this._calculateHybridPosition(source, note.positionFreq, noteIndex + 100)
-
-        // Entry #172: Apply same curve offset as trajectory for coherence
+        // Entry #184: Find trajectory position at note's time
+        // Calculate t (normalized time) for this note
         const t = phraseDurationMs > 0 ? note.startDelayMs / phraseDurationMs : 0
-        const noteOffset = Math.sin(t * Math.PI) * curveAmount
+
+        // Find the corresponding trajectory point (or interpolate)
+        const trajectoryIndex = Math.min(
+          trajectory.length - 1,
+          Math.floor(t * (trajectory.length - 1))
+        )
+        const nextIndex = Math.min(trajectory.length - 1, trajectoryIndex + 1)
+
+        // Interpolate between trajectory points for smooth positioning
+        const trajectoryT = t * (trajectory.length - 1) - trajectoryIndex
+        const currentTrajPos = trajectory[trajectoryIndex]
+        const nextTrajPos = trajectory[nextIndex]
+
         const notePosition = {
-          x: Math.max(0.05, Math.min(0.95, basePosition.x + curvePerpX * noteOffset)),
-          y: Math.max(0.05, Math.min(0.95, basePosition.y + curvePerpY * noteOffset))
+          x: currentTrajPos.x + (nextTrajPos.x - currentTrajPos.x) * trajectoryT,
+          y: currentTrajPos.y + (nextTrajPos.y - currentTrajPos.y) * trajectoryT
         }
 
         this.io.to(roomId).emit('hold:start', {
@@ -1379,15 +1378,15 @@ class VirtualUserService {
   }
 
   /**
-   * Generate trajectory for drag gesture using GOLDEN RATIO distribution:
-   * - Interpolate frequency between start and end
-   * - Each step gets unique stepIndex for optimal position spacing
-   * - Entry #172: Added curve variation based on metrics for non-linear paths
-   * - Reduced emission rate (100ms) to avoid trail spam
+   * Generate trajectory for drag gesture using GEOMETRIC interpolation:
+   * - Entry #184: Use pure geometric path from start to end position
+   * - Cursor follows smooth linear/arc trajectory independent of note frequencies
+   * - Arc curvature based on velocity metrics for natural gesture feel
+   * - Reduced emission rate (100ms) to work with slow interpolation
    *
    * @param {string} source - Source name
-   * @param {number} startFreq - Starting frequency
-   * @param {number} endFreq - Ending frequency
+   * @param {number} startFreq - Starting frequency (used only for start position)
+   * @param {number} endFreq - Ending frequency (used only for end position)
    * @param {number} durationMs - Gesture duration
    * @param {number} intervalMs - Update interval (default 100ms for reduced trail density)
    * @returns {Array<{x: number, y: number, timeOffset: number}>} Trajectory positions
@@ -1397,40 +1396,66 @@ class VirtualUserService {
     const steps = Math.max(1, Math.ceil(durationMs / intervalMs))
     const positions = []
 
-    // Entry #172: Get curve amount for varied trajectories
-    const curveAmount = this._calculateCurveAmount(source)
-
-    // Calculate start and end positions for perpendicular offset calculation
+    // Entry #184: Calculate start and end positions ONCE
+    // These are the only positions derived from frequency
     const startPos = this._calculateHybridPosition(source, startFreq, 0)
     const endPos = this._calculateHybridPosition(source, endFreq, steps)
+
+    // Entry #184: Ensure minimum movement distance for visible gesture
+    // If start and end are too close, extend the path
     const dx = endPos.x - startPos.x
     const dy = endPos.y - startPos.y
-    // Explicit check for zero length to prevent division by zero
-    const lenSq = dx * dx + dy * dy
-    const len = lenSq > 0 ? Math.sqrt(lenSq) : 1
+    const distSq = dx * dx + dy * dy
+    const dist = Math.sqrt(distSq)
+    const minDist = 0.15 // Minimum 15% of canvas for visible movement
 
-    // Perpendicular direction (normalized)
-    const perpX = -dy / len
-    const perpY = dx / len
+    let actualEndPos = endPos
+    if (dist < minDist && dist > 0) {
+      // Extend in same direction to reach minimum distance
+      const scale = minDist / dist
+      actualEndPos = {
+        x: Math.max(0.05, Math.min(0.95, startPos.x + dx * scale)),
+        y: Math.max(0.05, Math.min(0.95, startPos.y + dy * scale))
+      }
+    } else if (dist === 0) {
+      // If no movement, create a small circular gesture
+      const angle = (this.gestureCounters.get(source) || 0) * 0.7
+      actualEndPos = {
+        x: Math.max(0.05, Math.min(0.95, startPos.x + Math.cos(angle) * minDist)),
+        y: Math.max(0.05, Math.min(0.95, startPos.y + Math.sin(angle) * minDist))
+      }
+    }
+
+    // Recalculate direction vector with actual end position
+    const actualDx = actualEndPos.x - startPos.x
+    const actualDy = actualEndPos.y - startPos.y
+    const actualLenSq = actualDx * actualDx + actualDy * actualDy
+    const actualLen = actualLenSq > 0 ? Math.sqrt(actualLenSq) : 1
+
+    // Perpendicular direction (normalized) for curve offset
+    const perpX = -actualDy / actualLen
+    const perpY = actualDx / actualLen
+
+    // Entry #184: Get curve amount for arc trajectories (±0.2 range)
+    const curveAmount = this._calculateCurveAmount(source)
 
     for (let i = 0; i <= steps; i++) {
       const t = steps > 0 ? i / steps : 0
-      // Ease-in-out for natural feel
+      // Ease-in-out for natural acceleration/deceleration feel
       const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 
-      // Interpolate frequency
-      const currentFreq = startFreq + (endFreq - startFreq) * eased
+      // Entry #184: GEOMETRIC interpolation between start and end
+      // No frequency calculation - pure position lerp
+      const x = startPos.x + (actualEndPos.x - startPos.x) * eased
+      const y = startPos.y + (actualEndPos.y - startPos.y) * eased
 
-      // Pass stepIndex (i) for golden ratio variation within trajectory
-      const pos = this._calculateHybridPosition(source, currentFreq, i)
-
-      // Entry #172: Add perpendicular curve offset (sinusoidal curve)
+      // Add perpendicular curve offset (sinusoidal arc)
       // Maximum curve at middle of trajectory (t=0.5)
       const curveOffset = Math.sin(t * Math.PI) * curveAmount
 
       positions.push({
-        x: Math.max(0.05, Math.min(0.95, pos.x + perpX * curveOffset)),
-        y: Math.max(0.05, Math.min(0.95, pos.y + perpY * curveOffset)),
+        x: Math.max(0.05, Math.min(0.95, x + perpX * curveOffset)),
+        y: Math.max(0.05, Math.min(0.95, y + perpY * curveOffset)),
         timeOffset: i * intervalMs
       })
     }

@@ -1645,17 +1645,30 @@ class LandingCompositionService {
       this.pendingTimeouts.add(timeoutId)
     })
 
-    // 6. Emit notes with HYBRID positions
-    // - audioFreq for sound (tessitura-constrained)
-    // - positionFreq + golden ratio stepIndex for cursor variation
+    // Entry #184: Note positions now follow the same geometric trajectory as cursor
+    // This ensures visual coherence - notes appear where the cursor is during the gesture
     noteData.forEach((note, noteIndex) => {
       const noteTimeoutId = setTimeout(() => {
         this.pendingTimeouts.delete(noteTimeoutId)
         if (!this.io || !this.isRunning) return
 
-        // Get HYBRID position with noteIndex for golden ratio spacing
-        // Uses different step offset than trajectory for additional variation
-        const notePosition = this._calculateHybridPosition(gesture.source, note.positionFreq, noteIndex + 100)
+        // Entry #184: Find trajectory position at note's time
+        const t = phraseDurationMs > 0 ? note.startDelayMs / phraseDurationMs : 0
+        const trajectoryIndex = Math.min(
+          trajectory.length - 1,
+          Math.floor(t * (trajectory.length - 1))
+        )
+        const nextIndex = Math.min(trajectory.length - 1, trajectoryIndex + 1)
+
+        // Interpolate between trajectory points for smooth positioning
+        const trajectoryT = t * (trajectory.length - 1) - trajectoryIndex
+        const currentTrajPos = trajectory[trajectoryIndex]
+        const nextTrajPos = trajectory[nextIndex]
+
+        const notePosition = {
+          x: currentTrajPos.x + (nextTrajPos.x - currentTrajPos.x) * trajectoryT,
+          y: currentTrajPos.y + (nextTrajPos.y - currentTrajPos.y) * trajectoryT
+        }
 
         this.io.to(this.landingRoomId).emit('hold:start', {
           type: 'hold:start',
@@ -1969,14 +1982,14 @@ class LandingCompositionService {
   }
 
   /**
-   * Generate trajectory for drag gesture using GOLDEN RATIO distribution:
-   * - Interpolate frequency between start and end
-   * - Each step gets unique stepIndex for optimal position spacing
-   * - Reduced emission rate (100ms) to avoid trail spam
+   * Generate trajectory for drag gesture using GEOMETRIC interpolation:
+   * - Entry #184: Use pure geometric path from start to end position
+   * - Cursor follows smooth linear/arc trajectory independent of note frequencies
+   * - Reduced emission rate (100ms) to work with slow interpolation
    *
    * @param {string} source - Source name
-   * @param {number} startFreq - Starting frequency
-   * @param {number} endFreq - Ending frequency
+   * @param {number} startFreq - Starting frequency (used only for start position)
+   * @param {number} endFreq - Ending frequency (used only for end position)
    * @param {number} durationMs - Gesture duration
    * @param {number} intervalMs - Update interval (default 100ms for reduced trail density)
    * @returns {Array<{x: number, y: number, timeOffset: number}>} Trajectory positions
@@ -1986,20 +1999,63 @@ class LandingCompositionService {
     const steps = Math.max(1, Math.ceil(durationMs / intervalMs))
     const positions = []
 
+    // Entry #184: Calculate start and end positions ONCE
+    const startPos = this._calculateHybridPosition(source, startFreq, 0)
+    const endPos = this._calculateHybridPosition(source, endFreq, steps)
+
+    // Entry #184: Ensure minimum movement distance for visible gesture
+    const dx = endPos.x - startPos.x
+    const dy = endPos.y - startPos.y
+    const distSq = dx * dx + dy * dy
+    const dist = Math.sqrt(distSq)
+    const minDist = 0.15 // Minimum 15% of canvas for visible movement
+
+    let actualEndPos = endPos
+    if (dist < minDist && dist > 0) {
+      // Extend in same direction to reach minimum distance
+      const scale = minDist / dist
+      actualEndPos = {
+        x: Math.max(0.05, Math.min(0.95, startPos.x + dx * scale)),
+        y: Math.max(0.05, Math.min(0.95, startPos.y + dy * scale))
+      }
+    } else if (dist === 0) {
+      // If no movement, create a small circular gesture
+      const angle = (this.gestureCounters[source] || 0) * 0.7
+      actualEndPos = {
+        x: Math.max(0.05, Math.min(0.95, startPos.x + Math.cos(angle) * minDist)),
+        y: Math.max(0.05, Math.min(0.95, startPos.y + Math.sin(angle) * minDist))
+      }
+    }
+
+    // Recalculate direction vector with actual end position
+    const actualDx = actualEndPos.x - startPos.x
+    const actualDy = actualEndPos.y - startPos.y
+    const actualLenSq = actualDx * actualDx + actualDy * actualDy
+    const actualLen = actualLenSq > 0 ? Math.sqrt(actualLenSq) : 1
+
+    // Perpendicular direction (normalized) for curve offset
+    const perpX = -actualDy / actualLen
+    const perpY = actualDx / actualLen
+
+    // Entry #184: Fixed curve amount for arc trajectories (varies by source)
+    const curveAmounts = { wikipedia: 0.08, hackernews: -0.06, github: 0.1 }
+    const curveAmount = curveAmounts[source] || 0.05
+
     for (let i = 0; i <= steps; i++) {
       const t = steps > 0 ? i / steps : 0
-      // Ease-in-out for natural feel
+      // Ease-in-out for natural acceleration/deceleration feel
       const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 
-      // Interpolate frequency
-      const currentFreq = startFreq + (endFreq - startFreq) * eased
+      // Entry #184: GEOMETRIC interpolation between start and end
+      const x = startPos.x + (actualEndPos.x - startPos.x) * eased
+      const y = startPos.y + (actualEndPos.y - startPos.y) * eased
 
-      // Pass stepIndex (i) for golden ratio variation within trajectory
-      const pos = this._calculateHybridPosition(source, currentFreq, i)
+      // Add perpendicular curve offset (sinusoidal arc)
+      const curveOffset = Math.sin(t * Math.PI) * curveAmount
 
       positions.push({
-        x: pos.x,
-        y: pos.y,
+        x: Math.max(0.05, Math.min(0.95, x + perpX * curveOffset)),
+        y: Math.max(0.05, Math.min(0.95, y + perpY * curveOffset)),
         timeOffset: i * intervalMs
       })
     }

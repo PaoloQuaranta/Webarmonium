@@ -2946,3 +2946,95 @@ Frontend Validation:
 v0.2.31
 
 ---
+
+## Entry #185 - Realistic Virtual User Cursor Trajectories
+
+**Date**: 2026-01-25
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed virtual user cursor movement to follow realistic trajectories instead of jumping based on note frequencies. Cursors now move smoothly along linear or arc paths during drag gestures, matching how real users would move their cursors.
+
+---
+
+### Problem Statement
+
+Virtual user cursors were not moving realistically during drag gestures:
+
+1. **Stationary cursors** - Cursors appeared to stay still while playing notes of different frequencies
+2. **Frequency-derived positions** - Each position was calculated from note frequency, causing erratic jumps
+3. **No visual gesture** - Drag gestures should show cursor movement from start to end, but didn't
+
+**Root cause**: `_generateHybridTrajectory()` was calling `_calculateHybridPosition()` for each step with interpolated frequencies, causing positions to jump based on musical pitch rather than following a smooth geometric path.
+
+---
+
+### Solution
+
+Modified trajectory generation to use **geometric interpolation** instead of frequency-derived positions:
+
+1. **Calculate endpoints once** - Start and end positions derived from start/end frequencies only
+2. **Geometric interpolation** - Intermediate positions lerped between start and end
+3. **Minimum movement guarantee** - Ensures at least 15% canvas movement for visible gestures
+4. **Arc curves** - Perpendicular sinusoidal offset creates natural curved paths
+5. **Note position coherence** - Notes now appear along the trajectory path where cursor is
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `VirtualUserService.js` | `_generateHybridTrajectory()` - geometric interpolation, note positions from trajectory |
+| `LandingCompositionService.js` | Same changes for landing page virtual users |
+
+---
+
+### Technical Details
+
+**Before (frequency-derived)**:
+```javascript
+for (let i = 0; i <= steps; i++) {
+  const currentFreq = startFreq + (endFreq - startFreq) * eased
+  const pos = this._calculateHybridPosition(source, currentFreq, i)  // Jumps based on freq
+}
+```
+
+**After (geometric interpolation)**:
+```javascript
+const startPos = this._calculateHybridPosition(source, startFreq, 0)
+const endPos = this._calculateHybridPosition(source, endFreq, steps)
+for (let i = 0; i <= steps; i++) {
+  const x = startPos.x + (endPos.x - startPos.x) * eased  // Smooth path
+  const y = startPos.y + (endPos.y - startPos.y) * eased
+}
+```
+
+**Minimum distance guarantee**:
+- If start/end are <15% apart, extend path in same direction
+- If start == end, create circular gesture using gesture counter angle
+
+**Note positions now follow trajectory**:
+```javascript
+const t = note.startDelayMs / phraseDurationMs
+const trajectoryIndex = Math.floor(t * (trajectory.length - 1))
+const notePosition = trajectory[trajectoryIndex]  // Note appears where cursor is
+```
+
+---
+
+### Verification
+
+1. **Visual**: Virtual user cursors now visibly move during drag gestures
+2. **Coherence**: Notes appear at cursor position along trajectory
+3. **Tests**: VirtualUserService tests pass (2 pre-existing failures unrelated to this change)
+
+---
+
+### Version
+
+v0.2.32
+
+---
