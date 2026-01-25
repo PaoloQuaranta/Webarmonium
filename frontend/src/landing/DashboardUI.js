@@ -55,9 +55,6 @@ export class DashboardUI {
       hackernews: {},
       github: {}
     }
-
-    // Room activity polling interval
-    this._roomActivityInterval = null
   }
 
   /**
@@ -67,7 +64,6 @@ export class DashboardUI {
   initialize(callbacks = {}) {
     this._cacheElements()
     this._bindControls(callbacks)
-    this._startRoomActivityPolling()
     this._setupCardParallax()  // Entry #93: Hover parallax effect
     // console.log('📊 DashboardUI initialized (meter-based mode)')
   }
@@ -266,63 +262,6 @@ export class DashboardUI {
   }
 
   /**
-   * Start polling for room activity
-   * @private
-   */
-  _startRoomActivityPolling() {
-    // Initial fetch
-    this._fetchRoomActivity()
-
-    // Poll every 10 seconds
-    this._roomActivityInterval = setInterval(() => {
-      this._fetchRoomActivity()
-    }, 10000)
-  }
-
-  /**
-   * Fetch room activity from backend
-   * @private
-   */
-  async _fetchRoomActivity() {
-    try {
-      const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
-      const baseUrl = isDevelopment
-        ? 'http://localhost:3001'
-        : `${window.location.protocol}//${window.location.host}`
-
-      const response = await fetch(`${baseUrl}/api/rooms/stats`)
-      if (!response.ok) return
-
-      const data = await response.json()
-
-      // Update room activity label
-      this._updateRoomActivity(data.totalUsers || 0, data.activeRooms || 0)
-    } catch (error) {
-      // Silently fail - room activity is non-critical
-    }
-  }
-
-  /**
-   * Update room activity label
-   * @param {number} totalUsers - Total users in rooms
-   * @param {number} activeRooms - Number of active rooms
-   * @private
-   */
-  _updateRoomActivity(totalUsers, activeRooms) {
-    const { roomsActivity } = this.elements
-    if (!roomsActivity) return
-
-    if (totalUsers > 0 && activeRooms > 0) {
-      const userText = totalUsers === 1 ? 'user' : 'users'
-      const roomText = activeRooms === 1 ? 'room' : 'rooms'
-      roomsActivity.textContent = `${totalUsers} ${userText} in ${activeRooms} ${roomText}`
-      roomsActivity.classList.add('visible')
-    } else {
-      roomsActivity.classList.remove('visible')
-    }
-  }
-
-  /**
    * Bind control elements
    * @param {Object} callbacks - Optional callbacks: { onStart, onStop, onVolumeChange }
    * @private
@@ -444,10 +383,6 @@ export class DashboardUI {
    * Cleanup
    */
   dispose() {
-    if (this._roomActivityInterval) {
-      clearInterval(this._roomActivityInterval)
-      this._roomActivityInterval = null
-    }
     // console.log('📊 DashboardUI disposed')
   }
 }
