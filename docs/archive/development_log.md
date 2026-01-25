@@ -1922,3 +1922,108 @@ Frontend: Every audio component receives style
 v0.2.16
 
 ---
+
+## Entry #175 Addendum - Code Review Fixes for Style Propagation
+
+**Date**: 2026-01-25
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed critical and high-priority issues identified during code review of Entry #175 (Genre-Aware Style Propagation). Key fixes include adding style parameter to drone emissions, extracting duplicate `_getGenreVelocityMultiplier()` to shared utility, and adding null safety for style parameters.
+
+---
+
+### Issues Fixed
+
+#### Critical
+
+1. **Missing style in drone emissions** (BackgroundCompositionService.js)
+   - `generateAndBroadcastDrone()` and `emitDroneToSocket()` were emitting `background-composition` events without the `style` parameter
+   - Frontend couldn't apply genre-aware velocity to drone notes
+   - **Fix**: Added `const style = this.getCurrentStyleForRoom(roomId)` and included `style` in both emission payloads
+
+#### High Priority
+
+2. **Code duplication of `_getGenreVelocityMultiplier()`**
+   - Same method duplicated in VirtualUserService.js and LandingCompositionService.js
+   - Violated DRY principle and risked divergence
+   - **Fix**: Created `backend/src/utils/GenreUtils.js` with shared functions:
+     - `getGenreVelocityMultiplier(style)` - returns 0.6-1.4 based on genre
+     - `getGenreDensityMultiplier(style)` - returns 0.7-1.3 based on genre
+   - Updated both services to import from shared utility
+   - Removed duplicate method definitions
+
+3. **Missing null safety for data.style** (SocketEventCoordinator.js)
+   - `playComposition()` call passed `data.style` which could be `null`
+   - Default parameter `style = {}` only handles `undefined`, not explicit `null`
+   - **Fix**: Changed to `data.style || {}` for defensive fallback
+
+---
+
+### New Files Created
+
+| File | Purpose |
+|------|---------|
+| `backend/src/utils/GenreUtils.js` | Shared utility for genre-based multiplier calculations |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/BackgroundCompositionService.js` | Added style to drone emissions (lines 319-325, 360-366) |
+| `backend/src/services/VirtualUserService.js` | Import shared utility, removed duplicate method |
+| `backend/src/services/LandingCompositionService.js` | Import shared utility, removed duplicate method |
+| `backend/src/utils/index.js` | Export GenreUtils |
+| `frontend/src/handlers/SocketEventCoordinator.js` | Added null safety `data.style || {}` |
+
+---
+
+### Architecture
+
+```
+backend/src/utils/GenreUtils.js (NEW)
+    ├── GENRE_VELOCITY_MULTIPLIERS (ambient: 0.6 → rock: 1.4)
+    ├── GENRE_DENSITY_MULTIPLIERS (ambient: 0.7 → rock: 1.3)
+    ├── getGenreVelocityMultiplier(style)
+    └── getGenreDensityMultiplier(style)
+              ↓
+    Used by:
+    ├── VirtualUserService.js (TAP/DRAG velocity)
+    └── LandingCompositionService.js (TAP/DRAG velocity)
+
+BackgroundCompositionService.js
+    ├── generateAndBroadcastDrone() → now includes style ✅
+    └── emitDroneToSocket() → now includes style ✅
+```
+
+---
+
+### Verification
+
+All services import successfully:
+```
+✅ VirtualUserService imports successfully
+✅ LandingCompositionService imports successfully
+✅ BackgroundCompositionService imports successfully
+```
+
+GenreUtils returns correct values:
+```
+Velocity ambient: 0.6
+Velocity rock: 1.4
+Velocity undefined: 1.0
+Density ambient: 0.7
+Density rock: 1.3
+```
+
+---
+
+### Version
+
+v0.2.18
+
+---

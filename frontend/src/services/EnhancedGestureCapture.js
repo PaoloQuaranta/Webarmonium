@@ -1319,8 +1319,14 @@ class EnhancedGestureCapture {
     const playedNote = this.onDragStreamingNote(noteData)
 
     // CRITICAL: Add played note to streamedNotes array for backend broadcast
+    // Entry #NEW: Ensure velocity is included for remote user playback
     if (playedNote) {
-      this.dragStreaming.streamedNotes.push(playedNote)
+      const noteWithVelocity = {
+        ...playedNote,
+        velocity: playedNote.velocity ?? normalizedSpeed,
+        originalVelocity: normalizedSpeed  // Preserve original for debugging
+      }
+      this.dragStreaming.streamedNotes.push(noteWithVelocity)
     }
   }
 

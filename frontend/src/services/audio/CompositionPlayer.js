@@ -30,6 +30,43 @@ class CompositionPlayer {
 
     // Velocity calculator reference (for articulation)
     this.velocityCalculator = window.VelocityCalculator || null
+
+    // Entry #NEW: Current style for genre-aware velocity
+    this.currentStyle = null
+  }
+
+  /**
+   * Set current style for genre-aware velocity calculations
+   * Entry #NEW: Called by AudioService before playComposition
+   * @param {Object} style - Style from BackgroundCompositionService
+   */
+  setCurrentStyle(style) {
+    this.currentStyle = style
+  }
+
+  /**
+   * Get genre-aware velocity config for composition voices
+   * Entry #NEW: Returns velocity multipliers based on dominant genre
+   * @param {Object} style - Style object (optional, uses this.currentStyle if not provided)
+   * @returns {Object} Velocity config per voice role
+   */
+  getVelocityConfig(style) {
+    const targetStyle = style || this.currentStyle
+    const genre = targetStyle?.dominantGenre || 'ambient'
+
+    // Genre-specific velocity configs (matching UserSynthManager pattern)
+    const configs = {
+      ambient:      { melody: 0.06, harmony: 0.04, bass: 0.05, pad: 0.03 },
+      classical:    { melody: 0.10, harmony: 0.06, bass: 0.08, pad: 0.04 },
+      jazz:         { melody: 0.12, harmony: 0.08, bass: 0.10, pad: 0.05 },
+      melodic:      { melody: 0.10, harmony: 0.06, bass: 0.08, pad: 0.04 },
+      electronic:   { melody: 0.14, harmony: 0.10, bass: 0.12, pad: 0.06 },
+      rhythmic:     { melody: 0.14, harmony: 0.10, bass: 0.12, pad: 0.06 },
+      rock:         { melody: 0.16, harmony: 0.12, bass: 0.14, pad: 0.07 },
+      experimental: { melody: 0.12, harmony: 0.08, bass: 0.10, pad: 0.05 }
+    }
+
+    return configs[genre] || configs.ambient
   }
 
   /**
@@ -111,6 +148,9 @@ class CompositionPlayer {
 
     const beatDuration = 60 / tempo
 
+    // Entry #NEW: Get genre-aware velocity config
+    const velocityConfig = this.getVelocityConfig()
+
     // console.log(`🎼 Playing polyphonic: ${content.voices.length} voices at ${tempo} BPM`)
 
     content.voices.forEach((voice, voiceIndex) => {
@@ -118,13 +158,13 @@ class CompositionPlayer {
 
       const voiceRole = voice.voiceRole || 'harmony'
 
-      // Role-based configuration
+      // Entry #NEW: Role-based configuration with genre-aware velocities
       const roleConfig = {
-        'melody': { layer: 'backgroundHigh', velocity: 0.10, articulation: 'staccato' },
-        'harmony': { layer: 'backgroundMid', velocity: 0.06, articulation: 'normal' },
-        'bass': { layer: 'backgroundLow', velocity: 0.08, articulation: 'legato' },
-        'pad': { layer: 'backgroundLow', velocity: 0.04, articulation: 'legato' }
-      }[voiceRole] || { layer: 'backgroundMid', velocity: 0.06, articulation: 'normal' }
+        'melody': { layer: 'backgroundHigh', velocity: velocityConfig.melody, articulation: 'staccato' },
+        'harmony': { layer: 'backgroundMid', velocity: velocityConfig.harmony, articulation: 'normal' },
+        'bass': { layer: 'backgroundLow', velocity: velocityConfig.bass, articulation: 'legato' },
+        'pad': { layer: 'backgroundLow', velocity: velocityConfig.pad, articulation: 'legato' }
+      }[voiceRole] || { layer: 'backgroundMid', velocity: velocityConfig.harmony, articulation: 'normal' }
 
       voice.notes.forEach((note, noteIndex) => {
         const pitch = note.pitch || 60

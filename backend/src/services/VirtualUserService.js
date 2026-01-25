@@ -15,6 +15,7 @@
 const HarmonicEngine = require('./HarmonicEngine')
 const PhraseMorphology = require('./PhraseMorphology')
 const FrequencyPositionMapper = require('../utils/FrequencyPositionMapper')
+const { getGenreVelocityMultiplier } = require('../utils/GenreUtils')
 const { VIRTUAL_USER_COLORS } = require('../constants/colors')
 
 class VirtualUserService {
@@ -721,11 +722,14 @@ class VirtualUserService {
       return
     }
 
-    // Entry #171: Velocity variation 0.75-1.0 based on GitHub activity
-    const tapVelocity = 0.75 + (gh * 0.25)
-
-    // Entry #175b fix: Get style for genre-aware playback
+    // Entry #175b fix: Get style for genre-aware playback (moved before velocity calc)
     const style = this.backgroundCompositionService?.getCurrentStyleForRoom(roomId)
+
+    // Entry #171: Velocity variation 0.75-1.0 based on GitHub activity
+    // Entry #NEW: Apply genre velocity multiplier for consistency with real users
+    const baseVelocity = 0.75 + (gh * 0.25)
+    const genreMultiplier = getGenreVelocityMultiplier(style)
+    const tapVelocity = baseVelocity * genreMultiplier
 
     // 4. Emit hold:start with reverse-mapped position
     this.io.to(roomId).emit('hold:start', {
@@ -856,8 +860,14 @@ class VirtualUserService {
     // Entry #171: Pitch offset ±3 semitones based on combined metrics
     const pitchOffset = Math.floor((wiki + hn - 1) * 3)
 
+    // Entry #175b fix: Get style for genre-aware playback (moved before velocity calc)
+    const style = this.backgroundCompositionService?.getCurrentStyleForRoom(roomId)
+
     // Entry #171: Velocity variation based on GitHub activity (0.75-1.0 range for 0-127 MIDI)
-    const velocityMultiplier = 0.75 + (gh * 0.25)
+    // Entry #NEW: Apply genre velocity multiplier for consistency with real users
+    const baseVelocityMultiplier = 0.75 + (gh * 0.25)
+    const genreMultiplier = getGenreVelocityMultiplier(style)
+    const velocityMultiplier = baseVelocityMultiplier * genreMultiplier
 
     phrase.notes = phrase.notes.map(note => ({
       ...note,
@@ -923,8 +933,7 @@ class VirtualUserService {
       this.backgroundCompositionService.addMaterial(roomId, dragGestureData, musicalPhrase)
     }
 
-    // Entry #175b: Get current style for genre-aware audio
-    const style = this.backgroundCompositionService?.getCurrentStyleForRoom(roomId)
+    // Entry #175b: style already retrieved above for genre velocity calculation
 
     // Emit phrase event for visual system
     this.io.to(roomId).emit('musical:event', {

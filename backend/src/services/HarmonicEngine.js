@@ -186,19 +186,23 @@ class HarmonicEngine {
    * @param {number} compositionCount - Composition counter for variation
    * @param {Object} sectionContext - Optional SectionContext for section-aware generation
    * @param {Object} webMetrics - Optional web metrics for deterministic variation
+   * @param {number} tensionLevel - Optional tension level (0-1) for harmonic complexity control
    * @returns {Array} Chord progression
    */
-  generateProgression(styleAnalysis, phraseLength, compositionCount = 0, sectionContext = null, webMetrics = null) {
+  generateProgression(styleAnalysis, phraseLength, compositionCount = 0, sectionContext = null, webMetrics = null, tensionLevel = 0.5) {
     // If we have a SectionContext, use tension-aware generation
     if (sectionContext) {
-      return this.generateProgressionForSection(styleAnalysis, phraseLength, compositionCount, sectionContext, webMetrics)
+      return this.generateProgressionForSection(styleAnalysis, phraseLength, compositionCount, sectionContext, webMetrics, tensionLevel)
     }
 
     const { genreWeights, harmonicComplexity } = styleAnalysis
     // Extract complexity value (0-1), default to 0.5
-    const complexity = harmonicComplexity?.modalFlavor === 'minor' ? 0.6 :
-                       harmonicComplexity?.modalFlavor === 'major' ? 0.4 :
-                       typeof harmonicComplexity === 'number' ? harmonicComplexity : 0.5
+    // Entry #NEW: Incorporate tensionLevel into complexity calculation
+    const baseComplexity = harmonicComplexity?.modalFlavor === 'minor' ? 0.6 :
+                           harmonicComplexity?.modalFlavor === 'major' ? 0.4 :
+                           typeof harmonicComplexity === 'number' ? harmonicComplexity : 0.5
+    // Tension adds up to 0.3 complexity (high tension = more complex harmonies)
+    const complexity = Math.min(1, baseComplexity + (tensionLevel - 0.5) * 0.6)
 
     // Entry #171: Extract web metrics for key/mode selection
     const wiki = webMetrics?.wikipedia?.normalized || 0.5
@@ -302,16 +306,22 @@ class HarmonicEngine {
    * @param {number} compositionCount - Composition counter
    * @param {Object} sectionContext - SectionContext with tension and harmonic function
    * @param {Object} webMetrics - Optional web metrics for variation
+   * @param {number} tensionLevel - Optional external tension level from CompositionEngine
    * @returns {Array} Chord progression
    */
-  generateProgressionForSection(styleAnalysis, phraseLength, compositionCount, sectionContext, webMetrics = null) {
+  generateProgressionForSection(styleAnalysis, phraseLength, compositionCount, sectionContext, webMetrics = null, tensionLevel = 0.5) {
     const { genreWeights } = styleAnalysis
     const harmonicTension = sectionContext.harmonicTension ?? 0.5
     const harmonicFunction = sectionContext.harmonicFunction || 'tonic'
     const thematicRole = sectionContext.thematicRole || 'exposition'
 
-    // Use tension as complexity for progression selection
-    const complexity = harmonicTension
+    // Entry #NEW: Blend section harmonicTension with external tensionLevel
+    // External tensionLevel incorporates energy, gestureWeight, and sectionContext
+    // Use weighted blend: 60% section context, 40% external tension for section awareness
+    const blendedTension = harmonicTension * 0.6 + tensionLevel * 0.4
+
+    // Use blended tension as complexity for progression selection
+    const complexity = blendedTension
 
     // Select key variation based on thematic role
     // Development sections are more likely to modulate
@@ -322,7 +332,8 @@ class HarmonicEngine {
       // Development: modulate more frequently (30% vs 15%)
       const currentKeyIndex = circleOfFifths.indexOf(this.currentKey)
       const direction = keySelector > 0.85 ? 1 : -1
-      const distance = harmonicTension > 0.6 ? 2 : 1 // Higher tension = further modulation
+      // Entry #NEW: Use blended tension for modulation distance
+      const distance = blendedTension > 0.6 ? 2 : 1 // Higher tension = further modulation
       const newKeyIndex = (currentKeyIndex + direction * distance + 12) % 12
       this.currentKey = circleOfFifths[newKeyIndex]
     } else if (thematicRole === 'recapitulation' && keySelector > 0.9) {
@@ -341,13 +352,13 @@ class HarmonicEngine {
     const modeSelector = ((compositionCount * PHI * 2) % 1)
 
     if (modeSelector > 0.75) {
-      // Mode changes based on tension
-      if (harmonicTension > 0.7) {
+      // Entry #NEW: Mode changes based on blended tension (section + external)
+      if (blendedTension > 0.7) {
         // High tension: prefer darker modes (phrygian, locrian, aeolian)
         const darkModes = ['phrygian', 'locrian', 'aeolian']
         const darkIndex = Math.floor(modeSelector * darkModes.length * 4) % darkModes.length
         this.currentMode = darkModes[darkIndex]
-      } else if (harmonicTension < 0.3) {
+      } else if (blendedTension < 0.3) {
         // Low tension: prefer brighter modes (ionian, lydian, mixolydian)
         const brightModes = ['ionian', 'lydian', 'mixolydian']
         const brightIndex = Math.floor(modeSelector * brightModes.length * 4) % brightModes.length

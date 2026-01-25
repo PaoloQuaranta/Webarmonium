@@ -305,7 +305,8 @@ class SocketEventCoordinator {
 ////      })
 
       if (this.isAudioStarted && data.composition && this.audioService) {
-        this.audioService.playComposition(data.composition, data.isDrone)
+        // Entry #NEW: Pass style parameter for genre-aware playback (with null safety)
+        this.audioService.playComposition(data.composition, data.isDrone, data.style || {})
       }
     })
   }

@@ -19,6 +19,7 @@ const HarmonicEngine = require('./HarmonicEngine')
 const CompositionEngine = require('./CompositionEngine')
 const PhraseMorphology = require('./PhraseMorphology')
 const FrequencyPositionMapper = require('../utils/FrequencyPositionMapper')
+const { getGenreVelocityMultiplier } = require('../utils/GenreUtils')
 const { VIRTUAL_USER_COLORS } = require('../constants/colors')
 
 class LandingCompositionService {
@@ -1240,11 +1241,14 @@ class LandingCompositionService {
     const beatDuration = 60 / tempo
     const tapDuration = quantizedBeats * beatDuration
 
-    // Entry #171: Velocity variation 0.75-1.0 based on GitHub activity
-    const tapVelocity = 0.75 + (gh * 0.25)
-
-    // Entry #175b: Get style for genre-aware playback (landing room)
+    // Entry #175b: Get style for genre-aware playback (landing room) - moved before velocity calc
     const style = this._getCurrentStyle()
+
+    // Entry #171: Velocity variation 0.75-1.0 based on GitHub activity
+    // Entry #NEW: Apply genre velocity multiplier for consistency with rooms
+    const baseVelocity = 0.75 + (gh * 0.25)
+    const genreMultiplier = getGenreVelocityMultiplier(style)
+    const tapVelocity = baseVelocity * genreMultiplier
 
     // 4. Emit musical event with reverse-mapped position
     this.io.to(this.landingRoomId).emit('musical:event', {
@@ -1318,8 +1322,14 @@ class LandingCompositionService {
     // Entry #171: Pitch offset ±3 semitones based on combined metrics
     const pitchOffset = Math.floor((wiki + hn - 1) * 3)
 
+    // Entry #175b: Get style for genre-aware playback (moved before velocity calc)
+    const style = this._getCurrentStyle()
+
     // Entry #171: Velocity multiplier based on GitHub activity (0.75-1.0)
-    const velocityMultiplier = 0.75 + (gh * 0.25)
+    // Entry #NEW: Apply genre velocity multiplier for consistency with rooms
+    const baseVelocityMultiplier = 0.75 + (gh * 0.25)
+    const genreMultiplier = getGenreVelocityMultiplier(style)
+    const velocityMultiplier = baseVelocityMultiplier * genreMultiplier
 
     // HARMONIC COHERENCE: Constrain all phrase notes to room's scale/mode
     // PhraseMorphology uses mood-based scale selection; this ensures room coherence
@@ -1368,8 +1378,7 @@ class LandingCompositionService {
     const endFreq = noteData[noteData.length - 1].positionFreq
     const startPosition = this._calculateHybridPosition(gesture.source, startFreq)
 
-    // Entry #175b: Get style for genre-aware playback (landing room)
-    const style = this._getCurrentStyle()
+    // Entry #175b: style already retrieved above for genre velocity calculation
 
     // Emit phrase event for visual system
     this.io.to(this.landingRoomId).emit('musical:event', {

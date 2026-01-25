@@ -38,6 +38,57 @@ class CompositionEngine {
     this.developmentHistory = []   // Track development techniques used
   }
 
+  /**
+   * Update tensionLevel based on style, gestureWeight, and sectionContext
+   * Entry #NEW: Integrates previously unused tensionLevel parameter for harmonic variety
+   * @param {Object} style - Current style from StyleAnalyzer
+   * @param {number} gestureWeight - Gesture influence weight (0-1, higher = more recent gestures)
+   * @param {Object} sectionContext - Current section context from FormDefinitions
+   */
+  updateTensionLevel(style, gestureWeight, sectionContext) {
+    // Combine: energy + gestureWeight + section harmonicTension
+    // Each contributes proportionally to final tension
+    const energyContribution = (style?.energy || 0.5) * 0.4
+    const gestureContribution = (gestureWeight || 0.5) * 0.3
+    const sectionTension = sectionContext?.harmonicTension || 0.3
+    const sectionContribution = sectionTension * 0.3
+
+    this.tensionLevel = Math.min(1, Math.max(0,
+      energyContribution + gestureContribution + sectionContribution
+    ))
+  }
+
+  /**
+   * Get genre-based density multiplier
+   * Entry #NEW: Makes density genre-aware (rock/electronic = dense, ambient/classical = sparse)
+   * @param {Object} genreWeights - Genre weights from StyleAnalyzer
+   * @returns {number} Density multiplier (0.7-1.3 range)
+   */
+  getGenreDensityMultiplier(genreWeights) {
+    // Weight density by dominant genre characteristics
+    const densityWeights = {
+      rock: 1.3,
+      electronic: 1.2,
+      rhythmic: 1.2,
+      jazz: 1.1,
+      melodic: 1.0,
+      classical: 0.9,
+      ambient: 0.7,
+      experimental: 1.0
+    }
+
+    let totalWeight = 0
+    let weightedDensity = 0
+    Object.entries(genreWeights || {}).forEach(([genre, weight]) => {
+      if (densityWeights[genre] && weight > 0) {
+        weightedDensity += weight * densityWeights[genre]
+        totalWeight += weight
+      }
+    })
+
+    return totalWeight > 0 ? weightedDensity / totalWeight : 1.0
+  }
+
   compose(roomContext) {
     try {
 // console.log(`🎼 CompositionEngine: Composing for room with ${roomContext.userCount || 1} users`)
@@ -73,6 +124,10 @@ class CompositionEngine {
       const availableMaterial = this.getAvailableMaterial(roomContext)
       // DEBUG Entry #117: Log material count
 // console.log(`🎼 Available material: ${availableMaterial.length} items`)
+
+      // Entry #NEW: Update tensionLevel based on style, gestureWeight, and sectionContext
+      const gestureWeight = roomContext.gestureWeight || 0.5
+      this.updateTensionLevel(currentStyle, gestureWeight, this.sectionContext)
 
       // 4. Generate current section
       // Entry #163: Track composed section for monitor and section persistence
@@ -390,8 +445,9 @@ class CompositionEngine {
     // Entry #117: Pass compositionCount for temporal variation in progression selection
     // Entry #169: Pass sectionContext for tension-aware progression
     // Entry #171: Pass webMetrics for deterministic harmonic variety
+    // Entry #NEW: Pass tensionLevel for harmonic complexity control
     const progression = this.harmonicEngine.generateProgression(
-      style, sectionLength, this.compositionCount, this.sectionContext, this.webMetrics
+      style, sectionLength, this.compositionCount, this.sectionContext, this.webMetrics, this.tensionLevel
     )
     // Entry #117: Sync keyCenter from HarmonicEngine (which now varies by compositionCount)
     this.keyCenter = this.harmonicEngine.currentKey

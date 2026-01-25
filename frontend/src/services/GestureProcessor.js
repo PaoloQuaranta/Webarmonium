@@ -57,10 +57,47 @@ class GestureProcessor {
 
   /**
    * Get current scale from compositional parameters
+   * Entry #NEW: Check compositionalParameters.scaleType if cachedScale not yet set
    * @returns {Array} Scale intervals
    */
   getScale() {
-    return this.cachedScale || window.MusicalScales?.getScale('pentatonic') || [0, 2, 4, 7, 9]
+    // 1. Return cached scale if available
+    if (this.cachedScale) return this.cachedScale
+
+    // 2. Try to get from compositionalParameters (even if not yet cached)
+    const scaleType = this.compositionalParameters?.scaleType
+    if (scaleType && window.MusicalScales) {
+      const scale = window.MusicalScales.getScale(scaleType)
+      if (scale) {
+        // Cache it for next time
+        this.cachedScale = scale
+        this.cachedScaleType = scaleType
+        return scale
+      }
+    }
+
+    // 3. Final fallback to pentatonic
+    return window.MusicalScales?.getScale('pentatonic') || [0, 2, 4, 7, 9]
+  }
+
+  /**
+   * Get genre-aware velocity multiplier
+   * Entry #NEW: Ensures TAP gestures have genre-consistent velocity
+   * @param {Object} style - Current style from AudioService
+   * @returns {number} Velocity multiplier (0.6-1.4 range)
+   */
+  _getGenreVelocityMultiplier(style) {
+    const multipliers = {
+      ambient: 0.6,
+      classical: 0.8,
+      jazz: 1.0,
+      melodic: 1.0,
+      electronic: 1.2,
+      rhythmic: 1.2,
+      rock: 1.4,
+      experimental: 1.1
+    }
+    return multipliers[style?.dominantGenre] || 1.0
   }
 
   /**
@@ -225,8 +262,16 @@ class GestureProcessor {
     const midiNote = 60 + (baseOctave - 4) * 12 + scaleNote
     const frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
 
-    const noteVolume = 0.5 // FIXED volume for clicks
-    const noteDuration = 0.1 // 100ms for short percussive notes
+    // Entry #NEW: Genre-aware velocity instead of hardcoded
+    const style = this.audioService?.currentStyle || null
+    const genreMultiplier = this._getGenreVelocityMultiplier(style)
+    const noteVolume = 0.5 * genreMultiplier
+
+    // Entry #NEW: Genre-aware duration (ambient = longer, rock = shorter)
+    const baseDuration = style?.dominantGenre === 'ambient' ? 0.3 :
+                         style?.dominantGenre === 'jazz' ? 0.15 :
+                         style?.dominantGenre === 'rock' ? 0.08 : 0.1
+    const noteDuration = baseDuration
 
     // CRITICAL: Use per-user synth for consistent timbre (same as phrases)
     // Get local user ID for per-user synth routing

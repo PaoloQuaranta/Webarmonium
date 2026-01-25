@@ -316,12 +316,16 @@ class BackgroundCompositionService {
 
 // console.log(`🎵 Broadcasting DRONE to room ${roomId} (${socketCount} sockets in room)`)
 
+      // Get current style for genre-aware velocity in frontend
+      const style = this.getCurrentStyleForRoom(roomId)
+
       this.io.to(roomId).emit('background-composition', {
         roomId,
         composition: droneComposition,
         compositionNumber: 0,
         isDrone: true,  // Mark as drone for frontend
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        style  // Include style for genre-aware velocity
       })
 
 // console.log(`✅ DRONE broadcast complete for room ${roomId}`)
@@ -354,12 +358,16 @@ class BackgroundCompositionService {
       }
     }
 
+    // Get current style for genre-aware velocity in frontend
+    const style = this.getCurrentStyleForRoom(roomId)
+
     socket.emit('background-composition', {
       roomId,
       composition: droneComposition,
       compositionNumber: 0,
       isDrone: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      style  // Include style for genre-aware velocity
     })
     // console.log(`🎵 Drone emitted to socket for room ${roomId} (request-drone)`)
   }
@@ -455,6 +463,8 @@ class BackgroundCompositionService {
 
     // CALCULATE GESTURE WEIGHT: First gestures have maximum influence
     const gestureWeight = this.calculateGestureWeight(roomState.gestureCount, roomState.initialGestureWindow)
+    // Entry #NEW: Store gestureWeight for CompositionEngine use
+    roomState.lastGestureWeight = gestureWeight
 
 // console.log(`🎵 Gesture #${roomState.gestureCount} - Weight: ${gestureWeight.toFixed(2)} (${gestureWeight >= 0.8 ? 'HIGH' : gestureWeight >= 0.5 ? 'MEDIUM' : 'LOW'} influence)`)
 
@@ -629,7 +639,11 @@ class BackgroundCompositionService {
 
     // Complexity and density from energy
     this.compositionEngine.complexityLevel = Math.min(0.9, Math.max(0.1, style.energy))
-    this.compositionEngine.density = Math.min(0.9, Math.max(0.1, style.energy * 1.2))
+
+    // Entry #NEW: Apply genre density multiplier for genre-aware density
+    const genreDensityMultiplier = this.compositionEngine.getGenreDensityMultiplier(style.genreWeights)
+    const baseDensity = style.energy * 1.2
+    this.compositionEngine.density = Math.min(0.9, Math.max(0.1, baseDensity * genreDensityMultiplier))
 
 // console.log(`🎼 Applied style: energy=${style.energy.toFixed(2)}, tempo=${this.compositionEngine.tempo}, complexity=${this.compositionEngine.complexityLevel.toFixed(2)}`)
   }
@@ -738,7 +752,8 @@ class BackgroundCompositionService {
         activeUsers: roomContext.activeUsers || [],
         compositionCount: roomState.compositionCount,
         sectionContext: sectionContext, // Entry #169: Add section context
-        webMetrics: this._normalizeWebMetrics() // Entry #171: Add web metrics for harmonic variety
+        webMetrics: this._normalizeWebMetrics(), // Entry #171: Add web metrics for harmonic variety
+        gestureWeight: roomState.lastGestureWeight || 0.5 // Entry #NEW: Pass gestureWeight for tensionLevel
       })
 
       // Entry #169: Check if we should transition to next section

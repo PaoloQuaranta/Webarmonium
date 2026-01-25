@@ -8,6 +8,7 @@ const Logger = require('./Logger')
 const AppError = require('./AppError')
 const FrequencyPositionMapper = require('./FrequencyPositionMapper')
 const DomainProtection = require('./DomainProtection')
+const GenreUtils = require('./GenreUtils')
 const { PHI } = require('./constants')
 
 module.exports = {
@@ -17,5 +18,6 @@ module.exports = {
   ...AppError,
   FrequencyPositionMapper,
   DomainProtection,
+  ...GenreUtils,
   PHI
 }
