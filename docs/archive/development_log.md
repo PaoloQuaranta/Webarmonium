@@ -3038,3 +3038,93 @@ const notePosition = trajectory[trajectoryIndex]  // Note appears where cursor i
 v0.2.32
 
 ---
+
+## Entry #185b - Virtual User Y=Frequency Coherence
+
+**Date**: 2026-01-26
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Enhanced virtual user cursor system to match real user behavior:
+1. **Y = frequency** - Like real users, cursor Y position now determines note pitch (top = high, bottom = low)
+2. **Fast notes = wide movements** - Note density scales trajectory amplitude
+3. **Frequency from position** - Note frequencies derived from trajectory Y instead of pre-generated
+
+---
+
+### Problem Statement
+
+After Entry #185, cursors moved but the mapping was inverted from real users:
+- Virtual users: X = frequency (horizontal movement for pitch)
+- Real users: Y = frequency (vertical movement for pitch)
+- Fast phrases had same amplitude as slow phrases
+
+---
+
+### Solution
+
+1. **Swapped X/Y mapping in `_calculateHybridPosition`**:
+   - Y now based on frequency (inverted: top = high freq)
+   - X now based on secondary metrics
+
+2. **Added `_yToFrequency` helper**:
+   - Converts Y position back to frequency
+   - Range: 110Hz (A2) to 880Hz (A5)
+
+3. **Density-based amplitude scaling**:
+   - `notesPerSecond = noteCount / durationMs`
+   - `densityFactor = 0.5x to 2x` based on note density
+   - Minimum distance scales: 6% to 24% of canvas
+
+4. **Note frequencies from trajectory**:
+   - Each note's frequency derived from its trajectory Y position
+   - Still constrained to tessitura after derivation
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `VirtualUserService.js` | Y=freq in position calc, `_yToFrequency`, density amplitude, Y-derived note freq |
+| `LandingCompositionService.js` | Same changes |
+
+---
+
+### Technical Details
+
+**Position mapping (Entry #185b)**:
+```javascript
+// Y = frequency (inverted like real users)
+const normalizedFreq = (baseFrequency - 110) / 770
+const yFromFreq = 1 - normalizedFreq  // top = high freq
+
+// X = secondary metrics
+const xBase = xMetric + goldenVariation
+```
+
+**Y to frequency conversion**:
+```javascript
+_yToFrequency(y) {
+  const normalizedY = (y - 0.05) / 0.9
+  const normalizedFreq = 1 - normalizedY
+  return 110 + normalizedFreq * 770  // 110Hz to 880Hz
+}
+```
+
+**Density-based amplitude**:
+```javascript
+const notesPerSecond = noteCount / (durationMs / 1000)
+const densityFactor = Math.min(2, Math.max(0.5, notesPerSecond / 2))
+const minDist = 0.12 * densityFactor  // 6% to 24%
+```
+
+---
+
+### Version
+
+v0.2.33
+
+---

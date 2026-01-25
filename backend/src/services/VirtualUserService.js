@@ -970,8 +970,9 @@ class VirtualUserService {
       timestamp: Date.now()
     })
 
-    // 4. Generate HYBRID trajectory (frequency path + metric offsets)
-    const trajectory = this._generateHybridTrajectory(source, startFreq, endFreq, phraseDurationMs)
+    // Entry #185: Generate trajectory with note count for amplitude scaling
+    // Fast notes (high density) = wider movements
+    const trajectory = this._generateHybridTrajectory(source, startFreq, endFreq, phraseDurationMs, noteData.length)
 
     // 5. Emit cursor positions along trajectory (synchronized with phrase duration)
     trajectory.forEach((pos) => {
@@ -981,28 +982,23 @@ class VirtualUserService {
       }, pos.timeOffset)
     })
 
-    // Entry #184: Note positions now follow the same geometric trajectory as cursor
-    // This ensures visual coherence - notes appear where the cursor is during the gesture
+    // Entry #185: Note frequencies derived from trajectory Y position
+    // This ensures visual-audio coherence: cursor position matches note pitch
 
-    // 6. Emit notes with TRAJECTORY positions (same path as cursor)
-    // - audioFreq for sound (tessitura-constrained)
-    // - position from trajectory for visual coherence with cursor movement
+    // 6. Emit notes with TRAJECTORY positions and Y-derived frequencies
     noteData.forEach((note, noteIndex) => {
       setTimeout(() => {
         if (!this.activeRooms.has(roomId)) return
 
-        // Entry #184: Find trajectory position at note's time
-        // Calculate t (normalized time) for this note
+        // Find trajectory position at note's time
         const t = phraseDurationMs > 0 ? note.startDelayMs / phraseDurationMs : 0
-
-        // Find the corresponding trajectory point (or interpolate)
         const trajectoryIndex = Math.min(
           trajectory.length - 1,
           Math.floor(t * (trajectory.length - 1))
         )
         const nextIndex = Math.min(trajectory.length - 1, trajectoryIndex + 1)
 
-        // Interpolate between trajectory points for smooth positioning
+        // Interpolate between trajectory points
         const trajectoryT = t * (trajectory.length - 1) - trajectoryIndex
         const currentTrajPos = trajectory[trajectoryIndex]
         const nextTrajPos = trajectory[nextIndex]
@@ -1012,20 +1008,25 @@ class VirtualUserService {
           y: currentTrajPos.y + (nextTrajPos.y - currentTrajPos.y) * trajectoryT
         }
 
+        // Entry #185: Derive frequency from Y position (like real users)
+        // Raw frequency from position, then constrain to tessitura
+        const rawFreqFromY = this._yToFrequency(notePosition.y)
+        const audioFreq = this.frequencyMapper.enforceTessitura(rawFreqFromY, freqMin, freqMax)
+
         this.io.to(roomId).emit('hold:start', {
           type: 'hold:start',
           userId: config.userId,
           noteId: note.noteId,
-          frequency: note.audioFreq,  // Tessitura-constrained for sound
+          frequency: audioFreq,  // Entry #185: Y-derived, tessitura-constrained
           velocity: note.velocity,
           duration: note.durationMs / 1000,
-          position: notePosition,     // Full canvas position
+          position: notePosition,
           userColor: config.color,
           isRemote: true,
           isVirtual: true,
           suppressVisual: true,
           timestamp: Date.now(),
-          style: style  // Entry #175b fix: Include style for genre-aware playback
+          style: style
         })
 
         setTimeout(() => {
@@ -1306,7 +1307,6 @@ class VirtualUserService {
     const RANGE = MAX_BOUND - MIN_BOUND  // 0.9
 
     // FIX #3: Validate input frequency - return safe fallback if invalid
-    // MEDIUM #3 fix: Removed triple fallback - initialPositions must exist (validated at startup)
     if (!Number.isFinite(baseFrequency) || baseFrequency < 0) {
       return this.initialPositions[source]
     }
@@ -1317,57 +1317,55 @@ class VirtualUserService {
     // Source-specific offset to differentiate patterns (prime numbers)
     const sourceOffset = source === 'wikipedia' ? 17 : source === 'hackernews' ? 53 : 97
 
-    // Entry #182: Quadrant biases to keep sources in different areas
+    // Entry #185: Quadrant biases - now Y-oriented since Y=frequency
     const quadrantBias = {
-      wikipedia: { x: -0.15, y: 0.15 },    // Bias toward bottom-left
-      hackernews: { x: 0.15, y: 0 },       // Bias toward right
-      github: { x: -0.10, y: -0.15 }       // Bias toward top-left
+      wikipedia: { x: -0.15, y: 0.10 },    // Left side, mid-low
+      hackernews: { x: 0.15, y: 0 },       // Right side, middle
+      github: { x: -0.05, y: -0.15 }       // Center-left, higher
     }
     const bias = quadrantBias[source] || { x: 0, y: 0 }
 
-    // Get metrics for influence - clamp explicitly
-    const normalizedFreq = Math.max(0, Math.min(1, (baseFrequency - 110) / 1100))
+    // Entry #185: Y = frequency (like real users)
+    // Inverted: Y=0 (top) = high freq, Y=1 (bottom) = low freq
+    // Range: 110Hz (A2) to 880Hz (A5) - typical musical range
+    const normalizedFreq = Math.max(0, Math.min(1, (baseFrequency - 110) / 770))
+    const yFromFreq = 1 - normalizedFreq  // Invert: high freq = low Y (top)
+
+    // X position from secondary metrics
     const metrics = this.webMetricsPoller?.getMetrics()
-    let secondaryMetric = 0.5
+    let xMetric = 0.5
 
     if (metrics && metrics[source]) {
       const m = metrics[source]
       switch (source) {
         case 'wikipedia':
-          secondaryMetric = this._normalizeValue(source, 'avgEditSize', m.avgEditSize || 0)
+          xMetric = this._normalizeValue(source, 'avgEditSize', m.avgEditSize || 0)
           break
         case 'hackernews':
-          secondaryMetric = this._normalizeValue(source, 'avgUpvotes', m.avgUpvotes || 0)
+          xMetric = this._normalizeValue(source, 'avgUpvotes', m.avgUpvotes || 0)
           break
         case 'github':
-          secondaryMetric = this._normalizeValue(source, 'createsPerMinute', m.createsPerMinute || 0)
+          xMetric = this._normalizeValue(source, 'createsPerMinute', m.createsPerMinute || 0)
           break
       }
     }
 
-    // Validate secondaryMetric is finite
-    if (!Number.isFinite(secondaryMetric)) {
-      secondaryMetric = 0.5
+    if (!Number.isFinite(xMetric)) {
+      xMetric = 0.5
     }
 
-    // GOLDEN RATIO DISTRIBUTION
-    // Each axis uses different φ power for independent sequences
-    // stepIndex ensures trajectory points don't cluster
+    // GOLDEN RATIO DISTRIBUTION for variation
     const combinedSeed = gestureCount + sourceOffset + stepIndex
-
-    // Entry #182: Enhanced spreading formula
-    // HIGH #2 fix: Frequency/metric directly shifts position, golden ratio adds variation
     const xGolden = (combinedSeed * VirtualUserService.PHI) % 1
     const yGolden = (combinedSeed * VirtualUserService.PHI_SQ) % 1
 
-    // X position: frequency-based horizontal shift with ±15% golden ratio variation
-    // Low freq (bass) → left side, high freq (soprano) → right side
-    const xBase = normalizedFreq + (xGolden - 0.5) * 0.3
+    // X position: metric-based with ±15% golden ratio variation
+    const xBase = xMetric + (xGolden - 0.5) * 0.3
 
-    // Y position: metric-based vertical shift with ±15% golden ratio variation
-    const yBase = secondaryMetric + (yGolden - 0.5) * 0.3
+    // Y position: frequency-based with ±10% golden ratio variation (less variation to preserve pitch coherence)
+    const yBase = yFromFreq + (yGolden - 0.5) * 0.2
 
-    // HIGH #1 fix: Apply bias BEFORE range scaling to maintain distribution
+    // Apply bias and clamp
     const xBiased = Math.max(0, Math.min(1, xBase + bias.x))
     const yBiased = Math.max(0, Math.min(1, yBase + bias.y))
 
@@ -1378,36 +1376,37 @@ class VirtualUserService {
   }
 
   /**
-   * Generate trajectory for drag gesture using GEOMETRIC interpolation:
-   * - Entry #184: Use pure geometric path from start to end position
-   * - Cursor follows smooth linear/arc trajectory independent of note frequencies
-   * - Arc curvature based on velocity metrics for natural gesture feel
-   * - Reduced emission rate (100ms) to work with slow interpolation
+   * Generate trajectory for drag gesture:
+   * - Entry #185: Y = frequency (like real users)
+   * - Fast notes = wider movements
+   * - Smooth geometric path with arc curvature
    *
    * @param {string} source - Source name
-   * @param {number} startFreq - Starting frequency (used only for start position)
-   * @param {number} endFreq - Ending frequency (used only for end position)
+   * @param {number} startFreq - Starting frequency
+   * @param {number} endFreq - Ending frequency
    * @param {number} durationMs - Gesture duration
-   * @param {number} intervalMs - Update interval (default 100ms for reduced trail density)
+   * @param {number} noteCount - Number of notes in phrase (for amplitude scaling)
+   * @param {number} intervalMs - Update interval (default 100ms)
    * @returns {Array<{x: number, y: number, timeOffset: number}>} Trajectory positions
    * @private
    */
-  _generateHybridTrajectory(source, startFreq, endFreq, durationMs, intervalMs = 100) {
+  _generateHybridTrajectory(source, startFreq, endFreq, durationMs, noteCount = 4, intervalMs = 100) {
     const steps = Math.max(1, Math.ceil(durationMs / intervalMs))
     const positions = []
 
-    // Entry #184: Calculate start and end positions ONCE
-    // These are the only positions derived from frequency
+    // Entry #185: Calculate start and end positions from frequencies
     const startPos = this._calculateHybridPosition(source, startFreq, 0)
     const endPos = this._calculateHybridPosition(source, endFreq, steps)
 
-    // Entry #184: Ensure minimum movement distance for visible gesture
-    // If start and end are too close, extend the path
+    // Entry #185: Scale movement amplitude by note density (notes per second)
+    // More notes = faster gesture = wider movement
+    const notesPerSecond = noteCount / (durationMs / 1000)
+    const densityFactor = Math.min(2, Math.max(0.5, notesPerSecond / 2))  // 0.5x to 2x
+    const minDist = 0.12 * densityFactor  // 6% to 24% of canvas
+
     const dx = endPos.x - startPos.x
     const dy = endPos.y - startPos.y
-    const distSq = dx * dx + dy * dy
-    const dist = Math.sqrt(distSq)
-    const minDist = 0.15 // Minimum 15% of canvas for visible movement
+    const dist = Math.sqrt(dx * dx + dy * dy)
 
     let actualEndPos = endPos
     if (dist < minDist && dist > 0) {
@@ -1418,39 +1417,38 @@ class VirtualUserService {
         y: Math.max(0.05, Math.min(0.95, startPos.y + dy * scale))
       }
     } else if (dist === 0) {
-      // If no movement, create a small circular gesture
-      const angle = (this.gestureCounters.get(source) || 0) * 0.7
+      // If no movement, create directional gesture based on gesture counter
+      const gestureCount = this.gestureCounters[source] || 0
+      const angle = gestureCount * 0.7
       actualEndPos = {
         x: Math.max(0.05, Math.min(0.95, startPos.x + Math.cos(angle) * minDist)),
         y: Math.max(0.05, Math.min(0.95, startPos.y + Math.sin(angle) * minDist))
       }
     }
 
-    // Recalculate direction vector with actual end position
+    // Recalculate direction vector
     const actualDx = actualEndPos.x - startPos.x
     const actualDy = actualEndPos.y - startPos.y
-    const actualLenSq = actualDx * actualDx + actualDy * actualDy
-    const actualLen = actualLenSq > 0 ? Math.sqrt(actualLenSq) : 1
+    const actualLen = Math.sqrt(actualDx * actualDx + actualDy * actualDy) || 1
 
-    // Perpendicular direction (normalized) for curve offset
+    // Perpendicular direction for curve offset
     const perpX = -actualDy / actualLen
     const perpY = actualDx / actualLen
 
-    // Entry #184: Get curve amount for arc trajectories (±0.2 range)
-    const curveAmount = this._calculateCurveAmount(source)
+    // Entry #185: Curve amount scales with density (faster = more curved)
+    const baseCurve = this._calculateCurveAmount(source)
+    const curveAmount = baseCurve * densityFactor
 
     for (let i = 0; i <= steps; i++) {
       const t = steps > 0 ? i / steps : 0
-      // Ease-in-out for natural acceleration/deceleration feel
+      // Ease-in-out for natural acceleration/deceleration
       const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 
-      // Entry #184: GEOMETRIC interpolation between start and end
-      // No frequency calculation - pure position lerp
+      // Geometric interpolation between start and end
       const x = startPos.x + (actualEndPos.x - startPos.x) * eased
       const y = startPos.y + (actualEndPos.y - startPos.y) * eased
 
-      // Add perpendicular curve offset (sinusoidal arc)
-      // Maximum curve at middle of trajectory (t=0.5)
+      // Sinusoidal arc perpendicular to path
       const curveOffset = Math.sin(t * Math.PI) * curveAmount
 
       positions.push({
@@ -1461,6 +1459,22 @@ class VirtualUserService {
     }
 
     return positions
+  }
+
+  /**
+   * Convert Y position to frequency (inverse of position calculation)
+   * Entry #185: Y=0 (top) = high freq, Y=1 (bottom) = low freq
+   * @param {number} y - Y position (0.05-0.95)
+   * @returns {number} Frequency in Hz
+   * @private
+   */
+  _yToFrequency(y) {
+    // Normalize Y from canvas bounds (0.05-0.95) to 0-1
+    const normalizedY = Math.max(0, Math.min(1, (y - 0.05) / 0.9))
+    // Invert: low Y = high freq, high Y = low freq
+    const normalizedFreq = 1 - normalizedY
+    // Map to frequency range: 110Hz (A2) to 880Hz (A5)
+    return 110 + normalizedFreq * 770
   }
 
   /**

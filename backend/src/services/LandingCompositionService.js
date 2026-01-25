@@ -1632,8 +1632,8 @@ class LandingCompositionService {
       style: style  // Entry #175b
     })
 
-    // 4. Generate HYBRID trajectory (golden ratio + metric modulation)
-    const trajectory = this._generateHybridTrajectory(gesture.source, startFreq, endFreq, phraseDurationMs)
+    // Entry #185: Generate trajectory with note count for amplitude scaling
+    const trajectory = this._generateHybridTrajectory(gesture.source, startFreq, endFreq, phraseDurationMs, noteData.length)
 
     // 5. Emit cursor positions along trajectory (synchronized with phrase duration)
     trajectory.forEach((pos) => {
@@ -1645,14 +1645,13 @@ class LandingCompositionService {
       this.pendingTimeouts.add(timeoutId)
     })
 
-    // Entry #184: Note positions now follow the same geometric trajectory as cursor
-    // This ensures visual coherence - notes appear where the cursor is during the gesture
+    // Entry #185: Note frequencies derived from trajectory Y position
     noteData.forEach((note, noteIndex) => {
       const noteTimeoutId = setTimeout(() => {
         this.pendingTimeouts.delete(noteTimeoutId)
         if (!this.io || !this.isRunning) return
 
-        // Entry #184: Find trajectory position at note's time
+        // Find trajectory position at note's time
         const t = phraseDurationMs > 0 ? note.startDelayMs / phraseDurationMs : 0
         const trajectoryIndex = Math.min(
           trajectory.length - 1,
@@ -1660,7 +1659,7 @@ class LandingCompositionService {
         )
         const nextIndex = Math.min(trajectory.length - 1, trajectoryIndex + 1)
 
-        // Interpolate between trajectory points for smooth positioning
+        // Interpolate between trajectory points
         const trajectoryT = t * (trajectory.length - 1) - trajectoryIndex
         const currentTrajPos = trajectory[trajectoryIndex]
         const nextTrajPos = trajectory[nextIndex]
@@ -1670,18 +1669,22 @@ class LandingCompositionService {
           y: currentTrajPos.y + (nextTrajPos.y - currentTrajPos.y) * trajectoryT
         }
 
+        // Entry #185: Derive frequency from Y position (like real users)
+        const rawFreqFromY = this._yToFrequency(notePosition.y)
+        const audioFreq = this.frequencyMapper.enforceTessitura(rawFreqFromY, freqMin, freqMax)
+
         this.io.to(this.landingRoomId).emit('hold:start', {
           type: 'hold:start',
           userId: user.userId,
           noteId: note.noteId,
-          frequency: note.audioFreq,  // Tessitura-constrained for sound
+          frequency: audioFreq,  // Entry #185: Y-derived, tessitura-constrained
           velocity: note.velocity,
           duration: note.durationMs / 1000,
-          position: notePosition,     // Full canvas position
+          position: notePosition,
           userColor: user.color,
           isRemote: true,
           timestamp: Date.now(),
-          style: style  // Entry #175b
+          style: style
         })
 
         // Schedule hold:end
@@ -1911,7 +1914,7 @@ class LandingCompositionService {
     const MAX_BOUND = 0.95
     const RANGE = MAX_BOUND - MIN_BOUND  // 0.9
 
-    // Entry #183: Validate input frequency - return initial position if invalid
+    // Validate input frequency - return initial position if invalid
     if (!Number.isFinite(baseFrequency) || baseFrequency < 0) {
       return this.currentPositions[source] || { x: 0.5, y: 0.5 }
     }
@@ -1922,56 +1925,52 @@ class LandingCompositionService {
     // Source-specific offset to differentiate patterns (prime numbers)
     const sourceOffset = source === 'wikipedia' ? 17 : source === 'hackernews' ? 53 : 97
 
-    // Entry #183: Quadrant biases to keep sources in different areas
+    // Entry #185: Quadrant biases - Y-oriented since Y=frequency
     const quadrantBias = {
-      wikipedia: { x: -0.15, y: 0.15 },    // Bias toward bottom-left
-      hackernews: { x: 0.15, y: 0 },       // Bias toward right
-      github: { x: -0.10, y: -0.15 }       // Bias toward top-left
+      wikipedia: { x: -0.15, y: 0.10 },    // Left side, mid-low
+      hackernews: { x: 0.15, y: 0 },       // Right side, middle
+      github: { x: -0.05, y: -0.15 }       // Center-left, higher
     }
     const bias = quadrantBias[source] || { x: 0, y: 0 }
 
-    // Get metrics for influence
-    const normalizedFreq = Math.max(0, Math.min(1, (baseFrequency - 110) / 1100))
-    let secondaryMetric = 0.5
+    // Entry #185: Y = frequency (like real users)
+    // Inverted: Y=0 (top) = high freq, Y=1 (bottom) = low freq
+    const normalizedFreq = Math.max(0, Math.min(1, (baseFrequency - 110) / 770))
+    const yFromFreq = 1 - normalizedFreq  // Invert: high freq = low Y (top)
 
+    // X position from secondary metrics
+    let xMetric = 0.5
     const sourceMetrics = this.metrics[source]
     if (sourceMetrics) {
       switch (source) {
         case 'wikipedia':
-          secondaryMetric = this.normalizeMetricDynamic(source, 'avgEditSize', sourceMetrics.avgEditSize || 0)
+          xMetric = this.normalizeMetricDynamic(source, 'avgEditSize', sourceMetrics.avgEditSize || 0)
           break
         case 'hackernews':
-          secondaryMetric = this.normalizeMetricDynamic(source, 'avgUpvotes', sourceMetrics.avgUpvotes || 0)
+          xMetric = this.normalizeMetricDynamic(source, 'avgUpvotes', sourceMetrics.avgUpvotes || 0)
           break
         case 'github':
-          secondaryMetric = this.normalizeMetricDynamic(source, 'createsPerMinute', sourceMetrics.createsPerMinute || 0)
+          xMetric = this.normalizeMetricDynamic(source, 'createsPerMinute', sourceMetrics.createsPerMinute || 0)
           break
       }
     }
 
-    // Validate secondaryMetric is finite
-    if (!Number.isFinite(secondaryMetric)) {
-      secondaryMetric = 0.5
+    if (!Number.isFinite(xMetric)) {
+      xMetric = 0.5
     }
 
-    // GOLDEN RATIO DISTRIBUTION
-    // Each axis uses different φ power for independent sequences
-    // stepIndex ensures trajectory points don't cluster
+    // GOLDEN RATIO DISTRIBUTION for variation
     const combinedSeed = gestureCount + sourceOffset + stepIndex
-
-    // Entry #183: Enhanced spreading formula
-    // HIGH #2 fix: Frequency/metric directly shifts position, golden ratio adds variation
     const xGolden = (combinedSeed * LandingCompositionService.PHI) % 1
     const yGolden = (combinedSeed * LandingCompositionService.PHI_SQ) % 1
 
-    // X position: frequency-based horizontal shift with ±15% golden ratio variation
-    // Low freq (bass) → left side, high freq (soprano) → right side
-    const xBase = normalizedFreq + (xGolden - 0.5) * 0.3
+    // X position: metric-based with ±15% golden ratio variation
+    const xBase = xMetric + (xGolden - 0.5) * 0.3
 
-    // Y position: metric-based vertical shift with ±15% golden ratio variation
-    const yBase = secondaryMetric + (yGolden - 0.5) * 0.3
+    // Y position: frequency-based with ±10% golden ratio variation
+    const yBase = yFromFreq + (yGolden - 0.5) * 0.2
 
-    // HIGH #1 fix: Apply bias BEFORE range scaling to maintain distribution
+    // Apply bias and clamp
     const xBiased = Math.max(0, Math.min(1, xBase + bias.x))
     const yBiased = Math.max(0, Math.min(1, yBase + bias.y))
 
@@ -1982,75 +1981,87 @@ class LandingCompositionService {
   }
 
   /**
-   * Generate trajectory for drag gesture using GEOMETRIC interpolation:
-   * - Entry #184: Use pure geometric path from start to end position
-   * - Cursor follows smooth linear/arc trajectory independent of note frequencies
-   * - Reduced emission rate (100ms) to work with slow interpolation
+   * Convert Y position to frequency (inverse of position calculation)
+   * Entry #185: Y=0 (top) = high freq, Y=1 (bottom) = low freq
+   * @param {number} y - Y position (0.05-0.95)
+   * @returns {number} Frequency in Hz
+   * @private
+   */
+  _yToFrequency(y) {
+    const normalizedY = Math.max(0, Math.min(1, (y - 0.05) / 0.9))
+    const normalizedFreq = 1 - normalizedY
+    return 110 + normalizedFreq * 770
+  }
+
+  /**
+   * Generate trajectory for drag gesture:
+   * - Entry #185: Y = frequency (like real users)
+   * - Fast notes = wider movements
+   * - Smooth geometric path with arc curvature
    *
    * @param {string} source - Source name
-   * @param {number} startFreq - Starting frequency (used only for start position)
-   * @param {number} endFreq - Ending frequency (used only for end position)
+   * @param {number} startFreq - Starting frequency
+   * @param {number} endFreq - Ending frequency
    * @param {number} durationMs - Gesture duration
-   * @param {number} intervalMs - Update interval (default 100ms for reduced trail density)
+   * @param {number} noteCount - Number of notes in phrase (for amplitude scaling)
+   * @param {number} intervalMs - Update interval (default 100ms)
    * @returns {Array<{x: number, y: number, timeOffset: number}>} Trajectory positions
    * @private
    */
-  _generateHybridTrajectory(source, startFreq, endFreq, durationMs, intervalMs = 100) {
+  _generateHybridTrajectory(source, startFreq, endFreq, durationMs, noteCount = 4, intervalMs = 100) {
     const steps = Math.max(1, Math.ceil(durationMs / intervalMs))
     const positions = []
 
-    // Entry #184: Calculate start and end positions ONCE
+    // Entry #185: Calculate start and end positions from frequencies
     const startPos = this._calculateHybridPosition(source, startFreq, 0)
     const endPos = this._calculateHybridPosition(source, endFreq, steps)
 
-    // Entry #184: Ensure minimum movement distance for visible gesture
+    // Entry #185: Scale movement amplitude by note density (notes per second)
+    const notesPerSecond = noteCount / (durationMs / 1000)
+    const densityFactor = Math.min(2, Math.max(0.5, notesPerSecond / 2))
+    const minDist = 0.12 * densityFactor  // 6% to 24% of canvas
+
     const dx = endPos.x - startPos.x
     const dy = endPos.y - startPos.y
-    const distSq = dx * dx + dy * dy
-    const dist = Math.sqrt(distSq)
-    const minDist = 0.15 // Minimum 15% of canvas for visible movement
+    const dist = Math.sqrt(dx * dx + dy * dy)
 
     let actualEndPos = endPos
     if (dist < minDist && dist > 0) {
-      // Extend in same direction to reach minimum distance
       const scale = minDist / dist
       actualEndPos = {
         x: Math.max(0.05, Math.min(0.95, startPos.x + dx * scale)),
         y: Math.max(0.05, Math.min(0.95, startPos.y + dy * scale))
       }
     } else if (dist === 0) {
-      // If no movement, create a small circular gesture
-      const angle = (this.gestureCounters[source] || 0) * 0.7
+      const gestureCount = this.gestureCounters[source] || 0
+      const angle = gestureCount * 0.7
       actualEndPos = {
         x: Math.max(0.05, Math.min(0.95, startPos.x + Math.cos(angle) * minDist)),
         y: Math.max(0.05, Math.min(0.95, startPos.y + Math.sin(angle) * minDist))
       }
     }
 
-    // Recalculate direction vector with actual end position
+    // Recalculate direction vector
     const actualDx = actualEndPos.x - startPos.x
     const actualDy = actualEndPos.y - startPos.y
-    const actualLenSq = actualDx * actualDx + actualDy * actualDy
-    const actualLen = actualLenSq > 0 ? Math.sqrt(actualLenSq) : 1
+    const actualLen = Math.sqrt(actualDx * actualDx + actualDy * actualDy) || 1
 
-    // Perpendicular direction (normalized) for curve offset
+    // Perpendicular direction for curve offset
     const perpX = -actualDy / actualLen
     const perpY = actualDx / actualLen
 
-    // Entry #184: Fixed curve amount for arc trajectories (varies by source)
-    const curveAmounts = { wikipedia: 0.08, hackernews: -0.06, github: 0.1 }
-    const curveAmount = curveAmounts[source] || 0.05
+    // Entry #185: Curve amount scales with density
+    const baseCurveAmounts = { wikipedia: 0.08, hackernews: -0.06, github: 0.1 }
+    const baseCurve = baseCurveAmounts[source] || 0.05
+    const curveAmount = baseCurve * densityFactor
 
     for (let i = 0; i <= steps; i++) {
       const t = steps > 0 ? i / steps : 0
-      // Ease-in-out for natural acceleration/deceleration feel
       const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 
-      // Entry #184: GEOMETRIC interpolation between start and end
       const x = startPos.x + (actualEndPos.x - startPos.x) * eased
       const y = startPos.y + (actualEndPos.y - startPos.y) * eased
 
-      // Add perpendicular curve offset (sinusoidal arc)
       const curveOffset = Math.sin(t * Math.PI) * curveAmount
 
       positions.push({
