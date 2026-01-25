@@ -9,12 +9,14 @@
 const GENRE_PROFILES = {
   ambient:      { energy: 0.20, directionUniformity: 0.70, regularity: 0.70, pathComplexity: 0.20 },
   classical:    { energy: 0.35, directionUniformity: 0.75, regularity: 0.80, pathComplexity: 0.30 },
-  melodic:      { energy: 0.45, directionUniformity: 0.60, regularity: 0.60, pathComplexity: 0.40 },
-  jazz:         { energy: 0.50, directionUniformity: 0.45, regularity: 0.45, pathComplexity: 0.55 },
+  melodic:      { energy: 0.45, directionUniformity: 0.60, regularity: 0.65, pathComplexity: 0.40 },
+  // Entry #178: Jazz requires irregular timing (swing feel) + moderate complexity
+  jazz:         { energy: 0.50, directionUniformity: 0.55, regularity: 0.40, pathComplexity: 0.50 },
   electronic:   { energy: 0.65, directionUniformity: 0.80, regularity: 0.90, pathComplexity: 0.30 },
   rhythmic:     { energy: 0.70, directionUniformity: 0.65, regularity: 0.85, pathComplexity: 0.40 },
   rock:         { energy: 0.80, directionUniformity: 0.60, regularity: 0.70, pathComplexity: 0.35 },
-  experimental: { energy: 0.55, directionUniformity: 0.35, regularity: 0.35, pathComplexity: 0.65 }
+  // Entry #178: Experimental requires very irregular timing + high complexity
+  experimental: { energy: 0.45, directionUniformity: 0.45, regularity: 0.35, pathComplexity: 0.60 }
 }
 
 /**
