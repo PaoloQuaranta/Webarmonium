@@ -616,9 +616,20 @@
           <!-- Genre Weights -->
           <div class="card">
             <div class="card-title">Genre Weights</div>
-            <div style="margin-bottom: 12px; padding: 8px; background: var(--bg-tertiary); border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
-              <span class="param-label">Current Style</span>
-              <span class="param-value" id="currentStyle">${getDominantGenre(genreWeights)}</span>
+            <!-- Entry #179: Show forced genre from style cycling -->
+            <div style="margin-bottom: 12px; padding: 8px; background: var(--bg-tertiary); border-radius: 6px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span class="param-label">🎯 Forced Genre</span>
+                <span class="param-value" id="forcedGenre" style="color: var(--accent-green); font-weight: bold;">${style.forcedGenre || '-'}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="param-label">Cycling BPM</span>
+                <span class="param-value" id="cyclingBPM">${style.currentBPM ? style.currentBPM.toFixed(0) : '-'}</span>
+              </div>
+            </div>
+            <div style="margin-bottom: 8px; padding: 4px 8px; background: var(--bg-primary); border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+              <span class="param-label" style="font-size: 0.75rem;">Calculated from weights</span>
+              <span class="param-value" id="currentStyle" style="font-size: 0.875rem;">${getDominantGenre(genreWeights)}</span>
             </div>
             <div class="genre-bars" id="genreWeights">
               ${renderGenreBars(genreWeights)}
@@ -762,6 +773,10 @@
         genreBarsEl.innerHTML = renderGenreBars(genreWeights);
       }
       updateElement('currentStyle', getDominantGenre(genreWeights));
+
+      // Update forced genre and cycling BPM (from style cycling)
+      updateElement('forcedGenre', style.forcedGenre || '-');
+      updateElement('cyclingBPM', style.currentBPM ? style.currentBPM.toFixed(0) : '-');
 
       // Update stats
       updateElement('statCompositions', counts.compositions || 0);
