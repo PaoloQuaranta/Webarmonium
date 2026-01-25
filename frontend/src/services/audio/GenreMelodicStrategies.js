@@ -6,8 +6,7 @@
  * Used by DragStreamingHandler to produce genre-appropriate melodies
  */
 
-// Golden ratio for PHI-based selections
-const PHI = 1.618033988749895
+// PHI constant is provided by GenerativeMusicEngine.js (loaded first)
 
 /**
  * Genre-specific melodic strategies
