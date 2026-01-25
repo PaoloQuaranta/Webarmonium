@@ -616,6 +616,10 @@
           <!-- Genre Weights -->
           <div class="card">
             <div class="card-title">Genre Weights</div>
+            <div style="margin-bottom: 12px; padding: 8px; background: var(--bg-tertiary); border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+              <span class="param-label">Current Style</span>
+              <span class="param-value" id="currentStyle">${getDominantGenre(genreWeights)}</span>
+            </div>
             <div class="genre-bars" id="genreWeights">
               ${renderGenreBars(genreWeights)}
             </div>
@@ -692,6 +696,19 @@
       `).join('');
     }
 
+    function getDominantGenre(weights) {
+      if (!weights || Object.keys(weights).length === 0) return '-';
+      let maxGenre = '-';
+      let maxWeight = 0;
+      for (const [genre, weight] of Object.entries(weights)) {
+        if (weight > maxWeight) {
+          maxWeight = weight;
+          maxGenre = genre;
+        }
+      }
+      return maxGenre;
+    }
+
     function renderEvent(event) {
       return `
         <div class="event-entry">
@@ -739,11 +756,12 @@
       updateElement('regularity', `${((rhythmic.regularity || 0.5) * 100).toFixed(0)}%`);
       updateElement('timeSig', style.timeSignature || '4/4');
 
-      // Update genre bars
+      // Update genre bars and current style
       const genreBarsEl = document.getElementById('genreWeights');
       if (genreBarsEl) {
         genreBarsEl.innerHTML = renderGenreBars(genreWeights);
       }
+      updateElement('currentStyle', getDominantGenre(genreWeights));
 
       // Update stats
       updateElement('statCompositions', counts.compositions || 0);
