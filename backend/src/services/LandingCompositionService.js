@@ -19,8 +19,19 @@ const HarmonicEngine = require('./HarmonicEngine')
 const CompositionEngine = require('./CompositionEngine')
 const PhraseMorphology = require('./PhraseMorphology')
 const FrequencyPositionMapper = require('../utils/FrequencyPositionMapper')
-const { getGenreVelocityMultiplier } = require('../utils/GenreUtils')
+const { getGenreVelocityMultiplier, GENRE_BPM_RANGES } = require('../utils/GenreUtils')
+const { getSynthParams, getAllGenres } = require('../utils/GenreCharacteristics')
 const { VIRTUAL_USER_COLORS } = require('../constants/colors')
+
+// Entry #182: Metric-driven genre selection with starvation prevention (same as BackgroundCompositionService)
+const GENRE_CHECK_INTERVAL = 30 * 1000      // Controllo cambio genere ogni 30s
+const MIN_GENRE_PLAY_TIME = 3 * 60 * 1000   // Minimo 3 minuti prima di cambiare
+const MAX_STARVATION_TIME = 7 * 60 * 1000   // Max 7 minuti senza suonare un genere
+const STARVATION_BOOST_EXPONENT = 2         // Curva quadratica (gentile all'inizio)
+const MAX_BOOST_MULTIPLIER = 3.0            // Boost massimo 3x
+const BPM_CHANGE_INTERVAL = 60 * 1000       // 1 minuto
+const BPM_SMOOTHING_STEPS = 30              // transizione graduale
+const ALL_GENRES = getAllGenres()
 
 class LandingCompositionService {
   constructor() {
@@ -324,6 +335,18 @@ class LandingCompositionService {
 
     this.isRunning = true
 
+    // Entry #182: Initialize style cycling (same as BackgroundCompositionService)
+    const now = Date.now()
+    this.styleCycling = {
+      currentGenre: 'melodic',                           // genere iniziale (neutro)
+      genreHistory: this._initializeGenreHistory(now),   // storia per ogni genere
+      genreStartTime: now,                               // quando il genere corrente è iniziato
+      lastGenreCheckTime: now,                           // ultimo controllo cambio genere
+      lastBPMChangeTime: now,                            // timestamp ultimo cambio BPM
+      targetBPM: 100,                                    // BPM target corrente
+      currentBPM: 100                                    // BPM attuale (per smoothing)
+    }
+
     // Emit initial cursor positions (distributed across canvas)
     this._emitAllCursors()
 
@@ -459,14 +482,23 @@ class LandingCompositionService {
       }
     }
 
-    // Broadcast drone to landing room
+    // Broadcast drone to landing room (Entry #182: include style)
     if (this.io) {
+      const currentStyle = this._getCurrentStyle()
       this.io.to(this.landingRoomId).emit('background-composition', {
         roomId: this.landingRoomId,
         composition: droneComposition,
         compositionNumber: 0,
         isDrone: true,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        style: {
+          genreWeights: currentStyle.genreWeights,
+          dominantGenre: currentStyle.forcedGenre,
+          forcedGenre: currentStyle.forcedGenre,
+          energy: currentStyle.energy,
+          synthParams: currentStyle.synthParams,
+          currentBPM: currentStyle.currentBPM
+        }
       })
     }
   }
@@ -494,12 +526,22 @@ class LandingCompositionService {
       }
     }
 
+    // Entry #182: Include style with forcedGenre
+    const currentStyle = this._getCurrentStyle()
     socket.emit('background-composition', {
       roomId: this.landingRoomId,
       composition: droneComposition,
       compositionNumber: 0,
       isDrone: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      style: {
+        genreWeights: currentStyle.genreWeights,
+        dominantGenre: currentStyle.forcedGenre,
+        forcedGenre: currentStyle.forcedGenre,
+        energy: currentStyle.energy,
+        synthParams: currentStyle.synthParams,
+        currentBPM: currentStyle.currentBPM
+      }
     })
     // console.log('🎵 Drone emitted to socket (request-drone)')
   }
@@ -930,16 +972,23 @@ class LandingCompositionService {
   }
 
   /**
-   * Entry #175b: Get current style for socket emissions (landing room)
+   * Entry #175b + #182: Get current style for socket emissions (landing room)
    * Returns style object compatible with frontend genre-aware playback
-   * @returns {Object} Style object with genreWeights, dominantGenre, energy
+   * Entry #182: Uses forcedGenre from styleCycling instead of calculated dominantGenre
+   * @returns {Object} Style object with genreWeights, dominantGenre, forcedGenre, energy, synthParams
    * @private
    */
   _getCurrentStyle() {
+    // Entry #182: Update style cycling to get current forced genre
+    const cycling = this.updateStyleCycle()
+    const forcedGenre = cycling?.currentGenre || 'melodic'
+
     const defaultStyle = {
       genreWeights: {},
-      dominantGenre: 'ambient',
-      energy: 0.5
+      dominantGenre: forcedGenre,
+      forcedGenre: forcedGenre,
+      energy: 0.5,
+      synthParams: getSynthParams(forcedGenre)
     }
 
     if (!this.styleAnalyzer) {
@@ -950,25 +999,194 @@ class LandingCompositionService {
       const style = this.styleAnalyzer.getCurrentStyle()
       const genreWeights = style?.genreWeights || {}
 
-      // Find dominant genre (same logic as BackgroundCompositionService)
-      let maxWeight = 0
-      let dominantGenre = 'ambient'
-      for (const [genre, weight] of Object.entries(genreWeights)) {
-        if (weight > maxWeight) {
-          maxWeight = weight
-          dominantGenre = genre
-        }
-      }
-
+      // Entry #182: Use forcedGenre from styleCycling instead of calculated dominant
       return {
         genreWeights: genreWeights,
-        dominantGenre: dominantGenre,
-        energy: style?.energy || 0.5
+        dominantGenre: forcedGenre,
+        forcedGenre: forcedGenre,
+        energy: style?.energy || 0.5,
+        synthParams: getSynthParams(forcedGenre),
+        currentBPM: cycling?.currentBPM
       }
     } catch (error) {
       console.error('Error getting style for landing room:', error.message)
       return defaultStyle
     }
+  }
+
+  /**
+   * Entry #182: Initialize genre history for landing room
+   * All genres start with lastPlayedTime = startTime to avoid false starvation
+   * @param {number} startTime - Service start timestamp
+   * @returns {Object} genreHistory object
+   */
+  _initializeGenreHistory(startTime) {
+    const history = {}
+    // Safeguard against empty ALL_GENRES
+    if (!ALL_GENRES || ALL_GENRES.length === 0) {
+      return { melodic: { lastPlayedTime: startTime, totalPlayTime: 0, playCount: 1 } }
+    }
+    ALL_GENRES.forEach((genre) => {
+      history[genre] = {
+        lastPlayedTime: startTime,
+        totalPlayTime: 0,
+        playCount: genre === 'melodic' ? 1 : 0
+      }
+    })
+    return history
+  }
+
+  /**
+   * Entry #182: Calculate adjusted weight with starvation boost
+   * @param {string} genre - Genre name
+   * @param {number} metricWeight - Weight from StyleAnalyzer (0-1)
+   * @param {Object} history - Genre history object
+   * @param {number} now - Current timestamp
+   * @returns {number} Adjusted weight
+   */
+  _calculateAdjustedWeight(genre, metricWeight, history, now) {
+    if (!history || typeof history !== 'object') {
+      return metricWeight
+    }
+    const genreHistory = history[genre]
+    if (!genreHistory || typeof genreHistory.lastPlayedTime !== 'number') {
+      return metricWeight
+    }
+
+    const timeSinceLastPlayed = Math.max(0, now - genreHistory.lastPlayedTime)
+    const starvationRatio = Math.min(1, timeSinceLastPlayed / MAX_STARVATION_TIME)
+    const boostMultiplier = 1 + (MAX_BOOST_MULTIPLIER - 1) * Math.pow(starvationRatio, STARVATION_BOOST_EXPONENT)
+
+    return metricWeight * boostMultiplier
+  }
+
+  /**
+   * Entry #182: Select next genre based on metrics + starvation
+   * @param {Object} styleWeights - Genre weights from StyleAnalyzer
+   * @param {Object} history - Genre history object
+   * @param {number} now - Current timestamp
+   * @param {string} currentGenre - Currently playing genre
+   * @param {number} genreStartTime - When current genre started
+   * @returns {string} Selected genre name
+   */
+  _selectNextGenre(styleWeights, history, now, currentGenre, genreStartTime) {
+    if (!ALL_GENRES || ALL_GENRES.length === 0) {
+      return currentGenre || 'melodic'
+    }
+    if (!history || typeof history !== 'object') {
+      return currentGenre || ALL_GENRES[0]
+    }
+
+    // 1. Check MIN_GENRE_PLAY_TIME first
+    const currentPlayTime = Math.max(0, now - genreStartTime)
+    if (currentPlayTime < MIN_GENRE_PLAY_TIME) {
+      return currentGenre
+    }
+
+    // 2. Calculate adjusted weights and find critically starved genre
+    const adjustedWeights = {}
+    let criticallyStarvedGenre = null
+    let criticalStarvationTime = 0
+    const defaultWeight = 1 / ALL_GENRES.length
+
+    for (const genre of ALL_GENRES) {
+      const metricWeight = styleWeights[genre] || defaultWeight
+      adjustedWeights[genre] = this._calculateAdjustedWeight(genre, metricWeight, history, now)
+
+      const genreHistory = history[genre]
+      if (genreHistory && typeof genreHistory.lastPlayedTime === 'number') {
+        const timeSince = Math.max(0, now - genreHistory.lastPlayedTime)
+        if (timeSince >= MAX_STARVATION_TIME && timeSince > criticalStarvationTime) {
+          criticallyStarvedGenre = genre
+          criticalStarvationTime = timeSince
+        }
+      }
+    }
+
+    // 3. Force critically starved genre
+    if (criticallyStarvedGenre) {
+      return criticallyStarvedGenre
+    }
+
+    // 4. Select genre with highest adjusted weight
+    let bestGenre = currentGenre
+    let bestWeight = adjustedWeights[currentGenre] || 0
+
+    for (const [genre, weight] of Object.entries(adjustedWeights)) {
+      if (weight > bestWeight) {
+        bestWeight = weight
+        bestGenre = genre
+      }
+    }
+
+    return bestGenre
+  }
+
+  /**
+   * Entry #182: Update style cycling - metric-driven genre selection with starvation prevention
+   * @returns {Object} cycling state with currentGenre and currentBPM
+   */
+  updateStyleCycle() {
+    const now = Date.now()
+    if (!this.styleCycling) {
+      return { currentGenre: 'melodic', currentBPM: 100 }
+    }
+
+    const cycling = this.styleCycling
+    const style = this.styleAnalyzer.getCurrentStyle()
+
+    // --- SELEZIONE GENERE BASATA SU METRICHE + STARVATION ---
+    if (now - cycling.lastGenreCheckTime >= GENRE_CHECK_INTERVAL) {
+      const prevGenre = cycling.currentGenre
+
+      const nextGenre = this._selectNextGenre(
+        style.genreWeights || {},
+        cycling.genreHistory,
+        now,
+        cycling.currentGenre,
+        cycling.genreStartTime
+      )
+
+      if (nextGenre !== prevGenre) {
+        const playTime = Math.max(0, now - cycling.genreStartTime)
+        if (cycling.genreHistory[prevGenre]) {
+          cycling.genreHistory[prevGenre].totalPlayTime += playTime
+        }
+
+        cycling.currentGenre = nextGenre
+        cycling.genreStartTime = now
+
+        if (cycling.genreHistory[nextGenre]) {
+          cycling.genreHistory[nextGenre].lastPlayedTime = now
+          cycling.genreHistory[nextGenre].playCount++
+        } else {
+          cycling.genreHistory[nextGenre] = { lastPlayedTime: now, totalPlayTime: 0, playCount: 1 }
+        }
+
+        const bpmRange = GENRE_BPM_RANGES[nextGenre] || GENRE_BPM_RANGES.melodic
+        cycling.targetBPM = bpmRange.default
+      }
+
+      cycling.lastGenreCheckTime = now
+    }
+
+    // --- BPM MODULATION (ogni minuto) ---
+    if (now - cycling.lastBPMChangeTime >= BPM_CHANGE_INTERVAL) {
+      const bpmRange = GENRE_BPM_RANGES[cycling.currentGenre] || GENRE_BPM_RANGES.melodic
+      const variation = (Math.random() - 0.5) * (bpmRange.max - bpmRange.min) * 0.3
+      cycling.targetBPM = Math.round(
+        Math.max(bpmRange.min, Math.min(bpmRange.max, bpmRange.default + variation))
+      )
+      cycling.lastBPMChangeTime = now
+    }
+
+    // --- BPM SMOOTHING ---
+    const bpmDiff = cycling.targetBPM - cycling.currentBPM
+    if (Math.abs(bpmDiff) > 1) {
+      cycling.currentBPM += bpmDiff / BPM_SMOOTHING_STEPS
+    }
+
+    return cycling
   }
 
   /**
@@ -1036,8 +1254,10 @@ class LandingCompositionService {
       // STEP 4: CRITICAL - Apply style from gesture materials to CompositionEngine
       // This is done AFTER adding materials, so style.energy reflects actual gesture activity
       // Density emerges naturally from metric-driven gesture count (NO hardcoded values)
+      // Entry #182: Use _getCurrentStyle() which includes forcedGenre from styleCycling
+      const currentStyle = this._getCurrentStyle()
       const style = this.styleAnalyzer.getCurrentStyle()
-      const baseTempo = style?.tempo || 120
+      const baseTempo = currentStyle?.currentBPM || style?.tempo || 120
 
       this.compositionEngine.tempo = Math.round(baseTempo * modulationParams.tempoMultiplier)
       this.compositionEngine.tempo = Math.max(60, Math.min(160, this.compositionEngine.tempo))
@@ -1077,15 +1297,24 @@ class LandingCompositionService {
       }
       // console.log(`🎵 Generated ${composition.type} composition #${this.compositionCount} (density=${this.compositionEngine.density.toFixed(2)}, energy=${energy.toFixed(2)})`)
 
-      // STEP 7: Broadcast background composition
+      // STEP 7: Broadcast background composition with style (Entry #182)
       if (this.io) {
         this.io.to(this.landingRoomId).emit('background-composition', {
           roomId: this.landingRoomId,
           composition,
           compositionNumber: this.compositionCount,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          // Entry #182: Include style with forcedGenre for frontend genre-aware playback
+          style: {
+            genreWeights: currentStyle.genreWeights,
+            dominantGenre: currentStyle.forcedGenre,
+            forcedGenre: currentStyle.forcedGenre,
+            energy: currentStyle.energy,
+            synthParams: currentStyle.synthParams,
+            currentBPM: currentStyle.currentBPM
+          }
         })
-        // console.log(`🎵 Broadcast composition #${this.compositionCount} to landing room`)
+        // console.log(`🎵 Broadcast composition #${this.compositionCount} to landing room (genre: ${currentStyle.forcedGenre})`)
       }
 
       // STEP 8: Emit gesture notes with QUANTIZED timing on the grid (after background is ready)
