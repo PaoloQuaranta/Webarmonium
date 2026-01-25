@@ -798,6 +798,8 @@ class VirtualUserService {
         holdEndData.userColor = config.color
         holdEndData.duration = tapDurationMs2
       }
+      // Entry #183: Include style for consistent frontend style propagation
+      holdEndData.style = this.backgroundCompositionService?.getCurrentStyleForRoom(roomId) || style
       this.io.to(roomId).emit('hold:end', holdEndData)
     }, tapDurationMs2)
   }
@@ -1050,6 +1052,8 @@ class VirtualUserService {
             holdEndData.userColor = config.color
             holdEndData.duration = note.durationMs
           }
+          // Entry #183: Include style for consistent frontend style propagation
+          holdEndData.style = this.backgroundCompositionService?.getCurrentStyleForRoom(roomId) || style
           this.io.to(roomId).emit('hold:end', holdEndData)
         }, note.durationMs)
       }, note.startDelayMs)

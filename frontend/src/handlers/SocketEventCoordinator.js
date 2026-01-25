@@ -3,6 +3,20 @@
  * Coordinates socket events for audio, visual, and gesture updates
  * Extracted from main.js for Phase 2 refactoring
  */
+
+/**
+ * Entry #183: Validate that a style object has required fields for audio playback
+ * Inline helper since this file doesn't use ES6 modules
+ * @param {Object} style - Style object to validate
+ * @returns {boolean} True if style is valid and usable
+ */
+function isValidStyle(style) {
+  return style &&
+         typeof style === 'object' &&
+         (style.dominantGenre || style.forcedGenre) &&
+         Object.keys(style).length > 0
+}
+
 class SocketEventCoordinator {
   constructor(socketService, audioService, visualService = null, cursorManager = null) {
     this.socketService = socketService
@@ -280,6 +294,15 @@ class SocketEventCoordinator {
         this.audioService.updateCompositionalParameters(this.compositionalParameters)
       }
 
+      // Entry #183: Apply style to all voices for genre-aware parameters
+      // Entry #183 fix: Use validation to ensure style has required fields
+      if (isValidStyle(data.style) && this.audioService) {
+        this.audioService.currentStyle = data.style
+        if (this.audioService.userSynthManager) {
+          this.audioService.userSynthManager.setCurrentStyle(data.style)
+        }
+      }
+
       // Update handlers
       if (this.dragStreamingHandler) {
         this.dragStreamingHandler.updateCompositionalParameters(this.compositionalParameters)
@@ -332,7 +355,8 @@ class SocketEventCoordinator {
       }
 
       // Entry #175b: Update current style from incoming event
-      if (data.style && this.audioService) {
+      // Entry #183 fix: Use validation to ensure style has required fields
+      if (isValidStyle(data.style) && this.audioService) {
         this.audioService.currentStyle = data.style
         if (this.audioService.userSynthManager) {
           this.audioService.userSynthManager.setCurrentStyle(data.style)
@@ -349,8 +373,12 @@ class SocketEventCoordinator {
 
     this.socketService.on('hold:end', (data) => {
       // Entry #175b: Update current style from incoming event
-      if (data.style && this.audioService) {
+      // Entry #183 fix: Use validation and apply to userSynthManager too
+      if (isValidStyle(data.style) && this.audioService) {
         this.audioService.currentStyle = data.style
+        if (this.audioService.userSynthManager) {
+          this.audioService.userSynthManager.setCurrentStyle(data.style)
+        }
       }
 
       if (this.sustainedHoldHandler) {
@@ -378,7 +406,8 @@ class SocketEventCoordinator {
       // Entry #175b: Update currentStyle for components that don't receive style directly
       // Note: We use the extracted 'style' (not currentStyle) for THIS event's audio.
       // AudioService.playMusicalEvent has fallback: style || this.currentStyle || {}
-      if (style && this.audioService) {
+      // Entry #183 fix: Use validation to ensure style has required fields
+      if (isValidStyle(style) && this.audioService) {
         this.audioService.currentStyle = style
         if (this.audioService.userSynthManager) {
           this.audioService.userSynthManager.setCurrentStyle(style)

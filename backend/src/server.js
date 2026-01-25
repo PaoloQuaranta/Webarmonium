@@ -425,8 +425,11 @@ setInterval(() => {
     if (room.users.size > 0) {
       const parameters = roomManager.getCompositionalParameters(roomId)
       if (parameters) {
+        // Entry #183: Include style for genre-aware voice parameters
+        const style = backgroundService?.getCurrentStyleForRoom(roomId) || {}
         io.to(roomId).emit('compositional-parameters', {
           parameters,
+          style,
           timestamp: Date.now()
         })
       }

@@ -18,6 +18,9 @@ const PHI = 1.618033988749895
 // Maximum voices allowed for performance safety
 const MAX_VOICES = 8
 
+// Entry #183: Default genre constant to avoid magic strings
+const DEFAULT_GENRE = 'ambient'
+
 // ============================================
 // GENRE CHARACTERISTICS
 // ============================================
@@ -702,9 +705,56 @@ function getAllGenres() {
   return Object.keys(GENRE_CHARACTERISTICS)
 }
 
+/**
+ * Entry #183: Validate that a style object has required fields
+ * @param {Object} style - Style object to validate
+ * @returns {boolean} True if style is valid and usable
+ */
+function isValidStyle(style) {
+  return style &&
+         typeof style === 'object' &&
+         (style.dominantGenre || style.forcedGenre) &&
+         Object.keys(style).length > 0
+}
+
+/**
+ * Entry #183: Create a standardized style object
+ * Factory function to ensure consistent style structure across all services
+ * @param {Object} options - Style creation options
+ * @param {Object} [options.genreWeights={}] - Genre weight map from StyleAnalyzer
+ * @param {string} [options.forcedGenre='ambient'] - Currently active genre from cycling
+ * @param {number} [options.energy=0.5] - Energy level 0.0-1.0
+ * @param {number} [options.currentBPM] - Current BPM (may be undefined)
+ * @param {Object} [options.styleAnalyzerOutput] - Raw output from styleAnalyzer.getCurrentStyle()
+ * @returns {Object} Standardized style object
+ */
+function createStyleObject(options = {}) {
+  const {
+    genreWeights = {},
+    forcedGenre = DEFAULT_GENRE,
+    energy = 0.5,
+    currentBPM = undefined,
+    styleAnalyzerOutput = null
+  } = options
+
+  // Use styleAnalyzer output if provided, otherwise use direct values
+  const finalGenreWeights = styleAnalyzerOutput?.genreWeights || genreWeights
+  const finalEnergy = styleAnalyzerOutput?.energy || energy
+
+  return {
+    genreWeights: finalGenreWeights,
+    dominantGenre: forcedGenre,  // Entry #183: forcedGenre takes precedence for consistency
+    forcedGenre: forcedGenre,
+    energy: finalEnergy,
+    currentBPM: currentBPM,
+    synthParams: getSynthParams(forcedGenre)
+  }
+}
+
 module.exports = {
   GENRE_CHARACTERISTICS,
   DEFAULT_CHARACTERISTICS,
+  DEFAULT_GENRE,
   MAX_VOICES,
   PHI,
   getGenreCharacteristics,
@@ -717,5 +767,7 @@ module.exports = {
   getArticulation,
   getSwingAmount,
   getSyncopation,
-  getAllGenres
+  getAllGenres,
+  isValidStyle,
+  createStyleObject
 }

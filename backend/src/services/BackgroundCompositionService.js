@@ -21,7 +21,7 @@ const { getSectionStateManager } = require('./SectionStateManager')
 const RawGestureData = require('../composition/RawGestureData')
 const { PHI } = require('../utils/constants')
 const { GENRE_BPM_RANGES } = require('../utils/GenreUtils')
-const { getSynthParams, getAllGenres } = require('../utils/GenreCharacteristics')
+const { getSynthParams, getAllGenres, createStyleObject, DEFAULT_GENRE } = require('../utils/GenreCharacteristics')
 
 // Entry #182: Metric-driven genre selection with starvation prevention
 const GENRE_CHECK_INTERVAL = 30 * 1000      // Controllo cambio genere ogni 30s
@@ -73,6 +73,14 @@ class BackgroundCompositionService {
     // WebMetricsPoller reference (set by ServiceContainer)
     // Entry #163: Used to initialize key from web metrics (same as LandingCompositionService)
     this.webMetricsPoller = null
+
+    // Entry #183: Style cache for performance optimization
+    this.styleCache = new Map() // roomId -> { style, timestamp }
+    this.STYLE_CACHE_TTL = 5000 // 5 seconds cache TTL
+
+    // Entry #183: Error tracking for styleAnalyzer recovery
+    this.styleAnalyzerErrorCount = 0
+    this.MAX_STYLE_ANALYZER_ERRORS = 5
 
 // console.log('🎼 BackgroundCompositionService initialized')
   }
@@ -169,33 +177,79 @@ class BackgroundCompositionService {
 
   /**
    * Entry #175b: Get current style for a room (public method for other handlers)
-   * Entry #175b fix: Added error handling for missing styleAnalyzer
-   * @param {string} roomId - Room ID (currently unused, style is global per room)
-   * @returns {Object} Style object with genreWeights, dominantGenre, energy
+   * Entry #183: Uses factory function, caching, and enhanced error handling
+   * @param {string} roomId - Room ID
+   * @returns {Object} Standardized style object
    */
   getCurrentStyleForRoom(roomId) {
-    // Default style if styleAnalyzer unavailable or fails
-    const defaultStyle = {
-      genreWeights: {},
-      dominantGenre: 'ambient',
-      energy: 0.5
+    // Entry #183: Check cache first for performance optimization
+    const now = Date.now()
+    const cached = this.styleCache.get(roomId)
+    if (cached && (now - cached.timestamp) < this.STYLE_CACHE_TTL) {
+      return cached.style
     }
 
+    // Get room state for styleCycling data
+    const roomState = this.roomCompositions.get(roomId)
+    const cycling = roomState?.styleCycling
+    const forcedGenre = cycling?.currentGenre || DEFAULT_GENRE
+
+    // Default style using factory if styleAnalyzer unavailable
     if (!this.styleAnalyzer) {
-      return defaultStyle
+      const style = createStyleObject({
+        forcedGenre,
+        currentBPM: cycling?.currentBPM
+      })
+      this.styleCache.set(roomId, { style, timestamp: now })
+      return style
     }
 
     try {
-      const style = this.styleAnalyzer.getCurrentStyle()
-      return {
-        genreWeights: style?.genreWeights || {},
-        dominantGenre: this._getDominantGenre(style?.genreWeights),
-        energy: style?.energy || 0.5
-      }
+      const styleAnalyzerOutput = this.styleAnalyzer.getCurrentStyle()
+      const style = createStyleObject({
+        forcedGenre,
+        currentBPM: cycling?.currentBPM,
+        styleAnalyzerOutput
+      })
+
+      // Reset error count on success
+      this.styleAnalyzerErrorCount = 0
+
+      // Cache the result
+      this.styleCache.set(roomId, { style, timestamp: now })
+      return style
     } catch (error) {
-      console.error('Error getting style for room:', error.message)
-      return defaultStyle
+      // Entry #183: Enhanced error handling with recovery
+      console.error('Error getting style for room:', error.message, error.stack)
+      this.styleAnalyzerErrorCount++
+
+      // Attempt to reinitialize styleAnalyzer on repeated failures
+      if (this.styleAnalyzerErrorCount >= this.MAX_STYLE_ANALYZER_ERRORS) {
+        console.warn(`StyleAnalyzer failed ${this.styleAnalyzerErrorCount} times, attempting reinitialization`)
+        try {
+          this.styleAnalyzer = new StyleAnalyzer()
+          this.styleAnalyzerErrorCount = 0
+          console.log('StyleAnalyzer reinitialized successfully')
+        } catch (reinitError) {
+          console.error('Failed to reinitialize StyleAnalyzer:', reinitError.message)
+        }
+      }
+
+      const style = createStyleObject({
+        forcedGenre,
+        currentBPM: cycling?.currentBPM
+      })
+      this.styleCache.set(roomId, { style, timestamp: now })
+      return style
     }
+  }
+
+  /**
+   * Entry #183: Invalidate style cache for a room (call when style actually changes)
+   * @param {string} roomId - Room ID
+   */
+  invalidateStyleCache(roomId) {
+    this.styleCache.delete(roomId)
   }
 
   /**
@@ -801,6 +855,9 @@ class BackgroundCompositionService {
         // Set new genre
         cycling.currentGenre = nextGenre
         cycling.genreStartTime = now
+
+        // Entry #183: Invalidate style cache when genre changes
+        this.invalidateStyleCache(roomId)
 
         // Update history for new genre (with guard)
         if (cycling.genreHistory[nextGenre]) {

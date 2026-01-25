@@ -14,6 +14,7 @@
  */
 
 import { DashboardUI } from './DashboardUI.js'
+import { isValidStyle } from '../utils/StyleValidator.js'
 
 /**
  * Landing Page Configuration Constants
@@ -559,7 +560,8 @@ class LandingApp {
         // Play composition
         if (this.audioService && data.composition && this.isAudioReady) {
           if (typeof this.audioService.playComposition === 'function') {
-            this.audioService.playComposition(data.composition, data.isDrone || false)
+            // Entry #183: Pass style for genre-aware voice parameters
+            this.audioService.playComposition(data.composition, data.isDrone || false, data.style || {})
             // console.log('🎵 Background composition sent to AudioService')
           } else {
           }
@@ -603,6 +605,15 @@ class LandingApp {
           return
         }
 
+        // Entry #183: Apply style to audioService for genre-aware voice parameters
+        // Entry #183 fix: Use validation and apply to userSynthManager too
+        if (isValidStyle(data.style) && this.audioService) {
+          this.audioService.currentStyle = data.style
+          if (this.audioService.userSynthManager) {
+            this.audioService.userSynthManager.setCurrentStyle(data.style)
+          }
+        }
+
         // Entry #28: Register activity for drone void detection
         if (this.audioService) {
           this.audioService.registerDroneActivity()
@@ -632,6 +643,15 @@ class LandingApp {
         // Validate incoming data
         if (!SocketDataValidator.validateMusicalEvent(data)) {
           return
+        }
+
+        // Entry #183: Apply style to audioService for genre-aware voice parameters
+        // Entry #183 fix: Use validation and apply to userSynthManager too
+        if (isValidStyle(data.style) && this.audioService) {
+          this.audioService.currentStyle = data.style
+          if (this.audioService.userSynthManager) {
+            this.audioService.userSynthManager.setCurrentStyle(data.style)
+          }
         }
 
         // Entry #28: Register activity for drone void detection (tap events)

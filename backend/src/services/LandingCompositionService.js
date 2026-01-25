@@ -1679,7 +1679,8 @@ class LandingCompositionService {
               type: 'hold:end',
               userId: user.userId,
               noteId: note.noteId,
-              timestamp: Date.now()
+              timestamp: Date.now(),
+              style: this._getCurrentStyle() || style  // Entry #183: Include style for consistent propagation
             })
           }
         }, note.durationMs)

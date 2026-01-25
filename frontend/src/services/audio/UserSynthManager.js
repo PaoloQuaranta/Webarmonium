@@ -60,12 +60,23 @@ class UserSynthManager {
 
   /**
    * Entry #175b: Set current style for genre-aware playback
-   * @param {Object} style - Style object with dominantGenre, genreWeights, energy
+   * Entry #183: Now detects changes in all relevant fields, not just genre
+   * @param {Object} style - Style object with dominantGenre, genreWeights, energy, currentBPM, synthParams
    */
   setCurrentStyle(style) {
     if (!style) return
-    // Skip if style hasn't changed
-    if (this.currentStyle?.dominantGenre === style.dominantGenre) return
+
+    // Entry #183: Check if any relevant field has changed
+    const hasChanged = !this.currentStyle ||
+      this.currentStyle.dominantGenre !== style.dominantGenre ||
+      this.currentStyle.forcedGenre !== style.forcedGenre ||
+      this.currentStyle.currentBPM !== style.currentBPM ||
+      this.currentStyle.energy !== style.energy ||
+      // Deep compare synthParams if present (stringify is safe for small objects)
+      JSON.stringify(this.currentStyle.synthParams) !== JSON.stringify(style.synthParams)
+
+    if (!hasChanged) return
+
     this.currentStyle = style
     this.applyStyleToAllSynths(style)
   }
