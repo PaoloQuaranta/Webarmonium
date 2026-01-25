@@ -383,6 +383,10 @@
       socket.on('monitor:form_change', (data) => {
         addEvent('FORM', `${data.from} -> ${data.to}`);
       });
+
+      socket.on('monitor:style_shift', (data) => {
+        addEvent('STYLE', `${data.from} -> ${data.to}`);
+      });
     }
 
     async function loadInitialData() {
@@ -657,6 +661,10 @@
                 <span class="stat-label">Form Changes</span>
                 <span class="stat-value" id="statFormChanges">${data.eventCounts?.formChanges || 0}</span>
               </div>
+              <div class="stat-item">
+                <span class="stat-label">Style Shifts</span>
+                <span class="stat-value" id="statStyleShifts">${data.eventCounts?.styleShifts || 0}</span>
+              </div>
             </div>
           </div>
 
@@ -742,6 +750,7 @@
       updateElement('statKeyChanges', counts.keyChanges || 0);
       updateElement('statModeChanges', counts.modeChanges || 0);
       updateElement('statFormChanges', counts.formChanges || 0);
+      updateElement('statStyleShifts', counts.styleShifts || 0);
       updateElement('statGestures', room.gestureCount || 0);
       updateElement('statMaterials', materials.total || 0);
     }
