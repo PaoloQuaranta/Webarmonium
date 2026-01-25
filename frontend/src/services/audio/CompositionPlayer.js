@@ -33,6 +33,90 @@ class CompositionPlayer {
 
     // Entry #NEW: Current style for genre-aware velocity
     this.currentStyle = null
+
+    // Entry #185: MonoSynth timing tracking to avoid "Start time must be strictly greater" errors
+    this.monoSynthLastTrigger = {
+      bass: 0,
+      backgroundHigh: 0,
+      backgroundMid: 0,
+      backgroundLow: 0,
+      pad: 0
+    }
+
+    // Entry #185: Track gestureSynth last trigger time
+    this.gestureSynthLastTrigger = 0
+  }
+
+  /**
+   * Entry #185: Safe trigger for MonoSynth layers with timing protection
+   * Ensures start time is strictly greater than previous to avoid Tone.js errors
+   * @param {string} layerName - Name of the ambient layer
+   * @param {number} frequency - Frequency in Hz
+   * @param {number} duration - Duration in seconds
+   * @param {number} velocity - Velocity 0-1
+   */
+  safeLayerTrigger(layerName, frequency, duration, velocity) {
+    const layer = this.ambientLayers && this.ambientLayers[layerName]
+    if (!layer) return
+
+    // For non-MonoSynth layers (like PolySynth), trigger directly
+    if (!(layerName in this.monoSynthLastTrigger)) {
+      layer.triggerAttackRelease(frequency, duration, undefined, velocity)
+      return
+    }
+
+    // MonoSynth: ensure time is strictly greater than last trigger
+    const now = typeof Tone !== 'undefined' ? Tone.now() : Date.now() / 1000
+    const lastTime = this.monoSynthLastTrigger[layerName] || 0
+    const minGap = 0.005  // 5ms minimum gap between notes
+    const safeTime = Math.max(now, lastTime + minGap)
+
+    // Update last trigger time
+    this.monoSynthLastTrigger[layerName] = safeTime
+
+    try {
+      layer.triggerAttackRelease(frequency, duration, safeTime, velocity)
+    } catch (err) {
+      // If still failing, force release and retry with fresh timing
+      try {
+        layer.triggerRelease()
+        const freshTime = (typeof Tone !== 'undefined' ? Tone.now() : Date.now() / 1000) + 0.01
+        this.monoSynthLastTrigger[layerName] = freshTime
+        layer.triggerAttackRelease(frequency, duration, freshTime, velocity)
+      } catch (retryErr) {
+        // Silently fail - note will be skipped
+      }
+    }
+  }
+
+  /**
+   * Entry #185: Safe trigger for gestureSynth (MonoSynth) with timing protection
+   * @param {number} frequency - Frequency in Hz
+   * @param {number|string} duration - Duration in seconds or Tone.js notation
+   * @param {number} velocity - Velocity 0-1
+   */
+  safeGestureSynthTrigger(frequency, duration, velocity) {
+    if (!this.gestureSynth || this.gestureSynth.disposed) return
+
+    const now = typeof Tone !== 'undefined' ? Tone.now() : Date.now() / 1000
+    const lastTime = this.gestureSynthLastTrigger || 0
+    const minGap = 0.005  // 5ms minimum gap
+    const safeTime = Math.max(now, lastTime + minGap)
+
+    this.gestureSynthLastTrigger = safeTime
+
+    try {
+      this.gestureSynth.triggerAttackRelease(frequency, duration, safeTime, velocity)
+    } catch (err) {
+      try {
+        this.gestureSynth.triggerRelease()
+        const freshTime = (typeof Tone !== 'undefined' ? Tone.now() : Date.now() / 1000) + 0.01
+        this.gestureSynthLastTrigger = freshTime
+        this.gestureSynth.triggerAttackRelease(frequency, duration, freshTime, velocity)
+      } catch (retryErr) {
+        // Silently fail
+      }
+    }
   }
 
   /**
@@ -218,11 +302,8 @@ class CompositionPlayer {
         const delay = (note.startBeat || 0) * beatDuration
 
         const timeoutId = setTimeout(() => {
-          if (this.ambientLayers && this.ambientLayers[roleConfig.layer]) {
-            this.ambientLayers[roleConfig.layer].triggerAttackRelease(
-              frequency, duration, undefined, roleConfig.velocity
-            )
-          }
+          // Entry #185: Use safe trigger to avoid MonoSynth timing errors
+          this.safeLayerTrigger(roleConfig.layer, frequency, duration, roleConfig.velocity)
         }, delay * 1000)
 
         this.scheduledTimeouts.push(timeoutId)
@@ -249,11 +330,8 @@ class CompositionPlayer {
         const delay = (note.startBeat || index * 0.5) * beatDuration
 
         const timeoutId = setTimeout(() => {
-          if (this.ambientLayers && this.ambientLayers.backgroundHigh) {
-            this.ambientLayers.backgroundHigh.triggerAttackRelease(
-              frequency, duration, undefined, velocity
-            )
-          }
+          // Entry #185: Use safe trigger to avoid MonoSynth timing errors
+          this.safeLayerTrigger('backgroundHigh', frequency, duration, velocity)
         }, delay * 1000)
 
         this.scheduledTimeouts.push(timeoutId)
@@ -341,11 +419,8 @@ class CompositionPlayer {
         const delay = (chordIndex * 2 + noteIndex * 0.25) * beatDuration
 
         const timeoutId = setTimeout(() => {
-          if (this.ambientLayers && this.ambientLayers.backgroundMid) {
-            this.ambientLayers.backgroundMid.triggerAttackRelease(
-              frequency, duration, undefined, 0.06
-            )
-          }
+          // Entry #185: Use safe trigger to avoid MonoSynth timing errors
+          this.safeLayerTrigger('backgroundMid', frequency, duration, 0.06)
         }, delay * 1000)
 
         this.scheduledTimeouts.push(timeoutId)
@@ -370,11 +445,8 @@ class CompositionPlayer {
         const duration = chord.duration || 4
 
         const timeoutId = setTimeout(() => {
-          if (this.ambientLayers && this.ambientLayers.backgroundLow) {
-            this.ambientLayers.backgroundLow.triggerAttackRelease(
-              frequency, duration, undefined, 0.05
-            )
-          }
+          // Entry #185: Use safe trigger to avoid MonoSynth timing errors
+          this.safeLayerTrigger('backgroundLow', frequency, duration, 0.05)
         }, delay * 1000)
 
         this.scheduledTimeouts.push(timeoutId)
@@ -415,11 +487,8 @@ class CompositionPlayer {
           const noteDuration = duration * 0.85
 
           const timeoutId = setTimeout(() => {
-            if (this.ambientLayers && this.ambientLayers.backgroundMid) {
-              this.ambientLayers.backgroundMid.triggerAttackRelease(
-                frequency, noteDuration, undefined, 0.07
-              )
-            }
+            // Entry #185: Use safe trigger to avoid MonoSynth timing errors
+            this.safeLayerTrigger('backgroundMid', frequency, noteDuration, 0.07)
           }, Math.max(0, delay * 1000))
 
           this.scheduledTimeouts.push(timeoutId)
@@ -467,11 +536,8 @@ class CompositionPlayer {
           const noteDuration = duration * 0.8
 
           const timeoutId = setTimeout(() => {
-            if (this.ambientLayers && this.ambientLayers.backgroundMid) {
-              this.ambientLayers.backgroundMid.triggerAttackRelease(
-                frequency, noteDuration, undefined, velocity
-              )
-            }
+            // Entry #185: Use safe trigger to avoid MonoSynth timing errors
+            this.safeLayerTrigger('backgroundMid', frequency, noteDuration, velocity)
           }, Math.max(0, delay * 1000))
 
           this.scheduledTimeouts.push(timeoutId)
@@ -505,12 +571,9 @@ class CompositionPlayer {
         const stagger = noteIdx * 0.15
 
         const timeoutId = setTimeout(() => {
+          // Entry #185: Use safe trigger to avoid MonoSynth timing errors
           // Use backgroundLow for warmer, deeper sound
-          if (this.ambientLayers && this.ambientLayers.backgroundLow) {
-            this.ambientLayers.backgroundLow.triggerAttackRelease(
-              frequency, duration, undefined, velocity
-            )
-          }
+          this.safeLayerTrigger('backgroundLow', frequency, duration, velocity)
         }, (delay + stagger) * 1000)
 
         this.scheduledTimeouts.push(timeoutId)
@@ -547,11 +610,8 @@ class CompositionPlayer {
         const delay = currentBeat * beatDuration
 
         const timeoutId = setTimeout(() => {
-          if (this.ambientLayers && this.ambientLayers.backgroundLow) {
-            this.ambientLayers.backgroundLow.triggerAttackRelease(
-              frequency, duration, undefined, 0.05
-            )
-          }
+          // Entry #185: Use safe trigger to avoid MonoSynth timing errors
+          this.safeLayerTrigger('backgroundLow', frequency, duration, 0.05)
         }, delay * 1000)
 
         this.scheduledTimeouts.push(timeoutId)
@@ -583,11 +643,8 @@ class CompositionPlayer {
           const noteDuration = duration * 0.95
 
           const timeoutId = setTimeout(() => {
-            if (this.ambientLayers && this.ambientLayers.backgroundMid) {
-              this.ambientLayers.backgroundMid.triggerAttackRelease(
-                frequency, noteDuration, undefined, 0.06
-              )
-            }
+            // Entry #185: Use safe trigger to avoid MonoSynth timing errors
+            this.safeLayerTrigger('backgroundMid', frequency, noteDuration, 0.06)
           }, delay * 1000)
 
           this.scheduledTimeouts.push(timeoutId)
@@ -622,11 +679,9 @@ class CompositionPlayer {
           const duration = (textureItem.duration || 8000) / 1000
           const velocity = textureItem.velocity || 0.2
 
-          const layer = isDrone ? this.ambientLayers.pad : this.ambientLayers.backgroundLow
-
-          if (layer) {
-            layer.triggerAttackRelease(frequency, duration, undefined, velocity)
-          }
+          // Entry #185: Use safe trigger to avoid MonoSynth timing errors
+          const layerName = isDrone ? 'pad' : 'backgroundLow'
+          this.safeLayerTrigger(layerName, frequency, duration, velocity)
 
           // If this is a drone, schedule it to loop
           if (isDrone) {
@@ -635,11 +690,8 @@ class CompositionPlayer {
             }
 
             this.droneLoopInterval = setInterval(() => {
-              if (this.ambientLayers && this.ambientLayers.pad) {
-                this.ambientLayers.pad.triggerAttackRelease(
-                  frequency, duration, undefined, velocity
-                )
-              }
+              // Entry #185: Use safe trigger for drone loop
+              this.safeLayerTrigger('pad', frequency, duration, velocity)
             }, duration * 1000)
           }
         }
@@ -749,12 +801,8 @@ class CompositionPlayer {
 
           const finalVelocity = isStreamed ? adjustedVelocity * 0.6 : adjustedVelocity
 
-          this.gestureSynth.triggerAttackRelease(
-            frequency,
-            adjustedDuration,
-            typeof Tone !== 'undefined' ? Tone.now() : undefined,
-            finalVelocity
-          )
+          // Entry #185: Use safe trigger to avoid MonoSynth timing errors
+          this.safeGestureSynthTrigger(frequency, adjustedDuration, finalVelocity)
 
         } catch (e) {
           // console.warn('Note play error:', e.message)
@@ -835,7 +883,8 @@ class CompositionPlayer {
         return
       }
 
-      this.gestureSynth.triggerAttackRelease(frequency, '16n', undefined, 0.3)
+      // Entry #185: Use safe trigger to avoid MonoSynth timing errors
+      this.safeGestureSynthTrigger(frequency, '16n', 0.3)
 
     } catch (error) {
       // console.warn('Error playing draw sound', error)
