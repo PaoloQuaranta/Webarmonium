@@ -5979,17 +5979,7 @@ class AudioService {
       this.generativeState.mode = parameters.mode
     }
 
-    // DELAY MODULATION: Only modulate delay time, keep feedback fixed at 0.55 (like normal rooms)
-    // Entry #181b: Add proper initialization checks to prevent race conditions
-    if (this.delay && !this.delay.disposed && this.delay.delayTime) {
-      // Delay time: faster with higher rhythmic density (100ms - 200ms range)
-      // Matches normal rooms baseline of 0.2s at low density
-      if (parameters.rhythmicDensity !== undefined) {
-        const delayTime = 0.2 - (parameters.rhythmicDensity * 0.1)  // At density=0: 0.2s, at density=1: 0.1s
-        this.delay.delayTime.rampTo(Math.max(0.1, delayTime), 2)  // Smooth 2s transition
-      }
-      // Feedback: FIXED at 0.55 (same as normal rooms, no modulation)
-    }
+    // DELAY: Fixed at 200ms, no modulation (Entry #186)
 
     // console.log('🎵 Updated generative state:', {
 //      scale: this.generativeState.currentScale,
