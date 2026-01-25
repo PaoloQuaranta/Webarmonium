@@ -253,14 +253,15 @@ class HarmonicEngine {
     }
 
     // Select progression type based on dominant genre, passing webMetrics for selection
+    // Threshold lowered from 0.7 to 0.35 to enable genre-specific progressions with sharpened weights
     let progression
-    if (genreWeights.jazz > 0.7) {
+    if (genreWeights.jazz > 0.35) {
       progression = this.generateJazzProgression(phraseLength, complexity, compositionCount, webMetrics)
-    } else if (genreWeights.classical > 0.7) {
+    } else if (genreWeights.classical > 0.35) {
       progression = this.generateClassicalProgression(phraseLength, complexity, compositionCount, webMetrics)
-    } else if (genreWeights.electronic > 0.7) {
+    } else if (genreWeights.electronic > 0.35) {
       progression = this.generateElectronicProgression(phraseLength, complexity, compositionCount, webMetrics)
-    } else if (genreWeights.rock > 0.7) {
+    } else if (genreWeights.rock > 0.35) {
       progression = this.generateRockProgression(phraseLength, complexity, compositionCount, webMetrics)
     } else {
       progression = this.generatePopProgression(phraseLength, complexity, compositionCount, webMetrics)
@@ -359,14 +360,15 @@ class HarmonicEngine {
     }
 
     // Generate genre-specific progression with tension-aware complexity
+    // Threshold lowered from 0.7 to 0.35 to enable genre-specific progressions with sharpened weights
     let progression
-    if (genreWeights.jazz > 0.7) {
+    if (genreWeights.jazz > 0.35) {
       progression = this.generateJazzProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext, webMetrics)
-    } else if (genreWeights.classical > 0.7) {
+    } else if (genreWeights.classical > 0.35) {
       progression = this.generateClassicalProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext, webMetrics)
-    } else if (genreWeights.electronic > 0.7) {
+    } else if (genreWeights.electronic > 0.35) {
       progression = this.generateElectronicProgression(phraseLength, complexity, compositionCount, webMetrics)
-    } else if (genreWeights.rock > 0.7) {
+    } else if (genreWeights.rock > 0.35) {
       progression = this.generateRockProgression(phraseLength, complexity, compositionCount, webMetrics)
     } else {
       progression = this.generatePopProgressionWithTension(phraseLength, complexity, compositionCount, sectionContext, webMetrics)

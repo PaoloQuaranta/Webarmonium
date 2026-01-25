@@ -1087,15 +1087,16 @@ class CounterpointEngine {
 
   selectTimbre(material, style) {
     // Select appropriate timbre based on material and style
+    // Threshold lowered from 0.7 to 0.35 to enable genre-specific timbres with sharpened weights
     const genreWeights = style.genreWeights || {}
 
-    if (genreWeights.classical > 0.7) {
+    if (genreWeights.classical > 0.35) {
       return this.selectClassicalTimbre(material)
-    } else if (genreWeights.jazz > 0.7) {
+    } else if (genreWeights.jazz > 0.35) {
       return this.selectJazzTimbre(material)
-    } else if (genreWeights.electronic > 0.7) {
+    } else if (genreWeights.electronic > 0.35) {
       return this.selectElectronicTimbre(material)
-    } else if (genreWeights.rock > 0.7) {
+    } else if (genreWeights.rock > 0.35) {
       return this.selectRockTimbre(material)
     }
 

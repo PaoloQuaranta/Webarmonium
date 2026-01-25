@@ -1,3 +1,21 @@
+/**
+ * Genre weight sharpening exponent.
+ * Higher values create more extreme differentiation between genres.
+ * - 1.0 = no sharpening (linear)
+ * - 2.0 = quadratic (moderate differentiation, recommended)
+ * - 2.5+ = aggressive differentiation
+ *
+ * With 8 genres normalized to sum=1.0, average weight is 0.125.
+ * Sharpening amplifies leaders: e.g., 0.20 -> 0.28 (with exp 2.0)
+ */
+const GENRE_SHARPENING_EXPONENT = 2.0
+
+/**
+ * Minimum total after sharpening to avoid underflow.
+ * If sharpened weights sum to less than this, return uniform distribution.
+ */
+const SHARPENING_UNDERFLOW_THRESHOLD = 1e-10
+
 class StyleAnalyzer {
   constructor() {
     this.currentStyle = {
@@ -32,7 +50,7 @@ class StyleAnalyzer {
     }
 
     this.styleHistory = []
-    this.smoothingFactor = 0.5 // Exponential smoothing - allows 50% influence for initial gestures (weight=1.0)
+    this.smoothingFactor = 0.3 // Reduced from 0.5 - allows 70% influence for initial gestures (weight=1.0)
   }
 
   analyzeGestureStyle(gestures, gestureWeight = 0.5) {
@@ -735,7 +753,54 @@ class StyleAnalyzer {
       })
     }
 
-    return weights
+    // Apply distribution sharpening to create more differentiated weights
+    const sharpened = this._sharpenDistribution(weights, GENRE_SHARPENING_EXPONENT)
+    return sharpened
+  }
+
+  /**
+   * Sharpens genre weight distribution using power function.
+   * Higher weights get amplified more, creating clearer genre differentiation.
+   *
+   * Mathematical behavior:
+   * - Values < 0.5 are reduced (e.g., 0.2^2 = 0.04)
+   * - Values > 0.5 are reduced less (e.g., 0.8^2 = 0.64)
+   * - Creates wider spread between dominant and weak genres
+   *
+   * Example with exponent 2.0:
+   *   Input:  { jazz: 0.20, rock: 0.18, ambient: 0.15, ... }
+   *   Output: { jazz: 0.28, rock: 0.23, ambient: 0.16, ... }
+   *
+   * @param {Object} weights - Normalized genre weights (sum to 1.0)
+   * @param {number} exponent - Sharpening exponent (1.0 = no change, 2.0 = moderate)
+   * @returns {Object} Sharpened weights (still sum to 1.0)
+   */
+  _sharpenDistribution(weights, exponent = GENRE_SHARPENING_EXPONENT) {
+    const keys = Object.keys(weights)
+    const sharpened = {}
+
+    // Apply power function, ensuring non-negative values
+    keys.forEach(key => {
+      sharpened[key] = Math.pow(Math.max(0, weights[key]), exponent)
+    })
+
+    const total = Object.values(sharpened).reduce((sum, w) => sum + w, 0)
+
+    // Underflow protection: if total is extremely small, return uniform distribution
+    if (total < SHARPENING_UNDERFLOW_THRESHOLD) {
+      const uniform = 1.0 / keys.length
+      keys.forEach(key => {
+        sharpened[key] = uniform
+      })
+      return sharpened
+    }
+
+    // Re-normalize to sum to 1.0
+    keys.forEach(key => {
+      sharpened[key] /= total
+    })
+
+    return sharpened
   }
 
   evolveStyle(currentStyle, newAnalysis, gestureWeight = 0.5) {
@@ -743,7 +808,7 @@ class StyleAnalyzer {
     // High weight (initial gestures) = strong influence
     // Low weight (later gestures) = weak influence
     const baseAlpha = 1 - this.smoothingFactor
-    const alpha = baseAlpha * gestureWeight // Scale by gesture weight
+    const alpha = Math.max(0.15, baseAlpha * gestureWeight) // Scale by gesture weight, minimum 15% influence
 
     // console.log(`🎨 Style evolution: weight=${gestureWeight.toFixed(2)}, alpha=${alpha.toFixed(2)} (${gestureWeight >= 0.8 ? 'STRONG' : gestureWeight >= 0.5 ? 'MODERATE' : 'WEAK'} influence)`)
 

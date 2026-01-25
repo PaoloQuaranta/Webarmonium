@@ -215,6 +215,96 @@ describe('Musical Components Test Suite', () => {
       const total = Object.values(genreWeights).reduce((sum, weight) => sum + weight, 0)
       assert(Math.abs(total - 1) < 0.01, 'Genre weights should sum to 1')
     })
+
+    it('should sharpen distribution to create clearer genre differentiation', () => {
+      // Test the _sharpenDistribution method directly
+      const flatWeights = {
+        ambient: 0.125, rhythmic: 0.125, melodic: 0.125, experimental: 0.125,
+        jazz: 0.125, classical: 0.125, electronic: 0.125, rock: 0.125
+      }
+
+      const sharpened = styleAnalyzer._sharpenDistribution(flatWeights, 2.0)
+
+      // Uniform weights should remain uniform after sharpening
+      const sharpenedValues = Object.values(sharpened)
+      const total = sharpenedValues.reduce((sum, w) => sum + w, 0)
+      assert(Math.abs(total - 1) < 0.001, 'Sharpened weights should sum to 1')
+
+      // All values should be equal for uniform input
+      const firstValue = sharpenedValues[0]
+      sharpenedValues.forEach(v => {
+        assert(Math.abs(v - firstValue) < 0.001, 'Uniform input should produce uniform output')
+      })
+    })
+
+    it('should amplify differences when sharpening non-uniform weights', () => {
+      const unevenWeights = {
+        ambient: 0.05, rhythmic: 0.10, melodic: 0.12, experimental: 0.03,
+        jazz: 0.15, classical: 0.15, electronic: 0.20, rock: 0.20
+      }
+
+      const sharpened = styleAnalyzer._sharpenDistribution(unevenWeights, 2.0)
+
+      // Leaders (rock, electronic) should have increased share
+      const originalLeaderShare = unevenWeights.rock + unevenWeights.electronic
+      const sharpenedLeaderShare = sharpened.rock + sharpened.electronic
+      assert(sharpenedLeaderShare > originalLeaderShare,
+        `Leaders should gain share after sharpening: ${sharpenedLeaderShare.toFixed(3)} > ${originalLeaderShare.toFixed(3)}`)
+
+      // Weak genres (experimental, ambient) should have decreased share
+      const originalWeakShare = unevenWeights.experimental + unevenWeights.ambient
+      const sharpenedWeakShare = sharpened.experimental + sharpened.ambient
+      assert(sharpenedWeakShare < originalWeakShare,
+        `Weak genres should lose share after sharpening: ${sharpenedWeakShare.toFixed(3)} < ${originalWeakShare.toFixed(3)}`)
+
+      // Total should still sum to 1
+      const total = Object.values(sharpened).reduce((sum, w) => sum + w, 0)
+      assert(Math.abs(total - 1) < 0.001, 'Sharpened weights should sum to 1')
+    })
+
+    it('should handle edge case of very small weights without underflow', () => {
+      const tinyWeights = {
+        ambient: 0.001, rhythmic: 0.001, melodic: 0.001, experimental: 0.001,
+        jazz: 0.001, classical: 0.001, electronic: 0.001, rock: 0.993
+      }
+
+      const sharpened = styleAnalyzer._sharpenDistribution(tinyWeights, 2.0)
+
+      // Should not produce NaN or Infinity
+      Object.values(sharpened).forEach(w => {
+        assert(!isNaN(w), 'Sharpened weight should not be NaN')
+        assert(isFinite(w), 'Sharpened weight should be finite')
+        assert(w >= 0, 'Sharpened weight should be non-negative')
+      })
+
+      // Total should sum to 1
+      const total = Object.values(sharpened).reduce((sum, w) => sum + w, 0)
+      assert(Math.abs(total - 1) < 0.001, 'Sharpened weights should sum to 1')
+    })
+
+    it('should produce weights that can trigger genre-specific thresholds', () => {
+      // Ambient-like gesture should produce dominant ambient weight
+      const ambientWeights = styleAnalyzer.calculateGenreWeights(
+        0.15,  // very low energy
+        55,    // slow tempo
+        { swing: 0.1, syncopation: 0.1, regularity: 0.8 },
+        { intervalProfile: { step: 0.7, skip: 0.2, leap: 0.1 }, contourType: 'static', range: 5 },
+        { chromaticism: 0.05, dissonance: 0.1, modalFlavor: 'lydian' }
+      )
+
+      const sortedWeights = Object.entries(ambientWeights).sort((a, b) => b[1] - a[1])
+      const [topGenre, topWeight] = sortedWeights[0]
+      const [secondGenre, secondWeight] = sortedWeights[1]
+
+      // Top genre should have meaningful lead over second
+      const leadRatio = topWeight / secondWeight
+      assert(leadRatio > 1.1, `Top genre should lead by at least 10%: ${topGenre}=${topWeight.toFixed(3)} vs ${secondGenre}=${secondWeight.toFixed(3)}`)
+
+      // With strongly characterized gestures, top weight should be able to reach threshold (0.35)
+      // This test documents expected behavior - ambient gestures should produce high ambient weights
+      assert(ambientWeights.ambient > 0.25 || ambientWeights.classical > 0.25,
+        'Ambient-like gesture should produce dominant ambient or classical weight above 0.25')
+    })
   })
 
   describe('PhraseMorphology', () => {

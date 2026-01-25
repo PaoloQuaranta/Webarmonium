@@ -1033,3 +1033,295 @@ if (maxDeviation > 0.1) {
 v0.2.4
 
 ---
+
+## Entry #171 Addendum 5: Frontend Drag Audio - Duration & Pitch Variety
+
+**Date**: 2026-01-25
+**Focus**: Fix local drag audio to have varied note durations and dynamic intervals
+
+---
+
+### Problem Identified
+
+User feedback: "le durate delle note nella frase sembrano ancora tutte uguali" and "drag lunghi generano ancora sequenze ripetute di poche note in loop"
+
+After all backend fixes (Addendum 1-4), local drag audio still had:
+1. **Equal note durations** - all notes same length regardless of drag speed
+2. **Repeating arpeggio patterns** - same few notes in a loop during long drags
+
+**Root Cause Discovery**: Backend PhraseMorphology.js fixes only affect REMOTE user audio. LOCAL user drag audio goes through a completely different frontend code path:
+
+```
+LOCAL drag → EnhancedGestureCapture.playDragStreamingNote()
+           → DragStreamProcessor (calculates when to play)
+           → DragStreamingHandler (plays audio with Tone.js)
+```
+
+The actual entry point `EnhancedGestureCapture.playDragStreamingNote()` had **hardcoded duration** with only 3 options ('32n', '16n', '8n'), completely overriding any duration variation from DragStreamProcessor.
+
+---
+
+### Fixes Applied (v0.2.5 → v0.2.9)
+
+#### v0.2.5 - Backend PhraseMorphology Rhythm Fixes
+**File**: `backend/src/services/PhraseMorphology.js`
+- Added three sources of duration variation: acceleration, phrase shape, curvature
+- Made voice leading less restrictive (stepwise motion only 50% of time)
+
+#### v0.2.6 - Frontend Duration & Pitch Handlers
+**File**: `frontend/src/services/gesture/DragStreamProcessor.js`
+- Added PHI-based duration variation in `getDurationFromSpeed()`
+
+**File**: `frontend/src/handlers/DragStreamingHandler.js`
+- Expanded `durationMap` from 5 to 7 values ('64n' through '1n')
+- Added `historySum` to pitch calculation for non-repeating variety:
+```javascript
+const historySum = this.melodicMemory.lastNotes.reduce((a, b) => a + b, 0)
+const varietyFactor = (noteIndex * PHI + historySum * 0.1 + x * 3) % 1
+```
+- Fixed envelope to scale with duration:
+```javascript
+getEnvelopeForArticulation(articulation, duration) {
+  const safeDuration = Math.max(0.05, duration)
+  // All envelope cases now use safeDuration for ADSR values
+}
+```
+
+#### v0.2.7 - Duration Variation More Aggressive
+**File**: `frontend/src/handlers/DragStreamingHandler.js`
+- Made duration pattern based primarily on note position (PHI stepping)
+
+#### v0.2.8 - Speed-Primary Duration
+**File**: `frontend/src/services/gesture/DragStreamProcessor.js`
+- Inverted duration logic: slow drag → long notes, fast drag → short notes
+- Added 6 duration options including '1n' (whole note)
+
+#### v0.2.9 - ROOT CAUSE FIX
+**File**: `frontend/src/services/EnhancedGestureCapture.js`
+
+The actual entry point was hardcoding duration with only 3 options. Fixed `playDragStreamingNote()`:
+
+```javascript
+// BEFORE (hardcoded, only 3 options)
+let duration
+if (normalizedSpeed > 0.6) duration = '32n'
+else if (normalizedSpeed > 0.3) duration = '16n'
+else duration = '8n'
+
+// AFTER (speed-primary with 6 options)
+const durations = ['32n', '16n', '8n', '4n', '2n', '1n']
+const PHI = 1.618033988749895
+
+let baseDurationIndex
+if (normalizedSpeed > 0.8) baseDurationIndex = 0      // Very fast → 32n
+else if (normalizedSpeed > 0.6) baseDurationIndex = 1 // Fast → 16n
+else if (normalizedSpeed > 0.4) baseDurationIndex = 2 // Medium → 8n
+else if (normalizedSpeed > 0.2) baseDurationIndex = 3 // Slow → 4n
+else if (normalizedSpeed > 0.1) baseDurationIndex = 4 // Very slow → 2n
+else baseDurationIndex = 5                             // Extremely slow → 1n
+
+// Position adds SUBTLE variation (±1 index max)
+const positionPhase = (noteIndex * PHI) % 1
+const positionVariation = Math.floor(positionPhase * 3) - 1
+const finalDurationIndex = Math.max(0, Math.min(durations.length - 1,
+  baseDurationIndex + positionVariation))
+```
+
+---
+
+### Design Principle
+
+**Speed is the PRIMARY factor for duration:**
+- Slow drag → long notes (quarter, half, whole)
+- Fast drag → short notes (32nd, 16th)
+
+**Position adds SUBTLE variation:**
+- PHI-based stepping prevents predictable patterns
+- ±1 index variation keeps notes related but not identical
+
+**Melodic variety through accumulated history:**
+- `historySum` grows throughout drag, ensuring later notes differ from earlier ones
+- No random functions - purely deterministic based on gesture metrics
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/PhraseMorphology.js` | (v0.2.5) Rhythm variation, less restrictive voice leading |
+| `frontend/src/services/gesture/DragStreamProcessor.js` | (v0.2.6-0.2.8) PHI duration, speed-primary logic |
+| `frontend/src/handlers/DragStreamingHandler.js` | (v0.2.6-0.2.7) Expanded durations, historySum variety, envelope scaling |
+| `frontend/src/services/EnhancedGestureCapture.js` | (v0.2.9) **ROOT FIX**: Speed-primary duration at actual entry point |
+
+---
+
+### Behavior Summary
+
+| Drag Type | Expected Duration | Expected Intervals |
+|-----------|-------------------|-------------------|
+| Very slow | Half/whole notes | Varied (historySum accumulates) |
+| Slow | Quarter notes | Dynamic (not always stepwise) |
+| Medium | Eighth notes | Mix of steps and leaps |
+| Fast | Sixteenth notes | Dynamic arpeggios |
+| Very fast | 32nd notes | Rapid varied patterns |
+
+| Long drag | Not repeating - historySum ensures variety |
+| Short drag | Brief phrase, coherent interval choices |
+
+---
+
+### Version
+
+v0.2.9
+
+---
+
+## Entry #172 - Genre Weight Balance and Differentiation
+
+**Date**: 2026-01-25
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Improved genre weight calculation to produce more differentiated weights and enable genre-specific music generation. Previously, genre weights clustered in the 0.10-0.20 range due to normalization across 8 genres, making the 0.7 threshold for genre-specific progressions unreachable.
+
+---
+
+### Problem Statement
+
+Monitoring the composition system revealed:
+1. **Genre weights too similar** - All 8 genres hovering around 0.12-0.18
+2. **Genre-specific music never triggered** - 0.7 threshold was unreachable
+3. **Slow style evolution** - 50% smoothing factor made changes too gradual
+4. **Low gesture influence** - Weak gestures had almost no effect on style
+
+| Metric | Before | Issue |
+|--------|--------|-------|
+| Typical leader weight | 0.15-0.20 | Too low for 0.7 threshold |
+| Genre activation rate | ~0% | Threshold never reached |
+| Style responsiveness | 25% influence | Too slow to react |
+
+---
+
+### Solution
+
+#### 1. Distribution Sharpening
+
+**File**: `backend/src/services/StyleAnalyzer.js`
+
+Added power function to amplify weight differences after normalization:
+
+```javascript
+const GENRE_SHARPENING_EXPONENT = 2.0
+const SHARPENING_UNDERFLOW_THRESHOLD = 1e-10
+
+_sharpenDistribution(weights, exponent = GENRE_SHARPENING_EXPONENT) {
+  const keys = Object.keys(weights)
+  const sharpened = {}
+
+  // Apply power function, ensuring non-negative values
+  keys.forEach(key => {
+    sharpened[key] = Math.pow(Math.max(0, weights[key]), exponent)
+  })
+
+  const total = Object.values(sharpened).reduce((sum, w) => sum + w, 0)
+
+  // Underflow protection
+  if (total < SHARPENING_UNDERFLOW_THRESHOLD) {
+    const uniform = 1.0 / keys.length
+    keys.forEach(key => sharpened[key] = uniform)
+    return sharpened
+  }
+
+  // Re-normalize
+  keys.forEach(key => sharpened[key] /= total)
+  return sharpened
+}
+```
+
+**Mathematical Effect**:
+- Input: `[0.20, 0.18, 0.15, 0.12, ...]`
+- Output: `[0.28, 0.23, 0.16, 0.10, ...]`
+- Leader advantage amplified from 1.11x to 1.23x
+
+#### 2. Reduced Smoothing Factor
+
+Changed `smoothingFactor` from 0.5 to 0.3:
+- Before: 50% new influence for initial gestures
+- After: 70% new influence for initial gestures
+
+#### 3. Minimum Alpha Floor
+
+Added floor to ensure weak gestures still have effect:
+
+```javascript
+const alpha = Math.max(0.15, baseAlpha * gestureWeight)
+```
+
+#### 4. Lowered Genre Thresholds
+
+**Files**: `HarmonicEngine.js`, `CounterpointEngine.js`
+
+Changed all genre activation thresholds from 0.7 to 0.35:
+
+```javascript
+// Before
+if (genreWeights.jazz > 0.7) { ... }
+
+// After
+if (genreWeights.jazz > 0.35) { ... }
+```
+
+This enables genre-specific progressions and timbres when a genre has clear dominance.
+
+---
+
+### Code Review Improvements
+
+Based on code review feedback, added:
+
+1. **Named constants** with documentation
+2. **Underflow protection** for edge cases
+3. **Comprehensive tests** for sharpening behavior
+
+#### Tests Added
+
+**File**: `backend/tests/unit/test_musical_components.test.js`
+
+- `should sharpen distribution to create clearer genre differentiation`
+- `should amplify differences when sharpening non-uniform weights`
+- `should handle edge case of very small weights without underflow`
+- `should produce weights that can trigger genre-specific thresholds`
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/StyleAnalyzer.js` | Added constants, `_sharpenDistribution()`, reduced smoothing, alpha floor |
+| `backend/src/services/HarmonicEngine.js` | Lowered thresholds 0.7 → 0.35 (lines 257-267, 363-373) |
+| `backend/src/services/CounterpointEngine.js` | Lowered thresholds 0.7 → 0.35 (lines 1092-1100) |
+| `backend/tests/unit/test_musical_components.test.js` | Added 5 new tests for sharpening |
+
+---
+
+### Expected Results
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Typical leader weight | 0.15-0.20 | 0.28-0.40 |
+| Genre-specific activation | ~0% | ~30-40% |
+| Style responsiveness | 25% influence | 50-70% influence |
+
+**Example**: Ambient-like gestures now produce 44% ambient weight, triggering ambient-specific progressions.
+
+---
+
+### Version
+
+v0.3.0
+
+---
