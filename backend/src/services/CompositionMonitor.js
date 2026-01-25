@@ -96,6 +96,26 @@ class CompositionMonitor {
   }
 
   /**
+   * Entry #182: Get dominant genre from genre weights
+   * @param {Object} genreWeights - Genre weights object from StyleAnalyzer
+   * @returns {string|null} Name of genre with highest weight, or null
+   */
+  _getDominantGenreFromWeights(genreWeights) {
+    if (!genreWeights || typeof genreWeights !== 'object') {
+      return null
+    }
+    let maxWeight = 0
+    let dominantGenre = null
+    for (const [genre, weight] of Object.entries(genreWeights)) {
+      if (weight > maxWeight) {
+        maxWeight = weight
+        dominantGenre = genre
+      }
+    }
+    return dominantGenre
+  }
+
+  /**
    * Record a composition snapshot
    * @param {string} roomId - Room identifier
    * @param {Object} data - Snapshot data from composition engines
@@ -201,9 +221,18 @@ class CompositionMonitor {
           modalFlavor: style.harmonicComplexity?.modalFlavor || null
         },
         genreWeights: style.genreWeights,
-        // Entry #179: Forced genre from style cycling (if active)
-        forcedGenre: roomState?.styleCycling?.currentGenre || null,
-        currentBPM: roomState?.styleCycling?.currentBPM || null
+        // Entry #182: Current genre (from starvation-aware selection) vs metric-calculated genre
+        currentGenre: roomState?.styleCycling?.currentGenre || null,
+        metricGenre: this._getDominantGenreFromWeights(style.genreWeights),
+        // Entry #182: Genre starvation info for debugging (seconds since last played)
+        genreStarvation: roomState?.styleCycling?.genreHistory
+          ? Object.fromEntries(
+              Object.entries(roomState.styleCycling.genreHistory).map(([g, h]) => [
+                g,
+                Math.round((Date.now() - (h.lastPlayedTime || 0)) / 1000) + 's'
+              ])
+            )
+          : null
       },
 
       // Material library state

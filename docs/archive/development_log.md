@@ -2350,3 +2350,142 @@ if (synthParams && this.delay && !this.delay.disposed) {
 v0.2.28
 
 ---
+
+## Entry #182 - Metric-Driven Genre Selection with Starvation Prevention
+
+**Date**: 2026-01-25
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Replaced the forced 30-second style cycling mechanism with an intelligent metric-driven genre selection system that allows styles to emerge naturally from gesture metrics while guaranteeing all 9 genres get played through a starvation prevention algorithm.
+
+---
+
+### Problem Statement
+
+1. **Forced cycling overrode metrics**: The previous system cycled through genres every 30 seconds regardless of gesture analysis, making the StyleAnalyzer's genre weight calculations ineffective
+2. **Abrupt genre changes**: 30-second intervals caused jarring transitions that didn't feel musical
+3. **No minimum play time**: Genres could change too frequently, not allowing compositions to develop
+4. **No fairness guarantee**: Some genres might never play if metrics didn't favor them
+
+---
+
+### Solution
+
+#### Phase 1: New Timing Constants
+
+Replaced `STYLE_CYCLE_INTERVAL` with a comprehensive timing system:
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `GENRE_CHECK_INTERVAL` | 30s | How often to evaluate genre change |
+| `MIN_GENRE_PLAY_TIME` | 3 min | Minimum time before genre can change |
+| `MAX_STARVATION_TIME` | 7 min | Maximum time without playing a genre |
+| `STARVATION_BOOST_EXPONENT` | 2 | Quadratic boost curve (gentle start, aggressive end) |
+| `MAX_BOOST_MULTIPLIER` | 3.0 | Maximum boost factor for starved genres |
+
+#### Phase 2: Genre History Tracking
+
+New `genreHistory` object tracks per-genre state:
+
+```javascript
+styleCycling: {
+  currentGenre: 'melodic',
+  genreHistory: {
+    ambient: { lastPlayedTime, totalPlayTime, playCount },
+    classical: { lastPlayedTime, totalPlayTime, playCount },
+    // ... all 9 genres
+  },
+  genreStartTime: Date.now(),
+  lastGenreCheckTime: Date.now(),
+  // BPM state unchanged
+}
+```
+
+#### Phase 3: Starvation-Aware Weight Calculation
+
+The `_calculateAdjustedWeight()` method applies a quadratic boost curve:
+
+```javascript
+// Starvation ratio: 0 at t=0, 1 at t=MAX_STARVATION_TIME
+const starvationRatio = Math.min(1, timeSinceLastPlayed / MAX_STARVATION_TIME)
+
+// Quadratic boost: gentle at first, aggressive near deadline
+const boostMultiplier = 1 + (MAX_BOOST_MULTIPLIER - 1) * Math.pow(starvationRatio, 2)
+
+return metricWeight * boostMultiplier
+```
+
+#### Phase 4: Genre Selection Algorithm
+
+The `_selectNextGenre()` method implements the selection logic:
+
+1. **Check MIN_GENRE_PLAY_TIME**: If current genre played < 3 min, keep it
+2. **Check critical starvation**: If any genre starved >= 7 min, force it
+3. **Calculate adjusted weights**: Apply starvation boost to all genre weights
+4. **Select best**: Choose genre with highest adjusted weight
+
+#### Phase 5: CompositionMonitor Updates
+
+Updated monitor to show current vs metric-calculated genre:
+
+- Added `currentGenre`: Actually playing genre
+- Added `metricGenre`: What StyleAnalyzer recommends
+- Added `genreStarvation`: Time since each genre last played
+- Removed BPM from genre section (already displayed elsewhere)
+
+---
+
+### Code Review Fixes
+
+| Issue | Fix |
+|-------|-----|
+| False starvation on startup | Initialize all genres with `lastPlayedTime = startTime` |
+| Null guard missing | Added guards for history object and genre entries |
+| MIN_GENRE_PLAY_TIME bypassed | Check minimum time BEFORE critical starvation |
+| Negative play time possible | Added `Math.max(0, ...)` protection |
+| Missing genreHistory entries | Defensive entry creation in updateStyleCycle |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/BackgroundCompositionService.js` | New constants, `_initializeGenreHistory()`, `_calculateAdjustedWeight()`, `_selectNextGenre()`, updated `updateStyleCycle()` |
+| `backend/src/services/CompositionMonitor.js` | Added `_getDominantGenreFromWeights()`, updated snapshot with currentGenre/metricGenre/genreStarvation |
+| `backend/public/monitor/index.html` | Updated Genre Weights card to show current vs metric genre |
+
+---
+
+### Behavior Matrix
+
+| Scenario | System Behavior |
+|----------|-----------------|
+| Energetic, fast gestures | High weight for rock/rhythmic, selected if not too recent |
+| Slow, fluid gestures | High weight for ambient/classical, selected if not too recent |
+| Current genre < 3 min | Stays active regardless of metrics |
+| Genre not played for 5 min | ~1.8x boost to metric weight |
+| Genre not played for 7 min | Forced regardless of metrics |
+| Genre change | BPM smoothly transitions to new genre's range |
+
+---
+
+### Verification
+
+- Genre changes respond to gesture metrics
+- No genre remains unplayed for more than 7 minutes
+- Genres play for at least 3 minutes before changing
+- BPM transitions are smooth (30-step interpolation)
+- Monitor displays current vs recommended genre correctly
+- Starvation times visible in monitor for debugging
+
+---
+
+### Version
+
+v0.2.29
+
+---

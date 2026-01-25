@@ -23,10 +23,14 @@ const { PHI } = require('../utils/constants')
 const { GENRE_BPM_RANGES } = require('../utils/GenreUtils')
 const { getSynthParams, getAllGenres } = require('../utils/GenreCharacteristics')
 
-// Entry #179: Style cycling constants
-const STYLE_CYCLE_INTERVAL = 30 * 1000  // 30 secondi (testing) - cambiare a 3*60*1000 per produzione
-const BPM_CHANGE_INTERVAL = 60 * 1000        // 1 minuto
-const BPM_SMOOTHING_STEPS = 30               // transizione più graduale (era 10)
+// Entry #182: Metric-driven genre selection with starvation prevention
+const GENRE_CHECK_INTERVAL = 30 * 1000      // Controllo cambio genere ogni 30s
+const MIN_GENRE_PLAY_TIME = 3 * 60 * 1000   // Minimo 3 minuti prima di cambiare
+const MAX_STARVATION_TIME = 7 * 60 * 1000   // Max 7 minuti senza suonare un genere
+const STARVATION_BOOST_EXPONENT = 2         // Curva quadratica (gentile all'inizio)
+const MAX_BOOST_MULTIPLIER = 3.0            // Boost massimo 3x
+const BPM_CHANGE_INTERVAL = 60 * 1000       // 1 minuto
+const BPM_SMOOTHING_STEPS = 30              // transizione graduale
 // Entry #180b: Use getAllGenres from GenreCharacteristics to stay in sync
 const ALL_GENRES = getAllGenres()
 
@@ -257,14 +261,15 @@ class BackgroundCompositionService {
       startTime: Date.now(),
       lastCompositionTime: Date.now(),
 
-      // Entry #179: Style cycling state - automatic genre rotation every 3 minutes
+      // Entry #182: Metric-driven genre selection with starvation prevention
       styleCycling: {
-        currentGenre: 'melodic',           // genere iniziale (neutro)
-        usedGenres: new Set(['melodic']),  // generi già usati in questo ciclo
-        lastStyleChangeTime: Date.now(),   // timestamp ultimo cambio stile
-        lastBPMChangeTime: Date.now(),     // timestamp ultimo cambio BPM
-        targetBPM: 100,                    // BPM target corrente
-        currentBPM: 100                    // BPM attuale (per smoothing)
+        currentGenre: 'melodic',                           // genere iniziale (neutro)
+        genreHistory: this._initializeGenreHistory(Date.now()), // storia per ogni genere
+        genreStartTime: Date.now(),                        // quando il genere corrente è iniziato
+        lastGenreCheckTime: Date.now(),                    // ultimo controllo cambio genere
+        lastBPMChangeTime: Date.now(),                     // timestamp ultimo cambio BPM
+        targetBPM: 100,                                    // BPM target corrente
+        currentBPM: 100                                    // BPM attuale (per smoothing)
       }
     })
 
@@ -637,7 +642,129 @@ class BackgroundCompositionService {
   }
 
   /**
-   * Entry #179: Update style cycling - automatic genre rotation every 3 minutes
+   * Entry #182: Initialize genre history for a new room
+   * All genres start with lastPlayedTime = startTime to avoid false starvation
+   * The initial genre ('melodic') is marked as currently playing
+   * @param {number} startTime - Room start timestamp
+   * @returns {Object} genreHistory object
+   */
+  _initializeGenreHistory(startTime) {
+    const history = {}
+    // Safeguard against empty ALL_GENRES
+    if (!ALL_GENRES || ALL_GENRES.length === 0) {
+      return { melodic: { lastPlayedTime: startTime, totalPlayTime: 0, playCount: 1 } }
+    }
+    ALL_GENRES.forEach((genre) => {
+      history[genre] = {
+        // All genres start "fresh" - no artificial starvation
+        lastPlayedTime: startTime,
+        totalPlayTime: 0,
+        playCount: genre === 'melodic' ? 1 : 0 // melodic is the initial genre
+      }
+    })
+    return history
+  }
+
+  /**
+   * Entry #182: Calculate adjusted weight with starvation boost
+   * @param {string} genre - Genre name
+   * @param {number} metricWeight - Weight from StyleAnalyzer (0-1)
+   * @param {Object} history - Genre history object
+   * @param {number} now - Current timestamp
+   * @returns {number} Adjusted weight
+   */
+  _calculateAdjustedWeight(genre, metricWeight, history, now) {
+    // Guard: if history is missing or genre not in history, return neutral weight
+    if (!history || typeof history !== 'object') {
+      return metricWeight
+    }
+    const genreHistory = history[genre]
+    if (!genreHistory || typeof genreHistory.lastPlayedTime !== 'number') {
+      // Genre never played or invalid data - no boost (avoid false starvation)
+      return metricWeight
+    }
+
+    const timeSinceLastPlayed = Math.max(0, now - genreHistory.lastPlayedTime)
+
+    // Starvation factor: 0 at t=0, 1 at t=MAX_STARVATION_TIME
+    const starvationRatio = Math.min(1, timeSinceLastPlayed / MAX_STARVATION_TIME)
+
+    // Quadratic boost: gentle at first, aggressive near deadline
+    // At 50%: boost = 1.5x, At 80%: boost = 2.28x, At 100%: boost = 3x
+    const boostMultiplier = 1 + (MAX_BOOST_MULTIPLIER - 1) * Math.pow(starvationRatio, STARVATION_BOOST_EXPONENT)
+
+    return metricWeight * boostMultiplier
+  }
+
+  /**
+   * Entry #182: Select next genre based on metrics + starvation
+   * Respects MIN_GENRE_PLAY_TIME before any genre switch (including critical starvation)
+   * @param {Object} styleWeights - Genre weights from StyleAnalyzer
+   * @param {Object} history - Genre history object
+   * @param {number} now - Current timestamp
+   * @param {string} currentGenre - Currently playing genre
+   * @param {number} genreStartTime - When current genre started
+   * @returns {string} Selected genre name
+   */
+  _selectNextGenre(styleWeights, history, now, currentGenre, genreStartTime) {
+    // Guard: validate inputs
+    if (!ALL_GENRES || ALL_GENRES.length === 0) {
+      return currentGenre || 'melodic'
+    }
+    if (!history || typeof history !== 'object') {
+      return currentGenre || ALL_GENRES[0]
+    }
+
+    // 1. Check MIN_GENRE_PLAY_TIME first - respect minimum play time always
+    const currentPlayTime = Math.max(0, now - genreStartTime)
+    if (currentPlayTime < MIN_GENRE_PLAY_TIME) {
+      return currentGenre // Keep current genre until min time reached
+    }
+
+    // 2. Calculate adjusted weights and find critically starved genre (single pass)
+    const adjustedWeights = {}
+    let criticallyStarvedGenre = null
+    let criticalStarvationTime = 0
+    const defaultWeight = 1 / ALL_GENRES.length
+
+    for (const genre of ALL_GENRES) {
+      // Calculate adjusted weight
+      const metricWeight = styleWeights[genre] || defaultWeight
+      adjustedWeights[genre] = this._calculateAdjustedWeight(genre, metricWeight, history, now)
+
+      // Check for critical starvation (only if history entry exists and is valid)
+      const genreHistory = history[genre]
+      if (genreHistory && typeof genreHistory.lastPlayedTime === 'number') {
+        const timeSince = Math.max(0, now - genreHistory.lastPlayedTime)
+        if (timeSince >= MAX_STARVATION_TIME && timeSince > criticalStarvationTime) {
+          criticallyStarvedGenre = genre
+          criticalStarvationTime = timeSince
+        }
+      }
+    }
+
+    // 3. Force critically starved genre (now that MIN_GENRE_PLAY_TIME has passed)
+    if (criticallyStarvedGenre) {
+      // console.log(`[GenreSelection] CRITICAL: ${criticallyStarvedGenre} starved for ${Math.round(criticalStarvationTime / 1000)}s, forcing`)
+      return criticallyStarvedGenre
+    }
+
+    // 4. Select genre with highest adjusted weight
+    let bestGenre = currentGenre
+    let bestWeight = adjustedWeights[currentGenre] || 0
+
+    for (const [genre, weight] of Object.entries(adjustedWeights)) {
+      if (weight > bestWeight) {
+        bestWeight = weight
+        bestGenre = genre
+      }
+    }
+
+    return bestGenre
+  }
+
+  /**
+   * Entry #182: Update style cycling - metric-driven genre selection with starvation prevention
    * Also handles BPM modulation (changes at least every minute)
    * @param {string} roomId - Room ID
    * @returns {Object} cycling state with currentGenre and currentBPM
@@ -645,54 +772,56 @@ class BackgroundCompositionService {
   updateStyleCycle(roomId) {
     const now = Date.now()
     const roomState = this.roomCompositions.get(roomId)
-    if (!roomState || !roomState.styleCycling) {
+    if (!roomState?.styleCycling) {
       return { currentGenre: 'melodic', currentBPM: 100 }
     }
 
     const cycling = roomState.styleCycling
     const style = this.styleAnalyzer.getCurrentStyle()
 
-    // --- STYLE CYCLING (ogni 30 secondi per testing) ---
-    if (now - cycling.lastStyleChangeTime >= STYLE_CYCLE_INTERVAL) {
-      // Trova generi disponibili (non ancora usati)
-      let available = ALL_GENRES.filter(g => !cycling.usedGenres.has(g))
-
-      console.log(`[StyleCycling] Before: usedGenres=${[...cycling.usedGenres].join(',')}, available=${available.join(',')}`)
-
-      // Se tutti usati, reset ciclo
-      if (available.length === 0) {
-        cycling.usedGenres.clear()
-        available = [...ALL_GENRES]  // copy array
-        console.log(`[StyleCycling] RESET: all genres used, starting new cycle`)
-      }
-
-      // Scegli genere con peso più alto tra i disponibili
-      let maxWeight = -1
-      let nextGenre = available[0]
-
-      for (const genre of available) {
-        const weight = style.genreWeights?.[genre] || 0
-        if (weight > maxWeight) {
-          maxWeight = weight
-          nextGenre = genre
-        }
-      }
-
+    // --- SELEZIONE GENERE BASATA SU METRICHE + STARVATION ---
+    if (now - cycling.lastGenreCheckTime >= GENRE_CHECK_INTERVAL) {
       const prevGenre = cycling.currentGenre
 
-      // Applica nuovo genere
-      cycling.currentGenre = nextGenre
-      cycling.usedGenres.add(nextGenre)
-      cycling.lastStyleChangeTime = now
+      const nextGenre = this._selectNextGenre(
+        style.genreWeights || {},
+        cycling.genreHistory,
+        now,
+        cycling.currentGenre,
+        cycling.genreStartTime
+      )
 
-      // Imposta target BPM per nuovo genere
-      const bpmRange = GENRE_BPM_RANGES[nextGenre] || GENRE_BPM_RANGES.melodic
-      cycling.targetBPM = bpmRange.default
+      if (nextGenre !== prevGenre) {
+        // Update history for previous genre (with guard)
+        const playTime = Math.max(0, now - cycling.genreStartTime)
+        if (cycling.genreHistory[prevGenre]) {
+          cycling.genreHistory[prevGenre].totalPlayTime += playTime
+        }
 
-      console.log(`[StyleCycling] Room ${roomId}: ${prevGenre} -> ${nextGenre} (${cycling.usedGenres.size}/${ALL_GENRES.length}), weight=${maxWeight.toFixed(3)}`)
+        // Set new genre
+        cycling.currentGenre = nextGenre
+        cycling.genreStartTime = now
+
+        // Update history for new genre (with guard)
+        if (cycling.genreHistory[nextGenre]) {
+          cycling.genreHistory[nextGenre].lastPlayedTime = now
+          cycling.genreHistory[nextGenre].playCount++
+        } else {
+          // Create entry if missing (shouldn't happen, but defensive)
+          cycling.genreHistory[nextGenre] = { lastPlayedTime: now, totalPlayTime: 0, playCount: 1 }
+        }
+
+        // Set target BPM for new genre
+        const bpmRange = GENRE_BPM_RANGES[nextGenre] || GENRE_BPM_RANGES.melodic
+        cycling.targetBPM = bpmRange.default
+
+// console.log(`[GenreSelection] ${prevGenre} -> ${nextGenre}, metric weight: ${(style.genreWeights?.[nextGenre] || 0).toFixed(3)}`)
+      }
+
+      cycling.lastGenreCheckTime = now
     }
 
-    // --- BPM MODULATION (ogni minuto) ---
+    // --- BPM MODULATION (ogni minuto) - INVARIATO ---
     if (now - cycling.lastBPMChangeTime >= BPM_CHANGE_INTERVAL) {
       const bpmRange = GENRE_BPM_RANGES[cycling.currentGenre] || GENRE_BPM_RANGES.melodic
 
@@ -704,7 +833,7 @@ class BackgroundCompositionService {
       cycling.lastBPMChangeTime = now
     }
 
-    // --- BPM SMOOTHING (ogni composizione) ---
+    // --- BPM SMOOTHING (ogni composizione) - INVARIATO ---
     const bpmDiff = cycling.targetBPM - cycling.currentBPM
     if (Math.abs(bpmDiff) > 1) {
       cycling.currentBPM += bpmDiff / BPM_SMOOTHING_STEPS
