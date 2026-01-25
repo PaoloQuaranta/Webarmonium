@@ -1008,16 +1008,13 @@ class VirtualUserService {
           y: currentTrajPos.y + (nextTrajPos.y - currentTrajPos.y) * trajectoryT
         }
 
-        // Entry #185: Derive frequency from Y position (like real users)
-        // Raw frequency from position, then constrain to tessitura
-        const rawFreqFromY = this._yToFrequency(notePosition.y)
-        const audioFreq = this.frequencyMapper.enforceTessitura(rawFreqFromY, freqMin, freqMax)
-
+        // Audio frequency from PhraseMorphology (harmonically coherent with scale/mode)
+        // Cursor position follows trajectory visually, but audio stays in tune
         this.io.to(roomId).emit('hold:start', {
           type: 'hold:start',
           userId: config.userId,
           noteId: note.noteId,
-          frequency: audioFreq,  // Entry #185: Y-derived, tessitura-constrained
+          frequency: note.audioFreq,  // From phrase generation (in scale)
           velocity: note.velocity,
           duration: note.durationMs / 1000,
           position: notePosition,

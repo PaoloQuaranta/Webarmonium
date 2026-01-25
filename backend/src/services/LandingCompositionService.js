@@ -1669,15 +1669,12 @@ class LandingCompositionService {
           y: currentTrajPos.y + (nextTrajPos.y - currentTrajPos.y) * trajectoryT
         }
 
-        // Entry #185: Derive frequency from Y position (like real users)
-        const rawFreqFromY = this._yToFrequency(notePosition.y)
-        const audioFreq = this.frequencyMapper.enforceTessitura(rawFreqFromY, freqMin, freqMax)
-
+        // Audio frequency from PhraseMorphology (harmonically coherent with scale/mode)
         this.io.to(this.landingRoomId).emit('hold:start', {
           type: 'hold:start',
           userId: user.userId,
           noteId: note.noteId,
-          frequency: audioFreq,  // Entry #185: Y-derived, tessitura-constrained
+          frequency: note.audioFreq,  // From phrase generation (in scale)
           velocity: note.velocity,
           duration: note.durationMs / 1000,
           position: notePosition,
