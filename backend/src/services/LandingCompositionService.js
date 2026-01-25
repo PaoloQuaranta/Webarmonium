@@ -1359,6 +1359,7 @@ class LandingCompositionService {
       this.updateDroneIfKeyChanged(previousKeyCenter)
 
       // Record snapshot for monitoring (non-blocking)
+      // Entry #182: Include styleCycling for genre display in monitor
       if (this.compositionMonitor && this.compositionMonitor.enabled) {
         setImmediate(() => {
           try {
@@ -1368,7 +1369,11 @@ class LandingCompositionService {
               this.harmonicEngine,
               this.styleAnalyzer,
               this.materialLibrary,
-              { gestureCount: virtualGestures.length, compositionStarted: true },
+              {
+                gestureCount: virtualGestures.length,
+                compositionStarted: true,
+                styleCycling: this.styleCycling  // Entry #182: Include for genre monitoring
+              },
               'landing'
             )
             if (snapshot) {
