@@ -226,166 +226,12 @@ if (landingService) {
 
 // Extract services for backward compatibility
 const roomManager = container.get('roomManager')
-const gestureProcessor = container.get('gestureProcessor')
-const environmentalMemoryCoordinator = container.get('environmentalMemoryCoordinator')
-const backgroundCompositionService = container.get('backgroundCompositionService')
-const gestureToMusicService = container.get('gestureToMusicService')
 
 // Global services object for socket handlers (backward compatible)
 const services = container.toObject()
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  const rooms = Array.from(roomManager.rooms.values())
-  const totalUsers = rooms.reduce((sum, room) => sum + room.users.size, 0)
 
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    version: 'V.0.0.3-alpha',
-    rooms: rooms.length,
-    users: totalUsers,
-    environment: NODE_ENV
-  })
-})
 
-// Room discovery endpoint
-app.get('/api/rooms', (req, res) => {
-  try {
-    const limit = Math.min(50, parseInt(req.query.limit) || 10)
-    const lobby = roomManager.getRoomLobby(limit)
-
-    res.json({
-      success: true,
-      rooms: lobby,
-      timestamp: Date.now()
-    })
-  } catch (error) {
-    // console.error('Room discovery error:', error)
-    res.status(500).json({
-      success: false,
-      error: 'Room discovery failed'
-    })
-  }
-})
-
-// Room creation endpoint
-app.post('/api/rooms', (req, res) => {
-  try {
-    const roomId = req.body.roomId || generateRoomId()
-
-    // Validate room ID format
-    if (!/^[a-z0-9-]{3,50}$/.test(roomId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid room ID format'
-      })
-    }
-
-    // Check if room already exists
-    if (roomManager.getRoom(roomId)) {
-      return res.status(409).json({
-        success: false,
-        error: 'Room already exists'
-      })
-    }
-
-    res.json({
-      success: true,
-      roomId,
-      message: 'Room ID reserved. Join via WebSocket to activate.'
-    })
-  } catch (error) {
-    // console.error('Room creation error:', error)
-    res.status(500).json({
-      success: false,
-      error: 'Room creation failed'
-    })
-  }
-})
-
-// Performance metrics endpoint
-app.get('/api/metrics', (req, res) => {
-  try {
-    res.json({
-      server: {
-        startTime: Date.now(),
-        connections: io.engine.clientsCount,
-        environment: NODE_ENV
-      },
-      rooms: roomManager.getRoomStatistics(),
-      gestures: gestureProcessor.getProcessingStats(),
-      memory: environmentalMemoryCoordinator.getCoordinatorStats()
-    })
-  } catch (error) {
-    // console.error('Metrics error:', error)
-    res.status(500).json({
-      success: false,
-      error: 'Metrics unavailable'
-    })
-  }
-})
-
-// Global room statistics endpoint (for landing page)
-app.get('/api/rooms/stats', (req, res) => {
-  try {
-    // Count users in normal rooms only (exclude landing-room)
-    let totalUsers = 0
-    let activeRooms = 0
-
-    if (roomManager.rooms) {
-      for (const [roomId, room] of roomManager.rooms) {
-        // Exclude landing room from counts
-        if (roomId === 'landing-room') continue
-
-        const userCount = room.users?.size || 0
-        if (userCount > 0) {
-          totalUsers += userCount
-          activeRooms++
-        }
-      }
-    }
-
-    res.json({
-      success: true,
-      totalUsers,
-      activeRooms,
-      timestamp: Date.now()
-    })
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Stats unavailable'
-    })
-  }
-})
-
-// Room statistics endpoint
-app.get('/api/rooms/:id/stats', (req, res) => {
-  try {
-    const room = roomManager.rooms.get(req.params.id)
-    if (!room) {
-      return res.status(404).json({
-        success: false,
-        error: 'room_not_found',
-        message: `Room ${req.params.id} not found`
-      })
-    }
-
-    const stats = room.getStats()
-    res.json({
-      success: true,
-      room: req.params.id,
-      stats: stats
-    })
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'stats_error',
-      message: error.message
-    })
-  }
-})
 
 // Admin authentication middleware for protected endpoints
 // Entry #Security: Logs failed attempts and successful admin actions
@@ -508,23 +354,6 @@ app.get('/api/admin/domain-protection', adminAuth, (req, res) => {
   })
 })
 
-// Entry #115: Domain validation endpoint (public)
-// Frontend can use this to check if current domain is authorized
-app.get('/api/domain/validate', (req, res) => {
-  const origin = req.headers.origin
-  const referer = req.headers.referer
-  const { validateOrigin } = require('./utils/DomainProtection')
-
-  const validation = validateOrigin(origin, referer)
-
-  res.json({
-    success: true,
-    valid: validation.allowed,
-    domain: validation.domain || null,
-    reason: validation.reason || 'valid',
-    timestamp: Date.now()
-  })
-})
 
 // Composition Monitor routes (protected by adminAuth)
 app.use('/api/admin/monitor', adminAuth, createMonitorRoutes(compositionMonitor))
@@ -657,18 +486,6 @@ function gracefulShutdown (signal) {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
 process.on('SIGINT', () => gracefulShutdown('SIGINT'))
-
-// Helper function to generate room IDs
-function generateRoomId () {
-  const adjectives = ['sonic', 'harmonic', 'melodic', 'rhythmic', 'ambient', 'textural']
-  const nouns = ['space', 'realm', 'chamber', 'studio', 'lab', 'zone']
-
-  const adjective = adjectives[Math.floor(Math.random() * adjectives.length)]
-  const noun = nouns[Math.floor(Math.random() * nouns.length)]
-  const number = Math.floor(Math.random() * 1000)
-
-  return `${adjective}-${noun}-${number}`
-}
 
 // Expose room manager for tests
 app.locals.roomManager = roomManager
