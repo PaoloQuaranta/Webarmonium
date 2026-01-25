@@ -567,16 +567,16 @@ class AdaptationEngine {
     this.collaborativeWeights.set(roomId, collaborativeWeight)
 
     // Track adaptation history
-    const history = this.adaptationHistory.get(roomId) || []
+    let history = this.adaptationHistory.get(roomId) || []
     history.push({
       timestamp: Date.now(),
       userCount,
       weight: collaborativeWeight
     })
 
-    // Limit history size
+    // Limit history size (use slice for better memory efficiency than splice)
     if (history.length > 100) {
-      history.splice(0, 50)
+      history = history.slice(-50)
     }
 
     this.adaptationHistory.set(roomId, history)

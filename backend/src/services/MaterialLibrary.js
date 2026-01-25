@@ -639,6 +639,10 @@ class MaterialLibrary {
         mode: mode,
         timestamp: Date.now()
       })
+      // Memory leak prevention: cap modulation history
+      if (this.modulations.length > 50) {
+        this.modulations = this.modulations.slice(-50)
+      }
     }
 
     this.keyCenter = key

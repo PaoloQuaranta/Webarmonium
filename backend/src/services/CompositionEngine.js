@@ -554,6 +554,10 @@ class CompositionEngine {
       materialId: material.id,
       timestamp: Date.now()
     })
+    // Memory leak prevention: cap history to prevent unbounded growth
+    if (this.developmentHistory.length > 100) {
+      this.developmentHistory = this.developmentHistory.slice(-100)
+    }
 
     return elaborated
   }
@@ -934,6 +938,10 @@ class CompositionEngine {
     // Entry #163: Push current section to history FIRST, then calculate next
     // With sectionHistory starting empty, index = history.length % cycleLength gives linear progression
     this.sectionHistory.push(this.currentSection)
+    // Memory leak prevention: cap history to prevent unbounded growth
+    if (this.sectionHistory.length > 100) {
+      this.sectionHistory = this.sectionHistory.slice(-100)
+    }
     const historyLen = this.sectionHistory.length
 
     switch (form) {
