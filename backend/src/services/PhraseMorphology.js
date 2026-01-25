@@ -946,8 +946,11 @@ class PhraseMorphology {
   createContour(type, length, curvature, webMetrics = null) {
     const contour = []
 
-    // Base amplitude (existing: 0.1 * curvature)
-    const baseAmplitude = 0.1 * curvature
+    // Entry #182: Increased base amplitude for contour shape variety
+    // NOTE: This affects contour SHAPE (more pronounced peaks/valleys) but NOT final
+    // interval sizes, since contours are normalized to 0-1 range before pitch mapping.
+    // Interval variety comes from boosted gestureData metrics in VirtualUserService.
+    const baseAmplitude = 0.15 + 0.15 * curvature
     let amplitude = baseAmplitude
 
     // Entry #171: WebMetrics acceleration modulates amplitude
@@ -1059,19 +1062,29 @@ class PhraseMorphology {
 
   contourToPitches(contour, scale, rootNote) {
     // Convert abstract contour to actual MIDI pitches using voice leading
+    // Entry #182: Expanded to 2-octave range for more melodic variety
 
     const rootMidi = this.pitchClasses[rootNote] || 60
     const pitches = []
-    let currentDegree = 0 // Current scale degree
+    let currentDegree = Math.floor(scale.length / 2) // Start in middle of scale
+
+    // Entry #182: Calculate contour range to allow more leaps for dramatic contours
+    // CRITICAL #3 fix: Prevent zero range for flat contours
+    const contourMin = Math.min(...contour)
+    const contourMax = Math.max(...contour)
+    const contourRange = Math.max(0.01, contourMax - contourMin)
 
     contour.forEach((height, i) => {
-      // Map contour height to scale degree range
-      const targetDegree = Math.floor(height * (scale.length - 1))
+      // Entry #182: Map contour height to 2-octave scale degree range
+      // Old: 0 to scale.length-1 (0-6 for 7-note scale)
+      // New: -scale.length/2 to scale.length*1.5 (approx -3 to +10 for 7-note scale)
+      const expandedRange = scale.length * 2 - 1  // 13 for 7-note scale
+      const targetDegree = Math.floor(height * expandedRange) - Math.floor(scale.length / 2)
 
       // Prefer stepwise motion (voice leading)
-      // DERIVATION: pass note position for deterministic interval selection
+      // DERIVATION: pass note position and contour range for deterministic interval selection
       const notePosition = i / contour.length
-      const intervalType = this.selectIntervalType(currentDegree, targetDegree, notePosition)
+      const intervalType = this.selectIntervalType(currentDegree, targetDegree, notePosition, contourRange)
 
       let newDegree = currentDegree
       switch (intervalType) {
@@ -1082,37 +1095,44 @@ class PhraseMorphology {
           newDegree += targetDegree > currentDegree ? 2 : -2
           break
         case 'leap':
-          const leapSize = Math.min(5, Math.abs(targetDegree - currentDegree))
+          // Entry #182: Allow larger leaps (up to 7 scale degrees = octave)
+          const leapSize = Math.min(7, Math.abs(targetDegree - currentDegree))
           newDegree += targetDegree > currentDegree ? leapSize : -leapSize
           break
         default:
           newDegree = targetDegree
       }
 
-      // Keep within scale bounds
-      currentDegree = Math.max(0, Math.min(scale.length - 1, newDegree))
+      // Entry #182: Keep within 2-octave bounds
+      currentDegree = Math.max(-scale.length, Math.min(scale.length * 2 - 1, newDegree))
 
-      // Convert scale degree to MIDI note
-      const octave = Math.floor(i / scale.length) // Move up octave as needed
-      const pitch = rootMidi + scale[currentDegree] + (octave * 12)
+      // Convert scale degree to MIDI note (handling negative degrees)
+      // CRITICAL #1 fix: Proper modulo for negative numbers + MIDI range validation
+      const octaveOffset = Math.floor(currentDegree / scale.length)
+      const degreeInOctave = ((currentDegree % scale.length) + scale.length) % scale.length
+      const rawPitch = rootMidi + scale[degreeInOctave] + (octaveOffset * 12)
 
+      // Clamp to valid MIDI range (0-127) to prevent crashes
+      const pitch = Math.max(0, Math.min(127, rawPitch))
       pitches.push(pitch)
     })
 
     return pitches
   }
 
-  selectIntervalType(currentDegree, targetDegree, notePosition = 0) {
+  selectIntervalType(currentDegree, targetDegree, notePosition = 0, contourRange = 0.5) {
     const distance = Math.abs(targetDegree - currentDegree)
 
-    // Entry #171 fix: Less restrictive voice leading to allow contour variety
-    // Old logic forced stepwise motion at edges AND for distance<=1,
-    // making all phrases sound like scale runs/arpeggios
+    // Entry #182: More aggressive interval selection for melodic variety
+    // contourRange affects thresholds: high range (>0.5) → more leaps
     //
-    // DERIVATION: interval type based on distance and phrase position
-    // Edge notes (first/last 20%) prefer smoother motion but can skip if needed
+    // DERIVATION: interval type based on distance, phrase position, and contour range
+    // Edge notes (first/last 15%) prefer smoother motion
     // Middle notes follow contour more closely
-    const isEdge = notePosition < 0.2 || notePosition > 0.8
+    const isEdge = notePosition < 0.15 || notePosition > 0.85
+
+    // Entry #182: Lower thresholds for high-range contours
+    const leapThreshold = contourRange > 0.6 ? 2 : (contourRange > 0.4 ? 3 : 4)
 
     // No movement needed
     if (distance === 0) return 'step'
@@ -1120,13 +1140,15 @@ class PhraseMorphology {
     // Small distances: stepwise is natural
     if (distance === 1) return 'step'
 
-    // Medium distances: edges use steps, middle uses skips
-    if (distance <= 2) return isEdge ? 'step' : 'skip'
+    // Entry #182: Medium distances - allow skips even at edges for dramatic contours
+    if (distance <= 2) {
+      return (isEdge && contourRange < 0.5) ? 'step' : 'skip'
+    }
 
-    // Larger distances: allow skips at edges, leaps in middle
-    if (distance <= 4) return isEdge ? 'skip' : 'leap'
+    // Entry #182: Moderate distances - use leap threshold based on contour range
+    if (distance <= leapThreshold) return isEdge ? 'skip' : 'leap'
 
-    // Very large distances: always leap to follow contour
+    // Larger distances: always leap to follow contour
     return 'leap'
   }
 

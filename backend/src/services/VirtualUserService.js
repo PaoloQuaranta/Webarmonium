@@ -114,10 +114,11 @@ class VirtualUserService {
     }
 
     // Initial distributed positions for each source
+    // Entry #182: Better tessellation to avoid center clustering
     this.initialPositions = {
-      wikipedia: { x: 0.15, y: 0.75 },   // Bottom-left area (bass)
-      hackernews: { x: 0.50, y: 0.50 },  // Center (tenor)
-      github: { x: 0.85, y: 0.25 }       // Top-right area (soprano)
+      wikipedia: { x: 0.20, y: 0.80 },   // Bottom-left area (bass)
+      hackernews: { x: 0.80, y: 0.50 },  // Right-center (tenor) - moved from center
+      github: { x: 0.30, y: 0.20 }       // Top-left area (soprano)
     }
 
     // Validate configurations at startup (fail-fast)
@@ -836,11 +837,20 @@ class VirtualUserService {
     const safeDensity = Number.isFinite(density) ? Math.max(0, Math.min(1, density)) : 0.5
     const phraseDurationMs = rangeMin + (safeDensity * (rangeMax - rangeMin))
 
-    // Create gestureData for PhraseMorphology
+    // Entry #182: Create gestureData for PhraseMorphology with boosted metrics
+    // Old values produced weak contours → small intervals
+    // New values ensure more dramatic melodic contours
+    //
+    // CRITICAL #2 fix: Defensive clamping for acceleration (can be NaN/Infinity)
+    const safeAcceleration = Number.isFinite(acceleration) ? acceleration : 0
+    const clampedAcceleration = Math.max(-10, Math.min(10, safeAcceleration))
+    //
+    // MEDIUM #2 fix: Quadratic velocity preserves quiet moments (was floor at 50)
+    // MEDIUM #4 fix: Full curvature range with boost multiplier (was compressed 0.4-0.9)
     const gestureData = {
-      velocity: normalizedVelocity * 100,
-      curvature: clampedCurvature,
-      acceleration: acceleration,
+      velocity: normalizedVelocity * normalizedVelocity * 100,  // Quadratic: 0.3→9, 0.5→25, 0.7→49, 1.0→100
+      curvature: Math.min(1, clampedCurvature * 1.5),           // 0-1 boosted (0.5→0.75, 0.7→1.0)
+      acceleration: clampedAcceleration * 30 + 20,              // -280 to 320 range, safe
       intensity: this._calculateActivityLevel(source),
       duration: phraseDurationMs
     }
@@ -1293,8 +1303,9 @@ class VirtualUserService {
     const RANGE = MAX_BOUND - MIN_BOUND  // 0.9
 
     // FIX #3: Validate input frequency - return safe fallback if invalid
+    // MEDIUM #3 fix: Removed triple fallback - initialPositions must exist (validated at startup)
     if (!Number.isFinite(baseFrequency) || baseFrequency < 0) {
-      return { x: 0.5, y: 0.5 }
+      return this.initialPositions[source]
     }
 
     // Get gesture counter
@@ -1302,6 +1313,14 @@ class VirtualUserService {
 
     // Source-specific offset to differentiate patterns (prime numbers)
     const sourceOffset = source === 'wikipedia' ? 17 : source === 'hackernews' ? 53 : 97
+
+    // Entry #182: Quadrant biases to keep sources in different areas
+    const quadrantBias = {
+      wikipedia: { x: -0.15, y: 0.15 },    // Bias toward bottom-left
+      hackernews: { x: 0.15, y: 0 },       // Bias toward right
+      github: { x: -0.10, y: -0.15 }       // Bias toward top-left
+    }
+    const bias = quadrantBias[source] || { x: 0, y: 0 }
 
     // Get metrics for influence - clamp explicitly
     const normalizedFreq = Math.max(0, Math.min(1, (baseFrequency - 110) / 1100))
@@ -1333,17 +1352,24 @@ class VirtualUserService {
     // stepIndex ensures trajectory points don't cluster
     const combinedSeed = gestureCount + sourceOffset + stepIndex
 
-    // X: golden ratio sequence modulated by frequency
-    // Adding normalizedFreq shifts the sequence based on pitch
-    const xGolden = (combinedSeed * VirtualUserService.PHI + normalizedFreq * 3.7) % 1
+    // Entry #182: Enhanced spreading formula
+    // HIGH #2 fix: Frequency/metric directly shifts position, golden ratio adds variation
+    const xGolden = (combinedSeed * VirtualUserService.PHI) % 1
+    const yGolden = (combinedSeed * VirtualUserService.PHI_SQ) % 1
 
-    // Y: golden ratio squared sequence modulated by secondary metric
-    // Different multiplier (φ²) ensures X and Y are uncorrelated
-    const yGolden = (combinedSeed * VirtualUserService.PHI_SQ + secondaryMetric * 5.3) % 1
+    // X position: frequency-based horizontal shift with ±15% golden ratio variation
+    // Low freq (bass) → left side, high freq (soprano) → right side
+    const xBase = normalizedFreq + (xGolden - 0.5) * 0.3
 
-    // FIX #3: Map to canvas range with EXPLICIT clamping to ensure bounds
-    const x = Math.max(MIN_BOUND, Math.min(MAX_BOUND, MIN_BOUND + xGolden * RANGE))
-    const y = Math.max(MIN_BOUND, Math.min(MAX_BOUND, MIN_BOUND + yGolden * RANGE))
+    // Y position: metric-based vertical shift with ±15% golden ratio variation
+    const yBase = secondaryMetric + (yGolden - 0.5) * 0.3
+
+    // HIGH #1 fix: Apply bias BEFORE range scaling to maintain distribution
+    const xBiased = Math.max(0, Math.min(1, xBase + bias.x))
+    const yBiased = Math.max(0, Math.min(1, yBase + bias.y))
+
+    const x = MIN_BOUND + xBiased * RANGE
+    const y = MIN_BOUND + yBiased * RANGE
 
     return { x, y }
   }

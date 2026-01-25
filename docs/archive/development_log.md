@@ -2489,3 +2489,178 @@ Updated monitor to show current vs metric-calculated genre:
 v0.2.29
 
 ---
+
+## Entry #183 - Virtual User Gesture Distribution & Interval Variety
+
+**Date**: 2026-01-25
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed two related issues with virtual users: cursor positions clustering at center of canvas, and melodic phrases only using small intervals (steps). Implemented comprehensive fixes across VirtualUserService.js and PhraseMorphology.js with full code review remediation.
+
+---
+
+### Problem Statement
+
+Virtual users had two visual/audio problems:
+
+1. **Cursor positions concentrated at center** - All virtual user cursors clustered around canvas center instead of using full area
+2. **Only small intervals in phrases** - Melodic output used only step intervals (1-2 semitones), no skips or leaps
+
+Root causes:
+- `hackernews` initialized at center (0.50, 0.50)
+- `_calculateHybridPosition()` formula didn't spread positions effectively
+- Gesture metrics were too weak (velocity 30-60, curvature 0.3-0.6)
+- `baseAmplitude = 0.1 * curvature` produced tiny contours (0.03-0.06)
+- `selectIntervalType()` returned 'step' for small distances
+- Leap size capped at 5 scale degrees
+
+---
+
+### Solution
+
+#### Phase 1: Position Distribution (VirtualUserService.js)
+
+**1. Updated Initial Positions**
+```javascript
+this.initialPositions = {
+  wikipedia: { x: 0.20, y: 0.80 },   // Bottom-left (bass)
+  hackernews: { x: 0.80, y: 0.50 },  // Right-center (moved from center)
+  github: { x: 0.30, y: 0.20 }       // Top-left (soprano)
+}
+```
+
+**2. Enhanced Hybrid Position Formula**
+- Added quadrant biases per source
+- Fixed inverted spread formula: frequency now correctly shifts position
+- Applied bias before range scaling to prevent edge clustering
+
+```javascript
+const quadrantBias = {
+  wikipedia: { x: -0.15, y: 0.15 },
+  hackernews: { x: 0.15, y: 0 },
+  github: { x: -0.10, y: -0.15 }
+}
+
+// Frequency-based horizontal shift with golden ratio variation
+const xBase = normalizedFreq + (xGolden - 0.5) * 0.3
+const yBase = secondaryMetric + (yGolden - 0.5) * 0.3
+
+// Apply bias before scaling
+const xBiased = Math.max(0, Math.min(1, xBase + bias.x))
+const yBiased = Math.max(0, Math.min(1, yBase + bias.y))
+```
+
+**3. Removed Triple Fallback**
+- Invalid frequency now returns `initialPositions[source]` directly
+- No fallback to center (0.5, 0.5) which caused clustering
+
+#### Phase 2: Gesture Metrics (VirtualUserService.js)
+
+**1. NaN/Infinity Protection for Acceleration**
+```javascript
+const safeAcceleration = Number.isFinite(acceleration) ? acceleration : 0
+const clampedAcceleration = Math.max(-10, Math.min(10, safeAcceleration))
+```
+
+**2. Improved Metric Formulas**
+```javascript
+const gestureData = {
+  velocity: normalizedVelocity * normalizedVelocity * 100,  // Quadratic (preserves quiet)
+  curvature: Math.min(1, clampedCurvature * 1.5),           // Boosted but full range
+  acceleration: clampedAcceleration * 30 + 20,              // Safe range
+  // ...
+}
+```
+
+#### Phase 3: Interval Variety (PhraseMorphology.js)
+
+**1. Increased Base Amplitude**
+```javascript
+// From: 0.1 * curvature (0.03-0.06)
+// To: 0.15 + 0.15 * curvature (0.15-0.30)
+const baseAmplitude = 0.15 + 0.15 * curvature
+```
+
+**2. Expanded Scale Degree Range**
+- Changed from 1-octave (0-6 degrees) to 2-octave range (-7 to +13 degrees)
+- Start at middle of scale instead of root
+- Added contourRange calculation with zero protection
+
+```javascript
+let currentDegree = Math.floor(scale.length / 2)
+const expandedRange = scale.length * 2 - 1  // 13 for 7-note scale
+const contourRange = Math.max(0.01, contourMax - contourMin)
+```
+
+**3. Larger Leaps**
+```javascript
+// From: const leapSize = Math.min(5, ...)
+// To: const leapSize = Math.min(7, ...)  // Full octave
+```
+
+**4. Dynamic Interval Selection**
+```javascript
+selectIntervalType(currentDegree, targetDegree, notePosition = 0, contourRange = 0.5) {
+  const leapThreshold = contourRange > 0.6 ? 2 : (contourRange > 0.4 ? 3 : 4)
+  // More aggressive selection for high-range contours
+}
+```
+
+**5. MIDI Pitch Validation**
+```javascript
+const rawPitch = rootMidi + scale[degreeInOctave] + (octaveOffset * 12)
+const pitch = Math.max(0, Math.min(127, rawPitch))  // Clamp to valid MIDI
+```
+
+---
+
+### Code Review Fixes
+
+Full code review performed with 10 issues identified and fixed:
+
+| Priority | Issue | Fix |
+|----------|-------|-----|
+| CRITICAL | Negative degree MIDI calculation | Added proper modulo + MIDI 0-127 clamping |
+| CRITICAL | NaN/Infinity in acceleration | Added `Number.isFinite()` check + clamping |
+| CRITICAL | Zero contourRange | Added `Math.max(0.01, ...)` protection |
+| HIGH | Bias applied after scaling | Moved bias before range scaling |
+| HIGH | Inverted spread formula | Fixed: frequency now shifts position correctly |
+| HIGH | Misleading amplitude comment | Clarified that normalization removes effect |
+| MEDIUM | Tessitura constraints | Already handled by `frequencyMapper.enforceTessitura()` |
+| MEDIUM | Velocity floor at 50 | Changed to quadratic: preserves quiet moments |
+| MEDIUM | Triple fallback | Removed center fallback |
+| MEDIUM | Curvature compression | Changed to boost multiplier (1.5x) |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/VirtualUserService.js` | initialPositions, quadrantBias, hybrid position formula, gestureData metrics, NaN protection, removed triple fallback |
+| `backend/src/services/PhraseMorphology.js` | baseAmplitude increase, 2-octave range, contourRange, larger leaps, selectIntervalType with contourRange, MIDI clamping |
+
+---
+
+### Expected Behavior
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Cursor positions | Clustered at center | Distributed across canvas by source |
+| Wikipedia cursor | Bottom-left | Bottom-left (bass register) |
+| HackerNews cursor | Center | Right side (tenor register) |
+| GitHub cursor | Top-right | Top-left (soprano register) |
+| Melodic intervals | Only steps (1-2 semitones) | Mix of steps, skips, leaps |
+| Max leap size | 5 scale degrees | 7 scale degrees (octave) |
+| Pitch range | 1 octave | 2 octaves |
+
+---
+
+### Version
+
+v0.2.30
+
+---
