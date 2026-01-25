@@ -59,6 +59,62 @@ class UserSynthManager {
   }
 
   /**
+   * Entry #175b: Set current style for genre-aware playback
+   * @param {Object} style - Style object with dominantGenre, genreWeights, energy
+   */
+  setCurrentStyle(style) {
+    if (!style) return
+    // Skip if style hasn't changed
+    if (this.currentStyle?.dominantGenre === style.dominantGenre) return
+    this.currentStyle = style
+    this.applyStyleToAllSynths(style)
+  }
+
+  /**
+   * Entry #175b: Apply genre-specific envelope to all existing user synths
+   * @param {Object} style - Style object with dominantGenre (defaults to 'ambient' if missing)
+   */
+  applyStyleToAllSynths(style) {
+    // Entry #175b fix: Default to 'ambient' if no style or dominantGenre
+    const genre = style?.dominantGenre || 'ambient'
+
+    const envelopes = {
+      ambient:    { attack: 0.3, decay: 0.5, sustain: 0.6, release: 1.5 },
+      jazz:       { attack: 0.02, decay: 0.2, sustain: 0.5, release: 0.2 },
+      electronic: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.15 },
+      rock:       { attack: 0.01, decay: 0.15, sustain: 0.6, release: 0.3 },
+      classical:  { attack: 0.08, decay: 0.3, sustain: 0.6, release: 0.6 }
+    }
+    const env = envelopes[genre] || envelopes.ambient
+
+    for (const [userId, synthData] of this.userSynths) {
+      if (synthData.synth?.set && !synthData.disposing) {
+        try {
+          synthData.synth.set({ envelope: env })
+        } catch (e) {
+          // Synth may be disposed, ignore
+        }
+      }
+    }
+  }
+
+  /**
+   * Entry #175b: Get velocity multiplier based on genre
+   * @param {Object} style - Style object with dominantGenre
+   * @returns {number} Velocity multiplier (0.6 - 1.4)
+   */
+  getVelocityMultiplier(style) {
+    const multipliers = {
+      ambient: 0.6,
+      jazz: 1.0,
+      electronic: 1.2,
+      rock: 1.4,
+      classical: 0.8
+    }
+    return multipliers[style?.dominantGenre] || 1.0
+  }
+
+  /**
    * Get slot for a real user - uses backend-assigned slot if available, falls back to hash
    * @param {string} userId - The user ID
    * @returns {number} Slot number (0-3), or -1 for virtual users
@@ -355,8 +411,10 @@ class UserSynthManager {
       // Apply tessitura constraint
       const constrainedFreq = this.constrainFrequencyToTessitura(frequency, userId)
 
+      // Entry #175b fix: Apply genre-based velocity multiplier
+      const genreMultiplier = this.getVelocityMultiplier(this.currentStyle)
       // Reduce velocity for remote users
-      const finalVelocity = isRemote ? velocity * 0.7 : velocity
+      const finalVelocity = (isRemote ? velocity * 0.7 : velocity) * genreMultiplier
 
       // Trigger the note
       synthData.synth.triggerAttack(constrainedFreq, Tone.now(), finalVelocity)
@@ -412,7 +470,9 @@ class UserSynthManager {
 
     try {
       const constrainedFreq = this.constrainFrequencyToTessitura(frequency, userId)
-      const finalVelocity = isRemote ? velocity * 0.7 : velocity
+      // Entry #175b fix: Apply genre-based velocity multiplier
+      const genreMultiplier = this.getVelocityMultiplier(this.currentStyle)
+      const finalVelocity = (isRemote ? velocity * 0.7 : velocity) * genreMultiplier
 
       // MONOSYNTH TIMING FIX: Ensure strictly increasing start times
       const now = Tone.now()

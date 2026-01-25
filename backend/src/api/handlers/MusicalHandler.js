@@ -41,6 +41,9 @@ const MusicalHandler = {
         const user = room.getUser(socket.userId)
         const userColor = user?.assignedColor || '#6bcf7f'
 
+        // Entry #175b: Get current style for genre-aware audio
+        const style = socket.services.backgroundCompositionService?.getCurrentStyleForRoom(socket.roomId)
+
         room.activeHolds.set(data.noteId, {
           userId: socket.userId,
           startTime: Date.now(),
@@ -58,7 +61,8 @@ const MusicalHandler = {
           position: data.position,
           userColor: userColor,
           isRemote: true,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          style: style  // Entry #175b: Include style for genre-aware playback
         }
 
         // // console.log(`📡 BROADCASTING hold:start to room ${socket.roomId}:`, {
@@ -121,12 +125,16 @@ const MusicalHandler = {
           room.activeHolds.delete(data.noteId)
         }
 
+        // Entry #175b: Get current style for genre-aware audio
+        const style = socket.services.backgroundCompositionService?.getCurrentStyleForRoom(socket.roomId)
+
         socket.to(socket.roomId).emit('hold:end', {
           type: 'hold:end',
           userId: socket.userId,
           noteId: data.noteId,
           duration: data.duration,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          style: style  // Entry #175b: Include style for genre-aware playback
         })
 
         const latency = Date.now() - startTime
@@ -220,6 +228,9 @@ const MusicalHandler = {
         const user = room.getUser(socket.userId)
         const userColor = user?.assignedColor || '#6bcf7f'
 
+        // Entry #175b: Get current style for genre-aware audio
+        const style = socket.services.backgroundCompositionService?.getCurrentStyleForRoom(socket.roomId)
+
         // Build broadcast payload matching musical:event format
         const noteStreamBroadcast = {
           type: 'note:stream',
@@ -240,7 +251,8 @@ const MusicalHandler = {
           },
           userColor: userColor,
           isRemote: true,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          style: style  // Entry #175b: Include style for genre-aware playback
         }
 
         // Broadcast to other users in room (not sender)
@@ -290,12 +302,16 @@ const MusicalHandler = {
           processingLatency: Date.now() - startTime
         }
 
+        // Entry #175b: Get current style for genre-aware audio
+        const style = socket.services.backgroundCompositionService?.getCurrentStyleForRoom(socket.roomId)
+
         // CRITICAL FIX: Wrap in same format as GestureHandler broadcasts
         // Frontend expects { userId, event, timestamp } wrapper
         const musicalEventBroadcast = {
           userId: socket.userId,
           event: enhancedEvent,
-          timestamp: data.timestamp || Date.now()
+          timestamp: data.timestamp || Date.now(),
+          style: style  // Entry #175b: Include style for genre-aware playback
         }
 
         socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)

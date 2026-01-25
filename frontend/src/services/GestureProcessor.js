@@ -250,8 +250,10 @@ class GestureProcessor {
     }
 
     // Route through playMusicalEvent which uses userSynthManager
+    // Entry #175b fix: Pass current style for genre-aware local playback
     if (this.audioService && this.audioService.playMusicalEvent) {
-      this.audioService.playMusicalEvent(musicalEvent)
+      const style = this.audioService.currentStyle || null
+      this.audioService.playMusicalEvent(musicalEvent, style)
       // console.log(`🎵 TAP via playMusicalEvent: ${frequency.toFixed(1)}Hz, userId=${localUserId?.substring(0,8)}`)
     }
   }
@@ -357,7 +359,9 @@ class GestureProcessor {
             }
 
             // console.log(`🎶 Playing note ${index} at ${Date.now() % 10000}ms: pitch=${note.pitch}, freq=${frequency.toFixed(1)}Hz`)
-            this.audioService.playMusicalEvent(musicalEvent)
+            // Entry #175b fix: Pass current style for genre-aware local playback
+            const style = this.audioService.currentStyle || null
+            this.audioService.playMusicalEvent(musicalEvent, style)
 
             // CRITICAL: Also broadcast to remote users for synchronization
             // The backend will relay this to other clients in the room

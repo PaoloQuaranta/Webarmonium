@@ -494,7 +494,9 @@ class WebarmoniumApp {
       //   articulation: noteData.articulation
       // })
 
-      this.audioService.playMusicalEvent(musicalEvent)
+      // Entry #175b fix: Pass current style for genre-aware local playback
+      const style = this.audioService.currentStyle || null
+      this.audioService.playMusicalEvent(musicalEvent, style)
 
       // VISUAL P&P DURING DRAG: Emit particles/pulses periodically during drag
       // Throttled to 400ms (2.5 p&p/sec) for uniform visual feedback
@@ -1200,14 +1202,20 @@ class WebarmoniumApp {
       }
     })
 
+    // Entry #175: Pass style to playComposition for genre-aware audio
     this.socketService.on('background-composition', (data) => {
 
+      // Entry #175b: Propagate style to userSynthManager for remote user synths
+      if (data.style && this.audioService?.userSynthManager) {
+        this.audioService.userSynthManager.setCurrentStyle(data.style)
+      }
+
       if (this.isAudioStarted && data.composition) {
-        this.audioService.playComposition(data.composition, data.isDrone)
+        this.audioService.playComposition(data.composition, data.isDrone, data.style)
       } else if (data.isDrone && data.composition) {
         // Save drone for later - will be played when audio starts
         this.pendingDrone = data.composition
-      } else {
+        this.pendingDroneStyle = data.style // Entry #175: Save style for pending drone
       }
     })
 
@@ -1367,16 +1375,19 @@ class WebarmoniumApp {
       // CRITICAL: Include userId in event for per-user synth routing
       const eventWithUserId = { ...event, userId: remoteUserId }
 
+      // Entry #175b fix: Extract style for genre-aware remote playback
+      const style = musicalEventWrapper.style || this.audioService?.currentStyle || null
+
       if (delay > 0) {
         // Schedule note for future playback
         setTimeout(() => {
           if (this.isAudioStarted && this.audioService) {
-            this.audioService.playMusicalEvent(eventWithUserId)
+            this.audioService.playMusicalEvent(eventWithUserId, style)
           }
         }, delay)
       } else {
         // Play immediately if timestamp is in the past
-        this.audioService.playMusicalEvent(eventWithUserId)
+        this.audioService.playMusicalEvent(eventWithUserId, style)
       }
     })
 
@@ -1407,9 +1418,12 @@ class WebarmoniumApp {
       // Include userId for per-user synth routing
       const eventWithUserId = { ...event, userId: remoteUserId }
 
+      // Entry #175b fix: Extract style for genre-aware remote playback
+      const style = data.style || this.audioService?.currentStyle || null
+
       // Play immediately - no delay for real-time streaming
       if (this.audioService) {
-        this.audioService.playMusicalEvent(eventWithUserId)
+        this.audioService.playMusicalEvent(eventWithUserId, style)
       }
     })
 
@@ -1677,10 +1691,12 @@ class WebarmoniumApp {
           // console.log('🔊 Audio started and unmuted')
 
           // Play pending drone if saved
+          // Entry #175: Pass saved style for genre-aware audio
           if (this.pendingDrone) {
             // console.log('🎵 Playing pending drone:', this.pendingDrone.type)
-            this.audioService.playComposition(this.pendingDrone, true)
+            this.audioService.playComposition(this.pendingDrone, true, this.pendingDroneStyle)
             this.pendingDrone = null
+            this.pendingDroneStyle = null
           } else if (this.socketService?.socket?.connected) {
             // Entry #27: No pending drone (consumed or never received), request from backend
             this.socketService.socket.emit('request-drone')

@@ -330,6 +330,14 @@ class SocketEventCoordinator {
         return
       }
 
+      // Entry #175b: Update current style from incoming event
+      if (data.style && this.audioService) {
+        this.audioService.currentStyle = data.style
+        if (this.audioService.userSynthManager) {
+          this.audioService.userSynthManager.setCurrentStyle(data.style)
+        }
+      }
+
       if (this.sustainedHoldHandler) {
         this.sustainedHoldHandler.handleRemoteHoldStart(data)
       } else if (this.audioService) {
@@ -339,6 +347,11 @@ class SocketEventCoordinator {
     })
 
     this.socketService.on('hold:end', (data) => {
+      // Entry #175b: Update current style from incoming event
+      if (data.style && this.audioService) {
+        this.audioService.currentStyle = data.style
+      }
+
       if (this.sustainedHoldHandler) {
         this.sustainedHoldHandler.handleRemoteHoldEnd(data)
       }
@@ -359,6 +372,17 @@ class SocketEventCoordinator {
 
       const event = musicalEventWrapper.event
       const remoteUserId = musicalEventWrapper.userId
+      const style = musicalEventWrapper.style  // Entry #175b: Extract style
+
+      // Entry #175b: Update currentStyle for components that don't receive style directly
+      // Note: We use the extracted 'style' (not currentStyle) for THIS event's audio.
+      // AudioService.playMusicalEvent has fallback: style || this.currentStyle || {}
+      if (style && this.audioService) {
+        this.audioService.currentStyle = style
+        if (this.audioService.userSynthManager) {
+          this.audioService.userSynthManager.setCurrentStyle(style)
+        }
+      }
 
       // Minimal logging
       if (event.properties?.noteIndex === 0 || !event.properties?.noteIndex) {
@@ -376,12 +400,12 @@ class SocketEventCoordinator {
       if (delay > 0) {
         setTimeout(() => {
           if (this.isAudioStarted && this.audioService) {
-            this.audioService.playMusicalEvent(eventWithUserId)
+            this.audioService.playMusicalEvent(eventWithUserId, style)  // Entry #175b: Pass style
           }
         }, delay)
       } else {
         if (this.audioService) {
-          this.audioService.playMusicalEvent(eventWithUserId)
+          this.audioService.playMusicalEvent(eventWithUserId, style)  // Entry #175b: Pass style
         }
       }
     })
@@ -398,13 +422,22 @@ class SocketEventCoordinator {
 
       const event = data.event
       const remoteUserId = data.userId
+      const style = data.style  // Entry #175b: Extract style
+
+      // Entry #175b: Update current style from incoming event
+      if (style && this.audioService) {
+        this.audioService.currentStyle = style
+        if (this.audioService.userSynthManager) {
+          this.audioService.userSynthManager.setCurrentStyle(style)
+        }
+      }
 
       // Include userId for per-user synth routing
       const eventWithUserId = { ...event, userId: remoteUserId }
 
       // Play immediately - no delay for real-time streaming
       if (this.audioService) {
-        this.audioService.playMusicalEvent(eventWithUserId)
+        this.audioService.playMusicalEvent(eventWithUserId, style)  // Entry #175b: Pass style
       }
     })
   }

@@ -724,6 +724,9 @@ class VirtualUserService {
     // Entry #171: Velocity variation 0.75-1.0 based on GitHub activity
     const tapVelocity = 0.75 + (gh * 0.25)
 
+    // Entry #175b fix: Get style for genre-aware playback
+    const style = this.backgroundCompositionService?.getCurrentStyleForRoom(roomId)
+
     // 4. Emit hold:start with reverse-mapped position
     this.io.to(roomId).emit('hold:start', {
       type: 'hold:start',
@@ -736,7 +739,8 @@ class VirtualUserService {
       userColor: config.color,
       isRemote: true,
       isVirtual: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      style: style  // Entry #175b fix
     })
 
     // CRITICAL: Add material to BackgroundCompositionService
@@ -919,6 +923,9 @@ class VirtualUserService {
       this.backgroundCompositionService.addMaterial(roomId, dragGestureData, musicalPhrase)
     }
 
+    // Entry #175b: Get current style for genre-aware audio
+    const style = this.backgroundCompositionService?.getCurrentStyleForRoom(roomId)
+
     // Emit phrase event for visual system
     this.io.to(roomId).emit('musical:event', {
       type: 'phrase',
@@ -927,7 +934,8 @@ class VirtualUserService {
       noteCount: noteData.length,
       isRemote: true,
       isVirtual: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      style: style  // Entry #175b: Include style for genre-aware playback
     })
 
     // VISUAL CONSOLIDATION: Single visual event for entire phrase
@@ -996,7 +1004,8 @@ class VirtualUserService {
           isRemote: true,
           isVirtual: true,
           suppressVisual: true,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          style: style  // Entry #175b fix: Include style for genre-aware playback
         })
 
         setTimeout(() => {

@@ -234,6 +234,9 @@ const GestureHandler = {
           ? musicalResult.filter(e => e != null)
           : (musicalResult ? [musicalResult] : [])
 
+        // Entry #175b: Get current style for genre-aware audio
+        const style = socket.services.backgroundCompositionService?.getCurrentStyleForRoom(socket.roomId)
+
         musicalEvents.forEach((musicalEvent, index) => {
           const eventType = musicalEvent.eventType || 'musical'
 
@@ -242,7 +245,8 @@ const GestureHandler = {
             userId: socket.userId,
             roomId: socket.roomId,
             event: musicalEvent.toJSON ? musicalEvent.toJSON() : musicalEvent,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            style: style  // Entry #175b: Include style for genre-aware playback
           }
 
           if (eventType === 'filter_modulation') {
@@ -331,13 +335,17 @@ const GestureHandler = {
 
         const musicalEvents = Array.isArray(musicalResult) ? musicalResult : [musicalResult]
 
+        // Entry #175b: Get current style for genre-aware audio
+        const style = socket.services.backgroundCompositionService?.getCurrentStyleForRoom(socket.roomId)
+
         musicalEvents.forEach(musicalEvent => {
           const musicalEventBroadcast = {
             id: musicalEvent.id,
             userId: socket.userId,
             roomId: socket.roomId,
             event: musicalEvent.toJSON ? musicalEvent.toJSON() : musicalEvent,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            style: style  // Entry #175b: Include style for genre-aware playback
           }
 
           socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)
@@ -465,6 +473,9 @@ const GestureHandler = {
           const firstNoteTime = gesture.streamedNotes[0].timestamp
           const broadcastTime = Date.now()
 
+          // Entry #175b: Get current style for genre-aware audio
+          const style = socket.services.backgroundCompositionService?.getCurrentStyleForRoom(socket.roomId)
+
           // Broadcast each note as a musical:event with proper timing
           gesture.streamedNotes.forEach((note, index) => {
             // Calculate relative delay from first note (in milliseconds)
@@ -490,7 +501,8 @@ const GestureHandler = {
                   gestureAction: 'drag'
                 }
               },
-              timestamp: broadcastTime + relativeDelay
+              timestamp: broadcastTime + relativeDelay,
+              style: style  // Entry #175b: Include style for genre-aware playback
             }
 
             // Broadcast to other users in the room
@@ -530,13 +542,17 @@ const GestureHandler = {
             if (musicalResult) {
               const musicalEvents = Array.isArray(musicalResult) ? musicalResult : [musicalResult]
 
+              // Entry #175b: Get current style for genre-aware audio
+              const style = socket.services.backgroundCompositionService?.getCurrentStyleForRoom(socket.roomId)
+
               musicalEvents.forEach(musicalEvent => {
                 const musicalEventBroadcast = {
                   id: musicalEvent.id,
                   userId: socket.userId,
                   roomId: socket.roomId,
                   event: musicalEvent.toJSON ? musicalEvent.toJSON() : musicalEvent,
-                  timestamp: Date.now()
+                  timestamp: Date.now(),
+                  style: style  // Entry #175b: Include style for genre-aware playback
                 }
 
                 socket.to(socket.roomId).emit('musical:event', musicalEventBroadcast)

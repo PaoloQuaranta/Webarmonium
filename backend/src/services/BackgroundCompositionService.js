@@ -137,6 +137,55 @@ class BackgroundCompositionService {
   }
 
   /**
+   * Entry #175: Extract dominant genre from genre weights
+   * @param {Object} genreWeights - Genre weights object
+   * @returns {string} Name of dominant genre or 'ambient' as default
+   */
+  _getDominantGenre(genreWeights) {
+    if (!genreWeights) return 'ambient'
+    let maxWeight = 0
+    let dominantGenre = 'ambient'
+    for (const [genre, weight] of Object.entries(genreWeights)) {
+      if (weight > maxWeight) {
+        maxWeight = weight
+        dominantGenre = genre
+      }
+    }
+    return dominantGenre
+  }
+
+  /**
+   * Entry #175b: Get current style for a room (public method for other handlers)
+   * Entry #175b fix: Added error handling for missing styleAnalyzer
+   * @param {string} roomId - Room ID (currently unused, style is global per room)
+   * @returns {Object} Style object with genreWeights, dominantGenre, energy
+   */
+  getCurrentStyleForRoom(roomId) {
+    // Default style if styleAnalyzer unavailable or fails
+    const defaultStyle = {
+      genreWeights: {},
+      dominantGenre: 'ambient',
+      energy: 0.5
+    }
+
+    if (!this.styleAnalyzer) {
+      return defaultStyle
+    }
+
+    try {
+      const style = this.styleAnalyzer.getCurrentStyle()
+      return {
+        genreWeights: style?.genreWeights || {},
+        dominantGenre: this._getDominantGenre(style?.genreWeights),
+        energy: style?.energy || 0.5
+      }
+    } catch (error) {
+      console.error('Error getting style for room:', error.message)
+      return defaultStyle
+    }
+  }
+
+  /**
    * Sync harmonic context and web metrics to GestureToMusicService
    */
   syncHarmonicContext() {
@@ -717,12 +766,19 @@ class BackgroundCompositionService {
       // // }
 
       // Broadcast composition to room
+      // Entry #175: Include style info for genre-aware audio playback
+      const currentStyle = this.styleAnalyzer.getCurrentStyle()
       if (this.io) {
         this.io.to(roomId).emit('background-composition', {
           roomId,
           composition,
           compositionNumber: roomState.compositionCount,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          style: {
+            genreWeights: currentStyle?.genreWeights || {},
+            dominantGenre: this._getDominantGenre(currentStyle?.genreWeights),
+            energy: currentStyle?.energy || 0.5
+          }
         })
 
 // console.log(`🎼 Broadcast composition #${roomState.compositionCount} to room ${roomId}`)

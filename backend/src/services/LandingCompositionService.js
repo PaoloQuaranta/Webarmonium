@@ -929,6 +929,48 @@ class LandingCompositionService {
   }
 
   /**
+   * Entry #175b: Get current style for socket emissions (landing room)
+   * Returns style object compatible with frontend genre-aware playback
+   * @returns {Object} Style object with genreWeights, dominantGenre, energy
+   * @private
+   */
+  _getCurrentStyle() {
+    const defaultStyle = {
+      genreWeights: {},
+      dominantGenre: 'ambient',
+      energy: 0.5
+    }
+
+    if (!this.styleAnalyzer) {
+      return defaultStyle
+    }
+
+    try {
+      const style = this.styleAnalyzer.getCurrentStyle()
+      const genreWeights = style?.genreWeights || {}
+
+      // Find dominant genre (same logic as BackgroundCompositionService)
+      let maxWeight = 0
+      let dominantGenre = 'ambient'
+      for (const [genre, weight] of Object.entries(genreWeights)) {
+        if (weight > maxWeight) {
+          maxWeight = weight
+          dominantGenre = genre
+        }
+      }
+
+      return {
+        genreWeights: genreWeights,
+        dominantGenre: dominantGenre,
+        energy: style?.energy || 0.5
+      }
+    } catch (error) {
+      console.error('Error getting style for landing room:', error.message)
+      return defaultStyle
+    }
+  }
+
+  /**
    * Schedule next composition
    * Uses SAME tempo-based interval as normal rooms (BackgroundCompositionService)
    * Composition frequency emerges from metric activity (not random)
@@ -1201,6 +1243,9 @@ class LandingCompositionService {
     // Entry #171: Velocity variation 0.75-1.0 based on GitHub activity
     const tapVelocity = 0.75 + (gh * 0.25)
 
+    // Entry #175b: Get style for genre-aware playback (landing room)
+    const style = this._getCurrentStyle()
+
     // 4. Emit musical event with reverse-mapped position
     this.io.to(this.landingRoomId).emit('musical:event', {
       type: 'tap',
@@ -1211,7 +1256,8 @@ class LandingCompositionService {
       position: position,
       userColor: user.color,
       isRemote: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      style: style  // Entry #175b
     })
   }
 
@@ -1322,6 +1368,9 @@ class LandingCompositionService {
     const endFreq = noteData[noteData.length - 1].positionFreq
     const startPosition = this._calculateHybridPosition(gesture.source, startFreq)
 
+    // Entry #175b: Get style for genre-aware playback (landing room)
+    const style = this._getCurrentStyle()
+
     // Emit phrase event for visual system
     this.io.to(this.landingRoomId).emit('musical:event', {
       type: 'phrase',
@@ -1329,7 +1378,8 @@ class LandingCompositionService {
       velocity: Math.min(1, normalizedVelocity),
       noteCount: noteData.length,
       isRemote: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      style: style  // Entry #175b
     })
 
     // 4. Generate HYBRID trajectory (golden ratio + metric modulation)
@@ -1367,7 +1417,8 @@ class LandingCompositionService {
           position: notePosition,     // Full canvas position
           userColor: user.color,
           isRemote: true,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          style: style  // Entry #175b
         })
 
         // Schedule hold:end

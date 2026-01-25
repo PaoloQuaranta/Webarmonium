@@ -1727,3 +1727,198 @@ Virtual users should now be more contemplative, with longer pauses between gestu
 v0.2.14
 
 ---
+
+## Entry #175 - Genre-Aware Style Propagation to All Audio Voices
+
+**Date**: 2026-01-25
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented comprehensive style propagation to ALL audio-generating components. Previously, genre weights (ambient, jazz, electronic, rock, classical) were calculated by StyleAnalyzer but only applied to background composition layers. Now style affects all voices: local user gestures, remote user gestures, virtual users (Wikipedia/HN/GitHub), and all socket events (hold:start, hold:end, note:stream, musical:event).
+
+---
+
+### Problem Statement
+
+User noticed genre weights changing in the composition monitor but couldn't hear differences in audio output. Investigation revealed:
+
+1. **Background layers only**: Entry #175 initial fix only applied style to `playComposition()`
+2. **Missing propagation**: 80% of audio sources didn't receive style information:
+   - `gestureSynth` (local user) - NO style
+   - `UserSynthManager` (remote users) - NO style
+   - `VirtualUserService` events - NO style
+   - `hold:start/end`, `note:stream`, `musical:event` - NO style
+3. **LandingCompositionService**: Landing room had separate code path without style
+
+---
+
+### Solution
+
+#### Phase 1: Backend - Centralize Style Access
+
+**BackgroundCompositionService.js:**
+```javascript
+getCurrentStyleForRoom(roomId) {
+  if (!this.styleAnalyzer) {
+    return { genreWeights: {}, dominantGenre: 'ambient', energy: 0.5 }
+  }
+  try {
+    const style = this.styleAnalyzer.getCurrentStyle()
+    return {
+      genreWeights: style?.genreWeights || {},
+      dominantGenre: this._getDominantGenre(style?.genreWeights),
+      energy: style?.energy || 0.5
+    }
+  } catch (error) {
+    return { genreWeights: {}, dominantGenre: 'ambient', energy: 0.5 }
+  }
+}
+```
+
+#### Phase 2: Backend - Add Style to All Socket Emissions
+
+**MusicalHandler.js** - Added style to:
+- `hold:start` broadcasts
+- `hold:end` broadcasts
+- `note:stream` broadcasts
+- `musical:event` broadcasts
+
+**GestureHandler.js** - Added style to 4 locations of `musical:event` emit
+
+**VirtualUserService.js** - Added style to:
+- `musical:event` for phrases
+- `hold:start` for tap gestures
+- `hold:start` for drag phrase notes
+
+**LandingCompositionService.js** - Added `_getCurrentStyle()` helper and style to:
+- `musical:event` for taps
+- `musical:event` for phrases
+- `hold:start` for drag notes
+
+#### Phase 3: Frontend - Apply Style to All Audio Sources
+
+**UserSynthManager.js:**
+```javascript
+setCurrentStyle(style) {
+  if (!style) return
+  if (this.currentStyle?.dominantGenre === style.dominantGenre) return
+  this.currentStyle = style
+  this.applyStyleToAllSynths(style)
+}
+
+applyStyleToAllSynths(style) {
+  const genre = style?.dominantGenre || 'ambient'
+  const envelopes = {
+    ambient:    { attack: 0.3, decay: 0.5, sustain: 0.6, release: 1.5 },
+    jazz:       { attack: 0.02, decay: 0.2, sustain: 0.5, release: 0.2 },
+    electronic: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.15 },
+    rock:       { attack: 0.01, decay: 0.15, sustain: 0.6, release: 0.3 },
+    classical:  { attack: 0.08, decay: 0.3, sustain: 0.6, release: 0.6 }
+  }
+  // Apply to all user synths...
+}
+
+getVelocityMultiplier(style) {
+  const multipliers = {
+    ambient: 0.6, jazz: 1.0, electronic: 1.2, rock: 1.4, classical: 0.8
+  }
+  return multipliers[style?.dominantGenre] || 1.0
+}
+```
+
+**AudioService.js** - Modified `playMusicalEvent()` to accept and use style parameter
+
+**SocketEventCoordinator.js** - All event handlers now:
+1. Extract style from incoming event
+2. Update `audioService.currentStyle`
+3. Update `userSynthManager.setCurrentStyle(style)`
+4. Pass style to `playMusicalEvent()`
+
+**GestureProcessor.js** - Local TAP and DRAG now pass style to `playMusicalEvent()`
+
+**main.js** - Added style propagation to:
+- Drag streaming callback
+- `musical:event` handler
+- `note:stream` handler
+- `background-composition` handler (propagates to userSynthManager)
+
+---
+
+### Code Review Fixes
+
+Code review identified 7 issues, all fixed:
+
+| # | Priority | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | Critical | GestureProcessor.js local gestures don't pass style | Added `style = this.audioService.currentStyle` to TAP and DRAG |
+| 2 | Critical | main.js drag streaming doesn't pass style | Added style to all `playMusicalEvent()` calls |
+| 3 | High | Race condition concern in SocketEventCoordinator | Documented that JS is single-threaded; pattern is correct |
+| 4 | High | Inconsistent null handling | Standardized to default 'ambient' instead of early return |
+| 5 | High | No error handling in getCurrentStyleForRoom | Added try/catch and styleAnalyzer null check |
+| 6 | Medium | getVelocityMultiplier() defined but unused | Integrated into triggerAttack() and triggerAttackRelease() |
+| 7 | Medium | VirtualUserService hold:start missing style | Added style to both tap and drag hold:start emissions |
+
+Additional fix: LandingCompositionService also needed style propagation (discovered during verification).
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/BackgroundCompositionService.js` | `getCurrentStyleForRoom()` with error handling |
+| `backend/src/api/handlers/MusicalHandler.js` | Style in hold:start, hold:end, note:stream, musical:event |
+| `backend/src/api/handlers/GestureHandler.js` | Style in 4 musical:event locations |
+| `backend/src/services/VirtualUserService.js` | Style in musical:event and hold:start |
+| `backend/src/services/LandingCompositionService.js` | `_getCurrentStyle()` helper, style in all emissions |
+| `frontend/src/services/audio/UserSynthManager.js` | `setCurrentStyle()`, `applyStyleToAllSynths()`, integrated `getVelocityMultiplier()` |
+| `frontend/src/services/AudioService.js` | `playMusicalEvent()` with style parameter |
+| `frontend/src/handlers/SocketEventCoordinator.js` | Style propagation in all event handlers |
+| `frontend/src/services/GestureProcessor.js` | Style for local TAP and DRAG |
+| `frontend/src/main.js` | Style in drag streaming, musical:event, note:stream handlers |
+
+---
+
+### Architecture
+
+```
+Backend: StyleAnalyzer.getCurrentStyle()
+              ↓
+    BackgroundCompositionService.getCurrentStyleForRoom()
+              ↓
+    Included in ALL socket emissions:
+    ├── background-composition ✅
+    ├── hold:start / hold:end ✅
+    ├── note:stream ✅
+    ├── musical:event ✅
+    └── virtual user events ✅
+              ↓
+Frontend: Every audio component receives style
+    ├── AudioService.playComposition() ✅
+    ├── AudioService.playMusicalEvent() ✅
+    ├── UserSynthManager.triggerAttack/Release() ✅
+    ├── GestureProcessor (local TAP/DRAG) ✅
+    └── main.js (drag streaming) ✅
+```
+
+---
+
+### Genre Audio Effects
+
+| Genre | Velocity | Envelope |
+|-------|----------|----------|
+| Ambient | 0.6x | Long attack (0.3s), long release (1.5s) |
+| Jazz | 1.0x | Quick attack (0.02s), short release (0.2s) |
+| Electronic | 1.2x | Instant attack (0.01s), tight release (0.15s) |
+| Rock | 1.4x | Punchy attack (0.01s), medium release (0.3s) |
+| Classical | 0.8x | Soft attack (0.08s), natural release (0.6s) |
+
+---
+
+### Version
+
+v0.2.16
+
+---
