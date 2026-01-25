@@ -1322,6 +1322,159 @@ Based on code review feedback, added:
 
 ### Version
 
-v0.3.0
+v0.2.11
+
+---
+
+## Entry #173 - Free Phrase Generation for Long Drags
+
+**Date**: 2026-01-25
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented comprehensive improvements to phrase generation allowing freer, non-repeating melodies during long drags. Extended note limits from fixed 12 to progressive 16/32/48/64 based on duration, expanded melodic memory from 5 to 8+24 notes, broke PHI periodicity with multi-factor variety, and added octave traversal for extended phrases.
+
+---
+
+### Problem Statement
+
+User feedback: "12 note sono troppo poche. nei drag lunghi si ripetono."
+
+Issues identified:
+1. **Backend (PhraseMorphology.js)**: Hard 12-note limit regardless of drag duration
+2. **Backend (VirtualUserService/LandingCompositionService)**: Duration capped at 300-3000ms
+3. **Frontend (DragStreamingHandler.js)**:
+   - Melodic memory only 5 notes → 5-6 note cycling
+   - Interval range limited to 1-4 semitones
+   - PHI + modulo created quasi-periodic patterns
+
+---
+
+### Solution
+
+#### 1. Backend: Progressive Note Limits (PhraseMorphology.js)
+
+**quantizeGestureDuration()**: Extended max from 16 to 32 beats
+
+**calculatePhraseLengthFromDuration()**: Progressive limits based on duration:
+```javascript
+const maxNotesForDuration = (beats) => {
+  if (beats <= 4) return 16    // Short phrases
+  if (beats <= 8) return 32    // Medium phrases
+  if (beats <= 16) return 48   // Long phrases
+  return 64                     // Very long phrases
+}
+```
+
+#### 2. Backend: Extended Virtual User Duration
+
+**VirtualUserService.js** and **LandingCompositionService.js**:
+```javascript
+// Before: 300-3000ms
+const phraseDurationMs = 300 + (density * 2700)
+
+// After: 300-6000ms (~12 beats at 120 BPM)
+const phraseDurationMs = 300 + (density * 5700)
+```
+
+#### 3. Frontend: Two-Tier Melodic Memory (DragStreamingHandler.js)
+
+```javascript
+this.melodicMemory = {
+  lastNotes: [],         // Short-term: 8 notes (was 5)
+  extendedHistory: [],   // Long-term: 24 notes (NEW)
+  currentDirection: 0,
+  phrasePosition: 0,
+  phaseAccumulator: 0    // NEW: Breaks PHI periodicity
+}
+```
+
+#### 4. Frontend: Multi-Factor Variety Calculation
+
+Replaced simple PHI formula with uncorrelated multi-factor approach:
+```javascript
+const varietyFactor = (
+  (noteIndex * PHI) % 1 * 0.25 +           // PHI sequence
+  (noteIndex * PHI_SQ) % 1 * 0.2 +         // PHI² (uncorrelated)
+  (shortSum * 0.15 + longSum * 0.05) % 1 + // History influence
+  (directionChanges * 0.7) % 1 * 0.15 +    // Direction variety
+  (x * 2.3) % 1 * 0.1 +                    // Position influence
+  (phaseOffset / 7) * 0.15                 // Phase offset (prime modulo)
+) % 1
+```
+
+#### 5. Frontend: Expanded Interval Ranges
+
+| Velocity | Before | After |
+|----------|--------|-------|
+| Fast (>0.7) | 1-4 | 1-7 |
+| Medium (0.4-0.7) | 1-4 | 1-5 |
+| Slow (<0.4) | 1-4 | 1-6 |
+
+#### 6. Frontend: Octave Traversal for Extended Phrases
+
+New `calculateOctaveTraversal()` method:
+- Only activates after 12+ notes
+- Y position biases direction (top = up, bottom = down)
+- PHI-based phase with decreasing threshold (0.85 → 0.55 over 100 notes)
+- Returns octave offset (-1, 0, +1)
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/PhraseMorphology.js` | Progressive note limits (16/32/48/64), duration cap 32 beats |
+| `backend/src/services/VirtualUserService.js` | Duration range 300-6000ms |
+| `backend/src/services/LandingCompositionService.js` | Duration range 300-6000ms (2 locations) |
+| `frontend/src/handlers/DragStreamingHandler.js` | Two-tier memory, multi-factor variety, expanded intervals, octave traversal |
+
+---
+
+### Architecture
+
+```
+                    PhraseMorphology.js (progressive limits)
+                              ↑
+           ┌──────────────────┼──────────────────┐
+           │                  │                  │
+   GestureToMusicService  VirtualUserService  LandingCompositionService
+   (real users in rooms)  (virtual in rooms)  (virtual in index)
+           │                  │                  │
+           │            300-6000ms          300-6000ms
+           │             (extended)          (extended)
+           ↓                  ↓                  ↓
+      PhraseMorphology.generatePhrase() → limits 16/32/48/64
+
+Frontend (local audio):
+  DragStreamingHandler → 8+24 memory → multi-factor variety → octave traversal
+```
+
+---
+
+### Parameter Summary
+
+| Parameter | Before | After |
+|-----------|--------|-------|
+| Max notes (≤4 beats) | 12 | 16 |
+| Max notes (4-8 beats) | 12 | 32 |
+| Max notes (8-16 beats) | 12 | 48 |
+| Max notes (>16 beats) | 12 | 64 |
+| Max phrase duration | 16 beats | 32 beats |
+| Virtual user duration | 300-3000ms | 300-6000ms |
+| Short-term memory | 5 notes | 8 notes |
+| Long-term memory | N/A | 24 notes |
+| Fast intervals | 1-4 | 1-7 |
+| Medium intervals | 1-4 | 1-5 |
+| Slow intervals | 1-4 | 1-6 |
+
+---
+
+### Version
+
+v0.3.1
 
 ---
