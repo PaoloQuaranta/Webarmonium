@@ -383,6 +383,8 @@ class LandingCompositionService {
     }
 
     // Emit initial cursor positions (distributed across canvas)
+    // DEBUG Entry #189: Log initial positions
+    console.log(`🚀 START: Initial positions - wikipedia Y=${this.currentPositions.wikipedia.y.toFixed(3)}, hackernews Y=${this.currentPositions.hackernews.y.toFixed(3)}, github Y=${this.currentPositions.github.y.toFixed(3)}`)
     this._emitAllCursors()
 
     // Start cursor interpolation for smooth movement
