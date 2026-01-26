@@ -3857,13 +3857,24 @@ class AudioService {
         this.droneRepeatEventIds.push(repeatEventId)
         this.scheduledTransportEvents.push(repeatEventId)
       } else {
-        // For non-drone textures, use relative time scheduling
-        const relativeTime = `+${0.1 + delay}`
-        const eventId = Tone.Transport.schedule((audioTime) => {
-          // Use safe trigger for MonoSynth timing compliance (backgroundLow is MonoSynth)
+        // Entry #188e: Non-drone ambient textures should also repeat for continuity
+        // First trigger immediately
+        const layer = this.ambientLayers && this.ambientLayers[layerName]
+        if (layer) {
+          const audioTime = Tone.now() + 0.1 + delay
           this.safeMonoSynthTrigger(layerName, frequency, duration, audioTime, velocity)
-        }, relativeTime)
-        this.scheduledTransportEvents.push(eventId)
+        }
+
+        // Schedule repeating (same pattern as drones)
+        const repeatStartTime = `+${duration + 0.1 + delay}`
+        const repeatEventId = Tone.Transport.scheduleRepeat((audioTime) => {
+          if (!this._isLayerEnabled(layerName)) {
+            return
+          }
+          this.safeMonoSynthTrigger(layerName, frequency, duration, audioTime, velocity)
+        }, duration, repeatStartTime)
+        this.droneRepeatEventIds.push(repeatEventId)
+        this.scheduledTransportEvents.push(repeatEventId)
       }
     }
   }
