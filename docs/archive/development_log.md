@@ -3533,3 +3533,102 @@ Code review performed with the following results:
 v0.2.35
 
 ---
+
+## Entry #189 - Fix Virtual User Cursor Y-Axis Clamping at Top Edge
+
+**Date**: 2026-01-26
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed issue where virtual user cursors were frequently "squashed" at the top edge of the canvas. Root cause was Y-axis bias values in `quadrantBias` that pushed cursor positions toward negative Y values, which then got clamped to 0 → Y = 0.05 (top edge).
+
+---
+
+### Problem Statement
+
+User reported: "molto spesso i cursori sono ancora schiacciati in alto sul canvas" (very often cursors are still squashed at the top of the canvas)
+
+Symptoms:
+- All three virtual user cursors (wikipedia, hackernews, github) would cluster near the top edge
+- Problem occurred frequently, especially with high-frequency notes
+- Issue affected both landing page and normal rooms
+
+---
+
+### Root Cause
+
+In `_calculateHybridPosition()`, the `quadrantBias` included Y-axis offsets:
+
+```javascript
+const quadrantBias = {
+  wikipedia: { x: -0.15, y: 0.10 },    // Y bias pushed DOWN (toward bottom)
+  hackernews: { x: 0.15, y: 0 },       // No Y bias
+  github: { x: -0.05, y: -0.15 }       // Y bias pushed UP (toward top)
+}
+```
+
+**The problem with github**:
+1. When note frequency was near max (e.g., 1047Hz for soprano tessitura 523-1047Hz)
+2. `normalizedFreq` = 1.0 → `yFromFreq` = 0 (top)
+3. `yBase` ≈ 0.0 ± 0.1 (golden ratio variation)
+4. `yBiased` = yBase + (-0.15) = -0.15 to -0.05 → **clamped to 0**
+5. Final `y` = 0.05 + 0 × 0.9 = **0.05 (top edge)**
+
+The Y bias was counterproductive because:
+- Y position should **only** reflect note frequency (high freq = top, low freq = bottom)
+- Adding arbitrary Y offsets broke this mapping and caused edge clamping
+- Wikipedia's positive Y bias (0.10) could similarly push low-frequency notes off the bottom edge
+
+---
+
+### Solution
+
+Removed all Y-axis biases from `quadrantBias` in both files:
+
+**Before:**
+```javascript
+const quadrantBias = {
+  wikipedia: { x: -0.15, y: 0.10 },
+  hackernews: { x: 0.15, y: 0 },
+  github: { x: -0.05, y: -0.15 }
+}
+```
+
+**After:**
+```javascript
+// Entry #185d: X bias only - Y must purely reflect frequency
+const quadrantBias = {
+  wikipedia: { x: -0.15, y: 0 },     // Left side (bass)
+  hackernews: { x: 0.15, y: 0 },     // Right side (tenor)
+  github: { x: -0.05, y: 0 }         // Center-left (soprano)
+}
+```
+
+X biases are preserved to differentiate sources horizontally (bass left, tenor right, soprano center-left).
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/VirtualUserService.js` | Removed Y bias from quadrantBias |
+| `backend/src/services/LandingCompositionService.js` | Removed Y bias from quadrantBias |
+
+---
+
+### Verification
+
+1. **Visual test**: Cursors now distribute across full canvas height based on note frequency
+2. **Unit tests**: VirtualUserService.test.js passes (44 tests)
+3. **Both rooms**: Fix applied to both VirtualUserService (normal rooms) and LandingCompositionService (landing page)
+
+---
+
+### Version
+
+v0.2.36
+
+---

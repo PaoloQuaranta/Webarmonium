@@ -1395,11 +1395,12 @@ class VirtualUserService {
     // Source-specific offset to differentiate patterns (prime numbers)
     const sourceOffset = source === 'wikipedia' ? 17 : source === 'hackernews' ? 53 : 97
 
-    // Entry #185: Quadrant biases - now Y-oriented since Y=frequency
+    // Entry #185d: X bias only - Y must purely reflect frequency
+    // Removed Y bias to prevent cursor clamping at top/bottom edges
     const quadrantBias = {
-      wikipedia: { x: -0.15, y: 0.10 },    // Left side, mid-low
-      hackernews: { x: 0.15, y: 0 },       // Right side, middle
-      github: { x: -0.05, y: -0.15 }       // Center-left, higher
+      wikipedia: { x: -0.15, y: 0 },     // Left side (bass)
+      hackernews: { x: 0.15, y: 0 },     // Right side (tenor)
+      github: { x: -0.05, y: 0 }         // Center-left (soprano)
     }
     const bias = quadrantBias[source] || { x: 0, y: 0 }
 
