@@ -271,34 +271,34 @@ class LandingApp {
       // Remove mock mode toggle (no longer needed - backend handles metrics)
       this._removeMockModeToggle()
 
-      // Defer visual service initialization until container has computed dimensions
-      // This prevents flickering caused by p5.js initializing with zero dimensions
-      requestAnimationFrame(() => {
-        if (this.visualService && this.canvasContainer) {
-          const rect = this.canvasContainer.getBoundingClientRect()
-          if (rect.width > 0 && rect.height > 0) {
-            this.visualService.initialize(this.canvasContainer)
-            this._setupResizeHandler()
-            // Configure gradient for landing page (3 virtual cursors max)
-            if (this.visualService.nebulas?.setMaxUsers) {
-              this.visualService.nebulas.setMaxUsers(3)
-            }
-            // console.log('✅ GenerativeVisualService initialized with dimensions:', rect.width, rect.height)
-          } else {
-            // Retry if dimensions still not available
-            setTimeout(() => {
-              if (this.visualService && !this.visualService.p5Instance) {
-                this.visualService.initialize(this.canvasContainer)
-                this._setupResizeHandler()
-                // Configure gradient for landing page (3 virtual cursors max)
-                if (this.visualService.nebulas?.setMaxUsers) {
-                  this.visualService.nebulas.setMaxUsers(3)
-                }
-              }
-            }, LANDING_CONFIG.VISUAL_INIT_RETRY_MS)
+      // Defer visual service initialization until container has FULL computed dimensions
+      // Entry #189: Race condition fix - container must have reasonable height (not just > 0)
+      // On hard refresh, container may initially have partial height (e.g., 105px instead of viewport)
+      const initVisualService = (attempt = 0) => {
+        if (!this.visualService || !this.canvasContainer) return
+
+        const rect = this.canvasContainer.getBoundingClientRect()
+        const minHeight = Math.min(400, window.innerHeight * 0.5) // At least 400px or 50% viewport
+
+        if (rect.width > 0 && rect.height >= minHeight) {
+          this.visualService.initialize(this.canvasContainer)
+          this._setupResizeHandler()
+          if (this.visualService.nebulas?.setMaxUsers) {
+            this.visualService.nebulas.setMaxUsers(3)
           }
+          // console.log('✅ GenerativeVisualService initialized with dimensions:', rect.width, rect.height)
+        } else if (attempt < 10) {
+          // Retry with increasing delay (50ms, 100ms, 150ms...)
+          setTimeout(() => initVisualService(attempt + 1), 50 * (attempt + 1))
+        } else {
+          // Fallback: initialize anyway after max retries
+          console.warn('⚠️ Canvas container height still low after retries:', rect.height)
+          this.visualService.initialize(this.canvasContainer)
+          this._setupResizeHandler()
         }
-      })
+      }
+
+      requestAnimationFrame(() => initVisualService(0))
 
       // Setup socket connection immediately for metrics updates
       // (audio/visuals only start when user presses Start)
