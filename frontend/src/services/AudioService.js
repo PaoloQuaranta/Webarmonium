@@ -42,6 +42,10 @@ class AudioService {
     // PERFORMANCE FIX: Track ALL drone repeat events (not just one)
     this.droneRepeatEventIds = []
 
+    // Entry #191: Throttling for reverb decay changes (CPU-intensive impulse response regeneration)
+    this._lastReverbDecayChange = 0
+    this._reverbDecayThrottleMs = 2000 // Minimum 2s between decay changes
+
     // PERF: Platform detection for audio buffer optimization
     // Windows Chrome has higher audio latency and needs larger buffers
     this._isWindowsChrome = this._detectWindowsChrome()
@@ -3326,7 +3330,7 @@ class AudioService {
     }
 
     // Entry #181: Adjust reverb send levels based on reverbSend parameter
-    // (Reverb decay can't be changed dynamically in Tone.js, but we can adjust wet level)
+    // (Reverb decay is handled separately in Entry #191 below with throttling)
     if (synthParams && this.reverbSends) {
       const reverbLevel = synthParams.reverbSend ?? 0.3
       try {
@@ -3356,6 +3360,26 @@ class AudioService {
         }
       } catch (e) {
         // Sends may not be ready, ignore
+      }
+    }
+
+    // Entry #191: Apply reverb decay from synthParams (regenerates impulse response)
+    // This is throttled to prevent excessive CPU usage from impulse response regeneration
+    if (synthParams && synthParams.reverbDecay !== undefined && this.reverb && !this.reverb.disposed) {
+      try {
+        const currentDecay = this.reverb.decay
+        const targetDecay = synthParams.reverbDecay
+        // Only update if decay changed significantly (>0.5s difference) and throttle permits
+        if (Math.abs(currentDecay - targetDecay) > 0.5) {
+          const now = Date.now()
+          if (now - this._lastReverbDecayChange > this._reverbDecayThrottleMs) {
+            this.reverb.decay = targetDecay
+            this._lastReverbDecayChange = now
+            // console.log(`🎛️ Reverb decay updated: ${currentDecay.toFixed(1)}s → ${targetDecay.toFixed(1)}s (${style.dominantGenre})`)
+          }
+        }
+      } catch (e) {
+        // Reverb may not be ready or disposed, ignore
       }
     }
 
