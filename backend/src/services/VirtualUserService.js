@@ -611,8 +611,9 @@ class VirtualUserService {
     }
     const interval = baseInterval + jitter
 
-    // Clamp to reasonable bounds (8-20 seconds) - increased from 4-15s
-    const clampedInterval = Math.max(8000, Math.min(20000, interval))
+    // Entry #187h: Reduced interval for rooms (4-12s vs Landing's 8-20s)
+    // Rooms have only 2 sources vs Landing's 3, so need faster cycles to compensate
+    const clampedInterval = Math.max(4000, Math.min(12000, interval))
 
     roomState.gestureGenerationTimer = setTimeout(() => {
       // Defensive check: if room was deleted without proper deactivation, don't reschedule
