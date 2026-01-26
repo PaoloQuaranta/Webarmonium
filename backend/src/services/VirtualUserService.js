@@ -675,29 +675,14 @@ class VirtualUserService {
           }
         }
 
-        // Normalize velocity using P10-P90 percentile
-        const normalizedVelocity = this._normalizeValue(source, 'velocity', absVelocity)
+        // Entry #187f: SIMPLIFIED - Removed velocity-based gating entirely for rooms
+        // Problem: Velocity check blocked ALL gestures when metrics were stable (velocity ≈ 0)
+        // even though sources were active. The bypass logic was also ineffective.
+        // Solution: Use ONLY density filter for gesture gating. This gives predictable
+        // ~45-55% pass rate per cycle, resulting in ~2-3 gestures/minute per source.
+        // Landing keeps velocity check since it uses all 3 sources with more permissive thresholds.
 
-        // UNIFIED: Dynamic gesture intent based on activity level (same as Landing)
-        // High activity sources gesture more frequently, even when stable
         const activityLevel = this._calculateActivityLevel(source)
-
-        // Entry #187: Calculate gesture intent threshold using dedicated method
-        const gestureIntent = this._calculateGestureIntentThreshold(source, activityLevel)
-
-        // Entry #187e: Activity-based bypass for stable but active sources
-        // Problem: If metrics are stable (velocity ≈ 0), no gestures pass even if source is very active
-        // Solution: Allow gestures if activity is significantly above floor, regardless of velocity
-        const balancing = this.sourceBalancing[source] || VirtualUserService.DEFAULT_BALANCING
-        const activityAboveFloor = activityLevel - balancing.activityFloor
-        const activityBypass = activityAboveFloor > 0.15  // 15% above floor triggers bypass
-
-        // Check if source should gesture this cycle
-        // Allow if EITHER: velocity above threshold OR activity significantly above floor
-        if (normalizedVelocity < gestureIntent && !activityBypass) {
-          // No significant metric activity AND not active enough for bypass - skip
-          continue
-        }
 
         // DENSITY FILTER: Probabilistic gesture emission with INVERSE activity modulation
         // Low activity → higher density (more gestures pass, prevents silence)
