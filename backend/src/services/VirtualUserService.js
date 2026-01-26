@@ -751,9 +751,10 @@ class VirtualUserService {
     frequency = this.frequencyMapper.enforceTessitura(frequency, freqMin, freqMax)
 
     // 2. Calculate HYBRID POSITION: frequency base + metric offsets
-    // Base from frequency (congruent with real users) + metric offsets (break diagonal)
-    const fullCanvasFreq = 110 + (activityLevel * 1100) // Full range: 110-1210Hz
-    const position = this._calculateHybridPosition(source, fullCanvasFreq)
+    // Entry #189: Use source-specific tessitura range (not fixed 110-1210Hz)
+    // This ensures Y normalization in _calculateHybridPosition works correctly
+    const cursorFreq = freqMin + (activityLevel * (freqMax - freqMin))
+    const position = this._calculateHybridPosition(source, cursorFreq)
 
     // 3. Emit cursor position synchronized with note
     this._emitCursorAtPosition(roomId, source, config, position)

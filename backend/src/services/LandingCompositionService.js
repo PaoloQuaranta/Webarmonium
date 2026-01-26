@@ -1521,9 +1521,10 @@ class LandingCompositionService {
     frequency = this.frequencyMapper.enforceTessitura(frequency, freqMin, freqMax)
 
     // 2. Calculate HYBRID position: golden ratio + metric modulation
-    // Cursor uses golden ratio distribution for variety across canvas
-    const fullCanvasFreq = 110 + (activityLevel * 1100) // Full range: 110-1210Hz
-    const position = this._calculateHybridPosition(gesture.source, fullCanvasFreq)
+    // Entry #189: Use source-specific tessitura range (not fixed 110-1210Hz)
+    // This ensures Y normalization in _calculateHybridPosition works correctly
+    const cursorFreq = freqMin + (activityLevel * (freqMax - freqMin))
+    const position = this._calculateHybridPosition(gesture.source, cursorFreq)
 
     // 3. Emit cursor position synchronized with note
     this._emitCursorAtPosition(gesture.source, user, position)

@@ -3608,14 +3608,41 @@ const quadrantBias = {
 
 X biases are preserved to differentiate sources horizontally (bass left, tenor right, soprano center-left).
 
+### Root Cause #2: Fixed Frequency Range for Cursor Position (TAP gestures)
+
+In `_emitTapGesture()` (both files), cursor position was calculated using a fixed frequency range:
+
+```javascript
+const fullCanvasFreq = 110 + (activityLevel * 1100)  // Fixed range: 110-1210Hz
+const position = this._calculateHybridPosition(gesture.source, fullCanvasFreq)
+```
+
+But `_calculateHybridPosition` normalizes frequency within the **source-specific tessitura**:
+- wikipedia: 110-220Hz
+- hackernews: 196-392Hz
+- github: 523-1047Hz
+
+**Example (wikipedia with activityLevel=0.5)**:
+1. `fullCanvasFreq` = 110 + 0.5 × 1100 = **660Hz**
+2. `_calculateHybridPosition` normalizes: (660 - 110) / (220 - 110) = **5.0** → clamped to 1.0
+3. `yFromFreq` = 1 - 1.0 = **0.0 (TOP!)**
+
+**Fix**: Use source-specific tessitura range for cursor frequency:
+
+```javascript
+// Entry #189: Use source-specific tessitura range
+const cursorFreq = freqMin + (activityLevel * (freqMax - freqMin))
+const position = this._calculateHybridPosition(source, cursorFreq)
+```
+
 ---
 
 ### Files Modified
 
 | File | Changes |
 |------|---------|
-| `backend/src/services/VirtualUserService.js` | Removed Y bias from quadrantBias |
-| `backend/src/services/LandingCompositionService.js` | Removed Y bias from quadrantBias |
+| `backend/src/services/VirtualUserService.js` | Removed Y bias, fixed TAP cursor frequency range |
+| `backend/src/services/LandingCompositionService.js` | Removed Y bias, fixed TAP cursor frequency range |
 
 ---
 
@@ -3624,11 +3651,12 @@ X biases are preserved to differentiate sources horizontally (bass left, tenor r
 1. **Visual test**: Cursors now distribute across full canvas height based on note frequency
 2. **Unit tests**: VirtualUserService.test.js passes (44 tests)
 3. **Both rooms**: Fix applied to both VirtualUserService (normal rooms) and LandingCompositionService (landing page)
+4. **TAP gestures**: Cursor Y position now correctly reflects activity level within source's tessitura
 
 ---
 
 ### Version
 
-v0.2.36
+v0.2.37
 
 ---
