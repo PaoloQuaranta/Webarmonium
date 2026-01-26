@@ -929,8 +929,10 @@ class BackgroundCompositionService {
     // Complexity and density from energy
     this.compositionEngine.complexityLevel = Math.min(0.9, Math.max(0.1, style.energy))
 
-    // Entry #NEW: Apply genre density multiplier for genre-aware density
-    const genreDensityMultiplier = this.compositionEngine.getGenreDensityMultiplier(style.genreWeights)
+    // Entry #186: Use forcedGenre for density calculation to match actual composition genre
+    // Previously used style.genreWeights which could mismatch with cycling.currentGenre
+    const forcedGenreWeights = { [cycling.currentGenre]: 1.0 }
+    const genreDensityMultiplier = this.compositionEngine.getGenreDensityMultiplier(forcedGenreWeights)
     const baseDensity = style.energy * 1.2
     this.compositionEngine.density = Math.min(0.9, Math.max(0.1, baseDensity * genreDensityMultiplier))
 
