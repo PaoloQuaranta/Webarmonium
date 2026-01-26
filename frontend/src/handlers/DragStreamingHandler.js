@@ -318,10 +318,11 @@ class DragStreamingHandler {
 //        velocity: noteVelocity.toFixed(3)
 ////      })
 
-      this.audioService.gestureSynth.triggerAttackRelease(
+      // Entry #186b: Use safe trigger to avoid "Start time must be strictly greater" errors
+      this.audioService.safeGestureSynthTrigger(
         frequency,
         duration,
-        typeof Tone !== 'undefined' ? Tone.now() : undefined,
+        undefined,  // Let safeGestureSynthTrigger handle timing
         noteVelocity
       )
     } catch (error) {

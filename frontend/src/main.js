@@ -807,33 +807,30 @@ class WebarmoniumApp {
       }
 
       // VIRTUAL USERS: Use triggerAttackRelease with duration (like landing page)
-      // This provides natural envelope instead of aggressive sustained note envelope
+      // Entry #186b: Use safe trigger methods to avoid "Start time must be strictly greater" errors
       if (data.isVirtual) {
-        // AUDIO: Use per-user synth via UserSynthManager for unique timbres
-        // FIXED: Was using gestureSynth directly (all same timbre) - now uses UserSynthManager
-        let synth = null
-        let actualFrequency = data.frequency
         const noteDuration = data.duration || 0.5
         const velocity = data.velocity * 0.6 // Quieter for virtual users
 
-        // Try to get per-user synth from UserSynthManager
+        // Try to use UserSynthManager's safe triggerAttackRelease
         if (data.userId && this.audioService?.userSynthManager) {
           const synthData = this.audioService.userSynthManager.getSynthForUser(data.userId)
           if (synthData && synthData.synth && !synthData.synth.disposed) {
-            synth = synthData.synth
-            // Constrain frequency to virtual user's tessitura
-            actualFrequency = this.audioService.userSynthManager.constrainFrequencyToTessitura(data.frequency, data.userId)
+            // Use UserSynthManager.triggerAttackRelease which has timing protection
+            this.audioService.userSynthManager.triggerAttackRelease(
+              data.userId,
+              data.frequency,
+              noteDuration,
+              velocity,
+              true  // isRemote = true for virtual users
+            )
+          } else if (this.audioService?.gestureSynth) {
+            // Fallback to safe gestureSynth trigger
+            this.audioService.safeGestureSynthTrigger(data.frequency, noteDuration, undefined, velocity)
           }
-        }
-
-        // Fallback to gestureSynth only if UserSynthManager failed
-        if (!synth && this.audioService?.gestureSynth) {
-          synth = this.audioService.gestureSynth
-          actualFrequency = data.frequency
-        }
-
-        if (synth && typeof synth.triggerAttackRelease === 'function') {
-          synth.triggerAttackRelease(actualFrequency, noteDuration, Tone.now(), velocity)
+        } else if (this.audioService?.gestureSynth) {
+          // Fallback to safe gestureSynth trigger
+          this.audioService.safeGestureSynthTrigger(data.frequency, noteDuration, undefined, velocity)
         }
 
         // VISUAL: Update cursor position, but skip p&p if suppressVisual is set
