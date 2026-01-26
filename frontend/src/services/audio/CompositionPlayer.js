@@ -326,8 +326,8 @@ class CompositionPlayer {
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
-        // Entry #188c: Balanced velocity for background melody
-        const velocity = 0.4
+        // Entry #188d: Background quieter than gestures
+        const velocity = 0.18
         const delay = (note.startBeat || index * 0.5) * beatDuration
 
         const timeoutId = setTimeout(() => {
@@ -566,8 +566,8 @@ class CompositionPlayer {
       // Stagger notes slightly for pad-like attack spread
       chordNotes.forEach((pitch, noteIdx) => {
         const frequency = this.midiToFrequency(pitch)
-        // Entry #188c: Balanced velocity for ambient pads (lower than melody)
-        const velocity = 0.2 + (noteIdx * 0.03)
+        // Entry #188d: Ambient pads quieter than gestures
+        const velocity = 0.08 + (noteIdx * 0.015)
         // Slight stagger for organic feel
         const stagger = noteIdx * 0.15
 

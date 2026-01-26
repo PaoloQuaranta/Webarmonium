@@ -66,7 +66,7 @@ class GenerativeMusicEngine {
           rhythm: 16000,
           currentNotes: [2, 4],
           octave: 0,
-          velocity: 0.25,  // Entry #188c: Lower than melody for subtle drone background
+          velocity: 0.10,  // Entry #188d: Background quieter than gestures
           lastFrequencies: [],
           currentPatternIndex: 0,
           patternPosition: 0
