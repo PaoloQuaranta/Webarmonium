@@ -105,12 +105,15 @@ class VirtualUserService {
     this.interpolationInterval = 50  // 20fps
     this.interpolationSpeed = 0.15   // How fast to approach target (higher = faster, matches 100ms intervals)
 
-    // Gesture generation config - MATCHES landing page density control
-    // Entry #174 addendum: Reduced from 0.65-0.70 to 0.45-0.55 to make virtual users less prolific
+    // Gesture generation config for ROOMS (different from Landing)
+    // Entry #187g: Rooms need higher density because:
+    // 1. Only 2 sources vs Landing's 3 sources
+    // 2. No velocity check (removed in Entry #187f) - only density filter gates gestures
+    // Increased from 0.45-0.55 to 0.60-0.75 to compensate
     this.gestureConfig = {
-      baseDensityMultiplier: 0.45, // 45% pass at HIGH activity (reduced from 65%)
+      baseDensityMultiplier: 0.60, // 60% pass at HIGH activity (was 0.45)
       minDensity: 0.15,            // Minimum for sparse compositions (unused in current formula)
-      maxDensity: 0.55             // 55% pass at LOW activity (reduced from 70%)
+      maxDensity: 0.75             // 75% pass at LOW activity (was 0.55)
     }
 
     // Entry #187: Source-specific balancing to equalize gesture distribution
