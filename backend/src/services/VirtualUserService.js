@@ -685,9 +685,17 @@ class VirtualUserService {
         // Entry #187: Calculate gesture intent threshold using dedicated method
         const gestureIntent = this._calculateGestureIntentThreshold(source, activityLevel)
 
+        // Entry #187e: Activity-based bypass for stable but active sources
+        // Problem: If metrics are stable (velocity ≈ 0), no gestures pass even if source is very active
+        // Solution: Allow gestures if activity is significantly above floor, regardless of velocity
+        const balancing = this.sourceBalancing[source] || VirtualUserService.DEFAULT_BALANCING
+        const activityAboveFloor = activityLevel - balancing.activityFloor
+        const activityBypass = activityAboveFloor > 0.15  // 15% above floor triggers bypass
+
         // Check if source should gesture this cycle
-        if (normalizedVelocity < gestureIntent) {
-          // No significant metric activity - skip this source this cycle
+        // Allow if EITHER: velocity above threshold OR activity significantly above floor
+        if (normalizedVelocity < gestureIntent && !activityBypass) {
+          // No significant metric activity AND not active enough for bypass - skip
           continue
         }
 
