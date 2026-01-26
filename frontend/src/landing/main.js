@@ -1110,6 +1110,18 @@ class LandingApp {
         // DRONE FIX: Mark audio as ready and play pending drone
         this.isAudioReady = true
 
+        // Entry #187: Start hold monitoring for gesture-based density modulation (diradamento)
+        // On landing page, virtualNotes tracks active holds from virtual users
+        // Rule: if > 2 prolonged gestures, thin out background
+        if (!this.holdDensityMonitorInterval) {
+          this.holdDensityMonitorInterval = setInterval(() => {
+            if (this.audioService?.isInitialized) {
+              const activeHolds = this.virtualNotes?.size || 0
+              this.audioService.applyGestureDensityModulation(activeHolds)
+            }
+          }, 250)  // Check every 250ms
+        }
+
         // Entry #123: Remove global click listeners to prevent race condition
         // If initAudio and start() race, this ensures listeners are cleaned up
         this._removeInitAudioListeners()
@@ -1176,6 +1188,12 @@ class LandingApp {
       }
       this.isAudioReady = false  // Reset audio state for proper restart
       this.pendingDrone = null   // Clear pending drone on stop
+
+      // Entry #187: Clear hold density monitoring interval
+      if (this.holdDensityMonitorInterval) {
+        clearInterval(this.holdDensityMonitorInterval)
+        this.holdDensityMonitorInterval = null
+      }
 
       // Keep socket connected for metrics updates (don't disconnect)
       // Only audio/visuals stop, metrics dashboard continues updating

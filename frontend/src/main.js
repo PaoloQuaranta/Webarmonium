@@ -1561,6 +1561,19 @@ class WebarmoniumApp {
           }
           // console.log('🔊 Audio started and unmuted')
 
+          // Entry #187: Start hold monitoring for gesture-based density modulation (diradamento)
+          // Rule: if > 2 prolonged gestures, thin out background to let gesture sounds through
+          if (!this.holdDensityMonitorInterval) {
+            this.holdDensityMonitorInterval = setInterval(() => {
+              if (this.audioService?.isInitialized) {
+                const localCount = this.activeLocalHold ? 1 : 0
+                const remoteCount = this.activeRemoteHolds?.size || 0
+                const totalHolds = localCount + remoteCount
+                this.audioService.applyGestureDensityModulation(totalHolds)
+              }
+            }, 250)  // Check every 250ms
+          }
+
           // Play pending drone if saved
           // Entry #175: Pass saved style for genre-aware audio
           if (this.pendingDrone) {
@@ -1586,6 +1599,12 @@ class WebarmoniumApp {
       this.isAudioStarted = false
       button.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><polygon points="4,2 14,8 4,14"/></svg>'
       button.classList.remove('playing')
+
+      // Entry #187: Clear hold density monitoring interval
+      if (this.holdDensityMonitorInterval) {
+        clearInterval(this.holdDensityMonitorInterval)
+        this.holdDensityMonitorInterval = null
+      }
 
       // Update room label to "Start"
       const roomLabel = document.querySelector('.room-controls .node-btn-wrapper:first-child .node-label')

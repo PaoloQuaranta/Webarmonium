@@ -3366,6 +3366,36 @@ class AudioService {
   }
 
   /**
+   * Entry #187: Apply gesture-based density modulation (diradamento)
+   * Rule: if activeHolds > 2, thin out background layers to let gesture sounds through
+   * @param {number} activeHoldsCount - Number of active prolonged gestures
+   */
+  applyGestureDensityModulation(activeHoldsCount) {
+    if (!this.ambientLayers) return
+
+    const shouldThinOut = activeHoldsCount > 2
+
+    // Skip if state hasn't changed
+    if (this._lastThinOutState === shouldThinOut) return
+    this._lastThinOutState = shouldThinOut
+
+    // Only modulate background layers, not pad/drone
+    const backgroundLayers = ['backgroundHigh', 'backgroundMid', 'backgroundLow']
+    for (const layerName of backgroundLayers) {
+      const layer = this.ambientLayers[layerName]
+      if (layer && layer.volume && !layer.volume.disposed) {
+        try {
+          // -10dB normal, -25dB when thinned out
+          const targetVolume = shouldThinOut ? -25 : -10
+          layer.volume.rampTo(targetVolume, 0.5)
+        } catch (e) {
+          // Ignore disposed synth errors
+        }
+      }
+    }
+  }
+
+  /**
    * Play polyphonic composition (multiple voices)
    * REAL-TIME FIX: Uses Tone.Transport.schedule instead of setTimeout for rock-solid timing
    * Entry #175: Uses genre-aware velocities

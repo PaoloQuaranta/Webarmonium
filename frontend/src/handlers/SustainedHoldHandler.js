@@ -60,6 +60,17 @@ class SustainedHoldHandler {
   }
 
   /**
+   * Entry #187: Get total count of active prolonged holds (local + remote)
+   * Used for gesture-based background density modulation (diradamento)
+   * @returns {number} Total active holds count
+   */
+  getTotalActiveHoldsCount() {
+    const localCount = this.activeLocalHold ? 1 : 0
+    const remoteCount = this.activeRemoteHolds.size
+    return localCount + remoteCount
+  }
+
+  /**
    * Calculate frequency from position
    * @param {Object} position - {x, y} position
    * @returns {Object} {frequency, velocity, midiNote}

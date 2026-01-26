@@ -583,9 +583,11 @@ class CompositionEngine {
     const texture = this.generateAmbientTexture(style, sectionLength)
 // console.log(`🎼   Ambient texture: ${texture.layers.length} layers (static texture - minimal notes)`)
 
+    // Entry #187: Extract layers array to match frontend expected format
+    // Frontend playAmbientComposition expects texture to be an array, not an object
     return {
       type: 'ambient',
-      texture,
+      texture: texture.layers,
       progression,
       duration: sectionLength,
       atmosphere: this.selectAtmosphere(style)
@@ -1049,13 +1051,26 @@ class CompositionEngine {
   }
 
   generateAmbientTexture(style, sectionLength) {
-    // Generate ambient texture based on style
+    // Entry #187: Convert bars to milliseconds for frontend compatibility
+    // Frontend playAmbientComposition expects duration in milliseconds
+    // Formula: bars * 4 beats/bar * (60000ms/tempo) = duration in ms
+    const tempo = this.tempo || 120
+    const durationMs = sectionLength * 4 * (60000 / tempo)
+
+    // Entry #187: Add note names (required by frontend for playback)
+    // Frontend checks for textureItem.note property
+    const keyCenter = this.keyCenter || 'C'
+    const droneNote = `${keyCenter}3`
+    const fifthMap = { 'C': 'G', 'D': 'A', 'E': 'B', 'F': 'C', 'G': 'D', 'A': 'E', 'B': 'F#' }
+    const fifthNote = `${fifthMap[keyCenter] || 'G'}3`
+    const thirdNote = `${keyCenter}4`
+
     return {
       type: 'ambient_texture',
       layers: [
-        { type: 'drone', pitch: 60, duration: sectionLength, volume: 0.3 },
-        { type: 'pad', pitches: [64, 67, 71], duration: sectionLength, volume: 0.2 },
-        { type: 'texture', noise: 'pink', filter: 'lowpass', volume: 0.1 }
+        { type: 'drone', note: droneNote, duration: durationMs, velocity: 0.3, articulation: 'legato' },
+        { type: 'drone', note: fifthNote, duration: durationMs, velocity: 0.2, articulation: 'legato' },
+        { type: 'drone', note: thirdNote, duration: durationMs, velocity: 0.15, articulation: 'legato' }
       ],
       atmosphere: this.selectAtmosphere(style)
     }
@@ -1237,14 +1252,14 @@ class CompositionEngine {
 
   createFallbackComposition() {
     // Create a simple fallback composition if something goes wrong
+    // Entry #187: Use array format and milliseconds for frontend compatibility
+    const tempo = 120
+    const durationMs = 4 * 4 * (60000 / tempo)  // 4 bars * 4 beats * ms/beat = 8000ms
     return {
       type: 'ambient',
-      texture: {
-        type: 'ambient_texture',
-        layers: [
-          { type: 'drone', pitch: 60, duration: 4, volume: 0.2 }
-        ]
-      },
+      texture: [
+        { type: 'drone', note: 'C3', duration: durationMs, velocity: 0.2, articulation: 'legato' }
+      ],
       progression: [{ chord: 'C', function: 'tonic', bars: 4 }],
       metadata: {
         tempo: 120,
