@@ -702,9 +702,6 @@ class LandingApp {
       const y = Math.max(0, Math.min(1, cursor.y))
       const color = cursor.color || '#888888' // Fallback color
 
-      // Entry #189: Debug - log cursor updates
-      console.log(`🎯 FE cursor ${source}: x=${x.toFixed(3)}, y=${y.toFixed(3)}`)
-
       // Update cursor position
       this.visualService.updateCursorPosition(userId, x, y, color)
 

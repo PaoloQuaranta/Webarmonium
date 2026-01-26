@@ -274,9 +274,6 @@ class LandingCompositionService {
    * @private
    */
   _emitCursorAtPosition(source, user, position) {
-    // Entry #189: Debug - log every target position update
-    console.log(`📍 TARGET ${source}: Y=${position.y.toFixed(3)}`)
-
     // Set target position - interpolation timer will smoothly move there
     if (this.targetPositions[source]) {
       this.targetPositions[source].x = position.x
@@ -390,10 +387,6 @@ class LandingCompositionService {
       targetBPM: 100,                                    // BPM target corrente
       currentBPM: 100                                    // BPM attuale (per smoothing)
     }
-
-    // Entry #189: Debug - log initial positions
-    console.log('🚀 START - Initial currentPositions:', JSON.stringify(this.currentPositions))
-    console.log('🚀 START - Initial targetPositions:', JSON.stringify(this.targetPositions))
 
     // Emit initial cursor positions (distributed across canvas)
     this._emitAllCursors()
@@ -2009,9 +2002,6 @@ class LandingCompositionService {
       ? Math.max(0, Math.min(1, (baseFrequency - freqMin) / freqRange))
       : 0.5
     const yFromFreq = 1 - normalizedFreq  // Invert: high freq = low Y (top)
-
-    // Entry #189: Debug calculation
-    console.log(`🎯 CALC ${source}: freq=${baseFrequency.toFixed(0)}Hz, range=${freqMin}-${freqMax}, normFreq=${normalizedFreq.toFixed(3)}, yFromFreq=${yFromFreq.toFixed(3)}`)
 
     // X position from secondary metrics
     let xMetric = 0.5
