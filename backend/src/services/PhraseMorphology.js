@@ -1063,16 +1063,22 @@ class PhraseMorphology {
   contourToPitches(contour, scale, rootNote) {
     // Convert abstract contour to actual MIDI pitches using voice leading
     // Entry #182: Expanded to 2-octave range for more melodic variety
+    // Entry #190: Pass phrase length to selectIntervalType for variety scaling
 
     const rootMidi = this.pitchClasses[rootNote] || 60
     const pitches = []
     let currentDegree = Math.floor(scale.length / 2) // Start in middle of scale
+    const phraseLength = contour.length  // Entry #190: Track phrase length for variety
 
     // Entry #182: Calculate contour range to allow more leaps for dramatic contours
     // CRITICAL #3 fix: Prevent zero range for flat contours
     const contourMin = Math.min(...contour)
     const contourMax = Math.max(...contour)
     const contourRange = Math.max(0.01, contourMax - contourMin)
+
+    // Entry #190: Track previous interval and pitch for variety enforcement
+    let prevIntervalType = null
+    let prevPitch = null
 
     contour.forEach((height, i) => {
       // Entry #182: Map contour height to 2-octave scale degree range
@@ -1083,8 +1089,11 @@ class PhraseMorphology {
 
       // Prefer stepwise motion (voice leading)
       // DERIVATION: pass note position and contour range for deterministic interval selection
+      // Entry #190: Also pass phrase length and previous interval for variety
       const notePosition = i / contour.length
-      const intervalType = this.selectIntervalType(currentDegree, targetDegree, notePosition, contourRange)
+      const intervalType = this.selectIntervalType(
+        currentDegree, targetDegree, notePosition, contourRange, phraseLength, prevIntervalType
+      )
 
       let newDegree = currentDegree
       switch (intervalType) {
@@ -1113,14 +1122,40 @@ class PhraseMorphology {
       const rawPitch = rootMidi + scale[degreeInOctave] + (octaveOffset * 12)
 
       // Clamp to valid MIDI range (0-127) to prevent crashes
-      const pitch = Math.max(0, Math.min(127, rawPitch))
+      let pitch = Math.max(0, Math.min(127, rawPitch))
+
+      // Entry #190: For long phrases, prevent consecutive identical pitches
+      // Shift by one scale degree if we're about to repeat the same note
+      // Note: We intentionally DON'T update currentDegree to preserve voice-leading continuity
+      if (prevPitch !== null && pitch === prevPitch && phraseLength >= 8) {
+        const shiftDirection = targetDegree >= currentDegree ? 1 : -1
+        const shiftedDegree = currentDegree + shiftDirection
+        const shiftedOctaveOffset = Math.floor(shiftedDegree / scale.length)
+        const shiftedDegreeInOctave = ((shiftedDegree % scale.length) + scale.length) % scale.length
+        const shiftedPitch = rootMidi + scale[shiftedDegreeInOctave] + (shiftedOctaveOffset * 12)
+        pitch = Math.max(0, Math.min(127, shiftedPitch))
+      }
+
       pitches.push(pitch)
+      prevIntervalType = intervalType
+      prevPitch = pitch
     })
 
     return pitches
   }
 
-  selectIntervalType(currentDegree, targetDegree, notePosition = 0, contourRange = 0.5) {
+  /**
+   * Select interval type based on distance, position, contour range, and phrase length
+   * Entry #190: Longer phrases require more note variety to avoid repetition
+   * @param {number} currentDegree - Current scale degree
+   * @param {number} targetDegree - Target scale degree
+   * @param {number} notePosition - Position in phrase (0-1)
+   * @param {number} contourRange - Contour amplitude (0-1)
+   * @param {number} phraseLength - Total notes in phrase (affects variety)
+   * @param {number|null} prevInterval - Previous interval type for variety enforcement
+   * @returns {string} 'step', 'skip', or 'leap'
+   */
+  selectIntervalType(currentDegree, targetDegree, notePosition = 0, contourRange = 0.5, phraseLength = 4, prevInterval = null) {
     const distance = Math.abs(targetDegree - currentDegree)
 
     // Entry #182: More aggressive interval selection for melodic variety
@@ -1131,22 +1166,49 @@ class PhraseMorphology {
     // Middle notes follow contour more closely
     const isEdge = notePosition < 0.15 || notePosition > 0.85
 
+    // Entry #190: Phrase length affects variety - longer phrases need more diversity
+    // varietyBoost: 0 for short phrases (<=4), up to 0.5 for long phrases (>=16)
+    const varietyBoost = Math.min(0.5, Math.max(0, (phraseLength - 4) / 24))
+
+    // Entry #190: Consecutive same-interval prevention for long phrases
+    // If previous interval was step and phrase is long, bias toward skip/leap
+    const avoidStepRepetition = prevInterval === 'step' && phraseLength >= 8
+
     // Entry #182: Lower thresholds for high-range contours
-    const leapThreshold = contourRange > 0.6 ? 2 : (contourRange > 0.4 ? 3 : 4)
+    // Entry #190: Further reduce thresholds for longer phrases
+    // Entry #190 fix: Minimum threshold of 2 to preserve some stepwise motion
+    const baseLeapThreshold = contourRange > 0.6 ? 2 : (contourRange > 0.4 ? 3 : 4)
+    const leapThreshold = Math.max(2, baseLeapThreshold - Math.floor(varietyBoost * 2))
 
-    // No movement needed
-    if (distance === 0) return 'step'
+    // No movement needed - but for long phrases, force movement
+    if (distance === 0) {
+      // Entry #190: For longer phrases, avoid unisons by forcing at least a step
+      if (phraseLength >= 8) return 'step'
+      if (phraseLength >= 12 && avoidStepRepetition) return 'skip'
+      return 'step'
+    }
 
-    // Small distances: stepwise is natural
-    if (distance === 1) return 'step'
+    // Small distances: stepwise is natural, but vary for long phrases
+    if (distance === 1) {
+      // Entry #190: Long phrases - occasionally use skip instead of step for variety
+      if (avoidStepRepetition && !isEdge) return 'skip'
+      if (phraseLength >= 16 && notePosition > 0.3 && notePosition < 0.7) return 'skip'
+      return 'step'
+    }
 
     // Entry #182: Medium distances - allow skips even at edges for dramatic contours
+    // Entry #190: Long phrases bias toward skip
     if (distance <= 2) {
+      if (phraseLength >= 12 && !isEdge) return 'skip'
       return (isEdge && contourRange < 0.5) ? 'step' : 'skip'
     }
 
     // Entry #182: Moderate distances - use leap threshold based on contour range
-    if (distance <= leapThreshold) return isEdge ? 'skip' : 'leap'
+    // Entry #190: Long phrases use leap more readily
+    if (distance <= leapThreshold) {
+      if (phraseLength >= 16) return 'leap'
+      return isEdge ? 'skip' : 'leap'
+    }
 
     // Larger distances: always leap to follow contour
     return 'leap'

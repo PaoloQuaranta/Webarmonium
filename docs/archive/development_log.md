@@ -3660,3 +3660,120 @@ const position = this._calculateHybridPosition(source, cursorFreq)
 v0.2.37
 
 ---
+
+## Entry #190 - Phrase Note Variety for Long Phrases
+
+**Date**: 2026-01-26
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed repetitive phrases in virtual user melodies. Longer phrases now have greater note variety through phrase-length-aware interval selection and consecutive note repetition prevention. The fix applies to both landing page and normal rooms via PhraseMorphology.
+
+---
+
+### Problem Statement
+
+User feedback: "le frasi dei virtual users sono spesso molto ripetitive, specialmente le frasi lunghe. più la frase è lunga, maggiore dovrebbe essere la varietà di note usate nella frase"
+
+Issues identified:
+1. **`selectIntervalType()` didn't consider phrase length** - same thresholds for 4-note and 16-note phrases
+2. **No consecutive note repetition prevention** - same pitch could repeat multiple times
+3. **Voice leading too conservative** - stepwise motion dominated even in long phrases
+
+---
+
+### Solution
+
+#### 1. Phrase-Length-Aware Interval Selection (PhraseMorphology.js)
+
+Added `phraseLength` and `prevInterval` parameters to `selectIntervalType()`:
+
+```javascript
+selectIntervalType(currentDegree, targetDegree, notePosition, contourRange, phraseLength, prevInterval) {
+  // Entry #190: varietyBoost scales with phrase length
+  // 0 for short phrases (<=4), up to 0.5 for long phrases (>=16)
+  const varietyBoost = Math.min(0.5, Math.max(0, (phraseLength - 4) / 24))
+
+  // Entry #190: Avoid consecutive step intervals in long phrases
+  const avoidStepRepetition = prevInterval === 'step' && phraseLength >= 8
+
+  // Entry #190: Lower leap threshold for longer phrases
+  const leapThreshold = Math.max(2, baseLeapThreshold - Math.floor(varietyBoost * 2))
+
+  // Long phrases bias toward skip/leap instead of step
+  if (phraseLength >= 16 && notePosition > 0.3 && notePosition < 0.7) return 'skip'
+  // ...
+}
+```
+
+#### 2. Consecutive Note Repetition Prevention (PhraseMorphology.js)
+
+Added tracking of previous pitch in `contourToPitches()`:
+
+```javascript
+// Entry #190: For long phrases, prevent consecutive identical pitches
+// Note: We intentionally DON'T update currentDegree to preserve voice-leading continuity
+if (prevPitch !== null && pitch === prevPitch && phraseLength >= 8) {
+  const shiftDirection = targetDegree >= currentDegree ? 1 : -1
+  const shiftedDegree = currentDegree + shiftDirection
+  // ... calculate shiftedPitch
+  pitch = Math.max(0, Math.min(127, shiftedPitch))
+}
+```
+
+---
+
+### Code Review Fixes
+
+Code review identified 2 high-priority issues:
+
+| # | Priority | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | High | Voice-leading discontinuity when shifting to avoid repetition | Don't update `currentDegree` after shift - preserve voice leading from original contour |
+| 2 | High | Leap threshold could drop to 1, creating overly jumpy melodies | Changed `Math.max(1, ...)` to `Math.max(2, ...)` to ensure minimum stepwise motion |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/PhraseMorphology.js` | `selectIntervalType()` with phraseLength/prevInterval params, `contourToPitches()` with consecutive pitch prevention |
+
+---
+
+### Verification
+
+Test results with various phrase lengths:
+
+| Test | Result |
+|------|--------|
+| Short phrase (4 notes) | 100% unique notes, 0 consecutive repetitions |
+| Long phrase (16 notes) | 87.5% unique notes (14/16), 0 consecutive repetitions |
+| Flat contour (20 notes) | 0 consecutive repetitions despite similar contour values |
+| Leap threshold | Minimum 2 respected, prevents overly jumpy melodies |
+
+---
+
+### Architecture
+
+```
+PhraseMorphology.js (shared)
+        ↑
+        ├── LandingCompositionService (landing page virtual users)
+        └── VirtualUserService (normal room virtual users)
+
+Both code paths use PhraseMorphology.generatePhrase() which calls:
+  → contourToPitches(contour, scale, key)
+    → selectIntervalType(currentDegree, targetDegree, notePosition, contourRange, phraseLength, prevInterval)
+```
+
+---
+
+### Version
+
+v0.2.45
+
+---
