@@ -326,7 +326,8 @@ class CompositionPlayer {
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
         const duration = note.duration || 0.5
-        const velocity = 0.12
+        // Entry #188c: Raised velocity from 0.12 to 0.7 for audible playback
+        const velocity = 0.7
         const delay = (note.startBeat || index * 0.5) * beatDuration
 
         const timeoutId = setTimeout(() => {
@@ -565,8 +566,8 @@ class CompositionPlayer {
       // Stagger notes slightly for pad-like attack spread
       chordNotes.forEach((pitch, noteIdx) => {
         const frequency = this.midiToFrequency(pitch)
-        // Very low velocity for ambient
-        const velocity = 0.025 + (noteIdx * 0.005)
+        // Entry #188c: Raised velocity from 0.025-0.04 to 0.4-0.5 for audible playback
+        const velocity = 0.4 + (noteIdx * 0.05)
         // Slight stagger for organic feel
         const stagger = noteIdx * 0.15
 

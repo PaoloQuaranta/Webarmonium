@@ -1694,7 +1694,7 @@ class AudioService {
           rhythm: 16000,     // 2 bars (plays every 2 chord changes for sustained harmony)
           currentNotes: [2, 4],  // Two notes for pad (third and fifth)
           octave: 0,         // Same as tonic (220Hz range)
-          velocity: 0.30,    // Quieter for subtle background
+          velocity: 0.50,    // Entry #188c: Raised from 0.30 for audible background
           lastFrequencies: [],  // Track for release
           currentPatternIndex: 0,  // Start with LONG pattern (single sustained)
           patternPosition: 0
@@ -3240,12 +3240,14 @@ class AudioService {
    */
   getVelocityConfig(style) {
     const genre = style?.dominantGenre || 'ambient'
+    // Entry #188c: Fixed velocity values - previous values (0.03-0.16) were far too low
+    // Tone.js velocity is 0-1 where 0.5-0.9 is typical for audible playback
     const configs = {
-      ambient:     { melody: 0.06, harmony: 0.04, bass: 0.05, pad: 0.03 },
-      jazz:        { melody: 0.12, harmony: 0.08, bass: 0.10, pad: 0.05 },
-      electronic:  { melody: 0.14, harmony: 0.10, bass: 0.12, pad: 0.06 },
-      rock:        { melody: 0.16, harmony: 0.12, bass: 0.14, pad: 0.07 },
-      classical:   { melody: 0.10, harmony: 0.06, bass: 0.08, pad: 0.04 }
+      ambient:     { melody: 0.6, harmony: 0.5, bass: 0.55, pad: 0.45 },
+      jazz:        { melody: 0.7, harmony: 0.55, bass: 0.6, pad: 0.5 },
+      electronic:  { melody: 0.75, harmony: 0.6, bass: 0.7, pad: 0.55 },
+      rock:        { melody: 0.8, harmony: 0.65, bass: 0.75, pad: 0.6 },
+      classical:   { melody: 0.65, harmony: 0.5, bass: 0.55, pad: 0.45 }
     }
     return configs[genre] || configs.ambient
   }
@@ -3804,7 +3806,8 @@ class AudioService {
       const midiNote = this.noteNameToMidi(textureItem.note)
       const frequency = this.midiToFrequency(midiNote)
       const duration = (textureItem.duration || 8000) / 1000
-      const velocity = textureItem.velocity || 0.2
+      // Entry #188c: Raised default velocity from 0.2 to 0.5 to match composition volumes
+      const velocity = textureItem.velocity || 0.5
       // Entry #117: Drone notes should play simultaneously (no stagger)
       // Non-drone textures can stagger for rhythmic interest
       const delay = isDrone ? 0 : index * 0.5
@@ -4169,8 +4172,9 @@ class AudioService {
       }
 
       // Entry #175b: Apply genre-based velocity scaling
+      // Entry #188c: Updated baseline from 0.10 to 0.65 (new velocity range)
       const velocityConfig = this.getVelocityConfig(activeStyle)
-      adjustedVelocity *= (velocityConfig.melody / 0.10) // Scale relative to default melody velocity
+      adjustedVelocity *= (velocityConfig.melody / 0.65) // Scale relative to default melody velocity
 
       // Duration already determined by velocity in frontend (32n/16n/8n)
       // Only apply velocity boost for accents
