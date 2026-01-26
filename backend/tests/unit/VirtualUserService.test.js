@@ -4,6 +4,7 @@
  */
 
 const VirtualUserService = require('../../src/services/VirtualUserService')
+const { VIRTUAL_USER_COLORS } = require('../../src/constants/colors')
 
 describe('VirtualUserService', () => {
   let service
@@ -122,18 +123,19 @@ describe('VirtualUserService', () => {
 
       service.activateForRoom('room1', ['wikipedia', 'github'])
 
+      // Colors imported from VIRTUAL_USER_COLORS constant
       expect(emitSpy).toHaveBeenCalledWith('virtual-users-activated', expect.objectContaining({
         roomId: 'room1',
         sources: ['wikipedia', 'github'],
         virtualUsers: expect.arrayContaining([
           expect.objectContaining({
             userId: 'wikipedia-metrics',
-            color: '#e41a1c',
+            color: VIRTUAL_USER_COLORS.wikipedia,
             source: 'wikipedia'
           }),
           expect.objectContaining({
             userId: 'github-metrics',
-            color: '#377eb8',
+            color: VIRTUAL_USER_COLORS.github,
             source: 'github'
           })
         ])
@@ -375,13 +377,96 @@ describe('VirtualUserService', () => {
       })
     })
 
+    describe('_calculateActivityLevel() (Entry #187)', () => {
+      test('should apply activityFloor when raw activity is below floor', () => {
+        // GitHub has activityFloor 0.4
+        mockWebMetricsPoller.getMetrics = jest.fn(() => ({
+          github: { commitsPerMinute: 0 }  // Zero activity
+        }))
+
+        // Populate enough samples for normalization
+        for (let i = 0; i < 20; i++) {
+          service._updateStatistics('github', 'commitsPerMinute', i * 10)
+        }
+
+        const activity = service._calculateActivityLevel('github')
+
+        // Activity should be floor (0.4) not normalized value (near 0)
+        expect(activity).toBe(0.4)
+      })
+
+      test('should return raw activity when above floor', () => {
+        // Wikipedia has activityFloor 0.2
+        mockWebMetricsPoller.getMetrics = jest.fn(() => ({
+          wikipedia: { editsPerMinute: 100 }  // High activity
+        }))
+
+        // Populate samples to establish range
+        for (let i = 0; i < 20; i++) {
+          service._updateStatistics('wikipedia', 'editsPerMinute', i * 5)
+        }
+
+        const activity = service._calculateActivityLevel('wikipedia')
+
+        // Activity should be > floor (raw normalized value)
+        expect(activity).toBeGreaterThan(0.2)
+      })
+
+      test('should use DEFAULT_BALANCING for unknown sources', () => {
+        mockWebMetricsPoller.getMetrics = jest.fn(() => ({
+          unknownSource: { someMetric: 10 }
+        }))
+
+        // Unknown source should return 0.5 (default case)
+        const activity = service._calculateActivityLevel('unknownSource')
+        expect(activity).toBe(0.5)
+      })
+    })
+
+    describe('_calculateGestureIntentThreshold() (Entry #187)', () => {
+      test('should apply source-specific multiplier', () => {
+        const activityLevel = 0.5
+
+        // Wikipedia has 1.5x multiplier (stricter)
+        const wikiThreshold = service._calculateGestureIntentThreshold('wikipedia', activityLevel)
+
+        // GitHub has 0.5x multiplier (more permissive)
+        const ghThreshold = service._calculateGestureIntentThreshold('github', activityLevel)
+
+        // Wikipedia threshold should be 3x GitHub's (1.5 / 0.5 = 3)
+        expect(wikiThreshold / ghThreshold).toBeCloseTo(3.0, 1)
+      })
+
+      test('should decrease threshold with higher activity', () => {
+        const lowActivityThreshold = service._calculateGestureIntentThreshold('hackernews', 0.0)
+        const highActivityThreshold = service._calculateGestureIntentThreshold('hackernews', 1.0)
+
+        // Higher activity = lower threshold = more gestures pass
+        expect(highActivityThreshold).toBeLessThan(lowActivityThreshold)
+      })
+
+      test('should use DEFAULT_BALANCING for unknown sources', () => {
+        const threshold = service._calculateGestureIntentThreshold('unknownSource', 0.5)
+
+        // Should use default multiplier (1.0)
+        // BASE_THRESHOLD(0.1) * 1.0 * (1 - 0.5 * 0.5) = 0.1 * 0.75 = 0.075
+        expect(threshold).toBeCloseTo(0.075, 3)
+      })
+    })
+
     describe('_classifyGestureType()', () => {
       test('should return "tap" when stability metric is higher than density', () => {
-        // Low velocity = high stability = tap
-        mockWebMetricsPoller.getVelocity = jest.fn(() => 0.5)
-        // Low density metric values
+        // Populate samples for proper normalization
+        for (let i = 0; i < 20; i++) {
+          service._updateStatistics('wikipedia', 'velocity', i * 2)     // velocity range 0-38
+          service._updateStatistics('wikipedia', 'avgEditSize', i * 10) // avgEditSize range 0-190
+        }
+
+        // Low velocity (0) = high stability → tap
+        mockWebMetricsPoller.getVelocity = jest.fn(() => 0)
+        // Low density metric (avgEditSize = 0)
         mockWebMetricsPoller.getMetrics = jest.fn(() => ({
-          wikipedia: { editsPerMinute: 0, avgEditSize: 0, newArticles: 0 }
+          wikipedia: { editsPerMinute: 10, avgEditSize: 0, newArticles: 0 }
         }))
 
         const type = service._classifyGestureType('wikipedia')
@@ -453,12 +538,14 @@ describe('VirtualUserService', () => {
         const hnCategory = service._selectDurationCategory('hackernews')
         const ghCategory = service._selectDurationCategory('github')
 
-        // With gesture count 0, source offsets determine category
-        // Entry #174 addendum: New boundaries: tap <0.25, short <0.65, medium <0.90, long >=0.90
-        // 0.17 < 0.25 = tap, 0.53 in [0.25, 0.65) = short, 0.89 in [0.65, 0.90) = medium
+        // With gesture count 0, source offsets + source-specific duration bias determine category
+        // Entry #187: Each source has different duration bias
+        // Wikipedia: {tap: 0.35, short: 0.40, medium: 0.20, long: 0.05} → offset 0.17 < 0.35 = tap
+        // HackerNews: {tap: 0.25, short: 0.40, medium: 0.25, long: 0.10} → offset 0.53 in [0.25, 0.65) = short
+        // GitHub: {tap: 0.20, short: 0.35, medium: 0.30, long: 0.15} → offset 0.89 >= 0.85 = long
         expect(wikiCategory.category).toBe('tap')
         expect(hnCategory.category).toBe('short')
-        expect(ghCategory.category).toBe('medium')
+        expect(ghCategory.category).toBe('long')
       })
 
       test('should produce balanced distribution over 100 gestures', () => {
@@ -470,15 +557,16 @@ describe('VirtualUserService', () => {
           counts[category]++
         }
 
-        // Entry #174 addendum: Expected 25% tap, 40% short, 25% medium, 10% long (±7%)
-        expect(counts.tap).toBeGreaterThanOrEqual(18)
-        expect(counts.tap).toBeLessThanOrEqual(32)
+        // Entry #187: Wikipedia has custom duration bias: tap 35%, short 40%, medium 20%, long 5%
+        // Expected distribution (±7% tolerance for PHI-based cycling)
+        expect(counts.tap).toBeGreaterThanOrEqual(28)
+        expect(counts.tap).toBeLessThanOrEqual(42)
         expect(counts.short).toBeGreaterThanOrEqual(33)
         expect(counts.short).toBeLessThanOrEqual(47)
-        expect(counts.medium).toBeGreaterThanOrEqual(18)
-        expect(counts.medium).toBeLessThanOrEqual(32)
-        expect(counts.long).toBeGreaterThanOrEqual(3)
-        expect(counts.long).toBeLessThanOrEqual(17)
+        expect(counts.medium).toBeGreaterThanOrEqual(13)
+        expect(counts.medium).toBeLessThanOrEqual(27)
+        expect(counts.long).toBeGreaterThanOrEqual(0)
+        expect(counts.long).toBeLessThanOrEqual(12)
       })
     })
   })

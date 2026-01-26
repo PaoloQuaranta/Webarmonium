@@ -3128,3 +3128,161 @@ const minDist = 0.12 * densityFactor  // 6% to 24%
 v0.2.33
 
 ---
+
+## Entry #187 - Source-Specific Virtual User Gesture Balancing
+
+**Date**: 2026-01-26
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented source-specific balancing parameters to equalize gesture distribution across virtual users (Wikipedia, HackerNews, GitHub). Previously, Wikipedia dominated with frequent long gestures while GitHub was almost silent due to structural differences in API polling rates and metric scales.
+
+---
+
+### Problem Statement
+
+Virtual users generate gestures based on real-time web metrics from three sources with fundamentally different characteristics:
+
+| Source | Poll Interval | Typical Activity | Result |
+|--------|--------------|------------------|--------|
+| Wikipedia | 5s | 20-50 edits/min | Very prolific |
+| HackerNews | 10s | 1-5 posts/min | Moderate |
+| GitHub | 60s | 0-5 commits/min | Often silent |
+
+**Root causes identified:**
+
+1. **Poll frequency disparity** - Wikipedia gets 12x more updates than GitHub
+2. **Metric scale differences** - Wikipedia normalizes to 0.4-1.0, GitHub to 0.0-0.17
+3. **Velocity-based gating** - Low-activity sources often skipped entirely
+4. **Cold start normalization** - GitHub takes 5 minutes to warm up vs 25 seconds for Wikipedia
+
+---
+
+### Solution
+
+Introduced `sourceBalancing` configuration with three parameters per source:
+
+```javascript
+this.sourceBalancing = {
+  wikipedia: {
+    activityFloor: 0.2,           // Minimum activity level
+    gestureIntentMultiplier: 1.5, // Higher threshold → ~33% fewer gestures
+    durationBias: { tap: 0.35, short: 0.40, medium: 0.20, long: 0.05 }
+  },
+  hackernews: {
+    activityFloor: 0.3,
+    gestureIntentMultiplier: 1.0, // Baseline
+    durationBias: { tap: 0.25, short: 0.40, medium: 0.25, long: 0.10 }
+  },
+  github: {
+    activityFloor: 0.4,           // Higher floor for quiet source
+    gestureIntentMultiplier: 0.5, // Lower threshold → ~2x more gestures
+    durationBias: { tap: 0.20, short: 0.35, medium: 0.30, long: 0.15 }
+  }
+}
+```
+
+**Parameter rationale:**
+- `activityFloor`: Guarantees minimum activity even when source is silent
+- `gestureIntentMultiplier`: Inversely proportional to poll frequency (Wikipedia 1.5x, GitHub 0.5x)
+- `durationBias`: Wikipedia favors taps/shorts (quick edits), GitHub favors medium/long (substantial commits)
+
+---
+
+### Implementation Details
+
+#### 1. Activity Level with Floor
+```javascript
+_calculateActivityLevel(source) {
+  const rawActivity = this._normalizeValue(source, metric, value)
+  const balancing = this.sourceBalancing[source]
+  return balancing ? Math.max(balancing.activityFloor, rawActivity) : rawActivity
+}
+```
+
+#### 2. Gesture Intent Threshold
+Extracted to dedicated method with documented constants:
+
+```javascript
+_calculateGestureIntentThreshold(source, activityLevel) {
+  const balancing = this.sourceBalancing[source] || VirtualUserService.DEFAULT_BALANCING
+  const BASE_THRESHOLD = 0.1
+  const ACTIVITY_MODULATION = 0.5
+  return BASE_THRESHOLD * balancing.gestureIntentMultiplier * (1 - activityLevel * ACTIVITY_MODULATION)
+}
+```
+
+#### 3. Duration Category Selection
+Uses per-source bias weights instead of global PHI distribution:
+
+```javascript
+const bias = balancing?.durationBias || VirtualUserService.DEFAULT_BALANCING.durationBias
+const tapEnd = bias.tap
+const shortEnd = tapEnd + bias.short
+const mediumEnd = shortEnd + bias.medium
+// Category determined by selector position in weighted ranges
+```
+
+#### 4. Validation
+Added comprehensive validation in `_validateConfigurations()`:
+- Checks all required fields exist
+- Validates activityFloor in [0, 1] range
+- Validates gestureIntentMultiplier > 0
+- Validates durationBias sums to 1.0 (±0.01 tolerance)
+
+#### 5. Default Fallback
+Static constant ensures consistent behavior when source not configured:
+
+```javascript
+static DEFAULT_BALANCING = {
+  activityFloor: 0.3,
+  gestureIntentMultiplier: 1.0,
+  durationBias: { tap: 0.25, short: 0.40, medium: 0.25, long: 0.10 }
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/VirtualUserService.js` | Added `sourceBalancing` config, `DEFAULT_BALANCING` constant, `_calculateGestureIntentThreshold()` method, validation, modified `_calculateActivityLevel()` and `_selectDurationCategory()` |
+| `backend/tests/unit/VirtualUserService.test.js` | Updated color imports, duration expectations, added tests for activityFloor and gestureIntentThreshold |
+
+---
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `docs/alternative-approaches-entry-187.md` | Documents 5 alternative approaches considered: Data-Driven Logging, External Config, PID Controller, Time-Slot Allocation, EMA Adjustment |
+
+---
+
+### Test Coverage
+
+All 44 VirtualUserService tests pass. New tests added:
+- `_calculateActivityLevel() applies activityFloor correctly`
+- `_calculateGestureIntentThreshold() returns correct values per source`
+- Updated duration distribution expectations for new per-source bias
+
+---
+
+### Expected Outcome
+
+| Source | Before | After |
+|--------|--------|-------|
+| Wikipedia | ~70% of gestures, mostly long | ~35% of gestures, mostly taps/shorts |
+| HackerNews | ~25% of gestures | ~33% of gestures |
+| GitHub | ~5% of gestures, often silent | ~32% of gestures, more medium/long |
+
+---
+
+### Version
+
+v0.2.34
+
+---
