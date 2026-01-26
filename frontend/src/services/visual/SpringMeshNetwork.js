@@ -733,6 +733,12 @@ class SpringMeshNetwork {
     const x = node.x * p.width
     const y = node.y * p.height
 
+    // Entry #189: Debug - log node positions at render time
+    if (node.userId && this._debugLogCount < 30) {
+      console.log(`🎨 RENDER ${node.userId}: node.y=${node.y.toFixed(3)}, targetY=${node.targetY?.toFixed(3)}, screenY=${y.toFixed(0)}/${p.height}`)
+      this._debugLogCount = (this._debugLogCount || 0) + 1
+    }
+
     // Calculate size based on gesture type
     let size = this.NODE_CONFIG.idleSize
 
