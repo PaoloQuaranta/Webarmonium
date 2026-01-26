@@ -1296,10 +1296,16 @@ class VirtualUserService {
     }
     const bias = quadrantBias[source] || { x: 0, y: 0 }
 
-    // Entry #185: Y = frequency (like real users)
+    // Entry #185c: Y = frequency within source's tessitura range
+    // Each source has its own frequency range - normalize within that range
     // Inverted: Y=0 (top) = high freq, Y=1 (bottom) = low freq
-    // Range: 110Hz (A2) to 880Hz (A5) - typical musical range
-    const normalizedFreq = Math.max(0, Math.min(1, (baseFrequency - 110) / 770))
+    const sourceConfig = this.virtualUserConfigs[source]
+    const freqMin = sourceConfig?.frequencyRange?.min || 110
+    const freqMax = sourceConfig?.frequencyRange?.max || 880
+    const freqRange = freqMax - freqMin
+    const normalizedFreq = freqRange > 0
+      ? Math.max(0, Math.min(1, (baseFrequency - freqMin) / freqRange))
+      : 0.5
     const yFromFreq = 1 - normalizedFreq  // Invert: high freq = low Y (top)
 
     // X position from secondary metrics
