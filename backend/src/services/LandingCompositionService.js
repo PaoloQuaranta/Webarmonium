@@ -268,6 +268,8 @@ class LandingCompositionService {
   _emitCursorAtPosition(source, user, position) {
     // Set target position - interpolation timer will smoothly move there
     if (this.targetPositions[source]) {
+      // DEBUG Entry #189: Log cursor position updates
+      console.log(`🎯 CURSOR ${source}: target Y=${position.y.toFixed(3)} (current: ${this.currentPositions[source]?.y.toFixed(3)})`)
       this.targetPositions[source].x = position.x
       this.targetPositions[source].y = position.y
     }
@@ -2038,6 +2040,9 @@ class LandingCompositionService {
 
     const x = MIN_BOUND + xBiased * RANGE
     const y = MIN_BOUND + yBiased * RANGE
+
+    // DEBUG Entry #189: Log position calculation
+    console.log(`📍 CALC ${source}: freq=${baseFrequency.toFixed(0)}Hz, range=${freqMin}-${freqMax}, normFreq=${normalizedFreq.toFixed(3)}, yFromFreq=${yFromFreq.toFixed(3)}, final Y=${y.toFixed(3)}`)
 
     return { x, y }
   }
