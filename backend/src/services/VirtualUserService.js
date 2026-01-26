@@ -688,15 +688,17 @@ class VirtualUserService {
 
         const activityLevel = this._calculateActivityLevel(source)
 
-        // Entry #187i: TEMPORARILY DISABLED density filter for debugging
-        // TODO: Re-enable once gesture generation is confirmed working
         // DENSITY FILTER: Probabilistic gesture emission with INVERSE activity modulation
-        // const density = this.gestureConfig.maxDensity -
-        //   (activityLevel * (this.gestureConfig.maxDensity - this.gestureConfig.baseDensityMultiplier))
-        // if (Math.random() > density) { continue }
+        // Low activity → higher density (more gestures pass, prevents silence)
+        // High activity → lower density (fewer gestures pass, prevents chaos)
+        // Entry #187g: density varies from 0.75 (low activity) to 0.60 (high activity)
+        const density = this.gestureConfig.maxDensity -
+          (activityLevel * (this.gestureConfig.maxDensity - this.gestureConfig.baseDensityMultiplier))
 
-        // DEBUG: Log gesture attempt for this source
-        console.log(`🎭 VirtualUserService: Generating gesture for ${source} in room ${roomId} (activity=${activityLevel.toFixed(2)})`)
+        if (Math.random() > density) {
+          // Skip this gesture probabilistically based on density
+          continue
+        }
 
         // Entry #174: Select duration category using PHI-based cycling
         // Guarantees balanced distribution: 20% taps, 30% short, 30% medium, 20% long
@@ -705,9 +707,6 @@ class VirtualUserService {
         // Entry #187f fix: Calculate normalizedVelocity for gesture emission
         // (needed by _emitTapGesture and _emitDragGesture for intensity/velocity values)
         const normalizedVelocity = this._normalizeValue(source, 'velocity', absVelocity)
-
-        // DEBUG: Log which gesture type is selected
-        console.log(`🎭 VirtualUserService: ${source} → ${category} gesture (duration: ${durationRange.min}-${durationRange.max}ms)`)
 
         if (category === 'tap') {
           this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
@@ -928,10 +927,8 @@ class VirtualUserService {
     const phrase = this.phraseMorphology.generatePhrase(gestureData, roomState.musicalContext)
 
     if (!phrase || !phrase.notes || !Array.isArray(phrase.notes) || phrase.notes.length === 0) {
-      console.log(`⚠️ VirtualUserService: Drag gesture failed - empty phrase for ${source}`)
       return
     }
-    console.log(`🎭 VirtualUserService: Drag phrase generated with ${phrase.notes.length} notes for ${source}`)
 
     // HARMONIC COHERENCE: Constrain all phrase notes to room's scale/mode
     // PhraseMorphology uses mood-based scale selection; this ensures room coherence
@@ -984,7 +981,8 @@ class VirtualUserService {
 
     if (noteData.length === 0) return
 
-    // Entry #189: Removed unused trajectory calculation (startFreq, endFreq, startPosition)
+    // Entry #187j: Calculate startPosition from first note (was removed in Entry #189 but still needed)
+    const startPosition = this._calculateHybridPosition(source, noteData[0].audioFreq, 0)
 
     // Add material to BackgroundCompositionService
     if (this.backgroundCompositionService) {
