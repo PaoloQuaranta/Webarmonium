@@ -3182,7 +3182,7 @@ class AudioService {
     this.currentStyle = style
     // Entry #175: Apply genre-specific envelope settings
     this.applyGenreToSynths(style)
-    // console.log(`🎼 playComposition called - isDrone: ${isDrone}, isInitialized: ${this.isInitialized}, muted: ${this.muted}, type: ${composition?.type}`)
+    // console.log(`🎼 playComposition: type=${composition?.type}, isDrone=${isDrone}, repeats=${this.droneRepeatEventIds?.length || 0}`)
 
     // STATE MACHINE: Don't play if audio is stopped
     if (this._audioState === 'STOPPED') {
@@ -3812,7 +3812,9 @@ class AudioService {
       // Entry #117: Drone notes should play simultaneously (no stagger)
       // Non-drone textures can stagger for rhythmic interest
       const delay = isDrone ? 0 : index * 0.5
-      const layerName = isDrone ? 'pad' : 'backgroundLow'
+      // Entry #188g: All ambient textures use 'pad' layer (PolySynth) to avoid
+      // conflicts with polyphonic/homophonic compositions that use backgroundLow (MonoSynth)
+      const layerName = 'pad'
 
       // Entry #90: Skip if layer is disabled by audio profile settings
       if (!this._isLayerEnabled(layerName)) {
@@ -3859,21 +3861,26 @@ class AudioService {
         this.droneRepeatEventIds.push(repeatEventId)
         this.scheduledTransportEvents.push(repeatEventId)
       } else {
-        // Entry #188e: Non-drone ambient textures should also repeat for continuity
-        // First trigger immediately
-        const layer = this.ambientLayers && this.ambientLayers[layerName]
+        // Entry #188g: Non-drone ambient textures use same PolySynth approach as drones
+        // First trigger immediately using pad layer (PolySynth)
+        const layer = this.ambientLayers && this.ambientLayers.pad
         if (layer) {
           const audioTime = Tone.now() + 0.1 + delay
-          this.safeMonoSynthTrigger(layerName, frequency, duration, audioTime, velocity)
+          layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
         }
 
         // Schedule repeating (same pattern as drones)
         const repeatStartTime = `+${duration + 0.1 + delay}`
         const repeatEventId = Tone.Transport.scheduleRepeat((audioTime) => {
-          if (!this._isLayerEnabled(layerName)) {
+          if (!this._isLayerEnabled('pad')) {
             return
           }
-          this.safeMonoSynthTrigger(layerName, frequency, duration, audioTime, velocity)
+          if (this.ambientLayers && this.ambientLayers.pad) {
+            try {
+              this.ambientLayers.pad.releaseAll(0.05)
+            } catch (e) { /* ignore */ }
+            this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
+          }
         }, duration, repeatStartTime)
         this.droneRepeatEventIds.push(repeatEventId)
         this.scheduledTransportEvents.push(repeatEventId)
