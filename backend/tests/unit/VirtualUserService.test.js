@@ -391,12 +391,12 @@ describe('VirtualUserService', () => {
 
         const activity = service._calculateActivityLevel('github')
 
-        // Activity should be floor (0.4) not normalized value (near 0)
-        expect(activity).toBe(0.4)
+        // Entry #187c: Activity should be floor (0.5) not normalized value (near 0)
+        expect(activity).toBe(0.5)
       })
 
       test('should return raw activity when above floor', () => {
-        // Wikipedia has activityFloor 0.2
+        // Entry #187c: Wikipedia has activityFloor 0.15
         mockWebMetricsPoller.getMetrics = jest.fn(() => ({
           wikipedia: { editsPerMinute: 100 }  // High activity
         }))
@@ -409,7 +409,7 @@ describe('VirtualUserService', () => {
         const activity = service._calculateActivityLevel('wikipedia')
 
         // Activity should be > floor (raw normalized value)
-        expect(activity).toBeGreaterThan(0.2)
+        expect(activity).toBeGreaterThan(0.15)
       })
 
       test('should use DEFAULT_BALANCING for unknown sources', () => {
@@ -427,14 +427,14 @@ describe('VirtualUserService', () => {
       test('should apply source-specific multiplier', () => {
         const activityLevel = 0.5
 
-        // Wikipedia has 1.5x multiplier (stricter)
+        // Entry #187c: Wikipedia has 4.0x multiplier (much stricter)
         const wikiThreshold = service._calculateGestureIntentThreshold('wikipedia', activityLevel)
 
-        // GitHub has 0.5x multiplier (more permissive)
+        // Entry #187c: GitHub has 0.25x multiplier (much more permissive)
         const ghThreshold = service._calculateGestureIntentThreshold('github', activityLevel)
 
-        // Wikipedia threshold should be 3x GitHub's (1.5 / 0.5 = 3)
-        expect(wikiThreshold / ghThreshold).toBeCloseTo(3.0, 1)
+        // Wikipedia threshold should be 16x GitHub's (4.0 / 0.25 = 16)
+        expect(wikiThreshold / ghThreshold).toBeCloseTo(16.0, 1)
       })
 
       test('should decrease threshold with higher activity', () => {
@@ -497,10 +497,11 @@ describe('VirtualUserService', () => {
       test('should cycle through all categories using PHI-based stepping', () => {
         const categories = new Set()
 
-        // Run 20 gestures to ensure all categories appear
-        for (let i = 0; i < 20; i++) {
-          service.gestureCounters.wikipedia = i
-          const { category } = service._selectDurationCategory('wikipedia')
+        // Entry #187c: Use GitHub which has 20% long (Wikipedia has only 2%)
+        // Run 50 gestures to ensure all categories appear with GitHub's more balanced bias
+        for (let i = 0; i < 50; i++) {
+          service.gestureCounters.github = i
+          const { category } = service._selectDurationCategory('github')
           categories.add(category)
         }
 
@@ -539,10 +540,10 @@ describe('VirtualUserService', () => {
         const ghCategory = service._selectDurationCategory('github')
 
         // With gesture count 0, source offsets + source-specific duration bias determine category
-        // Entry #187: Each source has different duration bias
-        // Wikipedia: {tap: 0.35, short: 0.40, medium: 0.20, long: 0.05} → offset 0.17 < 0.35 = tap
+        // Entry #187c: Each source has different duration bias (aggressive tuning)
+        // Wikipedia: {tap: 0.60, short: 0.30, medium: 0.08, long: 0.02} → offset 0.17 < 0.60 = tap
         // HackerNews: {tap: 0.25, short: 0.40, medium: 0.25, long: 0.10} → offset 0.53 in [0.25, 0.65) = short
-        // GitHub: {tap: 0.20, short: 0.35, medium: 0.30, long: 0.15} → offset 0.89 >= 0.85 = long
+        // GitHub: {tap: 0.15, short: 0.30, medium: 0.35, long: 0.20} → offset 0.89 in [0.80, 1.0) = long
         expect(wikiCategory.category).toBe('tap')
         expect(hnCategory.category).toBe('short')
         expect(ghCategory.category).toBe('long')
@@ -557,16 +558,16 @@ describe('VirtualUserService', () => {
           counts[category]++
         }
 
-        // Entry #187: Wikipedia has custom duration bias: tap 35%, short 40%, medium 20%, long 5%
+        // Entry #187c: Wikipedia has aggressive duration bias: tap 60%, short 30%, medium 8%, long 2%
         // Expected distribution (±7% tolerance for PHI-based cycling)
-        expect(counts.tap).toBeGreaterThanOrEqual(28)
-        expect(counts.tap).toBeLessThanOrEqual(42)
-        expect(counts.short).toBeGreaterThanOrEqual(33)
-        expect(counts.short).toBeLessThanOrEqual(47)
-        expect(counts.medium).toBeGreaterThanOrEqual(13)
-        expect(counts.medium).toBeLessThanOrEqual(27)
+        expect(counts.tap).toBeGreaterThanOrEqual(53)
+        expect(counts.tap).toBeLessThanOrEqual(67)
+        expect(counts.short).toBeGreaterThanOrEqual(23)
+        expect(counts.short).toBeLessThanOrEqual(37)
+        expect(counts.medium).toBeGreaterThanOrEqual(1)
+        expect(counts.medium).toBeLessThanOrEqual(15)
         expect(counts.long).toBeGreaterThanOrEqual(0)
-        expect(counts.long).toBeLessThanOrEqual(12)
+        expect(counts.long).toBeLessThanOrEqual(9)
       })
     })
   })
