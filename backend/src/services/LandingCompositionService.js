@@ -146,6 +146,39 @@ class LandingCompositionService {
       maxDensity: 0.55             // 55% pass at LOW activity (reduced from 70%)
     }
 
+    // Entry #187: Source-specific balancing to equalize gesture distribution
+    // Problem: Wikipedia polls every 5s with high activity, GitHub every 60s with low activity
+    // Solution: Per-source parameters to compensate for structural differences
+    //
+    // Tuning methodology for gestureIntentMultiplier:
+    // - Base threshold is 0.1 (10% of normalized velocity required to gesture)
+    // - Multiplier adjusts this threshold: higher = stricter = fewer gestures
+    // - Wikipedia (1.5x): threshold 0.15 → reduces gesture rate by ~33% (naturally prolific)
+    // - HackerNews (1.0x): threshold 0.10 → neutral baseline (moderate activity)
+    // - GitHub (0.5x): threshold 0.05 → doubles gesture rate (compensates for 60s poll)
+    //
+    // Activity floor rationale:
+    // - Wikipedia (0.2): low floor, relies on natural high activity
+    // - HackerNews (0.3): moderate floor for moderate polling
+    // - GitHub (0.4): high floor ensures presence despite 60s poll interval
+    this.sourceBalancing = {
+      wikipedia: {
+        activityFloor: 0.2,           // Low floor - Wikipedia is naturally active
+        gestureIntentMultiplier: 1.5, // 1.5x threshold → ~33% fewer gestures
+        durationBias: { tap: 0.35, short: 0.40, medium: 0.20, long: 0.05 }  // Quick edits → quick gestures
+      },
+      hackernews: {
+        activityFloor: 0.3,           // Moderate floor for 10s poll interval
+        gestureIntentMultiplier: 1.0, // Neutral baseline (no adjustment)
+        durationBias: { tap: 0.25, short: 0.40, medium: 0.25, long: 0.10 }  // Balanced distribution
+      },
+      github: {
+        activityFloor: 0.4,           // High floor compensates for 60s poll
+        gestureIntentMultiplier: 0.5, // 0.5x threshold → ~2x more gestures
+        durationBias: { tap: 0.20, short: 0.35, medium: 0.30, long: 0.15 }  // Commits → substantial gestures
+      }
+    }
+
     // Track pending timeouts for cleanup (prevents memory leaks)
     this.pendingTimeouts = new Set()
 
@@ -627,29 +660,60 @@ class LandingCompositionService {
   /**
    * Calculate activity level for a source (0.0-1.0)
    * Uses DYNAMIC NORMALIZATION based on HISTORICAL min/max
-   * This ensures MAXIMUM musical variety from metric variations
-   * NO hardcoded thresholds - adapts to actual data range
+   * Entry #187: Applies source-specific activityFloor for balanced gesture distribution
    * @param {string} source - Source name
    * @returns {number} Activity level (0.0-1.0)
    * @private
    */
   calculateActivityLevel(source) {
     const metrics = this.metrics[source]
+    let rawActivity
+
     switch (source) {
       case 'wikipedia':
         // DYNAMIC: Uses historical range of editsPerMinute
-        return this.normalizeMetricDynamic(source, 'editsPerMinute', metrics.editsPerMinute)
+        rawActivity = this.normalizeMetricDynamic(source, 'editsPerMinute', metrics.editsPerMinute)
+        break
       case 'hackernews':
         // DYNAMIC: Uses historical range of postsPerMinute
-        return this.normalizeMetricDynamic(source, 'postsPerMinute', metrics.postsPerMinute)
+        rawActivity = this.normalizeMetricDynamic(source, 'postsPerMinute', metrics.postsPerMinute)
+        break
       case 'github':
         // DYNAMIC: Uses historical range of commitsPerMinute
-        return this.normalizeMetricDynamic(source, 'commitsPerMinute', metrics.commitsPerMinute)
+        rawActivity = this.normalizeMetricDynamic(source, 'commitsPerMinute', metrics.commitsPerMinute)
+        break
       default:
-        return 0
+        rawActivity = 0.5
     }
+
+    // Entry #187: Apply source-specific floor to ensure minimum activity
+    // Floor is a HARD MINIMUM - even if normalized activity is 0, return the floor
+    // Example: GitHub floor=0.4 means it will gesture as if at least 40% active
+    const balancing = this.sourceBalancing[source] || LandingCompositionService.DEFAULT_BALANCING
+    return Math.max(balancing.activityFloor, rawActivity)
   }
 
+  /**
+   * Entry #187: Calculate gesture intent threshold for a source
+   * Extracted for clarity and testability. Lower threshold = more gestures pass.
+   *
+   * Formula: BASE_THRESHOLD × sourceMultiplier × (1 - activityLevel × ACTIVITY_MODULATION)
+   * - BASE_THRESHOLD (0.1): 10% of normalized velocity required to gesture
+   * - sourceMultiplier: per-source adjustment (1.5 = stricter, 0.5 = more permissive)
+   * - ACTIVITY_MODULATION (0.5): high activity reduces threshold by up to 50%
+   *
+   * @param {string} source - Source name
+   * @param {number} activityLevel - Activity level (0-1)
+   * @returns {number} Threshold value (0-1)
+   * @private
+   */
+  _calculateGestureIntentThreshold(source, activityLevel) {
+    const balancing = this.sourceBalancing[source] || LandingCompositionService.DEFAULT_BALANCING
+    const BASE_THRESHOLD = 0.1
+    const ACTIVITY_MODULATION = 0.5  // 50% reduction at max activity
+
+    return BASE_THRESHOLD * balancing.gestureIntentMultiplier * (1 - activityLevel * ACTIVITY_MODULATION)
+  }
 
   /**
    * Generate virtual gestures based on CURRENT metrics
@@ -673,13 +737,10 @@ class LandingCompositionService {
       const normalizedVelocity = this.normalizeMetricDynamic(source, 'velocity', Math.abs(velocity))
       const activityLevel = this.calculateActivityLevel(source)
 
-      // Gesture intent: combine velocity (change) with activity (absolute level)
-      // High activity sources gesture more frequently, even when stable
-      // Formula: effectiveGestureIntent = baseIntent * (1 - activityLevel * 0.5)
-      // - activityLevel 0 → gestureIntent = 0.1 (base threshold)
-      // - activityLevel 1 → gestureIntent = 0.05 (lower threshold = more gestures)
-      const baseGestureIntent = 0.1
-      const gestureIntent = baseGestureIntent * (1 - activityLevel * 0.5)
+      // Entry #187: Calculate gesture intent threshold using source-specific multiplier
+      // Higher multiplier = stricter threshold = fewer gestures (Wikipedia)
+      // Lower multiplier = looser threshold = more gestures (GitHub)
+      const gestureIntent = this._calculateGestureIntentThreshold(source, activityLevel)
 
       // Check if source should gesture this cycle
       if (normalizedVelocity < gestureIntent) {
@@ -1833,9 +1894,21 @@ class LandingCompositionService {
   static PHI_SQ = 2.618033988749895  // φ² for Y axis (different sequence)
 
   /**
+   * Entry #187: Default balancing configuration for sources without explicit config
+   * Used as fallback to ensure consistent behavior across all methods
+   * @static
+   */
+  static DEFAULT_BALANCING = {
+    activityFloor: 0.3,           // Neutral floor
+    gestureIntentMultiplier: 1.0, // No adjustment
+    durationBias: { tap: 0.25, short: 0.40, medium: 0.25, long: 0.10 }
+  }
+
+  /**
    * Entry #174: Select duration category using PHI-based cycling
-   * Addendum: Rebalanced to 25% taps, 40% short, 25% medium, 10% long
-   * Long phrases are now rare, short phrases most common
+   * Entry #187: Source-specific duration bias for balanced gesture character
+   * - Wikipedia: more taps/shorts (quick edits → quick gestures)
+   * - GitHub: more medium/long (commits → substantial gestures)
    *
    * PHI stepping creates a low-discrepancy sequence that cycles through all categories
    * naturally without repeating patterns. Source offsets prevent synchronization.
@@ -1856,15 +1929,22 @@ class LandingCompositionService {
     // PHI-based selector creates low-discrepancy sequence
     const selector = ((gestureCount * LandingCompositionService.PHI) + sourceOffset) % 1
 
-    // Category boundaries: tap 25%, short 40%, medium 25%, long 10%
-    // Long phrases are rare (10%), short phrases most common (40%)
-    if (selector < 0.25) {
+    // Entry #187: Get source-specific duration weights (use DEFAULT_BALANCING as fallback)
+    const balancing = this.sourceBalancing[source] || LandingCompositionService.DEFAULT_BALANCING
+    const bias = balancing.durationBias
+
+    // Category boundaries from bias weights
+    const tapEnd = bias.tap
+    const shortEnd = tapEnd + bias.short
+    const mediumEnd = shortEnd + bias.medium
+
+    if (selector < tapEnd) {
       return { category: 'tap', durationRange: { min: 50, max: 300 } }
     }
-    if (selector < 0.65) {
+    if (selector < shortEnd) {
       return { category: 'short', durationRange: { min: 300, max: 1500 } }
     }
-    if (selector < 0.90) {
+    if (selector < mediumEnd) {
       return { category: 'medium', durationRange: { min: 1500, max: 5000 } }
     }
     return { category: 'long', durationRange: { min: 5000, max: 16000 } }
