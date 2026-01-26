@@ -3779,19 +3779,21 @@ class AudioService {
       this.masterVolume.volume.value = -10
     }
 
-    // Clear ALL existing drone repeat events (FIX: was only clearing one, causing leak)
-    if (this.droneRepeatEventIds && this.droneRepeatEventIds.length > 0) {
-      for (const eventId of this.droneRepeatEventIds) {
-        Tone.Transport.clear(eventId)
+    // Entry #188f: Save old event IDs for delayed cleanup (prevents gap during transition)
+    const oldRepeatEventIds = this.droneRepeatEventIds ? [...this.droneRepeatEventIds] : []
+    const oldLegacyEventId = this.droneRepeatEventId
+    this.droneRepeatEventIds = []
+    this.droneRepeatEventId = null
+
+    // Clear old events AFTER a short delay to allow overlap with new events
+    setTimeout(() => {
+      for (const eventId of oldRepeatEventIds) {
+        try { Tone.Transport.clear(eventId) } catch (e) { /* already cleared */ }
       }
-      // console.log(`🧹 Cleared ${this.droneRepeatEventIds.length} drone repeat events`)
-      this.droneRepeatEventIds = []
-    }
-    // Legacy cleanup (single event ID)
-    if (this.droneRepeatEventId) {
-      Tone.Transport.clear(this.droneRepeatEventId)
-      this.droneRepeatEventId = null
-    }
+      if (oldLegacyEventId) {
+        try { Tone.Transport.clear(oldLegacyEventId) } catch (e) { /* already cleared */ }
+      }
+    }, 500)  // 500ms overlap for smooth transition
 
     const texture = content.texture
     // POLYPHONY FIX: Limit drone textures to pad's maxPolyphony (3 voices)
