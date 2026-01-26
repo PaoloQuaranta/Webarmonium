@@ -3366,33 +3366,15 @@ class AudioService {
   }
 
   /**
-   * Entry #187: Apply gesture-based density modulation (diradamento)
-   * Rule: if activeHolds > 2, thin out background layers to let gesture sounds through
-   * @param {number} activeHoldsCount - Number of active prolonged gestures
+   * Entry #188: Placeholder for gesture-based density modulation (diradamento)
+   * User clarification: "diradamento" means reducing NUMBER of voices/notes, not volume
+   * TODO: Implement voice-thinning in backend CompositionEngine based on active hold count
+   * For now this is a no-op - the monitoring infrastructure exists but doesn't modify audio
+   * @param {number} activeHoldsCount - Number of active prolonged gestures (unused for now)
    */
-  applyGestureDensityModulation(activeHoldsCount) {
-    if (!this.ambientLayers) return
-
-    const shouldThinOut = activeHoldsCount > 2
-
-    // Skip if state hasn't changed
-    if (this._lastThinOutState === shouldThinOut) return
-    this._lastThinOutState = shouldThinOut
-
-    // Only modulate background layers, not pad/drone
-    const backgroundLayers = ['backgroundHigh', 'backgroundMid', 'backgroundLow']
-    for (const layerName of backgroundLayers) {
-      const layer = this.ambientLayers[layerName]
-      if (layer && layer.volume && !layer.volume.disposed) {
-        try {
-          // -10dB normal, -25dB when thinned out
-          const targetVolume = shouldThinOut ? -25 : -10
-          layer.volume.rampTo(targetVolume, 0.5)
-        } catch (e) {
-          // Ignore disposed synth errors
-        }
-      }
-    }
+  applyGestureDensityModulation(_activeHoldsCount) {
+    // Entry #188: No-op - volume-based modulation removed per user feedback
+    // Future: Pass _activeHoldsCount to backend for voice count reduction in compositions
   }
 
   /**
