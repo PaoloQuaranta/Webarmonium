@@ -700,6 +700,10 @@ class VirtualUserService {
         // Guarantees balanced distribution: 20% taps, 30% short, 30% medium, 20% long
         const { category, durationRange } = this._selectDurationCategory(source)
 
+        // Entry #187f fix: Calculate normalizedVelocity for gesture emission
+        // (needed by _emitTapGesture and _emitDragGesture for intensity/velocity values)
+        const normalizedVelocity = this._normalizeValue(source, 'velocity', absVelocity)
+
         if (category === 'tap') {
           this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
         } else {
