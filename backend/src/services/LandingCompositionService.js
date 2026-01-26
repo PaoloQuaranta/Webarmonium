@@ -268,8 +268,6 @@ class LandingCompositionService {
   _emitCursorAtPosition(source, user, position) {
     // Set target position - interpolation timer will smoothly move there
     if (this.targetPositions[source]) {
-      // DEBUG Entry #189: Log cursor position updates
-      console.log(`🎯 CURSOR ${source}: target Y=${position.y.toFixed(3)} (current: ${this.currentPositions[source]?.y.toFixed(3)})`)
       this.targetPositions[source].x = position.x
       this.targetPositions[source].y = position.y
     }
@@ -383,8 +381,6 @@ class LandingCompositionService {
     }
 
     // Emit initial cursor positions (distributed across canvas)
-    // DEBUG Entry #189: Log initial positions
-    console.log(`🚀 START: Initial positions - wikipedia Y=${this.currentPositions.wikipedia.y.toFixed(3)}, hackernews Y=${this.currentPositions.hackernews.y.toFixed(3)}, github Y=${this.currentPositions.github.y.toFixed(3)}`)
     this._emitAllCursors()
 
     // Start cursor interpolation for smooth movement
@@ -1670,8 +1666,7 @@ class LandingCompositionService {
 
       return {
         noteId: `virtual_${gesture.source}_${Date.now()}_${i}`,
-        audioFreq: audioFreq,       // For sound (tessitura-constrained)
-        positionFreq: rawFreq,      // For cursor (full canvas)
+        audioFreq: audioFreq,       // For sound AND cursor (tessitura-constrained)
         velocity: Math.max(0, Math.min(1, (note.velocity || 80) / 127)),
         startDelayMs: note.startBeat * beatDurationMs,
         durationMs: note.duration * beatDurationMs
@@ -1680,12 +1675,8 @@ class LandingCompositionService {
 
     if (noteData.length === 0) return
 
-    // 3. Calculate HYBRID positions for trajectory
-    const startFreq = noteData[0].positionFreq
-    const endFreq = noteData[noteData.length - 1].positionFreq
-    const startPosition = this._calculateHybridPosition(gesture.source, startFreq)
-
-    // Entry #175b: style already retrieved above for genre velocity calculation
+    // Entry #189: Removed unused trajectory calculation that was generating
+    // debug logs with unconstrained frequencies (startFreq, endFreq, startPosition)
 
     // Emit phrase event for visual system
     this.io.to(this.landingRoomId).emit('musical:event', {
@@ -2042,9 +2033,6 @@ class LandingCompositionService {
 
     const x = MIN_BOUND + xBiased * RANGE
     const y = MIN_BOUND + yBiased * RANGE
-
-    // DEBUG Entry #189: Log position calculation
-    console.log(`📍 CALC ${source}: freq=${baseFrequency.toFixed(0)}Hz, range=${freqMin}-${freqMax}, normFreq=${normalizedFreq.toFixed(3)}, yFromFreq=${yFromFreq.toFixed(3)}, final Y=${y.toFixed(3)}`)
 
     return { x, y }
   }

@@ -963,8 +963,7 @@ class VirtualUserService {
 
       return {
         noteId: `virtual_${source}_${Date.now()}_${i}`,
-        audioFreq: audioFreq,       // For sound (tessitura-constrained)
-        positionFreq: rawFreq,      // For cursor (full canvas)
+        audioFreq: audioFreq,       // For sound AND cursor (tessitura-constrained)
         velocity: Math.max(0, Math.min(1, (note.velocity || 80) / 127)),
         startDelayMs: note.startBeat * beatDurationMs,
         durationMs: note.duration * beatDurationMs
@@ -973,10 +972,7 @@ class VirtualUserService {
 
     if (noteData.length === 0) return
 
-    // 3. Calculate HYBRID positions for trajectory
-    const startFreq = noteData[0].positionFreq
-    const endFreq = noteData[noteData.length - 1].positionFreq
-    const startPosition = this._calculateHybridPosition(source, startFreq)
+    // Entry #189: Removed unused trajectory calculation (startFreq, endFreq, startPosition)
 
     // Add material to BackgroundCompositionService
     if (this.backgroundCompositionService) {
