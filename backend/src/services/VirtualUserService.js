@@ -117,40 +117,40 @@ class VirtualUserService {
     // Problem: Wikipedia polls every 5s with high activity, GitHub every 60s with low activity
     // Solution: Per-source parameters to compensate for structural differences
     //
-    // Entry #187c: AGGRESSIVE TUNING - Previous 1.5x multiplier was insufficient
-    // Wikipedia has 12x more poll opportunities than GitHub, needs much stricter threshold
+    // Entry #187d: ROOM-SPECIFIC TUNING - Rooms use only 2 sources (no GitHub)
+    // Without GitHub's 0.25x multiplier, need more permissive thresholds for Wiki/HN
+    // Landing uses all 3 sources with aggressive tuning (4.0x/1.2x/0.25x)
     //
-    // Tuning methodology for gestureIntentMultiplier:
+    // Tuning methodology for gestureIntentMultiplier (2-source rooms):
     // - Base threshold is 0.1 (10% of normalized velocity required to gesture)
-    // - Multiplier adjusts this threshold: higher = stricter = fewer gestures
-    // - Wikipedia (4.0x): threshold 0.40 → ~75% fewer gestures (compensates for 12x poll rate)
-    // - HackerNews (1.2x): threshold 0.12 → ~17% fewer gestures (compensates for 6x vs GitHub)
-    // - GitHub (0.25x): threshold 0.025 → ~4x more gestures (compensates for 60s poll)
+    // - Wikipedia (2.0x): threshold 0.20 → moderate reduction (~50% fewer gestures)
+    // - HackerNews (0.8x): threshold 0.08 → slightly more permissive (compensates for no GitHub)
+    // - GitHub (0.3x): threshold 0.03 → permissive (rarely selected for rooms anyway)
     //
     // Activity floor rationale:
-    // - Wikipedia (0.15): very low floor - let it be quiet when actually quiet
-    // - HackerNews (0.25): moderate floor for 10s poll interval
-    // - GitHub (0.5): high floor ensures presence despite 60s poll interval
+    // - Wikipedia (0.2): moderate floor
+    // - HackerNews (0.3): moderate floor for 10s poll interval
+    // - GitHub (0.5): high floor ensures presence if selected
     //
     // Duration bias rationale:
-    // - Wikipedia: 60% taps, 30% short, 8% medium, 2% long (avoid "infinite phrases")
+    // - Wikipedia: 50% taps, 35% short, 12% medium, 3% long (mostly quick gestures)
     // - HackerNews: balanced distribution
-    // - GitHub: more substantial gestures (20% long) to maximize impact per gesture
+    // - GitHub: more substantial gestures (15% long)
     this.sourceBalancing = {
       wikipedia: {
-        activityFloor: 0.15,          // Very low floor - can be quiet
-        gestureIntentMultiplier: 4.0, // 4x threshold → ~75% fewer gestures
-        durationBias: { tap: 0.60, short: 0.30, medium: 0.08, long: 0.02 }  // Mostly taps, rare long
+        activityFloor: 0.2,           // Moderate floor
+        gestureIntentMultiplier: 2.0, // 2x threshold → ~50% fewer gestures
+        durationBias: { tap: 0.50, short: 0.35, medium: 0.12, long: 0.03 }  // Mostly quick gestures
       },
       hackernews: {
-        activityFloor: 0.25,          // Moderate floor for 10s poll interval
-        gestureIntentMultiplier: 1.2, // Slightly stricter baseline
+        activityFloor: 0.3,           // Moderate floor for 10s poll interval
+        gestureIntentMultiplier: 0.8, // Slightly permissive (no GitHub to compensate)
         durationBias: { tap: 0.25, short: 0.40, medium: 0.25, long: 0.10 }  // Balanced distribution
       },
       github: {
-        activityFloor: 0.5,           // High floor ensures presence
-        gestureIntentMultiplier: 0.25, // 0.25x threshold → ~4x more gestures
-        durationBias: { tap: 0.15, short: 0.30, medium: 0.35, long: 0.20 }  // Substantial gestures
+        activityFloor: 0.5,           // High floor ensures presence if selected
+        gestureIntentMultiplier: 0.3, // 0.3x threshold → permissive
+        durationBias: { tap: 0.20, short: 0.35, medium: 0.30, long: 0.15 }  // Substantial gestures
       }
     }
 
