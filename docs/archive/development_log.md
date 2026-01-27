@@ -5220,3 +5220,125 @@ const interval = compositionDuration * overlapFactor  // ~13.6s instead of 16s
 ### Version
 
 v0.2.61
+
+---
+
+
+
+
+## Entry #208 - Dynamic Genre Orchestration for Polyphonic Compositions
+
+**Date**: 2026-01-28
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented a unified compositional system where the backend generates ALL voices (counterpoint + accompaniment), with genre-based orchestration determining which voices play together. Removed the independent local generative loop that was only playing during drones.
+
+---
+
+### Problem Statement
+
+The system had two separate audio systems:
+1. **Counterpoint voices** (backgroundHigh, backgroundMid, backgroundLow) - from backend compositions
+2. **Accompaniment** (bass, pad, chords) - from a LOCAL generative loop with independent harmonic context
+
+Issues:
+- Accompaniment only played during drones, not during polyphonic counterpoint
+- Local generative loop had its own scale/key/tempo, uncoordinated with backend
+- Disjointed musical experience
+
+---
+
+### Solution
+
+**Dynamic Genre Orchestration System:**
+
+1. Backend generates FULL accompaniment (bass_accomp, pad, keys) coordinated with counterpoint
+2. Each genre defines which voices play together via `orchestration` config
+3. Velocity scaling per voice based on genre characteristics
+4. Frontend disabled local generative loop, now plays backend-coordinated accompaniment
+
+**Orchestration Matrix:**
+
+| Genre | Counterpoint | Accompaniment |
+|-------|--------------|---------------|
+| ambient | melody (sparse) | pad (dominant) |
+| electronic | melody, bass_voice | bass_accomp, keys |
+| jazz | melody, harmony, bass_voice | pad |
+| rock | melody, bass_voice | bass_accomp, keys |
+| classical | melody, harmony, bass_voice | pad |
+| melodic | melody, harmony | pad, keys |
+| rhythmic | melody, bass_voice | bass_accomp, keys |
+| experimental | all (sparse) | all (textural) |
+| pop | melody, harmony | bass_accomp, pad, keys |
+
+---
+
+### Implementation
+
+**Backend - GenreCharacteristics.js:**
+```javascript
+orchestration: {
+  counterpoint: ['melody', 'harmony', 'bass_voice'],
+  accompaniment: ['pad', 'keys'],
+  velocities: {
+    melody: 1.0, harmony: 0.7, bass_voice: 0.8,
+    bass_accomp: 0.6, pad: 0.4, keys: 0.5
+  }
+}
+```
+
+**Backend - CompositionEngine.js:**
+```javascript
+generateFullAccompaniment(progression, style, sectionLength) {
+  return {
+    bass_accomp: this.generateBassAccompaniment(...),
+    pad: this.generatePadAccompaniment(...),
+    keys: this.generateKeysAccompaniment(...)
+  }
+}
+```
+
+**Frontend - AudioService.js:**
+```javascript
+playPolyphonicAccompaniment(accompaniment, tempo, now, beatDuration) {
+  // Plays bass_accomp on bass synth, pad on pad synth, keys on chords synth
+}
+```
+
+---
+
+### Accompaniment Generation Algorithms
+
+**Bass Accompaniment:** Root notes with PHI-based timing (0.5-2 beat intervals)
+
+**Pad Accompaniment:** Sustained 3-note voicings across chord changes
+
+**Keys Accompaniment:** Rhythmic chord patterns (quarter/eighth note rhythms)
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/utils/GenreCharacteristics.js` | Added `orchestration` config to all 9 genres, added `getOrchestration()` helper |
+| `backend/src/services/CompositionEngine.js` | Added `generateFullAccompaniment()`, `generateBassAccompaniment()`, `generatePadAccompaniment()`, `generateKeysAccompaniment()`, modified `composePolyphonic()` |
+| `frontend/src/services/AudioService.js` | Added `playPolyphonicAccompaniment()`, modified `playPolyphonicComposition()`, disabled `startEvolvingGeneration()` |
+
+---
+
+### Safety Improvements
+
+Based on code review:
+- Added input validation to `playPolyphonicAccompaniment()` (type checks, finite number checks)
+- Added division by zero guards to all accompaniment generation methods
+- Added comprehensive documentation to disabled `startEvolvingGeneration()`
+
+---
+
+### Version
+
+v0.2.65

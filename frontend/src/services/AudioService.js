@@ -2171,6 +2171,21 @@ class AudioService {
    * MUSICAL COMPOSITION: Multi-voice counterpoint with voice leading
    */
   startEvolvingGeneration() {
+    // ============================================================================
+    // Entry #206: LOCAL GENERATIVE LOOP PERMANENTLY DISABLED
+    // ============================================================================
+    // Accompaniment (bass, pad, keys) now comes from the backend via polyphonic compositions.
+    // This ensures all layers use the same harmonic progression, tempo, and genre.
+    //
+    // DO NOT RE-ENABLE: This would conflict with backend-coordinated accompaniment.
+    // If you need to restore local generation, coordinate with backend's orchestration system.
+    //
+    // The function is kept (not deleted) because it's called from 12+ places in AudioService.
+    // Those call sites expect the function to exist and handle the "should I generate?" decision.
+    // ============================================================================
+    return
+
+    // --- DISABLED CODE BELOW (kept for reference) ---
     if (this.evolvingGenerationActive) return
 
     // STATE MACHINE: Don't start if audio is stopped
@@ -3752,6 +3767,103 @@ class AudioService {
         }, scheduleTime)
 
         // Track for cleanup
+        this.scheduledTransportEvents.push(eventId)
+      }
+    }
+
+    // Entry #206: Play accompaniment layers if present
+    if (content.accompaniment) {
+      this.playPolyphonicAccompaniment(content.accompaniment, tempo, now, beatDuration)
+    }
+  }
+
+  /**
+   * Entry #206: Play accompaniment for polyphonic compositions
+   * Handles bass_accomp, pad, and keys layers
+   * @param {Object} accompaniment - Accompaniment object with layers
+   * @param {number} tempo - Tempo in BPM
+   * @param {number} now - Current transport time
+   * @param {number} beatDuration - Duration of one beat in seconds
+   */
+  playPolyphonicAccompaniment(accompaniment, tempo, now, beatDuration) {
+    // Entry #206 FIX: Validate inputs to prevent silent failures
+    if (!accompaniment || typeof accompaniment !== 'object') {
+      return
+    }
+    if (!isFinite(tempo) || tempo <= 0 || !isFinite(now) || !isFinite(beatDuration)) {
+      return
+    }
+
+    const lookahead = 0.1
+
+    // Play bass accompaniment on bass synth (wrapped for isolation)
+    if (accompaniment.bass_accomp?.notes) {
+      const notes = accompaniment.bass_accomp.notes
+      for (let i = 0; i < notes.length; i++) {
+        const note = notes[i]
+        const pitch = note.pitch || 36
+        const frequency = this.midiToFrequency(pitch)
+        const duration = (note.duration || 0.5) * beatDuration
+        const velocity = note.velocity || 0.6
+        const delay = (note.startBeat || 0) * beatDuration
+        const scheduleTime = now + lookahead + delay
+
+        const eventId = Tone.Transport.schedule((audioTime) => {
+          // Use bass synth from ambientLayers
+          if (this.ambientLayers && this.ambientLayers.bass && !this.ambientLayers.bass.disposed) {
+            try {
+              this.ambientLayers.bass.triggerAttackRelease(frequency, duration, audioTime, velocity)
+            } catch (e) { /* ignore */ }
+          }
+        }, scheduleTime)
+        this.scheduledTransportEvents.push(eventId)
+      }
+    }
+
+    // Play pad accompaniment on pad synth (PolySynth)
+    if (accompaniment.pad?.notes) {
+      const notes = accompaniment.pad.notes
+      for (let i = 0; i < notes.length; i++) {
+        const note = notes[i]
+        const pitch = note.pitch || 60
+        const frequency = this.midiToFrequency(pitch)
+        const duration = (note.duration || 2.0) * beatDuration
+        const velocity = note.velocity || 0.4
+        const delay = (note.startBeat || 0) * beatDuration
+        const scheduleTime = now + lookahead + delay
+
+        const eventId = Tone.Transport.schedule((audioTime) => {
+          // Use pad synth from ambientLayers (PolySynth)
+          if (this.ambientLayers && this.ambientLayers.pad && !this.ambientLayers.pad.disposed) {
+            try {
+              this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
+            } catch (e) { /* ignore */ }
+          }
+        }, scheduleTime)
+        this.scheduledTransportEvents.push(eventId)
+      }
+    }
+
+    // Play keys accompaniment on chords synth (FM)
+    if (accompaniment.keys?.notes) {
+      const notes = accompaniment.keys.notes
+      for (let i = 0; i < notes.length; i++) {
+        const note = notes[i]
+        const pitch = note.pitch || 60
+        const frequency = this.midiToFrequency(pitch)
+        const duration = (note.duration || 0.5) * beatDuration
+        const velocity = note.velocity || 0.5
+        const delay = (note.startBeat || 0) * beatDuration
+        const scheduleTime = now + lookahead + delay
+
+        const eventId = Tone.Transport.schedule((audioTime) => {
+          // Use chords synth from ambientLayers (FM synth)
+          if (this.ambientLayers && this.ambientLayers.chords && !this.ambientLayers.chords.disposed) {
+            try {
+              this.ambientLayers.chords.triggerAttackRelease(frequency, duration, audioTime, velocity)
+            } catch (e) { /* ignore */ }
+          }
+        }, scheduleTime)
         this.scheduledTransportEvents.push(eventId)
       }
     }

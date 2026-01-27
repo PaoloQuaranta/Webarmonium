@@ -6,7 +6,8 @@ const {
   getRhythmPattern,
   getArticulation,
   getSwingAmount,
-  getSyncopation
+  getSyncopation,
+  getOrchestration
 } = require('../utils/GenreCharacteristics')
 
 class CompositionEngine {
@@ -488,6 +489,9 @@ class CompositionEngine {
     // Entry #180: Get genre for genre-aware voice creation
     const genre = style?.forcedGenre || this._getDominantGenreFromWeights(style?.genreWeights) || 'melodic'
 
+    // Entry #206: Get orchestration config for this genre
+    const orchestration = getOrchestration(genre)
+
     // Entry #180: Use genre-specific voice count instead of fixed 4
     const genreConfig = getGenreCharacteristics(genre)
     const genreVoiceCount = genreConfig?.voiceConfig?.voiceCount || 4
@@ -541,13 +545,63 @@ class CompositionEngine {
       })
     })
 
+    // Entry #206: Generate full accompaniment
+    const fullAccompaniment = this.generateFullAccompaniment(progression, style, sectionLength)
+
+    // Entry #206: Filter counterpoint voices based on orchestration
+    const activeVoices = voices.filter(v => {
+      // Map voice roles to orchestration counterpoint roles
+      const roleMap = {
+        'melody': 'melody',
+        'harmony': 'harmony',
+        'bass': 'bass_voice',
+        'pad': 'harmony'  // Pad voices treated as harmony
+      }
+      const mappedRole = roleMap[v.voiceRole] || v.voiceRole
+      return orchestration.counterpoint.includes(mappedRole) ||
+             orchestration.counterpoint.includes(v.voiceRole)
+    })
+
+    // Entry #206: Filter accompaniment based on orchestration
+    const activeAccompaniment = {}
+    if (orchestration.accompaniment.includes('bass_accomp') && fullAccompaniment.bass_accomp) {
+      activeAccompaniment.bass_accomp = fullAccompaniment.bass_accomp
+    }
+    if (orchestration.accompaniment.includes('pad') && fullAccompaniment.pad) {
+      activeAccompaniment.pad = fullAccompaniment.pad
+    }
+    if (orchestration.accompaniment.includes('keys') && fullAccompaniment.keys) {
+      activeAccompaniment.keys = fullAccompaniment.keys
+    }
+
+    // Entry #206: Apply velocity scaling from orchestration
+    const velocities = orchestration.velocities || {}
+    activeVoices.forEach(voice => {
+      const velocityScale = velocities[voice.voiceRole] || velocities.melody || 1.0
+      voice.notes.forEach(note => {
+        note.velocity = (note.velocity || 0.7) * velocityScale
+      })
+    })
+
+    // Apply velocity to accompaniment
+    Object.keys(activeAccompaniment).forEach(layer => {
+      const velocityScale = velocities[layer] || 0.5
+      if (activeAccompaniment[layer].notes) {
+        activeAccompaniment[layer].notes.forEach(note => {
+          note.velocity = (note.velocity || 0.6) * velocityScale
+        })
+      }
+    })
+
     return {
       type: 'polyphonic',
-      voices,
+      voices: activeVoices,
+      accompaniment: Object.keys(activeAccompaniment).length > 0 ? activeAccompaniment : null,
+      orchestration,  // Include for frontend debugging
       progression,
       validation,
       duration: sectionLength,
-      texture: this.classifyTexture(voices)
+      texture: this.classifyTexture(activeVoices)
     }
   }
 
@@ -1058,6 +1112,258 @@ class CompositionEngine {
         articulation: genreConfig?.articulation || 'normal',
         filterCutoff: synthParams.filterCutoff // Pass to frontend for filter modulation
       }))
+    }
+  }
+
+  /**
+   * Entry #206: Generate full accompaniment with all three layers
+   * Creates bass_accomp, pad, and keys - filtered by orchestration in composePolyphonic
+   * @param {Array} progression - Chord progression
+   * @param {Object} style - Style object with forcedGenre or genreWeights
+   * @param {number} sectionLength - Section length in bars
+   * @returns {Object} Full accompaniment with bass_accomp, pad, and keys
+   */
+  generateFullAccompaniment(progression, style, sectionLength) {
+    const genre = style?.forcedGenre || this._getDominantGenreFromWeights(style?.genreWeights) || 'melodic'
+    const rhythmPattern = getRhythmPattern(genre, 'accompaniment', this.compositionCount || 0)
+    const bassPattern = getRhythmPattern(genre, 'bass', this.compositionCount || 0)
+    const syncopation = getSyncopation(genre)
+    const swingAmount = getSwingAmount(genre)
+    const articulation = getArticulation(genre)
+
+    return {
+      bass_accomp: this.generateBassAccompaniment(progression, bassPattern, genre, syncopation, swingAmount, sectionLength),
+      pad: this.generatePadAccompaniment(progression, genre, sectionLength),
+      keys: this.generateKeysAccompaniment(progression, rhythmPattern, genre, syncopation, swingAmount, articulation, sectionLength)
+    }
+  }
+
+  /**
+   * Entry #206: Generate bass accompaniment layer
+   * Root notes and simple patterns - distinct from counterpoint bass voice
+   */
+  generateBassAccompaniment(progression, rhythmPattern, genre, syncopation, swingAmount, sectionLength) {
+    const tempo = this.tempo || 120
+    const beatDuration = 60 / tempo
+    const notes = []
+
+    // Entry #206 FIX: Guard against empty progression
+    if (!progression || progression.length === 0) {
+      return { type: 'bass_accomp', notes: [], genre }
+    }
+
+    // Calculate section duration in beats
+    const sectionBeats = sectionLength * 4  // 4 beats per bar
+    const progressionLength = progression.length  // Already validated above
+
+    progression.forEach((chord, chordIndex) => {
+      const chordStartBeat = chordIndex * (sectionBeats / progressionLength)
+      const chordDuration = sectionBeats / progressionLength
+
+      // Get root note from chord
+      const root = chord.root || 36  // C2 default
+      const fifth = root + 7  // Perfect fifth
+
+      // Generate bass pattern based on genre
+      let patternNotes = []
+      if (genre === 'electronic' || genre === 'rhythmic') {
+        // Driving 8th notes or syncopated pattern
+        const noteCount = Math.floor(chordDuration / 0.5)
+        for (let i = 0; i < noteCount; i++) {
+          const isSyncopated = Math.random() < syncopation * 0.3
+          patternNotes.push({
+            pitch: i % 4 === 2 ? fifth : root,  // Occasional fifth
+            startBeat: chordStartBeat + (i * 0.5) + (isSyncopated ? -0.125 : 0),
+            duration: 0.4,
+            velocity: i % 2 === 0 ? 0.8 : 0.6
+          })
+        }
+      } else if (genre === 'jazz') {
+        // Walking bass style
+        const walkingNotes = [root, root + 2, root + 4, fifth]
+        walkingNotes.forEach((pitch, i) => {
+          const swingOffset = (i % 2 === 1) ? swingAmount * 0.1 : 0
+          patternNotes.push({
+            pitch,
+            startBeat: chordStartBeat + i + swingOffset,
+            duration: 0.9,
+            velocity: 0.7
+          })
+        })
+      } else if (genre === 'rock') {
+        // Power bass - root and fifth
+        patternNotes.push(
+          { pitch: root, startBeat: chordStartBeat, duration: 1.5, velocity: 0.85 },
+          { pitch: root, startBeat: chordStartBeat + 2, duration: 0.5, velocity: 0.7 },
+          { pitch: fifth, startBeat: chordStartBeat + 2.5, duration: 0.5, velocity: 0.75 },
+          { pitch: root, startBeat: chordStartBeat + 3, duration: 0.8, velocity: 0.8 }
+        )
+      } else {
+        // Default: whole notes on root
+        patternNotes.push({
+          pitch: root,
+          startBeat: chordStartBeat,
+          duration: chordDuration * 0.9,
+          velocity: 0.65
+        })
+      }
+
+      notes.push(...patternNotes)
+    })
+
+    return {
+      type: 'bass_accomp',
+      notes,
+      genre
+    }
+  }
+
+  /**
+   * Entry #206: Generate pad accompaniment layer
+   * Sustained chords for harmonic bed
+   */
+  generatePadAccompaniment(progression, genre, sectionLength) {
+    // Entry #206 FIX: Guard against empty progression
+    if (!progression || progression.length === 0) {
+      return { type: 'pad', notes: [], genre, sustain: true }
+    }
+
+    const sectionBeats = sectionLength * 4
+    const notes = []
+    const progressionLength = progression.length
+
+    progression.forEach((chord, chordIndex) => {
+      const chordStartBeat = chordIndex * (sectionBeats / progressionLength)
+      const chordDuration = sectionBeats / progressionLength
+
+      // Build chord notes (root, third, fifth in mid register)
+      const root = (chord.root || 48) + 12  // Shift up an octave for pad register
+      const chordNotes = this.harmonicEngine.buildChord(chord.chord || 'major')
+
+      // Create sustained pad notes
+      chordNotes.forEach((interval, i) => {
+        const pitch = root + interval
+        notes.push({
+          pitch,
+          startBeat: chordStartBeat + (i * 0.05),  // Slight stagger for organic feel
+          duration: chordDuration * 0.95,          // Nearly full sustain
+          velocity: genre === 'ambient' ? 0.4 : 0.5
+        })
+      })
+    })
+
+    return {
+      type: 'pad',
+      notes,
+      genre,
+      sustain: true
+    }
+  }
+
+  /**
+   * Entry #206: Generate keys accompaniment layer
+   * Rhythmic patterns - arpeggios, comping, etc.
+   */
+  generateKeysAccompaniment(progression, rhythmPattern, genre, syncopation, swingAmount, articulation, sectionLength) {
+    // Entry #206 FIX: Guard against empty progression
+    if (!progression || progression.length === 0) {
+      return { type: 'keys', notes: [], genre, articulation }
+    }
+
+    const sectionBeats = sectionLength * 4
+    const notes = []
+    const progressionLength = progression.length
+
+    progression.forEach((chord, chordIndex) => {
+      const chordStartBeat = chordIndex * (sectionBeats / progressionLength)
+      const chordDuration = sectionBeats / progressionLength
+
+      // Build chord notes in keys register
+      const root = (chord.root || 60)  // Middle C register
+      const chordNotes = this.harmonicEngine.buildChord(chord.chord || 'major')
+
+      if (genre === 'electronic' || genre === 'rhythmic') {
+        // Arpeggio pattern
+        const directions = ['up', 'down', 'updown']
+        const direction = directions[chordIndex % directions.length]
+        const sortedNotes = direction === 'down' ? [...chordNotes].reverse() : chordNotes
+
+        let beatOffset = 0
+        const noteLength = 0.25  // 16th notes
+        while (beatOffset < chordDuration) {
+          sortedNotes.forEach((interval, i) => {
+            if (beatOffset + (i * noteLength) < chordDuration) {
+              const isSyncopated = Math.random() < syncopation * 0.2
+              notes.push({
+                pitch: root + interval,
+                startBeat: chordStartBeat + beatOffset + (i * noteLength) + (isSyncopated ? -0.0625 : 0),
+                duration: noteLength * 0.8,
+                velocity: 0.6 + (Math.random() * 0.15)
+              })
+            }
+          })
+          beatOffset += sortedNotes.length * noteLength
+        }
+      } else if (genre === 'jazz') {
+        // Comping - sparse chords with swing
+        const compBeats = [0, 1.5, 2.5]  // Typical jazz comping spots
+        compBeats.forEach(beat => {
+          if (beat < chordDuration) {
+            const swingOffset = (beat % 1 > 0) ? swingAmount * 0.15 : 0
+            chordNotes.forEach((interval, i) => {
+              notes.push({
+                pitch: root + interval + (i === 0 ? 0 : 0),  // Voicing
+                startBeat: chordStartBeat + beat + swingOffset,
+                duration: 0.4 + (Math.random() * 0.2),
+                velocity: 0.55 + (Math.random() * 0.15)
+              })
+            })
+          }
+        })
+      } else if (genre === 'rock') {
+        // Power chord stabs
+        const stabBeats = [0, 2, 2.5, 3.5]
+        stabBeats.forEach(beat => {
+          if (beat < chordDuration) {
+            // Power chord: root and fifth only
+            ;[0, 7].forEach(interval => {
+              notes.push({
+                pitch: root + interval,
+                startBeat: chordStartBeat + beat,
+                duration: 0.3,
+                velocity: 0.75 + (Math.random() * 0.1)
+              })
+            })
+          }
+        })
+      } else {
+        // Default: block chords on beats
+        const blockBeats = rhythmPattern.reduce((acc, dur, i) => {
+          const prevTotal = acc.length > 0 ? acc[acc.length - 1] + rhythmPattern[i - 1] : 0
+          acc.push(prevTotal)
+          return acc
+        }, [0])
+
+        blockBeats.forEach(beat => {
+          if (beat < chordDuration) {
+            chordNotes.forEach((interval) => {
+              notes.push({
+                pitch: root + interval,
+                startBeat: chordStartBeat + beat,
+                duration: 0.8,
+                velocity: 0.6
+              })
+            })
+          }
+        })
+      }
+    })
+
+    return {
+      type: 'keys',
+      notes,
+      genre,
+      articulation
     }
   }
 

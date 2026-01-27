@@ -38,6 +38,19 @@ const GENRE_CHARACTERISTICS = {
       bassDensity: 0.2,
       textureDensity: 0.8
     },
+    // Entry #206: Orchestration - which voices play together
+    orchestration: {
+      counterpoint: ['melody'],  // Sparse melody only
+      accompaniment: ['pad'],    // Pad dominant, no keys or bass
+      velocities: {
+        melody: 0.5,      // Quiet, atmospheric
+        harmony: 0.3,
+        bass_voice: 0.3,
+        bass_accomp: 0.2,
+        pad: 0.8,         // Dominant pad
+        keys: 0.2
+      }
+    },
     rhythmPatterns: {
       melody: [[8], [6, 2], [4, 4]],
       accompaniment: [[16], [8, 8], [12, 4]],
@@ -78,6 +91,19 @@ const GENRE_CHARACTERISTICS = {
       bassDensity: 0.85,
       arpeggioDensity: 0.9,
       padDensity: 0.3
+    },
+    // Entry #206: Orchestration - driving bass and rhythmic keys
+    orchestration: {
+      counterpoint: ['melody', 'bass_voice'],
+      accompaniment: ['bass_accomp', 'keys'],  // Arpeggio-style keys
+      velocities: {
+        melody: 0.9,
+        harmony: 0.5,
+        bass_voice: 0.85,
+        bass_accomp: 0.75,
+        pad: 0.3,
+        keys: 0.8         // Prominent arpeggios
+      }
     },
     rhythmPatterns: {
       melody: [
@@ -133,6 +159,19 @@ const GENRE_CHARACTERISTICS = {
       compingDensity: 0.5,
       bassDensity: 0.7,
       padDensity: 0.3
+    },
+    // Entry #206: Orchestration - full counterpoint with light comping
+    orchestration: {
+      counterpoint: ['melody', 'harmony', 'bass_voice'],  // Walking bass, melody, inner voice
+      accompaniment: ['pad'],  // Light comping pad, no heavy keys
+      velocities: {
+        melody: 1.0,      // Lead voice prominent
+        harmony: 0.6,     // Inner voice subtle
+        bass_voice: 0.8,  // Walking bass clear
+        bass_accomp: 0.3,
+        pad: 0.4,         // Light comping
+        keys: 0.3
+      }
     },
     rhythmPatterns: {
       melody: [
@@ -192,6 +231,19 @@ const GENRE_CHARACTERISTICS = {
       bassDensity: 0.85,
       padDensity: 0.25
     },
+    // Entry #206: Orchestration - driving rhythm section
+    orchestration: {
+      counterpoint: ['melody', 'bass_voice'],  // Lead + bass locked
+      accompaniment: ['bass_accomp', 'keys'],  // Power chord keys
+      velocities: {
+        melody: 1.0,      // Lead guitar prominent
+        harmony: 0.5,
+        bass_voice: 0.9,  // Locked with drums
+        bass_accomp: 0.7,
+        pad: 0.3,         // Subtle sustain
+        keys: 0.85        // Power chords
+      }
+    },
     rhythmPatterns: {
       melody: [
         [0.5, 0.5, 1],
@@ -249,6 +301,19 @@ const GENRE_CHARACTERISTICS = {
       tenorDensity: 0.4,
       bassDensity: 0.4
     },
+    // Entry #206: Orchestration - full SATB counterpoint with orchestral pad
+    orchestration: {
+      counterpoint: ['melody', 'harmony', 'bass_voice'],  // Full voice leading
+      accompaniment: ['pad'],  // Orchestral sustain only
+      velocities: {
+        melody: 0.9,      // Soprano/lead
+        harmony: 0.7,     // Alto/tenor balance
+        bass_voice: 0.75, // Bass foundation
+        bass_accomp: 0.3,
+        pad: 0.5,         // Orchestral strings
+        keys: 0.2
+      }
+    },
     rhythmPatterns: {
       melody: [
         [1, 1, 2],
@@ -304,6 +369,19 @@ const GENRE_CHARACTERISTICS = {
       harmonyDensity: 0.5,
       bassDensity: 0.5
     },
+    // Entry #206: Orchestration - balanced melody focus with support
+    orchestration: {
+      counterpoint: ['melody', 'harmony'],  // Lead + harmony
+      accompaniment: ['pad', 'keys'],       // Full accompaniment support
+      velocities: {
+        melody: 1.0,      // Lead prominent
+        harmony: 0.65,    // Supportive harmony
+        bass_voice: 0.5,
+        bass_accomp: 0.5,
+        pad: 0.55,        // Warm pad
+        keys: 0.6         // Gentle keys
+      }
+    },
     rhythmPatterns: {
       melody: [
         [1, 1, 1, 1],
@@ -355,6 +433,19 @@ const GENRE_CHARACTERISTICS = {
       melodyDensity: 0.55,
       rhythmDensity: 0.85,
       bassDensity: 0.9
+    },
+    // Entry #206: Orchestration - groove-focused with rhythmic keys
+    orchestration: {
+      counterpoint: ['melody', 'bass_voice'],  // Funky bass line
+      accompaniment: ['bass_accomp', 'keys'],  // Rhythmic section
+      velocities: {
+        melody: 0.85,     // Rhythmic melody
+        harmony: 0.4,
+        bass_voice: 0.95, // Funky bass prominent
+        bass_accomp: 0.8,
+        pad: 0.25,
+        keys: 0.75        // Rhythmic stabs
+      }
     },
     rhythmPatterns: {
       melody: [
@@ -411,6 +502,19 @@ const GENRE_CHARACTERISTICS = {
       noiseDensity: 0.5,
       bassDensity: 0.4
     },
+    // Entry #206: Orchestration - all voices sparse and textural
+    orchestration: {
+      counterpoint: ['melody', 'harmony', 'bass_voice'],  // All sparse
+      accompaniment: ['pad', 'keys', 'bass_accomp'],      // All textural
+      velocities: {
+        melody: 0.6,      // Sparse, unpredictable
+        harmony: 0.5,
+        bass_voice: 0.55,
+        bass_accomp: 0.45,
+        pad: 0.65,        // Textural pads
+        keys: 0.5         // Random stabs
+      }
+    },
     rhythmPatterns: {
       melody: [
         [0.75, 0.5, 1.25],
@@ -463,6 +567,19 @@ const GENRE_CHARACTERISTICS = {
       harmonyDensity: 0.55,
       bassDensity: 0.6
     },
+    // Entry #206: Orchestration - catchy melody with full band support
+    orchestration: {
+      counterpoint: ['melody', 'harmony'],
+      accompaniment: ['bass_accomp', 'pad', 'keys'],
+      velocities: {
+        melody: 1.0,      // Hook melody prominent
+        harmony: 0.6,
+        bass_voice: 0.5,
+        bass_accomp: 0.7, // Solid bass foundation
+        pad: 0.5,         // Synth pad
+        keys: 0.65        // Piano/synth
+      }
+    },
     rhythmPatterns: {
       melody: [
         [1, 1, 1, 1],
@@ -509,7 +626,7 @@ const GENRE_CHARACTERISTICS = {
 const DEFAULT_CHARACTERISTICS = GENRE_CHARACTERISTICS.melodic
 
 // Required structure keys for validation
-const REQUIRED_KEYS = ['voiceConfig', 'rhythmPatterns', 'durationPools', 'synthParams']
+const REQUIRED_KEYS = ['voiceConfig', 'rhythmPatterns', 'durationPools', 'synthParams', 'orchestration']
 
 /**
  * Validate that characteristics object has required structure
@@ -542,7 +659,12 @@ function getGenreCharacteristics(genre) {
       articulation: 'normal',
       swingAmount: 0,
       syncopation: 0.3,
-      synthParams: { filterCutoff: 1800, filterQ: 0.6, attackTime: 0.03, releaseTime: 0.4, delaySend: 0.2, delayFeedback: 0.35, delayTime: 0.25, reverbSend: 0.3, reverbDecay: 1.5 }
+      synthParams: { filterCutoff: 1800, filterQ: 0.6, attackTime: 0.03, releaseTime: 0.4, delaySend: 0.2, delayFeedback: 0.35, delayTime: 0.25, reverbSend: 0.3, reverbDecay: 1.5 },
+      orchestration: {
+        counterpoint: ['melody', 'harmony'],
+        accompaniment: ['pad', 'keys'],
+        velocities: { melody: 1.0, harmony: 0.7, bass_voice: 0.6, bass_accomp: 0.5, pad: 0.5, keys: 0.5 }
+      }
     }
   }
   return DEFAULT_CHARACTERISTICS
@@ -698,6 +820,32 @@ function getSyncopation(genre) {
 }
 
 /**
+ * Entry #206: Get orchestration configuration for a genre
+ * Defines which counterpoint and accompaniment voices are active
+ * @param {string} genre - Genre name
+ * @returns {Object} Orchestration config with counterpoint, accompaniment, and velocities
+ */
+function getOrchestration(genre) {
+  const characteristics = getGenreCharacteristics(genre)
+  if (characteristics.orchestration) {
+    return characteristics.orchestration
+  }
+  // Fallback orchestration
+  return {
+    counterpoint: ['melody', 'harmony'],
+    accompaniment: ['pad', 'keys'],
+    velocities: {
+      melody: 1.0,
+      harmony: 0.7,
+      bass_voice: 0.6,
+      bass_accomp: 0.5,
+      pad: 0.5,
+      keys: 0.5
+    }
+  }
+}
+
+/**
  * Get all available genres
  * @returns {Array} List of genre names
  */
@@ -767,6 +915,7 @@ module.exports = {
   getArticulation,
   getSwingAmount,
   getSyncopation,
+  getOrchestration,
   getAllGenres,
   isValidStyle,
   createStyleObject
