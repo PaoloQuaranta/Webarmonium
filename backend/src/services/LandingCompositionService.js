@@ -1290,19 +1290,23 @@ class LandingCompositionService {
     const githubActivity = this.calculateActivityLevel('github')
     const totalActivity = (wikipediaActivity + hackernewsActivity + githubActivity) / 3  // Average 0-1
 
-    // Entry #199: Fixed timing to match CompositionEngine's sectionLength (in BARS)
-    // Previously used 16-24 "beats" but compositions are 8 bars = 32 beats, causing gaps
-    // Now: 6-10 BARS based on activity, multiplied by 4 to get actual beats
-    // High activity = more frequent (6 bars = 24 beats), Low activity = sparse (10 bars = 40 beats)
-    const barsPerComposition = 10 - (totalActivity * 4)  // 6-10 bars, emerges from activity
-    const beatsPerComposition = barsPerComposition * 4   // Convert to beats (4 beats per bar)
+    // Entry #204: Use fixed sectionLength matching CompositionEngine (8 bars)
+    // Previous variable 6-10 bars caused mismatches with actual composition content
+    const sectionLengthBars = 8  // Must match CompositionEngine.sectionLengths
+    const beatsPerComposition = sectionLengthBars * 4  // 32 beats for 8 bars in 4/4
 
     const beatDuration = 60000 / tempo  // milliseconds per beat
-    const interval = beatsPerComposition * beatDuration
+    const compositionDuration = beatsPerComposition * beatDuration  // ~16000ms at 120 BPM
 
-    // Entry #199: Adjusted clamp bounds for bar-based calculation
-    // Min 12s (6 bars at 120 BPM), Max 40s (allows for 10+ bars at slow tempos)
-    const clampedInterval = Math.max(12000, Math.min(40000, interval))
+    // Entry #204: Apply overlap factor (0.85) to ensure next composition arrives
+    // BEFORE the current one finishes. Modulate slightly by activity for variety.
+    const baseOverlap = 0.85
+    const activityModulation = totalActivity * 0.1  // 0-0.1 based on activity
+    const overlapFactor = baseOverlap - activityModulation  // 0.75-0.85
+    const interval = compositionDuration * overlapFactor
+
+    // Entry #204: Adjusted clamp bounds - min 10s, max 25s
+    const clampedInterval = Math.max(10000, Math.min(25000, interval))
 
     // Entry #192: Use async callback to await composition before scheduling next
     // This prevents composition accumulation when generation takes longer than interval

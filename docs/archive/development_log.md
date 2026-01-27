@@ -5141,3 +5141,82 @@ const startBeat = phraseStartBeat + (noteIndexInPhrase * noteGap)
 ### Version
 
 v0.2.60
+
+---
+
+
+
+
+## Entry #204 - Fix Backend/Frontend Timing Mismatch
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Backend scheduling interval didn't match actual composition duration. `baseBars = [8,12,16,10,14]` could schedule at 16 bars while compositions only have 8 bars of content, causing long gaps.
+
+---
+
+### Problem Statement
+
+After Entry #203:
+- Phrases cluster correctly
+- But very long silences between compositions
+- Backend sends every 16 bars, frontend plays 8 bars = 8-bar gap
+
+**Root Cause:**
+
+```javascript
+// Backend scheduling (before):
+const baseBars = [8, 12, 16, 10, 14]  // Variable 8-16 bars
+const barsPerComposition = baseBars[index] * energyModifier
+
+// Actual composition content:
+const sectionLength = 8  // Always 8 bars
+
+// Mismatch: scheduling at 16 bars, content is 8 bars → 8 bar gap
+```
+
+---
+
+### Solution
+
+1. Use fixed 8-bar scheduling to match `sectionLengths`
+2. Apply 0.85 overlap factor so next composition arrives BEFORE current ends
+
+```javascript
+// Entry #204: Fixed scheduling
+const sectionLengthBars = 8  // Match CompositionEngine.sectionLengths
+const beatsPerComposition = sectionLengthBars * 4  // 32 beats
+
+// Apply overlap to prevent gaps
+const overlapFactor = 0.85
+const interval = compositionDuration * overlapFactor  // ~13.6s instead of 16s
+```
+
+---
+
+### Timing Comparison
+
+| Before | After |
+|--------|-------|
+| Schedule: variable 8-16 bars | Schedule: fixed 8 bars |
+| No overlap | 0.85x overlap |
+| Gaps when variable > 8 | Continuous playback |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/BackgroundCompositionService.js` | Fixed sectionLength=8, added overlapFactor=0.85 |
+| `backend/src/services/LandingCompositionService.js` | Same fix with activity-modulated overlap |
+
+---
+
+### Version
+
+v0.2.61

@@ -1000,28 +1000,22 @@ class BackgroundCompositionService {
     // This ensures interval matches actual composition tempo, preventing gaps after genre changes
     const tempo = roomState?.styleCycling?.currentBPM || currentStyle.tempo || 120
 
-    // DERIVATION: bars per composition based on energy and composition count
-    // Higher energy → shorter compositions, lower energy → longer compositions
-    // Golden ratio stepping prevents obvious cycling patterns
-    const energy = currentStyle.energy || 0.5
-    const safeCompositionCount = compositionCount || 0
-    // Entry #199: Renamed baseBeats to baseBars - these are BARS matching CompositionEngine.sectionLengths
-    // Previously treated as beats causing 4x scheduling error (stuttering/gaps)
-    const baseBars = [8, 12, 16, 10, 14] // Section lengths in BARS (matching CompositionEngine)
-    const barIndex = Math.floor((safeCompositionCount * PHI) % 1 * baseBars.length)
-    // Reduced energy impact for smoother modulation (0.85-1.0 instead of 0.7-1.0)
-    const energyModifier = 1 - (energy * 0.15) // High energy shortens less aggressively
-    const barsPerComposition = baseBars[barIndex] * energyModifier
+    // Entry #204: Use fixed sectionLength matching CompositionEngine (8 bars)
+    // Previous variable baseBars [8,12,16,10,14] caused mismatches with actual composition content
+    // which is always generated based on sectionLengths (default 8 bars)
+    const sectionLengthBars = 8  // Must match CompositionEngine.sectionLengths
+    const beatsPerComposition = sectionLengthBars * 4  // 32 beats for 8 bars in 4/4
 
-    // Entry #199: Convert bars to beats (4 beats per bar in 4/4 time)
-    // This aligns scheduling interval with actual composition duration
-    const beatsPerComposition = barsPerComposition * 4
     const beatDuration = 60000 / tempo  // milliseconds per beat
-    const interval = beatsPerComposition * beatDuration
+    const compositionDuration = beatsPerComposition * beatDuration  // ~16000ms at 120 BPM
 
-    // Entry #199: Adjusted clamp bounds for bar-based calculation
-    // Min 8s (4 bars at 120 BPM), Max 60s (allows for 16+ bars at slow tempos)
-    const clampedInterval = Math.max(8000, Math.min(60000, interval))
+    // Entry #204: Apply overlap factor (0.85) to ensure next composition arrives
+    // BEFORE the current one finishes playing. This prevents gaps when queue is empty.
+    const overlapFactor = 0.85
+    const interval = compositionDuration * overlapFactor
+
+    // Entry #204: Adjusted clamp bounds - min 6s, max 30s
+    const clampedInterval = Math.max(6000, Math.min(30000, interval))
 
     // Entry #192: Use async callback to await composition before scheduling next
     // This prevents composition accumulation when generation takes longer than interval
