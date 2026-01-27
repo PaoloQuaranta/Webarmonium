@@ -3317,11 +3317,10 @@ class AudioService {
    * @param {Object} style - Style info with genreWeights, dominantGenre, energy
    */
   playComposition(composition, isDrone = false, style = {}) {
-    // Entry #192: Clear pending notes to prevent overlap/stutter
-    // Don't clear if this is a drone (drones should continue)
-    if (!isDrone) {
-      this.clearPendingCompositionNotes()
-    }
+    // Entry #195: REMOVED clearPendingCompositionNotes() call
+    // Entry #192 added this to prevent overlap, but it was cutting phrases mid-playback
+    // The backend now properly awaits composition generation (Entry #192), so overlap
+    // is prevented at the source. Frontend cleanup was causing "singhiozzo" (stutter).
 
     // Entry #175: Store style for use in playback methods
     this.currentStyle = style

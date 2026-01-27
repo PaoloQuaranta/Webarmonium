@@ -4268,3 +4268,68 @@ The 5-second delay accumulated with each error, making background feel "inert".
 v0.2.50
 
 ---
+
+## Entry #195 - Fix Phrase Cutting (Remove Aggressive Note Cleanup)
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed "singhiozzo" (stutter) where phrases were being cut mid-playback. Root cause was Entry #192's `clearPendingCompositionNotes()` which cancelled all scheduled notes when new composition arrived.
+
+---
+
+### Problem Statement
+
+Users reported "pezzetto di frase, silenzio, pezzetto" - short phrase snippets with silence between them.
+
+**Root Cause**: Entry #192 added frontend cleanup to prevent overlap:
+
+```javascript
+playComposition(composition, isDrone = false, style = {}) {
+  if (!isDrone) {
+    this.clearPendingCompositionNotes()  // PROBLEM: Cancels ALL pending notes!
+  }
+  // ...
+}
+```
+
+This was cutting phrases mid-playback:
+1. Composition A arrives, schedules 8 beats of notes
+2. After 3 beats, Composition B arrives
+3. `clearPendingCompositionNotes()` cancels remaining 5 beats of A
+4. Result: Phrase A cut off, silence, phrase B starts
+
+---
+
+### Solution
+
+**Removed the `clearPendingCompositionNotes()` call entirely.**
+
+The original problem (composition overlap) was caused by backend not awaiting generation. Entry #192 fixed that at the source by adding `await`. The frontend cleanup is no longer needed and was causing harm.
+
+```javascript
+playComposition(composition, isDrone = false, style = {}) {
+  // Entry #195: REMOVED clearPendingCompositionNotes() call
+  // Backend now awaits composition generation, preventing overlap at source
+  // ...
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Removed `clearPendingCompositionNotes()` call in `playComposition()` |
+
+---
+
+### Version
+
+v0.2.51
+
+---
