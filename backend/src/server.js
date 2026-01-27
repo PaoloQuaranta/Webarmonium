@@ -197,6 +197,15 @@ app.use(securityHeadersMiddleware)
 // Serve static files from frontend directory
 app.use(express.static('../frontend'))
 
+// Health check endpoint for monitoring (UptimeRobot, etc.)
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: Date.now(),
+    uptime: process.uptime()
+  })
+})
+
 // Request logging middleware
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString()
