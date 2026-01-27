@@ -4088,3 +4088,85 @@ All timers tracked in compositionTimers Map for cleanup
 v0.2.48
 
 ---
+
+## Entry #193 - Fix Pauses After Genre Change (Tempo Mismatch)
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed excessive pauses in background music after genre changes. Root cause was tempo mismatch between interval scheduling (using gesture-derived tempo) and composition generation (using genre-based tempo).
+
+---
+
+### Problem Statement
+
+After Entry #192 fixed composition overlap, users reported too many pauses in the background, especially after genre changes. Investigation revealed:
+
+**Symptom**: Silence gaps of 2-3 seconds between compositions after genre change
+
+**Root Cause**: Tempo mismatch in `scheduleNextComposition`:
+- **Interval calculation** used `styleAnalyzer.getCurrentStyle().tempo` (gesture-derived)
+- **Composition generation** used `styleCycling.currentBPM` (genre-based)
+
+**Example Scenario**:
+1. Old genre: ambient (75 BPM) → composition plays 8 beats at 75 BPM = 6.4s
+2. Genre changes to electronic (130 BPM)
+3. Interval calculation still uses gesture tempo (75 BPM) = 6.4s wait
+4. But composition is generated at 130 BPM, so 8 beats = 3.7s
+5. **Result**: 3.7s music + 2.7s silence before next composition
+
+---
+
+### Solution
+
+Use `styleCycling.currentBPM` (the actual composition tempo) for interval calculation:
+
+```javascript
+// BackgroundCompositionService.js - scheduleNextComposition()
+// BEFORE:
+const tempo = currentStyle.tempo || 120
+
+// AFTER:
+const tempo = roomState?.styleCycling?.currentBPM || currentStyle.tempo || 120
+```
+
+Same fix applied to `LandingCompositionService.js`:
+
+```javascript
+// BEFORE:
+const tempo = currentStyle?.tempo || 120
+
+// AFTER:
+const tempo = this.styleCycling?.currentBPM || currentStyle?.tempo || 120
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/BackgroundCompositionService.js` | Use `styleCycling.currentBPM` for interval calculation |
+| `backend/src/services/LandingCompositionService.js` | Same fix for landing page |
+
+---
+
+### Why This Works
+
+The composition interval now matches the actual tempo used for composition generation:
+
+| Scenario | Before | After |
+|----------|--------|-------|
+| Genre: ambient (75 BPM), 8 beats | Interval: 6.4s, Music: 6.4s | Interval: 6.4s, Music: 6.4s |
+| Genre changes to electronic (130 BPM) | Interval: 6.4s, Music: 3.7s → **2.7s gap** | Interval: 3.7s, Music: 3.7s → **no gap** |
+
+---
+
+### Version
+
+v0.2.49
+
+---

@@ -1277,7 +1277,10 @@ class LandingCompositionService {
     // Calculate next composition interval BASED ON CURRENT TEMPO (same as normal rooms)
     // Generate compositions at a fixed number of beats, not fixed time
     const currentStyle = this.styleAnalyzer.getCurrentStyle()
-    const tempo = currentStyle?.tempo || 120
+
+    // Entry #193: Use cycling.currentBPM (genre-based) instead of gesture-derived tempo
+    // This ensures interval matches actual composition tempo, preventing gaps after genre changes
+    const tempo = this.styleCycling?.currentBPM || currentStyle?.tempo || 120
 
     // UNIFIED: Composition frequency emerges from TOTAL metric activity (no random)
     // High activity = more frequent compositions (fewer beats between)

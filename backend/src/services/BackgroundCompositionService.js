@@ -991,11 +991,14 @@ class BackgroundCompositionService {
     // Calculate next composition interval BASED ON CURRENT TEMPO
     // Generate compositions at a fixed number of beats, not fixed time
     const currentStyle = this.styleAnalyzer.getCurrentStyle()
-    const tempo = currentStyle.tempo || 120
 
     // Get room state for deterministic calculation
     const roomState = this.roomCompositions.get(roomId)
     const compositionCount = roomState?.compositionCount || 0
+
+    // Entry #193: Use cycling.currentBPM (genre-based) instead of gesture-derived tempo
+    // This ensures interval matches actual composition tempo, preventing gaps after genre changes
+    const tempo = roomState?.styleCycling?.currentBPM || currentStyle.tempo || 120
 
     // DERIVATION: beats per composition based on energy and composition count
     // Higher energy → shorter compositions, lower energy → longer compositions
