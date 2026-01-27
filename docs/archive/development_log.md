@@ -5061,3 +5061,83 @@ const startBeat = (i / noteCount) * totalBeats
 ### Version
 
 v0.2.59
+
+---
+
+
+
+
+## Entry #203 - Phrase Clustering for Musical Continuity
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Entry #202 distributed notes evenly across the section, but this made music too sparse (1 note every 2-4 seconds). This entry groups notes into phrase clusters that are distributed across the section, maintaining musicality.
+
+---
+
+### Problem Statement
+
+After Entry #202:
+- 8 melody notes spread over 32 beats = 1 note every 4 beats (2 seconds)
+- Result: Isolated single notes, not musical phrases
+- "After a while the background becomes silent with only occasional single notes"
+
+---
+
+### Solution
+
+Group notes into 2-3 phrase clusters, distribute clusters across section:
+
+```javascript
+// Entry #203: Create phrase clusters
+const numPhrases = noteCount >= 6 ? 3 : (noteCount >= 4 ? 2 : 1)
+const notesPerPhrase = Math.ceil(noteCount / numPhrases)
+
+// Which phrase is this note in?
+const phraseIndex = Math.floor(i / notesPerPhrase)
+const noteIndexInPhrase = i % notesPerPhrase
+
+// Phrase starts are distributed across section
+const phraseStartBeat = (phraseIndex / numPhrases) * totalBeats
+
+// Notes within phrase are consecutive
+const noteGap = duration + 0.25
+const startBeat = phraseStartBeat + (noteIndexInPhrase * noteGap)
+```
+
+**Example (8 melody notes, 32 beats):**
+- 3 phrases, ~3 notes each
+- Phrase 1: beats 0-3 (notes 0,1,2)
+- Phrase 2: beats 10-14 (notes 3,4,5)
+- Phrase 3: beats 21-25 (notes 6,7)
+
+---
+
+### Distribution Comparison
+
+| Entry #202 (even) | Entry #203 (clustered) |
+|-------------------|------------------------|
+| Note at beat 0 | Phrase at beats 0-3 |
+| Note at beat 4 | (silence) |
+| Note at beat 8 | Phrase at beats 10-14 |
+| Note at beat 12 | (silence) |
+| ... | Phrase at beats 21-25 |
+| Sparse, isolated | Musical phrases |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/CounterpointEngine.js` | Phrase clustering in `generateVoiceNotes()` and `generateVoiceNotesWithSection()` |
+
+---
+
+### Version
+
+v0.2.60

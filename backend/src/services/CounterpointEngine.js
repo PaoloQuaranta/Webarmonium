@@ -290,6 +290,10 @@ class CounterpointEngine {
       const transposeInterval = Math.floor(temporalOffset * 5) - 2
       const noteCount = material.notes.length
 
+      // Entry #203: Create phrase clusters instead of evenly distributed single notes
+      const numPhrases = noteCount >= 6 ? 3 : (noteCount >= 4 ? 2 : 1)
+      const notesPerPhrase = Math.ceil(noteCount / numPhrases)
+
       material.notes.forEach((note, i) => {
         const transposedPitch = note.pitch + transposeInterval
         let adaptedPitch = this.adaptPitchToRange(transposedPitch, range, profile)
@@ -310,8 +314,12 @@ class CounterpointEngine {
         const velVariation = Math.sin((i / noteCount) * Math.PI) * velocityParams.variation
         const velocity = Math.round(Math.max(30, Math.min(127, baseVel + velVariation)))
 
-        // Entry #202: Distribute notes across full section length
-        const startBeat = (i / noteCount) * totalBeats
+        // Entry #203: Calculate phrase-clustered timing
+        const phraseIndex = Math.floor(i / notesPerPhrase)
+        const noteIndexInPhrase = i % notesPerPhrase
+        const phraseStartBeat = (phraseIndex / numPhrases) * totalBeats
+        const noteGap = duration + 0.25
+        const startBeat = phraseStartBeat + (noteIndexInPhrase * noteGap)
 
         voiceNotes.push({
           pitch: adaptedPitch,
@@ -330,6 +338,10 @@ class CounterpointEngine {
       const densityMultiplier = 0.5 + (voiceContext.rhythmicDensity || 0.5) * 1.0
       const noteCount = Math.round((baseCounts[role] || 5) * densityMultiplier)
 
+      // Entry #203: Create phrase clusters instead of evenly distributed single notes
+      const numPhrases = noteCount >= 6 ? 3 : (noteCount >= 4 ? 2 : 1)
+      const notesPerPhrase = Math.ceil(noteCount / numPhrases)
+
       for (let i = 0; i < noteCount; i++) {
         let pitch = this.generatePitchFromChordTones(chordTones, range, profile, i, noteCount, role)
 
@@ -345,8 +357,12 @@ class CounterpointEngine {
         const velCurve = this._getVelocityCurve(voiceContext.dynamicContour, position)
         const velocity = Math.round(velocityParams.baseVelocity * velCurve)
 
-        // Entry #202: Distribute notes across full section length
-        const startBeat = (i / noteCount) * totalBeats
+        // Entry #203: Calculate phrase-clustered timing
+        const phraseIndex = Math.floor(i / notesPerPhrase)
+        const noteIndexInPhrase = i % notesPerPhrase
+        const phraseStartBeat = (phraseIndex / numPhrases) * totalBeats
+        const noteGap = duration + 0.25
+        const startBeat = phraseStartBeat + (noteIndexInPhrase * noteGap)
 
         voiceNotes.push({
           pitch,
@@ -555,6 +571,11 @@ class CounterpointEngine {
 
       const noteCount = material.notes.length
 
+      // Entry #203: Create phrase clusters instead of evenly distributed single notes
+      // Divide notes into 2-3 phrases, each phrase has consecutive notes
+      const numPhrases = noteCount >= 6 ? 3 : (noteCount >= 4 ? 2 : 1)
+      const notesPerPhrase = Math.ceil(noteCount / numPhrases)
+
       material.notes.forEach((note, i) => {
         // Entry #117: Apply transposition for variation across compositions
         const transposedPitch = note.pitch + transposeInterval
@@ -571,9 +592,15 @@ class CounterpointEngine {
         const durationVariation = 0.8 + (((i * PHI) + temporalOffset) % 1) * 0.4 // 0.8-1.2x
         const duration = baseDuration * durationVariation
 
-        // Entry #202: Distribute notes across full section length
-        // Each note starts at evenly spaced intervals across totalBeats
-        const startBeat = (i / noteCount) * totalBeats
+        // Entry #203: Calculate phrase-clustered timing
+        // Which phrase is this note in?
+        const phraseIndex = Math.floor(i / notesPerPhrase)
+        const noteIndexInPhrase = i % notesPerPhrase
+        // Phrase starts are distributed across section
+        const phraseStartBeat = (phraseIndex / numPhrases) * totalBeats
+        // Notes within phrase are consecutive with small gaps
+        const noteGap = duration + 0.25
+        const startBeat = phraseStartBeat + (noteIndexInPhrase * noteGap)
 
         voiceNotes.push({
           pitch: adaptedPitch,
@@ -595,6 +622,10 @@ class CounterpointEngine {
         'pad': 2          // Very sparse
       }[role] || 5
 
+      // Entry #203: Create phrase clusters instead of evenly distributed single notes
+      const numPhrases = noteCount >= 6 ? 3 : (noteCount >= 4 ? 2 : 1)
+      const notesPerPhrase = Math.ceil(noteCount / numPhrases)
+
       for (let i = 0; i < noteCount; i++) {
         // Use chord tones with PHI-based selection for harmonic coherence
         let pitch = this.generatePitchFromChordTones(chordTones, range, profile, i, noteCount, role)
@@ -606,8 +637,12 @@ class CounterpointEngine {
 
         const duration = this.generateDurationByRole(role, i, noteCount)
 
-        // Entry #202: Distribute notes across full section length
-        const startBeat = (i / noteCount) * totalBeats
+        // Entry #203: Calculate phrase-clustered timing
+        const phraseIndex = Math.floor(i / notesPerPhrase)
+        const noteIndexInPhrase = i % notesPerPhrase
+        const phraseStartBeat = (phraseIndex / numPhrases) * totalBeats
+        const noteGap = duration + 0.25
+        const startBeat = phraseStartBeat + (noteIndexInPhrase * noteGap)
 
         voiceNotes.push({
           pitch,
