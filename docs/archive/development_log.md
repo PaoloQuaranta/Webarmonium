@@ -4627,3 +4627,22 @@ _playNextFromQueue() {
 v0.2.55
 
 ---
+
+### ⚠️ ADDENDUM: Problema Non Risolto
+
+**Data**: 2026-01-27
+
+Nonostante i fix di Entry #193-198, il problema del "singhiozzo" (stutter) compositivo persiste. I sintomi rimangono:
+- Frasi musicali frammentate
+- Silenzio tra i segmenti
+- Timing irregolare
+
+**Ipotesi da investigare nella prossima sessione:**
+1. Il backend potrebbe generare composizioni con contenuto musicale troppo sparso
+2. La durata calcolata potrebbe non corrispondere alla durata effettiva delle note
+3. Potrebbero esserci altri punti nel codice che interferiscono con la riproduzione sequenziale
+4. Il problema potrebbe essere nel `CompositionEngine` backend, non nel frontend
+
+**Stato**: 🔴 OPEN - Richiede ulteriore investigazione
+
+---
