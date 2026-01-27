@@ -3297,6 +3297,47 @@ class AudioService {
   }
 
   /**
+   * Entry #206: Clean up stale scheduled events to prevent memory buildup
+   * Tone.js automatically removes executed events from Transport, but our tracking
+   * array still holds the stale eventIds. This method clears them periodically.
+   *
+   * Strategy: Keep last 100 events max. Events in Tone.js Transport that have
+   * already fired are automatically removed, so clearing stale IDs is safe.
+   * @private
+   */
+  _cleanupStaleEvents() {
+    if (!this.scheduledTransportEvents) {
+      this.scheduledTransportEvents = []
+      return
+    }
+
+    // If array is small, no cleanup needed
+    if (this.scheduledTransportEvents.length <= 100) {
+      return
+    }
+
+    // Keep only the most recent 100 events (older ones have likely already fired)
+    // Drone events are preserved separately via droneRepeatEventIds
+    const droneEventIds = new Set(this.droneRepeatEventIds || [])
+    const recentEvents = this.scheduledTransportEvents.slice(-100)
+
+    // Clear old events from Transport (they may already be gone, that's OK)
+    const oldEvents = this.scheduledTransportEvents.slice(0, -100)
+    oldEvents.forEach(eventId => {
+      if (!droneEventIds.has(eventId)) {
+        try {
+          Tone.Transport.clear(eventId)
+        } catch (e) {
+          // Event already cleared or executed - this is expected
+        }
+      }
+    })
+
+    this.scheduledTransportEvents = recentEvents
+    // console.log(`🧹 Cleaned up ${oldEvents.length} stale events, kept ${recentEvents.length}`)
+  }
+
+  /**
    * Entry #192: Clear pending composition notes before playing new composition
    * Prevents overlap/stutter when compositions arrive faster than they play
    */
@@ -3440,12 +3481,10 @@ class AudioService {
    * @private
    */
   _playCompositionNow(composition, isDrone, style) {
-    // Entry #200: REMOVED harmonic cleanup that was clearing ALL notes on key change
-    // The HarmonicEngine changes key almost every composition, so this was triggering
-    // on every composition and destroying the previous composition's notes mid-playback.
-    // Each composition is harmonically self-consistent, so key changes between
-    // compositions are fine - the notes should play to completion.
-    // (Original Entry #196 logic removed - was causing the "singhiozzo" stutter)
+    // Entry #206: Clear old scheduled events to prevent memory buildup
+    // Events from previous compositions that have already executed are stale
+    // but remain in the array. This cleanup removes them before adding new ones.
+    this._cleanupStaleEvents()
 
     // Entry #175: Store style for use in playback methods
     this.currentStyle = style
