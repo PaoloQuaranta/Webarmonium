@@ -4454,3 +4454,84 @@ Implemented GoAccess real-time web traffic analytics with password protection. R
 v0.2.53
 
 ---
+
+## Entry #197 - Queue-Based Sequential Composition Playback
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed gaps between compositions by implementing queue-based sequential playback. Compositions are now queued and played one after another, with each composition starting exactly when the previous one ends.
+
+---
+
+### Problem Statement
+
+Users reported "vuoti" (gaps) between phrases - the phrase duration was less than the trigger interval, causing silence.
+
+**Root Cause**: Compositions were played immediately when received, but the actual note content was sparser than the scheduling interval. The frontend had no coordination between when one composition ended and the next should start.
+
+---
+
+### Solution
+
+**Queue-based sequential playback** in AudioService:
+
+```javascript
+playComposition(composition, isDrone = false, style = {}) {
+  // Drones play immediately
+  if (isDrone) {
+    this._playCompositionNow(composition, isDrone, style)
+    return
+  }
+
+  // Queue non-drone compositions
+  this._compositionQueue.push({ composition, style })
+
+  // Start playback if nothing is playing
+  if (!this._isPlayingComposition) {
+    this._playNextFromQueue()
+  }
+}
+
+_playNextFromQueue() {
+  const { composition, style } = this._compositionQueue.shift()
+
+  // Calculate duration from composition metadata
+  const durationSeconds = (durationBeats * beatsPerBar * 60) / tempo
+
+  // Play now
+  this._playCompositionNow(composition, false, style)
+
+  // Schedule next composition to start when this one ends
+  setTimeout(() => this._playNextFromQueue(), durationSeconds * 1000)
+}
+```
+
+---
+
+### How It Works
+
+| Before | After |
+|--------|-------|
+| Composition A arrives → plays immediately | Composition A arrives → queued |
+| Composition B arrives → plays immediately (overlaps or gaps) | Composition B arrives → queued, waits |
+| Timing depends on network/backend | A finishes → B starts exactly |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Added `_compositionQueue`, `_playNextFromQueue()`, `_playCompositionNow()` |
+
+---
+
+### Version
+
+v0.2.54
+
+---

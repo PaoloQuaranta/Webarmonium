@@ -3317,37 +3317,12 @@ class AudioService {
    * @param {Object} style - Style info with genreWeights, dominantGenre, energy
    */
   playComposition(composition, isDrone = false, style = {}) {
-    // Entry #196: Smart harmonic cleanup - only clear notes when key/mode CHANGES
-    // Entry #195 removed all cleanup (caused stale notes), Entry #192 cleared everything (cut phrases)
-    // This approach: preserve phrases within same harmony, clear only on harmonic change
-    if (!isDrone && composition?.metadata) {
-      const newKey = composition.metadata.keyCenter
-      const newMode = composition.metadata.mode
-      const harmonicChanged = (this._lastHarmonicKey !== newKey) || (this._lastHarmonicMode !== newMode)
-
-      if (harmonicChanged && this._lastHarmonicKey !== undefined) {
-        // Harmony changed - clear old notes to prevent dissonance
-        this.clearPendingCompositionNotes()
-      }
-
-      // Update tracked harmonic context
-      this._lastHarmonicKey = newKey
-      this._lastHarmonicMode = newMode
-    }
-
-    // Entry #175: Store style for use in playback methods
-    this.currentStyle = style
-    // Entry #175: Apply genre-specific envelope settings
-    this.applyGenreToSynths(style)
-    // console.log(`🎼 playComposition: type=${composition?.type}, isDrone=${isDrone}, repeats=${this.droneRepeatEventIds?.length || 0}`)
-
     // STATE MACHINE: Don't play if audio is stopped
     if (this._audioState === 'STOPPED') {
       return
     }
 
     if (!this.isInitialized || this.muted) {
-      // console.log('🔇 playComposition blocked - initialized:', this.isInitialized, 'muted:', this.muted)
       return
     }
 
@@ -3355,24 +3330,90 @@ class AudioService {
       return
     }
 
-    const tempo = composition.metadata?.tempo || 120
+    // Drones play immediately (they're ambient background)
+    if (isDrone) {
+      this._playCompositionNow(composition, isDrone, style)
+      return
+    }
 
-    // console.log(`🎼 Playing ${composition.type} composition${isDrone ? ' (DRONE)' : ''}:`, {
-//      form: composition.structure?.form,
-//      section: composition.structure?.currentSection,
-//      tempo: tempo,
-//      key: composition.metadata?.keyCenter
-//    })
+    // Entry #197: Queue-based sequential playback
+    // Instead of playing immediately, queue compositions and play them in sequence
+    // This prevents gaps and ensures beat-quantized transitions
+    if (!this._compositionQueue) {
+      this._compositionQueue = []
+    }
+
+    // Add to queue with metadata
+    this._compositionQueue.push({ composition, style, addedAt: Tone.Transport.seconds })
+
+    // If nothing is currently playing, start playback
+    if (!this._isPlayingComposition) {
+      this._playNextFromQueue()
+    }
+  }
+
+  /**
+   * Entry #197: Play the next composition from queue
+   * @private
+   */
+  _playNextFromQueue() {
+    if (!this._compositionQueue || this._compositionQueue.length === 0) {
+      this._isPlayingComposition = false
+      return
+    }
+
+    this._isPlayingComposition = true
+    const { composition, style } = this._compositionQueue.shift()
+
+    // Calculate composition duration in seconds
+    const tempo = composition.metadata?.tempo || 120
+    const durationBeats = composition.content?.duration || 8  // bars, typically 8
+    const beatsPerBar = 4
+    const totalBeats = durationBeats * beatsPerBar
+    const durationSeconds = (totalBeats * 60) / tempo
+
+    // Play the composition now
+    this._playCompositionNow(composition, false, style)
+
+    // Schedule next composition to start when this one ends
+    // Use setTimeout for simplicity (could use Tone.Transport.scheduleOnce for tighter sync)
+    this._nextCompositionTimer = setTimeout(() => {
+      this._playNextFromQueue()
+    }, durationSeconds * 1000)
+  }
+
+  /**
+   * Entry #197: Actually play a composition (internal method)
+   * @private
+   */
+  _playCompositionNow(composition, isDrone, style) {
+    // Entry #196: Smart harmonic cleanup - only clear notes when key/mode CHANGES
+    if (!isDrone && composition?.metadata) {
+      const newKey = composition.metadata.keyCenter
+      const newMode = composition.metadata.mode
+      const harmonicChanged = (this._lastHarmonicKey !== newKey) || (this._lastHarmonicMode !== newMode)
+
+      if (harmonicChanged && this._lastHarmonicKey !== undefined) {
+        this.clearPendingCompositionNotes()
+      }
+
+      this._lastHarmonicKey = newKey
+      this._lastHarmonicMode = newMode
+    }
+
+    // Entry #175: Store style for use in playback methods
+    this.currentStyle = style
+    this.applyGenreToSynths(style)
 
     // If this is NOT a drone and we have a drone loop running, stop it
     if (!isDrone && this.droneLoopInterval) {
-      // console.log('🛑 Stopping drone loop - real composition starting')
       clearInterval(this.droneLoopInterval)
       this.droneLoopInterval = null
     }
 
     const content = composition.content
     const type = composition.type
+    const tempo = composition.metadata?.tempo || 120
 
     try {
       if (type === 'polyphonic' && content.voices) {
@@ -3381,11 +3422,9 @@ class AudioService {
         this.playHomophonicComposition(content, tempo)
       } else if (type === 'ambient' && content.texture) {
         this.playAmbientComposition(content, tempo, isDrone)
-      } else {
-        // console.warn('🎼 Unknown composition type:', type)
       }
     } catch (error) {
-      // console.error('🎼 Error playing composition:', error)
+      // Silent fail - continue to next composition
     }
   }
 
