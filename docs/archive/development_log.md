@@ -4751,3 +4751,137 @@ The SocketEventCoordinator code review finding was a false positive - the class 
 ### Version
 
 v0.2.56
+
+---
+
+
+
+
+## Entry #200 - Fix Frontend Harmonic Cleanup Destroying Active Notes
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed the **actual** root cause of background music stuttering ("singhiozzo"). Entry #199's backend fix was correct but insufficient - the real problem was in the frontend: Entry #196's "smart harmonic cleanup" was destroying ALL scheduled notes whenever the key changed between compositions, which happened almost every composition.
+
+---
+
+### Problem Statement
+
+After Entry #199's backend fix, stuttering persisted with this pattern:
+- Phrases play for ~2 seconds then stop
+- Long silences between phrases
+- Pattern repeats indefinitely
+
+**Investigation revealed:**
+
+The HarmonicEngine changes the `keyCenter` for almost every composition. When `_playCompositionNow()` was called for a new composition, it detected the key change and called `clearPendingCompositionNotes()`, which destroyed ALL scheduled note events - including notes from the **currently playing** composition.
+
+**The Bug Flow:**
+```
+T=0s:    CompositionA (key=C) scheduled, notes begin playing
+T=2s:    CompositionB (key=D) arrives from backend
+         _playCompositionNow(B) called
+         Key changed C→D detected
+         clearPendingCompositionNotes() fires
+         ← ALL of A's scheduled notes cleared!
+         A stops immediately (only played 2s of 16s)
+T=18s:   Next composition scheduled
+         Users hear: 2s music, 16s silence, repeat
+```
+
+---
+
+### Root Cause
+
+**File:** `frontend/src/services/AudioService.js`
+
+**Entry #196** added this "smart harmonic cleanup" logic:
+```javascript
+_playCompositionNow(composition, isDrone, style) {
+  if (!isDrone && composition?.metadata) {
+    const newKey = composition.metadata.keyCenter
+    const harmonicChanged = (this._lastHarmonicKey !== newKey)
+
+    if (harmonicChanged && this._lastHarmonicKey !== undefined) {
+      this.clearPendingCompositionNotes()  // ← Destroys ALL notes!
+    }
+    this._lastHarmonicKey = newKey
+  }
+  // ...
+}
+```
+
+**The problem:** Each composition is harmonically self-consistent. Clearing notes on key change was intended to prevent dissonance, but:
+1. Key changes between compositions are musically fine (modulation)
+2. The previous composition's notes are still scheduled and playing
+3. Clearing them creates the stutter
+
+---
+
+### Solution
+
+**Removed the harmonic cleanup logic entirely.** Compositions should play to completion regardless of key changes - each composition has its own harmonic context.
+
+```javascript
+_playCompositionNow(composition, isDrone, style) {
+  // Entry #200: REMOVED harmonic cleanup that was clearing ALL notes on key change
+  // The HarmonicEngine changes key almost every composition, so this was triggering
+  // on every composition and destroying the previous composition's notes mid-playback.
+  // Each composition is harmonically self-consistent, so key changes between
+  // compositions are fine - the notes should play to completion.
+  // (Original Entry #196 logic removed - was causing the "singhiozzo" stutter)
+  // ...
+}
+```
+
+---
+
+### Why Entry #196 Was Wrong
+
+Entry #196 was trying to solve a non-problem:
+- **Intended:** Prevent harmonic clash when key changes
+- **Reality:** Compositions don't overlap harmonically - they play sequentially
+- **Effect:** Destroyed the currently playing composition's notes
+
+The queue system (Entry #197) already handles sequencing correctly. Key changes between sequential compositions are musically acceptable (and common in classical music as modulations).
+
+---
+
+### Related Entries Timeline
+
+| Entry | Change | Effect |
+|-------|--------|--------|
+| #192 | Initial queue-based playback | Attempted to fix gaps |
+| #196 | Added harmonic cleanup | **Introduced the stutter bug** |
+| #197 | Queue sequencing | Correct approach, but #196 broke it |
+| #198 | Various attempts | Still stuttering (didn't find #196 bug) |
+| #199 | Backend bars vs beats fix | Correct but insufficient |
+| #200 | **Remove #196 harmonic cleanup** | **Actual fix** |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Removed harmonic cleanup in `_playCompositionNow()` |
+
+---
+
+### Verification
+
+After this fix:
+- Compositions play for full duration (~16 seconds at 120 BPM for 8 bars)
+- No gaps between compositions
+- Key changes between compositions are fine (sequential, not overlapping)
+- Queue stays at 0-1 items (no buildup)
+
+---
+
+### Version
+
+v0.2.57

@@ -3434,19 +3434,12 @@ class AudioService {
    * @private
    */
   _playCompositionNow(composition, isDrone, style) {
-    // Entry #196: Smart harmonic cleanup - only clear notes when key/mode CHANGES
-    if (!isDrone && composition?.metadata) {
-      const newKey = composition.metadata.keyCenter
-      const newMode = composition.metadata.mode
-      const harmonicChanged = (this._lastHarmonicKey !== newKey) || (this._lastHarmonicMode !== newMode)
-
-      if (harmonicChanged && this._lastHarmonicKey !== undefined) {
-        this.clearPendingCompositionNotes()
-      }
-
-      this._lastHarmonicKey = newKey
-      this._lastHarmonicMode = newMode
-    }
+    // Entry #200: REMOVED harmonic cleanup that was clearing ALL notes on key change
+    // The HarmonicEngine changes key almost every composition, so this was triggering
+    // on every composition and destroying the previous composition's notes mid-playback.
+    // Each composition is harmonically self-consistent, so key changes between
+    // compositions are fine - the notes should play to completion.
+    // (Original Entry #196 logic removed - was causing the "singhiozzo" stutter)
 
     // Entry #175: Store style for use in playback methods
     this.currentStyle = style
