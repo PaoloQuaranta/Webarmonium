@@ -17,6 +17,13 @@ const SCALES = {
   blues: [0, 3, 5, 6, 7, 10],            // Blues scale
   phrygian: [0, 1, 3, 5, 7, 8, 10],      // Phrygian mode
   lydian: [0, 2, 4, 6, 7, 9, 11],        // Lydian mode
+  locrian: [0, 1, 3, 5, 6, 8, 10],       // Locrian mode
+  // Entry #HarmonicCoherence: Extended scales from backend HarmonicEngine
+  harmonicMinor: [0, 2, 3, 5, 7, 8, 11], // Harmonic minor
+  melodicMinor: [0, 2, 3, 5, 7, 9, 11],  // Melodic minor (ascending)
+  minorPentatonic: [0, 3, 5, 7, 10],     // Minor pentatonic
+  wholeTone: [0, 2, 4, 6, 8, 10],        // Whole tone scale
+  diminished: [0, 2, 3, 5, 6, 8, 9, 11], // Diminished (half-whole)
   chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] // Chromatic scale
 }
 

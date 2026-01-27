@@ -997,15 +997,39 @@ class WebarmoniumApp {
     this.socketService.on('compositional-parameters', (data) => {
       this.compositionalParameters = data.parameters
 
-      // PERFORMANCE: Update cached scale when parameters change
-      const newScaleType = data.parameters?.scaleType || 'pentatonic'
-      if (this.cachedScaleType !== newScaleType) {
-        this.cachedScale = window.MusicalScales.getScale(newScaleType)
-        this.cachedScaleType = newScaleType
-        // console.log(`🎼 Cached scale updated: ${newScaleType}`)
+      // Entry #HarmonicCoherence: Use full mode from backend, map to MusicalScales keys
+      const newMode = data.parameters?.mode || data.parameters?.scaleType || 'pentatonic'
+      const modeToScaleMap = {
+        'ionian': 'major',
+        'aeolian': 'minor',
+        'dorian': 'dorian',
+        'phrygian': 'phrygian',
+        'lydian': 'lydian',
+        'mixolydian': 'mixolydian',
+        'locrian': 'locrian',
+        'major': 'major',
+        'minor': 'minor',
+        'pentatonic': 'pentatonic',
+        // Extended modes from backend HarmonicEngine
+        'harmonicMinor': 'harmonicMinor',
+        'melodicMinor': 'melodicMinor',
+        'majorPentatonic': 'pentatonic',
+        'minorPentatonic': 'minorPentatonic',
+        'blues': 'blues',
+        'wholeTone': 'wholeTone',
+        'diminished': 'diminished'
       }
 
-      // console.log('🎼 Updated compositional parameters:', this.compositionalParameters)
+      const scaleType = modeToScaleMap[newMode] || 'pentatonic'
+      if (this.cachedScaleType !== scaleType) {
+        this.cachedScale = window.MusicalScales.getScale(scaleType)
+        this.cachedScaleType = scaleType
+      }
+
+      // Entry #HarmonicCoherence: Update AudioService harmonic context for remote frequency quantization
+      if (this.audioService && this.audioService.updateHarmonicContext) {
+        this.audioService.updateHarmonicContext(data.parameters)
+      }
 
       // Update AudioService with new parameters for background generation
       if (this.audioService && this.audioService.updateCompositionalParameters) {

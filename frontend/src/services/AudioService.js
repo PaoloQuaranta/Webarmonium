@@ -224,6 +224,40 @@ class AudioService {
     // REMOVED: _userStoppedAudio and _userExplicitlyStartedAudio
     // These boolean flags have been replaced by the _audioState state machine
     // See constructor: this._audioState = 'IDLE' | 'STARTING' | 'PLAYING' | 'PAUSED' | 'RESUMING' | 'STOPPED'
+
+    // Entry #HarmonicCoherence: Harmonic state for scale quantization of remote frequencies
+    this.currentKey = 'C'
+    this.currentMode = 'ionian'
+    this.currentScaleIntervals = [0, 2, 4, 5, 7, 9, 11] // Default ionian
+
+    // Mode to interval mapping (matches backend HarmonicEngine)
+    this.modeIntervals = {
+      ionian: [0, 2, 4, 5, 7, 9, 11],
+      dorian: [0, 2, 3, 5, 7, 9, 10],
+      phrygian: [0, 1, 3, 5, 7, 8, 10],
+      lydian: [0, 2, 4, 6, 7, 9, 11],
+      mixolydian: [0, 2, 4, 5, 7, 9, 10],
+      aeolian: [0, 2, 3, 5, 7, 8, 10],
+      locrian: [0, 1, 3, 5, 6, 8, 10],
+      major: [0, 2, 4, 5, 7, 9, 11],
+      minor: [0, 2, 3, 5, 7, 8, 10],
+      pentatonic: [0, 2, 4, 7, 9],
+      // Extended modes from backend HarmonicEngine
+      harmonicMinor: [0, 2, 3, 5, 7, 8, 11],
+      melodicMinor: [0, 2, 3, 5, 7, 9, 11],
+      majorPentatonic: [0, 2, 4, 7, 9],
+      minorPentatonic: [0, 3, 5, 7, 10],
+      blues: [0, 3, 5, 6, 7, 10],
+      wholeTone: [0, 2, 4, 6, 8, 10],
+      diminished: [0, 2, 3, 5, 6, 8, 9, 11]
+    }
+
+    // Key to semitone offset (C=0, C#=1, etc.)
+    this.keyOffsets = {
+      'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
+      'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8,
+      'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+    }
   }
 
   /**
@@ -262,6 +296,76 @@ class AudioService {
    */
   getAudioState() {
     return this._audioState
+  }
+
+  /**
+   * Entry #HarmonicCoherence: Quantize a frequency to the current scale
+   * Snaps frequency to nearest note in current key/mode
+   * @param {number} frequency - Input frequency in Hz
+   * @returns {number} Quantized frequency in Hz
+   */
+  quantizeToScale(frequency) {
+    if (!frequency || !isFinite(frequency) || frequency <= 0) {
+      return frequency
+    }
+
+    // Convert frequency to MIDI pitch
+    const pitch = Math.round(12 * Math.log2(frequency / 440) + 69)
+
+    // Get key offset (tonic)
+    const tonic = this.keyOffsets[this.currentKey] || 0
+
+    // Get scale intervals
+    const scaleIntervals = this.currentScaleIntervals || this.modeIntervals.ionian
+
+    // Calculate pitch class (0-11) and octave
+    const pitchClass = ((pitch % 12) + 12) % 12 // Ensure positive
+    const octave = Math.floor(pitch / 12)
+
+    // Find nearest scale degree
+    let nearestDistance = 12
+    let nearestInterval = 0
+
+    scaleIntervals.forEach(interval => {
+      const scalePitchClass = (tonic + interval) % 12
+      const distance = Math.min(
+        Math.abs(pitchClass - scalePitchClass),
+        12 - Math.abs(pitchClass - scalePitchClass) // Wrap-around distance
+      )
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance
+        nearestInterval = interval
+      }
+    })
+
+    // Reconstruct pitch in scale
+    const constrainedPitchClass = (tonic + nearestInterval) % 12
+    const constrainedPitch = octave * 12 + constrainedPitchClass
+
+    // Convert back to frequency
+    return 440 * Math.pow(2, (constrainedPitch - 69) / 12)
+  }
+
+  /**
+   * Entry #HarmonicCoherence: Update harmonic context from compositional parameters
+   * Called when compositional-parameters event is received
+   * @param {Object} params - Compositional parameters with key, mode, scaleType
+   */
+  updateHarmonicContext(params) {
+    if (!params) return
+
+    // Update key if provided
+    if (params.key && this.keyOffsets[params.key] !== undefined) {
+      this.currentKey = params.key
+    }
+
+    // Update mode - prefer full mode name, fall back to scaleType
+    const mode = params.mode || params.scaleType || 'ionian'
+    if (this.modeIntervals[mode]) {
+      this.currentMode = mode
+      this.currentScaleIntervals = this.modeIntervals[mode]
+    }
   }
 
   /**
@@ -2735,7 +2839,8 @@ class AudioService {
 
     // Determine which synth to use based on userId
     let synth = this.gestureSynth
-    let actualFrequency = frequency
+    // Entry #HarmonicCoherence: Quantize remote frequencies to current scale (defense in depth)
+    let actualFrequency = isRemote ? this.quantizeToScale(frequency) : frequency
     let useUserSynth = false
 
     // If userId provided and UserSynthManager available, use per-user synth
@@ -4286,7 +4391,8 @@ class AudioService {
 
         try {
           let synth = null
-          let actualFrequency = eventFrequency
+          // Entry #HarmonicCoherence: Quantize incoming frequency to current scale
+          let actualFrequency = this.quantizeToScale(eventFrequency)
           let synthData = null  // Entry #66 FIX: Declare outside if block for visibility
 
           if (userId && this.userSynthManager) {

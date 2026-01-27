@@ -8,6 +8,51 @@ const ValidationHandler = require('./ValidationHandler')
 const { LATENCY } = require('../../constants/MusicConstants')
 const RateLimiter = require('../../utils/RateLimiter')
 
+// Entry #HarmonicCoherence: Frequency <-> MIDI pitch conversion for scale constraining
+function frequencyToMidiPitch (frequency) {
+  return Math.round(12 * Math.log2(frequency / 440) + 69)
+}
+
+function midiPitchToFrequency (pitch) {
+  return 440 * Math.pow(2, (pitch - 69) / 12)
+}
+
+/**
+ * Constrain frequency to current scale using HarmonicEngine
+ * Entry #HarmonicCoherence: Ensures all user frequencies are quantized to the current harmonic context
+ * @param {number} frequency - Input frequency in Hz
+ * @param {Object} harmonicEngine - BackgroundCompositionService's harmonicEngine
+ * @returns {number} Constrained frequency in Hz
+ */
+function constrainFrequencyToScale (frequency, harmonicEngine) {
+  // Validate input: must be finite and within human hearing range (20-20000 Hz)
+  if (!harmonicEngine || !frequency || !isFinite(frequency) ||
+      frequency < 20 || frequency > 20000) {
+    return frequency
+  }
+
+  // Capture harmonic context atomically to avoid race conditions
+  const currentKey = harmonicEngine.currentKey
+  const currentMode = harmonicEngine.currentMode
+
+  const pitch = frequencyToMidiPitch(frequency)
+  const constrainedPitch = harmonicEngine.constrainToScale(pitch, currentKey, currentMode)
+
+  // Validate constrainedPitch before converting back
+  if (!isFinite(constrainedPitch) || constrainedPitch < 0 || constrainedPitch > 127) {
+    return frequency // Fall back to original if constraining fails
+  }
+
+  const constrainedFrequency = midiPitchToFrequency(constrainedPitch)
+
+  // Validate output is in audible range
+  if (!isFinite(constrainedFrequency) || constrainedFrequency < 20 || constrainedFrequency > 20000) {
+    return frequency
+  }
+
+  return constrainedFrequency
+}
+
 const MusicalHandler = {
   /**
    * Register hold:start event handler
@@ -44,11 +89,15 @@ const MusicalHandler = {
         // Entry #175b: Get current style for genre-aware audio
         const style = socket.services.backgroundCompositionService?.getCurrentStyleForRoom(socket.roomId)
 
+        // Entry #HarmonicCoherence: Constrain frequency to current scale before broadcasting
+        const harmonicEngine = socket.services.backgroundCompositionService?.harmonicEngine
+        const constrainedFrequency = constrainFrequencyToScale(data.frequency, harmonicEngine)
+
         room.activeHolds.set(data.noteId, {
           userId: socket.userId,
           startTime: Date.now(),
           noteId: data.noteId,
-          frequency: data.frequency,
+          frequency: constrainedFrequency,
           position: data.position
         })
 
@@ -56,7 +105,7 @@ const MusicalHandler = {
           type: 'hold:start',
           userId: socket.userId,
           noteId: data.noteId,
-          frequency: data.frequency,
+          frequency: constrainedFrequency,
           velocity: data.velocity,
           position: data.position,
           userColor: userColor,
@@ -231,6 +280,10 @@ const MusicalHandler = {
         // Entry #175b: Get current style for genre-aware audio
         const style = socket.services.backgroundCompositionService?.getCurrentStyleForRoom(socket.roomId)
 
+        // Entry #HarmonicCoherence: Constrain frequency to current scale before broadcasting
+        const harmonicEngine = socket.services.backgroundCompositionService?.harmonicEngine
+        const constrainedFrequency = constrainFrequencyToScale(data.frequency, harmonicEngine)
+
         // Build broadcast payload matching musical:event format
         const noteStreamBroadcast = {
           type: 'note:stream',
@@ -240,7 +293,7 @@ const MusicalHandler = {
             timestamp: Date.now(),
             position: data.position,
             properties: {
-              frequency: data.frequency,
+              frequency: constrainedFrequency,
               duration: data.duration,
               velocity: velocity, // Use validated velocity
               articulation: data.articulation || 'staccato',

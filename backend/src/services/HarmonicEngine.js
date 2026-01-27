@@ -1364,7 +1364,8 @@ class HarmonicEngine {
     const tonic = this.getTonicNote(useKey)
 
     // Calculate pitch class (0-11) and octave
-    const pitchClass = pitch % 12
+    // Entry #HarmonicCoherence: Fix modulo for negative pitches
+    const pitchClass = ((pitch % 12) + 12) % 12
     const octave = Math.floor(pitch / 12)
 
     // Find nearest scale degree
@@ -1373,7 +1374,11 @@ class HarmonicEngine {
 
     scaleIntervals.forEach(interval => {
       const scalePitchClass = (tonic + interval) % 12
-      const distance = Math.abs(pitchClass - scalePitchClass)
+      // Entry #HarmonicCoherence: Fix wrapping distance for octave boundaries
+      const distance = Math.min(
+        Math.abs(pitchClass - scalePitchClass),
+        12 - Math.abs(pitchClass - scalePitchClass)
+      )
 
       if (distance < nearestDistance) {
         nearestDistance = distance

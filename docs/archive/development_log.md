@@ -3777,3 +3777,178 @@ Both code paths use PhraseMorphology.generatePhrase() which calls:
 v0.2.45
 
 ---
+
+## Entry #191: Harmonic Coherence - Full System Propagation Fix
+
+**Date**: 2026-01-27
+
+### Problem
+
+Harmonic coherence (key/mode) was NOT being propagated correctly to all voices:
+
+1. **Backend MusicalHandler.js**: `hold:start` and `note:stream` events passed frequency directly without constraining to scale
+2. **Frontend AudioService.js**: No `quantizeToScale()` function - remote user frequencies played as-is
+3. **Mode Synchronization**: Frontend used simplified scale mapping (pentatonic/major/minor) instead of full 7+ modes
+
+### Solution: Defense-in-Depth Architecture
+
+Implemented harmonic constraint at BOTH backend AND frontend for robustness.
+
+---
+
+### Fix 1: Backend MusicalHandler Constraint
+
+**File**: `backend/src/api/handlers/MusicalHandler.js`
+
+Added helper functions and applied constraint before broadcast:
+
+```javascript
+function frequencyToMidiPitch(frequency) {
+  return Math.round(12 * Math.log2(frequency / 440) + 69)
+}
+
+function midiPitchToFrequency(pitch) {
+  return 440 * Math.pow(2, (pitch - 69) / 12)
+}
+
+function constrainFrequencyToScale(frequency, harmonicEngine) {
+  if (!harmonicEngine || !frequency || !isFinite(frequency) ||
+      frequency < 20 || frequency > 20000) return frequency
+  const pitch = frequencyToMidiPitch(frequency)
+  const constrainedPitch = harmonicEngine.constrainToScale(
+    pitch, harmonicEngine.currentKey, harmonicEngine.currentMode
+  )
+  if (!isFinite(constrainedPitch) || constrainedPitch < 0 || constrainedPitch > 127) return frequency
+  return midiPitchToFrequency(constrainedPitch)
+}
+
+// Applied in registerHoldStartHandler and registerNoteStreamHandler
+const harmonicEngine = socket.services.backgroundCompositionService?.harmonicEngine
+const constrainedFrequency = constrainFrequencyToScale(data.frequency, harmonicEngine)
+```
+
+---
+
+### Fix 2: Frontend AudioService Quantization
+
+**File**: `frontend/src/services/AudioService.js`
+
+Added harmonic state and quantization methods:
+
+```javascript
+// Constructor additions
+this.currentKey = 'C'
+this.currentMode = 'ionian'
+this.currentScaleIntervals = [0, 2, 4, 5, 7, 9, 11]
+this.modeIntervals = {
+  ionian: [0, 2, 4, 5, 7, 9, 11],
+  dorian: [0, 2, 3, 5, 7, 9, 10],
+  // ... all 17 modes including harmonicMinor, melodicMinor, blues, wholeTone, diminished
+}
+
+quantizeToScale(frequency) {
+  const pitch = Math.round(12 * Math.log2(frequency / 440) + 69)
+  const pitchClass = ((pitch % 12) + 12) % 12
+  // Find nearest scale degree with octave-wrap distance
+  // Return constrained frequency
+}
+
+updateHarmonicContext(params) {
+  // Update currentKey, currentMode, currentScaleIntervals from server params
+}
+```
+
+Applied in `playMusicalEvent()` and `triggerSustainedNoteAttack()`.
+
+---
+
+### Fix 3: Mode Synchronization
+
+#### 3A: Backend server.js
+
+Added key/mode to compositional-parameters broadcast:
+
+```javascript
+const harmonicEngine = backgroundService?.harmonicEngine
+io.to(roomId).emit('compositional-parameters', {
+  parameters: {
+    ...parameters,
+    key: harmonicEngine?.currentKey || 'C',
+    mode: harmonicEngine?.currentMode || 'ionian'
+  },
+  style, timestamp: Date.now()
+})
+```
+
+#### 3B: Frontend main.js
+
+Extended modeToScaleMap with all modes:
+
+```javascript
+const modeToScaleMap = {
+  'ionian': 'major', 'aeolian': 'minor', 'dorian': 'dorian',
+  'phrygian': 'phrygian', 'lydian': 'lydian', 'mixolydian': 'mixolydian',
+  'locrian': 'locrian', 'harmonicMinor': 'harmonicMinor',
+  'melodicMinor': 'melodicMinor', 'blues': 'blues', 'wholeTone': 'wholeTone',
+  'diminished': 'diminished', 'pentatonic': 'pentatonic'
+}
+
+// Sync AudioService
+if (this.audioService?.updateHarmonicContext) {
+  this.audioService.updateHarmonicContext(data.parameters)
+}
+```
+
+#### 3C: MusicalScales.js
+
+Added extended scales: locrian, harmonicMinor, melodicMinor, minorPentatonic, wholeTone, diminished
+
+---
+
+### Code Review Fixes
+
+| # | Priority | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | Critical | HarmonicEngine modulo bug for negative pitches | `((pitch % 12) + 12) % 12` |
+| 2 | Critical | HarmonicEngine wrapping distance at octave boundary | `Math.min(abs, 12 - abs)` |
+| 3 | High | Missing validation in constrainFrequencyToScale | Added bounds checking (20-20000 Hz, MIDI 0-127) |
+| 4 | Medium | Missing extended modes in frontend | Added harmonicMinor, melodicMinor, blues, wholeTone, diminished |
+
+---
+
+### Data Flow After Fix
+
+```
+HarmonicEngine (backend source of truth)
+    ↓
+compositional-parameters broadcast (key + mode every 5s)
+    ↓
+Frontend main.js → updates cachedScale + audioService.updateHarmonicContext()
+    ↓
+User gesture → Frontend calculates frequency with correct scale
+    ↓
+hold:start → Backend constrains via constrainToScale() → broadcast
+    ↓
+Other frontends → AudioService.quantizeToScale() → plays in scale
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/api/handlers/MusicalHandler.js` | Added constraint functions, applied to hold:start and note:stream |
+| `backend/src/services/HarmonicEngine.js` | Fixed modulo and wrapping distance bugs in constrainToScale() |
+| `backend/src/server.js` | Added key/mode to compositional-parameters broadcast |
+| `frontend/src/services/AudioService.js` | Added modeIntervals, quantizeToScale(), updateHarmonicContext() |
+| `frontend/src/main.js` | Extended modeToScaleMap, added AudioService sync |
+| `frontend/src/utils/MusicalScales.js` | Added locrian and extended scales |
+
+---
+
+### Version
+
+v0.2.47
+
+---

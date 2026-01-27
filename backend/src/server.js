@@ -436,8 +436,20 @@ setInterval(() => {
       if (parameters) {
         // Entry #183: Include style for genre-aware voice parameters
         const style = backgroundService?.getCurrentStyleForRoom(roomId) || {}
+
+        // Entry #HarmonicCoherence: Include key/mode from HarmonicEngine for full mode support
+        const harmonicEngine = backgroundService?.harmonicEngine
+        const harmonicContext = {
+          key: harmonicEngine?.currentKey || 'C',
+          mode: harmonicEngine?.currentMode || 'ionian'
+        }
+
         io.to(roomId).emit('compositional-parameters', {
-          parameters,
+          parameters: {
+            ...parameters,
+            key: harmonicContext.key,
+            mode: harmonicContext.mode
+          },
           style,
           timestamp: Date.now()
         })
