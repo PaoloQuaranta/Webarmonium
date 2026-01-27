@@ -1297,9 +1297,33 @@ class LandingCompositionService {
     // Clamp to reasonable bounds (8-20 seconds) - increased from 4-15s
     const clampedInterval = Math.max(8000, Math.min(20000, interval))
 
-    this.compositionTimer = setTimeout(() => {
-      this.generateAndBroadcastComposition()
-      this.scheduleNextComposition()
+    // Entry #192: Use async callback to await composition before scheduling next
+    // This prevents composition accumulation when generation takes longer than interval
+    this.compositionTimer = setTimeout(async () => {
+      // Check if service is still running before processing (race condition fix)
+      if (!this.isRunning) {
+        return // Service was stopped, abort
+      }
+
+      try {
+        await this.generateAndBroadcastComposition()
+
+        // Check again before rescheduling (service could have stopped during composition)
+        if (this.isRunning) {
+          this.scheduleNextComposition()
+        }
+      } catch (error) {
+        console.error('Failed to generate landing composition:', error.message)
+
+        // Recovery: schedule retry after delay (only if service still running)
+        if (this.isRunning) {
+          this.compositionTimer = setTimeout(() => {
+            if (this.isRunning) {
+              this.scheduleNextComposition()
+            }
+          }, 5000)
+        }
+      }
     }, clampedInterval)
 
     // console.log(`🎵 Next composition in ${(clampedInterval/1000).toFixed(1)}s (${beatsPerComposition.toFixed(0)} beats @ ${tempo} BPM, activity=${totalActivity.toFixed(2)})`)
@@ -1462,7 +1486,9 @@ class LandingCompositionService {
       }
 
     } catch (error) {
-      console.error(`🎵 Error generating composition:`, error)
+      // Entry #192: Log and re-throw to propagate error to callers
+      console.error(`Error generating landing composition:`, error.message)
+      throw error
     }
   }
 

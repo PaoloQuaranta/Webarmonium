@@ -663,11 +663,27 @@ class BackgroundCompositionService {
 // console.log('🎼 Transitioning from drone to full composition (2+ gestures collected)')
       roomState.compositionStarted = true
 
-      // Generate first real composition
+      // Entry #192: Generate first real composition, then schedule continuous compositions
+      // Use .then() to ensure composition completes before scheduling next
       this.generateAndBroadcastComposition(roomId, roomState.roomContext)
-
-      // Schedule continuous compositions
-      this.scheduleNextComposition(roomId, roomState.roomContext)
+        .then(() => {
+          // Check if room still active before scheduling
+          if (this.compositionTimers.has(roomId) || this.roomCompositions.has(roomId)) {
+            this.scheduleNextComposition(roomId, roomState.roomContext)
+          }
+        })
+        .catch((error) => {
+          console.error(`Failed to generate initial composition for room ${roomId}:`, error.message)
+          // Recovery: schedule retry after delay (track timer for cleanup)
+          if (this.roomCompositions.has(roomId)) {
+            const recoveryTimer = setTimeout(() => {
+              if (this.roomCompositions.has(roomId)) {
+                this.scheduleNextComposition(roomId, roomState.roomContext)
+              }
+            }, 5000)
+            this.compositionTimers.set(roomId, recoveryTimer)
+          }
+        })
     }
 
 // console.log(`🎼 Added material ${materialId} (gesture #${roomState.gestureCount}):`, {
@@ -998,9 +1014,35 @@ class BackgroundCompositionService {
     // Clamp to reasonable bounds (minimum 3s for less chaos)
     const clampedInterval = Math.max(3000, Math.min(20000, interval))
 
-    const timer = setTimeout(() => {
-      this.generateAndBroadcastComposition(roomId, roomContext)
-      this.scheduleNextComposition(roomId, roomContext)
+    // Entry #192: Use async callback to await composition before scheduling next
+    // This prevents composition accumulation when generation takes longer than interval
+    const timer = setTimeout(async () => {
+      // Check if room is still active before processing (race condition fix)
+      if (!this.compositionTimers.has(roomId)) {
+        return // Room was stopped, abort
+      }
+
+      try {
+        await this.generateAndBroadcastComposition(roomId, roomContext)
+
+        // Check again before rescheduling (room could have stopped during composition)
+        if (this.compositionTimers.has(roomId)) {
+          this.scheduleNextComposition(roomId, roomContext)
+        }
+      } catch (error) {
+        console.error(`Composition generation failed for room ${roomId}:`, error.message)
+
+        // Recovery: schedule retry after delay (only if room still active)
+        if (this.compositionTimers.has(roomId)) {
+          const recoveryTimer = setTimeout(() => {
+            if (this.compositionTimers.has(roomId)) {
+              this.scheduleNextComposition(roomId, roomContext)
+            }
+          }, 5000)
+          // Track recovery timer so it can be cleaned up
+          this.compositionTimers.set(roomId, recoveryTimer)
+        }
+      }
     }, clampedInterval)
 
     this.compositionTimers.set(roomId, timer)
@@ -1133,7 +1175,9 @@ class BackgroundCompositionService {
       }
 
     } catch (error) {
-// console.error(`🎼 Error generating composition for room ${roomId}:`, error)
+      // Entry #192: Log and re-throw to propagate error to callers
+      console.error(`Error generating composition for room ${roomId}:`, error.message)
+      throw error
     }
   }
 

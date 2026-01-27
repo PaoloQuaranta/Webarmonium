@@ -3952,3 +3952,139 @@ Other frontends → AudioService.quantizeToScale() → plays in scale
 v0.2.47
 
 ---
+
+## Entry #192: Fix Composition Stutter After Genre Change
+
+**Date**: 2026-01-27
+
+### Problem
+
+The compositional algorithm stuttered frequently, especially after genre changes. Symptoms: overlapping notes, confused audio, irregular timing.
+
+### Root Cause Analysis
+
+#### Problem 1: Backend - Compositions Not Serialized (CRITICAL)
+
+**File**: `backend/src/services/BackgroundCompositionService.js`
+
+`generateAndBroadcastComposition` was `async` but NOT awaited in `scheduleNextComposition`:
+
+```javascript
+// BEFORE (broken):
+const timer = setTimeout(() => {
+  this.generateAndBroadcastComposition(roomId, roomContext)  // async but NOT awaited
+  this.scheduleNextComposition(roomId, roomContext)          // schedules IMMEDIATELY
+}, clampedInterval)
+```
+
+Result: If generation takes longer than interval, compositions accumulate and overlap.
+
+#### Problem 2: Frontend - No Cleanup of Previous Notes (AGGRAVATING)
+
+**File**: `frontend/src/services/AudioService.js`
+
+`playComposition()` added notes to `scheduledTransportEvents` without clearing previous ones. Cleanup only happened in `stopAudio()`, not between compositions.
+
+### Solution
+
+#### Fix 1: Backend - Serialize Compositions with Error Handling
+
+```javascript
+const timer = setTimeout(async () => {
+  // Check if room is still active (race condition fix)
+  if (!this.compositionTimers.has(roomId)) return
+
+  try {
+    await this.generateAndBroadcastComposition(roomId, roomContext)
+    if (this.compositionTimers.has(roomId)) {
+      this.scheduleNextComposition(roomId, roomContext)
+    }
+  } catch (error) {
+    console.error(`Composition generation failed for room ${roomId}:`, error.message)
+    // Recovery: schedule retry after delay (track timer for cleanup)
+    if (this.compositionTimers.has(roomId)) {
+      const recoveryTimer = setTimeout(() => {
+        if (this.compositionTimers.has(roomId)) {
+          this.scheduleNextComposition(roomId, roomContext)
+        }
+      }, 5000)
+      this.compositionTimers.set(roomId, recoveryTimer)
+    }
+  }
+}, clampedInterval)
+```
+
+#### Fix 2: Frontend - Clear Notes Before New Composition
+
+```javascript
+clearPendingCompositionNotes() {
+  // Defensive copy to avoid concurrent modification
+  const currentEvents = [...this.scheduledTransportEvents]
+  const droneEventIds = new Set(this.droneRepeatEventIds || [])
+  const eventsToKeep = []
+
+  currentEvents.forEach(eventId => {
+    if (droneEventIds.has(eventId)) {
+      eventsToKeep.push(eventId)  // Keep drone events
+    } else {
+      try { Tone.Transport.clear(eventId) } catch (e) {}
+    }
+  })
+  this.scheduledTransportEvents = eventsToKeep
+}
+
+playComposition(composition, isDrone = false, style = {}) {
+  if (!isDrone) {
+    this.clearPendingCompositionNotes()  // Clear before playing
+  }
+  // ... rest unchanged
+}
+```
+
+---
+
+### Code Review Fixes
+
+| # | Priority | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | Critical | Race condition in timer cleanup | Added `compositionTimers.has(roomId)` checks before/after generation |
+| 2 | Critical | Orphaned recovery timers | Recovery timers now tracked in `compositionTimers` for cleanup |
+| 3 | Critical | Error re-throw not handled | Added try/catch in setTimeout callback with recovery |
+| 4 | High | Same issue in LandingCompositionService | Applied identical fix pattern |
+| 5 | Medium | Concurrent modification risk | Added defensive copy `[...this.scheduledTransportEvents]` |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/BackgroundCompositionService.js` | Async/await in setTimeout, room existence checks, error recovery with tracked timers |
+| `backend/src/services/LandingCompositionService.js` | Same fix pattern for landing page |
+| `frontend/src/services/AudioService.js` | Added `clearPendingCompositionNotes()`, call in `playComposition()` |
+
+---
+
+### Architecture After Fix
+
+```
+Timer fires
+    ↓
+Check room exists → abort if stopped
+    ↓
+await generateAndBroadcastComposition()
+    ↓
+Check room still exists → abort if stopped during generation
+    ↓
+scheduleNextComposition() OR recovery timer (on error)
+    ↓
+All timers tracked in compositionTimers Map for cleanup
+```
+
+---
+
+### Version
+
+v0.2.48
+
+---
