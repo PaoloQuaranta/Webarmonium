@@ -61,6 +61,12 @@ class AudioService {
     // Entry #28: Drone void controller - makes drone emerge during activity voids
     this.droneVoidController = null
 
+    // Entry #198: Composition queue for sequential playback (code review fixes)
+    this._compositionQueue = []
+    this._isPlayingComposition = false
+    this._nextCompositionEventId = null  // Tone.Transport event ID
+    this.MAX_COMPOSITION_QUEUE_SIZE = 3  // Prevent unbounded growth
+
     // Mute and volume controls (DEPRECATED: use volumeController instead)
     this.muted = false
     this.volume = 1.0 // 0-1 range
@@ -2590,6 +2596,18 @@ class AudioService {
       this.scheduledTimeouts = []
       // console.log('✅ All timeouts cleared')
 
+      // Entry #198: Clear composition queue and scheduled playback event
+      if (this._nextCompositionEventId !== null) {
+        try {
+          Tone.Transport.clear(this._nextCompositionEventId)
+        } catch (e) {
+          // Event may already be cleared
+        }
+        this._nextCompositionEventId = null
+      }
+      this._compositionQueue = []
+      this._isPlayingComposition = false
+
       // STEP 2: Clear scheduled Transport events and stop Transport
       try {
         // Clear individual scheduled events first
@@ -3339,8 +3357,11 @@ class AudioService {
     // Entry #197: Queue-based sequential playback
     // Instead of playing immediately, queue compositions and play them in sequence
     // This prevents gaps and ensures beat-quantized transitions
-    if (!this._compositionQueue) {
-      this._compositionQueue = []
+
+    // Entry #198: Limit queue size to prevent unbounded growth
+    if (this._compositionQueue.length >= this.MAX_COMPOSITION_QUEUE_SIZE) {
+      // Drop oldest composition (FIFO eviction)
+      this._compositionQueue.shift()
     }
 
     // Add to queue with metadata
@@ -3354,9 +3375,17 @@ class AudioService {
 
   /**
    * Entry #197: Play the next composition from queue
+   * Entry #198: Added state validation, Tone.Transport scheduling, time signature support
    * @private
    */
   _playNextFromQueue() {
+    // Entry #198: State validation to prevent race condition
+    if (this._audioState === 'STOPPED' || this._audioState === 'IDLE') {
+      this._isPlayingComposition = false
+      this._compositionQueue = []
+      return
+    }
+
     if (!this._compositionQueue || this._compositionQueue.length === 0) {
       this._isPlayingComposition = false
       return
@@ -3367,19 +3396,37 @@ class AudioService {
 
     // Calculate composition duration in seconds
     const tempo = composition.metadata?.tempo || 120
-    const durationBeats = composition.content?.duration || 8  // bars, typically 8
-    const beatsPerBar = 4
-    const totalBeats = durationBeats * beatsPerBar
+    const durationBars = composition.content?.duration || 8  // bars, typically 8
+
+    // Entry #198: Extract time signature from metadata instead of hardcoding 4/4
+    const timeSignature = composition.metadata?.timeSignature || '4/4'
+    const beatsPerBar = parseInt(timeSignature.split('/')[0], 10) || 4
+
+    const totalBeats = durationBars * beatsPerBar
     const durationSeconds = (totalBeats * 60) / tempo
 
     // Play the composition now
     this._playCompositionNow(composition, false, style)
 
-    // Schedule next composition to start when this one ends
-    // Use setTimeout for simplicity (could use Tone.Transport.scheduleOnce for tighter sync)
-    this._nextCompositionTimer = setTimeout(() => {
+    // Entry #198: Use Tone.Transport.scheduleOnce for precise audio-clock timing
+    // This prevents drift when tab is backgrounded
+    const endTime = Tone.Transport.seconds + durationSeconds
+
+    // Clear previous scheduled event if any
+    if (this._nextCompositionEventId !== null) {
+      try {
+        Tone.Transport.clear(this._nextCompositionEventId)
+      } catch (e) {
+        // Event may already be cleared
+      }
+    }
+
+    this._nextCompositionEventId = Tone.Transport.scheduleOnce(() => {
       this._playNextFromQueue()
-    }, durationSeconds * 1000)
+    }, endTime)
+
+    // Track for cleanup
+    this.scheduledTransportEvents.push(this._nextCompositionEventId)
   }
 
   /**

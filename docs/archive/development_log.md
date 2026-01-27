@@ -4535,3 +4535,95 @@ _playNextFromQueue() {
 v0.2.54
 
 ---
+
+## Entry #198 - Code Review Fixes: Composition Queue Robustness
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed 6 issues identified in code review of Entry #197's queue-based composition playback: memory leak, race condition, unbounded queue growth, timing precision, hardcoded time signature, and missing variable initialization.
+
+---
+
+### Issues Fixed
+
+| # | Issue | Severity | Fix |
+|---|-------|----------|-----|
+| 1 | Memory leak: `_nextCompositionTimer` not cleared in `stop()` | Critical | Clear timer/event in `stop()` method |
+| 2 | Race condition: `_playNextFromQueue()` doesn't validate `_audioState` | Critical | Add state check at start of method |
+| 3 | Unbounded queue growth | Critical | Limit queue to 3 compositions (FIFO eviction) |
+| 4 | `setTimeout` drifts in background tabs | High | Use `Tone.Transport.scheduleOnce()` for audio-clock precision |
+| 5 | Hardcoded 4/4 time signature | High | Extract from `composition.metadata.timeSignature` |
+| 6 | Queue variables not initialized in constructor | Medium | Add explicit initialization |
+
+---
+
+### Solution
+
+**Constructor initialization:**
+```javascript
+// Entry #198: Composition queue for sequential playback
+this._compositionQueue = []
+this._isPlayingComposition = false
+this._nextCompositionEventId = null
+this.MAX_COMPOSITION_QUEUE_SIZE = 3
+```
+
+**Stop method cleanup:**
+```javascript
+// Entry #198: Clear composition queue and scheduled playback event
+if (this._nextCompositionEventId !== null) {
+  Tone.Transport.clear(this._nextCompositionEventId)
+  this._nextCompositionEventId = null
+}
+this._compositionQueue = []
+this._isPlayingComposition = false
+```
+
+**Queue size limit:**
+```javascript
+if (this._compositionQueue.length >= this.MAX_COMPOSITION_QUEUE_SIZE) {
+  this._compositionQueue.shift()  // Drop oldest
+}
+```
+
+**State validation and Transport scheduling:**
+```javascript
+_playNextFromQueue() {
+  // Race condition fix
+  if (this._audioState === 'STOPPED' || this._audioState === 'IDLE') {
+    this._isPlayingComposition = false
+    this._compositionQueue = []
+    return
+  }
+
+  // Time signature from metadata
+  const timeSignature = composition.metadata?.timeSignature || '4/4'
+  const beatsPerBar = parseInt(timeSignature.split('/')[0], 10) || 4
+
+  // Audio-clock precision scheduling
+  const endTime = Tone.Transport.seconds + durationSeconds
+  this._nextCompositionEventId = Tone.Transport.scheduleOnce(() => {
+    this._playNextFromQueue()
+  }, endTime)
+}
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | All 6 fixes applied |
+
+---
+
+### Version
+
+v0.2.55
+
+---
