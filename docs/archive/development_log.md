@@ -4983,3 +4983,81 @@ The comment in the original code said "REAL-TIME FIX: Use audio context time" - 
 ### Version
 
 v0.2.58
+
+---
+
+
+
+
+## Entry #202 - Spread Notes Across Full Section Duration
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed the root cause of short audio phrases followed by long silences. Notes were only covering ~10 beats of content, but the composition claimed to be 32 beats (8 bars) long. Now notes are distributed evenly across the full section length.
+
+---
+
+### Problem Statement
+
+After Entry #201, music still played for only a few seconds then stopped:
+- Melody (8 notes) played in first ~5 seconds
+- Then 11 seconds of silence
+- Pattern repeated
+
+**Root Cause:**
+
+CounterpointEngine generated notes without knowing the section length:
+
+```javascript
+// generateVoiceNotes accumulated startBeat without knowing total duration
+currentBeat += duration + gap  // ~1.25 beats per note
+
+// 8 melody notes = ~10 beats = 5 seconds at 120 BPM
+// But composition.content.duration = 8 bars = 32 beats = 16 seconds!
+```
+
+Notes covered only 31% of the claimed duration.
+
+---
+
+### Solution
+
+Pass `sectionLength` from CompositionEngine to CounterpointEngine and distribute notes evenly across the full duration:
+
+```javascript
+// Entry #202: Distribute notes across full section length
+const totalBeats = sectionLength * 4  // 8 bars = 32 beats
+const startBeat = (i / noteCount) * totalBeats
+
+// 8 melody notes now start at beats: 0, 4, 8, 12, 16, 20, 24, 28
+// Full 16-second coverage at 120 BPM
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/CompositionEngine.js` | Pass `sectionLength` to `createVoice()` |
+| `backend/src/services/CounterpointEngine.js` | Accept `sectionLength` in `createVoice()`, `createVoiceWithSection()`, `generateVoiceNotes()`, `generateVoiceNotesWithSection()` |
+
+---
+
+### Note Distribution Comparison
+
+| Before | After |
+|--------|-------|
+| 8 notes in 10 beats | 8 notes in 32 beats |
+| ~5 seconds of music | ~16 seconds of music |
+| 11 seconds silence | Continuous playback |
+
+---
+
+### Version
+
+v0.2.59

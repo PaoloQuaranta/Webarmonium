@@ -155,6 +155,11 @@ class CompositionEngine {
       this.updateMaterialLibrary(section)
 
       // 7. Return complete composition
+      // Entry #202: Calculate durationBeats for frontend timing
+      const sectionLengthBars = section.duration || 8
+      const beatsPerBar = 4 // Assuming 4/4 time for note distribution
+      const durationBeats = sectionLengthBars * beatsPerBar
+
       return {
         type: section.type,
         structure: {
@@ -171,7 +176,10 @@ class CompositionEngine {
           mode: this.mode,
           timeSignature: this.timeSignature,
           complexity: this.complexityLevel,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          // Entry #202: Add duration info for frontend timing
+          sectionLength: sectionLengthBars,  // Duration in bars
+          durationBeats: durationBeats       // Duration in beats (for Transport scheduling)
         }
       }
 
@@ -491,7 +499,8 @@ class CompositionEngine {
       // Pass compositionCount for temporal variation (Entry #114)
       // Entry #169: Pass sectionContext for voice role application
       // Entry #180: Pass genre for genre-aware voice creation
-      const voice = this.counterpointEngine.createVoice(material, i, progression, this.compositionCount, sectionContext, genre)
+      // Entry #202: Pass sectionLength so notes span full composition duration
+      const voice = this.counterpointEngine.createVoice(material, i, progression, this.compositionCount, sectionContext, genre, sectionLength)
 
       // Entry #180: Voice may be null if genre doesn't need this many voices
       if (!voice) return null

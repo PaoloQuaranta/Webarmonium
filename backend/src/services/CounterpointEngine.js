@@ -57,13 +57,13 @@ class CounterpointEngine {
    * @param {string} genre - Optional genre for genre-specific voice characteristics
    * @returns {Object} Voice with notes and metadata
    */
-  createVoice(material, voiceIndex, progression, compositionCount = 0, sectionContext = null, genre = 'melodic') {
+  createVoice(material, voiceIndex, progression, compositionCount = 0, sectionContext = null, genre = 'melodic', sectionLength = 8) {
     // Store genre for use in other methods
     this._currentGenre = genre
 
     // If we have a SectionContext, use section-aware voice creation
     if (sectionContext) {
-      return this.createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext, genre)
+      return this.createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext, genre, sectionLength)
     }
 
     // Entry #180: Get genre-aware voice role
@@ -90,7 +90,8 @@ class CounterpointEngine {
     melodicProfile.genre = genre
 
     // Generate voice based on role (pass compositionCount for temporal variation - Entry #114)
-    const voiceNotes = this.generateVoiceNotes(material, range, melodicProfile, progression, compositionCount)
+    // Entry #202: Pass sectionLength to spread notes across full duration
+    const voiceNotes = this.generateVoiceNotes(material, range, melodicProfile, progression, compositionCount, sectionLength)
 
     return {
       voiceType,
@@ -117,7 +118,7 @@ class CounterpointEngine {
    * @param {string} genre - Genre for genre-specific voice characteristics
    * @returns {Object} Voice with notes and metadata
    */
-  createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext, genre = 'melodic') {
+  createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext, genre = 'melodic', sectionLength = 8) {
     // Entry #180: Get genre-aware voice role
     const voiceRole = this.getVoiceRole(voiceIndex, genre)
 
@@ -157,8 +158,9 @@ class CounterpointEngine {
     melodicProfile.articulationStyle = getArticulation(genre) || voiceContext.articulationStyle || voiceRole.timbre
 
     // Generate voice based on role with section context
+    // Entry #202: Pass sectionLength to spread notes across full duration
     const voiceNotes = this.generateVoiceNotesWithSection(
-      material, range, melodicProfile, progression, compositionCount, voiceContext
+      material, range, melodicProfile, progression, compositionCount, voiceContext, sectionLength
     )
 
     return {
@@ -259,10 +261,13 @@ class CounterpointEngine {
 
   /**
    * Generate voice notes with section context awareness
+   * Entry #202: Added sectionLength parameter to spread notes across full duration
    */
-  generateVoiceNotesWithSection(material, range, profile, progression, compositionCount, voiceContext) {
+  generateVoiceNotesWithSection(material, range, profile, progression, compositionCount, voiceContext, sectionLength = 8) {
     const voiceNotes = []
-    let currentBeat = 0
+
+    // Entry #202: Calculate total beats from sectionLength (bars * 4 beats per bar)
+    const totalBeats = sectionLength * 4
 
     // Extract chord tones from progression
     const chordTones = this._extractChordTonesFromProgression(progression, range)
@@ -283,6 +288,7 @@ class CounterpointEngine {
       const compCount = this._currentCompositionCount || 0
       const temporalOffset = (compCount * PHI) % 1
       const transposeInterval = Math.floor(temporalOffset * 5) - 2
+      const noteCount = material.notes.length
 
       material.notes.forEach((note, i) => {
         const transposedPitch = note.pitch + transposeInterval
@@ -301,20 +307,19 @@ class CounterpointEngine {
 
         // Section-aware velocity
         const baseVel = velocityParams.baseVelocity
-        const velVariation = Math.sin((i / material.notes.length) * Math.PI) * velocityParams.variation
+        const velVariation = Math.sin((i / noteCount) * Math.PI) * velocityParams.variation
         const velocity = Math.round(Math.max(30, Math.min(127, baseVel + velVariation)))
+
+        // Entry #202: Distribute notes across full section length
+        const startBeat = (i / noteCount) * totalBeats
 
         voiceNotes.push({
           pitch: adaptedPitch,
           duration: duration,
           velocity: velocity,
           articulation: articulationStyle,
-          startBeat: currentBeat
+          startBeat: startBeat
         })
-
-        const baseGap = (i / material.notes.length) * 0.25 + 0.125
-        const gapVariation = Math.sin((i + temporalOffset) * Math.PI) * 0.1
-        currentBeat += duration + baseGap + gapVariation
       })
     } else {
       // Generate new voice based on role with section parameters
@@ -340,16 +345,16 @@ class CounterpointEngine {
         const velCurve = this._getVelocityCurve(voiceContext.dynamicContour, position)
         const velocity = Math.round(velocityParams.baseVelocity * velCurve)
 
+        // Entry #202: Distribute notes across full section length
+        const startBeat = (i / noteCount) * totalBeats
+
         voiceNotes.push({
           pitch,
           duration: duration,
           velocity: Math.max(30, Math.min(127, velocity)),
           articulation: articulationStyle,
-          startBeat: currentBeat
+          startBeat: startBeat
         })
-
-        const gap = this.generateGapByRole(role, i, noteCount)
-        currentBeat += duration + gap
       }
     }
 
@@ -528,9 +533,11 @@ class CounterpointEngine {
     return profile
   }
 
-  generateVoiceNotes(material, range, profile, progression, compositionCount = 0) {
+  generateVoiceNotes(material, range, profile, progression, compositionCount = 0, sectionLength = 8) {
     const voiceNotes = []
-    let currentBeat = 0
+
+    // Entry #202: Calculate total beats from sectionLength (bars * 4 beats per bar)
+    const totalBeats = sectionLength * 4
 
     // Extract chord tones from progression for harmonic context
     const chordTones = this._extractChordTonesFromProgression(progression, range)
@@ -545,6 +552,8 @@ class CounterpointEngine {
       const temporalOffset = (compCount * PHI) % 1
       // Variation: transpose material by interval based on compositionCount
       const transposeInterval = Math.floor(temporalOffset * 5) - 2 // -2 to +2 semitones
+
+      const noteCount = material.notes.length
 
       material.notes.forEach((note, i) => {
         // Entry #117: Apply transposition for variation across compositions
@@ -562,19 +571,17 @@ class CounterpointEngine {
         const durationVariation = 0.8 + (((i * PHI) + temporalOffset) % 1) * 0.4 // 0.8-1.2x
         const duration = baseDuration * durationVariation
 
+        // Entry #202: Distribute notes across full section length
+        // Each note starts at evenly spaced intervals across totalBeats
+        const startBeat = (i / noteCount) * totalBeats
+
         voiceNotes.push({
           pitch: adaptedPitch,
           duration: duration,
           velocity: note.velocity || 80,
           articulation: note.articulation || 'normal',
-          startBeat: currentBeat
+          startBeat: startBeat
         })
-
-        // Accumulate timing: next note starts after this one plus optional gap
-        // DERIVATION: gap based on note position in phrase + temporal variation
-        const baseGap = (i / material.notes.length) * 0.25 + 0.125
-        const gapVariation = Math.sin((i + temporalOffset) * Math.PI) * 0.1 // ±0.1
-        currentBeat += duration + baseGap + gapVariation
       })
     } else {
       // Generate new voice based on ROLE (not just activity)
@@ -598,17 +605,17 @@ class CounterpointEngine {
         }
 
         const duration = this.generateDurationByRole(role, i, noteCount)
+
+        // Entry #202: Distribute notes across full section length
+        const startBeat = (i / noteCount) * totalBeats
+
         voiceNotes.push({
           pitch,
           duration: duration,
           velocity: this.generateVelocity(profile.activity, i, noteCount),
           articulation: this.generateArticulationByRole(role, i),
-          startBeat: currentBeat
+          startBeat: startBeat
         })
-
-        // Gap based on role
-        const gap = this.generateGapByRole(role, i, noteCount)
-        currentBeat += duration + gap
       }
     }
 
