@@ -4404,3 +4404,53 @@ playComposition(composition, isDrone = false, style = {}) {
 v0.2.52
 
 ---
+
+## Entry #197 - GoAccess Real-Time Traffic Analytics
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Implemented GoAccess real-time web traffic analytics with password protection. Replaced old cron-based static report generation with live WebSocket-based dashboard. Added "Traffic Stats" button to Composition Monitor.
+
+---
+
+### Changes
+
+#### Production Server (polden@webarmonium.net)
+
+| Component | Path | Purpose |
+|-----------|------|---------|
+| GoAccess config | `/etc/goaccess/webarmonium.conf` | Real-time mode, WebSocket on port 7890 |
+| systemd service | `/etc/systemd/system/goaccess-webarmonium.service` | Auto-start daemon |
+| nginx snippet | `/etc/nginx/snippets/goaccess.conf` | `/stats/` location with basic auth |
+| htpasswd | `/etc/nginx/.htpasswd_goaccess` | Username/password protection |
+
+#### Local Repository
+
+| File | Changes |
+|------|---------|
+| `backend/public/monitor/index.html` | Added "Traffic Stats" button in header with CSS styling |
+
+#### Removed
+
+- Old cron job: `0 3 * * * goaccess ... -o ~/stats/webarmonium-*.html`
+- Static daily HTML reports (crash reports preserved)
+
+---
+
+### Access
+
+- URL: `https://webarmonium.net/stats/`
+- Auth: Basic authentication required
+- Real-time: WebSocket updates via `/goaccess-ws`
+
+---
+
+### Version
+
+v0.2.53
+
+---
