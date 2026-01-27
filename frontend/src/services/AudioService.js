@@ -3317,10 +3317,23 @@ class AudioService {
    * @param {Object} style - Style info with genreWeights, dominantGenre, energy
    */
   playComposition(composition, isDrone = false, style = {}) {
-    // Entry #195: REMOVED clearPendingCompositionNotes() call
-    // Entry #192 added this to prevent overlap, but it was cutting phrases mid-playback
-    // The backend now properly awaits composition generation (Entry #192), so overlap
-    // is prevented at the source. Frontend cleanup was causing "singhiozzo" (stutter).
+    // Entry #196: Smart harmonic cleanup - only clear notes when key/mode CHANGES
+    // Entry #195 removed all cleanup (caused stale notes), Entry #192 cleared everything (cut phrases)
+    // This approach: preserve phrases within same harmony, clear only on harmonic change
+    if (!isDrone && composition?.metadata) {
+      const newKey = composition.metadata.keyCenter
+      const newMode = composition.metadata.mode
+      const harmonicChanged = (this._lastHarmonicKey !== newKey) || (this._lastHarmonicMode !== newMode)
+
+      if (harmonicChanged && this._lastHarmonicKey !== undefined) {
+        // Harmony changed - clear old notes to prevent dissonance
+        this.clearPendingCompositionNotes()
+      }
+
+      // Update tracked harmonic context
+      this._lastHarmonicKey = newKey
+      this._lastHarmonicMode = newMode
+    }
 
     // Entry #175: Store style for use in playback methods
     this.currentStyle = style

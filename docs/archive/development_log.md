@@ -4333,3 +4333,74 @@ playComposition(composition, isDrone = false, style = {}) {
 v0.2.51
 
 ---
+
+## Entry #196 - Smart Harmonic Cleanup (Clear Only on Key/Mode Change)
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed stale notes clashing with current harmony. Entry #195 removed all cleanup (causing dissonance), Entry #192 cleared everything (cutting phrases). This entry implements smart cleanup: only clear notes when harmonic context (key/mode) changes.
+
+---
+
+### Problem Statement
+
+After Entry #195 removed `clearPendingCompositionNotes()`:
+- Phrases no longer cut mid-playback ✓
+- BUT old notes from previous key/mode kept playing
+- Result: dissonance when harmony changed
+
+---
+
+### Solution
+
+**Smart harmonic cleanup**: Track key and mode, only clear when they change.
+
+```javascript
+playComposition(composition, isDrone = false, style = {}) {
+  // Entry #196: Smart harmonic cleanup
+  if (!isDrone && composition?.metadata) {
+    const newKey = composition.metadata.keyCenter
+    const newMode = composition.metadata.mode
+    const harmonicChanged = (this._lastHarmonicKey !== newKey) ||
+                            (this._lastHarmonicMode !== newMode)
+
+    if (harmonicChanged && this._lastHarmonicKey !== undefined) {
+      this.clearPendingCompositionNotes()  // Clear only on harmonic change
+    }
+
+    this._lastHarmonicKey = newKey
+    this._lastHarmonicMode = newMode
+  }
+  // ...
+}
+```
+
+---
+
+### Behavior Matrix
+
+| Scenario | Entry #192 | Entry #195 | Entry #196 |
+|----------|------------|------------|------------|
+| Same key, new composition | Clear (cuts phrase) | Keep (good) | Keep (good) |
+| Key changes | Clear (good) | Keep (dissonance) | Clear (good) |
+| Mode changes | Clear (cuts phrase) | Keep (dissonance) | Clear (good) |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/services/AudioService.js` | Smart harmonic cleanup in `playComposition()` |
+
+---
+
+### Version
+
+v0.2.52
+
+---
