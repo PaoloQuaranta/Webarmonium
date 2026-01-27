@@ -1019,6 +1019,177 @@ class CompositionMonitor {
   }
 
   /**
+   * List available report files with metadata
+   * @returns {Object} List of available reports
+   */
+  listReportFiles() {
+    const reports = []
+
+    try {
+      if (!fs.existsSync(this.logsDir)) {
+        return { enabled: true, reports: [], message: 'No logs directory' }
+      }
+
+      const files = fs.readdirSync(this.logsDir)
+        .filter(f => f.startsWith('metrics-') && f.endsWith('.jsonl'))
+        .sort()
+        .reverse() // Most recent first
+
+      for (const file of files) {
+        const filePath = path.join(this.logsDir, file)
+        const stats = fs.statSync(filePath)
+        const date = file.slice(8, 18) // Extract YYYY-MM-DD
+
+        // Count lines (entries) in file
+        let entryCount = 0
+        try {
+          const content = fs.readFileSync(filePath, 'utf8')
+          entryCount = content.split('\n').filter(l => l.trim()).length
+        } catch (e) {
+          // Skip if can't read
+        }
+
+        reports.push({
+          date,
+          filename: file,
+          size: stats.size,
+          sizeFormatted: this._formatBytes(stats.size),
+          entries: entryCount,
+          modified: stats.mtime.toISOString()
+        })
+      }
+    } catch (err) {
+      return {
+        enabled: true,
+        reports: [],
+        error: err.message
+      }
+    }
+
+    return {
+      enabled: true,
+      reports,
+      count: reports.length
+    }
+  }
+
+  /**
+   * Get report data for a specific date
+   * @param {string} date - Date in YYYY-MM-DD format
+   * @param {Object} options - Options for report retrieval
+   * @param {number} options.limit - Max entries to return (default: 1000)
+   * @param {boolean} options.aggregate - Include aggregated stats (default: true)
+   * @returns {Object} Report data with timeline and/or aggregates
+   */
+  getReportByDate(date, options = {}) {
+    const { limit = 1000, aggregate = true } = options
+
+    const filename = `metrics-${date}.jsonl`
+    const filePath = path.join(this.logsDir, filename)
+
+    if (!fs.existsSync(filePath)) {
+      return {
+        enabled: true,
+        date,
+        error: 'Report not found',
+        available: this.listReportFiles().reports.map(r => r.date)
+      }
+    }
+
+    const snapshots = []
+    try {
+      const content = fs.readFileSync(filePath, 'utf8')
+      const lines = content.split('\n').filter(l => l.trim())
+
+      // Parse all lines, but limit output
+      const allSnapshots = []
+      for (const line of lines) {
+        try {
+          allSnapshots.push(JSON.parse(line))
+        } catch (e) {
+          // Skip malformed lines
+        }
+      }
+
+      // Take last N entries if over limit
+      const limitedSnapshots = allSnapshots.length > limit
+        ? allSnapshots.slice(-limit)
+        : allSnapshots
+
+      snapshots.push(...limitedSnapshots)
+    } catch (err) {
+      return {
+        enabled: true,
+        date,
+        error: err.message
+      }
+    }
+
+    const result = {
+      enabled: true,
+      date,
+      filename,
+      totalEntries: snapshots.length,
+      // Timeline data (each snapshot)
+      timeline: snapshots.map(s => ({
+        timestamp: s.timestamp,
+        time: new Date(s.timestamp).toISOString(),
+        roomId: s.roomId,
+        source: s.source,
+        core: {
+          keyCenter: s.core?.keyCenter,
+          mode: s.core?.mode,
+          tempo: s.core?.tempo,
+          formStructure: s.core?.formStructure,
+          currentSection: s.core?.currentSection,
+          complexityLevel: s.core?.complexityLevel,
+          density: s.core?.density,
+          tensionLevel: s.core?.tensionLevel
+        },
+        harmony: {
+          currentKey: s.harmony?.currentKey,
+          currentMode: s.harmony?.currentMode,
+          currentChord: s.harmony?.currentChord
+        },
+        style: {
+          energy: s.style?.energy,
+          currentGenre: s.style?.currentGenre,
+          metricGenre: s.style?.metricGenre
+        }
+      }))
+    }
+
+    // Add aggregated stats if requested
+    if (aggregate && snapshots.length > 0) {
+      result.aggregate = {
+        distributions: this._calculateDistributions(snapshots),
+        metrics: this._calculateMetrics(snapshots),
+        trends: this._calculateTrends(snapshots),
+        timeRange: {
+          start: new Date(snapshots[0].timestamp).toISOString(),
+          end: new Date(snapshots[snapshots.length - 1].timestamp).toISOString(),
+          durationMs: snapshots[snapshots.length - 1].timestamp - snapshots[0].timestamp
+        }
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Format bytes to human readable string
+   * @param {number} bytes - Number of bytes
+   * @returns {string} Formatted string
+   */
+  _formatBytes(bytes) {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  /**
    * Cleanup resources
    */
   shutdown() {

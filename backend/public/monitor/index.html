@@ -305,12 +305,268 @@
       width: 16px;
       height: 16px;
     }
+
+    /* Reports Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    .modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 900px;
+      margin: 20px auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-header h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+
+    .modal-close:hover {
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      padding: 20px;
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+
+    .report-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .report-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .report-item:hover {
+      background: var(--bg-primary);
+    }
+
+    .report-item.active {
+      border: 1px solid var(--accent);
+    }
+
+    .report-date {
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .report-meta {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+
+    .tab {
+      padding: 8px 16px;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-radius: 6px 6px 0 0;
+      font-size: 0.875rem;
+    }
+
+    .tab:hover {
+      color: var(--text-primary);
+    }
+
+    .tab.active {
+      background: var(--accent);
+      color: var(--bg-primary);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .aggregate-section {
+      margin-bottom: 20px;
+    }
+
+    .aggregate-section h3 {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+
+    .distribution-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 8px;
+    }
+
+    .distribution-item {
+      background: var(--bg-tertiary);
+      padding: 8px 12px;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .distribution-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .distribution-value {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .metric-card {
+      background: var(--bg-tertiary);
+      padding: 12px;
+      border-radius: 6px;
+    }
+
+    .metric-card h4 {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .metric-values {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      font-size: 0.75rem;
+    }
+
+    .metric-values span {
+      text-align: center;
+    }
+
+    .timeline-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+    }
+
+    .timeline-table th,
+    .timeline-table td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .timeline-table th {
+      color: var(--text-secondary);
+      font-weight: 500;
+      position: sticky;
+      top: 0;
+      background: var(--bg-secondary);
+    }
+
+    .timeline-table td {
+      color: var(--text-primary);
+    }
+
+    .timeline-wrapper {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: var(--bg-tertiary);
+      border: none;
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      cursor: pointer;
+      margin-bottom: 16px;
+    }
+
+    .back-btn:hover {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-secondary);
+    }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>Webarmonium Composition Monitor</h1>
     <div class="header-actions">
+      <button onclick="openReportsModal()" class="btn-stats" title="View Composition Reports">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+        </svg>
+        Reports
+      </button>
       <a href="/stats" target="_blank" class="btn-stats" title="View Traffic Statistics">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>
@@ -326,6 +582,19 @@
 
   <div id="app">
     <div class="loading">Loading monitor data...</div>
+  </div>
+
+  <!-- Reports Modal -->
+  <div class="modal-overlay" id="reportsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">Composition Reports</h2>
+        <button class="modal-close" onclick="closeReportsModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <div class="loading">Loading reports...</div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -944,6 +1213,278 @@
     function showError(message) {
       document.getElementById('app').innerHTML = `
         <div class="error">${message}</div>
+      `;
+    }
+
+    // ====== Reports Modal Functions ======
+
+    let currentReportData = null;
+
+    function openReportsModal() {
+      document.getElementById('reportsModal').classList.add('active');
+      loadReportsList();
+    }
+
+    function closeReportsModal() {
+      document.getElementById('reportsModal').classList.remove('active');
+      currentReportData = null;
+    }
+
+    // Close modal on escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeReportsModal();
+    });
+
+    // Close modal on overlay click
+    document.getElementById('reportsModal').addEventListener('click', (e) => {
+      if (e.target.classList.contains('modal-overlay')) closeReportsModal();
+    });
+
+    async function loadReportsList() {
+      const modalBody = document.getElementById('modalBody');
+      const modalTitle = document.getElementById('modalTitle');
+      modalTitle.textContent = 'Composition Reports';
+      modalBody.innerHTML = '<div class="loading">Loading reports...</div>';
+
+      try {
+        const headers = { 'X-Admin-Key': API_KEY };
+        const response = await fetch('/api/admin/monitor/reports', { headers });
+        const data = await response.json();
+
+        if (!data.success) {
+          modalBody.innerHTML = `<div class="error">${data.message || 'Failed to load reports'}</div>`;
+          return;
+        }
+
+        if (!data.reports || data.reports.length === 0) {
+          modalBody.innerHTML = '<div class="no-data">No reports available yet</div>';
+          return;
+        }
+
+        modalBody.innerHTML = `
+          <div class="report-list">
+            ${data.reports.map(r => `
+              <div class="report-item" onclick="loadReport('${r.date}')">
+                <div>
+                  <span class="report-date">${r.date}</span>
+                </div>
+                <div class="report-meta">
+                  ${r.entries} entries | ${r.sizeFormatted}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } catch (err) {
+        modalBody.innerHTML = `<div class="error">Failed to load reports: ${err.message}</div>`;
+      }
+    }
+
+    async function loadReport(date) {
+      const modalBody = document.getElementById('modalBody');
+      const modalTitle = document.getElementById('modalTitle');
+      modalTitle.textContent = `Report: ${date}`;
+      modalBody.innerHTML = '<div class="loading">Loading report data...</div>';
+
+      try {
+        const headers = { 'X-Admin-Key': API_KEY };
+        const response = await fetch(`/api/admin/monitor/reports/${date}?limit=500`, { headers });
+        const data = await response.json();
+
+        if (!data.success || data.error) {
+          modalBody.innerHTML = `<div class="error">${data.error || 'Failed to load report'}</div>`;
+          return;
+        }
+
+        currentReportData = data;
+        renderReportView(data);
+      } catch (err) {
+        modalBody.innerHTML = `<div class="error">Failed to load report: ${err.message}</div>`;
+      }
+    }
+
+    function renderReportView(data) {
+      const modalBody = document.getElementById('modalBody');
+      const agg = data.aggregate || {};
+      const timeline = data.timeline || [];
+
+      modalBody.innerHTML = `
+        <button class="back-btn" onclick="loadReportsList()">
+          &larr; Back to list
+        </button>
+
+        <div class="tabs">
+          <button class="tab active" onclick="switchTab('aggregate')">Aggregate</button>
+          <button class="tab" onclick="switchTab('timeline')">Timeline (${timeline.length})</button>
+        </div>
+
+        <div id="tab-aggregate" class="tab-content active">
+          ${renderAggregateView(agg)}
+        </div>
+
+        <div id="tab-timeline" class="tab-content">
+          ${renderTimelineView(timeline)}
+        </div>
+      `;
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+      document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+    }
+
+    function renderAggregateView(agg) {
+      if (!agg || !agg.distributions) {
+        return '<div class="no-data">No aggregate data available</div>';
+      }
+
+      const dist = agg.distributions || {};
+      const metrics = agg.metrics || {};
+      const trends = agg.trends || {};
+      const timeRange = agg.timeRange || {};
+
+      return `
+        <div style="margin-bottom: 16px; padding: 8px 12px; background: var(--bg-tertiary); border-radius: 6px; font-size: 0.75rem; color: var(--text-secondary);">
+          Time range: ${timeRange.start ? new Date(timeRange.start).toLocaleString() : '-'} to ${timeRange.end ? new Date(timeRange.end).toLocaleString() : '-'}
+        </div>
+
+        <div class="aggregate-section">
+          <h3>Key Distribution</h3>
+          <div class="distribution-grid">
+            ${Object.entries(dist.keyCenter || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `
+              <div class="distribution-item">
+                <div class="distribution-value">${k}</div>
+                <div class="distribution-label">${v}%</div>
+              </div>
+            `).join('') || '<span class="no-data">No data</span>'}
+          </div>
+        </div>
+
+        <div class="aggregate-section">
+          <h3>Mode Distribution</h3>
+          <div class="distribution-grid">
+            ${Object.entries(dist.mode || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `
+              <div class="distribution-item">
+                <div class="distribution-value">${k}</div>
+                <div class="distribution-label">${v}%</div>
+              </div>
+            `).join('') || '<span class="no-data">No data</span>'}
+          </div>
+        </div>
+
+        <div class="aggregate-section">
+          <h3>Form Structure Distribution</h3>
+          <div class="distribution-grid">
+            ${Object.entries(dist.formStructure || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `
+              <div class="distribution-item">
+                <div class="distribution-value">${k}</div>
+                <div class="distribution-label">${v}%</div>
+              </div>
+            `).join('') || '<span class="no-data">No data</span>'}
+          </div>
+        </div>
+
+        <div class="aggregate-section">
+          <h3>Metrics Summary</h3>
+          <div class="metrics-grid">
+            ${renderMetricCard('Tempo (BPM)', metrics.tempo)}
+            ${renderMetricCard('Energy', metrics.energy, true)}
+            ${renderMetricCard('Complexity', metrics.complexity, true)}
+            ${renderMetricCard('Density', metrics.density, true)}
+          </div>
+        </div>
+
+        <div class="aggregate-section">
+          <h3>Trends</h3>
+          <div class="distribution-grid">
+            ${Object.entries(trends).map(([k, v]) => `
+              <div class="distribution-item">
+                <div class="distribution-value">${getTrendIcon(v)}</div>
+                <div class="distribution-label">${k}: ${v}</div>
+              </div>
+            `).join('') || '<span class="no-data">Insufficient data for trends</span>'}
+          </div>
+        </div>
+
+        <div class="aggregate-section">
+          <h3>Average Genre Weights</h3>
+          <div class="genre-bars">
+            ${Object.entries(dist.genreWeights || {}).sort((a, b) => b[1] - a[1]).map(([genre, weight]) => `
+              <div class="genre-row">
+                <span class="genre-name">${genre}</span>
+                <div class="genre-bar">
+                  <div class="genre-fill" style="width: ${(weight * 100).toFixed(0)}%"></div>
+                </div>
+                <span class="genre-value">${(weight * 100).toFixed(0)}%</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMetricCard(label, data, isPercentage = false) {
+      if (!data) return '';
+      const format = (v) => isPercentage ? `${(v * 100).toFixed(0)}%` : v.toFixed(1);
+      return `
+        <div class="metric-card">
+          <h4>${label}</h4>
+          <div class="metric-values">
+            <span>Min: ${format(data.min)}</span>
+            <span>Avg: ${format(data.avg)}</span>
+            <span>Max: ${format(data.max)}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function getTrendIcon(trend) {
+      if (trend === 'increasing') return '↗️';
+      if (trend === 'decreasing') return '↘️';
+      return '→';
+    }
+
+    function renderTimelineView(timeline) {
+      if (!timeline || timeline.length === 0) {
+        return '<div class="no-data">No timeline data available</div>';
+      }
+
+      return `
+        <div class="timeline-wrapper">
+          <table class="timeline-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Source</th>
+                <th>Key</th>
+                <th>Mode</th>
+                <th>Form</th>
+                <th>Section</th>
+                <th>Tempo</th>
+                <th>Energy</th>
+                <th>Genre</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${timeline.map(entry => `
+                <tr>
+                  <td>${new Date(entry.timestamp).toLocaleTimeString()}</td>
+                  <td>${entry.source || '-'}</td>
+                  <td>${entry.core?.keyCenter || '-'}</td>
+                  <td>${entry.core?.mode || '-'}</td>
+                  <td>${entry.core?.formStructure || '-'}</td>
+                  <td>${entry.core?.currentSection || '-'}</td>
+                  <td>${entry.core?.tempo || '-'}</td>
+                  <td>${entry.style?.energy ? (entry.style.energy * 100).toFixed(0) + '%' : '-'}</td>
+                  <td>${entry.style?.currentGenre || entry.style?.metricGenre || '-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
       `;
     }
   </script>

@@ -149,6 +149,64 @@ function createMonitorRoutes(compositionMonitor) {
   })
 
   /**
+   * GET /api/admin/monitor/reports
+   * List available report files with metadata
+   */
+  router.get('/reports', (req, res) => {
+    try {
+      const reports = compositionMonitor.listReportFiles()
+      res.json({
+        success: true,
+        ...reports,
+        timestamp: Date.now()
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'list_reports_error',
+        message: error.message
+      })
+    }
+  })
+
+  /**
+   * GET /api/admin/monitor/reports/:date
+   * Get report data for a specific date
+   * Query params:
+   *   - limit: max entries (default: 1000)
+   *   - aggregate: include aggregated stats (default: true)
+   */
+  router.get('/reports/:date', (req, res) => {
+    try {
+      const { date } = req.params
+      // Validate date format
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({
+          success: false,
+          error: 'invalid_date_format',
+          message: 'Date must be in YYYY-MM-DD format'
+        })
+      }
+
+      const limit = Math.min(5000, parseInt(req.query.limit) || 1000)
+      const aggregate = req.query.aggregate !== 'false'
+
+      const report = compositionMonitor.getReportByDate(date, { limit, aggregate })
+      res.json({
+        success: true,
+        ...report,
+        timestamp: Date.now()
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'get_report_error',
+        message: error.message
+      })
+    }
+  })
+
+  /**
    * GET /api/admin/monitor/status
    * Get monitor status and configuration
    */
