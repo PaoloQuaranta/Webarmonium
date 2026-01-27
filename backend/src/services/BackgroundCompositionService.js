@@ -1000,22 +1000,20 @@ class BackgroundCompositionService {
     // This ensures interval matches actual composition tempo, preventing gaps after genre changes
     const tempo = roomState?.styleCycling?.currentBPM || currentStyle.tempo || 120
 
-    // Entry #204: Use fixed sectionLength matching CompositionEngine (8 bars)
-    // Previous variable baseBars [8,12,16,10,14] caused mismatches with actual composition content
-    // which is always generated based on sectionLengths (default 8 bars)
-    const sectionLengthBars = 8  // Must match CompositionEngine.sectionLengths
-    const beatsPerComposition = sectionLengthBars * 4  // 32 beats for 8 bars in 4/4
+    // Entry #205: Reduced from 8 to 4 bars (16 beats) to reduce gaps between phrases
+    const sectionLengthBars = 4  // Must match CompositionEngine.sectionLengths
+    const beatsPerComposition = sectionLengthBars * 4  // 16 beats for 4 bars in 4/4
 
     const beatDuration = 60000 / tempo  // milliseconds per beat
-    const compositionDuration = beatsPerComposition * beatDuration  // ~16000ms at 120 BPM
+    const compositionDuration = beatsPerComposition * beatDuration  // ~8000ms at 120 BPM
 
     // Entry #204: Apply overlap factor (0.85) to ensure next composition arrives
     // BEFORE the current one finishes playing. This prevents gaps when queue is empty.
     const overlapFactor = 0.85
     const interval = compositionDuration * overlapFactor
 
-    // Entry #204: Adjusted clamp bounds - min 6s, max 30s
-    const clampedInterval = Math.max(6000, Math.min(30000, interval))
+    // Entry #205: Adjusted clamp bounds for shorter 4-bar compositions - min 3s, max 15s
+    const clampedInterval = Math.max(3000, Math.min(15000, interval))
 
     // Entry #192: Use async callback to await composition before scheduling next
     // This prevents composition accumulation when generation takes longer than interval

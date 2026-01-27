@@ -3403,7 +3403,7 @@ class AudioService {
     if (composition.metadata?.durationBeats) {
       totalBeats = composition.metadata.durationBeats
     } else {
-      const durationBars = composition.content?.duration || 8  // bars, typically 8
+      const durationBars = composition.content?.duration || 4  // Entry #205: bars, typically 4
       const timeSignature = composition.metadata?.timeSignature || '4/4'
       const beatsPerBar = parseInt(timeSignature.split('/')[0], 10) || 4
       totalBeats = durationBars * beatsPerBar

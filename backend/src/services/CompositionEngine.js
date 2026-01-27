@@ -155,8 +155,8 @@ class CompositionEngine {
       this.updateMaterialLibrary(section)
 
       // 7. Return complete composition
-      // Entry #202: Calculate durationBeats for frontend timing
-      const sectionLengthBars = section.duration || 8
+      // Entry #205: Calculate durationBeats for frontend timing (default 4 bars = 16 beats)
+      const sectionLengthBars = section.duration || 4
       const beatsPerBar = 4 // Assuming 4/4 time for note distribution
       const durationBeats = sectionLengthBars * beatsPerBar
 
@@ -260,74 +260,76 @@ class CompositionEngine {
 
     // Set section lengths, starting section, and cycle length based on form
     // Entry #163: formCycleLength = minimum sections to complete one full form cycle
+    // Entry #205: Halved all section lengths to reduce gaps between phrases
+    // Original values were 8 bars = 32 beats, now 4 bars = 16 beats
     switch (form) {
       case 'ABA':
-        this.sectionLengths = { 'A': 8, 'B': 8 }
+        this.sectionLengths = { 'A': 4, 'B': 4 }
         this.currentSection = 'A'
         this.formCycleLength = 3  // A → B → A
         break
       case 'rondo':
-        this.sectionLengths = { 'A': 4, 'B': 4, 'C': 4 }
+        this.sectionLengths = { 'A': 2, 'B': 2, 'C': 2 }
         this.currentSection = 'A'
         this.formCycleLength = 5  // A → B → A → C → A
         break
       case 'sonata':
-        this.sectionLengths = { 'exposition': 16, 'development': 16, 'recapitulation': 16 }
+        this.sectionLengths = { 'exposition': 8, 'development': 8, 'recapitulation': 8 }
         this.currentSection = 'exposition'
         this.formCycleLength = 3  // exposition → development → recapitulation
         break
       case 'AABA':
-        this.sectionLengths = { 'A': 8, 'B': 8 }
+        this.sectionLengths = { 'A': 4, 'B': 4 }
         this.currentSection = 'A'
         this.formCycleLength = 4  // A → A → B → A
         break
       case 'verse_chorus':
-        this.sectionLengths = { 'verse': 8, 'chorus': 8, 'bridge': 8, 'intro': 4, 'outro': 4 }
+        this.sectionLengths = { 'verse': 4, 'chorus': 4, 'bridge': 4, 'intro': 2, 'outro': 2 }
         this.currentSection = 'intro'
         this.formCycleLength = 8  // intro → verse → chorus → verse → chorus → bridge → chorus → outro
         break
       case 'blues':
-        this.sectionLengths = { 'blues': 12 }
+        this.sectionLengths = { 'blues': 6 }
         this.currentSection = 'blues'
-        this.formCycleLength = 1  // Single 12-bar cycle
+        this.formCycleLength = 1  // Single 6-bar cycle (halved from 12)
         break
       case 'theme_and_variations':
-        this.sectionLengths = { 'theme': 8, 'var1': 8, 'var2': 8, 'var3': 8 }
+        this.sectionLengths = { 'theme': 4, 'var1': 4, 'var2': 4, 'var3': 4 }
         this.currentSection = 'theme'
         this.formCycleLength = 4  // theme → var1 → var2 → var3
         break
       case 'through_composed':
-        this.sectionLengths = { 'A': 8, 'B': 8, 'C': 8 }
+        this.sectionLengths = { 'A': 4, 'B': 4, 'C': 4 }
         this.currentSection = 'A'
         this.formCycleLength = 3  // A → B → C
         break
       case 'strophic':
-        this.sectionLengths = { 'strophe': 8 }
+        this.sectionLengths = { 'strophe': 4 }
         this.currentSection = 'strophe'
         this.formCycleLength = 3  // 3 strophes minimum
         break
       case 'build_drop':
-        this.sectionLengths = { 'build': 8, 'drop': 8, 'breakdown': 4 }
+        this.sectionLengths = { 'build': 4, 'drop': 4, 'breakdown': 2 }
         this.currentSection = 'build'
         this.formCycleLength = 3  // build → drop → breakdown
         break
       case 'modal':
-        this.sectionLengths = { 'A': 8, 'B': 8 }
+        this.sectionLengths = { 'A': 4, 'B': 4 }
         this.currentSection = 'A'
         this.formCycleLength = 4  // A → A → B → A
         break
       case 'rhythm_changes':
-        this.sectionLengths = { 'A': 8, 'B': 8 }
+        this.sectionLengths = { 'A': 4, 'B': 4 }
         this.currentSection = 'A'
-        this.formCycleLength = 4  // A → A → B → A (32-bar form)
+        this.formCycleLength = 4  // A → A → B → A (16-bar form)
         break
       case 'intro_verse_chorus_bridge_outro':
-        this.sectionLengths = { 'intro': 4, 'verse': 8, 'chorus': 8, 'bridge': 8, 'outro': 4 }
+        this.sectionLengths = { 'intro': 2, 'verse': 4, 'chorus': 4, 'bridge': 4, 'outro': 2 }
         this.currentSection = 'intro'
         this.formCycleLength = 5  // intro → verse → chorus → bridge → outro
         break
       default:
-        this.sectionLengths = { 'A': 8 }
+        this.sectionLengths = { 'A': 4 }
         this.currentSection = 'A'
         this.formCycleLength = 3  // Default: at least 3 sections
     }
