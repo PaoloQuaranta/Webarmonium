@@ -4170,3 +4170,101 @@ The composition interval now matches the actual tempo used for composition gener
 v0.2.49
 
 ---
+
+## Entry #194 - Fix Inert Background (Error Recovery Too Aggressive)
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed "inert" background music issue where compositions were sparse/sporadic. Root cause was Entry #192's error handling changes that caused 5-second delays on every error.
+
+---
+
+### Problem Statement
+
+After Entry #192, users reported background music was:
+- "Inert" - not continuously generating
+- Producing "snippets" - short bursts with long gaps
+- Often not starting at startup
+
+**Root Cause**: Entry #192 changed `generateAndBroadcastComposition` to re-throw errors:
+
+```javascript
+// Entry #192 (problematic):
+} catch (error) {
+  console.error(`Error...`)
+  throw error  // Re-throwing!
+}
+```
+
+This caused:
+1. Any error in composition generation → error re-thrown
+2. Caller catches and waits **5 seconds** before retry
+3. If errors happen frequently → background becomes "inert"
+
+---
+
+### Solution
+
+#### Fix 1: Don't Re-throw Errors
+
+```javascript
+// Entry #194 (fixed):
+} catch (error) {
+  console.error(`Error...`)
+  // Don't throw - let caller proceed normally
+}
+```
+
+This way:
+- Error is logged but doesn't break the scheduling chain
+- Caller's `.then()` runs (not `.catch()`)
+- Next composition is scheduled normally
+
+#### Fix 2: Reduce Recovery Delay (5s → 1s)
+
+Even in catch paths that do trigger, reduced delay from 5s to 1s:
+
+```javascript
+// Before:
+}, 5000)
+
+// After:
+}, 1000)
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/BackgroundCompositionService.js` | Remove `throw error`, reduce recovery delay to 1s |
+| `backend/src/services/LandingCompositionService.js` | Same fixes |
+
+---
+
+### Why Original Error Handling Broke Things
+
+Before Entry #192:
+```
+compose() errors → silently caught → return normally → scheduleNext() runs
+```
+
+After Entry #192:
+```
+compose() errors → re-thrown → catch block → wait 5s → scheduleNext() runs
+```
+
+The 5-second delay accumulated with each error, making background feel "inert".
+
+---
+
+### Version
+
+v0.2.50
+
+---

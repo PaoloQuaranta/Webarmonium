@@ -1318,13 +1318,13 @@ class LandingCompositionService {
       } catch (error) {
         console.error('Failed to generate landing composition:', error.message)
 
-        // Recovery: schedule retry after delay (only if service still running)
+        // Entry #194: Reduced recovery delay from 5s to 1s to prevent "inert" background
         if (this.isRunning) {
           this.compositionTimer = setTimeout(() => {
             if (this.isRunning) {
               this.scheduleNextComposition()
             }
-          }, 5000)
+          }, 1000)
         }
       }
     }, clampedInterval)
@@ -1489,9 +1489,10 @@ class LandingCompositionService {
       }
 
     } catch (error) {
-      // Entry #192: Log and re-throw to propagate error to callers
+      // Entry #194: Log error but DON'T re-throw
+      // Re-throwing caused 5-second recovery delays that made background feel "inert"
       console.error(`Error generating landing composition:`, error.message)
-      throw error
+      // Don't throw - let caller proceed normally
     }
   }
 

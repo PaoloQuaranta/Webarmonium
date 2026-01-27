@@ -674,13 +674,13 @@ class BackgroundCompositionService {
         })
         .catch((error) => {
           console.error(`Failed to generate initial composition for room ${roomId}:`, error.message)
-          // Recovery: schedule retry after delay (track timer for cleanup)
+          // Entry #194: Reduced recovery delay from 5s to 1s
           if (this.roomCompositions.has(roomId)) {
             const recoveryTimer = setTimeout(() => {
               if (this.roomCompositions.has(roomId)) {
                 this.scheduleNextComposition(roomId, roomState.roomContext)
               }
-            }, 5000)
+            }, 1000)
             this.compositionTimers.set(roomId, recoveryTimer)
           }
         })
@@ -1035,14 +1035,14 @@ class BackgroundCompositionService {
       } catch (error) {
         console.error(`Composition generation failed for room ${roomId}:`, error.message)
 
-        // Recovery: schedule retry after delay (only if room still active)
+        // Entry #194: Reduced recovery delay from 5s to 1s to prevent "inert" background
+        // The shorter delay ensures continuous music even when occasional errors occur
         if (this.compositionTimers.has(roomId)) {
           const recoveryTimer = setTimeout(() => {
             if (this.compositionTimers.has(roomId)) {
               this.scheduleNextComposition(roomId, roomContext)
             }
-          }, 5000)
-          // Track recovery timer so it can be cleaned up
+          }, 1000)
           this.compositionTimers.set(roomId, recoveryTimer)
         }
       }
@@ -1178,9 +1178,11 @@ class BackgroundCompositionService {
       }
 
     } catch (error) {
-      // Entry #192: Log and re-throw to propagate error to callers
+      // Entry #194: Log error but DON'T re-throw
+      // Re-throwing caused 5-second recovery delays that made background feel "inert"
+      // Instead, fail gracefully - scheduling will continue in the caller
       console.error(`Error generating composition for room ${roomId}:`, error.message)
-      throw error
+      // Don't throw - let caller proceed normally
     }
   }
 
