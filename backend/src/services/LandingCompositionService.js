@@ -2036,8 +2036,12 @@ class LandingCompositionService {
     const xGolden = (combinedSeed * LandingCompositionService.PHI) % 1
     const yGolden = (combinedSeed * LandingCompositionService.PHI_SQ) % 1
 
-    // X position: metric-based with ±15% golden ratio variation
-    const xBase = xMetric + (xGolden - 0.5) * 0.3
+    // Entry #190: Enhanced X variation for more dynamic cursor movement
+    // - Increased golden ratio range from ±15% to ±35%
+    // - Add frequency influence: higher notes drift right, lower notes drift left
+    // - Creates diagonal movement patterns during phrases
+    const freqInfluenceOnX = (normalizedFreq - 0.5) * 0.2  // ±10% based on pitch
+    const xBase = xMetric + (xGolden - 0.5) * 0.7 + freqInfluenceOnX
 
     // Y position: frequency-based with ±10% golden ratio variation
     const yBase = yFromFreq + (yGolden - 0.5) * 0.2
