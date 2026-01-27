@@ -273,14 +273,54 @@
       text-align: center;
       padding: 20px;
     }
+
+    /* Stats button in header */
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .btn-stats {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      color: var(--accent);
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-stats:hover {
+      background: var(--accent);
+      color: var(--bg-primary);
+    }
+
+    .btn-stats svg {
+      width: 16px;
+      height: 16px;
+    }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>Webarmonium Composition Monitor</h1>
-    <div class="status">
-      <div class="status-dot" id="statusDot"></div>
-      <span id="statusText">Connecting...</span>
+    <div class="header-actions">
+      <a href="/stats" target="_blank" class="btn-stats" title="View Traffic Statistics">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>
+        </svg>
+        Traffic Stats
+      </a>
+      <div class="status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Connecting...</span>
+      </div>
     </div>
   </div>
 
