@@ -1861,7 +1861,9 @@ class AudioService {
         }
       }),
 
-      // PAD: Ethereal drone layer (6 voices to handle 4s release overlap)
+      // PAD: Ethereal drone layer (16 voices for accompaniment + drone overlap)
+      // Entry #208: Increased from 6 to 16 for backend-generated accompaniment
+      // 3-note chords × 4 overlapping with 4s release + drone textures
       pad: new Tone.PolySynth({
         oscillator: {
           type: 'triangle'  // Soft, warm
@@ -1873,12 +1875,13 @@ class AudioService {
           sustain: 0.7,
           release: 4.0
         },
-        maxPolyphony: 6  // 2 notes × 3 overlapping triggers during 4s release
+        maxPolyphony: 16
       }),
 
       // CHORDS: Electric piano (FM synthesis, Rhodes-style)
+      // Entry #208: Increased from 8 to 24 for arpeggio patterns from backend
       chords: (() => {
-        const synth = new Tone.PolySynth(Tone.FMSynth, { maxPolyphony: 8 })  // 3 notes × 2-3 overlapping triggers
+        const synth = new Tone.PolySynth(Tone.FMSynth, { maxPolyphony: 24 })
         synth.set({
           modulationIndex: 3.5,      // Bell-like overtones
           harmonicity: 2,            // Octave relationship
@@ -3795,6 +3798,9 @@ class AudioService {
     }
 
     const lookahead = 0.1
+    // Entry #208: Reduce all accompaniment velocities to prevent clipping
+    // when playing alongside counterpoint voices
+    const accompVelocityScale = 0.35
 
     // Play bass accompaniment on bass synth (wrapped for isolation)
     if (accompaniment.bass_accomp?.notes) {
@@ -3804,7 +3810,7 @@ class AudioService {
         const pitch = note.pitch || 36
         const frequency = this.midiToFrequency(pitch)
         const duration = (note.duration || 0.5) * beatDuration
-        const velocity = note.velocity || 0.6
+        const velocity = (note.velocity || 0.6) * accompVelocityScale
         const delay = (note.startBeat || 0) * beatDuration
         const scheduleTime = now + lookahead + delay
 
@@ -3828,7 +3834,7 @@ class AudioService {
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
         const duration = (note.duration || 2.0) * beatDuration
-        const velocity = note.velocity || 0.4
+        const velocity = (note.velocity || 0.4) * accompVelocityScale
         const delay = (note.startBeat || 0) * beatDuration
         const scheduleTime = now + lookahead + delay
 
@@ -3852,7 +3858,7 @@ class AudioService {
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
         const duration = (note.duration || 0.5) * beatDuration
-        const velocity = note.velocity || 0.5
+        const velocity = (note.velocity || 0.5) * accompVelocityScale
         const delay = (note.startBeat || 0) * beatDuration
         const scheduleTime = now + lookahead + delay
 

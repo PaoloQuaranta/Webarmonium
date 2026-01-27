@@ -1160,8 +1160,10 @@ class CompositionEngine {
       const chordStartBeat = chordIndex * (sectionBeats / progressionLength)
       const chordDuration = sectionBeats / progressionLength
 
-      // Get root note from chord
-      const root = chord.root || 36  // C2 default
+      // Entry #208 FIX: chord.root is pitch class (0-11), not MIDI note
+      // Convert to MIDI by adding bass octave (C2 = 36)
+      const pitchClass = (chord.root !== undefined && chord.root !== null) ? chord.root : 0
+      const root = 36 + pitchClass  // C2 base octave for bass
       const fifth = root + 7  // Perfect fifth
 
       // Generate bass pattern based on genre
@@ -1236,13 +1238,15 @@ class CompositionEngine {
       const chordStartBeat = chordIndex * (sectionBeats / progressionLength)
       const chordDuration = sectionBeats / progressionLength
 
-      // Build chord notes (root, third, fifth in mid register)
-      const root = (chord.root || 48) + 12  // Shift up an octave for pad register
+      // Entry #208 FIX: buildChord returns pitch classes (0-11 range + intervals)
+      // We need to add an octave base to get MIDI notes
+      // Pad register: C4 (60) base octave
       const chordNotes = this.harmonicEngine.buildChord(chord.chord || 'major')
 
       // Create sustained pad notes
-      chordNotes.forEach((interval, i) => {
-        const pitch = root + interval
+      chordNotes.forEach((pitchClass, i) => {
+        // Convert pitch class to MIDI note (C4 octave for pad)
+        const pitch = 60 + pitchClass  // C4 base
         notes.push({
           pitch,
           startBeat: chordStartBeat + (i * 0.05),  // Slight stagger for organic feel
@@ -1278,9 +1282,10 @@ class CompositionEngine {
       const chordStartBeat = chordIndex * (sectionBeats / progressionLength)
       const chordDuration = sectionBeats / progressionLength
 
-      // Build chord notes in keys register
-      const root = (chord.root || 60)  // Middle C register
+      // Entry #208 FIX: buildChord returns pitch classes (0-11 range + intervals)
+      // Add octave base to get MIDI notes. Keys register: C4 (60)
       const chordNotes = this.harmonicEngine.buildChord(chord.chord || 'major')
+      const keysOctave = 60  // C4 base for keys
 
       if (genre === 'electronic' || genre === 'rhythmic') {
         // Arpeggio pattern
@@ -1291,11 +1296,11 @@ class CompositionEngine {
         let beatOffset = 0
         const noteLength = 0.25  // 16th notes
         while (beatOffset < chordDuration) {
-          sortedNotes.forEach((interval, i) => {
+          sortedNotes.forEach((pitchClass, i) => {
             if (beatOffset + (i * noteLength) < chordDuration) {
               const isSyncopated = Math.random() < syncopation * 0.2
               notes.push({
-                pitch: root + interval,
+                pitch: keysOctave + pitchClass,  // Convert pitch class to MIDI
                 startBeat: chordStartBeat + beatOffset + (i * noteLength) + (isSyncopated ? -0.0625 : 0),
                 duration: noteLength * 0.8,
                 velocity: 0.6 + (Math.random() * 0.15)
@@ -1310,9 +1315,9 @@ class CompositionEngine {
         compBeats.forEach(beat => {
           if (beat < chordDuration) {
             const swingOffset = (beat % 1 > 0) ? swingAmount * 0.15 : 0
-            chordNotes.forEach((interval, i) => {
+            chordNotes.forEach((pitchClass, i) => {
               notes.push({
-                pitch: root + interval + (i === 0 ? 0 : 0),  // Voicing
+                pitch: keysOctave + pitchClass,  // Convert pitch class to MIDI
                 startBeat: chordStartBeat + beat + swingOffset,
                 duration: 0.4 + (Math.random() * 0.2),
                 velocity: 0.55 + (Math.random() * 0.15)
@@ -1321,14 +1326,16 @@ class CompositionEngine {
           }
         })
       } else if (genre === 'rock') {
-        // Power chord stabs
+        // Power chord stabs - root and fifth
+        // Entry #208 FIX: Get root pitch class from chord
+        const rootPitchClass = (chord.root !== undefined && chord.root !== null) ? chord.root : 0
         const stabBeats = [0, 2, 2.5, 3.5]
         stabBeats.forEach(beat => {
           if (beat < chordDuration) {
             // Power chord: root and fifth only
             ;[0, 7].forEach(interval => {
               notes.push({
-                pitch: root + interval,
+                pitch: keysOctave + rootPitchClass + interval,
                 startBeat: chordStartBeat + beat,
                 duration: 0.3,
                 velocity: 0.75 + (Math.random() * 0.1)
@@ -1346,9 +1353,9 @@ class CompositionEngine {
 
         blockBeats.forEach(beat => {
           if (beat < chordDuration) {
-            chordNotes.forEach((interval) => {
+            chordNotes.forEach((pitchClass) => {
               notes.push({
-                pitch: root + interval,
+                pitch: keysOctave + pitchClass,  // Convert pitch class to MIDI
                 startBeat: chordStartBeat + beat,
                 duration: 0.8,
                 velocity: 0.6
