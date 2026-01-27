@@ -1290,15 +1290,19 @@ class LandingCompositionService {
     const githubActivity = this.calculateActivityLevel('github')
     const totalActivity = (wikipediaActivity + hackernewsActivity + githubActivity) / 3  // Average 0-1
 
-    // Entry #174 addendum: Increased from 10-16 to 16-24 beats to reduce prolixity
-    // High activity = more frequent (16 beats), Low activity = sparse (24 beats)
-    const beatsPerComposition = 24 - (totalActivity * 8)  // 16-24 beats, emerges from activity
+    // Entry #199: Fixed timing to match CompositionEngine's sectionLength (in BARS)
+    // Previously used 16-24 "beats" but compositions are 8 bars = 32 beats, causing gaps
+    // Now: 6-10 BARS based on activity, multiplied by 4 to get actual beats
+    // High activity = more frequent (6 bars = 24 beats), Low activity = sparse (10 bars = 40 beats)
+    const barsPerComposition = 10 - (totalActivity * 4)  // 6-10 bars, emerges from activity
+    const beatsPerComposition = barsPerComposition * 4   // Convert to beats (4 beats per bar)
 
     const beatDuration = 60000 / tempo  // milliseconds per beat
     const interval = beatsPerComposition * beatDuration
 
-    // Clamp to reasonable bounds (8-20 seconds) - increased from 4-15s
-    const clampedInterval = Math.max(8000, Math.min(20000, interval))
+    // Entry #199: Adjusted clamp bounds for bar-based calculation
+    // Min 12s (6 bars at 120 BPM), Max 40s (allows for 10+ bars at slow tempos)
+    const clampedInterval = Math.max(12000, Math.min(40000, interval))
 
     // Entry #192: Use async callback to await composition before scheduling next
     // This prevents composition accumulation when generation takes longer than interval
@@ -1329,7 +1333,7 @@ class LandingCompositionService {
       }
     }, clampedInterval)
 
-    // console.log(`🎵 Next composition in ${(clampedInterval/1000).toFixed(1)}s (${beatsPerComposition.toFixed(0)} beats @ ${tempo} BPM, activity=${totalActivity.toFixed(2)})`)
+    // console.log(`🎵 Next composition in ${(clampedInterval/1000).toFixed(1)}s (${barsPerComposition.toFixed(0)} bars = ${beatsPerComposition.toFixed(0)} beats @ ${tempo} BPM, activity=${totalActivity.toFixed(2)})`)
   }
 
   /**

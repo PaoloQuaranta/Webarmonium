@@ -4643,6 +4643,111 @@ Nonostante i fix di Entry #193-198, il problema del "singhiozzo" (stutter) compo
 3. Potrebbero esserci altri punti nel codice che interferiscono con la riproduzione sequenziale
 4. Il problema potrebbe essere nel `CompositionEngine` backend, non nel frontend
 
-**Stato**: 🔴 OPEN - Richiede ulteriore investigazione
+**Stato**: ✅ RESOLVED - See Entry #199
 
 ---
+
+## Entry #199 - Fix Composition Scheduling Interval (Bars vs Beats Mismatch)
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed the root cause of background music stuttering ("singhiozzo"). The scheduling interval was calculated using values interpreted as BEATS, but these values actually represented BARS - causing compositions to be scheduled 4x too frequently.
+
+---
+
+### Problem Statement
+
+After extensive investigation of Entries #192-198, the actual root cause was identified:
+
+**Backend Scheduling** (`BackgroundCompositionService.js`):
+```javascript
+const baseBeats = [8, 12, 16, 10, 14] // Actually BARS, not beats!
+const beatsPerComposition = baseBeats[beatIndex] * energyModifier
+const interval = beatsPerComposition * beatDuration
+// At 120 BPM with value 8: 8 * 500ms = 4000ms (4 seconds)
+```
+
+**Composition Duration** (`CompositionEngine.js`):
+```javascript
+sectionLengths = { 'A': 8, 'B': 8 } // 8 BARS
+// Actual duration: 8 bars * 4 beats/bar * 500ms = 16000ms (16 seconds)
+```
+
+**The Mismatch**:
+- Backend generated new composition every ~4 seconds
+- Each composition lasted ~16 seconds
+- Frontend queue filled up (4 compositions per playback)
+- Queue limit (3) caused compositions to be dropped
+- Result: Gaps in playback when dropped compositions left holes
+
+---
+
+### Solution
+
+Renamed variables and fixed calculation to properly handle BARS:
+
+**BackgroundCompositionService.js**:
+```javascript
+// Before (wrong):
+const baseBeats = [8, 12, 16, 10, 14]
+const beatsPerComposition = baseBeats[beatIndex] * energyModifier
+const interval = beatsPerComposition * beatDuration
+const clampedInterval = Math.max(3000, Math.min(20000, interval))
+
+// After (correct):
+const baseBars = [8, 12, 16, 10, 14] // Now correctly named as BARS
+const barsPerComposition = baseBars[barIndex] * energyModifier
+const beatsPerComposition = barsPerComposition * 4 // Convert bars to beats
+const interval = beatsPerComposition * beatDuration
+const clampedInterval = Math.max(8000, Math.min(60000, interval))
+```
+
+**LandingCompositionService.js**:
+```javascript
+// Before (wrong):
+const beatsPerComposition = 24 - (totalActivity * 8) // 16-24 "beats"
+const clampedInterval = Math.max(8000, Math.min(20000, interval))
+
+// After (correct):
+const barsPerComposition = 10 - (totalActivity * 4) // 6-10 BARS
+const beatsPerComposition = barsPerComposition * 4  // Convert to beats
+const clampedInterval = Math.max(12000, Math.min(40000, interval))
+```
+
+---
+
+### Timing Comparison
+
+| Scenario | Before | After |
+|----------|--------|-------|
+| 8-bar composition at 120 BPM | Scheduled every 4s, plays 16s | Scheduled every 16s, plays 16s |
+| Queue buildup | 4 compositions queued | 0-1 compositions queued |
+| Dropped compositions | Yes (queue limit 3) | No |
+| Gaps between phrases | Yes (stuttering) | No |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/BackgroundCompositionService.js` | Renamed baseBeats→baseBars, multiply by 4, adjusted clamp bounds |
+| `backend/src/services/LandingCompositionService.js` | Same fix pattern, adjusted activity formula |
+
+---
+
+### Investigation Notes
+
+Initially suspected duplicate socket listeners (SocketEventCoordinator.js and main.js both have `background-composition` handlers). Investigation revealed SocketEventCoordinator is **dead code** - defined but never instantiated. The only active listener is in main.js.
+
+The SocketEventCoordinator code review finding was a false positive - the class exists but `new SocketEventCoordinator()` is never called anywhere in the codebase.
+
+---
+
+### Version
+
+v0.2.56
