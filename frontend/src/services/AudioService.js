@@ -3647,8 +3647,9 @@ class AudioService {
     // Calculate beat duration from tempo: beatDuration = 60 / BPM
     const beatDuration = 60 / tempo
 
-    // REAL-TIME FIX: Use audio context time with lookahead for precise scheduling
-    const now = Tone.now()
+    // Entry #201: Use Transport.seconds (not Tone.now()) for Transport.schedule()
+    // Tone.now() is AudioContext time, Transport.schedule expects Transport timeline
+    const now = Tone.Transport.seconds
     const lookahead = 0.1 // 100ms lookahead for stable scheduling
 
     // Ensure Transport is running for scheduled events
@@ -3719,7 +3720,8 @@ class AudioService {
    */
   playHomophonicComposition(content, tempo = 120) {
     const beatDuration = 60 / tempo
-    const now = Tone.now()
+    // Entry #201: Use Transport.seconds for Transport.schedule()
+    const now = Tone.Transport.seconds
     const lookahead = 0.1
 
     // Entry #175: Get genre-aware velocity configuration
@@ -3772,7 +3774,8 @@ class AudioService {
   playAccompaniment(accompaniment, tempo = 120) {
     const beatDuration = 60 / tempo
     const type = accompaniment.type
-    const now = Tone.now()
+    // Entry #201: Use Transport.seconds for Transport.schedule()
+    const now = Tone.Transport.seconds
     const lookahead = 0.1
 
     // Entry #175: Get genre-aware velocity configuration
@@ -4940,7 +4943,8 @@ class AudioService {
         Tone.Transport.start()
       }
 
-      const now = Tone.now()
+      // Entry #201: Use Transport.seconds for Transport.schedule()
+      const now = Tone.Transport.seconds
       const lookahead = 0.1
       const layerNames = Object.keys(this.ambientLayers)
 

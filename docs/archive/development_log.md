@@ -4885,3 +4885,101 @@ After this fix:
 ### Version
 
 v0.2.57
+
+---
+
+
+
+
+## Entry #201 - Fix Tone.now() vs Transport.seconds Timeline Mismatch
+
+**Date**: 2026-01-27
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Fixed the **real** root cause of background music stuttering. The code was using `Tone.now()` (AudioContext time) for scheduling events on `Tone.Transport`, but `Transport.schedule()` expects Transport timeline time. These two timelines diverge over time, causing notes to be scheduled at the wrong times.
+
+---
+
+### Problem Statement
+
+After Entry #200, stuttering persisted:
+- Very long delay at startup before music begins
+- Phrases play for a few seconds then stop
+- Long silences between phrases
+
+**Root Cause:**
+
+```javascript
+const now = Tone.now()  // AudioContext time (e.g., 90 seconds since context started)
+const scheduleTime = now + delay
+Tone.Transport.schedule(callback, scheduleTime)  // Expects Transport time (e.g., 30 seconds)
+```
+
+**Two different timelines:**
+- `Tone.now()` = AudioContext time, starts when context is created, never stops
+- `Tone.Transport.seconds` = Transport position, starts at 0 when `Transport.start()` is called
+
+**Example:** If AudioContext has been running for 90 seconds but Transport just started:
+- `Tone.now()` = 90
+- `Tone.Transport.seconds` = 0
+- `scheduleTime = 90 + delay` = event scheduled at Transport time 90+
+- But Transport is at 0, so event won't fire for ~90 seconds!
+
+This explains:
+1. **Long startup delay**: First notes scheduled far in the future
+2. **Short playback**: Only early notes (low startBeat) play before being superseded
+3. **Long gaps**: Waiting for notes scheduled in the future
+
+---
+
+### Solution
+
+Replace `Tone.now()` with `Tone.Transport.seconds` in all methods that use `Transport.schedule()`:
+
+```javascript
+// Before (wrong):
+const now = Tone.now()
+Tone.Transport.schedule(callback, now + delay)
+
+// After (correct):
+const now = Tone.Transport.seconds
+Tone.Transport.schedule(callback, now + delay)
+```
+
+---
+
+### Files Modified
+
+| File | Method | Line |
+|------|--------|------|
+| `frontend/src/services/AudioService.js` | `playPolyphonicComposition()` | ~3651 |
+| `frontend/src/services/AudioService.js` | `playHomophonicComposition()` | ~3722 |
+| `frontend/src/services/AudioService.js` | `playAccompaniment()` | ~3775 |
+| `frontend/src/services/AudioService.js` | `forceStartBackground()` | ~4946 |
+
+---
+
+### Why This Bug Existed
+
+The comment in the original code said "REAL-TIME FIX: Use audio context time" - this was a misunderstanding of how Tone.js Transport scheduling works. The Transport has its own internal timeline that's separate from the AudioContext time. When scheduling on the Transport, you must use Transport-relative times.
+
+**Note:** Using `Tone.now()` IS correct for immediate synth triggers like `triggerAttack(freq, Tone.now())` because those go directly to the AudioContext, not through the Transport scheduler.
+
+---
+
+### Related Entries
+
+| Entry | Issue | Status |
+|-------|-------|--------|
+| #199 | Backend bars vs beats mismatch | Correct but not the main issue |
+| #200 | Harmonic cleanup destroying notes | Correct but not the main issue |
+| #201 | **Timeline mismatch (this fix)** | Primary root cause |
+
+---
+
+### Version
+
+v0.2.58
