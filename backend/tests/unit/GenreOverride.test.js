@@ -421,6 +421,70 @@ describe('Genre Override Feature', () => {
     })
   })
 
+  describe('StyleAnalyzer Override Propagation', () => {
+    let StyleAnalyzer
+    let styleAnalyzer
+
+    beforeEach(() => {
+      jest.resetModules()
+      StyleAnalyzer = require('../../src/services/StyleAnalyzer')
+      styleAnalyzer = new StyleAnalyzer()
+    })
+
+    test('setManualOverride applies to getCurrentStyle', () => {
+      const syntheticWeights = createSyntheticGenreWeights('jazz')
+      styleAnalyzer.setManualOverride(syntheticWeights, 'jazz')
+
+      const style = styleAnalyzer.getCurrentStyle()
+
+      expect(style.isManualOverride).toBe(true)
+      expect(style.forcedGenre).toBe('jazz')
+      expect(style.genreWeights.jazz).toBe(1.0)
+      expect(style.genreWeights.electronic).toBe(0)
+    })
+
+    test('clearManualOverride returns to automatic mode', () => {
+      styleAnalyzer.setManualOverride(createSyntheticGenreWeights('rock'), 'rock')
+      styleAnalyzer.clearManualOverride()
+
+      const style = styleAnalyzer.getCurrentStyle()
+
+      expect(style.isManualOverride).toBeUndefined()
+      expect(style.forcedGenre).toBeUndefined()
+    })
+
+    test('isManualOverrideActive returns correct state', () => {
+      expect(styleAnalyzer.isManualOverrideActive()).toBe(false)
+
+      styleAnalyzer.setManualOverride(createSyntheticGenreWeights('ambient'), 'ambient')
+      expect(styleAnalyzer.isManualOverrideActive()).toBe(true)
+
+      styleAnalyzer.clearManualOverride()
+      expect(styleAnalyzer.isManualOverrideActive()).toBe(false)
+    })
+
+    test('BackgroundCompositionService propagates override to StyleAnalyzer', () => {
+      jest.resetModules()
+      const BackgroundCompositionService = require('../../src/services/BackgroundCompositionService')
+      const service = new BackgroundCompositionService()
+
+      service.startComposition('test-room', { userCount: 1 })
+      service.setManualGenreOverride('test-room', 'electronic')
+
+      // The styleAnalyzer should now have the override
+      expect(service.styleAnalyzer.isManualOverrideActive()).toBe(true)
+
+      const style = service.styleAnalyzer.getCurrentStyle()
+      expect(style.forcedGenre).toBe('electronic')
+      expect(style.genreWeights.electronic).toBe(1.0)
+
+      service.clearManualGenreOverride('test-room')
+      expect(service.styleAnalyzer.isManualOverrideActive()).toBe(false)
+
+      service.stopComposition('test-room')
+    })
+  })
+
   describe('Edge Cases', () => {
     test('synthetic weights sum to 1.0', () => {
       ALL_GENRES.forEach(genre => {

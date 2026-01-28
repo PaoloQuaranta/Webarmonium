@@ -296,15 +296,22 @@ class BackgroundCompositionService {
     }
 
     // Fix #6: Cache synthetic weights in override object for performance
+    const syntheticWeights = createSyntheticGenreWeights(genre, ALL_GENRES)
     roomState.styleCycling.manualOverride = {
       enabled: true,
       genre: genre,
       setAt: Date.now(),
-      syntheticWeights: createSyntheticGenreWeights(genre, ALL_GENRES)
+      syntheticWeights
     }
 
     // Also update currentGenre to match
     roomState.styleCycling.currentGenre = genre
+
+    // Entry #210 Fix: Propagate override to StyleAnalyzer so ALL getCurrentStyle() calls see it
+    // This fixes the escape point where CompositionEngine gets style directly from StyleAnalyzer
+    if (this.styleAnalyzer) {
+      this.styleAnalyzer.setManualOverride(syntheticWeights, genre)
+    }
 
     // Invalidate style cache to force immediate update
     this.invalidateStyleCache(roomId)
@@ -330,6 +337,11 @@ class BackgroundCompositionService {
       genre: null,
       setAt: null,
       syntheticWeights: null
+    }
+
+    // Entry #210 Fix: Clear override from StyleAnalyzer
+    if (this.styleAnalyzer) {
+      this.styleAnalyzer.clearManualOverride()
     }
 
     // Invalidate style cache to trigger fresh style calculation

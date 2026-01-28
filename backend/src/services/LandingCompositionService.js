@@ -1145,15 +1145,21 @@ class LandingCompositionService {
     }
 
     // Fix #6: Cache synthetic weights in override object for performance
+    const syntheticWeights = createSyntheticGenreWeights(genre, ALL_GENRES)
     this.styleCycling.manualOverride = {
       enabled: true,
       genre: genre,
       setAt: Date.now(),
-      syntheticWeights: createSyntheticGenreWeights(genre, ALL_GENRES)
+      syntheticWeights
     }
 
     // Also update currentGenre to match
     this.styleCycling.currentGenre = genre
+
+    // Entry #210 Fix: Propagate override to StyleAnalyzer so ALL getCurrentStyle() calls see it
+    if (this.styleAnalyzer) {
+      this.styleAnalyzer.setManualOverride(syntheticWeights, genre)
+    }
 
     // Fix #2: Invalidate any cached style data (stub for future compatibility)
     // LandingCompositionService currently doesn't have style cache like BackgroundCompositionService
@@ -1179,6 +1185,11 @@ class LandingCompositionService {
       genre: null,
       setAt: null,
       syntheticWeights: null
+    }
+
+    // Entry #210 Fix: Clear override from StyleAnalyzer
+    if (this.styleAnalyzer) {
+      this.styleAnalyzer.clearManualOverride()
     }
 
     // Fix #2: Invalidate any cached style data

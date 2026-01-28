@@ -29,6 +29,13 @@ const GAUSSIAN_FACTOR = 1 / (2 * GENRE_DISTANCE_SIGMA * GENRE_DISTANCE_SIGMA)  /
 
 class StyleAnalyzer {
   constructor() {
+    // Entry #210: Manual override state - when enabled, overrides genreWeights and forcedGenre
+    this._manualOverride = {
+      enabled: false,
+      genreWeights: null,
+      forcedGenre: null
+    }
+
     this.currentStyle = {
       energy: 0.5,
       tempo: 120,
@@ -887,7 +894,49 @@ class StyleAnalyzer {
     return evolved
   }
 
+  /**
+   * Entry #210: Set manual genre override - applies to ALL getCurrentStyle() calls
+   * This ensures consistent genre throughout the entire composition pipeline
+   * @param {Object} genreWeights - Synthetic weights with 100% for forced genre
+   * @param {string} forcedGenre - The genre being forced
+   */
+  setManualOverride(genreWeights, forcedGenre) {
+    this._manualOverride = {
+      enabled: true,
+      genreWeights,
+      forcedGenre
+    }
+  }
+
+  /**
+   * Entry #210: Clear manual genre override - returns to automatic genre detection
+   */
+  clearManualOverride() {
+    this._manualOverride = {
+      enabled: false,
+      genreWeights: null,
+      forcedGenre: null
+    }
+  }
+
+  /**
+   * Entry #210: Check if manual override is currently active
+   * @returns {boolean} True if override is active
+   */
+  isManualOverrideActive() {
+    return this._manualOverride?.enabled === true
+  }
+
   getCurrentStyle() {
+    // Entry #210: Apply manual override if active
+    if (this._manualOverride?.enabled) {
+      return {
+        ...this.currentStyle,
+        genreWeights: this._manualOverride.genreWeights,
+        forcedGenre: this._manualOverride.forcedGenre,
+        isManualOverride: true
+      }
+    }
     return this.currentStyle
   }
 
