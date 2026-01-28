@@ -498,7 +498,8 @@ class BackgroundCompositionService {
         manualOverride: {
           enabled: false,
           genre: null,
-          setAt: null
+          setAt: null,
+          syntheticWeights: null  // Entry #213: Must match structure in setManualGenreOverride
         }
       }
     })

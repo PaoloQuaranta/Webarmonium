@@ -15,7 +15,8 @@ const GENRE_VELOCITY_MULTIPLIERS = {
   electronic: 1.2,
   rhythmic: 1.2,
   rock: 1.4,
-  experimental: 1.1
+  experimental: 1.1,
+  pop: 1.0  // Entry #213: Sync with GenreCharacteristics
 }
 
 /**
@@ -29,7 +30,8 @@ const GENRE_DENSITY_MULTIPLIERS = {
   electronic: 1.2,
   rhythmic: 1.3,
   rock: 1.3,
-  experimental: 1.0
+  experimental: 1.0,
+  pop: 1.0  // Entry #213: Sync with GenreCharacteristics
 }
 
 /**
@@ -69,10 +71,10 @@ function getGenreDensityMultiplier(style) {
 }
 
 /**
- * Entry #210: All valid genres (derived from GENRE_BPM_RANGES keys, excluding 'pop')
+ * Entry #210/#213: All valid genres (must match GENRE_BPM_RANGES keys and GenreCharacteristics)
  * Used for validation and synthetic weight generation
  */
-const ALL_GENRES = ['ambient', 'classical', 'melodic', 'jazz', 'electronic', 'rhythmic', 'rock', 'experimental']
+const ALL_GENRES = ['ambient', 'classical', 'melodic', 'jazz', 'electronic', 'rhythmic', 'rock', 'experimental', 'pop']
 
 /**
  * Entry #210: Create synthetic genre weights with 100% for a single genre

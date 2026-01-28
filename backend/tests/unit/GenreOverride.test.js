@@ -61,7 +61,8 @@ describe('Genre Override Feature', () => {
 
       test('returns false for invalid genres', () => {
         expect(isValidGenre('invalid')).toBe(false)
-        expect(isValidGenre('pop')).toBe(false) // pop is in BPM ranges but not ALL_GENRES
+        // Entry #213: 'pop' is now a valid genre (synced with GenreCharacteristics)
+        expect(isValidGenre('pop')).toBe(true)
         expect(isValidGenre('')).toBe(false)
         expect(isValidGenre(null)).toBe(false)
         expect(isValidGenre(undefined)).toBe(false)
@@ -503,7 +504,8 @@ describe('Genre Override Feature', () => {
       expect(ALL_GENRES).toContain('rhythmic')
       expect(ALL_GENRES).toContain('rock')
       expect(ALL_GENRES).toContain('experimental')
-      expect(ALL_GENRES.length).toBe(8)
+      expect(ALL_GENRES).toContain('pop')  // Entry #213: Added for GenreCharacteristics sync
+      expect(ALL_GENRES.length).toBe(9)    // Entry #213: Now includes pop
     })
   })
 })
