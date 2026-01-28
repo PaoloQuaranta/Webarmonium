@@ -1,5 +1,6 @@
 const CounterpointEngine = require('./CounterpointEngine')
 const PhraseMorphology = require('./PhraseMorphology')
+const AccompanimentEngine = require('./AccompanimentEngine')
 const { PHI } = require('../utils/constants')
 const {
   getGenreCharacteristics,
@@ -18,6 +19,8 @@ class CompositionEngine {
     this.counterpointEngine = new CounterpointEngine()
     // Fix #5: Add PhraseMorphology for raw gesture contour processing
     this.phraseMorphology = new PhraseMorphology()
+    // Entry #211: AccompanimentEngine for sophisticated accompaniment generation
+    this.accompanimentEngine = new AccompanimentEngine(harmonicEngine)
 
     // Form structure management
     this.formStructure = null     // ABA, rondo, sonata, verse-chorus, etc.
@@ -258,6 +261,11 @@ class CompositionEngine {
     // This ensures linear progression: index = history.length % cycleLength
     this.sectionHistory = []
     this.compositionsInSection = 0  // Entry #163: Reset counter for new form
+
+    // Entry #211: Reset accompaniment voice leading state for new form
+    if (this.accompanimentEngine) {
+      this.accompanimentEngine.resetVoiceLeading()
+    }
 
     // Set section lengths, starting section, and cycle length based on form
     // Entry #163: formCycleLength = minimum sections to complete one full form cycle
@@ -1116,8 +1124,9 @@ class CompositionEngine {
   }
 
   /**
-   * Entry #206: Generate full accompaniment with all three layers
-   * Creates bass_accomp, pad, and keys - filtered by orchestration in composePolyphonic
+   * Entry #211: Generate full accompaniment using AccompanimentEngine
+   * Creates bass_accomp, pad, and keys with voice leading, dynamics, and PHI variation
+   * Filtered by orchestration in composePolyphonic
    * @param {Array} progression - Chord progression
    * @param {Object} style - Style object with forcedGenre or genreWeights
    * @param {number} sectionLength - Section length in bars
@@ -1125,16 +1134,30 @@ class CompositionEngine {
    */
   generateFullAccompaniment(progression, style, sectionLength) {
     const genre = style?.forcedGenre || this._getDominantGenreFromWeights(style?.genreWeights) || 'melodic'
-    const rhythmPattern = getRhythmPattern(genre, 'accompaniment', this.compositionCount || 0)
-    const bassPattern = getRhythmPattern(genre, 'bass', this.compositionCount || 0)
-    const syncopation = getSyncopation(genre)
-    const swingAmount = getSwingAmount(genre)
-    const articulation = getArticulation(genre)
 
+    // Entry #211: Delegate to AccompanimentEngine for sophisticated generation
     return {
-      bass_accomp: this.generateBassAccompaniment(progression, bassPattern, genre, syncopation, swingAmount, sectionLength),
-      pad: this.generatePadAccompaniment(progression, genre, sectionLength),
-      keys: this.generateKeysAccompaniment(progression, rhythmPattern, genre, syncopation, swingAmount, articulation, sectionLength)
+      bass_accomp: this.accompanimentEngine.generateBassAccompaniment(
+        progression,
+        genre,
+        sectionLength,
+        this.sectionContext,
+        this.compositionCount || 0
+      ),
+      pad: this.accompanimentEngine.generatePadAccompaniment(
+        progression,
+        genre,
+        sectionLength,
+        this.sectionContext,
+        this.compositionCount || 0
+      ),
+      keys: this.accompanimentEngine.generateKeysAccompaniment(
+        progression,
+        genre,
+        sectionLength,
+        this.sectionContext,
+        this.compositionCount || 0
+      )
     }
   }
 

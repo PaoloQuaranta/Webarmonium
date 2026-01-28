@@ -5702,3 +5702,188 @@ Test categories:
 v0.2.68
 
 ---
+
+## Entry #211 - Sophisticated Accompaniment Engine
+
+**Date**: 2026-01-28
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Created new AccompanimentEngine to bring accompaniment voices (bass, pad, keys) to the same level of sophistication as counterpoint voices. Added voice leading, dynamic velocity curves, PHI-based temporal variation, intelligent chord voicings, and articulation variation.
+
+---
+
+### Problem Statement
+
+Accompaniment voices were elementary compared to counterpoint:
+
+| Feature | Counterpoint | Accompaniment (Before) |
+|---------|--------------|------------------------|
+| Voice Leading | `applyVoiceLeading()` minimizes jumps | None - direct jumps |
+| Velocity Curves | `_getVelocityCurve()` crescendo/dim | Fixed values (0.4-0.85) |
+| PHI Variation | `PHI * compositionCount` | Identical patterns |
+| Articulation | Per role and position | Always same |
+| Harmonic Tension | Affects velocity | Ignored |
+
+**Previous code** (CompositionEngine.js:1145-1375):
+- **Bass**: Only root/fifth, fixed velocity
+- **Pad**: Fixed 50ms stagger, always legato
+- **Keys**: Hardcoded patterns, unused swing parameter
+
+---
+
+### Solution
+
+Created new `AccompanimentEngine.js` (~750 LOC) with sophisticated generation:
+
+#### 1. Voice Leading for All Layers
+
+```javascript
+applyVoiceLeading(previousPitches, targetPitches, range) {
+  // For each target, find closest pitch by trying octave shifts
+  // Minimizes total movement between chords
+  return ledPitches.sort((a, b) => a - b)
+}
+```
+
+#### 2. Dynamic Velocity Curves
+
+```javascript
+_getVelocityCurve(contour, position, harmonicTension) {
+  // crescendo, diminuendo, terraced, swell, stable
+  // Tension modulates dynamic range
+  return Math.max(VELOCITY_CURVE_MIN, Math.min(VELOCITY_CURVE_MAX, baseCurve * tensionModifier))
+}
+```
+
+#### 3. Bass Accompaniment by Genre
+
+| Genre | Pattern | Features |
+|-------|---------|----------|
+| Jazz | Walking bass | Chord tones + 7th + swing |
+| Electronic | Driving eighths | Variable syncopation |
+| Rock | Power bass | Dynamic accents |
+| Ambient | Sustained roots | Occasional movement |
+| Classical | Alberti-influenced | PHI-varied patterns |
+
+#### 4. Pad Accompaniment
+
+- Voice leading between chords
+- Extensions based on tension: `> 0.6 → 7th`, `> 0.8 → 9th`
+- PHI-varied stagger: ambient=100ms, electronic=20ms
+- Outer voices +10% velocity
+
+#### 5. Keys Accompaniment
+
+- Voice leading between chords
+- Proper swing: `swingOffset = (beat % 1 > 0) ? swingAmount * 0.15 : 0`
+- PHI-varied arpeggios: up, down, updown, random
+- Jazz comping with anticipation
+- Articulation varies with `harmonicTension > 0.7`
+
+#### 6. CompositionEngine Integration
+
+```javascript
+// Constructor
+this.accompanimentEngine = new AccompanimentEngine(harmonicEngine)
+
+// generateFullAccompaniment - delegates to new engine
+generateFullAccompaniment(progression, style, sectionLength) {
+  return {
+    bass_accomp: this.accompanimentEngine.generateBassAccompaniment(...),
+    pad: this.accompanimentEngine.generatePadAccompaniment(...),
+    keys: this.accompanimentEngine.generateKeysAccompaniment(...)
+  }
+}
+
+// initializeFormStructure - resets voice leading state
+if (this.accompanimentEngine) {
+  this.accompanimentEngine.resetVoiceLeading()
+}
+```
+
+---
+
+### Code Review Fixes
+
+| Issue | Severity | Fix |
+|-------|----------|-----|
+| Walking bass hardcoded fifth | High | Use 7th from chord tones |
+| Missing reset on form change | High | Added `resetVoiceLeading()` call |
+| Magic numbers throughout | Medium | Extracted to named constants |
+| Tension value clamping | Medium | Added `Math.max(0, Math.min(1, ...))` |
+
+---
+
+### Constants Added
+
+```javascript
+const BASS_BASE_VELOCITY = 0.65
+const PAD_BASE_VELOCITY_AMBIENT = 0.35
+const TENSION_THRESHOLD_7TH = 0.6
+const TENSION_THRESHOLD_9TH = 0.8
+const MS_PER_BEAT_AT_120BPM = 500
+```
+
+---
+
+### Files Created
+
+| File | LOC |
+|------|-----|
+| `backend/src/services/AccompanimentEngine.js` | ~750 |
+| `backend/tests/unit/AccompanimentEngine.test.js` | ~300 |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/CompositionEngine.js` | Import AccompanimentEngine, delegate generateFullAccompaniment, reset voice leading on form change |
+
+---
+
+### Testing
+
+25 unit tests created and passing:
+
+```
+Test Suites: 1 passed, 1 total
+Tests:       25 passed, 25 total
+```
+
+Test categories:
+- Voice leading (minimize movement, register placement)
+- Velocity curves (crescendo, diminuendo, swell, tension modulation)
+- Bass accompaniment (all genres, voice leading, PHI variation)
+- Pad accompaniment (sustained chords, extensions, voice leading)
+- Keys accompaniment (genre patterns, articulation, swing)
+- Note format compatibility
+
+---
+
+### Verification Results
+
+```
+JAZZ:
+  Bass: 8 notes, articulations: [portato, staccato]
+  Keys: 18 notes, swing applied
+ROCK:
+  Bass: 8 notes, articulations: [marcato]
+  Keys: 24 notes, power stabs
+ELECTRONIC:
+  Bass: 16 notes, driving eighths
+  Keys: 64 notes, dense arpeggios
+AMBIENT:
+  Bass: 3 notes, sustained legato
+  Keys: 6 notes, sparse
+```
+
+---
+
+### Version
+
+v0.2.69
+
+---
