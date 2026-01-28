@@ -140,49 +140,50 @@ class CompositionPlayer {
     const genre = targetStyle?.dominantGenre || 'ambient'
 
     // Entry #180: Genre-specific velocity and articulation configs
+    // Entry #212: Reduced all velocities ~40% to balance with lowered background layer volumes
     const configs = {
       ambient: {
-        velocity: { melody: 0.06, harmony: 0.04, bass: 0.05, pad: 0.03 },
+        velocity: { melody: 0.04, harmony: 0.03, bass: 0.04, pad: 0.02 },
         articulation: 'legato',
         noteLengthMultiplier: 1.5  // Longer notes
       },
       classical: {
-        velocity: { melody: 0.10, harmony: 0.06, bass: 0.08, pad: 0.04 },
+        velocity: { melody: 0.06, harmony: 0.04, bass: 0.05, pad: 0.03 },
         articulation: 'legato',
         noteLengthMultiplier: 1.2
       },
       jazz: {
-        velocity: { melody: 0.12, harmony: 0.08, bass: 0.10, pad: 0.05 },
+        velocity: { melody: 0.08, harmony: 0.05, bass: 0.06, pad: 0.04 },
         articulation: 'portato',
         noteLengthMultiplier: 0.9  // Slightly detached
       },
       melodic: {
-        velocity: { melody: 0.10, harmony: 0.06, bass: 0.08, pad: 0.04 },
+        velocity: { melody: 0.06, harmony: 0.04, bass: 0.05, pad: 0.03 },
         articulation: 'legato',
         noteLengthMultiplier: 1.0
       },
       pop: {
-        velocity: { melody: 0.11, harmony: 0.07, bass: 0.09, pad: 0.05 },
+        velocity: { melody: 0.07, harmony: 0.05, bass: 0.06, pad: 0.04 },
         articulation: 'normal',
         noteLengthMultiplier: 1.0
       },
       electronic: {
-        velocity: { melody: 0.14, harmony: 0.10, bass: 0.12, pad: 0.06 },
+        velocity: { melody: 0.09, harmony: 0.06, bass: 0.07, pad: 0.04 },
         articulation: 'staccato',
         noteLengthMultiplier: 0.7  // Shorter, punchy
       },
       rhythmic: {
-        velocity: { melody: 0.14, harmony: 0.10, bass: 0.12, pad: 0.06 },
+        velocity: { melody: 0.09, harmony: 0.06, bass: 0.07, pad: 0.04 },
         articulation: 'staccato',
         noteLengthMultiplier: 0.6  // Very short
       },
       rock: {
-        velocity: { melody: 0.16, harmony: 0.12, bass: 0.14, pad: 0.07 },
+        velocity: { melody: 0.10, harmony: 0.07, bass: 0.08, pad: 0.05 },
         articulation: 'marcato',
         noteLengthMultiplier: 0.8
       },
       experimental: {
-        velocity: { melody: 0.12, harmony: 0.08, bass: 0.10, pad: 0.05 },
+        velocity: { melody: 0.08, harmony: 0.05, bass: 0.06, pad: 0.04 },
         articulation: 'varied',
         noteLengthMultiplier: 1.0
       }

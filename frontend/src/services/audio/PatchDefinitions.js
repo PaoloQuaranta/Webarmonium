@@ -31,7 +31,7 @@ const VIRTUAL_USER_PATCHES = {
       frequency: 600,       // Let harmonics through for audibility
       Q: 1.2
     },
-    volume: 6,              // Saw is naturally louder
+    volume: 5,              // Entry #212: Balanced for perceived loudness (sawtooth -3 dB vs sine)
     effects: {
       delaySend: 0.2,       // ADDED delay send for bass echoes
       reverbSend: 0.2
@@ -56,7 +56,7 @@ const VIRTUAL_USER_PATCHES = {
       frequency: 2000,      // Let the sine through cleanly
       Q: 0.7
     },
-    volume: 5,
+    volume: 8,              // Entry #212: Increased to match remote real users level
     effects: {
       delaySend: 0.4,       // INCREASED from 0.2 - more echoes
       reverbSend: 0.3
@@ -81,7 +81,7 @@ const VIRTUAL_USER_PATCHES = {
       frequency: 800,       // Center frequency
       Q: 1.5                // Moderate resonance
     },
-    volume: 5,
+    volume: 6,              // Entry #212: Balanced for perceived loudness (triangle -2 dB vs sine)
     effects: {
       delaySend: 0.5,       // INCREASED from 0.35 - more echoes
       reverbSend: 0.5       // More reverb - ethereal

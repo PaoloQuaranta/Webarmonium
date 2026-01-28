@@ -1971,9 +1971,9 @@ class AudioService {
       bass: new Tone.Volume(0),       // INCREASED for fuller low-end
       pad: new Tone.Volume(-3),       // Entry #27: Reduced from +6dB - was too loud
       chords: new Tone.Volume(0),     // Electric piano - balanced in mix
-      backgroundHigh: new Tone.Volume(+3),  // INCREASED for audible composition
-      backgroundMid: new Tone.Volume(+3),   // INCREASED for audible composition
-      backgroundLow: new Tone.Volume(+3)    // INCREASED for audible composition
+      backgroundHigh: new Tone.Volume(-3),  // Entry #212: Reduced -6 dB (melody below users)
+      backgroundMid: new Tone.Volume(-6),   // Entry #212: Reduced -9 dB (harmony quieter)
+      backgroundLow: new Tone.Volume(-6)    // Entry #212: Reduced -9 dB (bass foundation)
     }
 
     // Connect each layer with SEND/RETURN architecture
@@ -3800,7 +3800,8 @@ class AudioService {
     const lookahead = 0.1
     // Entry #208: Reduce all accompaniment velocities to prevent clipping
     // when playing alongside counterpoint voices
-    const accompVelocityScale = 0.35
+    // Entry #212: Increased from 0.35 to 0.55 to restore accompaniment presence
+    const accompVelocityScale = 0.55
 
     // Play bass accompaniment on bass synth (MonoSynth - requires strictly increasing times)
     // Entry #209: Sort notes and ensure minimum gap to prevent "Start time must be strictly greater" error
