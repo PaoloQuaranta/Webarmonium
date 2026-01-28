@@ -17,13 +17,13 @@ const { PHI, getSwingAmount, getSyncopation, getArticulation } = require('../uti
 // CONSTANTS
 // ============================================
 
-// Velocity parameters
-const BASS_BASE_VELOCITY = 0.65      // Base velocity for bass layer
-const BASS_DYNAMIC_RANGE = 0.25      // Dynamic range added based on section level
-const PAD_BASE_VELOCITY_AMBIENT = 0.35  // Quieter pads for ambient
-const PAD_BASE_VELOCITY_DEFAULT = 0.45  // Standard pad velocity
-const KEYS_BASE_VELOCITY = 0.55      // Base velocity for keys layer
-const KEYS_DYNAMIC_RANGE = 0.2       // Dynamic range for keys
+// Velocity parameters (0-1 float range, not MIDI 0-127)
+const BASS_BASE_VELOCITY = 0.40      // Base velocity for bass layer
+const BASS_DYNAMIC_RANGE = 0.15      // Dynamic range added based on section level
+const PAD_BASE_VELOCITY_AMBIENT = 0.08   // Very quiet pads for ambient (drones)
+const PAD_BASE_VELOCITY_DEFAULT = 0.12   // Standard pad velocity (quieter than gestures)
+const KEYS_BASE_VELOCITY = 0.35      // Base velocity for keys layer
+const KEYS_DYNAMIC_RANGE = 0.12      // Dynamic range for keys
 
 // Velocity curve limits
 const VELOCITY_CURVE_MIN = 0.5       // Minimum velocity multiplier
@@ -264,8 +264,8 @@ class AccompanimentEngine {
         const noteProgress = (chordProgress + noteIndex / Math.max(1, patternNotes.length) / progressionLength)
         const velocityCurve = this._getVelocityCurve(dynamicContour, noteProgress, harmonicTension)
 
-        note.velocity = Math.round(baseVelocity * velocityCurve * 127)
-        note.velocity = Math.max(40, Math.min(120, note.velocity))
+        note.velocity = baseVelocity * velocityCurve
+        note.velocity = Math.max(0.3, Math.min(0.85, note.velocity))
         note.articulation = this._selectBassArticulation(genre, noteIndex, patternNotes.length, syncopation)
       })
 
@@ -610,7 +610,7 @@ class AccompanimentEngine {
           pitch,
           startBeat: chordStartBeat + noteStagger,
           duration: Math.max(0.5, chordDuration * 0.95 - noteStagger),
-          velocity: Math.round(chordVelocity * voiceVelocityMod),
+          velocity: Math.max(0.08, Math.min(0.4, chordVelocity * voiceVelocityMod)),
           articulation: 'legato'
         })
       })
@@ -736,8 +736,8 @@ class AccompanimentEngine {
         const noteProgress = chordProgress + (noteIndex / Math.max(1, patternNotes.length)) / progressionLength
         const velocityCurve = this._getVelocityCurve(dynamicContour, noteProgress, harmonicTension)
 
-        note.velocity = Math.round(baseVelocity * velocityCurve * 127)
-        note.velocity = Math.max(35, Math.min(115, note.velocity))
+        note.velocity = baseVelocity * velocityCurve
+        note.velocity = Math.max(0.25, Math.min(0.7, note.velocity))
         note.articulation = this._selectKeysArticulation(
           genre, baseArticulation, noteIndex, patternNotes.length, harmonicTension
         )
