@@ -422,6 +422,204 @@ monitorNamespace.on('connection', (socket) => {
   serverLogger.info('Monitor dashboard connected', { socketId: socket.id })
   compositionMonitor.addSubscriber(socket)
 
+  // Entry #210: Genre Override Control Events
+
+  /**
+   * Validate input for genre override requests
+   * @param {Object} data - Request data
+   * @param {boolean} requireGenre - Whether genre field is required
+   * @returns {{ valid: boolean, error?: string, roomId?: string, genre?: string }}
+   */
+  function validateOverrideInput(data, requireGenre = true) {
+    if (!data || typeof data !== 'object') {
+      return { valid: false, error: 'Invalid request: data must be an object' }
+    }
+
+    const { roomId, genre } = data
+
+    if (typeof roomId !== 'string' || !roomId.trim()) {
+      return { valid: false, error: 'Invalid request: roomId must be a non-empty string' }
+    }
+
+    if (requireGenre) {
+      if (typeof genre !== 'string' || !genre.trim()) {
+        return { valid: false, error: 'Invalid request: genre must be a non-empty string' }
+      }
+      return { valid: true, roomId: roomId.trim(), genre: genre.trim() }
+    }
+
+    return { valid: true, roomId: roomId.trim() }
+  }
+
+  /**
+   * Set manual genre override for a room or landing page
+   * @param {Object} data - { roomId: string, genre: string }
+   */
+  socket.on('monitor:set-genre', (data) => {
+    // Input validation (Fix #1)
+    const validation = validateOverrideInput(data, true)
+    if (!validation.valid) {
+      return socket.emit('monitor:override-status', {
+        success: false,
+        error: validation.error,
+        context: { received: typeof data }
+      })
+    }
+
+    const { roomId, genre } = validation
+
+    try {
+      if (roomId === 'landing-room') {
+        // Handle landing page
+        if (!landingService) {
+          return socket.emit('monitor:override-status', {
+            success: false,
+            error: 'Landing service not available',
+            context: { roomId, genre }
+          })
+        }
+
+        const result = landingService.setManualGenreOverride(genre)
+        socket.emit('monitor:override-status', {
+          success: true,
+          roomId,
+          override: result
+        })
+        monitorNamespace.emit('monitor:genre-override-changed', {
+          roomId,
+          override: result,
+          timestamp: Date.now()
+        })
+        serverLogger.info('[GenreOverride] Manual override set for landing', { genre })
+      } else {
+        // Handle room
+        if (!backgroundService) {
+          return socket.emit('monitor:override-status', {
+            success: false,
+            error: 'Background service not available',
+            context: { roomId, genre }
+          })
+        }
+
+        const result = backgroundService.setManualGenreOverride(roomId, genre)
+        socket.emit('monitor:override-status', {
+          success: true,
+          roomId,
+          override: result
+        })
+        monitorNamespace.emit('monitor:genre-override-changed', {
+          roomId,
+          override: result,
+          timestamp: Date.now()
+        })
+        serverLogger.info('[GenreOverride] Manual override set for room', { roomId, genre })
+      }
+    } catch (serviceError) {
+      // Service-level error (e.g., invalid genre, room not found)
+      socket.emit('monitor:override-status', {
+        success: false,
+        error: serviceError.message,
+        context: { roomId, genre }
+      })
+      serverLogger.error('[GenreOverride] Failed to set override', {
+        roomId,
+        genre,
+        error: serviceError.message
+      })
+    }
+  })
+
+  /**
+   * Clear manual override and return to automatic mode
+   * @param {Object} data - { roomId: string }
+   */
+  socket.on('monitor:clear-override', (data) => {
+    // Input validation (Fix #1)
+    const validation = validateOverrideInput(data, false)
+    if (!validation.valid) {
+      return socket.emit('monitor:override-status', {
+        success: false,
+        error: validation.error,
+        context: { received: typeof data }
+      })
+    }
+
+    const { roomId } = validation
+
+    try {
+      if (roomId === 'landing-room') {
+        if (!landingService) {
+          return socket.emit('monitor:override-status', {
+            success: false,
+            error: 'Landing service not available',
+            context: { roomId }
+          })
+        }
+
+        const result = landingService.clearManualGenreOverride()
+        socket.emit('monitor:override-status', { success: true, roomId, override: result })
+        monitorNamespace.emit('monitor:genre-override-changed', {
+          roomId,
+          override: result,
+          timestamp: Date.now()
+        })
+        serverLogger.info('[GenreOverride] Override cleared for landing')
+      } else {
+        if (!backgroundService) {
+          return socket.emit('monitor:override-status', {
+            success: false,
+            error: 'Background service not available',
+            context: { roomId }
+          })
+        }
+
+        const result = backgroundService.clearManualGenreOverride(roomId)
+        socket.emit('monitor:override-status', { success: true, roomId, override: result })
+        monitorNamespace.emit('monitor:genre-override-changed', {
+          roomId,
+          override: result,
+          timestamp: Date.now()
+        })
+        serverLogger.info('[GenreOverride] Override cleared for room', { roomId })
+      }
+    } catch (serviceError) {
+      socket.emit('monitor:override-status', {
+        success: false,
+        error: serviceError.message,
+        context: { roomId }
+      })
+      serverLogger.error('[GenreOverride] Failed to clear override', {
+        roomId,
+        error: serviceError.message
+      })
+    }
+  })
+
+  /**
+   * Get current override state for all active rooms
+   */
+  socket.on('monitor:get-override-states', () => {
+    try {
+      const states = {}
+
+      // Landing page
+      if (landingService) {
+        states['landing-room'] = landingService.getManualOverrideState() || { enabled: false }
+      }
+
+      // Active rooms
+      if (backgroundService) {
+        const roomStates = backgroundService.getAllOverrideStates()
+        Object.assign(states, roomStates)
+      }
+
+      socket.emit('monitor:all-override-states', { states, timestamp: Date.now() })
+    } catch (error) {
+      socket.emit('monitor:all-override-states', { error: error.message })
+      serverLogger.error('Failed to get override states', { error: error.message })
+    }
+  })
+
   socket.on('disconnect', () => {
     serverLogger.info('Monitor dashboard disconnected', { socketId: socket.id })
     compositionMonitor.removeSubscriber(socket)

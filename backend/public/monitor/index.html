@@ -555,6 +555,72 @@
       padding: 40px;
       color: var(--text-secondary);
     }
+
+    /* Entry #210: Genre Override Control Styles */
+    .genre-btn {
+      padding: 8px 4px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .genre-btn:hover {
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+
+    .genre-btn.active {
+      background: var(--accent);
+      color: var(--bg-primary);
+      border-color: var(--accent);
+    }
+
+    .genre-btn.forced {
+      background: var(--accent-yellow);
+      color: var(--bg-primary);
+      border-color: var(--accent-yellow);
+    }
+
+    .btn-clear {
+      padding: 10px 16px;
+      background: transparent;
+      border: 1px solid var(--accent-red);
+      border-radius: 6px;
+      color: var(--accent-red);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-clear:hover {
+      background: var(--accent-red);
+      color: var(--bg-primary);
+    }
+
+    .btn-clear:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-clear:disabled:hover {
+      background: transparent;
+      color: var(--accent-red);
+    }
+
+    .override-select {
+      width: 100%;
+      padding: 8px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 0.875rem;
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
@@ -655,12 +721,13 @@
 
       socket.on('monitor:init', (data) => {
         renderDashboard(data);
-        if (data.numericHistory) {
-          setTimeout(() => {
-            initHistoryCharts();
+        setTimeout(() => {
+          initGenreOverrideControls();  // Entry #210
+          initHistoryCharts();
+          if (data.numericHistory) {
             updateHistoryCharts(data.numericHistory);
-          }, 100);
-        }
+          }
+        }, 100);
       });
 
       socket.on('monitor:snapshot', (event) => {
@@ -696,6 +763,136 @@
       socket.on('monitor:style_shift', (data) => {
         addEvent('STYLE', `${data.from} -> ${data.to}`);
       });
+
+      // Entry #210: Genre Override Control socket handlers
+      socket.on('monitor:override-status', (data) => {
+        if (data.success) {
+          updateOverrideUI(data.roomId, data.override);
+        } else {
+          console.error('Override error:', data.error);
+          addEvent('ERROR', data.error);
+        }
+      });
+
+      socket.on('monitor:genre-override-changed', (data) => {
+        updateOverrideUI(data.roomId, data.override);
+        if (data.override?.enabled) {
+          addEvent('OVERRIDE', `Manual: ${data.override.genre}`);
+        } else {
+          addEvent('OVERRIDE', 'Returned to automatic');
+        }
+      });
+
+      socket.on('monitor:all-override-states', (data) => {
+        if (data.states) {
+          // Update room selector with active rooms
+          const select = document.getElementById('targetRoom');
+          if (select) {
+            const currentValue = select.value;
+            select.innerHTML = '<option value="landing-room">Landing Page</option>';
+            for (const roomId of Object.keys(data.states)) {
+              if (roomId !== 'landing-room') {
+                const option = document.createElement('option');
+                option.value = roomId;
+                option.textContent = `Room: ${roomId.slice(0, 8)}...`;
+                select.appendChild(option);
+              }
+            }
+            if (data.states[currentValue]) {
+              select.value = currentValue;
+            }
+            // Update UI for current selection
+            updateOverrideUI(select.value, data.states[select.value]);
+          }
+        }
+      });
+
+      // Request initial override states
+      setTimeout(() => {
+        socket.emit('monitor:get-override-states');
+      }, 500);
+    }
+
+    // Entry #210: Genre Override Control functions
+    let currentOverride = { enabled: false, genre: null, roomId: 'landing-room' };
+
+    function initGenreOverrideControls() {
+      // Genre button click handlers
+      document.querySelectorAll('.genre-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const genre = btn.dataset.genre;
+          const roomId = document.getElementById('targetRoom')?.value || 'landing-room';
+          setGenreOverride(roomId, genre);
+        });
+      });
+
+      // Clear override button
+      const clearBtn = document.getElementById('clearOverride');
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          const roomId = document.getElementById('targetRoom')?.value || 'landing-room';
+          clearGenreOverride(roomId);
+        });
+      }
+
+      // Room selector change handler
+      const roomSelect = document.getElementById('targetRoom');
+      if (roomSelect) {
+        roomSelect.addEventListener('change', () => {
+          if (socket) {
+            socket.emit('monitor:get-override-states');
+          }
+        });
+      }
+    }
+
+    function setGenreOverride(roomId, genre) {
+      if (socket) {
+        socket.emit('monitor:set-genre', { roomId, genre });
+      }
+    }
+
+    function clearGenreOverride(roomId) {
+      if (socket) {
+        socket.emit('monitor:clear-override', { roomId });
+      }
+    }
+
+    function updateOverrideUI(roomId, override) {
+      const modeEl = document.getElementById('overrideMode');
+      const infoEl = document.getElementById('overrideInfo');
+      const clearBtn = document.getElementById('clearOverride');
+
+      if (!modeEl || !infoEl || !clearBtn) return;
+
+      if (override?.enabled) {
+        modeEl.textContent = 'MANUAL';
+        modeEl.style.color = 'var(--accent-yellow)';
+        infoEl.innerHTML = `
+          Forcing genre: <strong>${override.genre}</strong><br>
+          Set at: ${new Date(override.setAt).toLocaleTimeString()}
+        `;
+        clearBtn.disabled = false;
+
+        // Highlight active genre button
+        document.querySelectorAll('.genre-btn').forEach(btn => {
+          btn.classList.remove('active', 'forced');
+          if (btn.dataset.genre === override.genre) {
+            btn.classList.add('forced');
+          }
+        });
+      } else {
+        modeEl.textContent = 'AUTOMATIC';
+        modeEl.style.color = 'var(--accent-green)';
+        infoEl.textContent = 'Genre selected automatically based on gesture analysis';
+        clearBtn.disabled = true;
+
+        document.querySelectorAll('.genre-btn').forEach(btn => {
+          btn.classList.remove('active', 'forced');
+        });
+      }
+
+      currentOverride = { ...override, roomId };
     }
 
     async function loadInitialData() {
@@ -707,6 +904,7 @@
         if (data.success) {
           renderDashboard(data);
           setTimeout(() => {
+            initGenreOverrideControls();  // Entry #210
             initHistoryCharts();
             if (data.numericHistory) {
               updateHistoryCharts(data.numericHistory);
@@ -939,6 +1137,50 @@
             <div class="genre-bars" id="genreWeights">
               ${renderGenreBars(genreWeights)}
             </div>
+          </div>
+
+          <!-- Entry #210: Genre Override Control -->
+          <div class="card">
+            <div class="card-title">Genre Override Control</div>
+
+            <!-- Mode indicator -->
+            <div style="margin-bottom: 12px; padding: 12px; background: var(--bg-tertiary); border-radius: 6px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="param-label">Mode</span>
+                <span id="overrideMode" class="param-value" style="color: var(--accent-green);">AUTOMATIC</span>
+              </div>
+              <div id="overrideInfo" style="margin-top: 8px; font-size: 0.75rem; color: var(--text-secondary);">
+                Genre selected automatically based on gesture analysis
+              </div>
+            </div>
+
+            <!-- Room selector -->
+            <div style="margin-bottom: 12px;">
+              <label class="param-label">Target Room</label>
+              <select id="targetRoom" class="override-select">
+                <option value="landing-room">Landing Page</option>
+              </select>
+            </div>
+
+            <!-- Genre selector -->
+            <div style="margin-bottom: 12px;">
+              <label class="param-label">Force Genre</label>
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px;">
+                <button class="genre-btn" data-genre="ambient">Ambient</button>
+                <button class="genre-btn" data-genre="classical">Classical</button>
+                <button class="genre-btn" data-genre="melodic">Melodic</button>
+                <button class="genre-btn" data-genre="jazz">Jazz</button>
+                <button class="genre-btn" data-genre="electronic">Electronic</button>
+                <button class="genre-btn" data-genre="rhythmic">Rhythmic</button>
+                <button class="genre-btn" data-genre="rock">Rock</button>
+                <button class="genre-btn" data-genre="experimental">Experimental</button>
+              </div>
+            </div>
+
+            <!-- Return to automatic button -->
+            <button id="clearOverride" class="btn-clear" style="width: 100%;" disabled>
+              Return to Automatic Mode
+            </button>
           </div>
 
           <!-- Statistics -->

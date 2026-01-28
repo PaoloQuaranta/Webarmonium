@@ -1297,7 +1297,31 @@ class CounterpointEngine {
   }
 
   selectTimbre(material, style) {
-    // Select appropriate timbre based on material and style
+    // Entry #210: Check forcedGenre first (covers both automatic cycling and manual override)
+    // This ensures timbre selection respects the genre override at all times
+    const forcedGenre = style.forcedGenre
+    if (forcedGenre) {
+      switch (forcedGenre) {
+        case 'classical':
+          return this.selectClassicalTimbre(material)
+        case 'jazz':
+          return this.selectJazzTimbre(material)
+        case 'electronic':
+          return this.selectElectronicTimbre(material)
+        case 'rock':
+          return this.selectRockTimbre(material)
+        case 'ambient':
+          return this.selectAmbientTimbre(material)
+        case 'melodic':
+          return this.selectMelodicTimbre(material)
+        case 'rhythmic':
+          return this.selectRhythmicTimbre(material)
+        case 'experimental':
+          return this.selectExperimentalTimbre(material)
+      }
+    }
+
+    // Fallback to weight-based selection (legacy compatibility)
     // Threshold lowered from 0.7 to 0.35 to enable genre-specific timbres with sharpened weights
     const genreWeights = style.genreWeights || {}
 
@@ -1347,6 +1371,43 @@ class CounterpointEngine {
       case 'high': return 'electric_guitar'
       case 'low': return 'bass_guitar'
       default: return 'clean_guitar'
+    }
+  }
+
+  // Entry #210: Additional timbre selectors for complete genre coverage
+  selectAmbientTimbre(material) {
+    const register = material.profile?.register || 'middle'
+    switch (register) {
+      case 'high': return 'synth_pad'
+      case 'low': return 'drone'
+      default: return 'synth_pad'
+    }
+  }
+
+  selectMelodicTimbre(material) {
+    const activity = material.profile?.activity || 'medium'
+    switch (activity) {
+      case 'high': return 'piano'
+      case 'low': return 'strings'
+      default: return 'piano'
+    }
+  }
+
+  selectRhythmicTimbre(material) {
+    const activity = material.profile?.activity || 'medium'
+    switch (activity) {
+      case 'high': return 'synth_lead'
+      case 'low': return 'marimba'
+      default: return 'electric_piano'
+    }
+  }
+
+  selectExperimentalTimbre(material) {
+    const register = material.profile?.register || 'middle'
+    switch (register) {
+      case 'high': return 'synth_lead'
+      case 'low': return 'bass'
+      default: return 'sawtooth'
     }
   }
 

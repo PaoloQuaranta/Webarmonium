@@ -19,7 +19,7 @@ const HarmonicEngine = require('./HarmonicEngine')
 const CompositionEngine = require('./CompositionEngine')
 const PhraseMorphology = require('./PhraseMorphology')
 const FrequencyPositionMapper = require('../utils/FrequencyPositionMapper')
-const { getGenreVelocityMultiplier, GENRE_BPM_RANGES } = require('../utils/GenreUtils')
+const { getGenreVelocityMultiplier, GENRE_BPM_RANGES, createSyntheticGenreWeights, isValidGenre } = require('../utils/GenreUtils')
 const { getSynthParams, getAllGenres } = require('../utils/GenreCharacteristics')
 const { VIRTUAL_USER_COLORS } = require('../constants/colors')
 
@@ -385,7 +385,13 @@ class LandingCompositionService {
       lastGenreCheckTime: now,                           // ultimo controllo cambio genere
       lastBPMChangeTime: now,                            // timestamp ultimo cambio BPM
       targetBPM: 100,                                    // BPM target corrente
-      currentBPM: 100                                    // BPM attuale (per smoothing)
+      currentBPM: 100,                                   // BPM attuale (per smoothing)
+      // Entry #210: Manual genre override for testing via composition monitor
+      manualOverride: {
+        enabled: false,
+        genre: null,
+        setAt: null
+      }
     }
 
     // Emit initial cursor positions (distributed across canvas)
@@ -1059,12 +1065,18 @@ class LandingCompositionService {
     const cycling = this.updateStyleCycle()
     const forcedGenre = cycling?.currentGenre || 'melodic'
 
+    // Entry #210: Check for manual override - use cached synthetic weights to bypass all escape points
+    // Fix #6: Use cached syntheticWeights from override object for performance
+    const isManualOverride = cycling?.manualOverride?.enabled === true
+    const overrideWeights = isManualOverride ? cycling.manualOverride.syntheticWeights : null
+
     const defaultStyle = {
-      genreWeights: {},
+      genreWeights: overrideWeights || {},
       dominantGenre: forcedGenre,
       forcedGenre: forcedGenre,
       energy: 0.5,
-      synthParams: getSynthParams(forcedGenre)
+      synthParams: getSynthParams(forcedGenre),
+      isManualOverride: isManualOverride
     }
 
     if (!this.styleAnalyzer) {
@@ -1073,7 +1085,8 @@ class LandingCompositionService {
 
     try {
       const style = this.styleAnalyzer.getCurrentStyle()
-      const genreWeights = style?.genreWeights || {}
+      // Entry #210: Use override weights if manual override active, otherwise use analyzer weights
+      const genreWeights = isManualOverride ? overrideWeights : (style?.genreWeights || {})
 
       // Entry #182: Use forcedGenre from styleCycling instead of calculated dominant
       return {
@@ -1082,7 +1095,8 @@ class LandingCompositionService {
         forcedGenre: forcedGenre,
         energy: style?.energy || 0.5,
         synthParams: getSynthParams(forcedGenre),
-        currentBPM: cycling?.currentBPM
+        currentBPM: cycling?.currentBPM,
+        isManualOverride: isManualOverride
       }
     } catch (error) {
       console.error('Error getting style for landing room:', error.message)
@@ -1111,6 +1125,102 @@ class LandingCompositionService {
     })
     return history
   }
+
+  // ========== Entry #210: Manual Genre Override for Testing ==========
+
+  /**
+   * Set manual genre override (bypasses automatic genre cycling)
+   * @param {string} genre - Genre to force (must be in ALL_GENRES)
+   * @returns {Object} Updated override state with { enabled, genre, setAt, syntheticWeights }
+   * @throws {Error} If genre is invalid or service not started
+   */
+  setManualGenreOverride(genre) {
+    // Validate genre using shared utility (Fix #4)
+    if (!isValidGenre(genre, ALL_GENRES)) {
+      throw new Error(`Invalid genre: ${genre}. Valid genres: ${ALL_GENRES.join(', ')}`)
+    }
+
+    if (!this.styleCycling) {
+      throw new Error('Landing service not started')
+    }
+
+    // Fix #6: Cache synthetic weights in override object for performance
+    this.styleCycling.manualOverride = {
+      enabled: true,
+      genre: genre,
+      setAt: Date.now(),
+      syntheticWeights: createSyntheticGenreWeights(genre, ALL_GENRES)
+    }
+
+    // Also update currentGenre to match
+    this.styleCycling.currentGenre = genre
+
+    // Fix #2: Invalidate any cached style data (stub for future compatibility)
+    // LandingCompositionService currently doesn't have style cache like BackgroundCompositionService
+    // but if added later, this ensures override changes are immediately reflected
+    this._invalidateStyleCacheIfExists()
+
+    console.log(`[GenreOverride] Manual override set for landing: ${genre}`)
+    return this.styleCycling.manualOverride
+  }
+
+  /**
+   * Clear manual genre override and return to automatic mode
+   * @returns {Object} Updated override state
+   * @throws {Error} If service not started
+   */
+  clearManualGenreOverride() {
+    if (!this.styleCycling) {
+      throw new Error('Landing service not started')
+    }
+
+    this.styleCycling.manualOverride = {
+      enabled: false,
+      genre: null,
+      setAt: null,
+      syntheticWeights: null
+    }
+
+    // Fix #2: Invalidate any cached style data
+    this._invalidateStyleCacheIfExists()
+
+    console.log('[GenreOverride] Manual override cleared for landing, returning to automatic')
+    return this.styleCycling.manualOverride
+  }
+
+  /**
+   * Get current override state
+   * @returns {Object|null} Override state or null if not running
+   */
+  getManualOverrideState() {
+    return this.styleCycling?.manualOverride || null
+  }
+
+  /**
+   * Fix #2: Stub for style cache invalidation
+   * LandingCompositionService doesn't have style cache yet, but this method
+   * provides forward compatibility if style caching is added later
+   * @private
+   */
+  _invalidateStyleCacheIfExists() {
+    // Currently no-op - LandingCompositionService recalculates style on each call
+    // If styleCache is added in the future, invalidate it here:
+    // if (this.styleCache) { this.styleCache.clear() }
+  }
+
+  /**
+   * Create synthetic genre weights with 100% for forced genre
+   * Uses shared utility from GenreUtils (Fix #4)
+   * @param {string} genre - Genre to force
+   * @returns {Object} Synthetic weights object
+   * @private
+   * @deprecated Use cached syntheticWeights from manualOverride object instead
+   */
+  _createOverrideWeights(genre) {
+    return createSyntheticGenreWeights(genre, ALL_GENRES)
+  }
+
+  // ========== End Entry #210 ==========
 
   /**
    * Entry #182: Calculate adjusted weight with starvation boost
@@ -1209,6 +1319,37 @@ class LandingCompositionService {
     }
 
     const cycling = this.styleCycling
+
+    // Entry #210: Skip automatic genre selection when manual override is active
+    if (cycling.manualOverride?.enabled === true) {
+      const overrideGenre = cycling.manualOverride.genre
+
+      // Fix #5: Runtime validation - verify override genre is still valid
+      if (!isValidGenre(overrideGenre, ALL_GENRES)) {
+        console.warn(`[GenreOverride] Invalid override genre "${overrideGenre}", clearing override`)
+        cycling.manualOverride.enabled = false
+        cycling.manualOverride.genre = null
+        cycling.manualOverride.syntheticWeights = null
+        // Fall through to automatic selection below
+      } else {
+        // Genre is fixed by override, just do BPM smoothing
+        const bpmRange = GENRE_BPM_RANGES[overrideGenre] || GENRE_BPM_RANGES.melodic
+
+        // Ensure BPM is within range for forced genre
+        if (cycling.targetBPM < bpmRange.min || cycling.targetBPM > bpmRange.max) {
+          cycling.targetBPM = bpmRange.default
+        }
+
+        // BPM smoothing
+        const bpmDiff = cycling.targetBPM - cycling.currentBPM
+        if (Math.abs(bpmDiff) > 1) {
+          cycling.currentBPM += bpmDiff / BPM_SMOOTHING_STEPS
+        }
+
+        return cycling
+      }
+    }
+
     const style = this.styleAnalyzer.getCurrentStyle()
 
     // --- SELEZIONE GENERE BASATA SU METRICHE + STARVATION ---

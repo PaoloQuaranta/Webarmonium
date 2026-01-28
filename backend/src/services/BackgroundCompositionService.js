@@ -20,7 +20,7 @@ const PhraseMorphology = require('./PhraseMorphology')
 const { getSectionStateManager } = require('./SectionStateManager')
 const RawGestureData = require('../composition/RawGestureData')
 const { PHI } = require('../utils/constants')
-const { GENRE_BPM_RANGES } = require('../utils/GenreUtils')
+const { GENRE_BPM_RANGES, createSyntheticGenreWeights, isValidGenre } = require('../utils/GenreUtils')
 const { getSynthParams, getAllGenres, createStyleObject, DEFAULT_GENRE } = require('../utils/GenreCharacteristics')
 
 // Entry #182: Metric-driven genre selection with starvation prevention
@@ -192,25 +192,43 @@ class BackgroundCompositionService {
     // Get room state for styleCycling data
     const roomState = this.roomCompositions.get(roomId)
     const cycling = roomState?.styleCycling
+    const manualOverride = cycling?.manualOverride
     const forcedGenre = cycling?.currentGenre || DEFAULT_GENRE
+
+    // Entry #210: Check for manual override - use cached synthetic weights to bypass all escape points
+    // Fix #6: Use cached syntheticWeights from override object for performance
+    const isManualOverride = manualOverride?.enabled === true
+    const overrideWeights = isManualOverride ? manualOverride.syntheticWeights : null
 
     // Default style using factory if styleAnalyzer unavailable
     if (!this.styleAnalyzer) {
       const style = createStyleObject({
         forcedGenre,
-        currentBPM: cycling?.currentBPM
+        currentBPM: cycling?.currentBPM,
+        // Entry #210: Override genreWeights if manual override active
+        genreWeights: overrideWeights
       })
+      style.isManualOverride = isManualOverride
       this.styleCache.set(roomId, { style, timestamp: now })
       return style
     }
 
     try {
       const styleAnalyzerOutput = this.styleAnalyzer.getCurrentStyle()
+
+      // Entry #210: If manual override active, replace genreWeights with synthetic weights
+      if (isManualOverride && styleAnalyzerOutput) {
+        styleAnalyzerOutput.genreWeights = overrideWeights
+      }
+
       const style = createStyleObject({
         forcedGenre,
         currentBPM: cycling?.currentBPM,
         styleAnalyzerOutput
       })
+
+      // Entry #210: Mark style as having manual override
+      style.isManualOverride = isManualOverride
 
       // Reset error count on success
       this.styleAnalyzerErrorCount = 0
@@ -237,8 +255,10 @@ class BackgroundCompositionService {
 
       const style = createStyleObject({
         forcedGenre,
-        currentBPM: cycling?.currentBPM
+        currentBPM: cycling?.currentBPM,
+        genreWeights: overrideWeights
       })
+      style.isManualOverride = isManualOverride
       this.styleCache.set(roomId, { style, timestamp: now })
       return style
     }
@@ -251,6 +271,109 @@ class BackgroundCompositionService {
   invalidateStyleCache(roomId) {
     this.styleCache.delete(roomId)
   }
+
+  // ========== Entry #210: Manual Genre Override for Testing ==========
+
+  /**
+   * Set manual genre override for a room (bypasses automatic genre cycling)
+   * @param {string} roomId - Room ID (must be active)
+   * @param {string} genre - Genre to force (must be in ALL_GENRES)
+   * @returns {Object} Updated override state with { enabled, genre, setAt, syntheticWeights }
+   * @throws {Error} If genre is invalid or room not found
+   * @example
+   * service.setManualGenreOverride('room-123', 'jazz')
+   * // Returns: { enabled: true, genre: 'jazz', setAt: 1234567890, syntheticWeights: {...} }
+   */
+  setManualGenreOverride(roomId, genre) {
+    // Validate genre using shared utility (Fix #4)
+    if (!isValidGenre(genre, ALL_GENRES)) {
+      throw new Error(`Invalid genre: ${genre}. Valid genres: ${ALL_GENRES.join(', ')}`)
+    }
+
+    const roomState = this.roomCompositions.get(roomId)
+    if (!roomState?.styleCycling) {
+      throw new Error(`Room ${roomId} not found or not active`)
+    }
+
+    // Fix #6: Cache synthetic weights in override object for performance
+    roomState.styleCycling.manualOverride = {
+      enabled: true,
+      genre: genre,
+      setAt: Date.now(),
+      syntheticWeights: createSyntheticGenreWeights(genre, ALL_GENRES)
+    }
+
+    // Also update currentGenre to match
+    roomState.styleCycling.currentGenre = genre
+
+    // Invalidate style cache to force immediate update
+    this.invalidateStyleCache(roomId)
+
+    console.log(`[GenreOverride] Manual override set for room ${roomId}: ${genre}`)
+    return roomState.styleCycling.manualOverride
+  }
+
+  /**
+   * Clear manual genre override and return to automatic mode
+   * @param {string} roomId - Room ID
+   * @returns {Object} Updated override state
+   * @throws {Error} If room not found
+   */
+  clearManualGenreOverride(roomId) {
+    const roomState = this.roomCompositions.get(roomId)
+    if (!roomState?.styleCycling) {
+      throw new Error(`Room ${roomId} not found`)
+    }
+
+    roomState.styleCycling.manualOverride = {
+      enabled: false,
+      genre: null,
+      setAt: null,
+      syntheticWeights: null
+    }
+
+    // Invalidate style cache to trigger fresh style calculation
+    this.invalidateStyleCache(roomId)
+
+    console.log(`[GenreOverride] Manual override cleared for room ${roomId}, returning to automatic`)
+    return roomState.styleCycling.manualOverride
+  }
+
+  /**
+   * Get current override state for a room
+   * @param {string} roomId - Room ID
+   * @returns {Object|null} Override state or null if room not found
+   */
+  getManualOverrideState(roomId) {
+    const roomState = this.roomCompositions.get(roomId)
+    return roomState?.styleCycling?.manualOverride || null
+  }
+
+  /**
+   * Get all active rooms with their override states
+   * @returns {Object} Map of roomId -> override state
+   */
+  getAllOverrideStates() {
+    const states = {}
+    for (const [roomId, roomState] of this.roomCompositions) {
+      states[roomId] = roomState?.styleCycling?.manualOverride || { enabled: false }
+    }
+    return states
+  }
+
+  /**
+   * Create synthetic genre weights with 100% for forced genre
+   * Uses shared utility from GenreUtils (Fix #4)
+   * @param {string} genre - Genre to force
+   * @returns {Object} Synthetic weights object
+   * @private
+   * @deprecated Use cached syntheticWeights from manualOverride object instead
+   */
+  _createOverrideWeights(genre) {
+    return createSyntheticGenreWeights(genre, ALL_GENRES)
+  }
+
+  // ========== End Entry #210 ==========
 
   /**
    * Sync harmonic context and web metrics to GestureToMusicService
@@ -324,7 +447,13 @@ class BackgroundCompositionService {
         lastGenreCheckTime: Date.now(),                    // ultimo controllo cambio genere
         lastBPMChangeTime: Date.now(),                     // timestamp ultimo cambio BPM
         targetBPM: 100,                                    // BPM target corrente
-        currentBPM: 100                                    // BPM attuale (per smoothing)
+        currentBPM: 100,                                   // BPM attuale (per smoothing)
+        // Entry #210: Manual genre override for testing via composition monitor
+        manualOverride: {
+          enabled: false,
+          genre: null,
+          setAt: null
+        }
       }
     })
 
@@ -848,6 +977,37 @@ class BackgroundCompositionService {
     }
 
     const cycling = roomState.styleCycling
+
+    // Entry #210: Skip automatic genre selection when manual override is active
+    if (cycling.manualOverride?.enabled === true) {
+      const overrideGenre = cycling.manualOverride.genre
+
+      // Fix #5: Runtime validation - verify override genre is still valid
+      if (!isValidGenre(overrideGenre, ALL_GENRES)) {
+        console.warn(`[GenreOverride] Invalid override genre "${overrideGenre}", clearing override`)
+        cycling.manualOverride.enabled = false
+        cycling.manualOverride.genre = null
+        cycling.manualOverride.syntheticWeights = null
+        // Fall through to automatic selection below
+      } else {
+        // Genre is fixed by override, just do BPM smoothing
+        const bpmRange = GENRE_BPM_RANGES[overrideGenre] || GENRE_BPM_RANGES.melodic
+
+        // Ensure BPM is within range for forced genre
+        if (cycling.targetBPM < bpmRange.min || cycling.targetBPM > bpmRange.max) {
+          cycling.targetBPM = bpmRange.default
+        }
+
+        // BPM smoothing
+        const bpmDiff = cycling.targetBPM - cycling.currentBPM
+        if (Math.abs(bpmDiff) > 1) {
+          cycling.currentBPM += bpmDiff / BPM_SMOOTHING_STEPS
+        }
+
+        return cycling
+      }
+    }
+
     const style = this.styleAnalyzer.getCurrentStyle()
 
     // --- SELEZIONE GENERE BASATA SU METRICHE + STARVATION ---

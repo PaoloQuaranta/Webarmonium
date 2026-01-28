@@ -5527,3 +5527,178 @@ After (Entry #209):
 v0.2.66
 
 ---
+
+## Entry #210 - Manual Genre Override for Composition Monitor
+
+**Date**: 2026-01-28
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Added manual genre override toggle to the composition monitor dashboard, allowing testers to force a specific genre and bypass the automatic genre weights system. Includes comprehensive input validation, cache management, and unit tests.
+
+---
+
+### Problem Statement
+
+For testing purposes, the ability to manually force a specific genre was needed to:
+1. Verify that genre weights are being properly applied at all levels
+2. Test genre-specific audio behaviors (timbre selection, harmonic progressions, density)
+3. Identify "escape points" where genre weights might be ignored
+
+Investigation revealed 3 critical escape points where `forcedGenre` was being ignored:
+- `CounterpointEngine.selectTimbre()` - only used `genreWeights`, ignored `forcedGenre`
+- `HarmonicEngine` - fallback to weight checks when `forcedGenre` not set
+- `CompositionEngine.getGenreDensityMultiplier()` - used weighted sum of all genres
+
+---
+
+### Solution
+
+#### 1. Manual Override State Management
+
+Added `manualOverride` object to `styleCycling` state:
+
+```javascript
+manualOverride: {
+  enabled: false,
+  genre: null,
+  setAt: null,
+  syntheticWeights: null  // Cached for performance
+}
+```
+
+#### 2. Service Methods (BackgroundCompositionService & LandingCompositionService)
+
+- `setManualGenreOverride(roomId, genre)` - Activates override with validation
+- `clearManualGenreOverride(roomId)` - Returns to automatic mode
+- `getManualOverrideState(roomId)` - Returns current override state
+- `getAllOverrideStates()` - Returns states for all rooms
+
+#### 3. Synthetic Weights Strategy
+
+Instead of just setting `forcedGenre`, created synthetic weights with 100% for the forced genre:
+
+```javascript
+createSyntheticGenreWeights('jazz')
+// Returns: { ambient: 0, classical: 0, melodic: 0, jazz: 1.0, electronic: 0, ... }
+```
+
+This ensures ALL weight-based decisions respect the override.
+
+#### 4. Fixed Escape Point: CounterpointEngine.selectTimbre()
+
+Modified to check `forcedGenre` FIRST before falling back to weight-based selection:
+
+```javascript
+selectTimbre(material, style) {
+  const forcedGenre = style.forcedGenre
+  if (forcedGenre) {
+    switch (forcedGenre) {
+      case 'classical': return this.selectClassicalTimbre(material)
+      case 'jazz': return this.selectJazzTimbre(material)
+      case 'electronic': return this.selectElectronicTimbre(material)
+      case 'rock': return this.selectRockTimbre(material)
+      case 'ambient': return this.selectAmbientTimbre(material)
+      case 'melodic': return this.selectMelodicTimbre(material)
+      case 'rhythmic': return this.selectRhythmicTimbre(material)
+      case 'experimental': return this.selectExperimentalTimbre(material)
+    }
+  }
+  // Fallback to weight-based selection...
+}
+```
+
+#### 5. Socket Events (monitorNamespace)
+
+```javascript
+// Client -> Server
+socket.on('monitor:set-genre', ({ roomId, genre }) => {...})
+socket.on('monitor:clear-override', ({ roomId }) => {...})
+socket.on('monitor:get-override-states', () => {...})
+
+// Server -> Client (broadcast)
+monitorNamespace.emit('monitor:genre-override-changed', {...})
+```
+
+#### 6. Monitor Dashboard UI
+
+Added "Genre Override Control" card with:
+- Mode indicator: AUTOMATIC (green) / MANUAL (yellow)
+- Room selector dropdown
+- 8 genre buttons (ambient, classical, melodic, jazz, electronic, rhythmic, rock, experimental)
+- "Return to Automatic Mode" clear button
+
+---
+
+### Code Review Fixes
+
+7 issues identified and fixed:
+
+| # | Severity | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | CRITICAL | Missing input validation in socket handlers | Added `validateOverrideInput()` function |
+| 2 | CRITICAL | Cache invalidation missing in LandingCompositionService | Added `_invalidateStyleCacheIfExists()` stub |
+| 3 | HIGH | Inconsistent error handling | Error context added to all validation responses |
+| 4 | HIGH | Code duplication `_createOverrideWeights` | Extracted to GenreUtils.js |
+| 5 | HIGH | Missing runtime validation in updateStyleCycle | Added guard checking genre validity |
+| 6 | MEDIUM | Performance - synthetic weights recreated every call | Cached `syntheticWeights` in override object |
+| 7 | MEDIUM | No unit tests | Created 35 tests in GenreOverride.test.js |
+
+---
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `backend/tests/unit/GenreOverride.test.js` | 35 unit tests for override feature |
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/BackgroundCompositionService.js` | Override state, methods, updateStyleCycle guard, getCurrentStyleForRoom with cached weights |
+| `backend/src/services/LandingCompositionService.js` | Same override methods, cache invalidation stub |
+| `backend/src/services/CounterpointEngine.js` | Fixed `selectTimbre()` to use `forcedGenre` first |
+| `backend/src/utils/GenreUtils.js` | Added `createSyntheticGenreWeights()`, `isValidGenre()`, `ALL_GENRES` |
+| `backend/src/server.js` | Socket handlers with `validateOverrideInput()` |
+| `backend/public/monitor/index.html` | Genre Override Control UI card |
+
+---
+
+### Testing
+
+All 35 unit tests pass:
+
+```
+Test Suites: 1 passed, 1 total
+Tests:       35 passed, 35 total
+```
+
+Test categories:
+- GenreUtils utilities (createSyntheticGenreWeights, isValidGenre)
+- BackgroundCompositionService override methods
+- LandingCompositionService override methods
+- Socket event validation
+- Edge cases (synthetic weights sum, ALL_GENRES contents)
+
+---
+
+### Usage
+
+1. Open composition monitor dashboard (`/monitor`)
+2. Select room from dropdown (or "landing" for landing page)
+3. Click a genre button to force that genre
+4. Mode indicator turns yellow with "MANUAL: [genre]"
+5. Click "Return to Automatic Mode" to clear override
+
+---
+
+### Version
+
+v0.2.68
+
+---

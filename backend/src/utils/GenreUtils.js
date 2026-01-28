@@ -68,10 +68,48 @@ function getGenreDensityMultiplier(style) {
   return GENRE_DENSITY_MULTIPLIERS[genre] || 1.0
 }
 
+/**
+ * Entry #210: All valid genres (derived from GENRE_BPM_RANGES keys, excluding 'pop')
+ * Used for validation and synthetic weight generation
+ */
+const ALL_GENRES = ['ambient', 'classical', 'melodic', 'jazz', 'electronic', 'rhythmic', 'rock', 'experimental']
+
+/**
+ * Entry #210: Create synthetic genre weights with 100% for a single genre
+ * Used for manual override to bypass all weight-based decisions
+ * @param {string} genre - Genre to set at 100% weight
+ * @param {string[]} [genreList] - Optional list of genres (defaults to ALL_GENRES)
+ * @returns {Object} Synthetic weights object with all genres at 0 except specified at 1.0
+ * @example
+ * createSyntheticGenreWeights('jazz')
+ * // Returns: { ambient: 0, classical: 0, melodic: 0, jazz: 1.0, electronic: 0, ... }
+ */
+function createSyntheticGenreWeights(genre, genreList = ALL_GENRES) {
+  const weights = {}
+  genreList.forEach(g => { weights[g] = 0 })
+  if (genreList.includes(genre)) {
+    weights[genre] = 1.0
+  }
+  return weights
+}
+
+/**
+ * Entry #210: Validate if a genre is valid
+ * @param {string} genre - Genre to validate
+ * @param {string[]} [genreList] - Optional list of valid genres
+ * @returns {boolean} True if genre is valid
+ */
+function isValidGenre(genre, genreList = ALL_GENRES) {
+  return typeof genre === 'string' && genreList.includes(genre)
+}
+
 module.exports = {
   GENRE_VELOCITY_MULTIPLIERS,
   GENRE_DENSITY_MULTIPLIERS,
   GENRE_BPM_RANGES,
+  ALL_GENRES,
   getGenreVelocityMultiplier,
-  getGenreDensityMultiplier
+  getGenreDensityMultiplier,
+  createSyntheticGenreWeights,
+  isValidGenre
 }
