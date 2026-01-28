@@ -298,6 +298,27 @@ class VirtualUserService {
   }
 
   /**
+   * Get current harmonic context from BackgroundCompositionService
+   * Entry #213: Ensures virtual users start with current key/mode/tempo instead of static defaults
+   * @returns {Object} Current musical context { key, mode, tempo }
+   * @private
+   */
+  _getCurrentHarmonicContext() {
+    const defaults = { key: 'C', mode: 'ionian', tempo: 120 }
+
+    if (!this.backgroundCompositionService?.compositionEngine) {
+      return defaults
+    }
+
+    const engine = this.backgroundCompositionService.compositionEngine
+    return {
+      key: engine.keyCenter || defaults.key,
+      mode: engine.mode || defaults.mode,
+      tempo: engine.tempo || defaults.tempo
+    }
+  }
+
+  /**
    * Emit cursor position for a virtual user
    * Called when a note is emitted to synchronize cursor with audio
    * @param {string} roomId - Room ID
@@ -427,12 +448,19 @@ class VirtualUserService {
    * @param {string[]} sources - Array of 2 source names to use
    * @param {Object} musicalContext - Room's musical context (key, mode, tempo)
    */
-  activateForRoom(roomId, sources, musicalContext = { key: 'C', mode: 'ionian', tempo: 120 }) {
+  activateForRoom(roomId, sources, musicalContext = null) {
+    // Entry #213: Get current harmonic context from BackgroundCompositionService
+    // instead of using static defaults, ensuring virtual users start in sync
+    const currentContext = this._getCurrentHarmonicContext()
+    const resolvedContext = musicalContext
+      ? { ...currentContext, ...musicalContext }
+      : currentContext
+
     if (this.activeRooms.has(roomId)) {
       // Already active, update sources if needed
       const state = this.activeRooms.get(roomId)
       state.sources = sources
-      state.musicalContext = musicalContext
+      state.musicalContext = resolvedContext
       return
     }
 
@@ -448,7 +476,7 @@ class VirtualUserService {
     const roomState = {
       roomId,
       sources,
-      musicalContext,
+      musicalContext: resolvedContext,
       isActive: true,
       gestureGenerationTimer: null,
       cursorInterpolationTimer: null,

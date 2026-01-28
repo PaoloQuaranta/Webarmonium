@@ -253,6 +253,11 @@ function wireServices (container, config = {}) {
       const webMetricsPoller = c.get('webMetricsPoller')
       service.setWebMetricsPoller(webMetricsPoller)
 
+      // Entry #213: Link VirtualUserService for harmonic context sync in solo mode
+      // Virtual users must receive key/mode updates when background composition modulates
+      const virtualUserService = c.get('virtualUserService')
+      service.setVirtualUserService(virtualUserService)
+
       // Set Socket.IO for broadcasting
       if (config.io) {
         service.setSocketIO(config.io)

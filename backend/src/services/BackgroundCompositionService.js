@@ -116,6 +116,18 @@ class BackgroundCompositionService {
   }
 
   /**
+   * Set VirtualUserService reference for harmonic context sync
+   * Entry #213: Virtual users must receive harmonic updates when key/mode changes
+   * @param {VirtualUserService} virtualUserService - VirtualUserService instance
+   */
+  setVirtualUserService(virtualUserService) {
+    this.virtualUserService = virtualUserService
+    // Initial sync to ensure virtual users start with current harmonic context
+    // (mirrors setGestureToMusicService behavior for consistency)
+    this.syncHarmonicContext()
+  }
+
+  /**
    * Entry #171: Normalize raw web metrics to 0-1 range
    * Normalization divisors based on typical activity levels:
    * - Wikipedia: ~50 edits/min max during peak activity
@@ -391,6 +403,7 @@ class BackgroundCompositionService {
    * Sync harmonic context and web metrics to GestureToMusicService
    * Entry #209: HarmonicEngine is now shared (see ServiceContainer wiring),
    * so we only need to sync GestureToMusicService's local key/mode properties.
+   * Entry #213: Also sync to VirtualUserService so virtual users follow key/mode changes.
    */
   syncHarmonicContext() {
     if (this.gestureToMusicService) {
@@ -401,6 +414,27 @@ class BackgroundCompositionService {
       // Entry #171: Sync web metrics for deterministic gesture variation
       this.gestureToMusicService.webMetrics = this._normalizeWebMetrics()
 // console.log(`🎵 Synced harmonic context: ${this.compositionEngine.keyCenter} ${this.compositionEngine.mode}`)
+    }
+
+    // Entry #213: Sync harmonic context to virtual users
+    // Virtual users must follow the same key/mode/tempo as background composition
+    if (this.virtualUserService) {
+      // Snapshot room IDs to avoid issues if map changes during iteration
+      const activeRoomIds = Array.from(this.compositionTimers.keys())
+      for (const roomId of activeRoomIds) {
+        try {
+          // Only sync if virtual users are actually active for this room
+          if (this.virtualUserService.isActiveForRoom(roomId)) {
+            this.virtualUserService.updateMusicalContext(roomId, {
+              key: this.compositionEngine.keyCenter,
+              mode: this.compositionEngine.mode,
+              tempo: this.compositionEngine.tempo
+            })
+          }
+        } catch (error) {
+          console.error(`Entry #213: Failed to sync harmonic context for room ${roomId}:`, error.message)
+        }
+      }
     }
   }
 

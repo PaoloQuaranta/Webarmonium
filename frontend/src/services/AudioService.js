@@ -3508,6 +3508,16 @@ class AudioService {
     this.currentStyle = style
     this.applyGenreToSynths(style)
 
+    // Entry #213: Sync harmonic context with composition being played
+    // This ensures user notes are quantized to the same key/mode as the current composition
+    const keyCenter = composition.metadata?.keyCenter
+    const mode = composition.metadata?.mode
+    if (keyCenter && mode) {
+      this.currentKey = keyCenter
+      this.currentMode = mode
+      this.currentScaleIntervals = this.modeIntervals[mode] || this.modeIntervals.ionian
+    }
+
     // If this is NOT a drone and we have a drone loop running, stop it
     if (!isDrone && this.droneLoopInterval) {
       clearInterval(this.droneLoopInterval)
