@@ -3802,9 +3802,13 @@ class AudioService {
     // when playing alongside counterpoint voices
     const accompVelocityScale = 0.35
 
-    // Play bass accompaniment on bass synth (wrapped for isolation)
+    // Play bass accompaniment on bass synth (MonoSynth - requires strictly increasing times)
+    // Entry #209: Sort notes and ensure minimum gap to prevent "Start time must be strictly greater" error
     if (accompaniment.bass_accomp?.notes) {
-      const notes = accompaniment.bass_accomp.notes
+      const notes = [...accompaniment.bass_accomp.notes].sort((a, b) => (a.startBeat || 0) - (b.startBeat || 0))
+      const minGap = 0.01  // 10ms minimum gap between bass notes
+      let lastBassTime = 0
+
       for (let i = 0; i < notes.length; i++) {
         const note = notes[i]
         const pitch = note.pitch || 36
@@ -3812,15 +3816,15 @@ class AudioService {
         const duration = (note.duration || 0.5) * beatDuration
         const velocity = (note.velocity || 0.6) * accompVelocityScale
         const delay = (note.startBeat || 0) * beatDuration
-        const scheduleTime = now + lookahead + delay
+
+        // Ensure strictly increasing schedule times for MonoSynth
+        const rawScheduleTime = now + lookahead + delay
+        const scheduleTime = Math.max(rawScheduleTime, lastBassTime + minGap)
+        lastBassTime = scheduleTime
 
         const eventId = Tone.Transport.schedule((audioTime) => {
-          // Use bass synth from ambientLayers
-          if (this.ambientLayers && this.ambientLayers.bass && !this.ambientLayers.bass.disposed) {
-            try {
-              this.ambientLayers.bass.triggerAttackRelease(frequency, duration, audioTime, velocity)
-            } catch (e) { /* ignore */ }
-          }
+          // Use bass synth from ambientLayers via safe trigger (MonoSynth timing)
+          this.safeMonoSynthTrigger('bass', frequency, duration, audioTime, velocity)
         }, scheduleTime)
         this.scheduledTransportEvents.push(eventId)
       }
