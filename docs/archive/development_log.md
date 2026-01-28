@@ -5342,3 +5342,188 @@ Based on code review:
 ### Version
 
 v0.2.65
+
+## Entry #209 - Unified HarmonicEngine and Code Review Fixes
+
+**Date**: 2026-01-28
+**Author**: Claude Code (AI Assistant)
+**Status**: COMPLETED
+
+### Summary
+
+Unified HarmonicEngine instances between BackgroundCompositionService and GestureToMusicService to eliminate potential state divergence. Added defensive programming improvements including duck typing validation, null checks, and property delegation. Also renamed misleading `pitchClass` variable to `chordInterval` in accompaniment generation.
+
+---
+
+### Problem Statement
+
+Code review of recent commits (Entry #205-#208b) identified:
+
+1. **Two Separate HarmonicEngine Instances**
+   - BackgroundCompositionService had its own `harmonicEngine`
+   - GestureToMusicService created a SEPARATE `HarmonicEngine` instance
+   - `syncHarmonicContext()` only synchronized `key/mode`, not the full engine state
+
+2. **Misleading Variable Naming**
+   - `pitchClass` variable in accompaniment generation could exceed 11 (e.g., Am7 returns [9,12,16,19])
+   - Technically these are chord intervals from root, not pitch classes (0-11)
+
+3. **Duplicate State**
+   - GestureToMusicService stored `currentKey` and `currentMode` as local properties
+   - Also stored them in its `harmonicEngine`
+   - Risk of divergence between the two
+
+---
+
+### Solution
+
+#### Fix 1: Rename `pitchClass` to `chordInterval`
+
+**File**: `backend/src/services/CompositionEngine.js`
+
+Updated comments and variable names to clarify that `buildChord()` returns intervals from root:
+
+```javascript
+// Entry #208 FIX: buildChord returns chord intervals from root (e.g., [0,4,7] for major)
+// These can exceed 11 for extended chords (e.g., Am7 returns [9,12,16,19])
+const chordNotes = this.harmonicEngine.buildChord(chord.chord || 'major')
+
+chordNotes.forEach((chordInterval, i) => {
+  const pitch = 60 + chordInterval  // C4 base
+  // ...
+})
+```
+
+#### Fix 2: Unified HarmonicEngine via Dependency Injection
+
+**File**: `backend/src/services/GestureToMusicService.js`
+
+Added `setSharedHarmonicEngine()` method:
+
+```javascript
+setSharedHarmonicEngine(harmonicEngine) {
+  // Duck typing validation: ensure harmonicEngine has required methods
+  if (!harmonicEngine ||
+      typeof harmonicEngine.constrainToScale !== 'function' ||
+      typeof harmonicEngine.buildChord !== 'function' ||
+      typeof harmonicEngine.getCurrentScale !== 'function') {
+    console.warn('setSharedHarmonicEngine: Invalid harmonicEngine (missing required methods)')
+    return
+  }
+  this.harmonicEngine = harmonicEngine
+}
+```
+
+**File**: `backend/src/services/ServiceContainer.js`
+
+Added wiring with defensive null check:
+
+```javascript
+// Entry #209: Share HarmonicEngine with GestureToMusicService
+if (service.harmonicEngine) {
+  gestureToMusicService.setSharedHarmonicEngine(service.harmonicEngine)
+} else {
+  console.warn('BackgroundCompositionService missing harmonicEngine - cannot share')
+}
+```
+
+#### Fix 3: Property Delegation to Eliminate Duplicate State
+
+**File**: `backend/src/services/GestureToMusicService.js`
+
+Replaced local `currentKey`/`currentMode` properties with getters/setters that delegate to `harmonicEngine`:
+
+```javascript
+// Entry #209b: Delegate currentKey to harmonicEngine (single source of truth)
+get currentKey() {
+  return this.harmonicEngine?.currentKey || 'C'
+}
+
+set currentKey(value) {
+  if (this.harmonicEngine) {
+    this.harmonicEngine.currentKey = value
+  }
+}
+
+// Same pattern for currentMode
+```
+
+Simplified `setKeyCenter()` to use the setters (which automatically delegate):
+
+```javascript
+setKeyCenter(key, mode = 'major') {
+  // Entry #209b: Setters delegate to harmonicEngine automatically
+  this.currentKey = key
+  this.currentMode = mode
+  this.materialLibrary.setKeyCenter(key, mode)
+}
+```
+
+---
+
+### Verification Results
+
+```
+✅ HarmonicEngine shared successfully: true
+✅ Key delegation works: true
+✅ Mode delegation works: true
+✅ Key setter works: true
+✅ Mode setter works: true
+✅ Duck typing validation works: no crash
+
+🎉 All 3 fixes verified!
+```
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/src/services/CompositionEngine.js` | Renamed `pitchClass` to `chordInterval` in pad/keys accompaniment (5 locations) |
+| `backend/src/services/GestureToMusicService.js` | Duck typing validation, getter/setter delegation for `currentKey`/`currentMode`, simplified `setKeyCenter()` |
+| `backend/src/services/ServiceContainer.js` | Defensive null check for `harmonicEngine` before sharing |
+
+---
+
+### Architecture
+
+```
+Before (Entry #208):
+  BackgroundCompositionService.harmonicEngine ←→ syncHarmonicContext (key/mode only)
+  GestureToMusicService.harmonicEngine (SEPARATE instance)
+  GestureToMusicService.currentKey/currentMode (DUPLICATE state)
+
+After (Entry #209):
+  BackgroundCompositionService.harmonicEngine ← SHARED →
+  GestureToMusicService.harmonicEngine (SAME instance)
+  GestureToMusicService.currentKey → getter → harmonicEngine.currentKey
+  GestureToMusicService.currentMode → getter → harmonicEngine.currentMode
+```
+
+---
+
+### Design Rationale
+
+**Why duck typing validation?**
+- Prevents silent failures if wrong object type is passed
+- Validates the actual capabilities needed (methods), not just type name
+- Fails fast with clear warning message
+
+**Why getter/setter delegation?**
+- Single source of truth eliminates state divergence bugs
+- Existing code continues to work unchanged (transparent)
+- No need to update all call sites
+
+**Why null check in ServiceContainer?**
+- Defensive programming for edge cases during initialization
+- Clear warning message aids debugging
+- Prevents cryptic undefined errors downstream
+
+---
+
+### Version
+
+v0.2.66
+
+---

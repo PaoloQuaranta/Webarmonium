@@ -254,13 +254,14 @@ class BackgroundCompositionService {
 
   /**
    * Sync harmonic context and web metrics to GestureToMusicService
+   * Entry #209: HarmonicEngine is now shared (see ServiceContainer wiring),
+   * so we only need to sync GestureToMusicService's local key/mode properties.
    */
   syncHarmonicContext() {
     if (this.gestureToMusicService) {
+      // Sync local key/mode properties used by GestureToMusicService
       this.gestureToMusicService.currentKey = this.compositionEngine.keyCenter
       this.gestureToMusicService.currentMode = this.compositionEngine.mode
-      this.gestureToMusicService.harmonicEngine.currentKey = this.compositionEngine.keyCenter
-      this.gestureToMusicService.harmonicEngine.currentMode = this.compositionEngine.mode
 
       // Entry #171: Sync web metrics for deterministic gesture variation
       this.gestureToMusicService.webMetrics = this._normalizeWebMetrics()

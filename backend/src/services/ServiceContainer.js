@@ -239,6 +239,15 @@ function wireServices (container, config = {}) {
       const gestureToMusicService = c.get('gestureToMusicService')
       service.setGestureToMusicService(gestureToMusicService)
 
+      // Entry #209: Share HarmonicEngine with GestureToMusicService
+      // This ensures gesture processing uses the same harmonic context as background compositions,
+      // eliminating state divergence and race conditions between the two systems.
+      if (service.harmonicEngine) {
+        gestureToMusicService.setSharedHarmonicEngine(service.harmonicEngine)
+      } else {
+        console.warn('BackgroundCompositionService missing harmonicEngine - cannot share with GestureToMusicService')
+      }
+
       // Entry #163: Link WebMetricsPoller for key initialization (same as LandingCompositionService)
       // This allows rooms to initialize starting key from web metrics
       const webMetricsPoller = c.get('webMetricsPoller')

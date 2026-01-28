@@ -24,14 +24,34 @@ class GestureToMusicService {
       this.harmonicEngine
     )
 
-    // Musical context
-    this.currentKey = 'C'
-    this.currentMode = 'major'
+    // Entry #209b: Tempo stored locally (not delegated to harmonicEngine)
     this.currentTempo = 120
 
     // Entry #171: Web metrics for deterministic gesture variation
     this.webMetrics = null
     this.webMetricsPoller = null
+  }
+
+  // Entry #209b: Delegate currentKey to harmonicEngine (single source of truth)
+  get currentKey() {
+    return this.harmonicEngine?.currentKey || 'C'
+  }
+
+  set currentKey(value) {
+    if (this.harmonicEngine) {
+      this.harmonicEngine.currentKey = value
+    }
+  }
+
+  // Entry #209b: Delegate currentMode to harmonicEngine (single source of truth)
+  get currentMode() {
+    return this.harmonicEngine?.currentMode || 'major'
+  }
+
+  set currentMode(value) {
+    if (this.harmonicEngine) {
+      this.harmonicEngine.currentMode = value
+    }
   }
 
   /**
@@ -41,6 +61,25 @@ class GestureToMusicService {
    */
   setWebMetricsPoller(poller) {
     this.webMetricsPoller = poller
+  }
+
+  /**
+   * Entry #209: Set shared HarmonicEngine from BackgroundCompositionService
+   * Ensures gesture processing uses the same harmonic context as background compositions,
+   * eliminating potential state divergence between the two systems.
+   * @param {HarmonicEngine} harmonicEngine - Shared HarmonicEngine instance
+   */
+  setSharedHarmonicEngine(harmonicEngine) {
+    // Duck typing validation: ensure harmonicEngine has required methods/properties
+    if (!harmonicEngine ||
+        typeof harmonicEngine.constrainToScale !== 'function' ||
+        typeof harmonicEngine.buildChord !== 'function' ||
+        typeof harmonicEngine.getCurrentScale !== 'function') {
+      console.warn('setSharedHarmonicEngine: Invalid harmonicEngine (missing required methods)')
+      return
+    }
+    // Entry #209b: Simply replace harmonicEngine - getters delegate to it automatically
+    this.harmonicEngine = harmonicEngine
   }
 
   /**
@@ -501,11 +540,10 @@ class GestureToMusicService {
 
   // Public API methods for integration
   setKeyCenter(key, mode = 'major') {
+    // Entry #209b: Setters delegate to harmonicEngine automatically
     this.currentKey = key
     this.currentMode = mode
     this.materialLibrary.setKeyCenter(key, mode)
-    this.harmonicEngine.currentKey = key
-    this.harmonicEngine.currentMode = mode
   }
 
   setTempo(tempo) {

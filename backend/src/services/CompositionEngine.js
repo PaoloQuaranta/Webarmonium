@@ -1238,15 +1238,15 @@ class CompositionEngine {
       const chordStartBeat = chordIndex * (sectionBeats / progressionLength)
       const chordDuration = sectionBeats / progressionLength
 
-      // Entry #208 FIX: buildChord returns pitch classes (0-11 range + intervals)
-      // We need to add an octave base to get MIDI notes
-      // Pad register: C4 (60) base octave
+      // Entry #208 FIX: buildChord returns chord intervals from root (e.g., [0,4,7] for major)
+      // These can exceed 11 for extended chords (e.g., Am7 returns [9,12,16,19])
+      // Add octave base to get MIDI notes. Pad register: C4 (60)
       const chordNotes = this.harmonicEngine.buildChord(chord.chord || 'major')
 
       // Create sustained pad notes
-      chordNotes.forEach((pitchClass, i) => {
-        // Convert pitch class to MIDI note (C4 octave for pad)
-        const pitch = 60 + pitchClass  // C4 base
+      chordNotes.forEach((chordInterval, i) => {
+        // Convert chord interval to MIDI note (C4 octave for pad)
+        const pitch = 60 + chordInterval  // C4 base
         notes.push({
           pitch,
           startBeat: chordStartBeat + (i * 0.05),  // Slight stagger for organic feel
@@ -1282,8 +1282,8 @@ class CompositionEngine {
       const chordStartBeat = chordIndex * (sectionBeats / progressionLength)
       const chordDuration = sectionBeats / progressionLength
 
-      // Entry #208 FIX: buildChord returns pitch classes (0-11 range + intervals)
-      // Add octave base to get MIDI notes. Keys register: C4 (60)
+      // Entry #208 FIX: buildChord returns chord intervals from root (e.g., [0,4,7] for major)
+      // These can exceed 11 for extended chords. Add octave base to get MIDI notes.
       const chordNotes = this.harmonicEngine.buildChord(chord.chord || 'major')
       const keysOctave = 60  // C4 base for keys
 
@@ -1296,11 +1296,11 @@ class CompositionEngine {
         let beatOffset = 0
         const noteLength = 0.25  // 16th notes
         while (beatOffset < chordDuration) {
-          sortedNotes.forEach((pitchClass, i) => {
+          sortedNotes.forEach((chordInterval, i) => {
             if (beatOffset + (i * noteLength) < chordDuration) {
               const isSyncopated = Math.random() < syncopation * 0.2
               notes.push({
-                pitch: keysOctave + pitchClass,  // Convert pitch class to MIDI
+                pitch: keysOctave + chordInterval,  // Convert chord interval to MIDI
                 startBeat: chordStartBeat + beatOffset + (i * noteLength) + (isSyncopated ? -0.0625 : 0),
                 duration: noteLength * 0.8,
                 velocity: 0.6 + (Math.random() * 0.15)
@@ -1315,9 +1315,9 @@ class CompositionEngine {
         compBeats.forEach(beat => {
           if (beat < chordDuration) {
             const swingOffset = (beat % 1 > 0) ? swingAmount * 0.15 : 0
-            chordNotes.forEach((pitchClass, i) => {
+            chordNotes.forEach((chordInterval) => {
               notes.push({
-                pitch: keysOctave + pitchClass,  // Convert pitch class to MIDI
+                pitch: keysOctave + chordInterval,  // Convert chord interval to MIDI
                 startBeat: chordStartBeat + beat + swingOffset,
                 duration: 0.4 + (Math.random() * 0.2),
                 velocity: 0.55 + (Math.random() * 0.15)
@@ -1353,9 +1353,9 @@ class CompositionEngine {
 
         blockBeats.forEach(beat => {
           if (beat < chordDuration) {
-            chordNotes.forEach((pitchClass) => {
+            chordNotes.forEach((chordInterval) => {
               notes.push({
-                pitch: keysOctave + pitchClass,  // Convert pitch class to MIDI
+                pitch: keysOctave + chordInterval,  // Convert chord interval to MIDI
                 startBeat: chordStartBeat + beat,
                 duration: 0.8,
                 velocity: 0.6
