@@ -1942,7 +1942,8 @@ class AudioService {
       // - Real users: square, pulse, fatsawtooth, fmsine (bell, modIndex 4-6)
       // - Accompaniment: fmsine (glass, modIndex 1.5), amsine, fatsine
 
-      // backgroundHigh: "Glass Marimba" - FM with low harmonicity (vitreous, celesta-like)
+      // backgroundHigh: "Singing Glass" - FM with expressive envelope
+      // Entry #216c: More cantabile envelope (was too percussive)
       // Distinct from real user fmsine (bell) which uses modIndex 4-6
       backgroundHigh: new Tone.FMSynth({
         harmonicity: 2.5,           // Lower than real users = less metallic
@@ -1955,20 +1956,21 @@ class AudioService {
           type: 'sine'
         },
         envelope: {
-          attack: 0.005,            // Percussive attack
-          decay: 0.4,
-          sustain: 0.2,
-          release: 0.6
+          attack: 0.08,             // Entry #216c: Cantabile attack (was 0.005)
+          decay: 0.3,
+          sustain: 0.6,             // Entry #216c: Higher sustain (was 0.2)
+          release: 0.8
         },
         modulationEnvelope: {
-          attack: 0.01,
+          attack: 0.05,
           decay: 0.3,
-          sustain: 0.1,
-          release: 0.4
+          sustain: 0.5,             // Entry #216c: Higher mod sustain (was 0.1)
+          release: 0.5
         }
       }),
 
       // backgroundMid: "Warm Organ" - AM synthesis (natural tremolo, Hammond-like)
+      // Entry #216c: More legato envelope for expressiveness
       // Unique: no other layer uses AM synthesis
       backgroundMid: new Tone.AMSynth({
         harmonicity: 1.0,           // 1:1 ratio = slow beating, organ character
@@ -1980,16 +1982,16 @@ class AudioService {
           type: 'square'            // Square mod = classic tremolo character
         },
         envelope: {
-          attack: 0.08,
-          decay: 0.2,
-          sustain: 0.7,
-          release: 0.5
+          attack: 0.1,              // Entry #216c: Slower attack (was 0.08)
+          decay: 0.25,
+          sustain: 0.75,            // Entry #216c: Higher sustain (was 0.7)
+          release: 0.7              // Entry #216c: Longer release (was 0.5)
         },
         modulationEnvelope: {
-          attack: 0.1,
-          decay: 0.2,
-          sustain: 0.8,
-          release: 0.3
+          attack: 0.12,
+          decay: 0.25,
+          sustain: 0.85,            // Entry #216c: Higher mod sustain (was 0.8)
+          release: 0.4
         }
       }),
 
@@ -2031,13 +2033,14 @@ class AudioService {
     }
 
     // Background volumes - balanced with gestures
+    // Entry #216c: Increased all background volumes (+3-6 dB) - was too quiet
     this.ambientVolumes = {
-      bass: new Tone.Volume(0),       // INCREASED for fuller low-end
-      pad: new Tone.Volume(-3),       // Entry #27: Reduced from +6dB - was too loud
-      chords: new Tone.Volume(0),     // Electric piano - balanced in mix
-      backgroundHigh: new Tone.Volume(-3),  // Entry #212: Reduced -6 dB (melody below users)
-      backgroundMid: new Tone.Volume(-6),   // Entry #212: Reduced -9 dB (harmony quieter)
-      backgroundLow: new Tone.Volume(-6)    // Entry #212: Reduced -9 dB (bass foundation)
+      bass: new Tone.Volume(+3),      // Entry #216c: +3 dB (was 0) - fuller foundation
+      pad: new Tone.Volume(0),        // Entry #216c: 0 dB (was -3) - more presence
+      chords: new Tone.Volume(+3),    // Entry #216c: +3 dB (was 0) - more definition
+      backgroundHigh: new Tone.Volume(0),   // Entry #216c: 0 dB (was -3) - melody audible
+      backgroundMid: new Tone.Volume(-3),   // Entry #216c: -3 dB (was -6) - harmony present
+      backgroundLow: new Tone.Volume(-3)    // Entry #216c: -3 dB (was -6) - bass foundation
     }
 
     // Connect each layer with SEND/RETURN architecture
