@@ -18,13 +18,14 @@ const { PHI, getSwingAmount, getSyncopation, getArticulation } = require('../uti
 // ============================================
 
 // Velocity parameters (0-1 float range, not MIDI 0-127)
-// Entry #212: Increased base velocities +25-30% to restore accompaniment presence
-const BASS_BASE_VELOCITY = 0.50      // Base velocity for bass layer (was 0.40)
-const BASS_DYNAMIC_RANGE = 0.15      // Dynamic range added based on section level
-const PAD_BASE_VELOCITY_AMBIENT = 0.10   // Very quiet pads for ambient (drones) (was 0.08)
-const PAD_BASE_VELOCITY_DEFAULT = 0.15   // Standard pad velocity (quieter than gestures) (was 0.12)
-const KEYS_BASE_VELOCITY = 0.45      // Base velocity for keys layer (was 0.35)
-const KEYS_DYNAMIC_RANGE = 0.12      // Dynamic range for keys
+// Entry #219: Reduced base velocities to make accompaniment supportive (counterpoint is primary)
+// Reductions calibrated to maintain audibility while ensuring counterpoint voices dominate
+const BASS_BASE_VELOCITY = 0.35      // Base velocity for bass layer (reduced from 0.50)
+const BASS_DYNAMIC_RANGE = 0.12      // Dynamic range (reduced from 0.15 to limit peak velocity)
+const PAD_BASE_VELOCITY_AMBIENT = 0.06   // Very quiet pads for ambient (reduced from 0.10)
+const PAD_BASE_VELOCITY_DEFAULT = 0.10   // Standard pad velocity (reduced from 0.15)
+const KEYS_BASE_VELOCITY = 0.30      // Base velocity for keys layer (reduced from 0.45)
+const KEYS_DYNAMIC_RANGE = 0.10      // Dynamic range for keys
 
 // Velocity curve limits
 const VELOCITY_CURVE_MIN = 0.5       // Minimum velocity multiplier

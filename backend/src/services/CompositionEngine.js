@@ -591,12 +591,13 @@ class CompositionEngine {
       })
     })
 
-    // Apply velocity to accompaniment
+    // Entry #219: Apply velocity to accompaniment with clamping for consistency
     Object.keys(activeAccompaniment).forEach(layer => {
       const velocityScale = velocities[layer] || 0.5
       if (activeAccompaniment[layer].notes) {
         activeAccompaniment[layer].notes.forEach(note => {
-          note.velocity = (note.velocity || 0.6) * velocityScale
+          const rawVelocity = (note.velocity || 0.6) * velocityScale
+          note.velocity = Math.max(0.08, Math.min(0.7, rawVelocity))
         })
       }
     })
