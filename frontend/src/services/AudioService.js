@@ -1729,9 +1729,9 @@ class AudioService {
       pad: new Tone.Gain(0.30),       // Entry #216b: 30% delay - shimmer chorus trails
       chords: new Tone.Gain(0.30),    // Entry #216b: 30% delay - warm piano rhythmic echoes
       gesture: new Tone.Gain(0.25),   // 25% to delay (more present)
-      backgroundHigh: new Tone.Gain(0.30),  // Entry #216: 30% delay - glass shimmer echoes
-      backgroundMid: new Tone.Gain(0.25),   // Entry #216: 25% delay - organ room echoes
-      backgroundLow: new Tone.Gain(0.20)    // Entry #216: 20% delay - sub depth
+      backgroundHigh: new Tone.Gain(0.20),  // Entry #219c: 20% delay - pulse clarity
+      backgroundMid: new Tone.Gain(0.20),   // Entry #219c: 20% delay - pwm space
+      backgroundLow: new Tone.Gain(0.15)    // Entry #219c: 15% delay - square bass definition
     }
 
     this.reverbSends = {
@@ -1739,9 +1739,9 @@ class AudioService {
       pad: new Tone.Gain(0.40),       // Entry #216b: 40% reverb - shimmer chorus ethereal
       chords: new Tone.Gain(0.30),    // Entry #216b: 30% reverb - warm piano room
       gesture: new Tone.Gain(0.3),    // 30% to reverb
-      backgroundHigh: new Tone.Gain(0.40),  // Entry #216: 40% reverb - glass needs shimmer space
-      backgroundMid: new Tone.Gain(0.35),   // Entry #216: 35% reverb - organ needs hall
-      backgroundLow: new Tone.Gain(0.25)    // Entry #216: 25% reverb - sub needs depth
+      backgroundHigh: new Tone.Gain(0.25),  // Entry #219c: 25% reverb - pulse room
+      backgroundMid: new Tone.Gain(0.25),   // Entry #219c: 25% reverb - pwm ambience
+      backgroundLow: new Tone.Gain(0.20)    // Entry #219c: 20% reverb - square bass depth
     }
 
     // Connect send buses to FX
@@ -1937,78 +1937,56 @@ class AudioService {
       // BACKGROUND COMPOSITION LAYERS - Sophisticated timbres distinct from real/virtual users
       // Entry #216: New FM/AM synthesis timbres for accompaniment differentiation
       //
-      // Timbre matrix (no overlaps):
+      // Entry #219c: Restored original expressive timbres (pre-#208)
+      // Timbre matrix:
       // - Virtual users: sawtooth, sine, triangle
-      // - Real users: square, pulse, fatsawtooth, fmsine (bell, modIndex 4-6)
-      // - Accompaniment: fmsine (glass, modIndex 1.5), amsine, fatsine
+      // - Real users: square (bass), pulse, fatsawtooth, fmsine (bell)
+      // - Counterpoint: pulse (melody), pwm (harmony), square (bass) - distinctive, expressive
 
-      // backgroundHigh: "Singing Glass" - FM with expressive envelope
-      // Entry #216c: More cantabile envelope (was too percussive)
-      // Distinct from real user fmsine (bell) which uses modIndex 4-6
-      backgroundHigh: new Tone.FMSynth({
-        harmonicity: 2.5,           // Lower than real users = less metallic
-        modulationIndex: 1.5,       // Light modulation = glassy, not bell-like
-        volume: +5,
+      // backgroundHigh: Pulse wave (nasal, cutting) - for melody
+      // Entry #219c: Restored original timbre - more expressive than FM glass
+      backgroundHigh: new Tone.MonoSynth({
         oscillator: {
-          type: 'sine'
+          type: 'pulse',
+          width: 0.3               // Narrow pulse = nasal, distinctive
         },
-        modulation: {
-          type: 'sine'
-        },
+        volume: +5,
         envelope: {
-          attack: 0.08,             // Entry #216c: Cantabile attack (was 0.005)
-          decay: 0.3,
-          sustain: 0.6,             // Entry #216c: Higher sustain (was 0.2)
-          release: 0.8
-        },
-        modulationEnvelope: {
-          attack: 0.05,
-          decay: 0.3,
-          sustain: 0.5,             // Entry #216c: Higher mod sustain (was 0.1)
+          attack: 0.02,            // Quick attack for articulation
+          decay: 0.2,
+          sustain: 0.7,
           release: 0.5
         }
       }),
 
-      // backgroundMid: "Warm Organ" - AM synthesis (natural tremolo, Hammond-like)
-      // Entry #216c: More legato envelope for expressiveness
-      // Unique: no other layer uses AM synthesis
-      backgroundMid: new Tone.AMSynth({
-        harmonicity: 1.0,           // 1:1 ratio = slow beating, organ character
-        volume: +5,
+      // backgroundMid: PWM (animated pulse) - for harmony/arpeggios
+      // Entry #219c: Restored original timbre - more animated than AM organ
+      backgroundMid: new Tone.MonoSynth({
         oscillator: {
-          type: 'sine'
+          type: 'pwm',
+          modulationFrequency: 0.5 // Slow modulation for movement
         },
-        modulation: {
-          type: 'square'            // Square mod = classic tremolo character
-        },
+        volume: +5,
         envelope: {
-          attack: 0.1,              // Entry #216c: Slower attack (was 0.08)
-          decay: 0.25,
-          sustain: 0.75,            // Entry #216c: Higher sustain (was 0.7)
-          release: 0.7              // Entry #216c: Longer release (was 0.5)
-        },
-        modulationEnvelope: {
-          attack: 0.12,
-          decay: 0.25,
-          sustain: 0.85,            // Entry #216c: Higher mod sustain (was 0.8)
-          release: 0.4
+          attack: 0.05,
+          decay: 0.3,
+          sustain: 0.6,
+          release: 0.8
         }
       }),
 
-      // backgroundLow: "Sub Pad" - Detuned sine pair (warm, deep, no harmonics clash)
-      // Distinct from Wikipedia sawtooth and real user square bass
+      // backgroundLow: Square wave (warm, hollow) - for bass lines
+      // Entry #219c: Restored original timbre - more defined than fatsine
       backgroundLow: new Tone.MonoSynth({
         oscillator: {
-          type: 'fatsine',          // Multiple detuned sines
-          count: 2,                 // 2 oscillators
-          spread: 8                 // Slight detune = warmth without chorus
+          type: 'square'           // Warm, hollow bass
         },
         volume: +5,
         envelope: {
-          attack: 0.15,             // Slow attack = pad-like
+          attack: 0.08,
           decay: 0.3,
-          sustain: 0.9,             // Full sustain for foundation
-          release: 1.2              // Long release = ambient tail
+          sustain: 0.8,
+          release: 0.6
         }
       })
     }
@@ -2027,9 +2005,9 @@ class AudioService {
       bass: new Tone.Filter({ type: 'lowpass', frequency: 300, Q: 1.2 }),   // Entry #216b: FM sub needs low-mids for richness
       pad: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 0.8 }),   // Entry #216b: Fattriangle shimmer needs highs
       chords: new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 1 }),  // Entry #216b: Warm FM needs less highs than bell
-      backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 8000, Q: 0.8 }),  // Entry #216: FM glass needs shimmer harmonics
-      backgroundMid: new Tone.Filter({ type: 'lowpass', frequency: 2500, Q: 1.2 }),   // Entry #216: AM organ needs warmth with resonance
-      backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 600, Q: 1.0 })     // Entry #216: Fatsine sub needs deep focus
+      backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 5000, Q: 1 }),    // Entry #219c: Pulse needs brightness
+      backgroundMid: new Tone.Filter({ type: 'lowpass', frequency: 3000, Q: 1 }),     // Entry #219c: PWM needs harmonics
+      backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 1.5 })    // Entry #219c: Square needs body
     }
 
     // Background volumes - balanced with gestures
