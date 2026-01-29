@@ -266,6 +266,33 @@ class LandingCompositionService {
   }
 
   /**
+   * Set shared StyleAnalyzer singleton to eliminate redundant computation
+   * When 3 services each had their own instance, every gesture triggered
+   * analyzeGestureStyle() 3 times. Now all services share one instance.
+   * @param {StyleAnalyzer} sharedAnalyzer - Shared StyleAnalyzer instance
+   */
+  setSharedStyleAnalyzer(sharedAnalyzer) {
+    if (sharedAnalyzer && typeof sharedAnalyzer.analyzeGestureStyle === 'function') {
+      this.styleAnalyzer = sharedAnalyzer
+      // Also update CompositionEngine reference
+      if (this.compositionEngine) {
+        this.compositionEngine.styleAnalyzer = sharedAnalyzer
+      }
+    }
+  }
+
+  /**
+   * Get style from StyleAnalyzer using 'landing' context for state isolation
+   * @returns {Object} Current style for landing context
+   * @private
+   */
+  _getStyleAnalyzerStyle() {
+    return this.styleAnalyzer.getCurrentStyleForContext
+      ? this.styleAnalyzer.getCurrentStyleForContext('landing')
+      : this.styleAnalyzer.getCurrentStyle()
+  }
+
+  /**
    * Set target cursor position for a virtual user
    * The interpolation timer will smoothly move the cursor to this target
    * @param {string} source - Source name (wikipedia, hackernews, github)
@@ -994,7 +1021,8 @@ class LandingCompositionService {
     ]
 
     if (allGestures.length > 0) {
-      this.styleAnalyzer.analyzeGestureStyle(allGestures, gestureWeight)
+      // Use 'landing' context for state isolation from other services
+      this.styleAnalyzer.analyzeGestureStyle(allGestures, gestureWeight, 'landing')
       this.applyStyleToComposition()
     }
 
@@ -1007,7 +1035,7 @@ class LandingCompositionService {
    * @private
    */
   applyStyleToComposition() {
-    const style = this.styleAnalyzer.getCurrentStyle()
+    const style = this._getStyleAnalyzerStyle()
 
     // Map style to composition parameters - CAP TEMPO to reasonable range
     this.compositionEngine.tempo = Math.max(60, Math.min(140, Math.round(style.tempo)))
@@ -1085,7 +1113,7 @@ class LandingCompositionService {
     }
 
     try {
-      const style = this.styleAnalyzer.getCurrentStyle()
+      const style = this._getStyleAnalyzerStyle()
       // Entry #210: Use override weights if manual override active, otherwise use analyzer weights
       const genreWeights = isManualOverride ? overrideWeights : (style?.genreWeights || {})
 
@@ -1362,7 +1390,7 @@ class LandingCompositionService {
       }
     }
 
-    const style = this.styleAnalyzer.getCurrentStyle()
+    const style = this._getStyleAnalyzerStyle()
 
     // --- SELEZIONE GENERE BASATA SU METRICHE + STARVATION ---
     if (now - cycling.lastGenreCheckTime >= GENRE_CHECK_INTERVAL) {
@@ -1429,7 +1457,7 @@ class LandingCompositionService {
 
     // Calculate next composition interval BASED ON CURRENT TEMPO (same as normal rooms)
     // Generate compositions at a fixed number of beats, not fixed time
-    const currentStyle = this.styleAnalyzer.getCurrentStyle()
+    const currentStyle = this._getStyleAnalyzerStyle()
 
     // Entry #193: Use cycling.currentBPM (genre-based) instead of gesture-derived tempo
     // This ensures interval matches actual composition tempo, preventing gaps after genre changes
@@ -1519,7 +1547,7 @@ class LandingCompositionService {
       // Density emerges naturally from metric-driven gesture count (NO hardcoded values)
       // Entry #182: Use _getCurrentStyle() which includes forcedGenre from styleCycling
       const currentStyle = this._getCurrentStyle()
-      const style = this.styleAnalyzer.getCurrentStyle()
+      const style = this._getStyleAnalyzerStyle()
       const baseTempo = currentStyle?.currentBPM || style?.tempo || 120
 
       this.compositionEngine.tempo = Math.round(baseTempo * modulationParams.tempoMultiplier)

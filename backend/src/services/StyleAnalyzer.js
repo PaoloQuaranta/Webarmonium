@@ -1,3 +1,5 @@
+const CircularBuffer = require('../utils/CircularBuffer')
+
 /**
  * Genre profiles for continuous parameter space calculation.
  * Each genre is a point in 4D space (energy, directionUniformity, regularity, pathComplexity).
@@ -36,7 +38,8 @@ class StyleAnalyzer {
       forcedGenre: null
     }
 
-    this.currentStyle = {
+    // Default style template
+    this._defaultStyle = {
       energy: 0.5,
       tempo: 120,
       timeSignature: '4/4',
@@ -67,13 +70,54 @@ class StyleAnalyzer {
       }
     }
 
-    this.styleHistory = []
+    // Context-based state isolation: Each service gets its own style state
+    // Prevents race conditions when multiple services call analyzeGestureStyle
+    // Context IDs: 'background', 'gesture', 'landing', 'default'
+    this._contextStyles = new Map()
+    this._contextHistories = new Map()
+
+    // Legacy: currentStyle for backwards compatibility (uses 'default' context)
+    this.currentStyle = { ...this._defaultStyle }
+
+    this.styleHistory = new CircularBuffer(100)  // O(1) push, no shift() (was causing O(n) operations)
     this.smoothingFactor = 0.3 // Reduced from 0.5 - allows 70% influence for initial gestures (weight=1.0)
   }
 
-  analyzeGestureStyle(gestures, gestureWeight = 0.5) {
+  /**
+   * Get or create style state for a specific context
+   * @param {string} contextId - Context identifier (e.g., 'background', 'gesture', 'landing')
+   * @returns {Object} Style state for the context
+   * @private
+   */
+  _getContextStyle(contextId) {
+    if (!this._contextStyles.has(contextId)) {
+      this._contextStyles.set(contextId, { ...this._defaultStyle })
+    }
+    return this._contextStyles.get(contextId)
+  }
+
+  /**
+   * Get style for a specific context
+   * @param {string} contextId - Context identifier
+   * @returns {Object} Current style for the context
+   */
+  getCurrentStyleForContext(contextId) {
+    return this._getContextStyle(contextId)
+  }
+
+  /**
+   * Analyze gesture style with optional context isolation
+   * @param {Array} gestures - Gesture data to analyze
+   * @param {number} gestureWeight - Weight for style evolution (0-1)
+   * @param {string} contextId - Optional context ID for state isolation
+   * @returns {Object} Computed style
+   */
+  analyzeGestureStyle(gestures, gestureWeight = 0.5, contextId = 'default') {
+    // Get context-specific state (or create new one)
+    const contextStyle = this._getContextStyle(contextId)
+
     if (!gestures || gestures.length === 0) {
-      return this.currentStyle
+      return contextStyle
     }
 
     const gestureArray = Array.isArray(gestures) ? gestures : [gestures]
@@ -144,15 +188,19 @@ class StyleAnalyzer {
     // Smooth style evolution WITH GESTURE WEIGHT
     // High weight (initial gestures) = strong influence
     // Low weight (later gestures) = weak influence
-    this.currentStyle = this.evolveStyle(this.currentStyle, newStyle, gestureWeight)
-    this.styleHistory.push(this.currentStyle)
+    const evolvedStyle = this.evolveStyle(contextStyle, newStyle, gestureWeight)
 
-    // Keep history manageable
-    if (this.styleHistory.length > 100) {
-      this.styleHistory.shift()
+    // Store in context-specific state
+    this._contextStyles.set(contextId, evolvedStyle)
+
+    // Also update legacy currentStyle for 'default' context (backwards compatibility)
+    if (contextId === 'default') {
+      this.currentStyle = evolvedStyle
     }
 
-    return this.currentStyle
+    this.styleHistory.push(evolvedStyle)  // CircularBuffer handles max size automatically
+
+    return evolvedStyle
   }
 
   calculateEnergy(gestures) {
@@ -983,8 +1031,9 @@ class StyleAnalyzer {
   }
 
   getStyleHistory() {
-    return this.styleHistory
+    return this.styleHistory.toArray()
   }
 }
+
 
 module.exports = StyleAnalyzer

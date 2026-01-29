@@ -217,6 +217,14 @@ function createServiceContainer (config = {}) {
     return new ConnectionTracker()
   })
 
+  // Shared StyleAnalyzer singleton - eliminates redundant computation
+  // When 3 services each had their own instance, every gesture triggered
+  // analyzeGestureStyle() 3 times. Now all services share one instance.
+  container.register('styleAnalyzer', () => {
+    const StyleAnalyzer = require('./StyleAnalyzer')
+    return new StyleAnalyzer()
+  })
+
   return container
 }
 
@@ -233,8 +241,20 @@ function wireServices (container, config = {}) {
       // Without this, real users would use stale metrics synced only during composition cycles
       const webMetricsPoller = c.get('webMetricsPoller')
       service.setWebMetricsPoller(webMetricsPoller)
+
+      // Share StyleAnalyzer singleton to eliminate redundant computation
+      const sharedStyleAnalyzer = c.get('styleAnalyzer')
+      if (typeof service.setSharedStyleAnalyzer === 'function') {
+        service.setSharedStyleAnalyzer(sharedStyleAnalyzer)
+      }
     },
     backgroundCompositionService: (service, c) => {
+      // Share StyleAnalyzer singleton to eliminate redundant computation
+      const sharedStyleAnalyzer = c.get('styleAnalyzer')
+      if (typeof service.setSharedStyleAnalyzer === 'function') {
+        service.setSharedStyleAnalyzer(sharedStyleAnalyzer)
+      }
+
       // Link to gesture service for harmonic sync
       const gestureToMusicService = c.get('gestureToMusicService')
       service.setGestureToMusicService(gestureToMusicService)
@@ -264,6 +284,12 @@ function wireServices (container, config = {}) {
       }
     },
     landingCompositionService: (service, c) => {
+      // Share StyleAnalyzer singleton to eliminate redundant computation
+      const sharedStyleAnalyzer = c.get('styleAnalyzer')
+      if (typeof service.setSharedStyleAnalyzer === 'function') {
+        service.setSharedStyleAnalyzer(sharedStyleAnalyzer)
+      }
+
       // Link to gesture service for harmonic sync
       const gestureToMusicService = c.get('gestureToMusicService')
       service.setGestureToMusicService(gestureToMusicService)

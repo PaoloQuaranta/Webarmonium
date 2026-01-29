@@ -83,6 +83,22 @@ class GestureToMusicService {
   }
 
   /**
+   * Set shared StyleAnalyzer singleton to eliminate redundant computation
+   * When 3 services each had their own instance, every gesture triggered
+   * analyzeGestureStyle() 3 times. Now all services share one instance.
+   * @param {StyleAnalyzer} sharedAnalyzer - Shared StyleAnalyzer instance
+   */
+  setSharedStyleAnalyzer(sharedAnalyzer) {
+    if (sharedAnalyzer && typeof sharedAnalyzer.analyzeGestureStyle === 'function') {
+      this.styleAnalyzer = sharedAnalyzer
+      // Also update CompositionEngine reference
+      if (this.compositionEngine) {
+        this.compositionEngine.styleAnalyzer = sharedAnalyzer
+      }
+    }
+  }
+
+  /**
    * Normalize web metrics to 0-1 range with *Norm suffix fields
    * Entry #171: Matches BackgroundCompositionService normalization for consistency
    * @returns {Object|null} Normalized metrics or null if poller not available
@@ -127,8 +143,8 @@ class GestureToMusicService {
       // Extract and normalize gesture data
       const normalizedGesture = this.normalizeGestureData(gestureData)
 
-      // Analyze gesture style
-      const gestureStyle = this.styleAnalyzer.analyzeGestureStyle([normalizedGesture])
+      // Analyze gesture style - use 'gesture' context for state isolation from other services
+      const gestureStyle = this.styleAnalyzer.analyzeGestureStyle([normalizedGesture], 0.5, 'gesture')
 
       // Generate musical phrase from gesture
       const musicalPhrase = this.generateMusicalPhrase(normalizedGesture, gestureStyle)
@@ -552,7 +568,10 @@ class GestureToMusicService {
   }
 
   getCurrentStyle() {
-    return this.styleAnalyzer.getCurrentStyle()
+    // Use 'gesture' context for state isolation from other services
+    return this.styleAnalyzer.getCurrentStyleForContext
+      ? this.styleAnalyzer.getCurrentStyleForContext('gesture')
+      : this.styleAnalyzer.getCurrentStyle()
   }
 
   getMaterialStats() {

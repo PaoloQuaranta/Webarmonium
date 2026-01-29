@@ -24,6 +24,8 @@ class WebMetricsPoller {
         url: 'https://en.wikipedia.org/w/api.php?action=query&list=recentchanges&rcprop=title|type|sizes|timestamp&rclimit=50&format=json&origin=*',
         interval: 5000, // 5 seconds
         lastFetch: 0,
+        isFetching: false,  // Prevent overlapping fetches
+        consecutiveFailures: 0,
         history: [] // Timestamped change history
       },
       hackernews: {
@@ -31,6 +33,8 @@ class WebMetricsPoller {
         itemUrl: (id) => `https://hacker-news.firebaseio.com/v0/item/${id}.json`,
         interval: 10000, // 10 seconds
         lastFetch: 0,
+        isFetching: false,  // Prevent overlapping fetches
+        consecutiveFailures: 0,
         lastStoryIds: [],
         history: []
       },
@@ -38,6 +42,7 @@ class WebMetricsPoller {
         url: 'https://api.github.com/events?per_page=100',
         interval: 60000, // 60 seconds (respects rate limit)
         lastFetch: 0,
+        isFetching: false,  // Prevent overlapping fetches
         history: []
       }
     }
@@ -136,9 +141,11 @@ class WebMetricsPoller {
 
   /**
    * Main polling loop - checks each source based on its interval
+   * NON-BLOCKING: Uses fire-and-forget pattern to avoid blocking event loop
+   * Updates lastFetch AFTER fetch completes to prevent race conditions
    * @private
    */
-  async _poll() {
+  _poll() {
     if (!this.isRunning) return
 
     const now = Date.now()
@@ -148,24 +155,67 @@ class WebMetricsPoller {
     const multiplier = this.inactivityBackoff.currentMultiplier
 
     // Poll each source if its adjusted interval has elapsed
-    if (now - this.sources.wikipedia.lastFetch >= this.sources.wikipedia.interval * multiplier) {
-      await this._fetchWikipedia()
-      this.sources.wikipedia.lastFetch = now
+    // Fire-and-forget: don't await, let fetches complete in background
+    // IMPORTANT: Update lastFetch AFTER fetch completes to prevent overlapping fetches
+
+    // Wikipedia fetch
+    if (!this.sources.wikipedia.isFetching &&
+        now - this.sources.wikipedia.lastFetch >= this.sources.wikipedia.interval * multiplier) {
+      this.sources.wikipedia.isFetching = true
+      this._fetchWikipedia()
+        .then(() => {
+          this.sources.wikipedia.lastFetch = Date.now()
+          this.sources.wikipedia.consecutiveFailures = 0
+          this.sources.wikipedia.isFetching = false
+        })
+        .catch((error) => {
+          this.sources.wikipedia.consecutiveFailures++
+          this.sources.wikipedia.isFetching = false
+          this.sources.wikipedia.lastFetch = Date.now()  // Still update to prevent rapid retries
+          if (this.sources.wikipedia.consecutiveFailures >= 5) {
+            console.warn('[WebMetricsPoller] Wikipedia failing repeatedly:', error.message)
+          }
+        })
     }
 
-    if (now - this.sources.hackernews.lastFetch >= this.sources.hackernews.interval * multiplier) {
-      await this._fetchHackerNews()
-      this.sources.hackernews.lastFetch = now
+    // HackerNews fetch
+    if (!this.sources.hackernews.isFetching &&
+        now - this.sources.hackernews.lastFetch >= this.sources.hackernews.interval * multiplier) {
+      this.sources.hackernews.isFetching = true
+      this._fetchHackerNews()
+        .then(() => {
+          this.sources.hackernews.lastFetch = Date.now()
+          this.sources.hackernews.consecutiveFailures = 0
+          this.sources.hackernews.isFetching = false
+        })
+        .catch((error) => {
+          this.sources.hackernews.consecutiveFailures++
+          this.sources.hackernews.isFetching = false
+          this.sources.hackernews.lastFetch = Date.now()
+          if (this.sources.hackernews.consecutiveFailures >= 5) {
+            console.warn('[WebMetricsPoller] HackerNews failing repeatedly:', error.message)
+          }
+        })
     }
 
     // GitHub uses its own backoff logic (rate limit aware)
     const githubInterval = this._getGitHubInterval() * multiplier
-    if (now - this.sources.github.lastFetch >= githubInterval) {
-      await this._fetchGitHub()
-      this.sources.github.lastFetch = now
+    if (!this.sources.github.isFetching &&
+        now - this.sources.github.lastFetch >= githubInterval) {
+      this.sources.github.isFetching = true
+      this._fetchGitHub()
+        .then(() => {
+          this.sources.github.lastFetch = Date.now()
+          this.sources.github.isFetching = false
+        })
+        .catch((error) => {
+          this.sources.github.isFetching = false
+          this.sources.github.lastFetch = Date.now()
+          // GitHub already has its own backoff logic in _fetchGitHub
+        })
     }
 
-    // Emit metrics update
+    // Emit metrics update (uses cached metrics from previous fetches)
     this._emitMetricsUpdate()
   }
 

@@ -15,6 +15,7 @@
 const MaterialLibrary = require('./MaterialLibrary')
 const StyleAnalyzer = require('./StyleAnalyzer')
 const HarmonicEngine = require('./HarmonicEngine')
+const CircularBuffer = require('../utils/CircularBuffer')
 const CompositionEngine = require('./CompositionEngine')
 const PhraseMorphology = require('./PhraseMorphology')
 const { getSectionStateManager } = require('./SectionStateManager')
@@ -82,6 +83,18 @@ class BackgroundCompositionService {
     this.styleAnalyzerErrorCount = 0
     this.MAX_STYLE_ANALYZER_ERRORS = 5
 
+    // Performance optimization: Adaptive throttle for style analysis
+    // Faster analysis (1s) during rapid input, slower (2s) during normal activity
+    this.lastStyleAnalysisTime = new Map()  // roomId -> timestamp
+    this.STYLE_ANALYSIS_INTERVAL_FAST = 1000  // 1 second during rapid gestures
+    this.STYLE_ANALYSIS_INTERVAL_NORMAL = 2000  // 2 seconds during normal activity
+    this.GESTURE_RATE_THRESHOLD = 3  // gestures/second to trigger fast mode
+
+    // Performance optimization: Throttle MaterialLibrary lifecycle updates
+    // Hybrid: Quick cleanup on every composition, full cleanup every 10s
+    this.lastFullMaterialCleanup = 0
+    this.MATERIAL_FULL_CLEANUP_INTERVAL = 10000  // 10 seconds for full cleanup
+
 // console.log('🎼 BackgroundCompositionService initialized')
   }
 
@@ -125,6 +138,22 @@ class BackgroundCompositionService {
     // Initial sync to ensure virtual users start with current harmonic context
     // (mirrors setGestureToMusicService behavior for consistency)
     this.syncHarmonicContext()
+  }
+
+  /**
+   * Set shared StyleAnalyzer singleton to eliminate redundant computation
+   * When 3 services each had their own instance, every gesture triggered
+   * analyzeGestureStyle() 3 times. Now all services share one instance.
+   * @param {StyleAnalyzer} sharedAnalyzer - Shared StyleAnalyzer instance
+   */
+  setSharedStyleAnalyzer(sharedAnalyzer) {
+    if (sharedAnalyzer && typeof sharedAnalyzer.analyzeGestureStyle === 'function') {
+      this.styleAnalyzer = sharedAnalyzer
+      // Also update CompositionEngine reference
+      if (this.compositionEngine) {
+        this.compositionEngine.styleAnalyzer = sharedAnalyzer
+      }
+    }
   }
 
   /**
@@ -226,7 +255,10 @@ class BackgroundCompositionService {
     }
 
     try {
-      const styleAnalyzerOutput = this.styleAnalyzer.getCurrentStyle()
+      // Use 'background' context for state isolation from other services
+      const styleAnalyzerOutput = this.styleAnalyzer.getCurrentStyleForContext
+        ? this.styleAnalyzer.getCurrentStyleForContext('background')
+        : this.styleAnalyzer.getCurrentStyle()
 
       // Entry #210: If manual override active, replace genreWeights with synthetic weights
       if (isManualOverride && styleAnalyzerOutput) {
@@ -489,7 +521,7 @@ class BackgroundCompositionService {
       gestureCount: 0,           // Track gestures in this session
       initialGestureWindow: 5,    // First N gestures are highly influential
       compositionStarted: false,  // Start with drone, transition to composition after gestures
-      gestureHistory: [],        // Accumulate gestures for tempo calculation (StyleAnalyzer needs 2+)
+      gestureHistory: new CircularBuffer(25),  // O(1) push, no array slicing (was causing GC pressure)
       startTime: Date.now(),
       lastCompositionTime: Date.now(),
 
@@ -830,17 +862,33 @@ class BackgroundCompositionService {
 ////    })
 
     // ACCUMULATE gestures for tempo calculation (StyleAnalyzer needs 2+ for tempo)
+    // CircularBuffer handles max size automatically with O(1) push (no array slicing)
     roomState.gestureHistory.push(normalizedGesture)
-    // Entry #161: Increased analysis window from 10 to 25 gestures
-    // This gives StyleAnalyzer more data for statistical reliability
-    if (roomState.gestureHistory.length > 25) {
-      roomState.gestureHistory = roomState.gestureHistory.slice(-25)
-    }
 
 // console.log(`🔍 Gesture history size: ${roomState.gestureHistory.length} gestures`)
 
     // Update style analyzer WITH ACCUMULATED GESTURES
-    this.styleAnalyzer.analyzeGestureStyle(roomState.gestureHistory, gestureWeight)
+    // ADAPTIVE THROTTLING: Faster analysis during rapid input, slower otherwise
+    // This maintains responsiveness during gesture bursts while saving CPU during calm periods
+    const now = Date.now()
+    const lastAnalysis = this.lastStyleAnalysisTime.get(roomId) || 0
+    const sessionDuration = (now - roomState.startTime) / 1000  // seconds
+    const gestureRate = sessionDuration > 0 ? roomState.gestureCount / sessionDuration : 0
+
+    // Use faster interval during rapid gesture input
+    const adaptiveInterval = gestureRate > this.GESTURE_RATE_THRESHOLD
+      ? this.STYLE_ANALYSIS_INTERVAL_FAST
+      : this.STYLE_ANALYSIS_INTERVAL_NORMAL
+
+    const shouldRunFullAnalysis =
+      roomState.gestureCount < 5 ||  // Always analyze initial influential gestures
+      (now - lastAnalysis) >= adaptiveInterval
+
+    if (shouldRunFullAnalysis) {
+      // Use 'background' context for state isolation from other services
+      this.styleAnalyzer.analyzeGestureStyle(roomState.gestureHistory.toArray(), gestureWeight, 'background')
+      this.lastStyleAnalysisTime.set(roomId, now)
+    }
 
     // APPLY STYLE TO COMPOSITION ENGINE
     this.applyStyleToComposition(roomId)
@@ -978,41 +1026,32 @@ class BackgroundCompositionService {
       return currentGenre // Keep current genre until min time reached
     }
 
-    // 2. Calculate adjusted weights and find critically starved genre (single pass)
-    const adjustedWeights = {}
-    let criticallyStarvedGenre = null
-    let criticalStarvationTime = 0
-    const defaultWeight = 1 / ALL_GENRES.length
-
+    // 2. FIRST PASS: Check for critical starvation ONLY (cheap timestamp comparison)
+    // Starvation is rare (only after 7 minutes), so we skip expensive weight calculations
+    // in the common case by checking starvation first
     for (const genre of ALL_GENRES) {
-      // Calculate adjusted weight
-      const metricWeight = styleWeights[genre] || defaultWeight
-      adjustedWeights[genre] = this._calculateAdjustedWeight(genre, metricWeight, history, now)
-
-      // Check for critical starvation (only if history entry exists and is valid)
       const genreHistory = history[genre]
       if (genreHistory && typeof genreHistory.lastPlayedTime === 'number') {
         const timeSince = Math.max(0, now - genreHistory.lastPlayedTime)
-        if (timeSince >= MAX_STARVATION_TIME && timeSince > criticalStarvationTime) {
-          criticallyStarvedGenre = genre
-          criticalStarvationTime = timeSince
+        if (timeSince >= MAX_STARVATION_TIME) {
+          // console.log(`[GenreSelection] CRITICAL: ${genre} starved for ${Math.round(timeSince / 1000)}s, forcing`)
+          return genre  // Early exit - no need to calculate weights
         }
       }
     }
 
-    // 3. Force critically starved genre (now that MIN_GENRE_PLAY_TIME has passed)
-    if (criticallyStarvedGenre) {
-      // console.log(`[GenreSelection] CRITICAL: ${criticallyStarvedGenre} starved for ${Math.round(criticalStarvationTime / 1000)}s, forcing`)
-      return criticallyStarvedGenre
-    }
-
-    // 4. Select genre with highest adjusted weight
+    // 3. SECOND PASS: Calculate weights and find best genre
+    // Only runs if no critical starvation found (common case)
     let bestGenre = currentGenre
-    let bestWeight = adjustedWeights[currentGenre] || 0
+    let bestWeight = 0
+    const defaultWeight = 1 / ALL_GENRES.length
 
-    for (const [genre, weight] of Object.entries(adjustedWeights)) {
-      if (weight > bestWeight) {
-        bestWeight = weight
+    for (const genre of ALL_GENRES) {
+      const metricWeight = styleWeights[genre] || defaultWeight
+      const adjustedWeight = this._calculateAdjustedWeight(genre, metricWeight, history, now)
+
+      if (adjustedWeight > bestWeight) {
+        bestWeight = adjustedWeight
         bestGenre = genre
       }
     }
@@ -1217,7 +1256,10 @@ class BackgroundCompositionService {
   scheduleNextComposition(roomId, roomContext) {
     // Calculate next composition interval BASED ON CURRENT TEMPO
     // Generate compositions at a fixed number of beats, not fixed time
-    const currentStyle = this.styleAnalyzer.getCurrentStyle()
+    // Use 'background' context for state isolation from other services
+    const currentStyle = this.styleAnalyzer.getCurrentStyleForContext
+      ? this.styleAnalyzer.getCurrentStyleForContext('background')
+      : this.styleAnalyzer.getCurrentStyle()
 
     // Get room state for deterministic calculation
     const roomState = this.roomCompositions.get(roomId)
@@ -1348,7 +1390,10 @@ class BackgroundCompositionService {
       // Broadcast composition to room
       // Entry #175: Include style info for genre-aware audio playback
       // Entry #179: Use forcedGenre from cycling
-      const currentStyle = this.styleAnalyzer.getCurrentStyle()
+      // Use 'background' context for state isolation from other services
+      const currentStyle = this.styleAnalyzer.getCurrentStyleForContext
+        ? this.styleAnalyzer.getCurrentStyleForContext('background')
+        : this.styleAnalyzer.getCurrentStyle()
       const forcedGenre = roomState.styleCycling?.currentGenre
       if (this.io) {
         // Entry #180: Include synthParams for frontend filter/envelope modulation
@@ -1374,8 +1419,13 @@ class BackgroundCompositionService {
 // console.log(`🎼 No Socket.IO instance, composition not broadcast`)
       }
 
-      // Update material library lifecycle
-      this.materialLibrary.updateMaterialLifecycle()
+      // Update material library lifecycle (THROTTLED)
+      // Full cleanup every 10 seconds to balance memory vs CPU
+      const lifecycleNow = Date.now()
+      if ((lifecycleNow - this.lastFullMaterialCleanup) >= this.MATERIAL_FULL_CLEANUP_INTERVAL) {
+        this.materialLibrary.updateMaterialLifecycle()
+        this.lastFullMaterialCleanup = lifecycleNow
+      }
 
       // Entry #115: Update drone if keyCenter changed during composition
       this.updateDroneIfKeyChanged(roomId, previousKeyCenter)
