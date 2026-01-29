@@ -1725,9 +1725,9 @@ class AudioService {
 
     // Create send buses for each FX (gain nodes to control send levels)
     this.delaySends = {
-      bass: new Tone.Gain(0.15),      // 15% to delay
-      pad: new Tone.Gain(0.2),        // 20% to delay
-      chords: new Tone.Gain(0.35),    // 35% to delay (Entry #42: increased from 20%)
+      bass: new Tone.Gain(0.20),      // Entry #216b: 20% delay - organ sub echoes
+      pad: new Tone.Gain(0.30),       // Entry #216b: 30% delay - shimmer chorus trails
+      chords: new Tone.Gain(0.30),    // Entry #216b: 30% delay - warm piano rhythmic echoes
       gesture: new Tone.Gain(0.25),   // 25% to delay (more present)
       backgroundHigh: new Tone.Gain(0.30),  // Entry #216: 30% delay - glass shimmer echoes
       backgroundMid: new Tone.Gain(0.25),   // Entry #216: 25% delay - organ room echoes
@@ -1735,9 +1735,9 @@ class AudioService {
     }
 
     this.reverbSends = {
-      bass: new Tone.Gain(0.15),      // 15% to reverb
-      pad: new Tone.Gain(0.3),        // 30% to reverb (pad loves reverb)
-      chords: new Tone.Gain(0.25),    // 25% to reverb
+      bass: new Tone.Gain(0.25),      // Entry #216b: 25% reverb - organ sub depth
+      pad: new Tone.Gain(0.40),       // Entry #216b: 40% reverb - shimmer chorus ethereal
+      chords: new Tone.Gain(0.30),    // Entry #216b: 30% reverb - warm piano room
       gesture: new Tone.Gain(0.3),    // 30% to reverb
       backgroundHigh: new Tone.Gain(0.40),  // Entry #216: 40% reverb - glass needs shimmer space
       backgroundMid: new Tone.Gain(0.35),   // Entry #216: 35% reverb - organ needs hall
@@ -1848,54 +1848,87 @@ class AudioService {
     // bass/backgroundHigh/Mid/Low = MonoSynth (1 voice each)
     // pad = 3 voices, chords = 4 voices
     this.ambientLayers = {
-      // BASS: MonoSynth - deep foundation (1 voice)
-      bass: new Tone.MonoSynth({
+      // ACCOMPANIMENT VOICES - Entry #216b: Sophisticated timbres distinct from virtual/real users
+      //
+      // Timbre matrix (no overlaps):
+      // - Virtual users: sawtooth (Wiki), sine (HN), triangle (GitHub)
+      // - Real users: square, pulse, fatsawtooth, fmsine (bell, modIndex 4-6)
+      // - Counterpoint: fmsine (glass, harm 2.5), amsine, fatsine
+      // - Accompaniment: fmsine (sub, harm 0.5), fattriangle, fmsine (warm, harm 1.5)
+
+      // BASS: "Organ Sub" - FM with sub-harmonics (harmonicity < 1)
+      // Distinct from Wikipedia sawtooth and counterpoint fatsine
+      bass: new Tone.FMSynth({
+        harmonicity: 0.5,            // Sub-harmonic ratio = organ pedal character
+        modulationIndex: 2,          // Moderate modulation for richness
+        volume: 0,
         oscillator: {
-          type: 'sawtooth'  // Rich bass tone
+          type: 'sine'
+        },
+        modulation: {
+          type: 'sine'
         },
         envelope: {
-          attack: 0.01,
-          decay: 0.1,
-          sustain: 0.9,
-          release: 0.2
+          attack: 0.02,
+          decay: 0.15,
+          sustain: 0.85,
+          release: 0.3
+        },
+        modulationEnvelope: {
+          attack: 0.05,
+          decay: 0.2,
+          sustain: 0.7,
+          release: 0.3
         }
       }),
 
-      // PAD: Ethereal drone layer (16 voices for accompaniment + drone overlap)
-      // Entry #208: Increased from 6 to 16 for backend-generated accompaniment
-      // 3-note chords × 4 overlapping with 4s release + drone textures
-      pad: new Tone.PolySynth({
-        oscillator: {
-          type: 'triangle'  // Soft, warm
-        },
-        volume: +5,
-        envelope: {
-          attack: 0.8,
-          decay: 1.5,
-          sustain: 0.7,
-          release: 4.0
-        },
-        maxPolyphony: 16
-      }),
+      // PAD: "Shimmer Chorus" - Detuned triangle ensemble
+      // Distinct from GitHub's pure triangle - adds movement and depth
+      // Entry #208: 16 voices for backend-generated accompaniment + drone overlap
+      pad: (() => {
+        const synth = new Tone.PolySynth(Tone.Synth, { maxPolyphony: 16 })
+        synth.set({
+          oscillator: {
+            type: 'fattriangle',     // Multiple detuned triangles
+            count: 3,                // 3 oscillators per voice
+            spread: 20               // Moderate detune = shimmer without dissonance
+          },
+          volume: +5,
+          envelope: {
+            attack: 0.8,
+            decay: 1.5,
+            sustain: 0.7,
+            release: 4.0
+          }
+        })
+        return synth
+      })(),
 
-      // CHORDS: Electric piano (FM synthesis, Rhodes-style)
-      // Entry #208: Increased from 8 to 24 for arpeggio patterns from backend
+      // CHORDS: "Electric Piano Warm" - FM with different ratio than bell
+      // harmonicity 1.5 + triangle modulator = warmer, less metallic than bell (harm 2, modIndex 4-6)
+      // Entry #208: 24 voices for arpeggio patterns from backend
       chords: (() => {
         const synth = new Tone.PolySynth(Tone.FMSynth, { maxPolyphony: 24 })
         synth.set({
-          modulationIndex: 3.5,      // Bell-like overtones
-          harmonicity: 2,            // Octave relationship
+          harmonicity: 1.5,          // 3:2 ratio = warm, not bell-like
+          modulationIndex: 2.5,      // Less modulation than bell = smoother
+          oscillator: {
+            type: 'sine'
+          },
+          modulation: {
+            type: 'triangle'         // Triangle mod = softer harmonics than sine mod
+          },
           envelope: {
-            attack: 0.01,            // Fast attack
-            decay: 0.4,              // Moderate decay for bell character
-            sustain: 0.3,            // Low sustain (piano-like)
-            release: 0.8             // Smooth release
+            attack: 0.01,
+            decay: 0.5,              // Longer decay for warmth
+            sustain: 0.4,            // Higher sustain than bell
+            release: 1.0             // Longer release
           },
           modulationEnvelope: {
-            attack: 0.01,
-            decay: 0.2,
-            sustain: 0.2,
-            release: 0.5
+            attack: 0.02,
+            decay: 0.3,
+            sustain: 0.3,
+            release: 0.6
           }
         })
         return synth
@@ -1989,9 +2022,9 @@ class AudioService {
 
     // Create individual filters and volumes for each layer
     this.ambientFilters = {
-      bass: new Tone.Filter({ type: 'lowpass', frequency: 150, Q: 1 }),    // Deep bass (50-150Hz)
-      pad: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 1.5 }),   // Mid-range pad
-      chords: new Tone.Filter({ type: 'lowpass', frequency: 6000, Q: 1 }),  // FM piano needs high frequencies
+      bass: new Tone.Filter({ type: 'lowpass', frequency: 300, Q: 1.2 }),   // Entry #216b: FM sub needs low-mids for richness
+      pad: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 0.8 }),   // Entry #216b: Fattriangle shimmer needs highs
+      chords: new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 1 }),  // Entry #216b: Warm FM needs less highs than bell
       backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 8000, Q: 0.8 }),  // Entry #216: FM glass needs shimmer harmonics
       backgroundMid: new Tone.Filter({ type: 'lowpass', frequency: 2500, Q: 1.2 }),   // Entry #216: AM organ needs warmth with resonance
       backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 600, Q: 1.0 })     // Entry #216: Fatsine sub needs deep focus
