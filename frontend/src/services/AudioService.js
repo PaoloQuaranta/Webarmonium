@@ -1729,9 +1729,9 @@ class AudioService {
       pad: new Tone.Gain(0.2),        // 20% to delay
       chords: new Tone.Gain(0.35),    // 35% to delay (Entry #42: increased from 20%)
       gesture: new Tone.Gain(0.25),   // 25% to delay (more present)
-      backgroundHigh: new Tone.Gain(0.2),  // 20% to delay for composition
-      backgroundMid: new Tone.Gain(0.2),   // 20% to delay for composition
-      backgroundLow: new Tone.Gain(0.15)   // 15% to delay for composition bass
+      backgroundHigh: new Tone.Gain(0.30),  // Entry #216: 30% delay - glass shimmer echoes
+      backgroundMid: new Tone.Gain(0.25),   // Entry #216: 25% delay - organ room echoes
+      backgroundLow: new Tone.Gain(0.20)    // Entry #216: 20% delay - sub depth
     }
 
     this.reverbSends = {
@@ -1739,9 +1739,9 @@ class AudioService {
       pad: new Tone.Gain(0.3),        // 30% to reverb (pad loves reverb)
       chords: new Tone.Gain(0.25),    // 25% to reverb
       gesture: new Tone.Gain(0.3),    // 30% to reverb
-      backgroundHigh: new Tone.Gain(0.25),  // 25% to reverb for composition
-      backgroundMid: new Tone.Gain(0.25),   // 25% to reverb for composition
-      backgroundLow: new Tone.Gain(0.2)     // 20% to reverb for composition bass
+      backgroundHigh: new Tone.Gain(0.40),  // Entry #216: 40% reverb - glass needs shimmer space
+      backgroundMid: new Tone.Gain(0.35),   // Entry #216: 35% reverb - organ needs hall
+      backgroundLow: new Tone.Gain(0.25)    // Entry #216: 25% reverb - sub needs depth
     }
 
     // Connect send buses to FX
@@ -1901,48 +1901,79 @@ class AudioService {
         return synth
       })(),
 
-      // BACKGROUND COMPOSITION LAYERS - MonoSynth with distinctive timbres
-      // backgroundHigh: Pulse wave (nasal, cutting) - for melody
-      backgroundHigh: new Tone.MonoSynth({
-        oscillator: {
-          type: 'pulse',
-          width: 0.3  // Narrow pulse = nasal, distinctive
-        },
+      // BACKGROUND COMPOSITION LAYERS - Sophisticated timbres distinct from real/virtual users
+      // Entry #216: New FM/AM synthesis timbres for accompaniment differentiation
+      //
+      // Timbre matrix (no overlaps):
+      // - Virtual users: sawtooth, sine, triangle
+      // - Real users: square, pulse, fatsawtooth, fmsine (bell, modIndex 4-6)
+      // - Accompaniment: fmsine (glass, modIndex 1.5), amsine, fatsine
+
+      // backgroundHigh: "Glass Marimba" - FM with low harmonicity (vitreous, celesta-like)
+      // Distinct from real user fmsine (bell) which uses modIndex 4-6
+      backgroundHigh: new Tone.FMSynth({
+        harmonicity: 2.5,           // Lower than real users = less metallic
+        modulationIndex: 1.5,       // Light modulation = glassy, not bell-like
         volume: +5,
+        oscillator: {
+          type: 'sine'
+        },
+        modulation: {
+          type: 'sine'
+        },
         envelope: {
-          attack: 0.02,
+          attack: 0.005,            // Percussive attack
+          decay: 0.4,
+          sustain: 0.2,
+          release: 0.6
+        },
+        modulationEnvelope: {
+          attack: 0.01,
+          decay: 0.3,
+          sustain: 0.1,
+          release: 0.4
+        }
+      }),
+
+      // backgroundMid: "Warm Organ" - AM synthesis (natural tremolo, Hammond-like)
+      // Unique: no other layer uses AM synthesis
+      backgroundMid: new Tone.AMSynth({
+        harmonicity: 1.0,           // 1:1 ratio = slow beating, organ character
+        volume: +5,
+        oscillator: {
+          type: 'sine'
+        },
+        modulation: {
+          type: 'square'            // Square mod = classic tremolo character
+        },
+        envelope: {
+          attack: 0.08,
           decay: 0.2,
           sustain: 0.7,
           release: 0.5
-        }
-      }),
-
-      // backgroundMid: PWM (animated pulse) - for harmony/arpeggios
-      backgroundMid: new Tone.MonoSynth({
-        oscillator: {
-          type: 'pwm',
-          modulationFrequency: 0.5  // Slow modulation for movement
         },
-        volume: +5,
-        envelope: {
-          attack: 0.05,
-          decay: 0.3,
-          sustain: 0.6,
-          release: 0.8
+        modulationEnvelope: {
+          attack: 0.1,
+          decay: 0.2,
+          sustain: 0.8,
+          release: 0.3
         }
       }),
 
-      // backgroundLow: Square wave (warm, hollow) - for bass lines
+      // backgroundLow: "Sub Pad" - Detuned sine pair (warm, deep, no harmonics clash)
+      // Distinct from Wikipedia sawtooth and real user square bass
       backgroundLow: new Tone.MonoSynth({
         oscillator: {
-          type: 'square'  // Warm, hollow - distinct from sawtooth bass
+          type: 'fatsine',          // Multiple detuned sines
+          count: 2,                 // 2 oscillators
+          spread: 8                 // Slight detune = warmth without chorus
         },
         volume: +5,
         envelope: {
-          attack: 0.1,
+          attack: 0.15,             // Slow attack = pad-like
           decay: 0.3,
-          sustain: 0.8,
-          release: 1.0
+          sustain: 0.9,             // Full sustain for foundation
+          release: 1.2              // Long release = ambient tail
         }
       })
     }
@@ -1961,9 +1992,9 @@ class AudioService {
       bass: new Tone.Filter({ type: 'lowpass', frequency: 150, Q: 1 }),    // Deep bass (50-150Hz)
       pad: new Tone.Filter({ type: 'lowpass', frequency: 800, Q: 1.5 }),   // Mid-range pad
       chords: new Tone.Filter({ type: 'lowpass', frequency: 6000, Q: 1 }),  // FM piano needs high frequencies
-      backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 5000, Q: 1 }),  // Pulse needs brightness
-      backgroundMid: new Tone.Filter({ type: 'lowpass', frequency: 3000, Q: 1 }),   // PWM needs harmonics
-      backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 1.5 }) // Square needs body
+      backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 8000, Q: 0.8 }),  // Entry #216: FM glass needs shimmer harmonics
+      backgroundMid: new Tone.Filter({ type: 'lowpass', frequency: 2500, Q: 1.2 }),   // Entry #216: AM organ needs warmth with resonance
+      backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 600, Q: 1.0 })     // Entry #216: Fatsine sub needs deep focus
     }
 
     // Background volumes - balanced with gestures
