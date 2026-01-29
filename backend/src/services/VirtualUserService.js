@@ -1390,16 +1390,17 @@ class VirtualUserService {
     const shortEnd = tapEnd + bias.short
     const mediumEnd = shortEnd + bias.medium
 
+    // Entry #215: Reduced durations - phrases were too long (max 16s → 8s)
     if (selector < tapEnd) {
       return { category: 'tap', durationRange: { min: 50, max: 300 } }
     }
     if (selector < shortEnd) {
-      return { category: 'short', durationRange: { min: 300, max: 1500 } }
+      return { category: 'short', durationRange: { min: 300, max: 1000 } }
     }
     if (selector < mediumEnd) {
-      return { category: 'medium', durationRange: { min: 1500, max: 5000 } }
+      return { category: 'medium', durationRange: { min: 1000, max: 3000 } }
     }
-    return { category: 'long', durationRange: { min: 5000, max: 16000 } }
+    return { category: 'long', durationRange: { min: 3000, max: 8000 } }
   }
 
   /**

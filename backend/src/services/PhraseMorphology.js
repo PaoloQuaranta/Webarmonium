@@ -504,12 +504,13 @@ class PhraseMorphology {
 
     // Entry #172: Progressive limits based on phrase duration
     // Entry #173 fix: Added ABSOLUTE_MAX_NOTES ceiling for performance protection
-    const ABSOLUTE_MAX_NOTES = 64  // Constitutional limit to prevent performance issues
+    // Entry #215: Reduced limits - phrases were too long (64 notes max → 24)
+    const ABSOLUTE_MAX_NOTES = 24  // Constitutional limit to prevent performance issues
     const NOTE_LIMITS = {
-      SHORT: 16,    // <= 4 beats
-      MEDIUM: 32,   // <= 8 beats
-      LONG: 48,     // <= 16 beats
-      EXTENDED: 64  // > 16 beats
+      SHORT: 6,     // <= 4 beats
+      MEDIUM: 12,   // <= 8 beats
+      LONG: 18,     // <= 16 beats
+      EXTENDED: 24  // > 16 beats
     }
 
     const maxNotesForDuration = (beats) => {
