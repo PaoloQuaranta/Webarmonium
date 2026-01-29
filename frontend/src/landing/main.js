@@ -1279,13 +1279,27 @@ class LandingApp {
 
   /**
    * Resize trail canvas to match container
+   * Handles devicePixelRatio for crisp rendering on high-DPI displays
    * @private
    */
   _resizeTrailCanvas() {
     if (!this.trailCanvas || !this.canvasContainer) return
     const rect = this.canvasContainer.getBoundingClientRect()
-    this.trailCanvas.width = rect.width
-    this.trailCanvas.height = rect.height
+    const dpr = window.devicePixelRatio || 1
+
+    // Set internal canvas dimensions with DPR scaling
+    this.trailCanvas.width = rect.width * dpr
+    this.trailCanvas.height = rect.height * dpr
+
+    // Set CSS dimensions to match container (overrides inline 100% styles)
+    this.trailCanvas.style.width = rect.width + 'px'
+    this.trailCanvas.style.height = rect.height + 'px'
+
+    // Scale context to handle DPR - all drawing coordinates stay in logical pixels
+    if (this.trailCtx) {
+      this.trailCtx.setTransform(1, 0, 0, 1, 0, 0) // Reset any existing transform
+      this.trailCtx.scale(dpr, dpr)
+    }
   }
 
   /**
@@ -1302,8 +1316,12 @@ class LandingApp {
       return
     }
 
-    const x = normX * this.trailCanvas.width
-    const y = normY * this.trailCanvas.height
+    // Use logical (CSS) dimensions, not canvas internal dimensions (which are scaled by DPR)
+    const rect = this.canvasContainer?.getBoundingClientRect()
+    const logicalWidth = rect?.width || this.trailCanvas.width
+    const logicalHeight = rect?.height || this.trailCanvas.height
+    const x = normX * logicalWidth
+    const y = normY * logicalHeight
 
     // Cache RGB conversion per color
     let rgb = this._trailColorCache.get(color)
@@ -1424,11 +1442,16 @@ class LandingApp {
       const targetDelta = 16.67  // 60fps target
       const scaledAlpha = Math.min(1.0, this._trailFadeRate * (deltaTime / targetDelta))
 
+      // Use logical dimensions (CSS) since context is scaled by DPR
+      const rect = this.canvasContainer?.getBoundingClientRect()
+      const logicalWidth = rect?.width || this.trailCanvas.width
+      const logicalHeight = rect?.height || this.trailCanvas.height
+
       // Use destination-out composite to fade existing content
       this.trailCtx.save()
       this.trailCtx.globalCompositeOperation = 'destination-out'
       this.trailCtx.fillStyle = `rgba(0, 0, 0, ${scaledAlpha})`
-      this.trailCtx.fillRect(0, 0, this.trailCanvas.width, this.trailCanvas.height)
+      this.trailCtx.fillRect(0, 0, logicalWidth, logicalHeight)
       this.trailCtx.restore()
     } catch (error) {
       console.error('Trail fade error:', error)

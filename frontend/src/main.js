@@ -2120,11 +2120,16 @@ class WebarmoniumApp {
       const targetDelta = 16.67  // 60fps target
       const scaledAlpha = Math.min(1.0, this._trailFadeRate * (deltaTime / targetDelta))
 
+      // Use logical (CSS) dimensions since context is scaled by DPR
+      // canvas.width/height are scaled by devicePixelRatio, but ctx has scale(dpr,dpr)
+      const logicalWidth = window.innerWidth
+      const logicalHeight = window.innerHeight
+
       // Use destination-out composite to fade existing content
       this.ctx.save()
       this.ctx.globalCompositeOperation = 'destination-out'
       this.ctx.fillStyle = `rgba(0, 0, 0, ${scaledAlpha})`
-      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+      this.ctx.fillRect(0, 0, logicalWidth, logicalHeight)
       this.ctx.restore()
     } catch (error) {
       console.error('Trail fade error:', error)
