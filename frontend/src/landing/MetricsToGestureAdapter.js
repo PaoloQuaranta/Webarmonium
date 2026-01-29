@@ -343,8 +343,8 @@ export class MetricsToGestureAdapter {
     // Reduce gesture frequency - use data frequency for gesture TIMING not gesture COUNT
     // High activity = more frequent gestures (but still sparse)
     // Low activity = very sparse gestures (ambient feel)
-    const baseDelay = 20000 // 20 seconds max (very sparse)
-    const minDelay = 8000 // 8 seconds min (when very active)
+    const baseDelay = 35000 // 35 seconds max (very sparse)
+    const minDelay = 15000 // 15 seconds min (when very active)
     const delay = baseDelay - (Math.min(activityLevel, 1.0) * (baseDelay - minDelay))
 
     this.eventTimers[source] = setTimeout(() => {
@@ -375,19 +375,19 @@ export class MetricsToGestureAdapter {
         // Use drag for most activity (generates sustained notes)
         gestureType = metrics.editsPerMinute > 30 ? 'drag' : 'tap'
         // Very restrictive - only generate with significant activity spikes
-        shouldGenerate = metrics.editsPerMinute > 80 || (metrics.editsPerMinute > 40 && Math.random() < 0.05)
+        shouldGenerate = metrics.editsPerMinute > 120 || (metrics.editsPerMinute > 60 && Math.random() < 0.02)
         break
       case 'hackernews':
         // Prefer drag for high activity
         gestureType = metrics.postsPerMinute > 15 ? 'drag' : 'tap'
         // Very restrictive
-        shouldGenerate = metrics.postsPerMinute > 30 || (metrics.postsPerMinute > 15 && Math.random() < 0.03)
+        shouldGenerate = metrics.postsPerMinute > 50 || (metrics.postsPerMinute > 25 && Math.random() < 0.015)
         break
       case 'github':
         // Prefer drag for high activity
         gestureType = metrics.commitsPerMinute > 10 ? 'drag' : 'tap'
         // Very restrictive
-        shouldGenerate = metrics.commitsPerMinute > 30 || (metrics.commitsPerMinute > 15 && Math.random() < 0.05)
+        shouldGenerate = metrics.commitsPerMinute > 50 || (metrics.commitsPerMinute > 25 && Math.random() < 0.02)
         break
     }
 
