@@ -257,9 +257,17 @@ class BackgroundCompositionService {
       if (this.styleAnalyzerErrorCount >= this.MAX_STYLE_ANALYZER_ERRORS) {
         console.warn(`StyleAnalyzer failed ${this.styleAnalyzerErrorCount} times, attempting reinitialization`)
         try {
+          // Entry #218b: Use public API to preserve manual override state
+          const savedOverride = this.styleAnalyzer?.exportOverrideState()
           this.styleAnalyzer = new StyleAnalyzer()
           this.styleAnalyzerErrorCount = 0
-          console.log('StyleAnalyzer reinitialized successfully')
+          // Entry #218b: Restore manual override using public API
+          if (savedOverride) {
+            this.styleAnalyzer.restoreOverrideState(savedOverride)
+            console.log('StyleAnalyzer reinitialized with preserved manual override:', savedOverride.forcedGenre)
+          } else {
+            console.log('StyleAnalyzer reinitialized successfully')
+          }
         } catch (reinitError) {
           console.error('Failed to reinitialize StyleAnalyzer:', reinitError.message)
         }
@@ -651,6 +659,8 @@ class BackgroundCompositionService {
       clearTimeout(timer)
       this.compositionTimers.delete(roomId)
       this.roomCompositions.delete(roomId)
+      // Entry #218b: Clean up style cache to prevent memory leaks
+      this.styleCache.delete(roomId)
       // Entry #169: Clean up section state
       this.sectionStateManager.cleanupRoom(roomId)
 // console.log(`🎼 Stopped composition for room ${roomId}`)
@@ -1025,16 +1035,22 @@ class BackgroundCompositionService {
 
     const cycling = roomState.styleCycling
 
+    // Entry #218: Diagnostic logging for override debugging (conditional)
+    if (process.env.DEBUG_GENRE_OVERRIDE === 'true') {
+      console.log(`[GenreCycle] roomId=${roomId}, override.enabled=${cycling.manualOverride?.enabled}, override.genre=${cycling.manualOverride?.genre}, currentGenre=${cycling.currentGenre}`)
+    }
+
     // Entry #210: Skip automatic genre selection when manual override is active
     if (cycling.manualOverride?.enabled === true) {
-      const overrideGenre = cycling.manualOverride.genre
+      const overrideGenre = cycling.manualOverride?.genre
 
-      // Fix #5: Runtime validation - verify override genre is still valid
-      if (!isValidGenre(overrideGenre, ALL_GENRES)) {
-        console.warn(`[GenreOverride] Invalid override genre "${overrideGenre}", clearing override`)
+      // Entry #218b: Check for state corruption (genre null when override enabled)
+      // NOTE: No genre validation here - that's done in setManualGenreOverride()
+      // Repeating validation every 30 seconds was causing the 5-second alternation bug
+      if (!overrideGenre) {
+        console.error('[GenreOverride] FATAL: Override enabled but genre is null. Disabling override.')
         cycling.manualOverride.enabled = false
-        cycling.manualOverride.genre = null
-        cycling.manualOverride.syntheticWeights = null
+        this.invalidateStyleCache(roomId)
         // Fall through to automatic selection below
       } else {
         // Genre is fixed by override, just do BPM smoothing
@@ -1055,7 +1071,10 @@ class BackgroundCompositionService {
       }
     }
 
-    const style = this.styleAnalyzer.getCurrentStyle()
+    // Entry #218: Use getCurrentStyleForRoom for consistent override handling
+    // This is in the automatic selection path (override not active),
+    // but using the same method ensures consistent behavior
+    const style = this.getCurrentStyleForRoom(roomId)
 
     // --- SELEZIONE GENERE BASATA SU METRICHE + STARVATION ---
     if (now - cycling.lastGenreCheckTime >= GENRE_CHECK_INTERVAL) {
@@ -1126,9 +1145,12 @@ class BackgroundCompositionService {
   /**
    * Apply analyzed style to composition parameters
    * Entry #179: Now uses style cycling for automatic genre rotation
+   * Entry #218: Use getCurrentStyleForRoom for consistent override handling
    */
   applyStyleToComposition(roomId) {
-    const style = this.styleAnalyzer.getCurrentStyle()
+    // Entry #218: Use getCurrentStyleForRoom which properly handles manual override
+    // This ensures genreWeights are correct even when override is active
+    const style = this.getCurrentStyleForRoom(roomId)
 
     // Entry #179: Update style cycling and get current genre/BPM
     const cycling = this.updateStyleCycle(roomId)

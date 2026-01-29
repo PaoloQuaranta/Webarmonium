@@ -927,6 +927,31 @@ class StyleAnalyzer {
     return this._manualOverride?.enabled === true
   }
 
+  /**
+   * Entry #218b: Export override state for backup/restoration
+   * @returns {Object|null} Clone of override state, or null if not active
+   */
+  exportOverrideState() {
+    if (!this._manualOverride?.enabled) {
+      return null
+    }
+    return {
+      enabled: true,
+      genreWeights: { ...this._manualOverride.genreWeights },
+      forcedGenre: this._manualOverride.forcedGenre
+    }
+  }
+
+  /**
+   * Entry #218b: Restore override state from backup
+   * @param {Object} state - Previously exported override state
+   */
+  restoreOverrideState(state) {
+    if (state?.enabled && state.forcedGenre && state.genreWeights) {
+      this.setManualOverride(state.genreWeights, state.forcedGenre)
+    }
+  }
+
   getCurrentStyle() {
     // Entry #210: Apply manual override if active
     if (this._manualOverride?.enabled) {

@@ -223,7 +223,13 @@ class CompositionMonitor {
         genreWeights: style.genreWeights,
         // Entry #182: Current genre (from starvation-aware selection) vs metric-calculated genre
         currentGenre: roomState?.styleCycling?.currentGenre || null,
-        metricGenre: this._getDominantGenreFromWeights(style.genreWeights),
+        // Entry #218: When manual override active, metricGenre should match currentGenre
+        // to prevent confusing alternation display in the monitor
+        metricGenre: roomState?.styleCycling?.manualOverride?.enabled
+          ? roomState?.styleCycling?.currentGenre
+          : this._getDominantGenreFromWeights(style.genreWeights),
+        // Entry #218: Track whether manual override is active
+        isManualOverride: roomState?.styleCycling?.manualOverride?.enabled || false,
         // Entry #182: Genre starvation info for debugging (seconds since last played)
         genreStarvation: roomState?.styleCycling?.genreHistory
           ? Object.fromEntries(
