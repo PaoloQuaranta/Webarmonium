@@ -1133,6 +1133,10 @@ class LandingApp {
         }
       }
 
+      // Update state BEFORE requesting drone - otherwise background-composition handler ignores the response
+      // Entry #214: Fix bug where isRunning was set AFTER request-drone, causing drone to be dropped
+      this.isRunning = true
+
       // Socket is already connected from initialize() - just request drone if needed
       if (this.socket?.connected) {
         // Request drone for audio playback
@@ -1141,9 +1145,6 @@ class LandingApp {
         // Fallback: reconnect if socket was disconnected
         this._setupSocketConnection()
       }
-
-      // Update state
-      this.isRunning = true
 
       // Entry #93: Toggle canvas glow effect
       this.canvasContainer?.classList.add('active')
