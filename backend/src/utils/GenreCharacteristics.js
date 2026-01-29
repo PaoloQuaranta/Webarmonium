@@ -38,17 +38,17 @@ const GENRE_CHARACTERISTICS = {
       bassDensity: 0.20,     // Gentle bass foundation
       padDensity: 0.9        // For pad accompaniment layer (atmospheric drones)
     },
-    // Entry #219: Full counterpoint always active, accompaniment supportive
+    // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
       accompaniment: ['pad'],    // Pad supportive, atmospheric
       velocities: {
-        melody: 0.55,     // Quiet but present
-        harmony: 0.40,    // Inner voice, subtle
-        bass_voice: 0.45, // Gentle bass foundation
-        bass_accomp: 0.15,
-        pad: 0.50,        // Supportive pad (reduced from dominant)
-        keys: 0.15
+        melody: 0.70,     // Atmospheric but audible
+        harmony: 0.55,    // Inner voice
+        bass_voice: 0.60, // Gentle bass foundation
+        bass_accomp: 0.20,
+        pad: 0.55,        // Supportive atmospheric pad
+        keys: 0.20
       }
     },
     rhythmPatterns: {
@@ -92,17 +92,17 @@ const GENRE_CHARACTERISTICS = {
       arpeggioDensity: 0.9,
       padDensity: 0.3
     },
-    // Entry #219: Full counterpoint always active, accompaniment supportive
+    // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
       accompaniment: ['bass_accomp', 'keys'],  // Arpeggio-style keys
       velocities: {
-        melody: 0.90,
-        harmony: 0.55,    // Added inner voice
-        bass_voice: 0.80,
-        bass_accomp: 0.40,  // Reduced from 0.75 for supportive role
-        pad: 0.20,
-        keys: 0.45          // Reduced from 0.8 for supportive role
+        melody: 0.95,
+        harmony: 0.65,
+        bass_voice: 0.85,
+        bass_accomp: 0.50,
+        pad: 0.25,
+        keys: 0.55
       }
     },
     rhythmPatterns: {
@@ -160,17 +160,17 @@ const GENRE_CHARACTERISTICS = {
       bassDensity: 0.7,
       padDensity: 0.3
     },
-    // Entry #219: Full counterpoint always active, accompaniment supportive
+    // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // Walking bass, melody, inner voice
       accompaniment: ['pad'],  // Light comping pad, no heavy keys
       velocities: {
         melody: 1.0,      // Lead voice prominent
-        harmony: 0.60,    // Inner voice subtle
-        bass_voice: 0.75, // Walking bass clear
-        bass_accomp: 0.20,  // Reduced for supportive role
-        pad: 0.30,          // Reduced for supportive role
-        keys: 0.25
+        harmony: 0.70,    // Inner voice
+        bass_voice: 0.85, // Walking bass clear
+        bass_accomp: 0.25,
+        pad: 0.40,
+        keys: 0.30
       }
     },
     rhythmPatterns: {
@@ -231,17 +231,17 @@ const GENRE_CHARACTERISTICS = {
       bassDensity: 0.85,
       padDensity: 0.25
     },
-    // Entry #219: Full counterpoint always active, accompaniment supportive
+    // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
       accompaniment: ['bass_accomp', 'keys'],  // Power chord keys
       velocities: {
         melody: 1.0,      // Lead guitar prominent
-        harmony: 0.55,    // Added inner voice
-        bass_voice: 0.85, // Locked with drums
-        bass_accomp: 0.35,  // Reduced from 0.7 for supportive role
-        pad: 0.20,
-        keys: 0.40          // Reduced from 0.85 for supportive role
+        harmony: 0.65,
+        bass_voice: 0.90,
+        bass_accomp: 0.45,
+        pad: 0.25,
+        keys: 0.50
       }
     },
     rhythmPatterns: {
@@ -301,17 +301,17 @@ const GENRE_CHARACTERISTICS = {
       tenorDensity: 0.4,
       bassDensity: 0.4
     },
-    // Entry #219: Full counterpoint always active, accompaniment supportive
+    // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // Full voice leading
       accompaniment: ['pad'],  // Orchestral sustain only
       velocities: {
-        melody: 0.90,     // Soprano/lead
-        harmony: 0.70,    // Alto/tenor balance
-        bass_voice: 0.75, // Bass foundation
-        bass_accomp: 0.20,  // Reduced for supportive role
-        pad: 0.40,          // Reduced for supportive role
-        keys: 0.15
+        melody: 0.95,     // Soprano/lead
+        harmony: 0.80,    // Alto/tenor balance
+        bass_voice: 0.85, // Bass foundation
+        bass_accomp: 0.25,
+        pad: 0.50,
+        keys: 0.20
       }
     },
     rhythmPatterns: {
@@ -369,17 +369,17 @@ const GENRE_CHARACTERISTICS = {
       harmonyDensity: 0.5,
       bassDensity: 0.5
     },
-    // Entry #219: Full counterpoint always active, accompaniment supportive
+    // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
       accompaniment: ['pad', 'keys'],       // Full accompaniment support
       velocities: {
         melody: 1.0,      // Lead prominent
-        harmony: 0.65,    // Supportive harmony
-        bass_voice: 0.55, // Added bass voice
-        bass_accomp: 0.30,  // Reduced for supportive role
-        pad: 0.40,          // Reduced for supportive role
-        keys: 0.35          // Reduced for supportive role
+        harmony: 0.75,
+        bass_voice: 0.70,
+        bass_accomp: 0.35,
+        pad: 0.50,
+        keys: 0.45
       }
     },
     rhythmPatterns: {
@@ -434,17 +434,17 @@ const GENRE_CHARACTERISTICS = {
       rhythmDensity: 0.85,
       bassDensity: 0.9
     },
-    // Entry #219: Full counterpoint always active, accompaniment supportive
+    // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
       accompaniment: ['bass_accomp', 'keys'],  // Rhythmic section
       velocities: {
-        melody: 0.85,     // Rhythmic melody
-        harmony: 0.50,    // Added inner voice
-        bass_voice: 0.90, // Funky bass prominent
-        bass_accomp: 0.40,  // Reduced from 0.8 for supportive role
-        pad: 0.15,
-        keys: 0.40          // Reduced from 0.75 for supportive role
+        melody: 0.90,     // Rhythmic melody
+        harmony: 0.60,
+        bass_voice: 0.95, // Funky bass prominent
+        bass_accomp: 0.50,
+        pad: 0.20,
+        keys: 0.50
       }
     },
     rhythmPatterns: {
@@ -502,17 +502,17 @@ const GENRE_CHARACTERISTICS = {
       noiseDensity: 0.5,
       bassDensity: 0.4
     },
-    // Entry #219: Full counterpoint always active, accompaniment supportive
+    // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
       accompaniment: ['pad', 'keys', 'bass_accomp'],      // All textural
       velocities: {
-        melody: 0.60,     // Sparse, unpredictable
-        harmony: 0.50,
-        bass_voice: 0.55,
-        bass_accomp: 0.30,  // Reduced for supportive role
-        pad: 0.45,          // Reduced for supportive role
-        keys: 0.35          // Reduced for supportive role
+        melody: 0.75,     // Sparse, unpredictable
+        harmony: 0.65,
+        bass_voice: 0.70,
+        bass_accomp: 0.40,
+        pad: 0.55,
+        keys: 0.45
       }
     },
     rhythmPatterns: {
@@ -567,17 +567,17 @@ const GENRE_CHARACTERISTICS = {
       harmonyDensity: 0.55,
       bassDensity: 0.6
     },
-    // Entry #219: Full counterpoint always active, accompaniment supportive
+    // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
       accompaniment: ['bass_accomp', 'pad', 'keys'],
       velocities: {
         melody: 1.0,      // Hook melody prominent
-        harmony: 0.60,
-        bass_voice: 0.55, // Added bass voice
-        bass_accomp: 0.40,  // Reduced from 0.7 for supportive role
-        pad: 0.35,          // Reduced for supportive role
-        keys: 0.40          // Reduced from 0.65 for supportive role
+        harmony: 0.70,
+        bass_voice: 0.70,
+        bass_accomp: 0.50,
+        pad: 0.45,
+        keys: 0.50
       }
     },
     rhythmPatterns: {
@@ -660,11 +660,11 @@ function getGenreCharacteristics(genre) {
       swingAmount: 0,
       syncopation: 0.3,
       synthParams: { filterCutoff: 1800, filterQ: 0.6, attackTime: 0.03, releaseTime: 0.4, delaySend: 0.2, delayFeedback: 0.35, delayTime: 0.25, reverbSend: 0.3, reverbDecay: 1.5 },
-      // Entry #219: Full counterpoint always active
+      // Entry #219b: Full counterpoint always active (louder overall)
       orchestration: {
         counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
         accompaniment: ['pad', 'keys'],
-        velocities: { melody: 1.0, harmony: 0.65, bass_voice: 0.55, bass_accomp: 0.30, pad: 0.35, keys: 0.35 }
+        velocities: { melody: 1.0, harmony: 0.75, bass_voice: 0.70, bass_accomp: 0.40, pad: 0.45, keys: 0.45 }
       }
     }
   }
@@ -831,17 +831,17 @@ function getOrchestration(genre) {
   if (characteristics.orchestration) {
     return characteristics.orchestration
   }
-  // Entry #219: Fallback orchestration - full counterpoint always active
+  // Entry #219b: Fallback orchestration - full counterpoint always active (louder overall)
   return {
     counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
     accompaniment: ['pad', 'keys'],
     velocities: {
       melody: 1.0,
-      harmony: 0.65,
-      bass_voice: 0.55,
-      bass_accomp: 0.30,
-      pad: 0.35,
-      keys: 0.35
+      harmony: 0.75,
+      bass_voice: 0.70,
+      bass_accomp: 0.40,
+      pad: 0.45,
+      keys: 0.45
     }
   }
 }
