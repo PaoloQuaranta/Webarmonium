@@ -1012,12 +1012,12 @@ class LandingCompositionService {
     // Map style to composition parameters - CAP TEMPO to reasonable range
     this.compositionEngine.tempo = Math.max(60, Math.min(140, Math.round(style.tempo)))
 
-    const { keyCenter, mode } = this.selectKeyAndMode(style)
-    if (keyCenter !== this.compositionEngine.keyCenter || mode !== this.compositionEngine.mode) {
-      this.compositionEngine.keyCenter = keyCenter
-      this.compositionEngine.mode = mode
-      // console.log(`🎵 Style influenced composition: ${keyCenter} ${mode}, tempo ${this.compositionEngine.tempo}`)
-    }
+    // Entry #215: DO NOT reset key/mode here - let HarmonicEngine manage key changes organically
+    // Previously, this was called multiple times per composition cycle (once per gesture),
+    // causing the key to flip between energy-based key and HarmonicEngine key,
+    // which triggered excessive drone emissions and stuttering background audio.
+    // The HarmonicEngine.generateProgression() handles key modulation based on
+    // compositionCount and web metrics, providing smooth musical transitions.
 
     // CRITICAL: Use same formula as normal rooms (BackgroundCompositionService line 370)
     // Density emerges naturally from gesture activity: energy * 1.2

@@ -1140,15 +1140,12 @@ class BackgroundCompositionService {
     // Entry #179: Set forced genre for HarmonicEngine to use
     style.forcedGenre = cycling.currentGenre
 
-    // Key and mode from harmonic complexity
-    const { keyCenter, mode } = this.selectKeyAndMode(style)
-    if (keyCenter !== this.compositionEngine.keyCenter || mode !== this.compositionEngine.mode) {
-      this.compositionEngine.keyCenter = keyCenter
-      this.compositionEngine.mode = mode
-// console.log(`🎼 Style influenced composition: ${keyCenter} ${mode}, tempo ${this.compositionEngine.tempo}`)
-      // Sync to gestures
-      this.syncHarmonicContext()
-    }
+    // Entry #215: DO NOT reset key/mode here - let HarmonicEngine manage key changes organically
+    // Previously, applyStyleToComposition was called multiple times (per gesture and per composition),
+    // causing the key to flip between energy-based key and HarmonicEngine key,
+    // which triggered excessive drone emissions and stuttering background audio.
+    // The HarmonicEngine.generateProgression() handles key modulation based on
+    // compositionCount and web metrics, providing smooth musical transitions.
 
     // Complexity and density from energy
     this.compositionEngine.complexityLevel = Math.min(0.9, Math.max(0.1, style.energy))
