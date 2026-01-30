@@ -3984,7 +3984,15 @@ class AudioService {
     }
 
     if (content.accompaniment) {
-      this.playAccompaniment(content.accompaniment, tempo)
+      // Entry #223: Check if accompaniment uses new format (bass_accomp, pad, keys)
+      // or legacy format (type: 'arpeggio', 'chord_pads', etc.)
+      if (content.accompaniment.bass_accomp || content.accompaniment.pad || content.accompaniment.keys) {
+        // New format from AccompanimentEngine - use polyphonic player
+        this.playPolyphonicAccompaniment(content.accompaniment, tempo, now, beatDuration)
+      } else {
+        // Legacy format - use old player for backward compatibility
+        this.playAccompaniment(content.accompaniment, tempo)
+      }
     }
   }
 

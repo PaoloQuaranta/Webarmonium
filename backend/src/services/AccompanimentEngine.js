@@ -84,6 +84,10 @@ class AccompanimentEngine {
    * @param {Object} range - {min, max} MIDI pitch range
    * @returns {number[]} Voice-led MIDI pitches
    */
+  /**
+   * Entry #223: Enhanced voice leading with stepwise motion preference
+   * Penalizes large jumps (>5 semitones) to encourage smoother voice leading
+   */
   applyVoiceLeading(previousPitches, targetPitches, range) {
     if (!targetPitches || targetPitches.length === 0) {
       return []
@@ -97,10 +101,14 @@ class AccompanimentEngine {
     const ledPitches = []
     const usedPitches = new Set()
 
+    // Entry #223: Stepwise motion threshold - intervals larger than this are penalized
+    const STEPWISE_THRESHOLD = 5 // Perfect 4th
+    const LARGE_JUMP_PENALTY = 2 // Semitones added as penalty for large jumps
+
     // For each target pitch, find closest available position
     targetPitches.forEach((targetPitch) => {
       let bestPitch = targetPitch
-      let minDistance = Infinity
+      let minScore = Infinity
 
       // Try all octave placements within range
       for (let octaveShift = -3; octaveShift <= 3; octaveShift++) {
@@ -114,8 +122,15 @@ class AccompanimentEngine {
           Math.abs(candidatePitch - p)
         ))
 
-        if (distance < minDistance) {
-          minDistance = distance
+        // Entry #223: Apply penalty for large jumps to encourage stepwise motion
+        // Score = distance + penalty if distance > threshold
+        let score = distance
+        if (distance > STEPWISE_THRESHOLD) {
+          score += (distance - STEPWISE_THRESHOLD) * LARGE_JUMP_PENALTY * 0.5
+        }
+
+        if (score < minScore) {
+          minScore = score
           bestPitch = candidatePitch
         }
       }
@@ -267,7 +282,8 @@ class AccompanimentEngine {
 
         note.velocity = baseVelocity * velocityCurve
         note.velocity = Math.max(0.3, Math.min(0.85, note.velocity))
-        note.articulation = this._selectBassArticulation(genre, noteIndex, patternNotes.length, syncopation)
+        // Entry #223: Pass compositionCount for true variation across compositions
+        note.articulation = this._selectBassArticulation(genre, noteIndex, patternNotes.length, syncopation, compositionCount)
       })
 
       notes.push(...patternNotes)
@@ -300,7 +316,8 @@ class AccompanimentEngine {
 
       case 'electronic':
       case 'rhythmic':
-        return this._generateDrivingBass(root, fifth, duration, startBeat, syncopation, patternIndex)
+        // Entry #223: Pass compositionCount for PHI-based variation
+        return this._generateDrivingBass(root, fifth, duration, startBeat, syncopation, patternIndex, compositionCount)
 
       case 'rock':
         return this._generatePowerBass(root, fifth, duration, startBeat, patternIndex)
@@ -361,10 +378,14 @@ class AccompanimentEngine {
 
   /**
    * Driving eighths for electronic
+   * Entry #223: Enhanced with PHI-based syncopation and melodic variation
    * @private
    */
-  _generateDrivingBass(root, fifth, duration, startBeat, syncopation, patternIndex) {
+  _generateDrivingBass(root, fifth, duration, startBeat, syncopation, patternIndex, compositionCount = 0) {
     const notes = []
+
+    // Entry #223: Temporal offset for variation across compositions
+    const temporalOffset = ((compositionCount || 0) * PHI) % 1
 
     // PHI-varied patterns
     const patterns = [
@@ -376,15 +397,28 @@ class AccompanimentEngine {
 
     const pattern = patterns[patternIndex % patterns.length]
 
+    // Entry #223: Duration pool for variation
+    const durationPool = [0.35, 0.4, 0.45, 0.5, 0.35]
+
     for (let i = 0; i < pattern.length && pattern[i] < duration; i++) {
       const beat = pattern[i]
-      const isSyncopated = Math.random() < syncopation * 0.3
-      const pitch = i % 4 === 2 ? fifth : root  // Occasional fifth
+
+      // Entry #223: Deterministic syncopation using PHI (not Math.random())
+      const syncSelector = ((i * PHI * 1.2) + temporalOffset * 0.6) % 1
+      const isSyncopated = syncSelector < syncopation * 0.35
+
+      // Entry #223: PHI-based pitch selection (not just modulo)
+      const pitchSelector = ((i * PHI * 0.8) + temporalOffset) % 1
+      const pitch = pitchSelector < 0.7 ? root : fifth  // More root, occasional fifth
+
+      // Entry #223: PHI-based duration variation
+      const phiDurationSelector = ((i * PHI) + temporalOffset) % 1
+      const noteDuration = durationPool[Math.floor(phiDurationSelector * durationPool.length)]
 
       notes.push({
         pitch,
         startBeat: startBeat + beat + (isSyncopated ? -0.125 : 0),
-        duration: 0.4
+        duration: noteDuration
       })
     }
 
@@ -528,23 +562,50 @@ class AccompanimentEngine {
    * Select bass articulation based on context
    * @private
    */
-  _selectBassArticulation(genre, noteIndex, totalNotes, syncopation) {
+  /**
+   * Entry #223: Enhanced bass articulation with PHI stepping
+   * Now includes compositionCount for true variation across compositions
+   */
+  _selectBassArticulation(genre, noteIndex, totalNotes, syncopation, compositionCount = 0) {
     const position = noteIndex / Math.max(1, totalNotes)
 
+    // Entry #223: Temporal offset for variation across compositions
+    const temporalOffset = ((compositionCount || 0) * PHI) % 1
+
     switch (genre) {
-      case 'jazz':
-        return noteIndex % 4 === 3 ? 'staccato' : 'portato'
-      case 'rock':
-        return 'marcato'
+      case 'jazz': {
+        // Entry #223: Jazz bass with PHI-varied articulation
+        const jazzOptions = ['portato', 'portato', 'staccato', 'normal']
+        const jazzSelector = ((noteIndex * PHI * 0.8) + temporalOffset) % 1
+        return jazzOptions[Math.floor(jazzSelector * jazzOptions.length)]
+      }
+      case 'rock': {
+        // Entry #223: Rock not always marcato - add variation
+        const rockOptions = ['marcato', 'marcato', 'normal', 'staccato']
+        const rockSelector = ((noteIndex * PHI) + temporalOffset * 0.4) % 1
+        return rockOptions[Math.floor(rockSelector * rockOptions.length)]
+      }
       case 'electronic':
-      case 'rhythmic':
-        return position > 0.75 ? 'staccato' : 'normal'
+      case 'rhythmic': {
+        // Entry #223: Electronic/rhythmic with PHI variation
+        const elecOptions = ['normal', 'staccato', 'normal', 'marcato']
+        const elecSelector = ((noteIndex * PHI * 1.1) + temporalOffset) % 1
+        return elecOptions[Math.floor(elecSelector * elecOptions.length)]
+      }
       case 'ambient':
         return 'legato'
-      case 'classical':
-        return noteIndex === 0 ? 'marcato' : 'normal'
-      default:
-        return syncopation > 0.5 && noteIndex % 2 === 1 ? 'staccato' : 'normal'
+      case 'classical': {
+        // Entry #223: Classical with more nuance
+        const classOptions = ['marcato', 'normal', 'portato', 'normal']
+        const classSelector = ((noteIndex * PHI) + temporalOffset * 0.3) % 1
+        return classOptions[Math.floor(classSelector * classOptions.length)]
+      }
+      default: {
+        // Entry #223: Default with PHI variation
+        const defOptions = ['normal', 'staccato', 'normal', 'portato']
+        const defSelector = ((noteIndex * PHI) + temporalOffset + syncopation * 0.2) % 1
+        return defOptions[Math.floor(defSelector * defOptions.length)]
+      }
     }
   }
 
@@ -593,8 +654,9 @@ class AccompanimentEngine {
       const voicedPitches = this.applyVoiceLeading(previousVoicing, chordPitches, range)
 
       // Velocity curve for this chord
+      // Entry #223 FIX: Remove MIDI scaling (127) - keep as float 0-1 for frontend compatibility
       const velocityCurve = this._getVelocityCurve(dynamicContour, chordProgress, harmonicTension)
-      const chordVelocity = Math.round(baseVelocity * velocityCurve * 127)
+      const chordVelocity = baseVelocity * velocityCurve  // Float 0-1, not MIDI 0-127
 
       // Get stagger amount for this genre
       const staggerBeats = this._getPadStagger(genre, temporalOffset, voicedPitches.length)
@@ -739,8 +801,9 @@ class AccompanimentEngine {
 
         note.velocity = baseVelocity * velocityCurve
         note.velocity = Math.max(0.25, Math.min(0.7, note.velocity))
+        // Entry #223: Pass compositionCount for true variation across compositions
         note.articulation = this._selectKeysArticulation(
-          genre, baseArticulation, noteIndex, patternNotes.length, harmonicTension
+          genre, baseArticulation, noteIndex, patternNotes.length, harmonicTension, compositionCount
         )
       })
 
@@ -770,10 +833,12 @@ class AccompanimentEngine {
     switch (genre) {
       case 'electronic':
       case 'rhythmic':
-        return this._generateArpeggio(voicedPitches, duration, startBeat, syncopation, patternIndex)
+        // Entry #223: Pass compositionCount for PHI-based variation
+        return this._generateArpeggio(voicedPitches, duration, startBeat, syncopation, patternIndex, compositionCount)
 
       case 'jazz':
-        return this._generateJazzComping(voicedPitches, duration, startBeat, swingAmount, syncopation)
+        // Entry #223: Pass compositionCount for PHI-based variation
+        return this._generateJazzComping(voicedPitches, duration, startBeat, swingAmount, syncopation, compositionCount)
 
       case 'rock':
         return this._generateRockStabs(voicedPitches, duration, startBeat, patternIndex)
@@ -791,12 +856,16 @@ class AccompanimentEngine {
 
   /**
    * Arpeggio for electronic/rhythmic
+   * Entry #223: Enhanced with PHI stepping, melodic contour, and duration variation
    * @private
    */
-  _generateArpeggio(pitches, duration, startBeat, syncopation, patternIndex) {
+  _generateArpeggio(pitches, duration, startBeat, syncopation, patternIndex, compositionCount = 0) {
     const notes = []
     const directions = ['up', 'down', 'updown', 'random']
     const direction = directions[patternIndex % directions.length]
+
+    // Entry #223: Temporal offset for continuous variation across compositions
+    const temporalOffset = ((compositionCount || 0) * PHI) % 1
 
     let orderedPitches
     switch (direction) {
@@ -815,13 +884,45 @@ class AccompanimentEngine {
 
     if (orderedPitches.length === 0) return notes
 
-    const noteLength = 0.25  // 16th notes
+    // Entry #223: Duration pool with PHI stepping (not fixed 0.25)
+    const durationPool = [0.25, 0.25, 0.5, 0.25, 0.375, 0.25]
+
+    // Entry #223: Calculate estimated note count for contour
+    const avgDuration = 0.3
+    const estimatedNotes = Math.ceil(duration / avgDuration)
+
+    // Entry #223: Contour parameters (like CounterpointEngine)
+    const contourFreq = 1 + (((estimatedNotes * PHI) + temporalOffset) % 1) * 0.8
+    const contourAmplitude = 2 + (temporalOffset * 3) // 2-5 semitones for keys
+
     let beatOffset = 0
-    let pitchIndex = 0
+    let noteIndex = 0
 
     while (beatOffset < duration) {
-      const pitch = orderedPitches[pitchIndex % orderedPitches.length]
-      const isSyncopated = Math.random() < syncopation * 0.2
+      // Entry #223: PHI-based duration selection
+      const phiSelector = ((noteIndex * PHI) + temporalOffset) % 1
+      const noteLength = durationPool[Math.floor(phiSelector * durationPool.length)]
+
+      // Entry #223: Apply melodic contour to pitch selection
+      const basePitchIndex = noteIndex % orderedPitches.length
+      const position = noteIndex / Math.max(1, estimatedNotes)
+      const contourOffset = Math.sin(position * Math.PI * contourFreq) * contourAmplitude
+
+      // Select base pitch and apply contour
+      let pitch = orderedPitches[basePitchIndex]
+      const targetPitch = pitch + Math.round(contourOffset)
+
+      // Snap to nearest chord tone if contour pushes away
+      if (Math.abs(contourOffset) > 1) {
+        const closestChordTone = orderedPitches.reduce((closest, tone) => {
+          return Math.abs(tone - targetPitch) < Math.abs(closest - targetPitch) ? tone : closest
+        })
+        pitch = closestChordTone
+      }
+
+      // Entry #223: Deterministic syncopation using PHI (not Math.random())
+      const syncSelector = ((noteIndex * PHI * 1.3) + temporalOffset * 0.7) % 1
+      const isSyncopated = syncSelector < syncopation * 0.25
 
       notes.push({
         pitch,
@@ -830,7 +931,7 @@ class AccompanimentEngine {
       })
 
       beatOffset += noteLength
-      pitchIndex++
+      noteIndex++
     }
 
     return notes
@@ -838,27 +939,38 @@ class AccompanimentEngine {
 
   /**
    * Jazz comping with swing
+   * Entry #223: Enhanced with PHI-based variation (no Math.random())
    * @private
    */
-  _generateJazzComping(pitches, duration, startBeat, swingAmount, syncopation) {
+  _generateJazzComping(pitches, duration, startBeat, swingAmount, syncopation, compositionCount = 0) {
     const notes = []
+
+    // Entry #223: Temporal offset for variation across compositions
+    const temporalOffset = ((compositionCount || 0) * PHI) % 1
 
     // Jazz comping: sparse, syncopated chords
     const compBeats = [0, 1.5, 2.5]
     const anticipationProb = syncopation * 0.5
 
-    compBeats.forEach(beat => {
+    compBeats.forEach((beat, beatIndex) => {
       if (beat >= duration) return
 
       const swingOffset = (beat % 1 > 0) ? swingAmount * 0.15 : 0
-      const anticipate = Math.random() < anticipationProb
+
+      // Entry #223: PHI-based anticipation (not Math.random())
+      const anticipationSelector = ((beatIndex * PHI) + temporalOffset) % 1
+      const anticipate = anticipationSelector < anticipationProb
       const adjustedBeat = anticipate ? Math.max(0, beat - 0.25) : beat
 
-      pitches.forEach(pitch => {
+      pitches.forEach((pitch, pitchIndex) => {
+        // Entry #223: PHI-based duration variation
+        const durationSelector = ((beatIndex * PHI + pitchIndex * PHI * 0.3) + temporalOffset) % 1
+        const durationVariation = 0.4 + (durationSelector * 0.2)  // 0.4 to 0.6
+
         notes.push({
           pitch,
           startBeat: startBeat + adjustedBeat + swingOffset,
-          duration: 0.4 + Math.random() * 0.2
+          duration: durationVariation
         })
       })
     })
@@ -988,27 +1100,56 @@ class AccompanimentEngine {
    * Select keys articulation based on context
    * @private
    */
-  _selectKeysArticulation(genre, baseArticulation, noteIndex, totalNotes, harmonicTension) {
+  /**
+   * Entry #223: Enhanced articulation selection with PHI stepping
+   * Now includes compositionCount for true variation across compositions
+   */
+  _selectKeysArticulation(genre, baseArticulation, noteIndex, totalNotes, harmonicTension, compositionCount = 0) {
     const position = noteIndex / Math.max(1, totalNotes)
 
-    // High tension: more varied articulation
+    // Entry #223: Temporal offset for variation across compositions
+    const temporalOffset = ((compositionCount || 0) * PHI) % 1
+
+    // High tension: more varied articulation with PHI stepping
     if (harmonicTension > TENSION_THRESHOLD_VARIED_ARTICULATION) {
-      const options = ['staccato', 'marcato', 'normal', 'portato']
-      const phiIndex = Math.floor((noteIndex * PHI) % options.length)
+      const options = ['staccato', 'marcato', 'normal', 'portato', 'legato']
+      // Entry #223: Include compositionCount in PHI calculation for true variation
+      const phiIndex = Math.floor(((noteIndex * PHI) + (compositionCount * PHI * 0.5)) % 1 * options.length)
       return options[phiIndex]
     }
 
-    // Genre-specific defaults
+    // Entry #223: Genre-specific with PHI-based variation (not just position-based)
     switch (genre) {
-      case 'jazz':
-        return position > 0.7 ? 'staccato' : 'portato'
-      case 'rock':
-        return 'marcato'
+      case 'jazz': {
+        const jazzOptions = ['staccato', 'portato', 'normal']
+        const jazzSelector = ((noteIndex * PHI * 0.7) + temporalOffset) % 1
+        return jazzSelector < 0.3 ? 'staccato' : (jazzSelector < 0.7 ? 'portato' : 'normal')
+      }
+      case 'rock': {
+        // Entry #223: Rock not always marcato - add variation
+        const rockOptions = ['marcato', 'marcato', 'normal', 'staccato']
+        const rockSelector = ((noteIndex * PHI) + temporalOffset * 0.5) % 1
+        return rockOptions[Math.floor(rockSelector * rockOptions.length)]
+      }
+      case 'electronic':
+      case 'rhythmic': {
+        // Entry #223: Electronic/rhythmic - varied articulation
+        const elecOptions = ['staccato', 'normal', 'staccato', 'marcato']
+        const elecSelector = ((noteIndex * PHI * 1.2) + temporalOffset) % 1
+        return elecOptions[Math.floor(elecSelector * elecOptions.length)]
+      }
       case 'ambient':
         return 'legato'
+      case 'classical': {
+        // Entry #223: Classical with more nuance
+        const classOptions = ['legato', 'portato', 'normal', 'legato']
+        const classSelector = ((noteIndex * PHI) + temporalOffset * 0.3) % 1
+        return classOptions[Math.floor(classSelector * classOptions.length)]
+      }
       default:
-        // Use genre articulation with position variation
-        if (position < 0.25 || position > 0.9) {
+        // Use genre articulation with PHI-based position variation
+        const defSelector = ((noteIndex * PHI) + temporalOffset) % 1
+        if (defSelector < 0.2 || defSelector > 0.85) {
           return baseArticulation === 'legato' ? 'portato' : baseArticulation
         }
         return baseArticulation

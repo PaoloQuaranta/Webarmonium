@@ -621,8 +621,10 @@ class CompositionEngine {
     // Entry #169: Pass sectionContext for development technique application
     const melody = this.elaborateMaterial(material, progression, sectionLength, sectionContext)
 
-    // Generate accompaniment
-    const accompaniment = this.generateAccompaniment(progression, style, sectionLength)
+    // Entry #223: Use generateFullAccompaniment() instead of legacy generateAccompaniment()
+    // This activates the sophisticated AccompanimentEngine (Entry #211) for single-user mode
+    // Previously, composeMonophonic bypassed all AccompanimentEngine improvements
+    const accompaniment = this.generateFullAccompaniment(progression, style, sectionLength)
 
     return {
       type: 'homophonic',
