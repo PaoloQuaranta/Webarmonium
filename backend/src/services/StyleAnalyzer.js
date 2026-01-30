@@ -219,10 +219,9 @@ class StyleAnalyzer {
     // Store in context-specific state
     this._contextStyles.set(contextId, evolvedStyle)
 
-    // Also update legacy currentStyle for 'default' context (backwards compatibility)
-    if (contextId === 'default') {
-      this.currentStyle = evolvedStyle
-    }
+    // Also update legacy currentStyle for backwards compatibility with CompositionMonitor
+    // Entry #220b: Update for any context, not just 'default', so getCurrentStyle() has latest genreWeights
+    this.currentStyle = evolvedStyle
 
     this.styleHistory.push(evolvedStyle)  // CircularBuffer handles max size automatically
 
