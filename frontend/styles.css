@@ -692,6 +692,18 @@ header p {
   display: block;
 }
 
+/* Landing page: user count below Join button */
+.join-section .rooms-activity {
+  font-size: 0.7rem;
+  color: var(--accent);
+  opacity: 1;
+  margin-top: 0.25rem;
+}
+
+.join-section .rooms-activity.visible {
+  display: block;
+}
+
 /* ============================================ */
 /* Full-Page Canvas Container                  */
 /* ============================================ */
