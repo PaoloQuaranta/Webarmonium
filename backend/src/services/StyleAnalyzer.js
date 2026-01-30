@@ -116,12 +116,26 @@ class StyleAnalyzer {
     // Apply percentile normalization at the raw component level (velocity, acceleration, etc.)
     // rather than just the derived metrics. This ensures full 0-1 range coverage.
     this._componentStats = {
+      // Energy components (Entry #221)
       velocity: new CircularBuffer(100),
       acceleration: new CircularBuffer(100),
       density: new CircularBuffer(100),
+      // Path complexity components (Entry #221)
       turnAngle: new CircularBuffer(100),
       pitchVariance: new CircularBuffer(100),
-      velocityVariance: new CircularBuffer(100)
+      velocityVariance: new CircularBuffer(100),
+      // Entry #221b: Additional rhythmic/harmonic components
+      avgInterval: new CircularBuffer(100),      // For tempo calculation
+      swingRatio: new CircularBuffer(100),       // For swing detection
+      velocityContrast: new CircularBuffer(100), // For syncopation
+      positionSyncopation: new CircularBuffer(100), // For syncopation
+      velocityIrregularity: new CircularBuffer(100), // For dissonance
+      accelerationTension: new CircularBuffer(100),  // For dissonance
+      timingTension: new CircularBuffer(100),        // For dissonance
+      intervalCV: new CircularBuffer(100),           // For rhythmic regularity
+      // Modal flavor input components
+      ySpread: new CircularBuffer(100),
+      velocityTrend: new CircularBuffer(100)
     }
 
     // Fallback divisors used during warm-up period (< 10 samples)
@@ -131,7 +145,18 @@ class StyleAnalyzer {
       density: 5,          // Gestures per 10-unit window
       turnAngle: 1,        // Already 0-1 normalized
       pitchVariance: 1,    // Already 0-1 normalized
-      velocityVariance: 1  // Already 0-1 normalized
+      velocityVariance: 1, // Already 0-1 normalized
+      // Entry #221b: Fallbacks for rhythmic/harmonic components
+      avgInterval: 500,    // 500ms = 120 BPM baseline
+      swingRatio: 1,       // Already normalized
+      velocityContrast: 1, // Already 0-1
+      positionSyncopation: 1, // Already 0-1
+      velocityIrregularity: 1, // Already 0-1
+      accelerationTension: 1,  // Already 0-1
+      timingTension: 1,        // Already 0-1
+      intervalCV: 1,           // Already 0-1
+      ySpread: 1,              // Already 0-1
+      velocityTrend: 1         // Already normalized
     }
   }
 
@@ -372,13 +397,20 @@ class StyleAnalyzer {
     // Find the most common interval (tempo indication)
     const avgInterval = allIntervals.reduce((sum, interval) => sum + interval, 0) / allIntervals.length
 
-    // Convert interval to BPM (beats per minute)
-    const bpm = Math.round(60000 / avgInterval)
+    // Entry #221b: Use percentile normalization for tempo range coverage
+    // This ensures full BPM range (40-240) is accessible based on actual gesture data
+    const normalizedInterval = this._normalizeComponent('avgInterval', avgInterval)
 
-    // console.log(`🎼 Tempo calculated from ${allIntervals.length} intervals: ${bpm} BPM (avg interval: ${avgInterval.toFixed(1)}ms)`)
+    // Map normalized value (0-1) to BPM range (40-240)
+    // 0 = fastest intervals → 240 BPM, 1 = slowest intervals → 40 BPM
+    // Note: Inverted because longer intervals = slower tempo
+    const minBPM = 40
+    const maxBPM = 240
+    const bpm = Math.round(maxBPM - normalizedInterval * (maxBPM - minBPM))
 
-    // Clamp to wide musical tempo range (30-300 BPM)
-    return Math.max(30, Math.min(300, bpm))
+    // console.log(`🎼 Tempo: avgInterval=${avgInterval.toFixed(1)}ms, normalized=${normalizedInterval.toFixed(2)}, bpm=${bpm}`)
+
+    return Math.max(minBPM, Math.min(maxBPM, bpm))
   }
 
   detectMeter(gestures) {
@@ -504,25 +536,32 @@ class StyleAnalyzer {
 
     if (intervals.length < 3) return 0
 
-    // Look for long-short OR short-long patterns
-    // Widened ratio range: 1.2-4.0 (was 1.5-3.5)
-    let swingPairs = 0
-    let totalPairs = 0
+    // Entry #221b: Calculate average swing ratio for normalization
+    // Swing is indicated by alternating long-short patterns
+    let totalRatio = 0
+    let ratioCount = 0
 
     for (let i = 0; i < intervals.length - 1; i++) {
       const first = intervals[i]
       const second = intervals[i + 1]
-      // Check both directions (long-short or short-long)
+      // Calculate ratio (always >= 1)
       const ratio = Math.max(first, second) / Math.min(first, second)
-
-      // Swing is 1.2-4.0 ratio (widened from 1.5-3.5)
-      if (ratio >= 1.2 && ratio <= 4.0) {
-        swingPairs++
-      }
-      totalPairs++
+      totalRatio += ratio
+      ratioCount++
     }
 
-    return totalPairs > 0 ? swingPairs / totalPairs : 0
+    if (ratioCount === 0) return 0
+
+    // Average ratio: 1.0 = perfectly even, higher = more swing
+    const avgRatio = totalRatio / ratioCount
+
+    // Entry #221b: Use percentile normalization for swing ratio
+    // This adapts to actual gesture timing variations
+    const normalizedSwing = this._normalizeComponent('swingRatio', avgRatio)
+
+    // Map to 0-1 where 0 = no swing, 1 = maximum swing
+    // Ratio of 1.0 should give low swing, ratio of 2+ should give high swing
+    return Math.max(0, Math.min(1, normalizedSwing))
   }
 
   detectSyncopation(gestures) {
@@ -541,14 +580,21 @@ class StyleAnalyzer {
 
     // Calculate velocity variance (contrast)
     const variance = velocities.reduce((sum, v) => sum + Math.pow(v - avgVelocity, 2), 0) / velocities.length
-    const velocityContrast = Math.min(1, Math.sqrt(variance) * 3) // Scale up for visibility
+    const rawVelocityContrast = Math.sqrt(variance)
+
+    // Entry #221b: Normalize velocity contrast using percentile normalization
+    // This adapts to actual gesture velocity variations
+    const velocityContrast = this._normalizeComponent('velocityContrast', rawVelocityContrast)
 
     // Count accents (velocities above average) on unexpected positions
+    // Entry #221b: Use adaptive threshold based on velocity distribution
+    const stdDev = rawVelocityContrast
+    const accentThreshold = avgVelocity + stdDev * 0.5 // Accents are >= 0.5 std dev above mean
     let syncopatedAccents = 0
     let totalAccents = 0
 
     velocities.forEach((v, i) => {
-      const isAccent = v > avgVelocity * 1.15 // Lowered threshold from 1.2
+      const isAccent = v > accentThreshold
       if (isAccent) {
         totalAccents++
         // Off-beat positions (odd indices, or after a weak note)
@@ -559,8 +605,11 @@ class StyleAnalyzer {
       }
     })
 
+    // Entry #221b: Normalize position syncopation for full range coverage
+    const rawPositionSyncopation = totalAccents > 0 ? syncopatedAccents / totalAccents : 0
+    const positionSyncopation = this._normalizeComponent('positionSyncopation', rawPositionSyncopation)
+
     // Combine position-based syncopation with velocity contrast
-    const positionSyncopation = totalAccents > 0 ? syncopatedAccents / totalAccents : 0
     return (positionSyncopation * 0.6 + velocityContrast * 0.4)
   }
 
@@ -597,11 +646,17 @@ class StyleAnalyzer {
     const variance = intervals.reduce((sum, interval) => sum + Math.pow(interval - avgInterval, 2), 0) / intervals.length
     const standardDeviation = Math.sqrt(variance)
 
-    // Regularity is inverse of coefficient of variation
-    // Clamp CV to max 2.0 to avoid extreme negative values
-    const coefficientOfVariation = Math.min(2, standardDeviation / avgInterval)
-    // Scale to 0-1 range where CV=0 -> 1.0, CV=1 -> 0.5, CV=2 -> 0
-    return Math.max(0, 1 - coefficientOfVariation * 0.5)
+    // Calculate coefficient of variation (CV)
+    const rawCoefficientOfVariation = standardDeviation / avgInterval
+
+    // Entry #221b: Normalize CV using percentile normalization
+    // Higher CV = less regular, so we invert after normalization
+    const normalizedCV = this._normalizeComponent('intervalCV', rawCoefficientOfVariation)
+
+    // Regularity is inverse of normalized CV
+    // normalizedCV of 0 → regularity of 1.0 (perfectly regular)
+    // normalizedCV of 1 → regularity of 0.0 (highly irregular)
+    return Math.max(0, Math.min(1, 1 - normalizedCV))
   }
 
   analyzeIntervals(gestures) {
@@ -762,9 +817,10 @@ class StyleAnalyzer {
     const variance = velocities.reduce((sum, v) => sum + Math.pow(v - avgVelocity, 2), 0) / velocities.length
     const stdDev = Math.sqrt(variance)
     // Clamp CV to prevent extreme values from very small avgVelocity
-    const coeffOfVariation = Math.min(2, stdDev / Math.max(0.01, avgVelocity))
-    // CV of 0.5 is moderate irregularity, scale to 0-1
-    const velocityIrregularity = Math.min(1, coeffOfVariation * 2)
+    const rawCoeffOfVariation = Math.min(2, stdDev / Math.max(0.01, avgVelocity))
+
+    // Entry #221b: Normalize velocity irregularity using percentile normalization
+    const velocityIrregularity = this._normalizeComponent('velocityIrregularity', rawCoeffOfVariation)
 
     // Calculate acceleration changes (use relative acceleration)
     const accelerations = gestures.map(g => {
@@ -772,8 +828,9 @@ class StyleAnalyzer {
       return a > 1 ? a / 100 : a // Normalize if needed
     })
     const avgAcceleration = accelerations.reduce((sum, a) => sum + a, 0) / accelerations.length
-    // High acceleration = tension, scale appropriately
-    const accelerationTension = Math.min(1, avgAcceleration * 2)
+
+    // Entry #221b: Normalize acceleration tension using percentile normalization
+    const accelerationTension = this._normalizeComponent('accelerationTension', avgAcceleration)
 
     // Also factor in timing irregularity
     let timingTension = 0
@@ -786,8 +843,10 @@ class StyleAnalyzer {
       if (intervals.length > 1) {
         const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length
         const intervalVariance = intervals.reduce((sum, i) => sum + Math.pow(i - avgInterval, 2), 0) / intervals.length
-        const intervalCV = Math.sqrt(intervalVariance) / avgInterval
-        timingTension = Math.min(1, intervalCV)
+        const rawIntervalCV = Math.sqrt(intervalVariance) / avgInterval
+
+        // Entry #221b: Normalize timing tension using percentile normalization
+        timingTension = this._normalizeComponent('timingTension', rawIntervalCV)
       }
     }
 
@@ -807,53 +866,62 @@ class StyleAnalyzer {
     const yPositions = gestures.map(g => g.position?.y || 0.5)
     const avgY = yPositions.reduce((sum, y) => sum + y, 0) / yPositions.length
     const yVariance = yPositions.reduce((sum, y) => sum + Math.pow(y - avgY, 2), 0) / yPositions.length
-    const ySpread = Math.min(1, Math.sqrt(yVariance) * 4)
+    const rawYSpread = Math.sqrt(yVariance)
+
+    // Entry #221b: Normalize ySpread using percentile normalization
+    const ySpread = this._normalizeComponent('ySpread', rawYSpread)
 
     // Calculate velocity trend (increasing = brighter, decreasing = darker)
     const velocities = gestures.map(g => g.velocity || g.properties?.velocity || 0.5)
-    let velocityTrend = 0
+    let rawVelocityTrend = 0
     if (velocities.length > 2) {
       const firstHalf = velocities.slice(0, Math.floor(velocities.length / 2))
       const secondHalf = velocities.slice(Math.floor(velocities.length / 2))
       const avgFirst = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length
       const avgSecond = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length
-      velocityTrend = (avgSecond - avgFirst) / Math.max(0.1, avgFirst)
+      rawVelocityTrend = (avgSecond - avgFirst) / Math.max(0.1, avgFirst)
     }
+
+    // Entry #221b: Normalize velocity trend using percentile normalization
+    // Shift to 0-1 range first (trend can be negative), then normalize
+    const velocityTrendShifted = rawVelocityTrend + 1 // Shift from [-1,1] to [0,2]
+    const velocityTrend = this._normalizeComponent('velocityTrend', velocityTrendShifted) - 0.5 // Back to [-0.5,0.5]
 
     // Calculate syncopation for additional differentiation
     const syncopation = this.detectSyncopation(gestures)
 
-    // Entry #165: Lowered thresholds and diversified paths
+    // Entry #221b: Decision tree uses normalized values (all now 0-1 range)
+    // Thresholds are now centered around 0.5 for normalized metrics
     // High energy branch
     if (energy > 0.6) {
-      if (swing > 0.25) return 'mixolydian'  // Lowered from 0.4
-      if (ySpread > 0.3) return 'lydian'     // New path
-      if (contour === 'ascending' && velocityTrend > 0.05) return 'lydian'  // Lowered from 0.1
-      if (contour === 'ascending') return ySpread > 0.2 ? 'mixolydian' : 'ionian'  // Split path
-      if (syncopation > 0.3) return 'mixolydian'  // New path
-      return 'lydian'  // Changed from mixolydian for variety
+      if (swing > 0.5) return 'mixolydian'
+      if (ySpread > 0.6) return 'lydian'
+      if (contour === 'ascending' && velocityTrend > 0.1) return 'lydian'
+      if (contour === 'ascending') return ySpread > 0.4 ? 'mixolydian' : 'ionian'
+      if (syncopation > 0.6) return 'mixolydian'
+      return 'lydian'
     }
 
     // Low energy branch
     if (energy < 0.4) {
-      if (contour === 'descending' && ySpread > 0.25) return 'phrygian'  // Lowered from 0.3
+      if (contour === 'descending' && ySpread > 0.5) return 'phrygian'
       if (contour === 'descending') return 'aeolian'
-      if (ySpread > 0.35) return 'locrian'
-      if (swing > 0.2) return 'phrygian'  // New path
-      if (syncopation > 0.25) return 'locrian'  // New path
+      if (ySpread > 0.7) return 'locrian'
+      if (swing > 0.4) return 'phrygian'
+      if (syncopation > 0.5) return 'locrian'
       return 'aeolian'
     }
 
     // Moderate energy branch - most selections fall here
-    if (swing > 0.2) return 'dorian'  // Lowered from 0.3
-    if (ySpread > 0.25) return 'dorian'  // Lowered from 0.35
-    if (velocityTrend > 0.1) return 'lydian'  // Lowered from 0.15
-    if (velocityTrend < -0.1) return 'aeolian'  // Lowered from -0.15
-    if (syncopation > 0.3) return 'mixolydian'  // New path
-    if (contour === 'ascending') return ySpread > 0.15 ? 'lydian' : 'ionian'  // Split path
-    if (contour === 'descending') return ySpread > 0.15 ? 'phrygian' : 'aeolian'  // Split path
-    if (contour === 'wave' || contour === 'complex') return 'dorian'  // New path
-    return 'mixolydian'  // Changed from dorian for variety
+    if (swing > 0.4) return 'dorian'
+    if (ySpread > 0.5) return 'dorian'
+    if (velocityTrend > 0.2) return 'lydian'
+    if (velocityTrend < -0.2) return 'aeolian'
+    if (syncopation > 0.6) return 'mixolydian'
+    if (contour === 'ascending') return ySpread > 0.3 ? 'lydian' : 'ionian'
+    if (contour === 'descending') return ySpread > 0.3 ? 'phrygian' : 'aeolian'
+    if (contour === 'wave' || contour === 'complex') return 'dorian'
+    return 'mixolydian'
   }
 
   /**

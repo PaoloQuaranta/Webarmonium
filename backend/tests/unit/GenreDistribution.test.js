@@ -419,4 +419,251 @@ describe('Genre Distribution System (Entry #220)', () => {
       expect(analyzer._normalizeComponent('unknownComponent', -0.5)).toBe(0)
     })
   })
+
+  describe('Extended Component Normalization (Entry #221b)', () => {
+    it('should have additional rhythmic/harmonic component stats', () => {
+      expect(styleAnalyzer._componentStats.avgInterval).toBeDefined()
+      expect(styleAnalyzer._componentStats.swingRatio).toBeDefined()
+      expect(styleAnalyzer._componentStats.velocityContrast).toBeDefined()
+      expect(styleAnalyzer._componentStats.positionSyncopation).toBeDefined()
+      expect(styleAnalyzer._componentStats.velocityIrregularity).toBeDefined()
+      expect(styleAnalyzer._componentStats.accelerationTension).toBeDefined()
+      expect(styleAnalyzer._componentStats.timingTension).toBeDefined()
+      expect(styleAnalyzer._componentStats.intervalCV).toBeDefined()
+      expect(styleAnalyzer._componentStats.ySpread).toBeDefined()
+      expect(styleAnalyzer._componentStats.velocityTrend).toBeDefined()
+    })
+
+    it('should estimate tempo with adaptive normalization', () => {
+      const analyzer = new StyleAnalyzer()
+
+      // Create gestures with different interval patterns
+      const slowGestures = Array(5).fill(null).map((_, i) => ({
+        velocity: 50,
+        timestamp: Date.now() - (5 - i) * 800  // 800ms intervals = slow tempo
+      }))
+
+      const fastGestures = Array(5).fill(null).map((_, i) => ({
+        velocity: 50,
+        timestamp: Date.now() - (5 - i) * 200  // 200ms intervals = fast tempo
+      }))
+
+      // Build up statistics
+      for (let i = 0; i < 5; i++) {
+        analyzer.estimateTempo([slowGestures[i], slowGestures[Math.min(i + 1, 4)]])
+      }
+
+      const slowTempo = analyzer.estimateTempo(slowGestures)
+      const fastTempo = analyzer.estimateTempo(fastGestures)
+
+      // Both should be in valid BPM range
+      expect(slowTempo).toBeGreaterThanOrEqual(40)
+      expect(slowTempo).toBeLessThanOrEqual(240)
+      expect(fastTempo).toBeGreaterThanOrEqual(40)
+      expect(fastTempo).toBeLessThanOrEqual(240)
+
+      // Fast gestures should produce higher tempo
+      expect(fastTempo).toBeGreaterThan(slowTempo)
+    })
+
+    it('should detect swing with adaptive normalization', () => {
+      const analyzer = new StyleAnalyzer()
+
+      // Create gestures with swing pattern (alternating long-short)
+      const swingGestures = Array(8).fill(null).map((_, i) => ({
+        velocity: 50,
+        timestamp: Date.now() - (8 - i) * (i % 2 === 0 ? 600 : 300)  // Long-short pattern
+      }))
+
+      // Create gestures with straight pattern (even intervals)
+      const straightGestures = Array(8).fill(null).map((_, i) => ({
+        velocity: 50,
+        timestamp: Date.now() - (8 - i) * 400  // Even intervals
+      }))
+
+      // Build up statistics
+      for (let i = 0; i < 5; i++) {
+        analyzer.detectSwing(straightGestures)
+      }
+
+      const swingValue = analyzer.detectSwing(swingGestures)
+      const straightValue = analyzer.detectSwing(straightGestures)
+
+      // Both should be in valid 0-1 range
+      expect(swingValue).toBeGreaterThanOrEqual(0)
+      expect(swingValue).toBeLessThanOrEqual(1)
+      expect(straightValue).toBeGreaterThanOrEqual(0)
+      expect(straightValue).toBeLessThanOrEqual(1)
+    })
+
+    it('should detect syncopation with adaptive normalization', () => {
+      const analyzer = new StyleAnalyzer()
+
+      // Create gestures with high velocity contrast (syncopated)
+      const syncopatedGestures = Array(10).fill(null).map((_, i) => ({
+        velocity: i % 2 === 0 ? 100 : 30,  // Alternating high/low
+        timestamp: Date.now() - (10 - i) * 200
+      }))
+
+      // Create gestures with low velocity contrast (not syncopated)
+      const evenGestures = Array(10).fill(null).map((_, i) => ({
+        velocity: 50 + (i % 3),  // Very little variation
+        timestamp: Date.now() - (10 - i) * 200
+      }))
+
+      // Build up statistics
+      for (let i = 0; i < 5; i++) {
+        analyzer.detectSyncopation(evenGestures)
+      }
+
+      const syncopationHigh = analyzer.detectSyncopation(syncopatedGestures)
+      const syncopationLow = analyzer.detectSyncopation(evenGestures)
+
+      // Both should be in valid 0-1 range
+      expect(syncopationHigh).toBeGreaterThanOrEqual(0)
+      expect(syncopationHigh).toBeLessThanOrEqual(1)
+      expect(syncopationLow).toBeGreaterThanOrEqual(0)
+      expect(syncopationLow).toBeLessThanOrEqual(1)
+
+      // High contrast gestures should have higher syncopation
+      expect(syncopationHigh).toBeGreaterThan(syncopationLow)
+    })
+
+    it('should calculate dissonance with adaptive normalization', () => {
+      const analyzer = new StyleAnalyzer()
+
+      // Create irregular gestures (high dissonance)
+      const irregularGestures = Array(10).fill(null).map((_, i) => ({
+        velocity: 20 + Math.floor(i * 7) % 80,  // Irregular velocities
+        acceleration: i % 3 === 0 ? 50 : 5,  // Irregular acceleration
+        timestamp: Date.now() - (10 - i) * (100 + (i % 4) * 200)  // Irregular timing
+      }))
+
+      // Create regular gestures (low dissonance)
+      const regularGestures = Array(10).fill(null).map((_, i) => ({
+        velocity: 50,  // Constant velocity
+        acceleration: 10,  // Constant acceleration
+        timestamp: Date.now() - (10 - i) * 300  // Regular timing
+      }))
+
+      // Build up statistics
+      for (let i = 0; i < 5; i++) {
+        analyzer.calculateDissonance(regularGestures)
+      }
+
+      const dissonanceHigh = analyzer.calculateDissonance(irregularGestures)
+      const dissonanceLow = analyzer.calculateDissonance(regularGestures)
+
+      // Both should be in valid 0-1 range
+      expect(dissonanceHigh).toBeGreaterThanOrEqual(0)
+      expect(dissonanceHigh).toBeLessThanOrEqual(1)
+      expect(dissonanceLow).toBeGreaterThanOrEqual(0)
+      expect(dissonanceLow).toBeLessThanOrEqual(1)
+    })
+
+    it('should detect rhythmic regularity with adaptive normalization', () => {
+      const analyzer = new StyleAnalyzer()
+
+      // Create regular timing gestures
+      const regularGestures = Array(10).fill(null).map((_, i) => ({
+        velocity: 50,
+        timestamp: Date.now() - (10 - i) * 300  // Exactly 300ms intervals
+      }))
+
+      // Create irregular timing gestures
+      const irregularGestures = Array(10).fill(null).map((_, i) => ({
+        velocity: 50,
+        timestamp: Date.now() - (10 - i) * (200 + (i % 3) * 150)  // Varying intervals
+      }))
+
+      // Build up statistics
+      for (let i = 0; i < 5; i++) {
+        analyzer.detectRhythmicRegularity(regularGestures)
+      }
+
+      const regularityHigh = analyzer.detectRhythmicRegularity(regularGestures)
+      const regularityLow = analyzer.detectRhythmicRegularity(irregularGestures)
+
+      // Both should be in valid 0-1 range
+      expect(regularityHigh).toBeGreaterThanOrEqual(0)
+      expect(regularityHigh).toBeLessThanOrEqual(1)
+      expect(regularityLow).toBeGreaterThanOrEqual(0)
+      expect(regularityLow).toBeLessThanOrEqual(1)
+
+      // Regular gestures should have higher regularity
+      expect(regularityHigh).toBeGreaterThan(regularityLow)
+    })
+
+    it('should detect modal flavor with adaptive normalization', () => {
+      const analyzer = new StyleAnalyzer()
+      const modes = ['ionian', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian']
+
+      // Build up ySpread and velocityTrend statistics
+      for (let i = 0; i < 15; i++) {
+        const gestures = Array(5).fill(null).map((_, j) => ({
+          position: { y: 0.3 + (j * 0.1) },
+          velocity: 40 + j * 5,
+          timestamp: Date.now() - (5 - j) * 300
+        }))
+        analyzer.detectModalFlavor(gestures)
+      }
+
+      // Test various gesture patterns
+      const highEnergyGestures = Array(5).fill(null).map((_, i) => ({
+        position: { y: 0.3 + (i * 0.05) },
+        velocity: 80,  // High velocity = high energy
+        timestamp: Date.now() - (5 - i) * 200
+      }))
+
+      const lowEnergyGestures = Array(5).fill(null).map((_, i) => ({
+        position: { y: 0.3 + (i * 0.05) },
+        velocity: 20,  // Low velocity = low energy
+        timestamp: Date.now() - (5 - i) * 500
+      }))
+
+      const modeHigh = analyzer.detectModalFlavor(highEnergyGestures)
+      const modeLow = analyzer.detectModalFlavor(lowEnergyGestures)
+
+      // Both should return valid mode names
+      expect(modes).toContain(modeHigh)
+      expect(modes).toContain(modeLow)
+    })
+
+    it('should return valid values for all parameters with fresh analyzer', () => {
+      const analyzer = new StyleAnalyzer()
+
+      const gestures = Array(10).fill(null).map((_, i) => ({
+        position: { x: 0.5, y: 0.3 + (i * 0.05) },
+        velocity: 40 + i * 5,
+        acceleration: 10 + i * 2,
+        timestamp: Date.now() - (10 - i) * 300
+      }))
+
+      // All methods should return valid values even with fresh analyzer (warm-up period)
+      const energy = analyzer.calculateEnergy(gestures)
+      const tempo = analyzer.estimateTempo(gestures)
+      const swing = analyzer.detectSwing(gestures)
+      const syncopation = analyzer.detectSyncopation(gestures)
+      const dissonance = analyzer.calculateDissonance(gestures)
+      const regularity = analyzer.detectRhythmicRegularity(gestures)
+      const modalFlavor = analyzer.detectModalFlavor(gestures)
+      const chromaticism = analyzer.detectChromaticism(gestures)
+
+      expect(energy).toBeGreaterThanOrEqual(0)
+      expect(energy).toBeLessThanOrEqual(1)
+      expect(tempo).toBeGreaterThanOrEqual(40)
+      expect(tempo).toBeLessThanOrEqual(240)
+      expect(swing).toBeGreaterThanOrEqual(0)
+      expect(swing).toBeLessThanOrEqual(1)
+      expect(syncopation).toBeGreaterThanOrEqual(0)
+      expect(syncopation).toBeLessThanOrEqual(1)
+      expect(dissonance).toBeGreaterThanOrEqual(0)
+      expect(dissonance).toBeLessThanOrEqual(1)
+      expect(regularity).toBeGreaterThanOrEqual(0)
+      expect(regularity).toBeLessThanOrEqual(1)
+      expect(typeof modalFlavor).toBe('string')
+      expect(chromaticism).toBeGreaterThanOrEqual(0)
+      expect(chromaticism).toBeLessThanOrEqual(1)
+    })
+  })
 })
