@@ -100,6 +100,32 @@ class CompositionEngine {
     return totalWeight > 0 ? weightedDensity / totalWeight : 1.0
   }
 
+  /**
+   * Generate a musical composition based on room context and current style
+   *
+   * Entry #224: Returns structure with formChanged/sectionChanged flags for SectionStateManager sync.
+   *
+   * @param {Object} roomContext - Context for composition generation
+   * @param {string} roomContext.roomId - Room identifier
+   * @param {number} [roomContext.userCount=1] - Number of users in room
+   * @param {Array} [roomContext.activeUsers=[]] - Active user list
+   * @param {number} [roomContext.compositionCount=0] - Composition sequence number
+   * @param {Object} [roomContext.sectionContext=null] - Section context from SectionStateManager
+   * @param {Object} [roomContext.webMetrics=null] - Web metrics for harmonic variety
+   * @param {number} [roomContext.gestureWeight=0.5] - Gesture influence weight (0-1)
+   * @returns {Object} Composition object with structure, content, and metadata
+   * @returns {string} returns.type - Composition type ('polyphonic'|'homophonic'|'ambient')
+   * @returns {Object} returns.structure - Form structure information
+   * @returns {string} returns.structure.form - Musical form (e.g., 'ABA', 'sonata', 'verse_chorus')
+   * @returns {string} returns.structure.currentSection - Section that was just composed
+   * @returns {string} returns.structure.nextSection - Section that will be composed next
+   * @returns {number} returns.structure.compositionsInSection - Count of compositions in current section
+   * @returns {Array<string>} returns.structure.sectionHistory - History of visited sections
+   * @returns {boolean} returns.structure.formChanged - True if form was reset this composition
+   * @returns {boolean} returns.structure.sectionChanged - True if section advanced this composition
+   * @returns {Object} returns.content - Musical content (voices, melody, accompaniment, texture)
+   * @returns {Object} returns.metadata - Composition metadata (tempo, key, mode, etc.)
+   */
   compose(roomContext) {
     try {
 // console.log(`🎼 CompositionEngine: Composing for room with ${roomContext.userCount || 1} users`)
@@ -113,8 +139,6 @@ class CompositionEngine {
       // Entry #171: Store webMetrics for deterministic harmonic variety
       this.webMetrics = roomContext.webMetrics || null
 
-      // DEBUG Entry #117: Log compositionCount to verify it changes
-
       // 1. Analyze current musical context
       const currentStyle = this.styleAnalyzer.getCurrentStyle()
 // console.log(`🎼 Current style: energy=${currentStyle.energy?.toFixed(2)}, tempo=${currentStyle.tempo}`)
@@ -125,15 +149,15 @@ class CompositionEngine {
       // Entry #168: Form can only change AFTER completing at least one full cycle through all sections
       const hasCompletedCycle = this.sectionHistory.length >= this.formCycleLength
       const wantsToReset = this.compositionCount > 0 && ((this.compositionCount * PHI) % 1) < 0.12
-      const shouldResetForm = !this.formStructure || (hasCompletedCycle && wantsToReset)
-      if (shouldResetForm) {
+      // Entry #224: Ephemeral flag - true when form is selected/reset this composition
+      const formChanged = !this.formStructure || (hasCompletedCycle && wantsToReset)
+      if (formChanged) {
         this.formStructure = this.selectForm(currentStyle)
         this.initializeFormStructure(this.formStructure)
       }
 
       // 3. Get available musical material
       const availableMaterial = this.getAvailableMaterial(roomContext)
-      // DEBUG Entry #117: Log material count
 // console.log(`🎼 Available material: ${availableMaterial.length} items`)
 
       // Entry #NEW: Update tensionLevel based on style, gestureWeight, and sectionContext
@@ -149,7 +173,9 @@ class CompositionEngine {
 
       // 5. Determine next section - only advance after minimum compositions in current section
       // Entry #163: Sections persist for multiple compositions to allow music to develop
-      if (this.compositionsInSection >= this.minCompositionsPerSection) {
+      // Entry #224: Ephemeral flag - true when section advances this composition
+      const shouldAdvanceSection = this.compositionsInSection >= this.minCompositionsPerSection
+      if (shouldAdvanceSection) {
         this.getNextSection(this.formStructure)
         this.compositionsInSection = 0  // Reset counter for new section
       }
@@ -171,7 +197,9 @@ class CompositionEngine {
           currentSection: composedSection,              // Section that was just composed
           nextSection: this.currentSection,             // Section that will be composed next
           compositionsInSection: this.compositionsInSection, // How many compositions in this section
-          sectionHistory: [...this.sectionHistory]
+          sectionHistory: [...this.sectionHistory],
+          formChanged: formChanged,                     // Entry #224: Signal form change for SectionStateManager sync
+          sectionChanged: shouldAdvanceSection          // Entry #224: Signal section transition for SectionStateManager sync
         },
         content: section,
         metadata: {

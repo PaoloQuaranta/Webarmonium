@@ -384,6 +384,110 @@ class BackgroundCompositionService {
   }
 
   /**
+   * Entry #224: Sync form and section state from CompositionEngine to SectionStateManager
+   *
+   * Handles synchronization with validation, error handling, and logging.
+   * BUSINESS RULE: Form changes take precedence over section changes (form change resets section).
+   *
+   * @param {string} roomId - Room ID
+   * @param {Object} composition - Composition returned by CompositionEngine
+   * @param {Object} roomState - Room state for logging context
+   * @private
+   */
+  _syncFormAndSectionState(roomId, composition, roomState) {
+    // Structural validation - early exit if composition structure is invalid
+    if (!composition || typeof composition !== 'object') {
+      return // Invalid composition, skip sync
+    }
+
+    const structure = composition.structure
+    if (!structure || typeof structure !== 'object') {
+      return // Missing structure, skip sync
+    }
+
+    // Check if any sync is needed (optimization: early exit)
+    const hasFormChange = structure.formChanged === true
+    const hasSectionChange = structure.sectionChanged === true
+    if (!hasFormChange && !hasSectionChange) {
+      return // No changes to sync
+    }
+
+    // PRIORITY 1: Form change (resets section state, so takes precedence)
+    if (hasFormChange) {
+      const newForm = structure.form
+
+      // Validate form value
+      if (!newForm || typeof newForm !== 'string') {
+        console.error(`[Entry #224] Invalid form value: ${newForm}, skipping form sync for room ${roomId}`)
+        return
+      }
+
+      try {
+        const prevState = this.sectionStateManager.getState(roomId)
+        const prevForm = prevState?.formType || 'unknown'
+
+        const newContext = this.sectionStateManager.changeForm(roomId, newForm)
+
+        // Verify sync succeeded
+        if (!newContext) {
+          console.error(`[Entry #224] Form sync failed: changeForm returned null for room ${roomId}`)
+          return
+        }
+
+        const actualForm = newContext.formType
+        if (actualForm !== newForm) {
+          console.error(`[Entry #224] Form sync mismatch: expected ${newForm}, got ${actualForm} for room ${roomId}`)
+        }
+
+        // Debug log (uncomment for troubleshooting)
+        // console.log(`[Entry #224] Form sync: ${prevForm} → ${newForm} (room ${roomId}, comp #${roomState?.compositionCount || 0})`)
+
+      } catch (error) {
+        console.error(`[Entry #224] Error syncing form change for room ${roomId}:`, error.message)
+      }
+
+      return // Form change handled, section will be reset by changeForm
+    }
+
+    // PRIORITY 2: Section transition (only if form didn't change)
+    if (hasSectionChange) {
+      const nextSection = structure.nextSection
+
+      // Validate section value
+      if (!nextSection || typeof nextSection !== 'string') {
+        console.error(`[Entry #224] Invalid nextSection value: ${nextSection}, skipping section sync for room ${roomId}`)
+        return
+      }
+
+      try {
+        const prevState = this.sectionStateManager.getState(roomId)
+        const prevSection = prevState?.sectionType || 'unknown'
+
+        const newContext = this.sectionStateManager.transitionSection(roomId, {
+          sectionType: nextSection
+        })
+
+        // Verify sync succeeded
+        if (!newContext) {
+          console.error(`[Entry #224] Section sync failed: transitionSection returned null for room ${roomId}`)
+          return
+        }
+
+        const actualSection = newContext.sectionType
+        if (actualSection !== nextSection) {
+          console.error(`[Entry #224] Section sync mismatch: expected ${nextSection}, got ${actualSection} for room ${roomId}`)
+        }
+
+        // Debug log (uncomment for troubleshooting)
+        // console.log(`[Entry #224] Section sync: ${prevSection} → ${nextSection} (room ${roomId}, comp #${roomState?.compositionCount || 0})`)
+
+      } catch (error) {
+        console.error(`[Entry #224] Error syncing section transition for room ${roomId}:`, error.message)
+      }
+    }
+  }
+
+  /**
    * Entry #175b: Get current style for a room (public method for other handlers)
    * Entry #183: Uses factory function, caching, and enhanced error handling
    * @param {string} roomId - Room ID
@@ -1536,10 +1640,10 @@ class BackgroundCompositionService {
         gestureWeight: roomState.lastGestureWeight || 0.5 // Entry #NEW: Pass gestureWeight for tensionLevel
       })
 
-      // Entry #169: Check if we should transition to next section
-      if (sectionContext && sectionContext.shouldTransition(3)) {
-        this.sectionStateManager.transitionSection(roomId)
-      }
+      // Entry #224: Sync form/section changes from CompositionEngine to SectionStateManager
+      // This ensures sectionContext params match the actual form being composed
+      // BUSINESS RULE: Form changes reset section state, so form changes take precedence
+      this._syncFormAndSectionState(roomId, composition, roomState)
 
 // console.log(`🎼 Generated ${composition.type} composition:`, {
 //        form: composition.structure.form,
