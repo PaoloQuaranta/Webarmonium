@@ -692,16 +692,36 @@ header p {
   display: block;
 }
 
-/* Landing page: user count below Join button */
+/* Landing page: user count to the right of Join button */
 .join-section .rooms-activity {
-  font-size: 0.7rem;
+  position: absolute;
+  left: calc(100% + 1rem);
+  top: 50%;
+  transform: translateY(-50%);
+  /* Match .node-label style but different color */
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  text-transform: uppercase;
   color: var(--accent);
-  opacity: 1;
-  margin-top: 0.25rem;
+  white-space: nowrap;
+  margin: 0;
+  opacity: 0.85;
+  z-index: 2; /* Above line segments */
+}
+
+:root[data-theme="light"] .join-section .rooms-activity {
+  color: var(--accent-dark, #0d9488);
 }
 
 .join-section .rooms-activity.visible {
   display: block;
+}
+
+/* Mobile: hide rooms-activity (stacked layout has no horizontal space) */
+@media (max-width: 768px) {
+  .join-section .rooms-activity {
+    display: none !important;
+  }
 }
 
 /* ============================================ */

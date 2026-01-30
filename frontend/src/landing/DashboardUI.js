@@ -351,16 +351,17 @@ export class DashboardUI {
 
   /**
    * Update rooms activity display (users in rooms count)
-   * @param {Object} data - { usersInRooms: number }
+   * @param {Object} data - { usersInRooms: number, activeRooms: number }
    */
   updateRoomsActivity(data) {
     const { roomsActivity } = this.elements
     if (!roomsActivity) return
 
-    const count = data?.usersInRooms || 0
+    const users = data?.usersInRooms || 0
+    const rooms = data?.activeRooms || 0
 
-    if (count > 0) {
-      roomsActivity.textContent = `${count} user${count !== 1 ? 's' : ''} online`
+    if (users > 0 && rooms > 0) {
+      roomsActivity.textContent = `${users} user${users !== 1 ? 's' : ''} in ${rooms} room${rooms !== 1 ? 's' : ''}`
       roomsActivity.classList.add('visible')
     } else {
       roomsActivity.textContent = ''

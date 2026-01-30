@@ -142,6 +142,20 @@ class ConnectionTracker {
   }
 
   /**
+   * Get count of unique regular rooms with users (not landing)
+   * @returns {number} Number of rooms with at least one user
+   */
+  getActiveRoomCount () {
+    const rooms = new Set()
+    for (const conn of this.connections.values()) {
+      if (conn.roomId !== 'landing-room') {
+        rooms.add(conn.roomId)
+      }
+    }
+    return rooms.size
+  }
+
+  /**
    * Check if there are any connected users
    * @returns {boolean} True if at least one user is connected
    */

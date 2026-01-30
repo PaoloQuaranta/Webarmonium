@@ -72,9 +72,10 @@ const AuthHandler = {
         }
 
         // Get room activity (users in regular rooms, not landing)
-        let roomsActivity = { usersInRooms: 0 }
+        let roomsActivity = { usersInRooms: 0, activeRooms: 0 }
         if (socket.services.connectionTracker) {
           roomsActivity.usersInRooms = socket.services.connectionTracker.getRegularRoomUserCount()
+          roomsActivity.activeRooms = socket.services.connectionTracker.getActiveRoomCount()
         }
 
         const latency = Date.now() - startTime
@@ -380,8 +381,10 @@ const AuthHandler = {
         // Emit rooms-activity update to landing page clients
         if (socket.services.connectionTracker && socket.services.io) {
           const usersInRooms = socket.services.connectionTracker.getRegularRoomUserCount()
+          const activeRooms = socket.services.connectionTracker.getActiveRoomCount()
           socket.services.io.to('landing-room').emit('rooms-activity', {
             usersInRooms,
+            activeRooms,
             timestamp: Date.now()
           })
         }
@@ -468,8 +471,10 @@ const AuthHandler = {
         // Emit rooms-activity update to landing page clients
         if (socket.services.connectionTracker && socket.services.io) {
           const usersInRooms = socket.services.connectionTracker.getRegularRoomUserCount()
+          const activeRooms = socket.services.connectionTracker.getActiveRoomCount()
           socket.services.io.to('landing-room').emit('rooms-activity', {
             usersInRooms,
+            activeRooms,
             timestamp: Date.now()
           })
         }
@@ -624,8 +629,10 @@ const AuthHandler = {
         // Emit rooms-activity update to landing page clients
         if (socket.services.connectionTracker && socket.services.io) {
           const usersInRooms = socket.services.connectionTracker.getRegularRoomUserCount()
+          const activeRooms = socket.services.connectionTracker.getActiveRoomCount()
           socket.services.io.to('landing-room').emit('rooms-activity', {
             usersInRooms,
+            activeRooms,
             timestamp: Date.now()
           })
         }
