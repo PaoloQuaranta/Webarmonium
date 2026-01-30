@@ -106,6 +106,31 @@ class BackgroundCompositionService {
     this.GENRE_COVERAGE_MIN_COMPOSITIONS = 50    // Minimum compositions before checking coverage
     this.GENRE_COVERAGE_THRESHOLD = 0.05         // Warn if any genre < 5% of compositions
 
+    // Entry #222: Statistical tracking for percentile-based normalization
+    // Replaces hardcoded divisors (50, 5, 30) with adaptive normalization
+    this._metricStatistics = {
+      wikipedia: {
+        editsPerMinute: { samples: new CircularBuffer(100) },
+        avgEditSize: { samples: new CircularBuffer(100) },
+        velocity: { samples: new CircularBuffer(100) },
+        acceleration: { samples: new CircularBuffer(100) }
+      },
+      hackernews: {
+        postsPerMinute: { samples: new CircularBuffer(100) },
+        avgUpvotes: { samples: new CircularBuffer(100) },
+        commentCount: { samples: new CircularBuffer(100) },
+        velocity: { samples: new CircularBuffer(100) },
+        acceleration: { samples: new CircularBuffer(100) }
+      },
+      github: {
+        commitsPerMinute: { samples: new CircularBuffer(100) },
+        createsPerMinute: { samples: new CircularBuffer(100) },
+        deletesPerMinute: { samples: new CircularBuffer(100) },
+        velocity: { samples: new CircularBuffer(100) },
+        acceleration: { samples: new CircularBuffer(100) }
+      }
+    }
+
 // console.log('🎼 BackgroundCompositionService initialized')
   }
 
@@ -241,11 +266,61 @@ class BackgroundCompositionService {
   }
 
   /**
+   * Entry #222: Normalize a metric value using percentile-based normalization.
+   * Tracks historical values and uses P10-P90 range for robust normalization.
+   *
+   * @param {string} source - Source name (wikipedia, hackernews, github)
+   * @param {string} metricName - Metric name
+   * @param {number} value - Raw value to normalize
+   * @returns {number} Normalized value in 0-1 range
+   * @private
+   */
+  _normalizeMetricValue(source, metricName, value) {
+    // Input validation
+    if (typeof value !== 'number' || !isFinite(value)) {
+      return 0.5
+    }
+
+    const stats = this._metricStatistics[source]?.[metricName]
+    if (!stats) {
+      return 0.5
+    }
+
+    // Add sample to history
+    stats.samples.push(value)
+
+    const samples = stats.samples.toArray()
+    const WARMUP_THRESHOLD = 10
+    if (samples.length < WARMUP_THRESHOLD) {
+      // Warm-up: use fallback divisors
+      const fallbacks = {
+        editsPerMinute: 50, postsPerMinute: 5, commitsPerMinute: 30,
+        avgEditSize: 2000, avgUpvotes: 100, commentCount: 100,
+        createsPerMinute: 10, deletesPerMinute: 5,
+        velocity: 30, acceleration: 15
+      }
+      const fallback = fallbacks[metricName] || 1
+      return Math.max(0, Math.min(1, value / fallback))
+    }
+
+    // Percentile normalization (P10-P90)
+    const sorted = [...samples].sort((a, b) => a - b)
+    const p10Index = Math.floor(sorted.length * 0.1)
+    const p90Index = Math.floor(sorted.length * 0.9)
+    const p10 = sorted[p10Index]
+    const p90 = sorted[p90Index]
+    const range = p90 - p10
+
+    if (range < 0.001) {
+      return 0.5  // Constant values map to middle
+    }
+
+    return Math.max(0, Math.min(1, (value - p10) / range))
+  }
+
+  /**
    * Entry #171: Normalize raw web metrics to 0-1 range
-   * Normalization divisors based on typical activity levels:
-   * - Wikipedia: ~50 edits/min max during peak activity
-   * - HackerNews: ~5 posts/min max
-   * - GitHub: ~30 commits/min max (public events API)
+   * Entry #222: Uses percentile-based normalization instead of hardcoded divisors
    * @returns {Object|null} Normalized web metrics or null if unavailable
    */
   _normalizeWebMetrics() {
@@ -253,31 +328,28 @@ class BackgroundCompositionService {
     const raw = this.webMetricsPoller.getMetrics()
     if (!raw) return null
 
-    // Entry #171: Centralized normalization - ALL values returned in 0-1 range
-    // Reference ranges based on observed production data:
-    // - Wikipedia: 50 edits/min max, 2000 bytes avg edit, velocity ±30, acceleration ±15
-    // - HackerNews: 5 posts/min max, 100 upvotes avg, 100 comments max, velocity ±5, acceleration ±5
-    // - GitHub: 30 commits/min max, 10 creates/min, 5 deletes/min, velocity ±10, acceleration ±10
+    // Entry #222: Use percentile normalization instead of hardcoded divisors
+    // This ensures full 0-1 range coverage based on actual data distribution
     return {
       wikipedia: {
-        normalized: Math.min(1, Math.max(0, (raw.wikipedia?.editsPerMinute || 0) / 50)),
-        avgEditSizeNorm: Math.min(1, Math.max(0, (raw.wikipedia?.avgEditSize || 0) / 2000)),
-        velocityNorm: Math.min(1, Math.max(0, ((raw.wikipedia?.velocity || 0) + 30) / 60)), // -30 to +30 → 0 to 1
-        accelerationNorm: Math.min(1, Math.max(0, ((raw.wikipedia?.acceleration || 0) + 15) / 30)) // -15 to +15 → 0 to 1
+        normalized: this._normalizeMetricValue('wikipedia', 'editsPerMinute', raw.wikipedia?.editsPerMinute || 0),
+        avgEditSizeNorm: this._normalizeMetricValue('wikipedia', 'avgEditSize', raw.wikipedia?.avgEditSize || 0),
+        velocityNorm: this._normalizeMetricValue('wikipedia', 'velocity', Math.abs(raw.wikipedia?.velocity || 0)),
+        accelerationNorm: this._normalizeMetricValue('wikipedia', 'acceleration', Math.abs(raw.wikipedia?.acceleration || 0))
       },
       hackernews: {
-        normalized: Math.min(1, Math.max(0, (raw.hackernews?.postsPerMinute || 0) / 5)),
-        avgUpvotesNorm: Math.min(1, Math.max(0, (raw.hackernews?.avgUpvotes || 0) / 100)),
-        commentCountNorm: Math.min(1, Math.max(0, (raw.hackernews?.commentCount || 0) / 100)), // Increased ceiling to 100
-        velocityNorm: Math.min(1, Math.max(0, ((raw.hackernews?.velocity || 0) + 5) / 10)), // -5 to +5 → 0 to 1
-        accelerationNorm: Math.min(1, Math.max(0, ((raw.hackernews?.acceleration || 0) + 5) / 10))
+        normalized: this._normalizeMetricValue('hackernews', 'postsPerMinute', raw.hackernews?.postsPerMinute || 0),
+        avgUpvotesNorm: this._normalizeMetricValue('hackernews', 'avgUpvotes', raw.hackernews?.avgUpvotes || 0),
+        commentCountNorm: this._normalizeMetricValue('hackernews', 'commentCount', raw.hackernews?.commentCount || 0),
+        velocityNorm: this._normalizeMetricValue('hackernews', 'velocity', Math.abs(raw.hackernews?.velocity || 0)),
+        accelerationNorm: this._normalizeMetricValue('hackernews', 'acceleration', Math.abs(raw.hackernews?.acceleration || 0))
       },
       github: {
-        normalized: Math.min(1, Math.max(0, (raw.github?.commitsPerMinute || 0) / 30)),
-        createsNorm: Math.min(1, Math.max(0, (raw.github?.createsPerMinute || 0) / 10)), // 10 creates/min max
-        deletesNorm: Math.min(1, Math.max(0, (raw.github?.deletesPerMinute || 0) / 5)), // 5 deletes/min max
-        velocityNorm: Math.min(1, Math.max(0, ((raw.github?.velocity || 0) + 10) / 20)), // -10 to +10 → 0 to 1
-        accelerationNorm: Math.min(1, Math.max(0, ((raw.github?.acceleration || 0) + 10) / 20))
+        normalized: this._normalizeMetricValue('github', 'commitsPerMinute', raw.github?.commitsPerMinute || 0),
+        createsNorm: this._normalizeMetricValue('github', 'createsPerMinute', raw.github?.createsPerMinute || 0),
+        deletesNorm: this._normalizeMetricValue('github', 'deletesPerMinute', raw.github?.deletesPerMinute || 0),
+        velocityNorm: this._normalizeMetricValue('github', 'velocity', Math.abs(raw.github?.velocity || 0)),
+        accelerationNorm: this._normalizeMetricValue('github', 'acceleration', Math.abs(raw.github?.acceleration || 0))
       }
     }
   }

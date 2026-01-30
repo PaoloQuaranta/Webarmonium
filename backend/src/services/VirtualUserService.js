@@ -88,6 +88,26 @@ class VirtualUserService {
     }
     this.maxSamples = 100 // Keep last 100 samples for percentile calculation (same as Landing)
 
+    // Entry #222: Gesture parameter statistics for adaptive normalization
+    // Tracks historical values to enable percentile-based normalization (same as Entry #221b)
+    this._gestureStats = {
+      intervalTiming: { samples: [] },    // Gesture interval timing (ms)
+      gestureDuration: { samples: [] },   // Actual gesture durations (ms)
+      gestureVelocity: { samples: [] },   // Gesture velocity values
+      gestureDensity: { samples: [] },    // Gesture density per cycle
+      intentThreshold: { samples: [] }    // Intent threshold values
+    }
+    this._gestureStatsMaxSamples = 100
+
+    // Entry #222: Fallback values for warm-up period (< 10 samples)
+    this._gestureFallbacks = {
+      intervalTiming: 8000,   // 8 seconds default
+      gestureDuration: 1000,  // 1 second default
+      gestureVelocity: 0.75,  // Default base velocity
+      gestureDensity: 0.5,    // 50% density
+      intentThreshold: 0.1    // 10% threshold
+    }
+
     // Clock for gesture timing
     this.clockTick = 0
 
@@ -639,9 +659,27 @@ class VirtualUserService {
     }
     const interval = baseInterval + jitter
 
-    // Entry #187h: Reduced interval for rooms (4-12s vs Landing's 8-20s)
-    // Rooms have only 2 sources vs Landing's 3, so need faster cycles to compensate
-    const clampedInterval = Math.max(4000, Math.min(12000, interval))
+    // Entry #222: Track interval for adaptive bounds (replaces hardcoded 4-12s)
+    // Use percentile normalization to derive dynamic min/max bounds
+    this._normalizeGestureParam('intervalTiming', interval)
+
+    // Entry #222: Adaptive interval bounds based on historical distribution
+    // Rooms need faster cycles than Landing (2 sources vs 3)
+    const stats = this._gestureStats.intervalTiming
+    let minInterval = 4000  // Fallback minimum (4s)
+    let maxInterval = 12000 // Fallback maximum (12s)
+
+    if (stats.samples.length >= 10) {
+      // Use P10 and P90 of historical intervals for adaptive bounds
+      const sorted = [...stats.samples].sort((a, b) => a - b)
+      const p10Idx = Math.floor(sorted.length * 0.1)
+      const p90Idx = Math.floor(sorted.length * 0.9)
+      // Clamp derived bounds to reasonable limits (2s-20s)
+      minInterval = Math.max(2000, Math.min(8000, sorted[p10Idx]))
+      maxInterval = Math.max(6000, Math.min(20000, sorted[p90Idx]))
+    }
+
+    const clampedInterval = Math.max(minInterval, Math.min(maxInterval, interval))
 
     roomState.gestureGenerationTimer = setTimeout(() => {
       // Defensive check: if room was deleted without proper deactivation, don't reschedule
@@ -719,9 +757,10 @@ class VirtualUserService {
         // DENSITY FILTER: Probabilistic gesture emission with INVERSE activity modulation
         // Low activity → higher density (more gestures pass, prevents silence)
         // High activity → lower density (fewer gestures pass, prevents chaos)
-        // Entry #187g: density varies from 0.75 (low activity) to 0.60 (high activity)
-        const density = this.gestureConfig.maxDensity -
+        // Entry #222: Adaptive density using percentile normalization
+        const rawDensity = this.gestureConfig.maxDensity -
           (activityLevel * (this.gestureConfig.maxDensity - this.gestureConfig.baseDensityMultiplier))
+        const density = this._adaptiveGestureValue('gestureDensity', rawDensity, 0.4, 0.85)
 
         if (Math.random() > density) {
           // Skip this gesture probabilistically based on density
@@ -820,11 +859,13 @@ class VirtualUserService {
     // Entry #175b fix: Get style for genre-aware playback (moved before velocity calc)
     const style = this.backgroundCompositionService?.getCurrentStyleForRoom(roomId)
 
-    // Entry #171: Velocity variation 0.75-1.0 based on GitHub activity
+    // Entry #222: Adaptive base velocity using percentile normalization
+    // Track velocity values to derive adaptive range instead of hardcoded 0.75
+    const rawBaseVelocity = 0.75 + (gh * 0.25)
+    const adaptiveBaseVelocity = this._adaptiveGestureValue('gestureVelocity', rawBaseVelocity, 0.5, 1.0)
     // Entry #NEW: Apply genre velocity multiplier for consistency with real users
-    const baseVelocity = 0.75 + (gh * 0.25)
     const genreMultiplier = getGenreVelocityMultiplier(style)
-    const tapVelocity = baseVelocity * genreMultiplier
+    const tapVelocity = adaptiveBaseVelocity * genreMultiplier
 
     // 4. Emit hold:start with reverse-mapped position
     this.io.to(roomId).emit('hold:start', {
@@ -926,12 +967,14 @@ class VirtualUserService {
     const curvature = accelerationVariance / (velocityVariance + accelerationVariance + 0.1)
     const clampedCurvature = Math.max(0, Math.min(1, curvature))
 
-    // Entry #174: Duration within category range, modulated by density for musical coherence
-    // Category ranges: tap (50-300ms), short (300-1500ms), medium (1500-5000ms), long (5000-16000ms)
+    // Entry #222: Duration within category range, adaptively modulated
+    // Category ranges: tap (50-300ms), short (300-1000ms), medium (1000-3000ms), long (3000-8000ms)
     const { min: rangeMin, max: rangeMax } = durationRange
     // Validate density is finite and in expected range (defensive against NaN/Infinity)
     const safeDensity = Number.isFinite(density) ? Math.max(0, Math.min(1, density)) : 0.5
-    const phraseDurationMs = rangeMin + (safeDensity * (rangeMax - rangeMin))
+    const rawDuration = rangeMin + (safeDensity * (rangeMax - rangeMin))
+    // Track duration and use adaptive normalization to get better distribution within category
+    const phraseDurationMs = this._adaptiveGestureValue('gestureDuration', rawDuration, rangeMin, rangeMax)
 
     // Entry #182: Create gestureData for PhraseMorphology with boosted metrics
     // Old values produced weak contours → small intervals
@@ -969,11 +1012,13 @@ class VirtualUserService {
     // Entry #175b fix: Get style for genre-aware playback (moved before velocity calc)
     const style = this.backgroundCompositionService?.getCurrentStyleForRoom(roomId)
 
-    // Entry #171: Velocity variation based on GitHub activity (0.75-1.0 range for 0-127 MIDI)
+    // Entry #222: Adaptive velocity multiplier using percentile normalization
+    // Track velocity values to derive adaptive range instead of hardcoded 0.75
+    const rawVelocityMultiplier = 0.75 + (gh * 0.25)
+    const adaptiveVelocityMultiplier = this._adaptiveGestureValue('gestureVelocity', rawVelocityMultiplier, 0.5, 1.0)
     // Entry #NEW: Apply genre velocity multiplier for consistency with real users
-    const baseVelocityMultiplier = 0.75 + (gh * 0.25)
     const genreMultiplier = getGenreVelocityMultiplier(style)
-    const velocityMultiplier = baseVelocityMultiplier * genreMultiplier
+    const velocityMultiplier = adaptiveVelocityMultiplier * genreMultiplier
 
     phrase.notes = phrase.notes.map(note => ({
       ...note,
@@ -1138,10 +1183,15 @@ class VirtualUserService {
    */
   _calculateGestureIntentThreshold(source, activityLevel) {
     const balancing = this.sourceBalancing[source] || VirtualUserService.DEFAULT_BALANCING
-    const BASE_THRESHOLD = 0.1
+
+    // Entry #222: Adaptive base threshold using percentile normalization
+    // Track thresholds over time to derive adaptive base
+    const rawThreshold = 0.1 * balancing.gestureIntentMultiplier
+    const adaptiveBase = this._adaptiveGestureValue('intentThreshold', rawThreshold, 0.05, 0.2)
+
     const ACTIVITY_MODULATION = 0.5  // 50% reduction at max activity
 
-    return BASE_THRESHOLD * balancing.gestureIntentMultiplier * (1 - activityLevel * ACTIVITY_MODULATION)
+    return adaptiveBase * (1 - activityLevel * ACTIVITY_MODULATION)
   }
 
   /**
@@ -1181,7 +1231,7 @@ class VirtualUserService {
   /**
    * Normalize web metrics to 0-1 range for gesture variation
    * Entry #171: Centralized normalization matching BackgroundCompositionService
-   * Uses fixed reference ranges for deterministic output
+   * Entry #222: Uses percentile-based normalization instead of hardcoded divisors
    * @returns {Object} Normalized metrics {wikipedia, hackernews, github}
    * @private
    */
@@ -1195,10 +1245,12 @@ class VirtualUserService {
       }
     }
 
+    // Entry #222: Use percentile normalization via _normalizeValue() instead of hardcoded divisors
+    // This ensures full 0-1 range coverage based on actual data distribution
     return {
-      wikipedia: { normalized: Math.min(1, (raw.wikipedia?.editsPerMinute || 0) / 50) },
-      hackernews: { normalized: Math.min(1, (raw.hackernews?.postsPerMinute || 0) / 5) },
-      github: { normalized: Math.min(1, (raw.github?.commitsPerMinute || 0) / 30) }
+      wikipedia: { normalized: this._normalizeValue('wikipedia', 'editsPerMinute', raw.wikipedia?.editsPerMinute || 0) },
+      hackernews: { normalized: this._normalizeValue('hackernews', 'postsPerMinute', raw.hackernews?.postsPerMinute || 0) },
+      github: { normalized: this._normalizeValue('github', 'commitsPerMinute', raw.github?.commitsPerMinute || 0) }
     }
   }
 
@@ -1687,6 +1739,71 @@ class VirtualUserService {
 
     // Clamp to [0, 1]
     return Math.max(0, Math.min(1, normalized))
+  }
+
+  /**
+   * Entry #222: Normalize gesture-related parameters using percentile normalization.
+   * Similar to Entry #221b but for gesture generation parameters.
+   *
+   * @param {string} paramName - Parameter name (intervalTiming, gestureDuration, etc.)
+   * @param {number} value - Raw value to normalize
+   * @returns {number} Normalized value in 0-1 range
+   * @private
+   */
+  _normalizeGestureParam(paramName, value) {
+    // Input validation
+    if (typeof value !== 'number' || !isFinite(value)) {
+      return 0.5
+    }
+
+    const stats = this._gestureStats[paramName]
+    if (!stats) {
+      return Math.max(0, Math.min(1, value))
+    }
+
+    // Add sample to history
+    stats.samples.push(value)
+    if (stats.samples.length > this._gestureStatsMaxSamples) {
+      stats.samples.shift()
+    }
+
+    const WARMUP_THRESHOLD = 10
+    if (stats.samples.length < WARMUP_THRESHOLD) {
+      // Warm-up: use fallback divisors
+      const fallback = this._gestureFallbacks[paramName] || 1
+      return Math.max(0, Math.min(1, value / fallback))
+    }
+
+    // Percentile normalization (P10-P90)
+    const sorted = [...stats.samples].sort((a, b) => a - b)
+    const p10Index = Math.floor(sorted.length * 0.1)
+    const p90Index = Math.floor(sorted.length * 0.9)
+    const p10 = sorted[p10Index]
+    const p90 = sorted[p90Index]
+    const range = p90 - p10
+
+    if (range < 0.001) {
+      return 0.5  // Constant values map to middle
+    }
+
+    return Math.max(0, Math.min(1, (value - p10) / range))
+  }
+
+  /**
+   * Entry #222: Map normalized gesture parameter to output range.
+   * Inverts the normalization to produce actual values within target range.
+   *
+   * @param {string} paramName - Parameter name for stats tracking
+   * @param {number} rawValue - Raw input value to track
+   * @param {number} minOutput - Minimum output value
+   * @param {number} maxOutput - Maximum output value
+   * @returns {number} Value in [minOutput, maxOutput] range
+   * @private
+   */
+  _adaptiveGestureValue(paramName, rawValue, minOutput, maxOutput) {
+    const normalized = this._normalizeGestureParam(paramName, rawValue)
+    // Map normalized (0-1) to output range
+    return minOutput + normalized * (maxOutput - minOutput)
   }
 
   /**

@@ -30,6 +30,32 @@ class GestureToMusicService {
     // Entry #171: Web metrics for deterministic gesture variation
     this.webMetrics = null
     this.webMetricsPoller = null
+
+    // Entry #222: Statistical tracking for percentile-based normalization
+    // Replaces hardcoded divisors (50, 5, 30) with adaptive normalization
+    this._metricStatistics = {
+      wikipedia: {
+        editsPerMinute: { samples: [] },
+        avgEditSize: { samples: [] },
+        velocity: { samples: [] },
+        acceleration: { samples: [] }
+      },
+      hackernews: {
+        postsPerMinute: { samples: [] },
+        avgUpvotes: { samples: [] },
+        commentCount: { samples: [] },
+        velocity: { samples: [] },
+        acceleration: { samples: [] }
+      },
+      github: {
+        commitsPerMinute: { samples: [] },
+        createsPerMinute: { samples: [] },
+        deletesPerMinute: { samples: [] },
+        velocity: { samples: [] },
+        acceleration: { samples: [] }
+      }
+    }
+    this._maxSamples = 100
   }
 
   // Entry #209b: Delegate currentKey to harmonicEngine (single source of truth)
@@ -99,8 +125,52 @@ class GestureToMusicService {
   }
 
   /**
+   * Entry #222: Normalize a metric value using percentile-based normalization.
+   * @param {string} source - Source name (wikipedia, hackernews, github)
+   * @param {string} metricName - Metric name
+   * @param {number} value - Raw value to normalize
+   * @returns {number} Normalized value in 0-1 range
+   * @private
+   */
+  _normalizeMetricValue(source, metricName, value) {
+    if (typeof value !== 'number' || !isFinite(value)) return 0.5
+
+    const stats = this._metricStatistics[source]?.[metricName]
+    if (!stats) return 0.5
+
+    // Add sample to history
+    stats.samples.push(value)
+    if (stats.samples.length > this._maxSamples) {
+      stats.samples.shift()
+    }
+
+    const WARMUP_THRESHOLD = 10
+    if (stats.samples.length < WARMUP_THRESHOLD) {
+      // Warm-up: use fallback divisors
+      const fallbacks = {
+        editsPerMinute: 50, postsPerMinute: 5, commitsPerMinute: 30,
+        avgEditSize: 2000, avgUpvotes: 100, commentCount: 100,
+        createsPerMinute: 10, deletesPerMinute: 5,
+        velocity: 30, acceleration: 15
+      }
+      const fallback = fallbacks[metricName] || 1
+      return Math.max(0, Math.min(1, value / fallback))
+    }
+
+    // Percentile normalization (P10-P90)
+    const sorted = [...stats.samples].sort((a, b) => a - b)
+    const p10 = sorted[Math.floor(sorted.length * 0.1)]
+    const p90 = sorted[Math.floor(sorted.length * 0.9)]
+    const range = p90 - p10
+
+    if (range < 0.001) return 0.5
+    return Math.max(0, Math.min(1, (value - p10) / range))
+  }
+
+  /**
    * Normalize web metrics to 0-1 range with *Norm suffix fields
    * Entry #171: Matches BackgroundCompositionService normalization for consistency
+   * Entry #222: Uses percentile-based normalization instead of hardcoded divisors
    * @returns {Object|null} Normalized metrics or null if poller not available
    * @private
    */
@@ -109,26 +179,27 @@ class GestureToMusicService {
     const raw = this.webMetricsPoller.getMetrics()
     if (!raw) return this.webMetrics
 
+    // Entry #222: Use percentile normalization instead of hardcoded divisors
     return {
       wikipedia: {
-        normalized: Math.min(1, Math.max(0, (raw.wikipedia?.editsPerMinute || 0) / 50)),
-        avgEditSizeNorm: Math.min(1, Math.max(0, (raw.wikipedia?.avgEditSize || 0) / 2000)),
-        velocityNorm: Math.min(1, Math.max(0, ((raw.wikipedia?.velocity || 0) + 30) / 60)),
-        accelerationNorm: Math.min(1, Math.max(0, ((raw.wikipedia?.acceleration || 0) + 15) / 30))
+        normalized: this._normalizeMetricValue('wikipedia', 'editsPerMinute', raw.wikipedia?.editsPerMinute || 0),
+        avgEditSizeNorm: this._normalizeMetricValue('wikipedia', 'avgEditSize', raw.wikipedia?.avgEditSize || 0),
+        velocityNorm: this._normalizeMetricValue('wikipedia', 'velocity', Math.abs(raw.wikipedia?.velocity || 0)),
+        accelerationNorm: this._normalizeMetricValue('wikipedia', 'acceleration', Math.abs(raw.wikipedia?.acceleration || 0))
       },
       hackernews: {
-        normalized: Math.min(1, Math.max(0, (raw.hackernews?.postsPerMinute || 0) / 5)),
-        avgUpvotesNorm: Math.min(1, Math.max(0, (raw.hackernews?.avgUpvotes || 0) / 100)),
-        commentCountNorm: Math.min(1, Math.max(0, (raw.hackernews?.commentCount || 0) / 100)),
-        velocityNorm: Math.min(1, Math.max(0, ((raw.hackernews?.velocity || 0) + 5) / 10)),
-        accelerationNorm: Math.min(1, Math.max(0, ((raw.hackernews?.acceleration || 0) + 5) / 10))
+        normalized: this._normalizeMetricValue('hackernews', 'postsPerMinute', raw.hackernews?.postsPerMinute || 0),
+        avgUpvotesNorm: this._normalizeMetricValue('hackernews', 'avgUpvotes', raw.hackernews?.avgUpvotes || 0),
+        commentCountNorm: this._normalizeMetricValue('hackernews', 'commentCount', raw.hackernews?.commentCount || 0),
+        velocityNorm: this._normalizeMetricValue('hackernews', 'velocity', Math.abs(raw.hackernews?.velocity || 0)),
+        accelerationNorm: this._normalizeMetricValue('hackernews', 'acceleration', Math.abs(raw.hackernews?.acceleration || 0))
       },
       github: {
-        normalized: Math.min(1, Math.max(0, (raw.github?.commitsPerMinute || 0) / 30)),
-        createsNorm: Math.min(1, Math.max(0, (raw.github?.createsPerMinute || 0) / 10)),
-        deletesNorm: Math.min(1, Math.max(0, (raw.github?.deletesPerMinute || 0) / 5)),
-        velocityNorm: Math.min(1, Math.max(0, ((raw.github?.velocity || 0) + 10) / 20)),
-        accelerationNorm: Math.min(1, Math.max(0, ((raw.github?.acceleration || 0) + 10) / 20))
+        normalized: this._normalizeMetricValue('github', 'commitsPerMinute', raw.github?.commitsPerMinute || 0),
+        createsNorm: this._normalizeMetricValue('github', 'createsPerMinute', raw.github?.createsPerMinute || 0),
+        deletesNorm: this._normalizeMetricValue('github', 'deletesPerMinute', raw.github?.deletesPerMinute || 0),
+        velocityNorm: this._normalizeMetricValue('github', 'velocity', Math.abs(raw.github?.velocity || 0)),
+        accelerationNorm: this._normalizeMetricValue('github', 'acceleration', Math.abs(raw.github?.acceleration || 0))
       }
     }
   }

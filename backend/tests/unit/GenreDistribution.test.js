@@ -667,3 +667,227 @@ describe('Genre Distribution System (Entry #220)', () => {
     })
   })
 })
+
+// Entry #222: VirtualUserService Gesture Parameter Normalization Tests
+const VirtualUserService = require('../../src/services/VirtualUserService')
+
+describe('VirtualUserService Gesture Normalization (Entry #222)', () => {
+  let virtualUserService
+
+  beforeEach(() => {
+    virtualUserService = new VirtualUserService()
+  })
+
+  describe('Gesture Stats Infrastructure', () => {
+    it('should have gesture stats buffers', () => {
+      expect(virtualUserService._gestureStats).toBeDefined()
+      expect(virtualUserService._gestureStats.intervalTiming).toBeDefined()
+      expect(virtualUserService._gestureStats.gestureDuration).toBeDefined()
+      expect(virtualUserService._gestureStats.gestureVelocity).toBeDefined()
+      expect(virtualUserService._gestureStats.gestureDensity).toBeDefined()
+      expect(virtualUserService._gestureStats.intentThreshold).toBeDefined()
+    })
+
+    it('should have fallback values for warm-up period', () => {
+      expect(virtualUserService._gestureFallbacks).toBeDefined()
+      expect(virtualUserService._gestureFallbacks.intervalTiming).toBe(8000)
+      expect(virtualUserService._gestureFallbacks.gestureDuration).toBe(1000)
+      expect(virtualUserService._gestureFallbacks.gestureVelocity).toBe(0.75)
+      expect(virtualUserService._gestureFallbacks.gestureDensity).toBe(0.5)
+      expect(virtualUserService._gestureFallbacks.intentThreshold).toBe(0.1)
+    })
+
+    it('should track max samples correctly', () => {
+      expect(virtualUserService._gestureStatsMaxSamples).toBe(100)
+    })
+  })
+
+  describe('_normalizeGestureParam()', () => {
+    it('should use fallback during warm-up period (< 10 samples)', () => {
+      // Fresh instance - should use fallback
+      const result = virtualUserService._normalizeGestureParam('gestureVelocity', 0.5)
+      // 0.5 / 0.75 (fallback) ≈ 0.667, clamped to [0, 1]
+      expect(result).toBeCloseTo(0.667, 1)
+    })
+
+    it('should switch to percentile normalization after warm-up', () => {
+      // Add 10 samples (warm-up period)
+      for (let i = 0; i < 10; i++) {
+        virtualUserService._normalizeGestureParam('gestureVelocity', 0.5 + i * 0.03)
+      }
+
+      // Now test - should use percentile normalization
+      const midResult = virtualUserService._normalizeGestureParam('gestureVelocity', 0.65)
+      expect(midResult).toBeGreaterThan(0.3)
+      expect(midResult).toBeLessThan(0.7)
+    })
+
+    it('should handle constant values (zero range)', () => {
+      // Add 15 identical samples
+      for (let i = 0; i < 15; i++) {
+        virtualUserService._normalizeGestureParam('gestureDensity', 0.5)
+      }
+
+      // Should return 0.5 when range is zero
+      const result = virtualUserService._normalizeGestureParam('gestureDensity', 0.5)
+      expect(result).toBe(0.5)
+    })
+
+    it('should handle invalid input values gracefully', () => {
+      expect(virtualUserService._normalizeGestureParam('gestureVelocity', NaN)).toBe(0.5)
+      expect(virtualUserService._normalizeGestureParam('gestureVelocity', Infinity)).toBe(0.5)
+      expect(virtualUserService._normalizeGestureParam('gestureVelocity', undefined)).toBe(0.5)
+    })
+
+    it('should clamp output to 0-1 range', () => {
+      // Build up statistics
+      for (let i = 0; i < 15; i++) {
+        virtualUserService._normalizeGestureParam('intervalTiming', 5000 + i * 500)
+      }
+
+      // Test with extreme values
+      const veryLow = virtualUserService._normalizeGestureParam('intervalTiming', 1000)
+      const veryHigh = virtualUserService._normalizeGestureParam('intervalTiming', 20000)
+
+      expect(veryLow).toBeGreaterThanOrEqual(0)
+      expect(veryLow).toBeLessThanOrEqual(1)
+      expect(veryHigh).toBeGreaterThanOrEqual(0)
+      expect(veryHigh).toBeLessThanOrEqual(1)
+    })
+  })
+
+  describe('_adaptiveGestureValue()', () => {
+    it('should map normalized value to output range', () => {
+      // Build up statistics for predictable normalization
+      for (let i = 0; i < 15; i++) {
+        virtualUserService._normalizeGestureParam('gestureDuration', 500 + i * 100)
+      }
+
+      // Map to output range
+      const result = virtualUserService._adaptiveGestureValue('gestureDuration', 1000, 300, 3000)
+
+      // Should be within output range
+      expect(result).toBeGreaterThanOrEqual(300)
+      expect(result).toBeLessThanOrEqual(3000)
+    })
+
+    it('should respect min/max output bounds', () => {
+      const minOutput = 0.4
+      const maxOutput = 0.85
+
+      const result = virtualUserService._adaptiveGestureValue('gestureDensity', 0.6, minOutput, maxOutput)
+
+      expect(result).toBeGreaterThanOrEqual(minOutput)
+      expect(result).toBeLessThanOrEqual(maxOutput)
+    })
+
+    it('should handle fresh service (no statistics)', () => {
+      // Fresh service with no prior statistics
+      const result = virtualUserService._adaptiveGestureValue('gestureVelocity', 0.75, 0.5, 1.0)
+
+      // Should fall back to normalization with fallback divisor
+      expect(result).toBeGreaterThanOrEqual(0.5)
+      expect(result).toBeLessThanOrEqual(1.0)
+    })
+  })
+
+  describe('Gesture Intent Threshold', () => {
+    it('should calculate adaptive threshold', () => {
+      // Build up statistics
+      for (let i = 0; i < 15; i++) {
+        virtualUserService._normalizeGestureParam('intentThreshold', 0.05 + i * 0.01)
+      }
+
+      const threshold = virtualUserService._calculateGestureIntentThreshold('wikipedia', 0.5)
+
+      // Should be in reasonable range (activity modulation reduces it)
+      expect(threshold).toBeGreaterThan(0)
+      expect(threshold).toBeLessThan(0.5)
+    })
+
+    it('should reduce threshold with higher activity', () => {
+      const lowActivityThreshold = virtualUserService._calculateGestureIntentThreshold('hackernews', 0.1)
+      const highActivityThreshold = virtualUserService._calculateGestureIntentThreshold('hackernews', 0.9)
+
+      // Higher activity should result in lower threshold
+      expect(highActivityThreshold).toBeLessThan(lowActivityThreshold)
+    })
+
+    it('should apply source-specific multipliers', () => {
+      const wikiThreshold = virtualUserService._calculateGestureIntentThreshold('wikipedia', 0.5)
+      const hnThreshold = virtualUserService._calculateGestureIntentThreshold('hackernews', 0.5)
+
+      // Wikipedia has 2.0x multiplier, HN has 0.8x
+      // Wikipedia should have higher threshold
+      expect(wikiThreshold).toBeGreaterThan(hnThreshold)
+    })
+  })
+
+  describe('Web Metrics Normalization', () => {
+    it('should normalize web metrics without hardcoded divisors', () => {
+      // Set up mock web metrics poller
+      virtualUserService.webMetricsPoller = {
+        getMetrics: () => ({
+          wikipedia: { editsPerMinute: 25 },
+          hackernews: { postsPerMinute: 3 },
+          github: { commitsPerMinute: 15 }
+        })
+      }
+
+      // Build up statistics for percentile normalization
+      for (let i = 0; i < 15; i++) {
+        virtualUserService._updateStatistics('wikipedia', 'editsPerMinute', 20 + i * 2)
+        virtualUserService._updateStatistics('hackernews', 'postsPerMinute', 2 + i * 0.3)
+        virtualUserService._updateStatistics('github', 'commitsPerMinute', 10 + i)
+      }
+
+      const normalized = virtualUserService._normalizeWebMetrics()
+
+      // All normalized values should be in 0-1 range
+      expect(normalized.wikipedia.normalized).toBeGreaterThanOrEqual(0)
+      expect(normalized.wikipedia.normalized).toBeLessThanOrEqual(1)
+      expect(normalized.hackernews.normalized).toBeGreaterThanOrEqual(0)
+      expect(normalized.hackernews.normalized).toBeLessThanOrEqual(1)
+      expect(normalized.github.normalized).toBeGreaterThanOrEqual(0)
+      expect(normalized.github.normalized).toBeLessThanOrEqual(1)
+    })
+
+    it('should return 0.5 when no metrics available', () => {
+      virtualUserService.webMetricsPoller = null
+
+      const normalized = virtualUserService._normalizeWebMetrics()
+
+      expect(normalized.wikipedia.normalized).toBe(0.5)
+      expect(normalized.hackernews.normalized).toBe(0.5)
+      expect(normalized.github.normalized).toBe(0.5)
+    })
+  })
+
+  describe('Duration Category Selection', () => {
+    it('should select duration categories with PHI-based distribution', () => {
+      const categories = { tap: 0, short: 0, medium: 0, long: 0 }
+
+      // Run 100 selections
+      for (let i = 0; i < 100; i++) {
+        virtualUserService.gestureCounters.wikipedia = i
+        const { category } = virtualUserService._selectDurationCategory('wikipedia')
+        categories[category]++
+      }
+
+      // All categories should be represented
+      expect(categories.tap).toBeGreaterThan(0)
+      expect(categories.short).toBeGreaterThan(0)
+      expect(categories.medium).toBeGreaterThan(0)
+      expect(categories.long).toBeGreaterThan(0)
+    })
+
+    it('should return valid duration ranges for each category', () => {
+      const result = virtualUserService._selectDurationCategory('hackernews')
+
+      expect(result.category).toMatch(/^(tap|short|medium|long)$/)
+      expect(result.durationRange.min).toBeDefined()
+      expect(result.durationRange.max).toBeDefined()
+      expect(result.durationRange.min).toBeLessThan(result.durationRange.max)
+    })
+  })
+})

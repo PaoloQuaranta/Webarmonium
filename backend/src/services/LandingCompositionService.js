@@ -240,7 +240,7 @@ class LandingCompositionService {
   /**
    * Normalize web metrics to 0-1 range for use by HarmonicEngine
    * Entry #171: Centralized normalization to eliminate code duplication
-   * Uses fixed reference ranges for deterministic output
+   * Entry #222: Uses percentile-based normalization instead of hardcoded divisors
    * @returns {Object|null} Normalized metrics or null if poller not available
    * @private
    */
@@ -249,10 +249,12 @@ class LandingCompositionService {
     const raw = this.webMetricsPoller.getMetrics()
     if (!raw) return null
 
+    // Entry #222: Use percentile normalization via normalizeMetricDynamic() instead of hardcoded divisors
+    // This ensures full 0-1 range coverage based on actual data distribution
     return {
-      wikipedia: { normalized: Math.min(1, (raw.wikipedia?.editsPerMinute || 0) / 50) },
-      hackernews: { normalized: Math.min(1, (raw.hackernews?.postsPerMinute || 0) / 5) },
-      github: { normalized: Math.min(1, (raw.github?.commitsPerMinute || 0) / 30) }
+      wikipedia: { normalized: this.normalizeMetricDynamic('wikipedia', 'editsPerMinute', raw.wikipedia?.editsPerMinute || 0) },
+      hackernews: { normalized: this.normalizeMetricDynamic('hackernews', 'postsPerMinute', raw.hackernews?.postsPerMinute || 0) },
+      github: { normalized: this.normalizeMetricDynamic('github', 'commitsPerMinute', raw.github?.commitsPerMinute || 0) }
     }
   }
 
