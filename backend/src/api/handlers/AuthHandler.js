@@ -71,6 +71,12 @@ const AuthHandler = {
           metrics = socket.services.landingCompositionService.getMetrics()
         }
 
+        // Get room activity (users in regular rooms, not landing)
+        let roomsActivity = { usersInRooms: 0 }
+        if (socket.services.connectionTracker) {
+          roomsActivity.usersInRooms = socket.services.connectionTracker.getRegularRoomUserCount()
+        }
+
         const latency = Date.now() - startTime
 
         // Send success response
@@ -80,6 +86,7 @@ const AuthHandler = {
           roomId: landingRoomId,
           cursors,
           metrics,
+          roomsActivity,
           latency,
           timestamp: Date.now()
         }
@@ -94,6 +101,7 @@ const AuthHandler = {
           userId: socket.userId,
           cursors,
           metrics,
+          roomsActivity,
           timestamp: Date.now()
         })
 
@@ -369,6 +377,15 @@ const AuthHandler = {
           }, 600)
         }
 
+        // Emit rooms-activity update to landing page clients
+        if (socket.services.connectionTracker && socket.services.io) {
+          const usersInRooms = socket.services.connectionTracker.getRegularRoomUserCount()
+          socket.services.io.to('landing-room').emit('rooms-activity', {
+            usersInRooms,
+            timestamp: Date.now()
+          })
+        }
+
         // console.log(`User ${socket.userId} joined room ${roomId} (${latency}ms)`)
 
         // Log constitutional compliance
@@ -447,6 +464,15 @@ const AuthHandler = {
           userCount: result.remainingUsers,
           timestamp: Date.now()
         })
+
+        // Emit rooms-activity update to landing page clients
+        if (socket.services.connectionTracker && socket.services.io) {
+          const usersInRooms = socket.services.connectionTracker.getRegularRoomUserCount()
+          socket.services.io.to('landing-room').emit('rooms-activity', {
+            usersInRooms,
+            timestamp: Date.now()
+          })
+        }
 
         // console.log(`User ${socket.userId} left room ${roomId} (${latency}ms)`)
 
@@ -593,6 +619,15 @@ const AuthHandler = {
               activeUsers: Array.from(roomAfterLeave.users.values()).map(u => u.id)
             })
           }
+        }
+
+        // Emit rooms-activity update to landing page clients
+        if (socket.services.connectionTracker && socket.services.io) {
+          const usersInRooms = socket.services.connectionTracker.getRegularRoomUserCount()
+          socket.services.io.to('landing-room').emit('rooms-activity', {
+            usersInRooms,
+            timestamp: Date.now()
+          })
         }
 
         // console.log(`User ${socket.userId} disconnected from room ${socket.roomId}`)

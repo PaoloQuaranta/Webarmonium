@@ -350,6 +350,25 @@ export class DashboardUI {
   }
 
   /**
+   * Update rooms activity display (users in rooms count)
+   * @param {Object} data - { usersInRooms: number }
+   */
+  updateRoomsActivity(data) {
+    const { roomsActivity } = this.elements
+    if (!roomsActivity) return
+
+    const count = data?.usersInRooms || 0
+
+    if (count > 0) {
+      roomsActivity.textContent = `${count} user${count !== 1 ? 's' : ''} online`
+      roomsActivity.classList.add('visible')
+    } else {
+      roomsActivity.textContent = ''
+      roomsActivity.classList.remove('visible')
+    }
+  }
+
+  /**
    * Entry #93: Setup hover parallax effect on metric cards
    * Creates a subtle 3D tilt effect on mouse movement
    * @private

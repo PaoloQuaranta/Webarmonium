@@ -500,6 +500,11 @@ class LandingApp {
               this.dashboardUI.updateMetrics(this.currentMetrics)
             }
 
+            // Initialize rooms activity (users in rooms count)
+            if (response.roomsActivity) {
+              this.dashboardUI.updateRoomsActivity(response.roomsActivity)
+            }
+
             // Entry #27: Request drone after joining (backup for stop/start case)
             // Wait 800ms to let backend's automatic drone emit arrive first
             setTimeout(() => {
@@ -593,6 +598,11 @@ class LandingApp {
             this._applyDelayModulation()
           }
         }
+      })
+
+      // Listen for rooms-activity updates (users in rooms count)
+      this.socket.on('rooms-activity', (data) => {
+        this.dashboardUI.updateRoomsActivity(data)
       })
 
       // Listen for hold:start events from virtual users (for particles/pulses)
