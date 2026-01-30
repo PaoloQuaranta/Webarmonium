@@ -95,7 +95,91 @@ class BackgroundCompositionService {
     this.lastFullMaterialCleanup = 0
     this.MATERIAL_FULL_CLEANUP_INTERVAL = 10000  // 10 seconds for full cleanup
 
+    // Entry #220: Genre coverage tracking for monitoring parameter distribution
+    // Tracks genre usage over rolling 1-hour window to detect underrepresented genres
+    // Uses CircularBuffer for weights to avoid O(n) Array.shift() operations
+    this.genreCoverage = {}
+    for (const genre of ALL_GENRES) {
+      this.genreCoverage[genre] = { count: 0, lastPlayed: 0, weights: new CircularBuffer(100) }
+    }
+    this.GENRE_COVERAGE_WINDOW = 60 * 60 * 1000  // 1 hour rolling window
+    this.GENRE_COVERAGE_MIN_COMPOSITIONS = 50    // Minimum compositions before checking coverage
+    this.GENRE_COVERAGE_THRESHOLD = 0.05         // Warn if any genre < 5% of compositions
+
 // console.log('🎼 BackgroundCompositionService initialized')
+  }
+
+  /**
+   * Entry #220: Track genre usage for coverage monitoring.
+   * Records dominant genre and all weights for each composition.
+   * Logs warning if any genre is significantly underrepresented.
+   *
+   * @param {string} dominantGenre - The dominant genre of the composition
+   * @param {Object} genreWeights - All genre weights for this composition
+   * @private
+   */
+  _trackGenreCoverage(dominantGenre, genreWeights) {
+    const now = Date.now()
+
+    // Update dominant genre count
+    if (this.genreCoverage[dominantGenre]) {
+      this.genreCoverage[dominantGenre].count++
+      this.genreCoverage[dominantGenre].lastPlayed = now
+    }
+
+    // Track weights for all genres - CircularBuffer handles window size automatically with O(1) push
+    for (const [genre, weight] of Object.entries(genreWeights || {})) {
+      if (this.genreCoverage[genre]) {
+        this.genreCoverage[genre].weights.push(weight)
+      }
+    }
+
+    // Calculate total compositions
+    const totalCompositions = Object.values(this.genreCoverage)
+      .reduce((sum, g) => sum + g.count, 0)
+
+    // Only check coverage after minimum compositions
+    if (totalCompositions >= this.GENRE_COVERAGE_MIN_COMPOSITIONS) {
+      const underrepresented = []
+      for (const [genre, data] of Object.entries(this.genreCoverage)) {
+        const share = data.count / totalCompositions
+        if (share < this.GENRE_COVERAGE_THRESHOLD) {
+          underrepresented.push({ genre, share: (share * 100).toFixed(1) + '%' })
+        }
+      }
+
+      // Log warning if any genres underrepresented (throttled to avoid spam)
+      if (underrepresented.length > 0 && totalCompositions % 50 === 0) {
+        console.warn(`⚠️ Entry #220: Underrepresented genres after ${totalCompositions} compositions:`,
+          underrepresented.map(g => `${g.genre}(${g.share})`).join(', '))
+      }
+    }
+  }
+
+  /**
+   * Entry #220: Get genre coverage statistics for monitoring/debugging.
+   * @returns {Object} Coverage statistics for each genre
+   */
+  getGenreCoverageStats() {
+    const totalCompositions = Object.values(this.genreCoverage)
+      .reduce((sum, g) => sum + g.count, 0)
+
+    const stats = {}
+    for (const [genre, data] of Object.entries(this.genreCoverage)) {
+      // Convert CircularBuffer to array for reduce operation
+      const weightsArray = data.weights.toArray()
+      const avgWeight = weightsArray.length > 0
+        ? weightsArray.reduce((a, b) => a + b, 0) / weightsArray.length
+        : 0
+      stats[genre] = {
+        count: data.count,
+        share: totalCompositions > 0 ? (data.count / totalCompositions * 100).toFixed(1) + '%' : '0%',
+        avgWeight: avgWeight.toFixed(3),
+        lastPlayed: data.lastPlayed ? new Date(data.lastPlayed).toISOString() : 'never'
+      }
+    }
+    stats._totalCompositions = totalCompositions
+    return stats
   }
 
   /**
@@ -886,7 +970,13 @@ class BackgroundCompositionService {
 
     if (shouldRunFullAnalysis) {
       // Use 'background' context for state isolation from other services
-      this.styleAnalyzer.analyzeGestureStyle(roomState.gestureHistory.toArray(), gestureWeight, 'background')
+      // Entry #220: Pass compositionCount for PHI-based genre drift exploration
+      this.styleAnalyzer.analyzeGestureStyle(
+        roomState.gestureHistory.toArray(),
+        gestureWeight,
+        'background',
+        roomState.compositionCount || 0
+      )
       this.lastStyleAnalysisTime.set(roomId, now)
     }
 
@@ -1399,6 +1489,7 @@ class BackgroundCompositionService {
         // Entry #180: Include synthParams for frontend filter/envelope modulation
         const synthParams = getSynthParams(forcedGenre || 'melodic')
 
+        const dominantGenre = forcedGenre || this._getDominantGenre(currentStyle?.genreWeights)
         this.io.to(roomId).emit('background-composition', {
           roomId,
           composition,
@@ -1406,13 +1497,16 @@ class BackgroundCompositionService {
           timestamp: Date.now(),
           style: {
             genreWeights: currentStyle?.genreWeights || {},
-            dominantGenre: forcedGenre || this._getDominantGenre(currentStyle?.genreWeights),
+            dominantGenre: dominantGenre,
             forcedGenre: forcedGenre,
             currentBPM: roomState.styleCycling?.currentBPM,
             energy: currentStyle?.energy || 0.5,
             synthParams: synthParams // Entry #180: Pass synth params for genre-aware audio
           }
         })
+
+        // Entry #220: Track genre coverage for distribution monitoring
+        this._trackGenreCoverage(dominantGenre, currentStyle?.genreWeights)
 
 // console.log(`🎼 Broadcast composition #${roomState.compositionCount} to room ${roomId}`)
       } else {

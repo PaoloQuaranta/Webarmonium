@@ -1,4 +1,5 @@
 const CircularBuffer = require('../utils/CircularBuffer')
+const { PHI_4D, DRIFT_AMPLITUDE } = require('../utils/constants')
 
 /**
  * Genre profiles for continuous parameter space calculation.
@@ -9,15 +10,20 @@ const CircularBuffer = require('../utils/CircularBuffer')
  * for more natural genre emergence from gesture metrics.
  */
 const GENRE_PROFILES = {
-  // Entry #178b: Rebalanced - classical requires EXTREME regularity, melodic is center
-  ambient:      { energy: 0.15, directionUniformity: 0.75, regularity: 0.80, pathComplexity: 0.15 },
-  classical:    { energy: 0.25, directionUniformity: 0.80, regularity: 0.90, pathComplexity: 0.20 },
-  melodic:      { energy: 0.40, directionUniformity: 0.65, regularity: 0.70, pathComplexity: 0.35 },
-  jazz:         { energy: 0.50, directionUniformity: 0.55, regularity: 0.45, pathComplexity: 0.50 },
-  electronic:   { energy: 0.60, directionUniformity: 0.75, regularity: 0.85, pathComplexity: 0.30 },
-  rhythmic:     { energy: 0.70, directionUniformity: 0.60, regularity: 0.75, pathComplexity: 0.40 },
-  rock:         { energy: 0.80, directionUniformity: 0.55, regularity: 0.65, pathComplexity: 0.45 },
-  experimental: { energy: 0.45, directionUniformity: 0.45, regularity: 0.35, pathComplexity: 0.60 }
+  // Entry #220: Repositioned for maximum separation in 4D space
+  // Corners - maximally separated genres
+  ambient:      { energy: 0.10, directionUniformity: 0.90, regularity: 0.90, pathComplexity: 0.10 },  // quiet, uniform, regular, simple
+  experimental: { energy: 0.40, directionUniformity: 0.20, regularity: 0.20, pathComplexity: 0.90 },  // varied, irregular, complex
+  rock:         { energy: 0.90, directionUniformity: 0.40, regularity: 0.50, pathComplexity: 0.40 },  // powerful, varied, moderate
+  electronic:   { energy: 0.75, directionUniformity: 0.85, regularity: 0.90, pathComplexity: 0.15 },  // beat-driven, mechanical
+
+  // Edges - distinct from corners
+  classical:    { energy: 0.20, directionUniformity: 0.85, regularity: 0.95, pathComplexity: 0.20 },  // structured, refined
+  jazz:         { energy: 0.55, directionUniformity: 0.40, regularity: 0.30, pathComplexity: 0.70 },  // improvisational
+  rhythmic:     { energy: 0.80, directionUniformity: 0.55, regularity: 0.75, pathComplexity: 0.30 },  // groove-driven
+
+  // Center - neutral/default
+  melodic:      { energy: 0.50, directionUniformity: 0.60, regularity: 0.60, pathComplexity: 0.40 }   // balanced
 }
 
 /**
@@ -81,6 +87,17 @@ class StyleAnalyzer {
 
     this.styleHistory = new CircularBuffer(100)  // O(1) push, no shift() (was causing O(n) operations)
     this.smoothingFactor = 0.3 // Reduced from 0.5 - allows 70% influence for initial gestures (weight=1.0)
+
+    // Entry #220: MetricStatistics for percentile-based normalization of 4D parameters
+    // Tracks rolling window of samples for each dimension to adapt normalization to actual data
+    // Uses CircularBuffer for O(1) push instead of Array.shift() which is O(n)
+    this._metricStatisticsWindowSize = 100  // Rolling window for percentile calculation
+    this._metricStatistics = {
+      energy: { samples: new CircularBuffer(this._metricStatisticsWindowSize), min: Infinity, max: 0 },
+      directionUniformity: { samples: new CircularBuffer(this._metricStatisticsWindowSize), min: Infinity, max: 0 },
+      regularity: { samples: new CircularBuffer(this._metricStatisticsWindowSize), min: Infinity, max: 0 },
+      pathComplexity: { samples: new CircularBuffer(this._metricStatisticsWindowSize), min: Infinity, max: 0 }
+    }
   }
 
   /**
@@ -110,9 +127,10 @@ class StyleAnalyzer {
    * @param {Array} gestures - Gesture data to analyze
    * @param {number} gestureWeight - Weight for style evolution (0-1)
    * @param {string} contextId - Optional context ID for state isolation
+   * @param {number} compositionCount - Optional composition count for PHI-based drift (Entry #220)
    * @returns {Object} Computed style
    */
-  analyzeGestureStyle(gestures, gestureWeight = 0.5, contextId = 'default') {
+  analyzeGestureStyle(gestures, gestureWeight = 0.5, contextId = 'default', compositionCount = 0) {
     // Get context-specific state (or create new one)
     const contextStyle = this._getContextStyle(contextId)
 
@@ -167,11 +185,13 @@ class StyleAnalyzer {
 
     // Entry #172: Calculate genre weights using continuous parameter space
     // Uses 4 gestural parameters: energy, directionUniformity, regularity, pathComplexity
+    // Entry #220: compositionCount enables PHI-based drift for parameter space exploration
     const genreWeights = this.calculateGenreWeights(
       energy,
       directionUniformity,
       rhythmicCharacter.regularity,
-      harmonicComplexity.chromaticism  // pathComplexity derived from gesture chromaticism
+      harmonicComplexity.chromaticism,  // pathComplexity derived from gesture chromaticism
+      compositionCount
     )
 
     const newStyle = {
@@ -757,12 +777,27 @@ class StyleAnalyzer {
    * @param {number} pathComplexity - Gesture path complexity / chromaticism (0-1)
    * @returns {Object} Genre weights (sum to 1.0)
    */
-  calculateGenreWeights(energy, directionUniformity, regularity, pathComplexity) {
-    const gesturePoint = {
+  calculateGenreWeights(energy, directionUniformity, regularity, pathComplexity, compositionCount = 0) {
+    // Clamp input values
+    const rawValues = {
       energy: Math.max(0, Math.min(1, energy || 0.5)),
       directionUniformity: Math.max(0, Math.min(1, directionUniformity || 0.5)),
       regularity: Math.max(0, Math.min(1, regularity || 0.5)),
       pathComplexity: Math.max(0, Math.min(1, pathComplexity || 0.5))
+    }
+
+    // Entry #220: Track statistics and apply percentile normalization
+    const normalizedValues = this._updateAndNormalize4DMetrics(rawValues)
+
+    // Entry #220: Apply PHI-based low-discrepancy drift for parameter space exploration
+    // This ensures all genres are reachable over time while preserving metric emergence
+    const driftOffset = this._calculate4DDrift(compositionCount)
+
+    const gesturePoint = {
+      energy: Math.max(0, Math.min(1, normalizedValues.energy + driftOffset.energy)),
+      directionUniformity: Math.max(0, Math.min(1, normalizedValues.directionUniformity + driftOffset.directionUniformity)),
+      regularity: Math.max(0, Math.min(1, normalizedValues.regularity + driftOffset.regularity)),
+      pathComplexity: Math.max(0, Math.min(1, normalizedValues.pathComplexity + driftOffset.pathComplexity))
     }
 
     const weights = {}
@@ -790,6 +825,73 @@ class StyleAnalyzer {
     }
 
     return weights
+  }
+
+  /**
+   * Entry #220: Calculate PHI-based 4D drift offset for parameter space exploration.
+   * Uses low-discrepancy sequence (Kronecker additive recurrence) with different
+   * irrational multipliers per dimension to ensure independence.
+   *
+   * @param {number} compositionCount - Current composition count for temporal variation
+   * @returns {Object} Drift offset for each dimension (centered around 0)
+   * @private
+   */
+  _calculate4DDrift(compositionCount) {
+    return {
+      // ((n * irrational) % 1) gives value in [0, 1), subtract 0.5 to center at 0
+      // Then multiply by 2 * DRIFT_AMPLITUDE to get range [-DRIFT_AMPLITUDE, +DRIFT_AMPLITUDE]
+      energy: ((compositionCount * PHI_4D[0]) % 1 - 0.5) * DRIFT_AMPLITUDE * 2,
+      directionUniformity: ((compositionCount * PHI_4D[1]) % 1 - 0.5) * DRIFT_AMPLITUDE * 2,
+      regularity: ((compositionCount * PHI_4D[2]) % 1 - 0.5) * DRIFT_AMPLITUDE * 2,
+      pathComplexity: ((compositionCount * PHI_4D[3]) % 1 - 0.5) * DRIFT_AMPLITUDE * 2
+    }
+  }
+
+  /**
+   * Entry #220: Update metric statistics and apply percentile-based normalization.
+   * Tracks rolling window of samples for each dimension, uses P10-P90 range for
+   * robust normalization that adapts to actual data distribution.
+   *
+   * @param {Object} rawValues - Raw metric values {energy, directionUniformity, regularity, pathComplexity}
+   * @returns {Object} Normalized values using percentile-based scaling
+   * @private
+   */
+  _updateAndNormalize4DMetrics(rawValues) {
+    const normalized = {}
+    const MIN_SAMPLES_FOR_PERCENTILE = 10
+
+    for (const [key, value] of Object.entries(rawValues)) {
+      const stats = this._metricStatistics[key]
+
+      // Update statistics - CircularBuffer handles window size automatically with O(1) push
+      stats.samples.push(value)
+      stats.min = Math.min(stats.min, value)
+      stats.max = Math.max(stats.max, value)
+
+      // Apply normalization based on available data
+      if (stats.samples.length < MIN_SAMPLES_FOR_PERCENTILE) {
+        // During warm-up, use simple pass-through (values already 0-1)
+        normalized[key] = value
+      } else {
+        // Use P10-P90 percentile normalization for robustness against outliers
+        // Convert CircularBuffer to array for sorting
+        const sortedSamples = stats.samples.toArray().sort((a, b) => a - b)
+        const p10Index = Math.max(0, Math.min(sortedSamples.length - 1, Math.floor(sortedSamples.length * 0.1)))
+        const p90Index = Math.max(0, Math.min(sortedSamples.length - 1, Math.floor(sortedSamples.length * 0.9)))
+        const p10 = sortedSamples[p10Index]
+        const p90 = sortedSamples[p90Index]
+
+        const stabilizedRange = p90 - p10
+        if (stabilizedRange > 0.01) {  // Avoid division by near-zero
+          normalized[key] = Math.max(0, Math.min(1, (value - p10) / stabilizedRange))
+        } else {
+          // Fallback if range is too small
+          normalized[key] = value
+        }
+      }
+    }
+
+    return normalized
   }
 
   /**

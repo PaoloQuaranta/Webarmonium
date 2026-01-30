@@ -1022,7 +1022,8 @@ class LandingCompositionService {
 
     if (allGestures.length > 0) {
       // Use 'landing' context for state isolation from other services
-      this.styleAnalyzer.analyzeGestureStyle(allGestures, gestureWeight, 'landing')
+      // Entry #220: Pass compositionCount for PHI-based genre drift exploration
+      this.styleAnalyzer.analyzeGestureStyle(allGestures, gestureWeight, 'landing', this.compositionCount || 0)
       this.applyStyleToComposition()
     }
 
