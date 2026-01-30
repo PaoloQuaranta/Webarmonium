@@ -261,4 +261,162 @@ describe('Genre Distribution System (Entry #220)', () => {
       expect(diff).toBeDefined()
     })
   })
+
+  describe('Component-Level Normalization (Entry #221)', () => {
+    it('should have component statistics buffers', () => {
+      expect(styleAnalyzer._componentStats).toBeDefined()
+      expect(styleAnalyzer._componentStats.velocity).toBeDefined()
+      expect(styleAnalyzer._componentStats.acceleration).toBeDefined()
+      expect(styleAnalyzer._componentStats.density).toBeDefined()
+      expect(styleAnalyzer._componentStats.turnAngle).toBeDefined()
+      expect(styleAnalyzer._componentStats.pitchVariance).toBeDefined()
+      expect(styleAnalyzer._componentStats.velocityVariance).toBeDefined()
+    })
+
+    it('should use fallback divisors during warm-up period', () => {
+      // Fresh instance for clean test
+      const analyzer = new StyleAnalyzer()
+
+      // First call - should use fallback (velocity / 100)
+      const result1 = analyzer._normalizeComponent('velocity', 50)
+      expect(result1).toBeCloseTo(0.5, 1)  // 50/100 = 0.5
+
+      const result2 = analyzer._normalizeComponent('acceleration', 25)
+      expect(result2).toBeCloseTo(0.5, 1)  // 25/50 = 0.5
+    })
+
+    it('should switch to percentile normalization after warm-up', () => {
+      const analyzer = new StyleAnalyzer()
+
+      // Add 10 samples (warm-up period)
+      for (let i = 0; i < 10; i++) {
+        analyzer._normalizeComponent('velocity', 20 + i * 2)  // 20-38 range
+      }
+
+      // Now test - value should be normalized based on P10-P90
+      const midValue = analyzer._normalizeComponent('velocity', 30)  // Middle of 20-38
+      expect(midValue).toBeGreaterThan(0.3)
+      expect(midValue).toBeLessThan(0.7)
+
+      const lowValue = analyzer._normalizeComponent('velocity', 22)  // Near P10
+      expect(lowValue).toBeLessThan(0.3)
+
+      const highValue = analyzer._normalizeComponent('velocity', 36)  // Near P90
+      expect(highValue).toBeGreaterThan(0.7)
+    })
+
+    it('should handle constant values (zero range)', () => {
+      const analyzer = new StyleAnalyzer()
+
+      // Add 15 identical samples
+      for (let i = 0; i < 15; i++) {
+        analyzer._normalizeComponent('acceleration', 25)
+      }
+
+      // Should return 0.5 (middle) when P10-P90 range is zero
+      const result = analyzer._normalizeComponent('acceleration', 25)
+      expect(result).toBe(0.5)
+    })
+
+    it('should adapt to different velocity scales', () => {
+      const analyzer = new StyleAnalyzer()
+
+      // Simulate 0-1 scale velocities (tap gestures) - deterministic values
+      const testValues = [0.30, 0.35, 0.38, 0.42, 0.45, 0.48, 0.52, 0.55, 0.58, 0.62, 0.65, 0.68, 0.70, 0.72, 0.75]
+      for (const val of testValues) {
+        analyzer._normalizeComponent('velocity', val)
+      }
+
+      // Now a 0.5 velocity should normalize properly (middle of 0.30-0.75 range)
+      const result = analyzer._normalizeComponent('velocity', 0.5)
+      expect(result).toBeGreaterThan(0.2)
+      expect(result).toBeLessThan(0.8)
+    })
+
+    it('should track density values and normalize correctly', () => {
+      const analyzer = new StyleAnalyzer()
+
+      // Simulate density values (typically 0.1 - 2.0 for gestures.length / 10) - deterministic
+      const testValues = [0.50, 0.58, 0.65, 0.72, 0.80, 0.88, 0.95, 1.02, 1.10, 1.18, 1.25, 1.32, 1.40, 1.45, 1.50]
+      for (const val of testValues) {
+        analyzer._normalizeComponent('density', val)
+      }
+
+      // Value at middle of range (1.0) should be around 0.5
+      const result = analyzer._normalizeComponent('density', 1.0)
+      expect(result).toBeGreaterThan(0.2)
+      expect(result).toBeLessThan(0.8)
+    })
+
+    it('should normalize path complexity components', () => {
+      const analyzer = new StyleAnalyzer()
+
+      // Simulate path complexity values (typically 0-0.3) - deterministic
+      // Range: 0.05 to 0.25, evenly distributed
+      const testValues = [0.05, 0.07, 0.09, 0.11, 0.13, 0.15, 0.17, 0.19, 0.21, 0.23, 0.25, 0.27, 0.29, 0.31, 0.33]
+      for (const val of testValues) {
+        analyzer._normalizeComponent('turnAngle', val)
+      }
+
+      // P10 ≈ 0.07, P90 ≈ 0.31, so 0.15 should be around (0.15-0.07)/(0.31-0.07) ≈ 0.33
+      const result = analyzer._normalizeComponent('turnAngle', 0.15)
+      expect(result).toBeGreaterThan(0.2)
+      expect(result).toBeLessThan(0.6)
+    })
+
+    it('should improve energy range coverage with varied input', () => {
+      // Test that energy calculation with adaptive normalization
+      // produces better range coverage than with fixed divisors
+      const analyzer = new StyleAnalyzer()
+
+      // Build up statistics with varied gestures
+      const gesturesLow = Array(5).fill(null).map((_, i) => ({
+        velocity: 10 + i * 2,  // Low velocities: 10-18
+        acceleration: 5,
+        timestamp: Date.now() - (5 - i) * 500
+      }))
+
+      const gesturesHigh = Array(5).fill(null).map((_, i) => ({
+        velocity: 40 + i * 5,  // Higher velocities: 40-60
+        acceleration: 15,
+        timestamp: Date.now() - (5 - i) * 500
+      }))
+
+      // After processing some gestures, energy should adapt
+      for (let i = 0; i < 5; i++) {
+        analyzer.calculateEnergy([gesturesLow[i]])
+      }
+
+      const energyLow = analyzer.calculateEnergy(gesturesLow)
+      const energyHigh = analyzer.calculateEnergy(gesturesHigh)
+
+      // Both should be valid 0-1 values
+      expect(energyLow).toBeGreaterThanOrEqual(0)
+      expect(energyLow).toBeLessThanOrEqual(1)
+      expect(energyHigh).toBeGreaterThanOrEqual(0)
+      expect(energyHigh).toBeLessThanOrEqual(1)
+
+      // High energy gestures should produce higher energy
+      expect(energyHigh).toBeGreaterThan(energyLow)
+    })
+
+    it('should handle invalid input values gracefully', () => {
+      const analyzer = new StyleAnalyzer()
+
+      // NaN should return safe default (0.5)
+      expect(analyzer._normalizeComponent('velocity', NaN)).toBe(0.5)
+
+      // Infinity should return safe default (0.5)
+      expect(analyzer._normalizeComponent('acceleration', Infinity)).toBe(0.5)
+      expect(analyzer._normalizeComponent('acceleration', -Infinity)).toBe(0.5)
+
+      // undefined should return safe default (0.5)
+      expect(analyzer._normalizeComponent('density', undefined)).toBe(0.5)
+
+      // Unknown component should return clamped value
+      expect(analyzer._normalizeComponent('unknownComponent', 0.5)).toBe(0.5)
+      expect(analyzer._normalizeComponent('unknownComponent', 1.5)).toBe(1)
+      expect(analyzer._normalizeComponent('unknownComponent', -0.5)).toBe(0)
+    })
+  })
 })

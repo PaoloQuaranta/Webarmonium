@@ -35,6 +35,13 @@ const GENRE_PROFILES = {
 const GENRE_DISTANCE_SIGMA = 0.15
 const GAUSSIAN_FACTOR = 1 / (2 * GENRE_DISTANCE_SIGMA * GENRE_DISTANCE_SIGMA)  // = 22.22
 
+/**
+ * Entry #221: Constants for percentile normalization
+ * Used consistently across component-level and metric-level normalization
+ */
+const PERCENTILE_WARMUP_THRESHOLD = 10  // Minimum samples before percentile normalization activates
+const NORMALIZATION_MIN_RANGE = 0.001   // Minimum P90-P10 range; below this, values are considered constant
+
 class StyleAnalyzer {
   constructor() {
     // Entry #210: Manual override state - when enabled, overrides genreWeights and forcedGenre
@@ -104,6 +111,78 @@ class StyleAnalyzer {
     this._cachedDrift = { energy: 0, directionUniformity: 0, regularity: 0, pathComplexity: 0 }
     this._lastDriftUpdate = 0
     this._driftUpdateInterval = 60 * 1000  // 1 minute minimum between drift updates
+
+    // Entry #221: Component-level statistics for deep percentile normalization
+    // Apply percentile normalization at the raw component level (velocity, acceleration, etc.)
+    // rather than just the derived metrics. This ensures full 0-1 range coverage.
+    this._componentStats = {
+      velocity: new CircularBuffer(100),
+      acceleration: new CircularBuffer(100),
+      density: new CircularBuffer(100),
+      turnAngle: new CircularBuffer(100),
+      pitchVariance: new CircularBuffer(100),
+      velocityVariance: new CircularBuffer(100)
+    }
+
+    // Fallback divisors used during warm-up period (< 10 samples)
+    this._componentFallbacks = {
+      velocity: 100,       // Assumes 0-100 scale (will adapt after warm-up)
+      acceleration: 50,    // Arbitrary threshold (will adapt)
+      density: 5,          // Gestures per 10-unit window
+      turnAngle: 1,        // Already 0-1 normalized
+      pitchVariance: 1,    // Already 0-1 normalized
+      velocityVariance: 1  // Already 0-1 normalized
+    }
+  }
+
+  /**
+   * Entry #221: Normalize a raw component value using percentile-based normalization.
+   * During warm-up (< 10 samples), uses fallback divisors for compatibility.
+   * After warm-up, normalizes to P10-P90 range for full 0-1 coverage.
+   *
+   * @param {string} name - Component name (velocity, acceleration, density, etc.)
+   * @param {number} value - Raw value to normalize
+   * @returns {number} Normalized value in 0-1 range
+   * @private
+   */
+  _normalizeComponent(name, value) {
+    // Entry #221: Input validation - handle NaN, undefined, non-numeric values
+    if (typeof value !== 'number' || !isFinite(value)) {
+      return 0.5  // Safe default for invalid input
+    }
+
+    const stats = this._componentStats[name]
+    if (!stats) {
+      // Unknown component - return clamped value
+      return Math.max(0, Math.min(1, value))
+    }
+
+    // Add sample to history
+    stats.push(value)
+
+    const samples = stats.toArray()
+    if (samples.length < PERCENTILE_WARMUP_THRESHOLD) {
+      // Warm-up period: use fallback divisors for backwards compatibility
+      const fallback = this._componentFallbacks[name] || 1
+      return Math.max(0, Math.min(1, value / fallback))
+    }
+
+    // Percentile normalization (P10-P90)
+    const sorted = [...samples].sort((a, b) => a - b)
+    const p10Index = Math.floor(sorted.length * 0.1)
+    const p90Index = Math.floor(sorted.length * 0.9)
+    const p10 = sorted[p10Index]
+    const p90 = sorted[p90Index]
+    const range = p90 - p10
+
+    // Handle constant values (all samples same)
+    if (range < NORMALIZATION_MIN_RANGE) {
+      return 0.5  // Constant values map to middle
+    }
+
+    // Normalize to 0-1 based on P10-P90 range
+    const normalized = (value - p10) / range
+    return Math.max(0, Math.min(1, normalized))
   }
 
   /**
@@ -245,10 +324,11 @@ class StyleAnalyzer {
     const avgVelocity = totalVelocity / gestures.length
     const avgAcceleration = totalAcceleration / gestures.length
 
-    // Combine factors (normalize to 0-1)
-    const velocityFactor = Math.min(1, avgVelocity / 100)
-    const accelerationFactor = Math.min(1, avgAcceleration / 50)
-    const densityFactor = Math.min(1, gestureDensity / 5)
+    // Entry #221: Use percentile normalization for components instead of hardcoded divisors
+    // This ensures full 0-1 range coverage regardless of actual data distribution
+    const velocityFactor = this._normalizeComponent('velocity', avgVelocity)
+    const accelerationFactor = this._normalizeComponent('acceleration', avgAcceleration)
+    const densityFactor = this._normalizeComponent('density', gestureDensity)
 
     // Entry #165: Clamp to [0, 1] to prevent negative values (was returning -0.07)
     return Math.max(0, Math.min(1, velocityFactor * 0.5 + accelerationFactor * 0.3 + densityFactor * 0.2))
@@ -638,13 +718,13 @@ class StyleAnalyzer {
         turnCount++
       }
     }
-    const pathComplexity = gestures.length > 2 ? Math.min(1, turnScore / (gestures.length - 2)) : 0
+    const rawPathComplexity = gestures.length > 2 ? Math.min(1, turnScore / (gestures.length - 2)) : 0
 
     // Method 2: Y-position variance (pitch irregularity)
     const yPositions = gestures.map(g => g.position?.y || 0.5)
     const avgY = yPositions.reduce((sum, y) => sum + y, 0) / yPositions.length
     const yVariance = yPositions.reduce((sum, y) => sum + Math.pow(y - avgY, 2), 0) / yPositions.length
-    const pitchComplexity = Math.min(1, Math.sqrt(yVariance) * 5) // Increased scaling
+    const rawPitchComplexity = Math.min(1, Math.sqrt(yVariance) * 5) // Increased scaling
 
     // Method 3: Velocity variance (new)
     const velocities = gestures.map(g => {
@@ -653,7 +733,12 @@ class StyleAnalyzer {
     })
     const avgVel = velocities.reduce((sum, v) => sum + v, 0) / velocities.length
     const velVariance = velocities.reduce((sum, v) => sum + Math.pow(v - avgVel, 2), 0) / velocities.length
-    const velocityComplexity = Math.min(1, Math.sqrt(velVariance) * 4)
+    const rawVelocityComplexity = Math.min(1, Math.sqrt(velVariance) * 4)
+
+    // Entry #221: Apply percentile normalization to each component for better range coverage
+    const pathComplexity = this._normalizeComponent('turnAngle', rawPathComplexity)
+    const pitchComplexity = this._normalizeComponent('pitchVariance', rawPitchComplexity)
+    const velocityComplexity = this._normalizeComponent('velocityVariance', rawVelocityComplexity)
 
     // Combine all methods
     return (pathComplexity * 0.35 + pitchComplexity * 0.35 + velocityComplexity * 0.3)
@@ -874,7 +959,6 @@ class StyleAnalyzer {
    */
   _updateAndNormalize4DMetrics(rawValues) {
     const normalized = {}
-    const MIN_SAMPLES_FOR_PERCENTILE = 10
 
     for (const [key, value] of Object.entries(rawValues)) {
       const stats = this._metricStatistics[key]
@@ -885,7 +969,8 @@ class StyleAnalyzer {
       stats.max = Math.max(stats.max, value)
 
       // Apply normalization based on available data
-      if (stats.samples.length < MIN_SAMPLES_FOR_PERCENTILE) {
+      // Entry #221: Use shared constant for warm-up threshold
+      if (stats.samples.length < PERCENTILE_WARMUP_THRESHOLD) {
         // During warm-up, use simple pass-through (values already 0-1)
         normalized[key] = value
       } else {
@@ -898,11 +983,12 @@ class StyleAnalyzer {
         const p90 = sortedSamples[p90Index]
 
         const stabilizedRange = p90 - p10
-        if (stabilizedRange > 0.01) {  // Avoid division by near-zero
+        // Entry #221: Use shared constant for minimum range threshold
+        if (stabilizedRange > NORMALIZATION_MIN_RANGE) {
           normalized[key] = Math.max(0, Math.min(1, (value - p10) / stabilizedRange))
         } else {
-          // Fallback if range is too small
-          normalized[key] = value
+          // Constant values map to middle (consistent with _normalizeComponent)
+          normalized[key] = 0.5
         }
       }
     }
