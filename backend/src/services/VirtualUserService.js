@@ -17,6 +17,7 @@ const PhraseMorphology = require('./PhraseMorphology')
 const FrequencyPositionMapper = require('../utils/FrequencyPositionMapper')
 const { getGenreVelocityMultiplier } = require('../utils/GenreUtils')
 const { VIRTUAL_USER_COLORS } = require('../constants/colors')
+const { PERCENTILE_WARMUP_SAMPLES, PERCENTILE_LOWER_BOUND, PERCENTILE_UPPER_BOUND } = require('../utils/constants')
 
 class VirtualUserService {
   constructor() {
@@ -99,13 +100,21 @@ class VirtualUserService {
     }
     this._gestureStatsMaxSamples = 100
 
-    // Entry #222: Fallback values for warm-up period (< 10 samples)
+    // Entry #222: Fallback values for warm-up period (< PERCENTILE_WARMUP_SAMPLES)
+    // These represent typical mid-range values for each parameter, chosen to produce
+    // reasonable gesture behavior before percentile statistics are available.
+    // Rationale for each value:
+    // - intervalTiming: 8000ms (8s) = typical composition interval, balances activity vs. silence
+    // - gestureDuration: 1000ms (1s) = medium gesture, neither too short (tap) nor too long
+    // - gestureVelocity: 0.75 = 75% intensity, active but not frantic
+    // - gestureDensity: 0.5 = 50% pass rate, balanced gesture emission
+    // - intentThreshold: 0.1 = 10% baseline, low enough to allow some gestures during warm-up
     this._gestureFallbacks = {
-      intervalTiming: 8000,   // 8 seconds default
-      gestureDuration: 1000,  // 1 second default
-      gestureVelocity: 0.75,  // Default base velocity
-      gestureDensity: 0.5,    // 50% density
-      intentThreshold: 0.1    // 10% threshold
+      intervalTiming: 8000,
+      gestureDuration: 1000,
+      gestureVelocity: 0.75,
+      gestureDensity: 0.5,
+      intentThreshold: 0.1
     }
 
     // Clock for gesture timing
@@ -1742,12 +1751,23 @@ class VirtualUserService {
   }
 
   /**
-   * Entry #222: Normalize gesture-related parameters using percentile normalization.
-   * Similar to Entry #221b but for gesture generation parameters.
+   * Entry #222: Normalize gesture parameters using P10-P90 percentile normalization.
+   * Entry #222b: Uses constants from constants.js and adds defensive bounds checking.
    *
-   * @param {string} paramName - Parameter name (intervalTiming, gestureDuration, etc.)
+   * Tracks up to 100 historical samples and uses percentile-based range instead of
+   * hardcoded divisors. This ensures full 0-1 range coverage while filtering outliers.
+   *
+   * @param {string} paramName - One of: 'intervalTiming', 'gestureDuration', 'gestureVelocity',
+   *                             'gestureDensity', 'intentThreshold'
    * @param {number} value - Raw value to normalize
-   * @returns {number} Normalized value in 0-1 range
+   * @returns {number} Normalized value in 0-1 range. Returns 0.5 for invalid input.
+   * @side-effect Adds value to sample buffer for future normalization
+   * @example
+   *   // During warmup (< 10 samples): uses fallback divisor
+   *   _normalizeGestureParam('gestureVelocity', 0.5)  // Returns ~0.667 (0.5 / 0.75 fallback)
+   *
+   *   // After warmup: uses P10-P90 range
+   *   _normalizeGestureParam('gestureVelocity', 0.65) // Returns value in [0, 1] based on history
    * @private
    */
   _normalizeGestureParam(paramName, value) {
@@ -1767,17 +1787,22 @@ class VirtualUserService {
       stats.samples.shift()
     }
 
-    const WARMUP_THRESHOLD = 10
-    if (stats.samples.length < WARMUP_THRESHOLD) {
-      // Warm-up: use fallback divisors
+    if (stats.samples.length < PERCENTILE_WARMUP_SAMPLES) {
+      // Warm-up: use fallback divisors (see _gestureFallbacks for rationale)
       const fallback = this._gestureFallbacks[paramName] || 1
       return Math.max(0, Math.min(1, value / fallback))
     }
 
     // Percentile normalization (P10-P90)
     const sorted = [...stats.samples].sort((a, b) => a - b)
-    const p10Index = Math.floor(sorted.length * 0.1)
-    const p90Index = Math.floor(sorted.length * 0.9)
+
+    // Entry #222b: Defensive bounds check - need at least 2 samples for meaningful percentiles
+    if (sorted.length < 2) {
+      return 0.5
+    }
+
+    const p10Index = Math.floor(sorted.length * PERCENTILE_LOWER_BOUND)
+    const p90Index = Math.floor(sorted.length * PERCENTILE_UPPER_BOUND)
     const p10 = sorted[p10Index]
     const p90 = sorted[p90Index]
     const range = p90 - p10

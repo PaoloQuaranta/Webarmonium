@@ -56,4 +56,30 @@ const PHI_4D = [
  */
 const DRIFT_AMPLITUDE = 0.15
 
-module.exports = { PHI, PHI_4D, DRIFT_AMPLITUDE }
+/**
+ * Entry #222: Percentile normalization constants
+ *
+ * PERCENTILE_WARMUP_SAMPLES: Minimum samples needed before switching from
+ * fallback divisors to percentile-based normalization. 10 samples provides
+ * enough data for stable P10-P90 calculation while keeping warm-up period short.
+ *
+ * PERCENTILE_LOWER_BOUND (P10): Filters bottom 10% outliers
+ * PERCENTILE_UPPER_BOUND (P90): Filters top 10% outliers
+ *
+ * Using P10-P90 instead of min/max prevents extreme outliers from skewing
+ * the normalization range, resulting in more stable 0-1 output distribution.
+ *
+ * @constant {number}
+ */
+const PERCENTILE_WARMUP_SAMPLES = 10
+const PERCENTILE_LOWER_BOUND = 0.1  // P10
+const PERCENTILE_UPPER_BOUND = 0.9  // P90
+
+module.exports = {
+  PHI,
+  PHI_4D,
+  DRIFT_AMPLITUDE,
+  PERCENTILE_WARMUP_SAMPLES,
+  PERCENTILE_LOWER_BOUND,
+  PERCENTILE_UPPER_BOUND
+}

@@ -20,7 +20,7 @@ const CompositionEngine = require('./CompositionEngine')
 const PhraseMorphology = require('./PhraseMorphology')
 const { getSectionStateManager } = require('./SectionStateManager')
 const RawGestureData = require('../composition/RawGestureData')
-const { PHI } = require('../utils/constants')
+const { PHI, PERCENTILE_WARMUP_SAMPLES, PERCENTILE_LOWER_BOUND, PERCENTILE_UPPER_BOUND } = require('../utils/constants')
 const { GENRE_BPM_RANGES, createSyntheticGenreWeights, isValidGenre } = require('../utils/GenreUtils')
 const { getSynthParams, getAllGenres, createStyleObject, DEFAULT_GENRE } = require('../utils/GenreCharacteristics')
 
@@ -290,9 +290,14 @@ class BackgroundCompositionService {
     stats.samples.push(value)
 
     const samples = stats.samples.toArray()
-    const WARMUP_THRESHOLD = 10
-    if (samples.length < WARMUP_THRESHOLD) {
-      // Warm-up: use fallback divisors
+    if (samples.length < PERCENTILE_WARMUP_SAMPLES) {
+      // Warm-up: use fallback divisors (typical mid-range values for each metric)
+      // - editsPerMinute: ~50 edits/min is typical Wikipedia activity
+      // - postsPerMinute: ~5 posts/min is typical HN new submissions
+      // - commitsPerMinute: ~30 commits/min is typical GitHub activity
+      // - avgEditSize: ~2000 bytes is typical edit size
+      // - avgUpvotes/commentCount: ~100 is typical engagement
+      // - velocity/acceleration: ~30/15 are typical rate-of-change values
       const fallbacks = {
         editsPerMinute: 50, postsPerMinute: 5, commitsPerMinute: 30,
         avgEditSize: 2000, avgUpvotes: 100, commentCount: 100,
@@ -303,10 +308,16 @@ class BackgroundCompositionService {
       return Math.max(0, Math.min(1, value / fallback))
     }
 
-    // Percentile normalization (P10-P90)
+    // Percentile normalization (P10-P90) with constants from constants.js
     const sorted = [...samples].sort((a, b) => a - b)
-    const p10Index = Math.floor(sorted.length * 0.1)
-    const p90Index = Math.floor(sorted.length * 0.9)
+
+    // Entry #222b: Defensive bounds check - need at least 2 samples for meaningful percentiles
+    if (sorted.length < 2) {
+      return 0.5
+    }
+
+    const p10Index = Math.floor(sorted.length * PERCENTILE_LOWER_BOUND)
+    const p90Index = Math.floor(sorted.length * PERCENTILE_UPPER_BOUND)
     const p10 = sorted[p10Index]
     const p90 = sorted[p90Index]
     const range = p90 - p10

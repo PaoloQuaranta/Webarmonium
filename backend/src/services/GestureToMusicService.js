@@ -3,6 +3,8 @@ const PhraseMorphology = require('./PhraseMorphology')
 const MaterialLibrary = require('./MaterialLibrary')
 const HarmonicEngine = require('./HarmonicEngine')
 const CompositionEngine = require('./CompositionEngine')
+const CircularBuffer = require('../utils/CircularBuffer')
+const { PERCENTILE_WARMUP_SAMPLES, PERCENTILE_LOWER_BOUND, PERCENTILE_UPPER_BOUND } = require('../utils/constants')
 
 class GestureToMusicService {
   constructor() {
@@ -33,29 +35,30 @@ class GestureToMusicService {
 
     // Entry #222: Statistical tracking for percentile-based normalization
     // Replaces hardcoded divisors (50, 5, 30) with adaptive normalization
+    // Entry #222b: Uses CircularBuffer for O(1) push instead of Array.shift() O(n)
+    const maxSamples = 100
     this._metricStatistics = {
       wikipedia: {
-        editsPerMinute: { samples: [] },
-        avgEditSize: { samples: [] },
-        velocity: { samples: [] },
-        acceleration: { samples: [] }
+        editsPerMinute: { samples: new CircularBuffer(maxSamples) },
+        avgEditSize: { samples: new CircularBuffer(maxSamples) },
+        velocity: { samples: new CircularBuffer(maxSamples) },
+        acceleration: { samples: new CircularBuffer(maxSamples) }
       },
       hackernews: {
-        postsPerMinute: { samples: [] },
-        avgUpvotes: { samples: [] },
-        commentCount: { samples: [] },
-        velocity: { samples: [] },
-        acceleration: { samples: [] }
+        postsPerMinute: { samples: new CircularBuffer(maxSamples) },
+        avgUpvotes: { samples: new CircularBuffer(maxSamples) },
+        commentCount: { samples: new CircularBuffer(maxSamples) },
+        velocity: { samples: new CircularBuffer(maxSamples) },
+        acceleration: { samples: new CircularBuffer(maxSamples) }
       },
       github: {
-        commitsPerMinute: { samples: [] },
-        createsPerMinute: { samples: [] },
-        deletesPerMinute: { samples: [] },
-        velocity: { samples: [] },
-        acceleration: { samples: [] }
+        commitsPerMinute: { samples: new CircularBuffer(maxSamples) },
+        createsPerMinute: { samples: new CircularBuffer(maxSamples) },
+        deletesPerMinute: { samples: new CircularBuffer(maxSamples) },
+        velocity: { samples: new CircularBuffer(maxSamples) },
+        acceleration: { samples: new CircularBuffer(maxSamples) }
       }
     }
-    this._maxSamples = 100
   }
 
   // Entry #209b: Delegate currentKey to harmonicEngine (single source of truth)
@@ -126,6 +129,7 @@ class GestureToMusicService {
 
   /**
    * Entry #222: Normalize a metric value using percentile-based normalization.
+   * Entry #222b: Uses CircularBuffer for O(1) push and constants from constants.js
    * @param {string} source - Source name (wikipedia, hackernews, github)
    * @param {string} metricName - Metric name
    * @param {number} value - Raw value to normalize
@@ -138,15 +142,17 @@ class GestureToMusicService {
     const stats = this._metricStatistics[source]?.[metricName]
     if (!stats) return 0.5
 
-    // Add sample to history
+    // Add sample to history (CircularBuffer handles size automatically)
     stats.samples.push(value)
-    if (stats.samples.length > this._maxSamples) {
-      stats.samples.shift()
-    }
 
-    const WARMUP_THRESHOLD = 10
-    if (stats.samples.length < WARMUP_THRESHOLD) {
-      // Warm-up: use fallback divisors
+    if (stats.samples.length < PERCENTILE_WARMUP_SAMPLES) {
+      // Warm-up: use fallback divisors (typical mid-range values for each metric)
+      // - editsPerMinute: ~50 edits/min is typical Wikipedia activity
+      // - postsPerMinute: ~5 posts/min is typical HN new submissions
+      // - commitsPerMinute: ~30 commits/min is typical GitHub activity
+      // - avgEditSize: ~2000 bytes is typical edit size
+      // - avgUpvotes/commentCount: ~100 is typical engagement
+      // - velocity/acceleration: ~30/15 are typical rate-of-change values
       const fallbacks = {
         editsPerMinute: 50, postsPerMinute: 5, commitsPerMinute: 30,
         avgEditSize: 2000, avgUpvotes: 100, commentCount: 100,
@@ -158,9 +164,13 @@ class GestureToMusicService {
     }
 
     // Percentile normalization (P10-P90)
-    const sorted = [...stats.samples].sort((a, b) => a - b)
-    const p10 = sorted[Math.floor(sorted.length * 0.1)]
-    const p90 = sorted[Math.floor(sorted.length * 0.9)]
+    const sorted = stats.samples.toArray().sort((a, b) => a - b)
+    if (sorted.length < 2) return 0.5  // Defensive: need at least 2 samples for meaningful percentiles
+
+    const p10Idx = Math.floor(sorted.length * PERCENTILE_LOWER_BOUND)
+    const p90Idx = Math.floor(sorted.length * PERCENTILE_UPPER_BOUND)
+    const p10 = sorted[p10Idx]
+    const p90 = sorted[p90Idx]
     const range = p90 - p10
 
     if (range < 0.001) return 0.5
