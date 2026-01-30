@@ -98,6 +98,12 @@ class StyleAnalyzer {
       regularity: { samples: new CircularBuffer(this._metricStatisticsWindowSize), min: Infinity, max: 0 },
       pathComplexity: { samples: new CircularBuffer(this._metricStatisticsWindowSize), min: Infinity, max: 0 }
     }
+
+    // Entry #220b: Drift rate limiting - only update drift offset once per minute
+    // Prevents style from changing too frequently while still allowing gradual exploration
+    this._cachedDrift = { energy: 0, directionUniformity: 0, regularity: 0, pathComplexity: 0 }
+    this._lastDriftUpdate = 0
+    this._driftUpdateInterval = 60 * 1000  // 1 minute minimum between drift updates
   }
 
   /**
@@ -832,19 +838,30 @@ class StyleAnalyzer {
    * Uses low-discrepancy sequence (Kronecker additive recurrence) with different
    * irrational multipliers per dimension to ensure independence.
    *
+   * Entry #220b: Rate-limited to update at most once per minute to prevent
+   * style from changing too frequently.
+   *
    * @param {number} compositionCount - Current composition count for temporal variation
    * @returns {Object} Drift offset for each dimension (centered around 0)
    * @private
    */
   _calculate4DDrift(compositionCount) {
-    return {
+    const now = Date.now()
+
+    // Entry #220b: Only update drift if enough time has passed (1 minute minimum)
+    if (now - this._lastDriftUpdate >= this._driftUpdateInterval) {
+      this._lastDriftUpdate = now
       // ((n * irrational) % 1) gives value in [0, 1), subtract 0.5 to center at 0
       // Then multiply by 2 * DRIFT_AMPLITUDE to get range [-DRIFT_AMPLITUDE, +DRIFT_AMPLITUDE]
-      energy: ((compositionCount * PHI_4D[0]) % 1 - 0.5) * DRIFT_AMPLITUDE * 2,
-      directionUniformity: ((compositionCount * PHI_4D[1]) % 1 - 0.5) * DRIFT_AMPLITUDE * 2,
-      regularity: ((compositionCount * PHI_4D[2]) % 1 - 0.5) * DRIFT_AMPLITUDE * 2,
-      pathComplexity: ((compositionCount * PHI_4D[3]) % 1 - 0.5) * DRIFT_AMPLITUDE * 2
+      this._cachedDrift = {
+        energy: ((compositionCount * PHI_4D[0]) % 1 - 0.5) * DRIFT_AMPLITUDE * 2,
+        directionUniformity: ((compositionCount * PHI_4D[1]) % 1 - 0.5) * DRIFT_AMPLITUDE * 2,
+        regularity: ((compositionCount * PHI_4D[2]) % 1 - 0.5) * DRIFT_AMPLITUDE * 2,
+        pathComplexity: ((compositionCount * PHI_4D[3]) % 1 - 0.5) * DRIFT_AMPLITUDE * 2
+      }
     }
+
+    return this._cachedDrift
   }
 
   /**

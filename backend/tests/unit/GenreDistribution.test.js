@@ -29,7 +29,13 @@ describe('Genre Distribution System (Entry #220)', () => {
   })
 
   describe('PHI-based 4D Drift', () => {
+    // Helper to force drift recalculation by resetting the rate limit timer
+    const forceNewDrift = () => {
+      styleAnalyzer._lastDriftUpdate = 0
+    }
+
     it('should calculate drift offset centered around 0', () => {
+      forceNewDrift()
       const drift = styleAnalyzer._calculate4DDrift(0)
       // At count 0, drift should be centered
       expect(drift.energy).toBeGreaterThanOrEqual(-DRIFT_AMPLITUDE)
@@ -38,9 +44,13 @@ describe('Genre Distribution System (Entry #220)', () => {
       expect(drift.directionUniformity).toBeLessThanOrEqual(DRIFT_AMPLITUDE)
     })
 
-    it('should produce different drift for different composition counts', () => {
+    it('should produce different drift for different composition counts (when rate limit allows)', () => {
+      // Entry #220b: Drift is rate-limited, so we force new calculations
+      forceNewDrift()
       const drift1 = styleAnalyzer._calculate4DDrift(1)
+      forceNewDrift()
       const drift2 = styleAnalyzer._calculate4DDrift(2)
+      forceNewDrift()
       const drift3 = styleAnalyzer._calculate4DDrift(3)
 
       // Each should be different (low-discrepancy property)
@@ -48,19 +58,20 @@ describe('Genre Distribution System (Entry #220)', () => {
       expect(drift2.energy).not.toEqual(drift3.energy)
     })
 
-    it('should be deterministic (same count = same drift)', () => {
+    it('should be rate-limited (same drift within interval)', () => {
+      forceNewDrift()
       const drift1a = styleAnalyzer._calculate4DDrift(42)
-      const drift1b = styleAnalyzer._calculate4DDrift(42)
+      // Don't reset - should return cached value
+      const drift1b = styleAnalyzer._calculate4DDrift(99) // Different count, same cached result
 
       expect(drift1a.energy).toEqual(drift1b.energy)
       expect(drift1a.directionUniformity).toEqual(drift1b.directionUniformity)
-      expect(drift1a.regularity).toEqual(drift1b.regularity)
-      expect(drift1a.pathComplexity).toEqual(drift1b.pathComplexity)
     })
 
-    it('should explore diverse regions over many compositions', () => {
+    it('should explore diverse regions over many compositions (bypassing rate limit for test)', () => {
       const drifts = []
       for (let i = 0; i < 100; i++) {
+        forceNewDrift() // Bypass rate limit for testing
         drifts.push(styleAnalyzer._calculate4DDrift(i))
       }
 
@@ -171,19 +182,27 @@ describe('Genre Distribution System (Entry #220)', () => {
   })
 
   describe('Genre Weights with Drift', () => {
+    // Helper to bypass rate limit for testing
+    const forceNewDrift = () => {
+      styleAnalyzer._lastDriftUpdate = 0
+    }
+
     it('should produce valid weights (sum to 1.0)', () => {
       for (let count = 0; count < 10; count++) {
+        forceNewDrift()
         const weights = styleAnalyzer.calculateGenreWeights(0.5, 0.5, 0.5, 0.5, count)
         const sum = Object.values(weights).reduce((a, b) => a + b, 0)
         expect(sum).toBeCloseTo(1.0, 5)
       }
     })
 
-    it('should show variation in dominant genre over many compositions', () => {
+    it('should show variation in dominant genre over many compositions (bypassing rate limit)', () => {
       const dominantGenres = new Set()
 
       // Run 100 compositions from center point with drift
+      // Entry #220b: Bypass rate limit to test drift exploration
       for (let count = 0; count < 100; count++) {
+        forceNewDrift()
         const weights = styleAnalyzer.calculateGenreWeights(0.5, 0.5, 0.5, 0.5, count)
         const dominant = Object.entries(weights)
           .sort((a, b) => b[1] - a[1])[0][0]
