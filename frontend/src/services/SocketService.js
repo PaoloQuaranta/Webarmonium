@@ -33,6 +33,7 @@ class SocketService {
     this.currentSlot = null    // Backend-assigned synth slot (0-3)
     this.roomUsers = []
     this.userSlots = new Map() // userId → slot mapping for all users in room
+    this.userPresetSlots = new Map() // userId → synthPresetSlot mapping (Entry #SynthUI)
 
     // Heartbeat management
     this.heartbeatInterval = null
@@ -257,6 +258,26 @@ class SocketService {
       this.emit('mode-transition', data)
     })
 
+    // Synth parameter synchronization events (Entry #SynthUI)
+    this.socket.on('synth:params', (data) => {
+      // Track remote user's preset slot
+      if (data.userId && data.presetSlot !== undefined) {
+        this.userPresetSlots.set(data.userId, data.presetSlot)
+      }
+      this.emit('synth:params', data)
+      // Notify that available presets may have changed
+      this.emit('synth:slots-changed')
+    })
+
+    this.socket.on('synth:preset-changed', (data) => {
+      // Update preset slot tracking
+      if (data.userId && data.presetSlot !== undefined) {
+        this.userPresetSlots.set(data.userId, data.presetSlot)
+      }
+      this.emit('synth:preset-changed', data)
+      this.emit('synth:slots-changed')
+    })
+
     // Error handling
     this.socket.on('error', (error) => {
       // console.error('Socket error:', error)
@@ -305,16 +326,31 @@ class SocketService {
 
         // Populate userSlots map from all users in room
         this.userSlots.clear()
+        this.userPresetSlots.clear()  // Entry #SynthUI
         if (response.users) {
           response.users.forEach(u => {
             if (u.slot !== undefined) {
               this.userSlots.set(u.id, u.slot)
+            }
+            // Track synth preset slots (Entry #SynthUI)
+            const synthPresetSlot = u.synthPresetSlot ?? u.slot
+            if (synthPresetSlot !== undefined) {
+              this.userPresetSlots.set(u.id, synthPresetSlot)
+            }
+            // Emit event to apply remote synth params for existing users
+            if (u.id !== this.currentUserId && u.synthParams) {
+              this.emit('synth:apply-remote', {
+                userId: u.id,
+                presetSlot: synthPresetSlot,
+                params: u.synthParams
+              })
             }
           })
         }
         // Also add self to userSlots for consistent lookup
         if (this.currentUserId && this.currentSlot !== null) {
           this.userSlots.set(this.currentUserId, this.currentSlot)
+          this.userPresetSlots.set(this.currentUserId, this.currentSlot)  // Default preset = assigned slot
         }
 
         // Track latency
@@ -564,6 +600,57 @@ class SocketService {
   }
 
   /**
+   * Get list of preset slots occupied by OTHER users (not self)
+   * Used by SynthPanel to show only available presets
+   * @returns {number[]} Array of occupied slot numbers (Entry #SynthUI)
+   */
+  getOccupiedPresetSlots() {
+    const occupied = []
+    for (const [userId, slot] of this.userPresetSlots) {
+      if (userId !== this.currentUserId) {
+        occupied.push(slot)
+      }
+    }
+    return occupied
+  }
+
+  /**
+   * Emit synth params to server
+   * @param {number} presetSlot - Selected preset slot
+   * @param {Object} params - Synth parameters
+   */
+  emitSynthParams(presetSlot, params) {
+    if (!this.socket || !this.isConnected) return
+
+    this.socket.emit('synth:params', {
+      userId: this.currentUserId,
+      presetSlot,
+      params,
+      timestamp: Date.now()
+    })
+  }
+
+  /**
+   * Request to use a specific preset slot
+   * @param {number} slot - Requested preset slot (0-7)
+   * @returns {Promise<{granted: boolean, takenBy?: string}>}
+   */
+  async requestPresetSlot(slot) {
+    if (!this.socket || !this.isConnected) {
+      return { granted: false, takenBy: 'Not connected' }
+    }
+
+    return new Promise((resolve) => {
+      this.socket.emit('synth:preset-request', {
+        userId: this.currentUserId,
+        requestedSlot: slot
+      }, (response) => {
+        resolve(response || { granted: false })
+      })
+    })
+  }
+
+  /**
    * Handle user joined event
    */
   handleUserJoined(data) {
@@ -581,10 +668,21 @@ class SocketService {
       // console.log(`🎹 User joined with slot ${userSlot}: ${(data.userId || data.user?.id).substring(0, 8)}`)
     }
 
+    // Track user's synth preset slot (Entry #SynthUI)
+    const synthPresetSlot = data.synthPresetSlot ?? data.user?.synthPresetSlot ?? userSlot
+    if (synthPresetSlot !== undefined) {
+      this.userPresetSlots.set(data.userId || data.user?.id, synthPresetSlot)
+    }
+
     this.emit('user-joined', {
       user: data.user,
-      userCount: data.userCount
+      userCount: data.userCount,
+      synthPresetSlot: synthPresetSlot,
+      synthParams: data.synthParams || data.user?.synthParams
     })
+
+    // Notify that available presets may have changed
+    this.emit('synth:slots-changed')
   }
 
   /**
@@ -599,6 +697,7 @@ class SocketService {
     // Remove user's slot from tracking
     if (data.userId) {
       this.userSlots.delete(data.userId)
+      this.userPresetSlots.delete(data.userId)  // Entry #SynthUI
       // console.log(`🎹 User left, slot released: ${data.userId.substring(0, 8)}`)
     }
 
@@ -606,6 +705,9 @@ class SocketService {
       userId: data.userId,
       userCount: data.userCount
     })
+
+    // Notify that available presets may have changed
+    this.emit('synth:slots-changed')
   }
 
   /**
@@ -617,9 +719,18 @@ class SocketService {
     // Remove user from room users list
     this.roomUsers = this.roomUsers.filter(u => u.id !== data.userId)
 
+    // Remove user's slots from tracking (Entry #SynthUI)
+    if (data.userId) {
+      this.userSlots.delete(data.userId)
+      this.userPresetSlots.delete(data.userId)
+    }
+
     this.emit('user-disconnected', {
       userId: data.userId
     })
+
+    // Notify that available presets may have changed
+    this.emit('synth:slots-changed')
   }
 
   /**

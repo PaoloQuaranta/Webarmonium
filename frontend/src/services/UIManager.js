@@ -224,6 +224,9 @@ class UIManager {
     this._setupEdgeDetection()
     this._setupControlsInteraction()
 
+    // Entry #SynthUI: Add Synth button to desktop UI (before Settings)
+    this._createDesktopSynthButton()
+
     // Entry #74: Add Settings button to desktop UI
     this._createDesktopSettingsButton()
   }
@@ -268,9 +271,54 @@ class UIManager {
   }
 
   /**
+   * Entry #SynthUI: Create Synth button for desktop UI (with label, left of Settings)
+   */
+  _createDesktopSynthButton () {
+    // Check if button already exists
+    if (document.getElementById('desktopSynthBtn')) return
+
+    // Find the room-right container
+    const roomRight = document.getElementById('roomRight')
+    if (!roomRight) {
+      return
+    }
+
+    // Create wrapper (same structure as Settings button)
+    const wrapper = document.createElement('div')
+    wrapper.className = 'node-btn-wrapper'
+
+    // Create button with sliders/equalizer icon
+    const synthBtn = document.createElement('button')
+    synthBtn.id = 'desktopSynthBtn'
+    synthBtn.className = 'desktop-settings-btn'
+    // Sliders icon (equalizer style)
+    synthBtn.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 2a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM9.05 3a2.5 2.5 0 0 1 4.9 0H16v1h-2.05a2.5 2.5 0 0 1-4.9 0H0V3h9.05zM4.5 7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM2.05 8a2.5 2.5 0 0 1 4.9 0H16v1H6.95a2.5 2.5 0 0 1-4.9 0H0V8h2.05zm9.45 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm-2.45 1a2.5 2.5 0 0 1 4.9 0H16v1h-2.05a2.5 2.5 0 0 1-4.9 0H0v-1h9.05z"/></svg>'
+    synthBtn.title = 'Synth'
+    synthBtn.setAttribute('aria-label', 'Open synth settings')
+    synthBtn.onclick = () => this.openSynthPanel()
+
+    // Create label
+    const label = document.createElement('span')
+    label.className = 'node-label'
+    label.textContent = 'Synth'
+
+    // Assemble structure
+    wrapper.appendChild(synthBtn)
+    wrapper.appendChild(label)
+
+    // Insert at beginning (left of Settings)
+    roomRight.insertBefore(wrapper, roomRight.firstChild)
+
+    this.desktopSynthBtn = synthBtn
+  }
+
+  /**
    * Setup mobile UI - same UI bar as desktop, just smaller buttons
    */
   _setupMobileMenu() {
+    // Entry #SynthUI: Add synth button to mobile UI
+    this._createDesktopSynthButton()
+
     // Add settings button to mobile UI (same as desktop)
     this._createDesktopSettingsButton()
 
@@ -409,6 +457,58 @@ class UIManager {
   closeSettingsPanel () {
     if (this.settingsPanel) {
       this.settingsPanel.close()
+    }
+  }
+
+  /**
+   * Entry #SynthUI: Open the synth panel
+   */
+  openSynthPanel () {
+    // Create panel instance if needed
+    if (!this.synthPanel && typeof SynthPanel !== 'undefined') {
+      this.synthPanel = new SynthPanel()
+    }
+
+    // Set services if available
+    if (this.synthPanel && this._synthPanelServices) {
+      this.synthPanel.setServices(
+        this._synthPanelServices.audioService,
+        this._synthPanelServices.socketService
+      )
+      if (this._synthPanelServices.userColor) {
+        this.synthPanel.setUserColor(this._synthPanelServices.userColor)
+      }
+    }
+
+    if (this.synthPanel) {
+      this.synthPanel.open()
+    }
+  }
+
+  /**
+   * Entry #SynthUI: Close the synth panel
+   */
+  closeSynthPanel () {
+    if (this.synthPanel) {
+      this.synthPanel.close()
+    }
+  }
+
+  /**
+   * Entry #SynthUI: Set services for SynthPanel
+   * @param {Object} audioService - AudioService instance
+   * @param {Object} socketService - SocketService instance
+   * @param {string} userColor - User's assigned color
+   */
+  setSynthPanelServices (audioService, socketService, userColor) {
+    this._synthPanelServices = { audioService, socketService, userColor }
+
+    // If panel already exists, update it
+    if (this.synthPanel) {
+      this.synthPanel.setServices(audioService, socketService)
+      if (userColor) {
+        this.synthPanel.setUserColor(userColor)
+      }
     }
   }
 

@@ -288,13 +288,25 @@ const AuthHandler = {
         // Check if user was redirected from a full room
         const wasRedirected = result.redirectedFrom != null
 
+        // Enhance users with synth data for late joiners
+        // Entry #SynthUI: Fetch room once before mapping (performance optimization)
+        const currentRoom = socket.services.roomManager.getRoom(actualRoomId)
+        const usersWithSynthData = (result.users || []).map(user => {
+          const fullUser = currentRoom?.getUser(user.id)
+          return {
+            ...user,
+            synthPresetSlot: fullUser?.synthPresetSlot ?? user.slot,  // Default to assigned slot
+            synthParams: fullUser?.synthParams || null
+          }
+        })
+
         // Send success response with multi-user canvas data
         const response = {
           success: true,
           userId: socket.userId,
           assignedColor: result.assignedColor,
           assignedSlot: result.assignedSlot,  // Backend-assigned exclusive synth slot (0-3)
-          users: result.users,
+          users: usersWithSynthData,
           room: result.room,
           user: result.user,
           memoryInfluence: result.memoryInfluence,
@@ -339,18 +351,22 @@ const AuthHandler = {
           userId: socket.userId,
           color: result.assignedColor,
           slot: result.assignedSlot,
+          synthPresetSlot: result.assignedSlot,  // Default synth preset = assigned slot
+          synthParams: null,  // New user has no custom params yet
           user: result.user,
           userCount: result.room.userCount,
           timestamp: Date.now()
         })
 
         // Send user-joined events for existing users to the new user
-        const existingUsers = result.users.filter(u => u.id !== socket.userId)
+        const existingUsers = usersWithSynthData.filter(u => u.id !== socket.userId)
         existingUsers.forEach(existingUser => {
           socket.emit('user-joined', {
             userId: existingUser.id,
             color: existingUser.color,
             slot: existingUser.slot,
+            synthPresetSlot: existingUser.synthPresetSlot,
+            synthParams: existingUser.synthParams,
             user: existingUser,
             userCount: result.room.userCount,
             timestamp: Date.now()

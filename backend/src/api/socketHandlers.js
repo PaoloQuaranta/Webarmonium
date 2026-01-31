@@ -11,6 +11,7 @@ const GestureHandler = require('./handlers/GestureHandler')
 const DrawingHandler = require('./handlers/DrawingHandler')
 const CursorHandler = require('./handlers/CursorHandler')
 const MusicalHandler = require('./handlers/MusicalHandler')
+const SynthHandler = require('./handlers/SynthHandler')
 
 const socketHandlers = {
   /**
@@ -55,6 +56,10 @@ const socketHandlers = {
     // Cursor handlers (position tracking)
     CursorHandler.registerCursorMoveHandler(socket)
     CursorHandler.registerCursorPositionHandler(socket)
+
+    // Synth handlers (user timbre customization)
+    SynthHandler.registerSynthParamsHandler(socket)
+    SynthHandler.registerPresetRequestHandler(socket)
 
     // console.log('🔌 Registered ALL handlers for socket:', socket.id)
 

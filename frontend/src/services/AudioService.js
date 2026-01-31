@@ -2072,9 +2072,20 @@ class AudioService {
     // Add pan node for gesture synth spatial control
     this.gesturePan = new Tone.Panner(0)
 
-    // SEND/RETURN routing: synth -> pan -> [dry to master + sends to FX]
-    // Entry #109: gestureFilter removed (was static, never modulated after Entry #105)
-    this.gestureSynth.connect(this.gesturePan)
+    // Entry #SynthUI: Create gestureFilter for UI control (re-added for SynthPanel)
+    this.gestureFilter = new Tone.Filter({
+      type: 'lowpass',
+      frequency: 8000,  // Wide open by default
+      Q: 1
+    })
+
+    // Track current preset (null = default sawtooth)
+    this.currentPresetSlot = null
+    this.currentPatch = null
+
+    // SEND/RETURN routing: synth -> filter -> pan -> [dry to master + sends to FX]
+    this.gestureSynth.connect(this.gestureFilter)
+    this.gestureFilter.connect(this.gesturePan)
 
     // Create volume node for gesture dry signal (increased for prominence)
     this.gestureVolume = new Tone.Volume(+6) // +6dB - gesture prominence over background
@@ -6560,6 +6571,409 @@ class AudioService {
   updateDroneUserInfluence(influence) {
     if (this.droneVoidController) {
       this.droneVoidController.updateUserInfluence(influence)
+    }
+  }
+
+  // ============================================================
+  // SYNTH PRESET & PARAMETER CONTROL (Entry #SynthUI)
+  // Allows users to select presets and customize their local synth
+  // ============================================================
+
+  /**
+   * Select a preset and recreate the local gesture synth
+   * @param {number} slot - Preset slot (0-7)
+   * @returns {boolean} Success status
+   */
+  selectPreset(slot) {
+    if (!window.PatchDefinitions) {
+      console.error('[AudioService] PatchDefinitions not available')
+      return false
+    }
+
+    const patch = window.PatchDefinitions.REAL_USER_PATCHES[slot]
+    if (!patch) {
+      console.error(`[AudioService] Invalid preset slot: ${slot}`)
+      return false
+    }
+
+    try {
+      // Disconnect and dispose old synth
+      if (this.gestureSynth) {
+        this.gestureSynth.disconnect()
+        this.gestureSynth.dispose()
+      }
+      if (this.gestureFilter) {
+        this.gestureFilter.disconnect()
+        this.gestureFilter.dispose()
+      }
+
+      // Create new synth based on patch oscillator type
+      const oscType = patch.oscillator.type
+
+      if (oscType === 'fmsine') {
+        // FM Synthesis
+        this.gestureSynth = new Tone.FMSynth({
+          modulationIndex: patch.oscillator.modulationIndex || 4,
+          modulationType: patch.oscillator.modulationType || 'sine',
+          envelope: patch.envelope,
+          volume: patch.volume || 0
+        })
+      } else if (oscType === 'pulse') {
+        // Pulse wave
+        this.gestureSynth = new Tone.MonoSynth({
+          oscillator: {
+            type: 'pulse',
+            width: patch.oscillator.width || 0.3
+          },
+          envelope: patch.envelope,
+          volume: patch.volume || 0
+        })
+      } else if (oscType.startsWith('fat')) {
+        // Fat oscillators (fatsawtooth, fatsquare, etc.)
+        this.gestureSynth = new Tone.MonoSynth({
+          oscillator: {
+            type: oscType,
+            count: patch.oscillator.count || 3,
+            spread: patch.oscillator.spread || 25
+          },
+          envelope: patch.envelope,
+          volume: patch.volume || 0
+        })
+      } else {
+        // Basic oscillator types (sine, sawtooth, triangle, square)
+        this.gestureSynth = new Tone.MonoSynth({
+          oscillator: { type: oscType },
+          envelope: patch.envelope,
+          volume: patch.volume || 0
+        })
+      }
+
+      // Create filter based on patch
+      this.gestureFilter = new Tone.Filter({
+        type: patch.filter?.type || 'lowpass',
+        frequency: patch.filter?.frequency || 2000,
+        Q: patch.filter?.Q || 1
+      })
+
+      // Reconnect signal chain: synth -> filter -> pan -> [volume -> master + FX sends]
+      this.gestureSynth.connect(this.gestureFilter)
+      this.gestureFilter.connect(this.gesturePan)
+      // gesturePan is already connected to gestureVolume -> master + FX sends
+
+      // Update effect sends from patch
+      if (this.delaySends?.gesture && patch.effects?.delaySend !== undefined) {
+        this.delaySends.gesture.gain.value = patch.effects.delaySend
+      }
+      if (this.reverbSends?.gesture && patch.effects?.reverbSend !== undefined) {
+        this.reverbSends.gesture.gain.value = patch.effects.reverbSend
+      }
+
+      // Store current preset info
+      this.currentPresetSlot = slot
+      this.currentPatch = patch
+
+      // Reset timing tracker
+      this.gestureSynthLastTrigger = 0
+
+      // console.log(`[AudioService] Selected preset ${slot}: ${patch.name}`)
+      return true
+    } catch (error) {
+      console.error('[AudioService] Failed to select preset:', error)
+      return false
+    }
+  }
+
+  /**
+   * Get current preset slot
+   * @returns {number|null} Current preset slot or null if default
+   */
+  getCurrentPresetSlot() {
+    return this.currentPresetSlot ?? null
+  }
+
+  /**
+   * Apply synth parameters from SynthPanel UI
+   * @param {Object} params - Synth parameters
+   */
+  setSynthParams(params) {
+    if (!this.gestureSynth || !params) return
+
+    try {
+      // Oscillator-specific parameters
+      if (this.gestureSynth instanceof Tone.FMSynth) {
+        if (params.modulationIndex !== undefined) {
+          this.gestureSynth.modulationIndex.rampTo(params.modulationIndex, 0.3)
+        }
+        if (params.modulationType !== undefined) {
+          // modulationType can't be changed at runtime, need to recreate synth
+          // This is handled by selectPreset() instead
+        }
+      } else if (this.gestureSynth.oscillator) {
+        const oscType = this.gestureSynth.oscillator.type
+        if (oscType === 'pulse' && params.pulseWidth !== undefined) {
+          if (this.gestureSynth.oscillator.width) {
+            this.gestureSynth.oscillator.width.rampTo(
+              Math.max(0.1, Math.min(0.9, params.pulseWidth)),
+              0.3
+            )
+          }
+        } else if (oscType?.startsWith?.('fat') && params.fatSpread !== undefined) {
+          // FatOscillator spread can be set directly
+          this.gestureSynth.oscillator.spread = Math.max(5, Math.min(50, params.fatSpread))
+        }
+      }
+
+      // Envelope parameters (all synth types)
+      const envParams = {}
+      if (params.attack !== undefined) {
+        envParams.attack = Math.max(0.002, Math.min(1.0, params.attack))
+      }
+      if (params.decay !== undefined) {
+        envParams.decay = Math.max(0.05, Math.min(2.0, params.decay))
+      }
+      if (params.sustain !== undefined) {
+        envParams.sustain = Math.max(0.1, Math.min(1.0, params.sustain))
+      }
+      if (params.release !== undefined) {
+        envParams.release = Math.max(0.05, Math.min(4.0, params.release))
+      }
+      if (Object.keys(envParams).length > 0) {
+        this.gestureSynth.set({ envelope: envParams })
+      }
+
+      // Filter parameters
+      if (this.gestureFilter) {
+        if (params.filterType !== undefined) {
+          this.gestureFilter.type = params.filterType
+        }
+        if (params.filterCutoff !== undefined) {
+          this.gestureFilter.frequency.rampTo(
+            Math.max(200, Math.min(8000, params.filterCutoff)),
+            0.3
+          )
+        }
+        if (params.filterQ !== undefined) {
+          this.gestureFilter.Q.rampTo(
+            Math.max(0.5, Math.min(4.0, params.filterQ)),
+            0.3
+          )
+        }
+      }
+
+      // Volume and Pan
+      if (params.volume !== undefined && this.gestureVolume) {
+        this.gestureVolume.volume.rampTo(
+          Math.max(-12, Math.min(12, params.volume)),
+          0.3
+        )
+      }
+      if (params.pan !== undefined && this.gesturePan) {
+        this.gesturePan.pan.rampTo(
+          Math.max(-1, Math.min(1, params.pan)),
+          0.3
+        )
+      }
+
+      // Effect sends
+      if (params.delaySend !== undefined && this.delaySends?.gesture) {
+        this.delaySends.gesture.gain.rampTo(
+          Math.max(0, Math.min(0.8, params.delaySend)),
+          0.3
+        )
+      }
+      if (params.reverbSend !== undefined && this.reverbSends?.gesture) {
+        this.reverbSends.gesture.gain.rampTo(
+          Math.max(0, Math.min(0.8, params.reverbSend)),
+          0.3
+        )
+      }
+    } catch (error) {
+      console.error('[AudioService] Failed to set synth params:', error)
+    }
+  }
+
+  /**
+   * Get current synth parameters
+   * @returns {Object} Current synth parameters
+   */
+  getSynthParams() {
+    const params = {
+      presetSlot: this.currentPresetSlot ?? null
+    }
+
+    if (this.gestureSynth) {
+      // Oscillator-specific
+      if (this.gestureSynth instanceof Tone.FMSynth) {
+        params.modulationIndex = this.gestureSynth.modulationIndex.value
+      } else if (this.gestureSynth.oscillator) {
+        const oscType = this.gestureSynth.oscillator.type
+        if (oscType === 'pulse' && this.gestureSynth.oscillator.width) {
+          params.pulseWidth = this.gestureSynth.oscillator.width.value
+        } else if (oscType?.startsWith?.('fat')) {
+          params.fatSpread = this.gestureSynth.oscillator.spread
+        }
+      }
+
+      // Envelope
+      if (this.gestureSynth.envelope) {
+        params.attack = this.gestureSynth.envelope.attack
+        params.decay = this.gestureSynth.envelope.decay
+        params.sustain = this.gestureSynth.envelope.sustain
+        params.release = this.gestureSynth.envelope.release
+      }
+    }
+
+    // Filter
+    if (this.gestureFilter) {
+      params.filterType = this.gestureFilter.type
+      params.filterCutoff = this.gestureFilter.frequency.value
+      params.filterQ = this.gestureFilter.Q.value
+    }
+
+    // Volume and Pan
+    if (this.gestureVolume) {
+      params.volume = this.gestureVolume.volume.value
+    }
+    if (this.gesturePan) {
+      params.pan = this.gesturePan.pan.value
+    }
+
+    // Effect sends
+    if (this.delaySends?.gesture) {
+      params.delaySend = this.delaySends.gesture.gain.value
+    }
+    if (this.reverbSends?.gesture) {
+      params.reverbSend = this.reverbSends.gesture.gain.value
+    }
+
+    return params
+  }
+
+  /**
+   * Apply remote user's synth params to their synth
+   * Called when receiving synth:params from another user
+   * @param {string} userId - Remote user ID
+   * @param {Object} params - Their synth parameters
+   * @param {number} presetSlot - Their selected preset slot
+   */
+  applyRemoteSynthParams(userId, params, presetSlot) {
+    if (!this.userSynthManager) return
+
+    // If preset changed, clean up old synth so it gets recreated with new slot
+    const existingSynth = this.userSynthManager.userSynths.get(userId)
+    if (existingSynth && presetSlot !== undefined) {
+      const currentSlot = existingSynth.slot
+      if (currentSlot !== presetSlot) {
+        // Preset changed - cleanup and let next note create new synth
+        this.userSynthManager.cleanupUserSynth(userId)
+        // Store the new slot for when synth is recreated
+        // (UserSynthManager will use slotLookupFn which should return the new slot)
+      }
+    }
+
+    // Get or create synth for this user
+    const synthData = this.userSynthManager.getSynthForUser(userId)
+    if (!synthData?.synth) return
+
+    try {
+      // Apply oscillator-specific params
+      if (synthData.synth instanceof Tone.FMSynth) {
+        if (params.modulationIndex !== undefined) {
+          synthData.synth.modulationIndex.rampTo(params.modulationIndex, 0.3)
+        }
+      } else if (synthData.synth.oscillator) {
+        const oscType = synthData.synth.oscillator.type
+        if (oscType === 'pulse' && params.pulseWidth !== undefined && synthData.synth.oscillator.width) {
+          synthData.synth.oscillator.width.rampTo(params.pulseWidth, 0.3)
+        } else if (oscType?.startsWith?.('fat') && params.fatSpread !== undefined) {
+          synthData.synth.oscillator.spread = params.fatSpread
+        }
+      }
+
+      // Apply envelope
+      const envParams = {}
+      if (params.attack !== undefined) envParams.attack = params.attack
+      if (params.decay !== undefined) envParams.decay = params.decay
+      if (params.sustain !== undefined) envParams.sustain = params.sustain
+      if (params.release !== undefined) envParams.release = params.release
+      if (Object.keys(envParams).length > 0) {
+        synthData.synth.set({ envelope: envParams })
+      }
+
+      // Apply filter
+      if (synthData.filter) {
+        if (params.filterType !== undefined) synthData.filter.type = params.filterType
+        if (params.filterCutoff !== undefined) synthData.filter.frequency.rampTo(params.filterCutoff, 0.3)
+        if (params.filterQ !== undefined) synthData.filter.Q.rampTo(params.filterQ, 0.3)
+      }
+
+      // Apply volume
+      if (synthData.volume && params.volume !== undefined) {
+        synthData.volume.volume.rampTo(params.volume, 0.3)
+      }
+
+      // Apply pan
+      if (synthData.pan && params.pan !== undefined) {
+        synthData.pan.pan.rampTo(params.pan, 0.3)
+      }
+
+      // Apply effect sends
+      if (synthData.delaySend && params.delaySend !== undefined) {
+        synthData.delaySend.gain.rampTo(params.delaySend, 0.3)
+      }
+      if (synthData.reverbSend && params.reverbSend !== undefined) {
+        synthData.reverbSend.gain.rampTo(params.reverbSend, 0.3)
+      }
+    } catch (error) {
+      console.error(`[AudioService] Failed to apply remote synth params for ${userId}:`, error)
+    }
+  }
+
+  /**
+   * Get list of free preset slots (not used by other users)
+   * @returns {number[]} Array of available slot numbers
+   */
+  getFreeSynthSlots() {
+    const allSlots = [0, 1, 2, 3, 4, 5, 6, 7]
+    const mySlot = this.currentPresetSlot
+
+    if (!this.socketService) {
+      return allSlots
+    }
+
+    // Get slots occupied by other users
+    const occupiedSlots = this.socketService.getOccupiedPresetSlots?.() || []
+
+    // Filter: slots not occupied by others (but my current slot is always available)
+    return allSlots.filter(s => !occupiedSlots.includes(s) || s === mySlot)
+  }
+
+  /**
+   * Entry #SynthUI: Play a simple note for audition/preview purposes
+   * Used by SynthPanel "Generate Gestures" feature
+   * @param {number} frequency - Note frequency in Hz
+   * @param {number} duration - Note duration in seconds
+   * @param {number} intensity - Note intensity/velocity (0-1)
+   */
+  playSimpleNote (frequency, duration, intensity = 0.5) {
+    if (!this.gestureSynth) {
+      return
+    }
+
+    try {
+      const now = Tone.now()
+      const safeTime = Math.max(now, (this.gestureSynthLastTrigger || 0) + 0.05)
+      const velocity = Math.max(0.1, Math.min(1.0, intensity))
+
+      // Clamp frequency to safe range
+      const safeFreq = Math.max(65, Math.min(2000, frequency))
+      const safeDuration = Math.max(0.1, Math.min(4.0, duration))
+
+      this.gestureSynthLastTrigger = safeTime
+      this.gestureSynth.triggerAttackRelease(safeFreq, safeDuration, safeTime, velocity)
+    } catch (error) {
+      // Silently fail - audition note not critical
+      console.warn('[AudioService] playSimpleNote failed:', error.message)
     }
   }
 }

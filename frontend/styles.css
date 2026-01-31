@@ -2800,3 +2800,279 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     display: none !important;
   }
 }
+
+/* ============================================
+   Entry #SynthUI: Synth Panel Styles
+   ============================================ */
+
+/* Synth panel extends settings panel base styles */
+.synth-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.synth-overlay.settings-visible {
+  opacity: 1;
+}
+
+.synth-panel {
+  background: var(--ui-bg, rgba(10, 10, 20, 0.95));
+  width: 360px;
+  height: 100%;
+  max-height: 100vh;
+  overflow-y: auto;
+  border-left: 1px solid var(--line, #1e1e2d);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  font-family: var(--font-mono, 'Fira Code', monospace);
+}
+
+.settings-visible .synth-panel {
+  transform: translateX(0);
+}
+
+/* Synth panel header */
+.synth-panel .settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid var(--line, #1e1e2d);
+  position: sticky;
+  top: 0;
+  background: var(--ui-bg, rgba(10, 10, 20, 0.95));
+  z-index: 1;
+}
+
+.synth-panel .settings-title {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--bright, #e0e0f0);
+}
+
+.synth-panel .settings-close {
+  background: transparent;
+  border: none;
+  color: var(--dim, #5a5a70);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+
+.synth-panel .settings-close:hover {
+  color: var(--bright, #e0e0f0);
+}
+
+/* Synth panel content */
+.synth-panel .settings-content {
+  padding: 20px;
+}
+
+.synth-panel .settings-group {
+  margin-bottom: 24px;
+}
+
+.synth-panel .settings-group-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--dim, #5a5a70);
+  margin-bottom: 12px;
+}
+
+/* Preset selector */
+.synth-select {
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: 2px solid var(--muted, #3a3a50);
+  border-radius: 8px;
+  color: var(--light, #9090a8);
+  font-family: var(--font-mono, 'Fira Code', monospace);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235a5a70' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.synth-select:hover {
+  border-color: var(--light, #9090a8);
+}
+
+.synth-select:focus {
+  outline: none;
+  border-color: var(--synth-accent, var(--accent, #2dd4bf));
+}
+
+.synth-select option {
+  background: var(--deep, #0a0a14);
+  color: var(--light, #9090a8);
+}
+
+.synth-select option:disabled {
+  color: var(--dim, #5a5a70);
+}
+
+/* Filter type buttons */
+.synth-filter-type {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.synth-filter-btn {
+  flex: 1;
+  padding: 10px;
+  background: transparent;
+  border: 2px solid var(--muted, #3a3a50);
+  border-radius: 8px;
+  color: var(--dim, #5a5a70);
+  font-family: var(--font-mono, 'Fira Code', monospace);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.synth-filter-btn:hover {
+  border-color: var(--light, #9090a8);
+  color: var(--light, #9090a8);
+}
+
+.synth-filter-btn.active {
+  border-color: var(--synth-accent, var(--accent, #2dd4bf));
+  color: var(--synth-accent, var(--accent, #2dd4bf));
+  background: rgba(45, 212, 191, 0.1);
+}
+
+/* Slider rows */
+.synth-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.synth-slider-row label {
+  flex: 0 0 80px;
+  font-size: 11px;
+  color: var(--light, #9090a8);
+}
+
+.synth-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--muted, #3a3a50);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.synth-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--synth-accent, var(--accent, #2dd4bf));
+  border-radius: 50%;
+  border: 2px solid var(--void, #020208);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.synth-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.synth-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--synth-accent, var(--accent, #2dd4bf));
+  border-radius: 50%;
+  border: 2px solid var(--void, #020208);
+  cursor: pointer;
+}
+
+.synth-value {
+  flex: 0 0 60px;
+  text-align: right;
+  font-family: var(--font-mono, 'Fira Code', monospace);
+  font-size: 10px;
+  color: var(--dim, #5a5a70);
+}
+
+/* Oscillator note */
+.synth-note {
+  font-size: 11px;
+  color: var(--dim, #5a5a70);
+  font-style: italic;
+  margin: 0;
+}
+
+/* Generate gestures button */
+.synth-generate-btn {
+  width: 100%;
+  padding: 14px;
+  background: transparent;
+  border: 2px solid var(--synth-accent, var(--accent, #2dd4bf));
+  border-radius: 25px;
+  color: var(--synth-accent, var(--accent, #2dd4bf));
+  font-family: var(--font-mono, 'Fira Code', monospace);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.synth-generate-btn:hover {
+  background: rgba(45, 212, 191, 0.1);
+}
+
+.synth-generate-btn.active {
+  background: var(--synth-accent, var(--accent, #2dd4bf));
+  color: var(--void, #020208);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .synth-overlay {
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .synth-panel {
+    width: 100%;
+    height: auto;
+    max-height: 85vh;
+    border-left: none;
+    border-top: 1px solid var(--line, #1e1e2d);
+    border-radius: 20px 20px 0 0;
+    transform: translateY(100%);
+  }
+
+  .settings-visible .synth-panel {
+    transform: translateY(0);
+  }
+
+  .synth-panel .settings-content {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 20px));
+  }
+}

@@ -1052,6 +1052,21 @@ class WebarmoniumApp {
       }
     })
 
+    // Entry #SynthUI: Handle remote synth parameter updates
+    this.socketService.on('synth:params', (data) => {
+      // Apply remote user's synth params to their audio representation
+      if (data.userId && this.audioService && this.audioService.applyRemoteSynthParams) {
+        this.audioService.applyRemoteSynthParams(data.userId, data.params, data.presetSlot)
+      }
+    })
+
+    // Entry #SynthUI: Handle late joiner synth sync (existing users' synth params)
+    this.socketService.on('synth:apply-remote', (data) => {
+      if (data.userId && this.audioService && this.audioService.applyRemoteSynthParams) {
+        this.audioService.applyRemoteSynthParams(data.userId, data.params, data.presetSlot)
+      }
+    })
+
     this.socketService.on('cursor-position', (data) => {
       // FIX: Ignore cursor updates for users who have left (race condition prevention)
       if (this.leftUsers.has(data.userId)) {
@@ -1513,6 +1528,15 @@ class WebarmoniumApp {
       if (joinResponse && joinResponse.assignedColor) {
         this.currentUserColor = joinResponse.assignedColor
         // console.log('✅ User color assigned:', this.currentUserColor)
+      }
+
+      // Entry #SynthUI: Initialize synth panel with services and user color
+      if (this.uiManager && this.audioService && this.socketService) {
+        this.uiManager.setSynthPanelServices(
+          this.audioService,
+          this.socketService,
+          this.currentUserColor
+        )
       }
 
       // Handle redirect notification (overflow room)

@@ -15,6 +15,10 @@ class User {
     this.deviceType = this.validateDeviceType(userData.device)
     this.platform = userData.platform || 'unknown'
     this.capabilities = userData.capabilities || {}
+
+    // Entry #SynthUI: User's selected synth preset and parameters
+    this.synthPresetSlot = null // Selected preset slot (0-7), null = use assignedSlot
+    this.synthParams = null     // Custom synth parameters object
   }
 
   /**
@@ -50,6 +54,10 @@ class User {
     this.assignedColor = null // Release color back to pool
     this.assignedSlot = null  // Release slot back to pool
     this.isActive = false
+
+    // Entry #SynthUI: Clear synth state on leave
+    this.synthPresetSlot = null
+    this.synthParams = null
   }
 
   /**
@@ -62,6 +70,28 @@ class User {
       throw new Error(`Invalid slot: ${slot}. Must be 0-7`)
     }
     this.assignedSlot = slot
+  }
+
+  /**
+   * Entry #SynthUI: Set user's selected synth preset slot
+   * @param {number|null} slot - Preset slot (0-7) or null to use default
+   */
+  setSynthPresetSlot (slot) {
+    if (slot !== null && (typeof slot !== 'number' || slot < 0 || slot > 7)) {
+      throw new Error(`Invalid synth preset slot: ${slot}. Must be 0-7 or null`)
+    }
+    this.synthPresetSlot = slot
+  }
+
+  /**
+   * Entry #SynthUI: Set user's custom synth parameters
+   * @param {Object|null} params - Synth parameters object or null
+   */
+  setSynthParams (params) {
+    if (params !== null && typeof params !== 'object') {
+      throw new Error('Synth params must be an object or null')
+    }
+    this.synthParams = params
   }
 
   /**

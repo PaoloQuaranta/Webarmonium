@@ -18,6 +18,7 @@ const RATE_LIMIT_CONFIG = {
   'note:stream': { windowMs: 1000, maxRequests: 25 },    // 25/sec
   'hold:start': { windowMs: 1000, maxRequests: 30 },     // 30/sec
   'hold:end': { windowMs: 1000, maxRequests: 30 },       // 30/sec
+  'synth:params': { windowMs: 1000, maxRequests: 5 },    // 5/sec for synth param updates
   'room-creation': { windowMs: 3600000, maxRequests: 5 }, // 5/hour
   'connection': { windowMs: 60000, maxRequests: 10 }     // 10/minute
 }
