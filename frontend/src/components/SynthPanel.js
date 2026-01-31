@@ -698,12 +698,12 @@ class SynthPanel {
       return
     }
 
-    // Position X: weighted average of regions
+    // Position X: weighted average of regions (0-1)
     const x = metrics.wikipedia * 0.17 +
               metrics.hackerNews * 0.5 +
               metrics.github * 0.83
 
-    // Position Y: combined activity level
+    // Position Y: combined activity level (0-1)
     const y = metrics.combined
 
     // Calculate frequency (higher y = lower pitch for musical effect)
@@ -719,9 +719,38 @@ class SynthPanel {
     // Duration: higher activity = shorter notes
     const duration = 0.2 + (1 - metrics.combined) * 0.5
 
+    // Entry #SynthUI: Emit cursor position synced with audio
+    this._emitCursorPosition(x, y)
+
     // Play the note
     console.log(`[SynthPanel] Playing note: ${frequency.toFixed(0)}Hz, ${duration.toFixed(2)}s, intensity ${intensity.toFixed(2)}`)
     this.audioService.playSimpleNote(frequency, duration, intensity)
+  }
+
+  /**
+   * Entry #SynthUI: Emit cursor position for visual feedback
+   * Moves cursor both locally and remotely in sync with generated audio
+   */
+  _emitCursorPosition (x, y) {
+    // Emit to socket for remote users
+    if (this.socketService?.socket) {
+      this.socketService.socket.emit('cursor-move', {
+        x,
+        y,
+        isDrawing: false,
+        timestamp: Date.now()
+      })
+    }
+
+    // Update local cursor via CursorManager (if available)
+    if (window.cursorManager?.updateLocalCursor) {
+      window.cursorManager.updateLocalCursor(x, y)
+    }
+
+    // Also trigger local canvas cursor update via event
+    window.dispatchEvent(new CustomEvent('synth:cursor-move', {
+      detail: { x, y }
+    }))
   }
 
   // ==========================================

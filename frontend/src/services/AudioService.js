@@ -4799,17 +4799,29 @@ class AudioService {
           // Fallback to gestureSynth
           if (!synth) {
             synth = this.gestureSynth
-            // Entry #90 FIX: Use sine oscillator in Ultra-Low Power mode
-            const oscType = this.isUltraLowPowerMode ? 'sine' : 'sawtooth'
-            this.gestureSynth.set({
-              oscillator: { type: oscType },
-              envelope: {
-                attack: envAttack,
-                decay: envDecay,
-                sustain: envSustain,
-                release: envRelease
-              }
-            })
+            // Entry #SynthUI: Only override oscillator in Ultra-Low Power mode
+            // Otherwise preserve the user's selected preset oscillator type
+            if (this.isUltraLowPowerMode) {
+              this.gestureSynth.set({
+                oscillator: { type: 'sine' },
+                envelope: {
+                  attack: envAttack,
+                  decay: envDecay,
+                  sustain: envSustain,
+                  release: envRelease
+                }
+              })
+            } else {
+              // Only update envelope, don't touch oscillator (preserve preset)
+              this.gestureSynth.set({
+                envelope: {
+                  attack: envAttack,
+                  decay: envDecay,
+                  sustain: envSustain,
+                  release: envRelease
+                }
+              })
+            }
           }
 
           // Volume hierarchy: local (×1.15 boost) > remote (×1.0)

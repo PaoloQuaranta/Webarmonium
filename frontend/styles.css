@@ -2813,18 +2813,17 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   gap: 1.5rem;
 }
 
-/* Synth panel - centered floating panel that doesn't block canvas */
+/* Synth panel - landscape panel below UIbar that doesn't block canvas */
 .synth-overlay {
   position: fixed;
-  top: 0;
+  top: 60px; /* Below UIbar */
   left: 0;
   right: 0;
-  bottom: 0;
-  z-index: 10000;
+  z-index: 9999; /* Below UIbar (10000) */
   opacity: 0;
   transition: opacity 0.3s ease;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   pointer-events: none; /* Allow clicks through to canvas */
 }
@@ -2833,15 +2832,18 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   opacity: 1;
 }
 
+/* Desktop: landscape horizontal panel */
 .synth-panel {
-  background: var(--ui-bg, rgba(10, 10, 20, 0.98));
-  width: 320px;
-  max-height: 80vh;
+  background: var(--ui-bg, rgba(10, 10, 20, 0.95));
+  width: auto;
+  max-width: 95vw;
+  max-height: calc(100vh - 80px);
   overflow-y: auto;
+  overflow-x: hidden;
   border: 1px solid var(--line, #1e1e2d);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  transform: scale(0.9);
+  transform: translateY(-20px);
   opacity: 0;
   transition: transform 0.3s ease, opacity 0.3s ease;
   font-family: var(--font-mono, 'Fira Code', monospace);
@@ -2849,8 +2851,25 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 }
 
 .settings-visible .synth-panel {
-  transform: scale(1);
+  transform: translateY(0);
   opacity: 1;
+}
+
+/* Desktop landscape layout: horizontal groups */
+@media (min-width: 768px) {
+  .synth-panel .settings-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .synth-panel .settings-group {
+    flex: 1 1 140px;
+    min-width: 140px;
+    max-width: 200px;
+    margin-bottom: 0;
+  }
 }
 
 /* Synth panel header */
