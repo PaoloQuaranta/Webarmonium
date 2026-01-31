@@ -288,12 +288,33 @@ class CounterpointEngine {
       const compCount = this._currentCompositionCount || 0
       const temporalOffset = (compCount * PHI) % 1
       const transposeInterval = Math.floor(temporalOffset * 5) - 2
-      const noteCount = material.notes.length
+      const role = profile.role || 'melody'
+
+      // Entry #225d: Material notes path also needs minimum coverage for sparse voices
+      // Over time, MaterialLibrary accumulates materials with few notes, causing stuttering
+      let notesToUse = material.notes
+      if ((role === 'bass' || role === 'pad') && material.notes.length < 4) {
+        // Extend sparse materials by repeating notes to ensure coverage
+        const expectedDurations = { bass: 3.0, pad: 7.0 }
+        const expectedDuration = expectedDurations[role]
+        const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
+        const repeatCount = Math.ceil(minNotesForCoverage / material.notes.length)
+        notesToUse = []
+        for (let r = 0; r < repeatCount; r++) {
+          notesToUse.push(...material.notes.map(n => ({
+            ...n,
+            pitch: n.pitch + (r % 2 === 1 ? 12 : 0) // Alternate octave for variety
+          })))
+        }
+        notesToUse = notesToUse.slice(0, minNotesForCoverage)
+      }
+
+      const noteCount = notesToUse.length
 
       // Entry #207: For small noteCount (< 6), distribute evenly to avoid gaps
       const useEvenDistribution = noteCount < 6
 
-      material.notes.forEach((note, i) => {
+      notesToUse.forEach((note, i) => {
         const transposedPitch = note.pitch + transposeInterval
         let adaptedPitch = this.adaptPitchToRange(transposedPitch, range, profile)
 
@@ -613,14 +634,32 @@ class CounterpointEngine {
       const temporalOffset = (compCount * PHI) % 1
       // Variation: transpose material by interval based on compositionCount
       const transposeInterval = Math.floor(temporalOffset * 5) - 2 // -2 to +2 semitones
+      const role = profile.role || 'melody'
 
-      const noteCount = material.notes.length
+      // Entry #225d: Material notes path also needs minimum coverage for sparse voices
+      let notesToUse = material.notes
+      if ((role === 'bass' || role === 'pad') && material.notes.length < 4) {
+        const expectedDurations = { bass: 3.0, pad: 7.0 }
+        const expectedDuration = expectedDurations[role]
+        const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
+        const repeatCount = Math.ceil(minNotesForCoverage / material.notes.length)
+        notesToUse = []
+        for (let r = 0; r < repeatCount; r++) {
+          notesToUse.push(...material.notes.map(n => ({
+            ...n,
+            pitch: n.pitch + (r % 2 === 1 ? 12 : 0)
+          })))
+        }
+        notesToUse = notesToUse.slice(0, minNotesForCoverage)
+      }
+
+      const noteCount = notesToUse.length
 
       // Entry #207: For small noteCount (< 6), distribute evenly to avoid gaps
       // Phrase clustering only makes sense with enough notes to form distinct phrases
       const useEvenDistribution = noteCount < 6
 
-      material.notes.forEach((note, i) => {
+      notesToUse.forEach((note, i) => {
         // Entry #117: Apply transposition for variation across compositions
         const transposedPitch = note.pitch + transposeInterval
         let adaptedPitch = this.adaptPitchToRange(transposedPitch, range, profile)
