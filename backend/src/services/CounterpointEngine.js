@@ -351,19 +351,20 @@ class CounterpointEngine {
       // Generate new voice based on role with section parameters
       const role = profile.role || 'melody'
 
-      // Entry #225b: Note count now scales with section length to ensure coverage
-      // This fixes the "stuttering" bug where sparse voices had gaps
+      // Entry #225b: Note count scales with section for sparse voices only
+      // Entry #225c: Only bass/pad need coverage scaling - melody/harmony are already dense
       const baseCounts = { melody: 8, harmony: 5, bass: 3, pad: 2 }
-      const expectedDurations = { melody: 0.5, harmony: 1.0, bass: 3.0, pad: 7.0 }
       const densityMultiplier = 0.5 + (voiceContext.rhythmicDensity || 0.5) * 1.0
-
-      // Calculate minimum notes needed to cover section (with overlap for continuity)
-      const expectedDuration = expectedDurations[role] || 1.0
-      const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
-
-      // Note count is MAX of (density-based) and (minimum for coverage)
       const densityBasedCount = Math.round((baseCounts[role] || 5) * densityMultiplier)
-      const noteCount = Math.max(densityBasedCount, minNotesForCoverage)
+
+      // Only sparse roles (bass, pad) need minimum coverage enforcement
+      let noteCount = densityBasedCount
+      if (role === 'bass' || role === 'pad') {
+        const expectedDurations = { bass: 3.0, pad: 7.0 }
+        const expectedDuration = expectedDurations[role]
+        const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
+        noteCount = Math.max(densityBasedCount, minNotesForCoverage)
+      }
 
       // Entry #207: For small noteCount (< 6), use connected timing
       const useEvenDistribution = noteCount < 6
@@ -673,17 +674,18 @@ class CounterpointEngine {
       // Generate new voice based on ROLE (not just activity)
       const role = profile.role || 'melody'
 
-      // Entry #225b: Note count scales with section length to ensure coverage
+      // Entry #225b/c: Note count scales with section for sparse voices only
       const baseCounts = { melody: 8, harmony: 5, bass: 3, pad: 2 }
-      const expectedDurations = { melody: 0.5, harmony: 1.0, bass: 3.0, pad: 7.0 }
-
-      // Calculate minimum notes needed to cover section (with overlap)
-      const expectedDuration = expectedDurations[role] || 1.0
-      const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
-
-      // Note count is MAX of (base count) and (minimum for coverage)
       const baseCount = baseCounts[role] || 5
-      const noteCount = Math.max(baseCount, minNotesForCoverage)
+
+      // Only sparse roles (bass, pad) need minimum coverage enforcement
+      let noteCount = baseCount
+      if (role === 'bass' || role === 'pad') {
+        const expectedDurations = { bass: 3.0, pad: 7.0 }
+        const expectedDuration = expectedDurations[role]
+        const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
+        noteCount = Math.max(baseCount, minNotesForCoverage)
+      }
 
       // Entry #207: For small noteCount (< 6), use connected timing
       const useEvenDistribution = noteCount < 6
