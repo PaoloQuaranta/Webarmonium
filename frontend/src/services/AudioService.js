@@ -6590,6 +6590,12 @@ class AudioService {
       return false
     }
 
+    // Verify audio routing nodes are initialized
+    if (!this.gesturePan || !this.gestureVolume) {
+      console.warn('[AudioService] Audio nodes not ready yet, deferring preset selection')
+      return false
+    }
+
     const patch = window.PatchDefinitions.REAL_USER_PATCHES[slot]
     if (!patch) {
       console.error(`[AudioService] Invalid preset slot: ${slot}`)

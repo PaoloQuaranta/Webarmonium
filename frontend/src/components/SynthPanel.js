@@ -78,17 +78,10 @@ class SynthPanel {
         this.currentPresetSlot = currentParams.presetSlot
         Object.assign(this.params, currentParams)
       } else {
-        // Initialize with user's assigned slot if no preset selected yet
+        // Store the assigned slot - preset will be selected when panel opens
+        // (AudioService nodes may not be ready yet during app init)
         const assignedSlot = socketService?.currentSlot
-        if (assignedSlot !== undefined && assignedSlot !== null) {
-          this.currentPresetSlot = assignedSlot
-          // Select the preset in AudioService to initialize the synth
-          audioService.selectPreset?.(assignedSlot)
-        } else {
-          // Default to slot 0 if nothing else available
-          this.currentPresetSlot = 0
-          audioService.selectPreset?.(0)
-        }
+        this.currentPresetSlot = (assignedSlot !== undefined && assignedSlot !== null) ? assignedSlot : 0
       }
     }
 
@@ -124,6 +117,15 @@ class SynthPanel {
   open () {
     if (this.isOpen) return
     this.isOpen = true
+
+    // Ensure preset is selected in AudioService (audio nodes are ready now)
+    if (this.audioService?.selectPreset && this.currentPresetSlot !== null) {
+      // Only select if not already selected
+      const currentSlot = this.audioService.getCurrentPresetSlot?.()
+      if (currentSlot === null || currentSlot === undefined) {
+        this.audioService.selectPreset(this.currentPresetSlot)
+      }
+    }
 
     this._previouslyFocusedElement = document.activeElement
     this._createPanel()
