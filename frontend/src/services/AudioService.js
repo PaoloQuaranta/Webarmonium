@@ -6240,18 +6240,6 @@ class AudioService {
   }
 
   /**
-   * Play a simple note with frequency, duration and volume
-   * Entry #106: Simplified replacement for removed three-tier system
-   * @param {number} frequency - Note frequency in Hz
-   * @param {number} duration - Duration in seconds (default 0.3)
-   * @param {number} volume - Volume 0-1 (default 0.5)
-   */
-  playSimpleNote(frequency, duration = 0.3, volume = 0.5) {
-    if (!this.isInitialized || !this.gestureSynth) return
-    this.safeGestureSynthTrigger(frequency, duration, undefined, volume)
-  }
-
-  /**
    * Stop hover modulation when gesture ends
    * @param {string} userId - User ID to stop tracking
    */
@@ -6963,6 +6951,7 @@ class AudioService {
    */
   playSimpleNote (frequency, duration, intensity = 0.5) {
     if (!this.gestureSynth) {
+      console.warn('[AudioService] playSimpleNote: gestureSynth not available')
       return
     }
 
@@ -6977,8 +6966,8 @@ class AudioService {
 
       this.gestureSynthLastTrigger = safeTime
       this.gestureSynth.triggerAttackRelease(safeFreq, safeDuration, safeTime, velocity)
+      console.log(`[AudioService] playSimpleNote: ${safeFreq.toFixed(0)}Hz for ${safeDuration.toFixed(2)}s`)
     } catch (error) {
-      // Silently fail - audition note not critical
       console.warn('[AudioService] playSimpleNote failed:', error.message)
     }
   }

@@ -177,7 +177,7 @@ class SynthPanel {
    */
   _createPanel () {
     this.overlay = document.createElement('div')
-    this.overlay.className = 'settings-overlay synth-overlay'
+    this.overlay.className = 'synth-overlay'
     // No overlay click handler - panel stays open while user interacts with canvas
 
     this.panel = document.createElement('div')
@@ -606,10 +606,21 @@ class SynthPanel {
     // Ensure audio context is started (requires user interaction)
     if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
       await Tone.start()
+      console.log('[SynthPanel] Audio context started')
+    }
+
+    // Ensure a preset is selected (creates the gestureSynth if needed)
+    if (this.audioService?.selectPreset && this.currentPresetSlot !== null) {
+      const currentSlot = this.audioService.getCurrentPresetSlot?.()
+      if (currentSlot === null || currentSlot === undefined) {
+        console.log('[SynthPanel] Selecting preset:', this.currentPresetSlot)
+        this.audioService.selectPreset(this.currentPresetSlot)
+      }
     }
 
     // Play immediately on start
     const metrics = this._getCombinedMetrics()
+    console.log('[SynthPanel] Generate Gestures - playing first note')
     this._generateGesture(metrics)
     // Then schedule next
     this._scheduleNextGesture()
@@ -682,7 +693,10 @@ class SynthPanel {
    * Generate a gesture based on metrics
    */
   _generateGesture (metrics) {
-    if (!this.audioService?.playSimpleNote) return
+    if (!this.audioService?.playSimpleNote) {
+      console.warn('[SynthPanel] audioService.playSimpleNote not available')
+      return
+    }
 
     // Position X: weighted average of regions
     const x = metrics.wikipedia * 0.17 +
@@ -706,6 +720,7 @@ class SynthPanel {
     const duration = 0.2 + (1 - metrics.combined) * 0.5
 
     // Play the note
+    console.log(`[SynthPanel] Playing note: ${frequency.toFixed(0)}Hz, ${duration.toFixed(2)}s, intensity ${intensity.toFixed(2)}`)
     this.audioService.playSimpleNote(frequency, duration, intensity)
   }
 
