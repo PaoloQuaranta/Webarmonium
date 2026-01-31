@@ -2805,20 +2805,28 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
    Entry #SynthUI: Synth Panel Styles
    ============================================ */
 
-/* Synth panel extends settings panel base styles */
+/* Room right container - horizontal button layout */
+#roomRight {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+/* Synth panel - centered floating panel that doesn't block canvas */
 .synth-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
   z-index: 10000;
   opacity: 0;
   transition: opacity 0.3s ease;
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none; /* Allow clicks through to canvas */
 }
 
 .synth-overlay.settings-visible {
@@ -2826,19 +2834,23 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 }
 
 .synth-panel {
-  background: var(--ui-bg, rgba(10, 10, 20, 0.95));
-  width: 360px;
-  height: 100%;
-  max-height: 100vh;
+  background: var(--ui-bg, rgba(10, 10, 20, 0.98));
+  width: 320px;
+  max-height: 80vh;
   overflow-y: auto;
-  border-left: 1px solid var(--line, #1e1e2d);
-  transform: translateX(100%);
-  transition: transform 0.3s ease;
+  border: 1px solid var(--line, #1e1e2d);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  transform: scale(0.9);
+  opacity: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
   font-family: var(--font-mono, 'Fira Code', monospace);
+  pointer-events: auto; /* Panel itself is clickable */
 }
 
 .settings-visible .synth-panel {
-  transform: translateX(0);
+  transform: scale(1);
+  opacity: 1;
 }
 
 /* Synth panel header */
@@ -2846,12 +2858,13 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--line, #1e1e2d);
   position: sticky;
   top: 0;
-  background: var(--ui-bg, rgba(10, 10, 20, 0.95));
+  background: var(--ui-bg, rgba(10, 10, 20, 0.98));
   z-index: 1;
+  border-radius: 12px 12px 0 0;
 }
 
 .synth-panel .settings-title {
@@ -2878,11 +2891,15 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
 /* Synth panel content */
 .synth-panel .settings-content {
-  padding: 20px;
+  padding: 16px;
 }
 
 .synth-panel .settings-group {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+}
+
+.synth-panel .settings-group:last-child {
+  margin-bottom: 0;
 }
 
 .synth-panel .settings-group-title {
@@ -3053,26 +3070,22 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
 /* Mobile responsive */
 @media (max-width: 768px) {
-  .synth-overlay {
-    align-items: flex-end;
-    justify-content: center;
-  }
-
   .synth-panel {
-    width: 100%;
-    height: auto;
-    max-height: 85vh;
-    border-left: none;
-    border-top: 1px solid var(--line, #1e1e2d);
-    border-radius: 20px 20px 0 0;
-    transform: translateY(100%);
-  }
-
-  .settings-visible .synth-panel {
-    transform: translateY(0);
+    width: 90%;
+    max-width: 320px;
+    max-height: 70vh;
   }
 
   .synth-panel .settings-content {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom, 20px));
+    padding: 12px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 12px));
+  }
+
+  .synth-panel .settings-group {
+    margin-bottom: 16px;
+  }
+
+  .synth-slider-row {
+    gap: 8px;
   }
 }

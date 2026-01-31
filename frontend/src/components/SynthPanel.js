@@ -74,9 +74,21 @@ class SynthPanel {
     // Get current params from audio service if available
     if (audioService) {
       const currentParams = audioService.getSynthParams?.()
-      if (currentParams) {
+      if (currentParams && currentParams.presetSlot !== undefined && currentParams.presetSlot !== null) {
         this.currentPresetSlot = currentParams.presetSlot
         Object.assign(this.params, currentParams)
+      } else {
+        // Initialize with user's assigned slot if no preset selected yet
+        const assignedSlot = socketService?.currentSlot
+        if (assignedSlot !== undefined && assignedSlot !== null) {
+          this.currentPresetSlot = assignedSlot
+          // Select the preset in AudioService to initialize the synth
+          audioService.selectPreset?.(assignedSlot)
+        } else {
+          // Default to slot 0 if nothing else available
+          this.currentPresetSlot = 0
+          audioService.selectPreset?.(0)
+        }
       }
     }
 
@@ -164,7 +176,7 @@ class SynthPanel {
   _createPanel () {
     this.overlay = document.createElement('div')
     this.overlay.className = 'settings-overlay synth-overlay'
-    this.overlay.addEventListener('click', this._handleOverlayClick)
+    // No overlay click handler - panel stays open while user interacts with canvas
 
     this.panel = document.createElement('div')
     this.panel.className = 'settings-panel synth-panel'
@@ -399,15 +411,25 @@ class SynthPanel {
   async _onPresetChange (e) {
     const slot = parseInt(e.target.value, 10)
 
-    // Request slot from server
-    if (this.socketService) {
-      const response = await this.socketService.requestPresetSlot(slot)
-      if (!response.granted) {
-        // Revert selection
-        e.target.value = this.currentPresetSlot ?? ''
-        this._showToast(`Preset "${response.takenBy}" is in use`)
-        return
+    // Request slot from server (if connected)
+    if (this.socketService?.requestPresetSlot) {
+      try {
+        const response = await this.socketService.requestPresetSlot(slot)
+        if (response && !response.granted) {
+          // Revert selection
+          e.target.value = this.currentPresetSlot ?? ''
+          this._showToast(`Preset "${response.takenBy}" is in use`)
+          return
+        }
+      } catch (err) {
+        // Continue locally if server request fails
+        console.warn('[SynthPanel] Preset request failed, applying locally:', err.message)
       }
+    }
+
+    // Ensure audio context is started
+    if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+      await Tone.start()
     }
 
     // Apply preset locally
@@ -578,7 +600,16 @@ class SynthPanel {
   /**
    * Start generating gestures
    */
-  _startGestureGeneration () {
+  async _startGestureGeneration () {
+    // Ensure audio context is started (requires user interaction)
+    if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+      await Tone.start()
+    }
+
+    // Play immediately on start
+    const metrics = this._getCombinedMetrics()
+    this._generateGesture(metrics)
+    // Then schedule next
     this._scheduleNextGesture()
   }
 
@@ -609,9 +640,9 @@ class SynthPanel {
     const metrics = this._getCombinedMetrics()
     const activityLevel = metrics.combined
 
-    // Delay: 35s base, 15s min (matches virtual users)
-    const baseDelay = 35000
-    const minDelay = 15000
+    // Faster delay for audition: 3s base, 1s min (quicker feedback while testing)
+    const baseDelay = 3000
+    const minDelay = 1000
     const delay = baseDelay - (activityLevel * (baseDelay - minDelay))
 
     this.gestureTimeout = setTimeout(() => {
