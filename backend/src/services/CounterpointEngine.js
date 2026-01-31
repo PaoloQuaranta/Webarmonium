@@ -351,12 +351,21 @@ class CounterpointEngine {
       // Generate new voice based on role with section parameters
       const role = profile.role || 'melody'
 
-      // Note count influenced by section density
+      // Entry #225b: Note count now scales with section length to ensure coverage
+      // This fixes the "stuttering" bug where sparse voices had gaps
       const baseCounts = { melody: 8, harmony: 5, bass: 3, pad: 2 }
+      const expectedDurations = { melody: 0.5, harmony: 1.0, bass: 3.0, pad: 7.0 }
       const densityMultiplier = 0.5 + (voiceContext.rhythmicDensity || 0.5) * 1.0
-      const noteCount = Math.round((baseCounts[role] || 5) * densityMultiplier)
 
-      // Entry #207: For small noteCount (< 6), distribute evenly to avoid gaps
+      // Calculate minimum notes needed to cover section (with overlap for continuity)
+      const expectedDuration = expectedDurations[role] || 1.0
+      const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
+
+      // Note count is MAX of (density-based) and (minimum for coverage)
+      const densityBasedCount = Math.round((baseCounts[role] || 5) * densityMultiplier)
+      const noteCount = Math.max(densityBasedCount, minNotesForCoverage)
+
+      // Entry #207: For small noteCount (< 6), use connected timing
       const useEvenDistribution = noteCount < 6
 
       for (let i = 0; i < noteCount; i++) {
@@ -664,15 +673,19 @@ class CounterpointEngine {
       // Generate new voice based on ROLE (not just activity)
       const role = profile.role || 'melody'
 
-      // Note count based on role density
-      const noteCount = {
-        'melody': 8,      // Many fast notes
-        'harmony': 5,     // Moderate notes
-        'bass': 3,        // Few long notes
-        'pad': 2          // Very sparse
-      }[role] || 5
+      // Entry #225b: Note count scales with section length to ensure coverage
+      const baseCounts = { melody: 8, harmony: 5, bass: 3, pad: 2 }
+      const expectedDurations = { melody: 0.5, harmony: 1.0, bass: 3.0, pad: 7.0 }
 
-      // Entry #207: For small noteCount (< 6), distribute evenly to avoid gaps
+      // Calculate minimum notes needed to cover section (with overlap)
+      const expectedDuration = expectedDurations[role] || 1.0
+      const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
+
+      // Note count is MAX of (base count) and (minimum for coverage)
+      const baseCount = baseCounts[role] || 5
+      const noteCount = Math.max(baseCount, minNotesForCoverage)
+
+      // Entry #207: For small noteCount (< 6), use connected timing
       const useEvenDistribution = noteCount < 6
 
       for (let i = 0; i < noteCount; i++) {
