@@ -322,7 +322,7 @@ const AuthHandler = {
         }
 
         // Include virtual users info if in solo mode
-        const currentRoom = socket.services.roomManager.getRoom(actualRoomId)
+        // currentRoom already declared above for synth data mapping
         if (currentRoom && currentRoom.hasVirtualUsers()) {
           response.virtualUsers = Array.from(currentRoom.getVirtualUsers().entries()).map(([userId, config]) => ({
             userId,
