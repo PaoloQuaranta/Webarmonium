@@ -70,3 +70,6 @@ nginx*.conf
 security_fix_plan.md
 ABUSE_REPORTS_DRAFT.md
 *useful-commands.md
+
+# Claude Code local settings
+.claude/settings.local.json
