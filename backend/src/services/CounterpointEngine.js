@@ -313,11 +313,21 @@ class CounterpointEngine {
         const velVariation = Math.sin((i / noteCount) * Math.PI) * velocityParams.variation
         const velocity = Math.round(Math.max(30, Math.min(127, baseVel + velVariation)))
 
-        // Entry #207: Calculate timing based on note count
+        // Entry #225: Calculate timing based on note count and role
+        // For sparse voices (noteCount < 6), use connected timing based on duration
+        // to prevent gaps between notes (fixes "stuttering" background bug)
         let startBeat
         if (useEvenDistribution) {
-          // Even distribution: spread notes across full section
-          startBeat = (i / noteCount) * totalBeats
+          // Entry #225: Connected timing - space notes by their expected duration
+          // Scale to cover full section while maintaining overlap for continuity
+          const role = profile.role || 'melody'
+          const expectedDuration = this._getExpectedDurationForRole(role)
+          const baseSpacing = expectedDuration * 0.85  // 15% overlap for continuity
+
+          // Calculate natural coverage and scale to fill section
+          const naturalCoverage = (noteCount - 1) * baseSpacing + expectedDuration
+          const scaleFactor = naturalCoverage < totalBeats ? totalBeats / naturalCoverage : 1
+          startBeat = i * baseSpacing * scaleFactor
         } else {
           // Phrase clustering for larger note counts (6+)
           const numPhrases = 3
@@ -364,11 +374,20 @@ class CounterpointEngine {
         const velCurve = this._getVelocityCurve(voiceContext.dynamicContour, position)
         const velocity = Math.round(velocityParams.baseVelocity * velCurve)
 
-        // Entry #207: Calculate timing based on note count
+        // Entry #225: Calculate timing based on note count and role
+        // For sparse voices (noteCount < 6), use connected timing based on duration
+        // to prevent gaps between notes (fixes "stuttering" background bug)
         let startBeat
         if (useEvenDistribution) {
-          // Even distribution: spread notes across full section
-          startBeat = (i / noteCount) * totalBeats
+          // Entry #225: Connected timing - space notes by their expected duration
+          // Scale to cover full section while maintaining overlap for continuity
+          const expectedDuration = this._getExpectedDurationForRole(role)
+          const baseSpacing = expectedDuration * 0.85  // 15% overlap for continuity
+
+          // Calculate natural coverage and scale to fill section
+          const naturalCoverage = (noteCount - 1) * baseSpacing + expectedDuration
+          const scaleFactor = naturalCoverage < totalBeats ? totalBeats / naturalCoverage : 1
+          startBeat = i * baseSpacing * scaleFactor
         } else {
           // Phrase clustering for larger note counts (6+)
           const numPhrases = 3
@@ -607,11 +626,21 @@ class CounterpointEngine {
         const durationVariation = 0.8 + (((i * PHI) + temporalOffset) % 1) * 0.4 // 0.8-1.2x
         const duration = baseDuration * durationVariation
 
-        // Entry #207: Calculate timing based on note count
+        // Entry #225: Calculate timing based on note count and role
+        // For sparse voices (noteCount < 6), use connected timing based on duration
+        // to prevent gaps between notes (fixes "stuttering" background bug)
         let startBeat
         if (useEvenDistribution) {
-          // Even distribution: spread notes across full section
-          startBeat = (i / noteCount) * totalBeats
+          // Entry #225: Connected timing - space notes by their expected duration
+          // Scale to cover full section while maintaining overlap for continuity
+          const role = profile.role || 'melody'
+          const expectedDuration = this._getExpectedDurationForRole(role)
+          const baseSpacing = expectedDuration * 0.85  // 15% overlap for continuity
+
+          // Calculate natural coverage and scale to fill section
+          const naturalCoverage = (noteCount - 1) * baseSpacing + expectedDuration
+          const scaleFactor = naturalCoverage < totalBeats ? totalBeats / naturalCoverage : 1
+          startBeat = i * baseSpacing * scaleFactor
         } else {
           // Phrase clustering for larger note counts (6+)
           const numPhrases = 3
@@ -657,11 +686,20 @@ class CounterpointEngine {
 
         const duration = this.generateDurationByRole(role, i, noteCount)
 
-        // Entry #207: Calculate timing based on note count
+        // Entry #225: Calculate timing based on note count and role
+        // For sparse voices (noteCount < 6), use connected timing based on duration
+        // to prevent gaps between notes (fixes "stuttering" background bug)
         let startBeat
         if (useEvenDistribution) {
-          // Even distribution: spread notes across full section
-          startBeat = (i / noteCount) * totalBeats
+          // Entry #225: Connected timing - space notes by their expected duration
+          // Scale to cover full section while maintaining overlap for continuity
+          const expectedDuration = this._getExpectedDurationForRole(role)
+          const baseSpacing = expectedDuration * 0.85  // 15% overlap for continuity
+
+          // Calculate natural coverage and scale to fill section
+          const naturalCoverage = (noteCount - 1) * baseSpacing + expectedDuration
+          const scaleFactor = naturalCoverage < totalBeats ? totalBeats / naturalCoverage : 1
+          startBeat = i * baseSpacing * scaleFactor
         } else {
           // Phrase clustering for larger note counts (6+)
           const numPhrases = 3
@@ -987,6 +1025,23 @@ class CounterpointEngine {
       case 'low': return 'legato'
       default: return 'normal'
     }
+  }
+
+  /**
+   * Entry #225: Get expected average duration for a voice role
+   * Used to calculate connected timing for sparse voices to prevent gaps
+   * @param {string} role - Voice role
+   * @returns {number} Expected duration in beats
+   */
+  _getExpectedDurationForRole(role) {
+    // Average durations from generateDurationByRole pools
+    const avgDurations = {
+      melody: 0.5,    // Fast notes (0.25-0.75 range)
+      harmony: 1.0,   // Medium notes (0.5-1.5 range)
+      bass: 3.0,      // Long notes (2.0-4.0 range)
+      pad: 7.0        // Very long notes (5.0-9.0 range)
+    }
+    return avgDurations[role] || 1.0
   }
 
   /**
