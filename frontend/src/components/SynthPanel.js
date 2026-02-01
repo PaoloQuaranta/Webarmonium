@@ -219,16 +219,18 @@ class SynthPanel {
         </div>
 
         <!-- FILTER -->
-        <div class="synth-group">
-          <div class="settings-group-title">FILTER</div>
-          <div class="synth-filter-type">
-            <button class="synth-filter-btn ${this.params.filterType === 'lowpass' ? 'active' : ''}" data-filter="lowpass">LP</button>
-            <button class="synth-filter-btn ${this.params.filterType === 'highpass' ? 'active' : ''}" data-filter="highpass">HP</button>
-            <button class="synth-filter-btn ${this.params.filterType === 'bandpass' ? 'active' : ''}" data-filter="bandpass">BP</button>
-          </div>
-          <div class="synth-sliders-row">
-            ${this._getSliderHTML('filterCutoff', 'Cutoff', 200, 8000, this.params.filterCutoff, 'Hz')}
-            ${this._getSliderHTML('filterQ', 'Resonance', 0.5, 4.0, this.params.filterQ, '')}
+        <div class="synth-group synth-group-filter">
+          <div class="settings-group-title">Filter</div>
+          <div class="synth-filter-row">
+            <div class="synth-filter-type">
+              <button class="synth-filter-btn ${this.params.filterType === 'lowpass' ? 'active' : ''}" data-filter="lowpass">LP</button>
+              <button class="synth-filter-btn ${this.params.filterType === 'highpass' ? 'active' : ''}" data-filter="highpass">HP</button>
+              <button class="synth-filter-btn ${this.params.filterType === 'bandpass' ? 'active' : ''}" data-filter="bandpass">BP</button>
+            </div>
+            <div class="synth-sliders-row">
+              ${this._getSliderHTML('filterCutoff', 'Cutoff', 200, 8000, this.params.filterCutoff, 'Hz')}
+              ${this._getSliderHTML('filterQ', 'Resonance', 0.5, 4.0, this.params.filterQ, '')}
+            </div>
           </div>
         </div>
 
@@ -345,20 +347,25 @@ class SynthPanel {
    */
   _updateOscillatorSection () {
     const container = this.panel?.querySelector('#synth-osc-controls')
-    if (!container) return
+    const group = this.panel?.querySelector('#synth-osc-group')
+    if (!container || !group) return
 
     // Get current patch info
     const patch = window.PatchDefinitions?.REAL_USER_PATCHES?.[this.currentPresetSlot]
     const oscType = patch?.oscillator?.type || 'sawtooth'
 
     if (oscType === 'pulse') {
+      group.style.display = ''
       container.innerHTML = this._getSliderHTML('pulseWidth', 'Width', 0.1, 0.9, this.params.pulseWidth, '')
     } else if (oscType?.startsWith('fat')) {
+      group.style.display = ''
       container.innerHTML = this._getSliderHTML('fatSpread', 'Spread', 5, 50, this.params.fatSpread, '')
     } else if (oscType === 'fmsine') {
+      group.style.display = ''
       container.innerHTML = this._getSliderHTML('modulationIndex', 'FM Index', 0.5, 12, this.params.modulationIndex, '')
     } else {
-      container.innerHTML = '<p class="synth-note">No oscillator parameters</p>'
+      // Hide entire OSC section when no params
+      group.style.display = 'none'
     }
 
     // Re-attach slider listeners
