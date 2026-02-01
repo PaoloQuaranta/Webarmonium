@@ -203,61 +203,60 @@ class SynthPanel {
     const presetOptions = this._getPresetOptions()
 
     return `
-      <div class="settings-header">
+      <div class="settings-header synth-header">
         <span class="settings-title" id="synth-title">Synth</span>
+        <select id="synth-preset-select" class="synth-select synth-header-select">
+          ${presetOptions}
+        </select>
         <button class="settings-close" aria-label="Close">&times;</button>
       </div>
-      <div class="settings-content">
-
-        <!-- PRESET SELECTOR -->
-        <div class="settings-group">
-          <div class="settings-group-title">PRESET</div>
-          <select id="synth-preset-select" class="synth-select">
-            ${presetOptions}
-          </select>
-        </div>
+      <div class="settings-content synth-content">
 
         <!-- OSCILLATOR (context-sensitive) -->
-        <div class="settings-group" id="synth-osc-group">
-          <div class="settings-group-title">OSCILLATOR</div>
+        <div class="settings-group synth-group" id="synth-osc-group">
+          <div class="settings-group-title">OSC</div>
           <div id="synth-osc-controls"></div>
         </div>
 
         <!-- FILTER -->
-        <div class="settings-group">
+        <div class="settings-group synth-group">
           <div class="settings-group-title">FILTER</div>
           <div class="synth-filter-type">
             <button class="synth-filter-btn ${this.params.filterType === 'lowpass' ? 'active' : ''}" data-filter="lowpass">LP</button>
             <button class="synth-filter-btn ${this.params.filterType === 'highpass' ? 'active' : ''}" data-filter="highpass">HP</button>
             <button class="synth-filter-btn ${this.params.filterType === 'bandpass' ? 'active' : ''}" data-filter="bandpass">BP</button>
           </div>
-          ${this._getSliderHTML('filterCutoff', 'Cutoff', 200, 8000, this.params.filterCutoff, 'Hz')}
-          ${this._getSliderHTML('filterQ', 'Resonance', 0.5, 4.0, this.params.filterQ, '')}
+          ${this._getSliderHTML('filterCutoff', 'Cut', 200, 8000, this.params.filterCutoff, 'Hz')}
+          ${this._getSliderHTML('filterQ', 'Res', 0.5, 4.0, this.params.filterQ, '')}
         </div>
 
         <!-- ENVELOPE (ADSR) -->
-        <div class="settings-group">
-          <div class="settings-group-title">ENVELOPE</div>
-          ${this._getSliderHTML('attack', 'Attack', 0.002, 1.0, this.params.attack, 's')}
-          ${this._getSliderHTML('decay', 'Decay', 0.05, 2.0, this.params.decay, 's')}
-          ${this._getSliderHTML('sustain', 'Sustain', 0.1, 1.0, this.params.sustain, '')}
-          ${this._getSliderHTML('release', 'Release', 0.05, 4.0, this.params.release, 's')}
+        <div class="settings-group synth-group">
+          <div class="settings-group-title">ENV</div>
+          ${this._getSliderHTML('attack', 'A', 0.002, 1.0, this.params.attack, 's')}
+          ${this._getSliderHTML('decay', 'D', 0.05, 2.0, this.params.decay, 's')}
+          ${this._getSliderHTML('sustain', 'S', 0.1, 1.0, this.params.sustain, '')}
+          ${this._getSliderHTML('release', 'R', 0.05, 4.0, this.params.release, 's')}
+        </div>
+
+        <!-- OUTPUT -->
+        <div class="settings-group synth-group">
+          <div class="settings-group-title">OUT</div>
+          ${this._getSliderHTML('volume', 'Vol', -12, 12, this.params.volume, 'dB')}
+          ${this._getSliderHTML('pan', 'Pan', -1.0, 1.0, this.params.pan, '')}
         </div>
 
         <!-- EFFECTS -->
-        <div class="settings-group">
-          <div class="settings-group-title">EFFECTS</div>
-          ${this._getSliderHTML('volume', 'Volume', -12, 12, this.params.volume, 'dB')}
-          ${this._getSliderHTML('pan', 'Pan', -1.0, 1.0, this.params.pan, '')}
-          ${this._getSliderHTML('delaySend', 'Delay', 0, 0.8, this.params.delaySend, '')}
-          ${this._getSliderHTML('reverbSend', 'Reverb', 0, 0.8, this.params.reverbSend, '')}
+        <div class="settings-group synth-group">
+          <div class="settings-group-title">FX</div>
+          ${this._getSliderHTML('delaySend', 'Dly', 0, 0.8, this.params.delaySend, '')}
+          ${this._getSliderHTML('reverbSend', 'Rev', 0, 0.8, this.params.reverbSend, '')}
         </div>
 
         <!-- GENERATE GESTURES -->
-        <div class="settings-group">
-          <div class="settings-group-title">AUDITION</div>
+        <div class="settings-group synth-group synth-audition">
           <button id="synth-generate-btn" class="synth-generate-btn">
-            Generate Gestures
+            Generate
           </button>
         </div>
       </div>
