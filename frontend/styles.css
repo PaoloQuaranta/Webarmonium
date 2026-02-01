@@ -2981,6 +2981,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   background: rgba(255, 255, 255, 0.02);
   border-right: 1px solid rgba(255, 255, 255, 0.04);
   min-width: 60px;
+  overflow: visible;
 }
 
 .synth-group:last-child {
@@ -3001,8 +3002,9 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Fader row - horizontal arrangement of vertical faders */
 .synth-sliders-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   justify-content: center;
+  overflow: visible;
 }
 
 /* Individual fader channel */
@@ -3010,7 +3012,8 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 44px;
+  min-width: 32px;
+  overflow: visible;
 }
 
 /* Value display */
