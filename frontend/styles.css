@@ -2923,13 +2923,14 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   margin-bottom: 6px;
 }
 
-/* Compact sliders */
 /* Vertical sliders row container */
 .synth-sliders-row {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   justify-content: center;
-  padding: 4px 0;
+  align-items: flex-end;
+  padding: 8px 4px;
+  min-height: 100px;
 }
 
 /* Individual vertical slider */
@@ -2937,34 +2938,36 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  min-width: 32px;
+  width: 32px;
+  height: 95px;
 }
 
-.synth-slider-row label {
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.6);
+/* Value display at top */
+.synth-slider-row .synth-value {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.5);
   text-align: center;
-  order: 3; /* Label at bottom */
+  margin-bottom: 4px;
+  min-height: 12px;
 }
 
+/* Vertical slider using transform */
 .synth-slider {
-  -webkit-appearance: slider-vertical;
-  appearance: slider-vertical;
-  writing-mode: vertical-lr;
-  direction: rtl;
-  width: 8px;
-  height: 60px;
+  width: 60px;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
   background: rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
-  order: 2; /* Slider in middle */
+  transform: rotate(-90deg);
+  margin: 27px 0;
 }
 
 .synth-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #6366f1;
   cursor: pointer;
@@ -2972,21 +2975,20 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 }
 
 .synth-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #6366f1;
   cursor: pointer;
   border: none;
 }
 
-.synth-value {
-  font-size: 8px;
-  color: rgba(255, 255, 255, 0.5);
+/* Label at bottom */
+.synth-slider-row label {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.6);
   text-align: center;
-  order: 1; /* Value at top */
-  min-width: 32px;
-  height: 14px;
+  margin-top: 4px;
 }
 
 .synth-group .synth-slider-label {
