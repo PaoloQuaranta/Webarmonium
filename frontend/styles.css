@@ -2818,7 +2818,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
    Positioned at bottom, horizontal channel strip
    ============================================ */
 
-/* Overlay - positions panel at bottom */
+/* Overlay - positions panel towards center */
 .synth-overlay {
   position: fixed;
   left: 0;
@@ -2827,7 +2827,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   z-index: 9990;
   display: flex;
   justify-content: center;
-  padding: 0 16px 16px;
+  padding: 0 16px 80px;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
@@ -3013,7 +3013,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
 /* Vertical fader - the main slider */
 .synth-slider {
-  width: 80px;
+  width: 100px;
   height: 4px;
   -webkit-appearance: none;
   appearance: none;
@@ -3021,7 +3021,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   border-radius: 2px;
   cursor: pointer;
   transform: rotate(-90deg);
-  margin: 38px 0;
+  margin: 48px 0;
   transform-origin: center;
 }
 
@@ -3062,7 +3062,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   text-align: center;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-top: 4px;
+  margin-top: 12px;
 }
 
 /* Filter type buttons */
