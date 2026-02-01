@@ -3096,8 +3096,8 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 }
 
 .synth-filter-btn {
-  padding: 5px 8px;
-  font-size: 8px;
+  padding: 8px 12px;
+  font-size: 10px;
   font-weight: 600;
   font-family: inherit;
   background: rgba(255, 255, 255, 0.04);
