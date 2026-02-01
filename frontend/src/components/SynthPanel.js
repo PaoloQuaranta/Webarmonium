@@ -208,7 +208,7 @@ class SynthPanel {
         <select id="synth-preset-select" class="synth-select synth-header-select">
           ${presetOptions}
         </select>
-        <button id="synth-generate-btn" class="synth-generate-btn">Generate</button>
+        <button id="synth-generate-btn" class="synth-generate-btn">Generate Gestures</button>
         <button class="settings-close" aria-label="Close">&times;</button>
       </div>
       <div class="settings-content synth-content">
