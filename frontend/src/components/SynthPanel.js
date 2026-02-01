@@ -181,7 +181,7 @@ class SynthPanel {
     // No overlay click handler - panel stays open while user interacts with canvas
 
     this.panel = document.createElement('div')
-    this.panel.className = 'settings-panel synth-panel'
+    this.panel.className = 'synth-panel'
     this.panel.setAttribute('role', 'dialog')
     this.panel.setAttribute('aria-modal', 'true')
     this.panel.setAttribute('aria-labelledby', 'synth-title')
@@ -203,24 +203,23 @@ class SynthPanel {
     const presetOptions = this._getPresetOptions()
 
     return `
-      <div class="settings-header synth-header">
+      <div class="synth-header">
         <span class="settings-title" id="synth-title">Synth</span>
-        <select id="synth-preset-select" class="synth-select synth-header-select">
+        <select id="synth-preset-select" class="synth-header-select">
           ${presetOptions}
         </select>
-        <button id="synth-generate-btn" class="synth-generate-btn">Generate Gestures</button>
+        <button id="synth-generate-btn" class="synth-generate-btn">Audition</button>
         <button class="settings-close" aria-label="Close">&times;</button>
       </div>
-      <div class="settings-content synth-content">
-
-        <!-- OSCILLATOR (context-sensitive) -->
-        <div class="settings-group synth-group" id="synth-osc-group">
+      <div class="synth-content">
+        <!-- OSCILLATOR -->
+        <div class="synth-group" id="synth-osc-group">
           <div class="settings-group-title">OSC</div>
           <div id="synth-osc-controls"></div>
         </div>
 
         <!-- FILTER -->
-        <div class="settings-group synth-group">
+        <div class="synth-group">
           <div class="settings-group-title">FILTER</div>
           <div class="synth-filter-type">
             <button class="synth-filter-btn ${this.params.filterType === 'lowpass' ? 'active' : ''}" data-filter="lowpass">LP</button>
@@ -233,8 +232,8 @@ class SynthPanel {
           </div>
         </div>
 
-        <!-- ENVELOPE (ADSR) -->
-        <div class="settings-group synth-group">
+        <!-- ENVELOPE -->
+        <div class="synth-group">
           <div class="settings-group-title">ENV</div>
           <div class="synth-sliders-row">
             ${this._getSliderHTML('attack', 'A', 0.002, 1.0, this.params.attack, 's')}
@@ -245,7 +244,7 @@ class SynthPanel {
         </div>
 
         <!-- OUTPUT -->
-        <div class="settings-group synth-group">
+        <div class="synth-group">
           <div class="settings-group-title">OUT</div>
           <div class="synth-sliders-row">
             ${this._getSliderHTML('volume', 'Vol', -12, 12, this.params.volume, 'dB')}
@@ -254,7 +253,7 @@ class SynthPanel {
         </div>
 
         <!-- EFFECTS -->
-        <div class="settings-group synth-group">
+        <div class="synth-group">
           <div class="settings-group-title">FX</div>
           <div class="synth-sliders-row">
             ${this._getSliderHTML('delaySend', 'Dly', 0, 0.8, this.params.delaySend, '')}
