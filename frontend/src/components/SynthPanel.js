@@ -228,18 +228,18 @@ class SynthPanel {
           </div>
           <div class="synth-sliders-row">
             ${this._getSliderHTML('filterCutoff', 'Cutoff', 200, 8000, this.params.filterCutoff, 'Hz')}
-            ${this._getSliderHTML('filterQ', 'Reso', 0.5, 4.0, this.params.filterQ, '')}
+            ${this._getSliderHTML('filterQ', 'Resonance', 0.5, 4.0, this.params.filterQ, '')}
           </div>
         </div>
 
         <!-- ENVELOPE -->
         <div class="synth-group">
-          <div class="settings-group-title">ENV</div>
+          <div class="settings-group-title">Envelope</div>
           <div class="synth-sliders-row">
-            ${this._getSliderHTML('attack', 'Atk', 0.002, 1.0, this.params.attack, 's')}
-            ${this._getSliderHTML('decay', 'Dec', 0.05, 2.0, this.params.decay, 's')}
-            ${this._getSliderHTML('sustain', 'Sus', 0.1, 1.0, this.params.sustain, '')}
-            ${this._getSliderHTML('release', 'Rel', 0.05, 4.0, this.params.release, 's')}
+            ${this._getSliderHTML('attack', 'A', 0.002, 1.0, this.params.attack, 's')}
+            ${this._getSliderHTML('decay', 'D', 0.05, 2.0, this.params.decay, 's')}
+            ${this._getSliderHTML('sustain', 'S', 0.1, 1.0, this.params.sustain, '')}
+            ${this._getSliderHTML('release', 'R', 0.05, 4.0, this.params.release, 's')}
           </div>
         </div>
 
