@@ -713,6 +713,14 @@ class WebarmoniumApp {
     }
     window.addEventListener('audio:tap-to-resume', this._audioTapToResumeHandler)
 
+    // Entry #SynthUI: Listen for synth-generated cursor movements
+    // Updates local cursor position for visual feedback during Generate Gestures
+    window.addEventListener('synth:cursor-move', (event) => {
+      const { x, y } = event.detail
+      this._localCursorPosition = { x, y }
+      this._updateGradientMetricsFromCursors()
+    })
+
     // iOS Safari: Setup proactive check on any interaction (fallback for event failures)
     this._setupProactiveRecoveryCheck()
 

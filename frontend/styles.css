@@ -2813,7 +2813,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   gap: 1.5rem;
 }
 
-/* Synth panel - landscape panel below UIbar that doesn't block canvas */
+/* Synth panel - wide landscape panel below UIbar */
 .synth-overlay {
   position: fixed;
   top: 60px; /* Below UIbar */
@@ -2832,10 +2832,10 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   opacity: 1;
 }
 
-/* Desktop: landscape horizontal panel */
+/* Mobile: compact vertical panel */
 .synth-panel {
   background: var(--ui-bg, rgba(10, 10, 20, 0.95));
-  width: auto;
+  width: 320px;
   max-width: 95vw;
   max-height: calc(100vh - 80px);
   overflow-y: auto;
@@ -2855,20 +2855,41 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   opacity: 1;
 }
 
-/* Desktop landscape layout: horizontal groups */
-@media (min-width: 768px) {
+/* Desktop: wide landscape panel with multi-column layout */
+@media (min-width: 900px) {
+  .synth-panel {
+    width: auto;
+    min-width: 800px;
+    max-width: 1100px;
+  }
+
+  .synth-panel .settings-header {
+    padding: 10px 20px;
+  }
+
   .synth-panel .settings-content {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    padding: 16px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    padding: 12px 20px 16px;
   }
 
   .synth-panel .settings-group {
-    flex: 1 1 140px;
-    min-width: 140px;
-    max-width: 200px;
     margin-bottom: 0;
+  }
+
+  /* Sliders more compact */
+  .synth-panel .synth-slider-row {
+    margin-bottom: 6px;
+  }
+
+  .synth-panel .synth-slider-label {
+    font-size: 9px;
+    margin-bottom: 2px;
+  }
+
+  .synth-panel .synth-slider {
+    height: 4px;
   }
 }
 
