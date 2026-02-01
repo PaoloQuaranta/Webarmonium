@@ -2816,35 +2816,37 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Synth panel - wide landscape panel below UIbar */
 .synth-overlay {
   position: fixed;
-  top: 56px; /* Below UIbar */
+  top: 72px; /* Below UIbar with margin */
   left: 0;
   right: 0;
-  z-index: 9999;
+  z-index: 9990;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
   display: flex;
   align-items: flex-start;
   justify-content: center;
   pointer-events: none;
-  padding: 8px;
+  padding: 12px;
 }
 
 .synth-overlay.settings-visible {
   opacity: 1;
+  visibility: visible;
 }
 
-/* Mobile: compact vertical panel */
+/* Synth panel base */
 .synth-panel {
-  background: var(--ui-bg, rgba(10, 10, 20, 0.95));
-  width: 320px;
-  max-width: 95vw;
-  max-height: calc(100vh - 80px);
+  background: rgba(12, 12, 22, 0.97);
+  width: 360px;
+  max-width: 96vw;
+  max-height: calc(100vh - 100px);
   overflow-y: auto;
   overflow-x: hidden;
-  border: 1px solid var(--line, #1e1e2d);
-  border-radius: 8px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
-  transform: translateY(-10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+  transform: translateY(-12px);
   opacity: 0;
   transition: transform 0.2s ease, opacity 0.2s ease;
   font-family: var(--font-mono, 'Fira Code', monospace);
@@ -2923,7 +2925,58 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
 /* Compact sliders */
 .synth-group .synth-slider-row {
-  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.synth-group .synth-slider-row:last-child {
+  margin-bottom: 0;
+}
+
+.synth-group .synth-slider-row label {
+  flex: 0 0 28px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: right;
+}
+
+.synth-group .synth-slider {
+  flex: 1;
+  min-width: 50px;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.synth-group .synth-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #6366f1;
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.synth-group .synth-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #6366f1;
+  cursor: pointer;
+  border: none;
+}
+
+.synth-group .synth-value {
+  flex: 0 0 42px;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: left;
 }
 
 .synth-group .synth-slider-label {
@@ -3005,27 +3058,29 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 }
 
 /* Desktop: horizontal layout */
-@media (min-width: 768px) {
+@media (min-width: 800px) {
   .synth-panel {
     width: auto;
-    min-width: 700px;
-    max-width: 900px;
+    min-width: 780px;
+    max-width: 940px;
   }
 
   .synth-content {
+    display: flex;
     flex-wrap: nowrap;
-    gap: 10px;
-    padding: 10px 14px 14px;
+    gap: 14px;
+    padding: 14px 18px 18px;
   }
 
   .synth-group {
     flex: 1;
-    min-width: 90px;
-    max-width: 140px;
+    min-width: 110px;
+    max-width: 160px;
   }
 
   .synth-audition {
-    min-width: 70px;
+    flex: 0 0 80px;
+    min-width: 80px;
     max-width: 80px;
   }
 }
