@@ -1693,6 +1693,9 @@ class AudioService {
 
     // console.log('🆕 Creating new synths (first time initialization)...')
 
+    // NOTE: Audio context is configured in _configureAudioContext() with platform-specific
+    // latencyHint and lookAhead settings. Do not override here.
+
     // Create master volume node for centralized control (FR-011)
     this.masterVolume = new Tone.Volume(-10).toDestination()
 
@@ -1701,8 +1704,9 @@ class AudioService {
 
     // Create global FX buses (100% wet for send/return architecture)
     // Note: Reverb needs async initialization for impulse response
+    // PERFORMANCE: Reduced decay from 3.0s to 1.5s - halves impulse response CPU cost
     this.reverb = new Tone.Reverb({
-      decay: 3.0,        // 3 second decay
+      decay: 1.5,        // 1.5 second decay (was 3.0 - CPU intensive)
       preDelay: 0.01,    // 10ms predelay
       wet: 1.0           // 100% wet - this is a FX bus, not insert
     })
@@ -1884,21 +1888,21 @@ class AudioService {
 
       // PAD: "Shimmer Chorus" - Detuned triangle ensemble
       // Distinct from GitHub's pure triangle - adds movement and depth
-      // Entry #208: 16 voices for backend-generated accompaniment + drone overlap
+      // PERFORMANCE: Reduced from 16 to 6 voices, 3 to 2 osc per voice (was 48 osc, now 12)
       pad: (() => {
-        const synth = new Tone.PolySynth(Tone.Synth, { maxPolyphony: 16 })
+        const synth = new Tone.PolySynth(Tone.Synth, { maxPolyphony: 6 })
         synth.set({
           oscillator: {
             type: 'fattriangle',     // Multiple detuned triangles
-            count: 3,                // 3 oscillators per voice
-            spread: 20               // Moderate detune = shimmer without dissonance
+            count: 2,                // 2 oscillators per voice (was 3 - CPU heavy)
+            spread: 15               // Reduced detune (was 20)
           },
           volume: +5,
           envelope: {
             attack: 0.8,
             decay: 1.5,
             sustain: 0.7,
-            release: 4.0
+            release: 2.5             // Reduced from 4.0s (compromise: smoother fade vs voice accumulation)
           }
         })
         return synth
@@ -1906,9 +1910,9 @@ class AudioService {
 
       // CHORDS: "Electric Piano Warm" - FM with different ratio than bell
       // harmonicity 1.5 + triangle modulator = warmer, less metallic than bell (harm 2, modIndex 4-6)
-      // Entry #208: 24 voices for arpeggio patterns from backend
+      // PERFORMANCE: Reduced from 24 to 8 voices (was 48 osc with FMSynth, now 16)
       chords: (() => {
-        const synth = new Tone.PolySynth(Tone.FMSynth, { maxPolyphony: 24 })
+        const synth = new Tone.PolySynth(Tone.FMSynth, { maxPolyphony: 8 })
         synth.set({
           harmonicity: 1.5,          // 3:2 ratio = warm, not bell-like
           modulationIndex: 2.5,      // Less modulation than bell = smoother
@@ -2708,6 +2712,32 @@ class AudioService {
       // Entry #28: Stop DroneVoidController
       if (this.droneVoidController) {
         this.droneVoidController.stop()
+      }
+
+      // PERFORMANCE: Dispose drone LFOs to prevent memory leak
+      if (this.droneAmplitudeLFO) {
+        try {
+          this.droneAmplitudeLFO.stop()
+          this.droneAmplitudeLFO.dispose()
+          this.droneAmplitudeLFO = null
+        } catch (e) {
+          // Expected if LFO already disposed, warn on unexpected errors
+          if (e.message && !e.message.includes('disposed')) {
+            console.warn('⚠️ droneAmplitudeLFO disposal error:', e.message)
+          }
+        }
+      }
+      if (this.dronePitchLFO) {
+        try {
+          this.dronePitchLFO.stop()
+          this.dronePitchLFO.dispose()
+          this.dronePitchLFO = null
+        } catch (e) {
+          // Expected if LFO already disposed, warn on unexpected errors
+          if (e.message && !e.message.includes('disposed')) {
+            console.warn('⚠️ dronePitchLFO disposal error:', e.message)
+          }
+        }
       }
 
       // STEP 3: Stop generation
