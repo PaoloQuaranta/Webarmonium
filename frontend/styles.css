@@ -3010,7 +3010,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 36px;
+  min-width: 44px;
 }
 
 /* Value display */
@@ -3074,6 +3074,8 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-top: 20px;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 /* Filter type buttons */
