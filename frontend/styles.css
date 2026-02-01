@@ -2816,7 +2816,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Synth panel - wide landscape panel below UIbar */
 .synth-overlay {
   position: fixed;
-  top: 72px; /* Below UIbar with margin */
+  top: 100px; /* Well below UIbar */
   left: 0;
   right: 0;
   z-index: 9990;
@@ -2827,7 +2827,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   align-items: flex-start;
   justify-content: center;
   pointer-events: none;
-  padding: 12px;
+  padding: 16px;
 }
 
 .synth-overlay.settings-visible {
@@ -2924,59 +2924,69 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 }
 
 /* Compact sliders */
-.synth-group .synth-slider-row {
+/* Vertical sliders row container */
+.synth-sliders-row {
   display: flex;
-  align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  justify-content: center;
+  padding: 4px 0;
 }
 
-.synth-group .synth-slider-row:last-child {
-  margin-bottom: 0;
+/* Individual vertical slider */
+.synth-slider-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 32px;
 }
 
-.synth-group .synth-slider-row label {
-  flex: 0 0 28px;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
-  text-align: right;
+.synth-slider-row label {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+  order: 3; /* Label at bottom */
 }
 
-.synth-group .synth-slider {
-  flex: 1;
-  min-width: 50px;
-  height: 6px;
-  -webkit-appearance: none;
-  appearance: none;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 3px;
+.synth-slider {
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 8px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
   cursor: pointer;
+  order: 2; /* Slider in middle */
 }
 
-.synth-group .synth-slider::-webkit-slider-thumb {
+.synth-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #6366f1;
   cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
-.synth-group .synth-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+.synth-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #6366f1;
   cursor: pointer;
   border: none;
 }
 
-.synth-group .synth-value {
-  flex: 0 0 42px;
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.6);
-  text-align: left;
+.synth-value {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+  order: 1; /* Value at top */
+  min-width: 32px;
+  height: 14px;
 }
 
 .synth-group .synth-slider-label {
@@ -3061,26 +3071,28 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 @media (min-width: 800px) {
   .synth-panel {
     width: auto;
-    min-width: 780px;
-    max-width: 940px;
+    min-width: 700px;
+    max-width: 900px;
   }
 
   .synth-content {
     display: flex;
     flex-wrap: nowrap;
-    gap: 14px;
-    padding: 14px 18px 18px;
+    gap: 16px;
+    padding: 16px 20px 20px;
   }
 
   .synth-group {
     flex: 1;
-    min-width: 110px;
-    max-width: 160px;
+    min-width: 80px;
   }
 
   .synth-audition {
-    flex: 0 0 80px;
-    min-width: 80px;
+    flex: 0 0 90px;
+    min-width: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     max-width: 80px;
   }
 }

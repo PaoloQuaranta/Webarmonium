@@ -226,31 +226,39 @@ class SynthPanel {
             <button class="synth-filter-btn ${this.params.filterType === 'highpass' ? 'active' : ''}" data-filter="highpass">HP</button>
             <button class="synth-filter-btn ${this.params.filterType === 'bandpass' ? 'active' : ''}" data-filter="bandpass">BP</button>
           </div>
-          ${this._getSliderHTML('filterCutoff', 'Cut', 200, 8000, this.params.filterCutoff, 'Hz')}
-          ${this._getSliderHTML('filterQ', 'Res', 0.5, 4.0, this.params.filterQ, '')}
+          <div class="synth-sliders-row">
+            ${this._getSliderHTML('filterCutoff', 'Cut', 200, 8000, this.params.filterCutoff, 'Hz')}
+            ${this._getSliderHTML('filterQ', 'Res', 0.5, 4.0, this.params.filterQ, '')}
+          </div>
         </div>
 
         <!-- ENVELOPE (ADSR) -->
         <div class="settings-group synth-group">
           <div class="settings-group-title">ENV</div>
-          ${this._getSliderHTML('attack', 'A', 0.002, 1.0, this.params.attack, 's')}
-          ${this._getSliderHTML('decay', 'D', 0.05, 2.0, this.params.decay, 's')}
-          ${this._getSliderHTML('sustain', 'S', 0.1, 1.0, this.params.sustain, '')}
-          ${this._getSliderHTML('release', 'R', 0.05, 4.0, this.params.release, 's')}
+          <div class="synth-sliders-row">
+            ${this._getSliderHTML('attack', 'A', 0.002, 1.0, this.params.attack, 's')}
+            ${this._getSliderHTML('decay', 'D', 0.05, 2.0, this.params.decay, 's')}
+            ${this._getSliderHTML('sustain', 'S', 0.1, 1.0, this.params.sustain, '')}
+            ${this._getSliderHTML('release', 'R', 0.05, 4.0, this.params.release, 's')}
+          </div>
         </div>
 
         <!-- OUTPUT -->
         <div class="settings-group synth-group">
           <div class="settings-group-title">OUT</div>
-          ${this._getSliderHTML('volume', 'Vol', -12, 12, this.params.volume, 'dB')}
-          ${this._getSliderHTML('pan', 'Pan', -1.0, 1.0, this.params.pan, '')}
+          <div class="synth-sliders-row">
+            ${this._getSliderHTML('volume', 'Vol', -12, 12, this.params.volume, 'dB')}
+            ${this._getSliderHTML('pan', 'Pan', -1.0, 1.0, this.params.pan, '')}
+          </div>
         </div>
 
         <!-- EFFECTS -->
         <div class="settings-group synth-group">
           <div class="settings-group-title">FX</div>
-          ${this._getSliderHTML('delaySend', 'Dly', 0, 0.8, this.params.delaySend, '')}
-          ${this._getSliderHTML('reverbSend', 'Rev', 0, 0.8, this.params.reverbSend, '')}
+          <div class="synth-sliders-row">
+            ${this._getSliderHTML('delaySend', 'Dly', 0, 0.8, this.params.delaySend, '')}
+            ${this._getSliderHTML('reverbSend', 'Rev', 0, 0.8, this.params.reverbSend, '')}
+          </div>
         </div>
 
         <!-- GENERATE GESTURES -->
