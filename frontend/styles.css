@@ -2904,7 +2904,8 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
 .synth-header-select:focus {
   outline: none;
-  border-color: var(--synth-accent, var(--accent, #2dd4bf));
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .synth-header-select option {
@@ -2938,6 +2939,10 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   color: var(--void, #020208);
 }
 
+.synth-header .synth-generate-btn:focus {
+  outline: none;
+}
+
 /* Close button */
 .synth-header .settings-close {
   background: transparent;
@@ -2953,6 +2958,10 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
 .synth-header .settings-close:hover {
   color: var(--bright, #e0e0f0);
+}
+
+.synth-header .settings-close:focus {
+  outline: none;
 }
 
 /* Content - horizontal strip layout */
@@ -3095,6 +3104,10 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   background: var(--synth-accent, var(--accent, #2dd4bf));
   border-color: var(--synth-accent, var(--accent, #2dd4bf));
   color: var(--void, #020208);
+}
+
+.synth-filter-btn:focus {
+  outline: none;
 }
 
 /* Oscillator note (no params) */
