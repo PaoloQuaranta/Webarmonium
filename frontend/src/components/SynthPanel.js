@@ -208,6 +208,7 @@ class SynthPanel {
         <select id="synth-preset-select" class="synth-select synth-header-select">
           ${presetOptions}
         </select>
+        <button id="synth-generate-btn" class="synth-generate-btn">Generate</button>
         <button class="settings-close" aria-label="Close">&times;</button>
       </div>
       <div class="settings-content synth-content">
@@ -259,13 +260,6 @@ class SynthPanel {
             ${this._getSliderHTML('delaySend', 'Dly', 0, 0.8, this.params.delaySend, '')}
             ${this._getSliderHTML('reverbSend', 'Rev', 0, 0.8, this.params.reverbSend, '')}
           </div>
-        </div>
-
-        <!-- GENERATE GESTURES -->
-        <div class="settings-group synth-group synth-audition">
-          <button id="synth-generate-btn" class="synth-generate-btn">
-            Generate
-          </button>
         </div>
       </div>
     `
