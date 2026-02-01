@@ -3001,7 +3001,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Fader row - horizontal arrangement of vertical faders */
 .synth-sliders-row {
   display: flex;
-  gap: 4px;
+  gap: 8px;
   justify-content: center;
 }
 
@@ -3010,7 +3010,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 28px;
+  width: 36px;
 }
 
 /* Value display */
