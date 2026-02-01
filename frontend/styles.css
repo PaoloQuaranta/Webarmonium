@@ -2902,9 +2902,11 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   border-color: rgba(255, 255, 255, 0.15);
 }
 
-.synth-header-select:focus {
-  outline: none;
-  border-color: rgba(255, 255, 255, 0.25);
+.synth-header-select:focus,
+.synth-header-select:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.08);
 }
 
