@@ -2839,22 +2839,14 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   visibility: visible;
 }
 
-/* Panel - glassy synth strip */
+/* Panel - synth strip */
 .synth-panel {
   pointer-events: auto;
-  background: linear-gradient(
-    180deg,
-    rgba(20, 20, 35, 0.92) 0%,
-    rgba(10, 10, 20, 0.95) 100%
-  );
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--ui-bg, rgba(10, 10, 20, 0.92));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  box-shadow:
-    0 -4px 30px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
-    0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  border-radius: 12px;
   font-family: var(--font-mono, 'Fira Code', monospace);
   transform: translateY(20px);
   opacity: 0;
@@ -2884,7 +2876,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   text-transform: uppercase;
   letter-spacing: 0.15em;
   color: var(--synth-accent, var(--accent, #2dd4bf));
-  text-shadow: 0 0 20px var(--synth-accent, var(--accent, #2dd4bf));
 }
 
 /* Preset selector in header */
@@ -2945,7 +2936,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 .synth-header .synth-generate-btn.active {
   background: var(--synth-accent, var(--accent, #2dd4bf));
   color: var(--void, #020208);
-  box-shadow: 0 0 20px rgba(45, 212, 191, 0.4);
 }
 
 /* Close button */
@@ -3023,18 +3013,15 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
 /* Vertical fader - the main slider */
 .synth-slider {
-  width: 60px;
+  width: 80px;
   height: 4px;
   -webkit-appearance: none;
   appearance: none;
-  background: linear-gradient(90deg,
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.12) 100%
-  );
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 2px;
   cursor: pointer;
   transform: rotate(-90deg);
-  margin: 28px 0;
+  margin: 38px 0;
   transform-origin: center;
 }
 
@@ -3051,14 +3038,12 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   background: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 8px var(--synth-accent, var(--accent, #2dd4bf));
   margin-top: -4px;
-  transition: transform 0.1s, box-shadow 0.2s;
+  transition: transform 0.1s;
 }
 
 .synth-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.15);
-  box-shadow: 0 0 14px var(--synth-accent, var(--accent, #2dd4bf));
+  transform: scale(1.1);
 }
 
 .synth-slider::-moz-range-thumb {
@@ -3068,7 +3053,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   background: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 8px var(--synth-accent, var(--accent, #2dd4bf));
 }
 
 /* Fader label */
@@ -3078,6 +3062,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   text-align: center;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  margin-top: 4px;
 }
 
 /* Filter type buttons */
@@ -3110,7 +3095,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   background: var(--synth-accent, var(--accent, #2dd4bf));
   border-color: var(--synth-accent, var(--accent, #2dd4bf));
   color: var(--void, #020208);
-  box-shadow: 0 0 10px rgba(45, 212, 191, 0.3);
 }
 
 /* Oscillator note (no params) */
