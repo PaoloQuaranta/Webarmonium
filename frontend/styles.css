@@ -3037,6 +3037,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   transform: rotate(-90deg);
   margin: 48px 0;
   transform-origin: center;
+  touch-action: none;
 }
 
 .synth-slider::-webkit-slider-runnable-track {

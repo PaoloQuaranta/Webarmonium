@@ -411,7 +411,40 @@ class SynthPanel {
     const sliders = this.panel?.querySelectorAll('.synth-slider')
     sliders?.forEach(slider => {
       slider.addEventListener('input', (e) => this._onSliderChange(e))
+
+      // Touch handling for rotated sliders
+      this._attachTouchHandler(slider)
     })
+  }
+
+  /**
+   * Attach touch handler for rotated vertical sliders
+   */
+  _attachTouchHandler (slider) {
+    let startY = 0
+    let startValue = 0
+    const min = parseFloat(slider.min)
+    const max = parseFloat(slider.max)
+    const range = max - min
+
+    const onTouchStart = (e) => {
+      startY = e.touches[0].clientY
+      startValue = parseFloat(slider.value)
+      e.preventDefault()
+    }
+
+    const onTouchMove = (e) => {
+      const deltaY = startY - e.touches[0].clientY // Inverted: up = increase
+      const sensitivity = range / 100 // 100px drag = full range
+      const newValue = Math.min(max, Math.max(min, startValue + deltaY * sensitivity))
+
+      slider.value = newValue
+      slider.dispatchEvent(new Event('input', { bubbles: true }))
+      e.preventDefault()
+    }
+
+    slider.addEventListener('touchstart', onTouchStart, { passive: false })
+    slider.addEventListener('touchmove', onTouchMove, { passive: false })
   }
 
   /**
