@@ -2977,10 +2977,10 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Section groups */
 .synth-group {
   flex: 0 0 auto;
-  padding: 12px 14px 10px;
+  padding: 10px 10px 8px;
   background: rgba(255, 255, 255, 0.02);
   border-right: 1px solid rgba(255, 255, 255, 0.04);
-  min-width: 60px;
+  min-width: 50px;
   overflow: visible;
 }
 
@@ -3002,7 +3002,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Fader row - horizontal arrangement of vertical faders */
 .synth-sliders-row {
   display: flex;
-  gap: 6px;
+  gap: 2px;
   justify-content: center;
   overflow: visible;
 }
