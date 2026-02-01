@@ -2878,7 +2878,8 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 }
 
 .synth-header-select {
-  flex: 0 1 160px;
+  flex: 1 1 auto;
+  min-width: 100px;
   padding: 6px 10px;
   font-size: 11px;
   background: rgba(255,255,255,0.05);
@@ -2887,10 +2888,11 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   color: var(--bright, #e0e0f0);
 }
 
-/* Generate button in header */
+/* Generate button in header - compact */
 .synth-header .synth-generate-btn {
-  padding: 5px 10px;
-  font-size: 10px;
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  font-size: 9px;
   font-weight: 500;
   background: rgba(99, 102, 241, 0.15);
   border: 1px solid #6366f1;
@@ -2898,7 +2900,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   color: #6366f1;
   cursor: pointer;
   transition: all 0.15s;
-  margin-left: auto;
   white-space: nowrap;
 }
 
@@ -2924,8 +2925,8 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 .synth-content {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 12px 12px;
+  gap: 6px;
+  padding: 8px 10px 10px;
 }
 
 .synth-group {
@@ -2933,7 +2934,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   min-width: 80px;
   background: rgba(255,255,255,0.02);
   border-radius: 6px;
-  padding: 8px;
+  padding: 6px;
 }
 
 .synth-group .settings-group-title {
@@ -2973,7 +2974,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
 /* Vertical slider using transform */
 .synth-slider {
-  width: 80px;
+  width: 100px;
   height: 8px;
   -webkit-appearance: none;
   appearance: none;
@@ -2981,7 +2982,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   border-radius: 4px;
   cursor: pointer;
   transform: rotate(-90deg);
-  margin: 36px 0;
+  margin: 46px 0;
 }
 
 .synth-slider::-webkit-slider-thumb {
@@ -3245,93 +3246,12 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   background: rgba(45, 212, 191, 0.1);
 }
 
-/* Slider rows */
-.synth-slider-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-}
-
-.synth-slider-row label {
-  flex: 0 0 80px;
-  font-size: 11px;
-  color: var(--light, #9090a8);
-}
-
-.synth-slider {
-  flex: 1;
-  -webkit-appearance: none;
-  appearance: none;
-  height: 4px;
-  background: var(--muted, #3a3a50);
-  border-radius: 2px;
-  cursor: pointer;
-}
-
-.synth-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  background: var(--synth-accent, var(--accent, #2dd4bf));
-  border-radius: 50%;
-  border: 2px solid var(--void, #020208);
-  cursor: pointer;
-  transition: transform 0.15s;
-}
-
-.synth-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-}
-
-.synth-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  background: var(--synth-accent, var(--accent, #2dd4bf));
-  border-radius: 50%;
-  border: 2px solid var(--void, #020208);
-  cursor: pointer;
-}
-
-.synth-value {
-  flex: 0 0 60px;
-  text-align: right;
-  font-family: var(--font-mono, 'Fira Code', monospace);
-  font-size: 10px;
-  color: var(--dim, #5a5a70);
-}
-
 /* Oscillator note */
 .synth-note {
   font-size: 11px;
   color: var(--dim, #5a5a70);
   font-style: italic;
   margin: 0;
-}
-
-/* Generate gestures button */
-.synth-generate-btn {
-  width: 100%;
-  padding: 14px;
-  background: transparent;
-  border: 2px solid var(--synth-accent, var(--accent, #2dd4bf));
-  border-radius: 25px;
-  color: var(--synth-accent, var(--accent, #2dd4bf));
-  font-family: var(--font-mono, 'Fira Code', monospace);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.synth-generate-btn:hover {
-  background: rgba(45, 212, 191, 0.1);
-}
-
-.synth-generate-btn.active {
-  background: var(--synth-accent, var(--accent, #2dd4bf));
-  color: var(--void, #020208);
 }
 
 /* Mobile responsive */
