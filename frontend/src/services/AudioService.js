@@ -1090,12 +1090,29 @@ class AudioService {
         console.log('[AudioService] Using browser default sample rate (no override)')
       }
 
-      // CRITICAL: Create custom context BEFORE accessing Tone.context (which auto-creates one)
-      // Must use Tone.setContext() to replace the default context with our configured one
+      // CRITICAL: Must use Tone.Context (not raw AudioContext) to properly replace Tone's default
+      // Tone.js creates its own context on import, so we need to dispose it and create a new one
       if (window.Tone) {
-        console.log(`[AudioService] Creating AudioContext with options:`, contextOptions)
-        const customContext = new AudioContext(contextOptions)
-        console.log(`[AudioService] AudioContext created. Requested: ${contextOptions.sampleRate || 'default'}, Actual: ${customContext.sampleRate}`)
+        console.log(`[AudioService] Creating Tone.Context with options:`, contextOptions)
+
+        // Close the auto-created default context first
+        if (Tone.context && Tone.context.state !== 'closed') {
+          try {
+            // Get the raw context to close it
+            const oldContext = Tone.context.rawContext
+            if (oldContext && oldContext.close) {
+              oldContext.close()
+            }
+          } catch (e) {
+            console.log('[AudioService] Could not close old context:', e.message)
+          }
+        }
+
+        // Create new Tone.Context with our options
+        const customContext = new Tone.Context(contextOptions)
+        console.log(`[AudioService] Tone.Context created. Requested: ${contextOptions.sampleRate || 'default'}, Actual: ${customContext.sampleRate}`)
+
+        // Set it as the global context
         Tone.setContext(customContext)
         console.log(`[AudioService] After Tone.setContext, Tone.context.sampleRate = ${Tone.context.sampleRate}`)
       }
