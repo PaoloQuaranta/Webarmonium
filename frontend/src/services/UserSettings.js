@@ -10,7 +10,6 @@ class UserSettings {
 
   static DEFAULTS = {
     audioQuality: 'auto',     // auto, high, medium, low, minimal
-    sampleRate: 'auto',       // auto, 48000, 44100, 22050
     audioBuffer: 'auto',      // auto, 100, 200, 300, 500 (ms)
     graphicsQuality: 'auto',  // auto, full, reduced, minimal
     theme: 'dark'             // dark, light
@@ -21,7 +20,6 @@ class UserSettings {
     high: {
       lookAhead: 0.1,
       updateInterval: 0.025,
-      sampleRate: 48000,
       filterUpdateRate: 30,
       maxPolyphony: 8,
       backgroundLayers: ['bass', 'pad', 'chords'],
@@ -31,7 +29,6 @@ class UserSettings {
     medium: {
       lookAhead: 0.2,
       updateInterval: 0.05,
-      sampleRate: 44100,
       filterUpdateRate: 20,
       maxPolyphony: 4,
       backgroundLayers: ['bass', 'pad'],
@@ -41,7 +38,6 @@ class UserSettings {
     low: {
       lookAhead: 0.3,
       updateInterval: 0.1,
-      sampleRate: 44100,
       filterUpdateRate: 15,
       maxPolyphony: 2,
       backgroundLayers: ['bass'],
@@ -51,20 +47,12 @@ class UserSettings {
     minimal: {
       lookAhead: 0.5,
       updateInterval: 0.2,
-      sampleRate: 22050,
       filterUpdateRate: 5,
       maxPolyphony: 1,
       backgroundLayers: [],
       useAmbientFilters: false,
       synthComplexity: 'mono-sine'
     }
-  }
-
-  // Sample rate options
-  static SAMPLE_RATE_OPTIONS = {
-    48000: { label: '48 kHz', description: 'High fidelity' },
-    44100: { label: '44.1 kHz', description: 'Standard (CD quality)' },
-    22050: { label: '22 kHz', description: 'Low CPU' }
   }
 
   // Buffer size options (ms)
@@ -158,7 +146,7 @@ class UserSettings {
 
   /**
    * Get a setting value from localStorage
-   * @param {string} key - Setting key (audioQuality, sampleRate, audioBuffer, graphicsQuality)
+   * @param {string} key - Setting key (audioQuality, audioBuffer, graphicsQuality, theme)
    * @returns {string|number} Setting value or default
    */
   static get (key) {
@@ -172,7 +160,7 @@ class UserSettings {
     }
 
     // Parse numeric values
-    if (key === 'sampleRate' || key === 'audioBuffer') {
+    if (key === 'audioBuffer') {
       if (stored === 'auto') return 'auto'
       const num = parseInt(stored, 10)
       return isNaN(num) ? this.DEFAULTS[key] : num
@@ -208,7 +196,6 @@ class UserSettings {
   static getAll () {
     return {
       audioQuality: this.get('audioQuality'),
-      sampleRate: this.get('sampleRate'),
       audioBuffer: this.get('audioBuffer'),
       graphicsQuality: this.get('graphicsQuality'),
       theme: this.get('theme')
@@ -289,12 +276,6 @@ class UserSettings {
       }
     }
 
-    // Sample rate override
-    if (settings.sampleRate !== 'auto') {
-      result.sampleRate = settings.sampleRate
-      result.source = result.source || 'user-settings'
-    }
-
     // Audio buffer (lookAhead) override
     if (settings.audioBuffer !== 'auto') {
       result.lookAhead = settings.audioBuffer / 1000 // Convert ms to seconds
@@ -338,10 +319,6 @@ class UserSettings {
       audioQuality: {
         value: settings.audioQuality,
         label: settings.audioQuality === 'auto' ? 'Auto' : settings.audioQuality.charAt(0).toUpperCase() + settings.audioQuality.slice(1)
-      },
-      sampleRate: {
-        value: settings.sampleRate,
-        label: settings.sampleRate === 'auto' ? 'Auto' : this.SAMPLE_RATE_OPTIONS[settings.sampleRate]?.label || String(settings.sampleRate)
       },
       audioBuffer: {
         value: settings.audioBuffer,

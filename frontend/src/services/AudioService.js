@@ -1061,27 +1061,8 @@ class AudioService {
       // Android 13+ has stricter autoplay policies
       this._needsAggressiveResume = isAndroidChrome && androidVersion !== null && androidVersion >= 13
 
-      // Create new AudioContext with optimized settings
-      const contextOptions = {
-        latencyHint: latencyHint
-      }
-
-      // Entry #56 FIX: Detect Windows browser for sample rate reduction
-      const isWindowsBrowser = typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsBrowser()
-
-      // NOTE: Sample rate setting may be ignored by browser (Windows browsers typically
-      // enforce system audio device sample rate). The other quality settings (synthComplexity,
-      // filterUpdateRate, etc.) are the main CPU reduction levers.
-      const userSampleRate = typeof UserSettings !== 'undefined' ? UserSettings.get('sampleRate') : 'auto'
-
-      if (userSampleRate !== 'auto') {
-        contextOptions.sampleRate = userSampleRate
-      } else if (isAndroidChrome || isWindowsBrowser) {
-        // Entry #48/#56: Request lower sample rate (may be ignored by browser)
-        contextOptions.sampleRate = 44100
-      }
-
-      // Create Tone.Context with our options (latencyHint is always respected)
+      // Create Tone.Context with optimized latencyHint
+      // Note: sampleRate removed - browsers ignore it and use system audio device rate
       if (window.Tone) {
         // Close the auto-created default context first
         if (Tone.context && Tone.context.state !== 'closed') {
@@ -1095,9 +1076,9 @@ class AudioService {
           }
         }
 
-        const customContext = new Tone.Context(contextOptions)
+        const customContext = new Tone.Context({ latencyHint })
         Tone.setContext(customContext)
-        console.log(`[AudioService] Context configured: sampleRate=${Tone.context.sampleRate}, latencyHint=${contextOptions.latencyHint}`)
+        console.log(`[AudioService] Context configured: latencyHint=${latencyHint}`)
       }
     } catch (error) {
     }
@@ -1119,7 +1100,6 @@ class AudioService {
         baseProfile = {
           lookAhead: 0.1,
           updateInterval: 0.025,
-          sampleRate: 48000,
           filterUpdateRate: 30,
           maxPolyphony: 8,
           backgroundLayers: ['bass', 'pad', 'chords'],

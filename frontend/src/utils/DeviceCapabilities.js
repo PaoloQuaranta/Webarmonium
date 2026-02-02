@@ -241,7 +241,6 @@ class DeviceCapabilities {
       'high': {
         lookAhead: 0.1,           // 100ms
         updateInterval: 0.025,    // 25ms
-        sampleRate: 48000,
         filterUpdateRate: 30,     // Hz
         maxPolyphony: 8,
         backgroundLayers: ['bass', 'pad', 'chords'],
@@ -251,7 +250,6 @@ class DeviceCapabilities {
       'medium': {
         lookAhead: 0.2,           // 200ms
         updateInterval: 0.05,     // 50ms
-        sampleRate: 44100,
         filterUpdateRate: 20,     // Hz
         maxPolyphony: 4,
         backgroundLayers: ['bass', 'pad'],
@@ -261,7 +259,6 @@ class DeviceCapabilities {
       'low': {
         lookAhead: 0.3,           // 300ms
         updateInterval: 0.1,      // 100ms
-        sampleRate: 44100,
         filterUpdateRate: 10,     // Hz
         maxPolyphony: 2,
         backgroundLayers: ['bass'],
@@ -271,7 +268,6 @@ class DeviceCapabilities {
       'ultra-low': {
         lookAhead: 0.5,           // 500ms
         updateInterval: 0.2,      // 200ms
-        sampleRate: 22050,
         filterUpdateRate: 5,      // Hz
         maxPolyphony: 1,
         backgroundLayers: [],     // No background

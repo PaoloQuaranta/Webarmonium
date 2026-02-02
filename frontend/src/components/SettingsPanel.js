@@ -231,16 +231,6 @@ class SettingsPanel {
         </div>
 
         <div class="settings-group">
-          <div class="settings-group-title" id="sample-rate-label">SAMPLE RATE <span class="settings-reload-hint">(may be ignored on Windows)</span></div>
-          <div class="settings-options" role="radiogroup" aria-labelledby="sample-rate-label">
-            ${this._getRadioOption('sampleRate', 'auto', 'Auto', 'Use device detection')}
-            ${this._getRadioOption('sampleRate', '48000', '48 kHz', 'High fidelity')}
-            ${this._getRadioOption('sampleRate', '44100', '44.1 kHz', 'Standard')}
-            ${this._getRadioOption('sampleRate', '22050', '22 kHz', 'Low CPU')}
-          </div>
-        </div>
-
-        <div class="settings-group">
           <div class="settings-group-title" id="audio-buffer-label">AUDIO BUFFER</div>
           <div class="settings-options" role="radiogroup" aria-labelledby="audio-buffer-label">
             ${this._getRadioOption('audioBuffer', 'auto', 'Auto', 'Use device detection')}
@@ -337,9 +327,6 @@ class SettingsPanel {
     }
 
     const settings = UserSettings.getAll()
-
-    // Track original sample rate for reload detection
-    this._originalSampleRate = settings.sampleRate
 
     Object.entries(settings).forEach(([key, value]) => {
       const radio = this.panel.querySelector(`input[name="${key}"][value="${value}"]`)
@@ -448,12 +435,7 @@ class SettingsPanel {
       return
     }
 
-    const groups = ['audioQuality', 'sampleRate', 'audioBuffer', 'graphicsQuality']
-
-    // Check if sample rate changed (requires page reload)
-    const sampleRateRadio = this.panel.querySelector('input[name="sampleRate"]:checked')
-    const newSampleRate = sampleRateRadio?.value || 'auto'
-    const sampleRateChanged = newSampleRate !== this._originalSampleRate
+    const groups = ['audioQuality', 'audioBuffer', 'graphicsQuality']
 
     // Collect new settings values (but don't save yet)
     const newSettings = {}
@@ -463,8 +445,6 @@ class SettingsPanel {
         newSettings[group] = checked.value
       }
     })
-
-    // Debug: Log what we're working with
 
     // ROLLBACK FIX: Save settings to localStorage BEFORE attempting to apply
     // This ensures settings are persisted even if application fails
@@ -487,7 +467,6 @@ class SettingsPanel {
         // They'll be applied correctly on next page load
         this._showCanvasNotification('Audio reload failed - will apply on refresh', true)
       }
-    } else {
     }
 
     // Try to apply graphics settings
@@ -501,20 +480,14 @@ class SettingsPanel {
         // Don't return - settings are saved and will apply on next page load
         this._showCanvasNotification('Graphics update failed - will apply on refresh', true)
       }
-    } else {
     }
 
     // Close panel first
     this.close()
 
     // Delay notification until after panel close animation
-    // Show special message if sample rate changed (requires reload)
     setTimeout(() => {
-      if (sampleRateChanged) {
-        this._showCanvasNotification('Settings applied - Reload page for sample rate change', true)
-      } else {
-        this._showCanvasNotification('Settings applied')
-      }
+      this._showCanvasNotification('Settings applied')
     }, SettingsPanel.TOAST_DELAY_AFTER_CLOSE)
   }
 
@@ -784,14 +757,6 @@ settingsStyles.textContent = `
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 12px;
-  }
-
-  .settings-reload-hint {
-    font-size: 8px;
-    font-weight: 400;
-    color: var(--warning, #f59e0b);
-    text-transform: none;
-    letter-spacing: normal;
   }
 
   .settings-options {

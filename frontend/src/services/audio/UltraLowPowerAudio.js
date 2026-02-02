@@ -54,9 +54,9 @@ class UltraLowPowerAudio {
 
     try {
       // Create AudioContext with conservative settings
+      // Note: sampleRate removed - browsers ignore it and use system audio device rate
       const contextOptions = {
-        latencyHint: 'playback',
-        sampleRate: 22050  // Very low sample rate for minimal CPU
+        latencyHint: 'playback'
       }
 
       this.audioContext = new (window.AudioContext || window.webkitAudioContext)(contextOptions)

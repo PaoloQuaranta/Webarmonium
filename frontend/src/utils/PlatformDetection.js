@@ -364,7 +364,6 @@ class PlatformDetection {
       return {
         lookAhead: 0.5,           // 500ms
         updateInterval: 0.2,      // 200ms
-        sampleRate: 22050,
         filterUpdateRate: 5,      // Hz
         maxPolyphony: 1,
         backgroundLayers: [],     // No background
@@ -414,7 +413,6 @@ class PlatformDetection {
     return {
       lookAhead: PlatformDetection.getAudioLookAhead(),
       updateInterval: PlatformDetection.getAudioUpdateInterval(),
-      sampleRate: (PlatformDetection.isAndroidChrome() || PlatformDetection.isWindowsBrowser()) ? 44100 : 48000,
       filterUpdateRate: PlatformDetection.getFilterUpdateRate(),
       maxPolyphony: PlatformDetection.isMobile() ? 4 : 8,
       backgroundLayers: ['bass', 'pad', 'chords'],
