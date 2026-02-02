@@ -332,6 +332,12 @@ class UserSettings {
   }
 }
 
+// Clean up deprecated settings from localStorage
+// sampleRate was removed because browsers ignore it
+if (typeof localStorage !== 'undefined') {
+  localStorage.removeItem('webarmonium:settings:sampleRate')
+}
+
 // Export for ES modules
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = UserSettings

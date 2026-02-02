@@ -1064,18 +1064,8 @@ class AudioService {
       // Create Tone.Context with optimized latencyHint
       // Note: sampleRate removed - browsers ignore it and use system audio device rate
       if (window.Tone) {
-        // Close the auto-created default context first
-        if (Tone.context && Tone.context.state !== 'closed') {
-          try {
-            const oldContext = Tone.context.rawContext
-            if (oldContext && oldContext.close) {
-              oldContext.close()
-            }
-          } catch (e) {
-            // Ignore close errors
-          }
-        }
-
+        // Don't close existing context - just create new one with our settings
+        // Closing causes issues because it's async and can leave things in bad state
         const customContext = new Tone.Context({ latencyHint })
         Tone.setContext(customContext)
         console.log(`[AudioService] Context configured: latencyHint=${latencyHint}`)
