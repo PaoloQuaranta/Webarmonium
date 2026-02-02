@@ -2119,7 +2119,8 @@ class AudioService {
     })
 
     // MONOSYNTH TIMING FIX: Track last trigger time for gesture synth
-    this.gestureSynthLastTrigger = 0
+    this.gestureSynthLastTrigger = 0  // Transport time tracker (for playMusicalEvent)
+    this._sustainedHoldLastTrigger = 0  // Context time tracker (for sustained holds, playSimpleNote)
 
     // Add pan node for gesture synth spatial control
     this.gesturePan = new Tone.Panner(0)
@@ -3063,6 +3064,7 @@ class AudioService {
     const now = Tone.now()
 
     // Entry #SynthUIFix: MONOSYNTH TIMING FIX - Ensure strictly increasing start times
+    // IMPORTANT: Use separate tracker for sustained holds (context time) vs playMusicalEvent (Transport time)
     const minGap = 0.005  // 5ms minimum gap between notes
     let safeTime = now
 
@@ -3074,9 +3076,10 @@ class AudioService {
         synthData.lastTriggerTime = safeTime
       }
     } else {
-      // gestureSynth - use gestureSynthLastTrigger
-      safeTime = Math.max(now, (this.gestureSynthLastTrigger || 0) + minGap)
-      this.gestureSynthLastTrigger = safeTime
+      // gestureSynth - use dedicated sustained hold tracker (NOT gestureSynthLastTrigger which uses Transport time)
+      if (!this._sustainedHoldLastTrigger) this._sustainedHoldLastTrigger = 0
+      safeTime = Math.max(now, this._sustainedHoldLastTrigger + minGap)
+      this._sustainedHoldLastTrigger = safeTime
     }
 
     // Apply volume reduction for remote users (0.9 = slight reduction, was 0.7)
@@ -4608,12 +4611,13 @@ class AudioService {
       requestedTime = time
     }
 
-    const lastTime = this.gestureSynthLastTrigger || 0
+    // Entry #SynthUIFix: Use context-time tracker, NOT gestureSynthLastTrigger (which uses Transport time)
+    if (!this._sustainedHoldLastTrigger) this._sustainedHoldLastTrigger = 0
     const minGap = 0.005  // 5ms minimum gap between notes
-    const safeTime = Math.max(requestedTime, lastTime + minGap)
+    const safeTime = Math.max(requestedTime, this._sustainedHoldLastTrigger + minGap)
 
-    // Update last trigger time
-    this.gestureSynthLastTrigger = safeTime
+    // Update context-time tracker
+    this._sustainedHoldLastTrigger = safeTime
 
     try {
       this.gestureSynth.triggerAttackRelease(frequency, duration, safeTime, velocity)
@@ -4622,7 +4626,7 @@ class AudioService {
       try {
         this.gestureSynth.triggerRelease()
         const freshTime = Tone.now() + 0.01
-        this.gestureSynthLastTrigger = freshTime
+        this._sustainedHoldLastTrigger = freshTime
         this.gestureSynth.triggerAttackRelease(frequency, duration, freshTime, velocity)
       } catch (retryErr) {
         // Silently fail - note will be skipped
@@ -6812,8 +6816,9 @@ class AudioService {
       this.currentPresetSlot = slot
       this.currentPatch = patch
 
-      // Reset timing tracker
-      this.gestureSynthLastTrigger = 0
+      // Reset timing trackers
+      this.gestureSynthLastTrigger = 0  // Transport time tracker
+      this._sustainedHoldLastTrigger = 0  // Context time tracker
 
       // console.log(`[AudioService] Selected preset ${slot}: ${patch.name}`)
       return true
@@ -7103,14 +7108,16 @@ class AudioService {
 
     try {
       const now = Tone.now()
-      const safeTime = Math.max(now, (this.gestureSynthLastTrigger || 0) + 0.05)
+      // Entry #SynthUIFix: Use context-time tracker, NOT gestureSynthLastTrigger (which uses Transport time)
+      if (!this._sustainedHoldLastTrigger) this._sustainedHoldLastTrigger = 0
+      const safeTime = Math.max(now, this._sustainedHoldLastTrigger + 0.05)
       const velocity = Math.max(0.1, Math.min(1.0, intensity))
 
       // Clamp frequency to safe range
       const safeFreq = Math.max(65, Math.min(2000, frequency))
       const safeDuration = Math.max(0.1, Math.min(4.0, duration))
 
-      this.gestureSynthLastTrigger = safeTime
+      this._sustainedHoldLastTrigger = safeTime
       this.gestureSynth.triggerAttackRelease(safeFreq, safeDuration, safeTime, velocity)
       console.log(`[AudioService] playSimpleNote: ${safeFreq.toFixed(0)}Hz for ${safeDuration.toFixed(2)}s`)
     } catch (error) {
