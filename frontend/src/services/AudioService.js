@@ -3062,12 +3062,29 @@ class AudioService {
     const noteId = `sustained-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const now = Tone.now()
 
+    // Entry #SynthUIFix: MONOSYNTH TIMING FIX - Ensure strictly increasing start times
+    const minGap = 0.005  // 5ms minimum gap between notes
+    let safeTime = now
+
+    if (useUserSynth) {
+      // UserSynthManager synth - use synthData's lastTriggerTime
+      const synthData = this.userSynthManager.userSynths.get(userId)
+      if (synthData && synthData.lastTriggerTime !== undefined) {
+        safeTime = Math.max(now, synthData.lastTriggerTime + minGap)
+        synthData.lastTriggerTime = safeTime
+      }
+    } else {
+      // gestureSynth - use gestureSynthLastTrigger
+      safeTime = Math.max(now, (this.gestureSynthLastTrigger || 0) + minGap)
+      this.gestureSynthLastTrigger = safeTime
+    }
+
     // Apply volume reduction for remote users (0.9 = slight reduction, was 0.7)
     const actualVelocity = isRemote ? velocity * 0.9 : velocity
 
     // CRITICAL: Use triggerAttack (NOT triggerAttackRelease)
     // This opens the gate without closing it
-    synth.triggerAttack(actualFrequency, now, actualVelocity)
+    synth.triggerAttack(actualFrequency, safeTime, actualVelocity)
 
     // Track active sustained note for later release
     if (!this.activeSustainedNotes) {
