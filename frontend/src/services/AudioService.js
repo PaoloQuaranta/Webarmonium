@@ -4857,15 +4857,10 @@ class AudioService {
       // Final duration clamping
       adjustedDuration = Math.max(0.02, Math.min(3.0, adjustedDuration))
 
-      // Entry #SynthUIFix: FAST PATH for local gestures (userId = null)
-      // Use direct trigger instead of Transport.schedule for immediate feedback
-      const userId = musicalEvent.userId
-      if (!userId && this.gestureSynth && !this.gestureSynth.disposed) {
-        // Local gesture - use safeGestureSynthTrigger for immediate playback
-        this.safeGestureSynthTrigger(frequency, adjustedDuration, undefined, adjustedVelocity)
-        // Still integrate into background composition
-        this.integrateUserPhraseIntoBackground(musicalEvent, frequency, adjustedDuration)
-        return
+      // Entry #SynthUIFix: Ensure Transport is running before scheduling
+      // Without this, scheduled events can be delayed by seconds
+      if (Tone.Transport.state !== 'started') {
+        Tone.Transport.start()
       }
 
       // PERFORMANCE FIX: Use Transport.schedule for audio-thread scheduling
@@ -4875,6 +4870,7 @@ class AudioService {
       // Pre-compute all values outside the callback to reduce GC pressure
       // Entry #46 FIX: Ensure isStreamed is strictly boolean to prevent truthy string bugs
       const isStreamed = musicalEvent.properties?.isStreamed === true
+      const userId = musicalEvent.userId
       const eventFrequency = frequency
       const eventDuration = adjustedDuration
       const eventVelocity = adjustedVelocity
