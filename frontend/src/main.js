@@ -331,19 +331,18 @@ class WebarmoniumApp {
         envelope = { attack: 0.005, decay: 0.02, sustain: 0.1, release: 0.05 }
       }
 
-      // FIX: Use per-user synth via playMusicalEvent instead of gestureSynth directly
-      // This ensures consistent timbre between sustained hold start and drag streaming
-      const localUserId = this.socketService?.getUserId?.() || this.socketService?.socket?.id || null
+      // Entry #SynthUIFix: Use null userId for local user so gestureSynth is used (has SynthPanel customizations)
+      // Remote users still get routed via userId in their musical events
       const eventVelocity = 0.8 + noteData.velocity * 0.2 // 0.8-1.0 range
 
-      // Create musical event with userId for per-user synth routing
+      // Create musical event WITHOUT userId for local playback (uses gestureSynth)
       const musicalEvent = {
         pitch: midiNote,
         velocity: eventVelocity * 100, // Convert to 0-100 range
         duration: duration,
         articulation: noteData.articulation,
         eventType: 'melodic',
-        userId: localUserId,
+        userId: null,  // Entry #SynthUIFix: null means use gestureSynth
         properties: {
           frequency: frequency,
           duration: duration,
@@ -357,7 +356,6 @@ class WebarmoniumApp {
 
       // console.log('🎵🎵 PLAYING LOCAL NOTE via playMusicalEvent:', {
       //   frequency: frequency.toFixed(1),
-      //   userId: localUserId?.substring(0, 8),
       //   articulation: noteData.articulation
       // })
 
@@ -497,10 +495,10 @@ class WebarmoniumApp {
         return
       }
 
-      // Trigger note attack (gate opens) - include local userId for per-user synth routing
-      // FIX: Use backend-assigned userId, NOT socket.id (they are different!)
-      const localUserId = this.socketService?.getUserId?.() || this.socketService?.socket?.id || null
-      const result = this.audioService.triggerSustainedNoteAttack(frequency, velocity, holdData.position, localUserId, false)
+      // Trigger note attack (gate opens)
+      // Entry #SynthUIFix: Use null for local user so gestureSynth is used (has SynthPanel customizations)
+      // Remote users still get routed via userId in hold:start socket event handler
+      const result = this.audioService.triggerSustainedNoteAttack(frequency, velocity, holdData.position, null, false)
 
       if (result) {
         // Store note data for updates and cleanup

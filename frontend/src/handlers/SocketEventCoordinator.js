@@ -2,6 +2,10 @@
  * SocketEventCoordinator.js
  * Coordinates socket events for audio, visual, and gesture updates
  * Extracted from main.js for Phase 2 refactoring
+ *
+ * ⚠️ NOT CURRENTLY IN USE - This coordinator was extracted but never integrated.
+ * Socket event handling is currently implemented directly in main.js (setupSocketEventListeners).
+ * This file is preserved for potential future refactoring.
  */
 
 /**

@@ -2,6 +2,11 @@
  * SustainedHoldHandler.js
  * Handles sustained hold gestures with gate-based audio control
  * Extracted from main.js for Phase 2 refactoring
+ *
+ * ⚠️ NOT CURRENTLY IN USE - This handler was extracted but never integrated.
+ * The sustained hold logic is currently implemented directly in main.js (onSustainedHoldStart).
+ * This file is preserved for potential future refactoring.
+ * See DragStreamingHandler.js for an example of a handler that IS integrated.
  */
 class SustainedHoldHandler {
   constructor(audioService, socketService, visualService = null) {
@@ -110,11 +115,9 @@ class SustainedHoldHandler {
 
     const { frequency, velocity } = this.calculateFrequencyFromPosition(holdData.position)
 
-    // Get local user ID for per-user timbre routing
-    const localUserId = this.socketService?.userId || null
-
-    // Trigger note attack (gate opens) - local user, not remote
-    const result = this.audioService.triggerSustainedNoteAttack(frequency, velocity, holdData.position, localUserId, false)
+    // Trigger note attack (gate opens)
+    // Entry #SynthUIFix: Use null for local user so gestureSynth is used (has SynthPanel customizations)
+    const result = this.audioService.triggerSustainedNoteAttack(frequency, velocity, holdData.position, null, false)
 
     if (result) {
       // Store note data

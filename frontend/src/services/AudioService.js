@@ -2943,10 +2943,18 @@ class AudioService {
   /**
    * SUSTAINED HOLD: Trigger sustained note attack (gate opens)
    * Uses triggerAttack without triggerRelease for open gate control
+   *
+   * SYNTH ROUTING LOGIC:
+   * - userId = null  → Uses gestureSynth (customizable via SynthPanel, for local user)
+   * - userId = <id>  → Uses userSynthManager per-user synth (for remote users, unique timbres)
+   *
+   * IMPORTANT: Local gestures MUST pass userId=null to receive SynthPanel customizations.
+   * Remote gestures MUST pass userId to get per-user timbre isolation.
+   *
    * @param {number} frequency - Note frequency in Hz
    * @param {number} velocity - Note velocity (0-1)
    * @param {Object} position - Canvas position {x, y}
-   * @param {string} userId - Optional user ID for per-user timbre routing
+   * @param {string|null} userId - User ID for routing: null=gestureSynth, string=userSynthManager
    * @param {boolean} isRemote - Whether this is a remote user's note (reduces volume)
    * @returns {Object|null} Note tracking data { noteId, frequency, startTime } or null if failed
    */
@@ -2982,8 +2990,17 @@ class AudioService {
     }
 
     // Configure envelope for sustained hold (only for default gestureSynth)
-    // User synths have their own envelope defined in patch
-    if (!useUserSynth) {
+    // Entry #SynthUIFix: Store original envelope to restore after release
+    let originalEnvelope = null
+    if (!useUserSynth && this.gestureSynth.envelope) {
+      // Save user's SynthPanel envelope settings
+      originalEnvelope = {
+        attack: this.gestureSynth.envelope.attack,
+        decay: this.gestureSynth.envelope.decay,
+        sustain: this.gestureSynth.envelope.sustain,
+        release: this.gestureSynth.envelope.release
+      }
+      // Override for sustained hold behavior
       this.gestureSynth.set({
         envelope: {
           attack: 0.005,      // 5ms - instant response
@@ -3017,7 +3034,8 @@ class AudioService {
       velocity: actualVelocity,
       synth: synth,
       userId: userId,
-      useUserSynth: useUserSynth
+      useUserSynth: useUserSynth,
+      originalEnvelope: originalEnvelope  // Entry #SynthUIFix: Store for restoration on release
     })
 
     // console.log(`🎵 Sustained note ATTACK: ${actualFrequency.toFixed(1)}Hz, vel=${actualVelocity.toFixed(2)}, noteId=${noteId}, user=${userId || 'local'}`)
@@ -3048,6 +3066,20 @@ class AudioService {
     // MonoSynth is monophonic, only one note can play at a time
     const now = Tone.now()
     synth.triggerRelease(now)
+
+    // Entry #SynthUIFix: Restore user's SynthPanel envelope after release completes
+    if (noteData.originalEnvelope && synth === this.gestureSynth && !synth.disposed) {
+      // Wait for release envelope to complete before restoring (50ms release + buffer)
+      setTimeout(() => {
+        if (this.gestureSynth && !this.gestureSynth.disposed) {
+          try {
+            this.gestureSynth.set({ envelope: noteData.originalEnvelope })
+          } catch (e) {
+            // Synth may have been disposed, ignore
+          }
+        }
+      }, 100)
+    }
 
     // Remove from tracking
     this.activeSustainedNotes.delete(noteId)
@@ -4618,7 +4650,14 @@ class AudioService {
    * FIX: Enhanced duration normalization and articulation support
    * EVOLUTIVE: Integrates user phrases into background composition
    * Entry #175b: Added style parameter for genre-aware velocity scaling
-   * @param {Object} musicalEvent - Musical event data
+   *
+   * SYNTH ROUTING LOGIC (via musicalEvent.userId):
+   * - userId = null/undefined → Uses gestureSynth (customizable via SynthPanel, for local user)
+   * - userId = <id>          → Uses userSynthManager per-user synth (for remote users)
+   *
+   * IMPORTANT: Local gestures MUST set userId=null to receive SynthPanel customizations.
+   *
+   * @param {Object} musicalEvent - Musical event data (includes userId for routing)
    * @param {Object} style - Optional style object with dominantGenre for velocity scaling
    */
   playMusicalEvent(musicalEvent, style = null) {
