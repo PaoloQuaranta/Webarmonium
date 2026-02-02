@@ -1069,52 +1069,35 @@ class AudioService {
       // Entry #56 FIX: Detect Windows browser for sample rate reduction
       const isWindowsBrowser = typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsBrowser()
 
-      // FIX: Use user-configured sample rate if available, otherwise use platform defaults
-      // Sample rate is set at boot time only (AudioContext constructor parameter)
+      // NOTE: Sample rate setting may be ignored by browser (Windows browsers typically
+      // enforce system audio device sample rate). The other quality settings (synthComplexity,
+      // filterUpdateRate, etc.) are the main CPU reduction levers.
       const userSampleRate = typeof UserSettings !== 'undefined' ? UserSettings.get('sampleRate') : 'auto'
 
-      // DEBUG: Log what we're reading from settings
-      const rawStoredValue = typeof localStorage !== 'undefined' ? localStorage.getItem('webarmonium:settings:sampleRate') : null
-      console.log(`[AudioService] DEBUG: localStorage sampleRate = "${rawStoredValue}", parsed = ${userSampleRate}, type = ${typeof userSampleRate}`)
-
       if (userSampleRate !== 'auto') {
-        // User has explicitly set a sample rate
         contextOptions.sampleRate = userSampleRate
-        console.log(`[AudioService] Setting sampleRate option to: ${userSampleRate}`)
       } else if (isAndroidChrome || isWindowsBrowser) {
-        // Entry #48/#56: Android Chrome and Windows browsers benefit from lower sample rate
-        // Reduces CPU processing load and helps prevent audio dropouts
+        // Entry #48/#56: Request lower sample rate (may be ignored by browser)
         contextOptions.sampleRate = 44100
-        console.log('[AudioService] Using platform default sample rate: 44100')
-      } else {
-        console.log('[AudioService] Using browser default sample rate (no override)')
       }
 
-      // CRITICAL: Must use Tone.Context (not raw AudioContext) to properly replace Tone's default
-      // Tone.js creates its own context on import, so we need to dispose it and create a new one
+      // Create Tone.Context with our options (latencyHint is always respected)
       if (window.Tone) {
-        console.log(`[AudioService] Creating Tone.Context with options:`, contextOptions)
-
         // Close the auto-created default context first
         if (Tone.context && Tone.context.state !== 'closed') {
           try {
-            // Get the raw context to close it
             const oldContext = Tone.context.rawContext
             if (oldContext && oldContext.close) {
               oldContext.close()
             }
           } catch (e) {
-            console.log('[AudioService] Could not close old context:', e.message)
+            // Ignore close errors
           }
         }
 
-        // Create new Tone.Context with our options
         const customContext = new Tone.Context(contextOptions)
-        console.log(`[AudioService] Tone.Context created. Requested: ${contextOptions.sampleRate || 'default'}, Actual: ${customContext.sampleRate}`)
-
-        // Set it as the global context
         Tone.setContext(customContext)
-        console.log(`[AudioService] After Tone.setContext, Tone.context.sampleRate = ${Tone.context.sampleRate}`)
+        console.log(`[AudioService] Context configured: sampleRate=${Tone.context.sampleRate}, latencyHint=${contextOptions.latencyHint}`)
       }
     } catch (error) {
     }
@@ -1286,6 +1269,7 @@ class AudioService {
       // FIX: Recreate synths if synthComplexity changed
       const newComplexity = this.audioProfile?.synthComplexity || 'full'
       if (this._currentSynthComplexity && this._currentSynthComplexity !== newComplexity) {
+        console.log(`[AudioService] Synth complexity changed: ${this._currentSynthComplexity} → ${newComplexity}, recreating synths...`)
         this._recreateAmbientSynths()
       }
     } catch (error) {
@@ -2074,6 +2058,7 @@ class AudioService {
     const synthConfig = this._getSynthConfig()
     this._createAmbientSynthsFromConfig(synthConfig)
     this._currentSynthComplexity = this.audioProfile?.synthComplexity || 'full'
+    console.log(`[AudioService] Synths created with complexity: ${this._currentSynthComplexity}, pad voices: ${synthConfig.pad?.maxPolyphony || 'default'}, chords voices: ${synthConfig.chords?.maxPolyphony || 'default'}`)
 
     // MONOSYNTH TIMING FIX: Track last trigger time per layer to avoid
     // "Start time must be strictly greater than previous start time" error

@@ -231,7 +231,7 @@ class SettingsPanel {
         </div>
 
         <div class="settings-group">
-          <div class="settings-group-title" id="sample-rate-label">SAMPLE RATE <span class="settings-reload-hint">(requires reload)</span></div>
+          <div class="settings-group-title" id="sample-rate-label">SAMPLE RATE <span class="settings-reload-hint">(may be ignored on Windows)</span></div>
           <div class="settings-options" role="radiogroup" aria-labelledby="sample-rate-label">
             ${this._getRadioOption('sampleRate', 'auto', 'Auto', 'Use device detection')}
             ${this._getRadioOption('sampleRate', '48000', '48 kHz', 'High fidelity')}
