@@ -2118,9 +2118,9 @@ class AudioService {
       }
     })
 
-    // MONOSYNTH TIMING FIX: Track last trigger time for gesture synth
-    this.gestureSynthLastTrigger = 0  // Transport time tracker (for playMusicalEvent)
+    // MONOSYNTH TIMING FIX: Track last trigger times for different code paths
     this._sustainedHoldLastTrigger = 0  // Context time tracker (for sustained holds, playSimpleNote)
+    this._playMusicalEventLastTrigger = 0  // Context time tracker (for playMusicalEvent gestureSynth path)
 
     // Add pan node for gesture synth spatial control
     this.gesturePan = new Tone.Panner(0)
@@ -4993,16 +4993,19 @@ class AudioService {
           // Entry #66: MONOSYNTH TIMING FIX - Ensure strictly increasing start times
           // MonoSynth requires each note's start time > previous note's start time
           const minGap = 0.005  // 5ms minimum gap between notes
-          let safeTime = time
+          // Entry #SynthUIFix: Use Tone.now() for gestureSynth path (consistent with UserSynthManager.triggerNote)
+          // The callback's `time` can be misaligned with audio context time, causing delays
+          const now = Tone.now()
+          let safeTime = now
 
           if (synthData && synthData.lastTriggerTime !== undefined) {
-            // UserSynthManager synth - use its lastTriggerTime
-            safeTime = Math.max(time, synthData.lastTriggerTime + minGap)
+            // UserSynthManager synth - use its lastTriggerTime (context time based)
+            safeTime = Math.max(now, synthData.lastTriggerTime + minGap)
             synthData.lastTriggerTime = safeTime
           } else if (synth === this.gestureSynth) {
-            // Fallback gestureSynth - use gestureSynthLastTrigger
-            safeTime = Math.max(time, (this.gestureSynthLastTrigger || 0) + minGap)
-            this.gestureSynthLastTrigger = safeTime
+            // gestureSynth - use context time tracker for consistency
+            safeTime = Math.max(now, (this._playMusicalEventLastTrigger || 0) + minGap)
+            this._playMusicalEventLastTrigger = safeTime
           }
 
           try {
@@ -5018,7 +5021,7 @@ class AudioService {
               synth.triggerRelease()
               const freshTime = Tone.now() + 0.01
               if (synthData) synthData.lastTriggerTime = freshTime
-              else this.gestureSynthLastTrigger = freshTime
+              else this._playMusicalEventLastTrigger = freshTime
               synth.triggerAttackRelease(actualFrequency, eventDuration, freshTime, finalVelocity)
             } catch (retryErr) {
               // Silently fail - note will be skipped
@@ -6837,8 +6840,8 @@ class AudioService {
       this.currentPatch = patch
 
       // Reset timing trackers
-      this.gestureSynthLastTrigger = 0  // Transport time tracker
-      this._sustainedHoldLastTrigger = 0  // Context time tracker
+      this._sustainedHoldLastTrigger = 0  // Context time tracker (sustained holds, playSimpleNote)
+      this._playMusicalEventLastTrigger = 0  // Context time tracker (playMusicalEvent gestureSynth path)
 
       // console.log(`[AudioService] Selected preset ${slot}: ${patch.name}`)
       return true
