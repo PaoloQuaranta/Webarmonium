@@ -3087,7 +3087,21 @@ class AudioService {
 
     // CRITICAL: Use triggerAttack (NOT triggerAttackRelease)
     // This opens the gate without closing it
-    synth.triggerAttack(actualFrequency, safeTime, actualVelocity)
+    // Entry #SynthUIFix: Add try/catch with retry - MonoSynth internal state may conflict with Transport-scheduled notes
+    try {
+      synth.triggerAttack(actualFrequency, safeTime, actualVelocity)
+    } catch (err) {
+      // MonoSynth timing conflict - release and retry with fresh time
+      try {
+        synth.triggerRelease()
+        const freshTime = Tone.now() + 0.01
+        this._sustainedHoldLastTrigger = freshTime
+        synth.triggerAttack(actualFrequency, freshTime, actualVelocity)
+      } catch (retryErr) {
+        // console.warn('Sustained note trigger failed after retry:', retryErr.message)
+        return null
+      }
+    }
 
     // Track active sustained note for later release
     if (!this.activeSustainedNotes) {
