@@ -1073,23 +1073,31 @@ class AudioService {
       // Sample rate is set at boot time only (AudioContext constructor parameter)
       const userSampleRate = typeof UserSettings !== 'undefined' ? UserSettings.get('sampleRate') : 'auto'
 
+      // DEBUG: Log what we're reading from settings
+      const rawStoredValue = typeof localStorage !== 'undefined' ? localStorage.getItem('webarmonium:settings:sampleRate') : null
+      console.log(`[AudioService] DEBUG: localStorage sampleRate = "${rawStoredValue}", parsed = ${userSampleRate}, type = ${typeof userSampleRate}`)
+
       if (userSampleRate !== 'auto') {
         // User has explicitly set a sample rate
         contextOptions.sampleRate = userSampleRate
-        console.log(`[AudioService] Using user-configured sample rate: ${userSampleRate}`)
+        console.log(`[AudioService] Setting sampleRate option to: ${userSampleRate}`)
       } else if (isAndroidChrome || isWindowsBrowser) {
         // Entry #48/#56: Android Chrome and Windows browsers benefit from lower sample rate
         // Reduces CPU processing load and helps prevent audio dropouts
         contextOptions.sampleRate = 44100
         console.log('[AudioService] Using platform default sample rate: 44100')
+      } else {
+        console.log('[AudioService] Using browser default sample rate (no override)')
       }
 
       // CRITICAL: Create custom context BEFORE accessing Tone.context (which auto-creates one)
       // Must use Tone.setContext() to replace the default context with our configured one
       if (window.Tone) {
+        console.log(`[AudioService] Creating AudioContext with options:`, contextOptions)
         const customContext = new AudioContext(contextOptions)
+        console.log(`[AudioService] AudioContext created. Requested: ${contextOptions.sampleRate || 'default'}, Actual: ${customContext.sampleRate}`)
         Tone.setContext(customContext)
-        console.log(`[AudioService] AudioContext created with sampleRate: ${customContext.sampleRate}`)
+        console.log(`[AudioService] After Tone.setContext, Tone.context.sampleRate = ${Tone.context.sampleRate}`)
       }
     } catch (error) {
     }
