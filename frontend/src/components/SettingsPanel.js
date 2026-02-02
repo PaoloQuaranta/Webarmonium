@@ -231,7 +231,7 @@ class SettingsPanel {
         </div>
 
         <div class="settings-group">
-          <div class="settings-group-title" id="sample-rate-label">SAMPLE RATE</div>
+          <div class="settings-group-title" id="sample-rate-label">SAMPLE RATE <span class="settings-reload-hint">(requires reload)</span></div>
           <div class="settings-options" role="radiogroup" aria-labelledby="sample-rate-label">
             ${this._getRadioOption('sampleRate', 'auto', 'Auto', 'Use device detection')}
             ${this._getRadioOption('sampleRate', '48000', '48 kHz', 'High fidelity')}
@@ -784,6 +784,14 @@ settingsStyles.textContent = `
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 12px;
+  }
+
+  .settings-reload-hint {
+    font-size: 8px;
+    font-weight: 400;
+    color: var(--warning, #f59e0b);
+    text-transform: none;
+    letter-spacing: normal;
   }
 
   .settings-options {

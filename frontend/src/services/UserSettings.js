@@ -100,6 +100,62 @@ class UserSettings {
     }
   }
 
+  // Synth complexity configurations for all 6 audio layers
+  // Maps synthComplexity levels to concrete synth parameters
+  static SYNTH_COMPLEXITY_CONFIG = {
+    full: {
+      // Ambient layers (user-local background)
+      pad: { maxPolyphony: 6, oscillatorType: 'fattriangle', oscillatorCount: 2, spread: 15 },
+      chords: { maxPolyphony: 8, synthType: 'FMSynth', harmonicity: 1.5, modulationIndex: 2.5 },
+      bass: { synthType: 'FMSynth', harmonicity: 0.5, modulationIndex: 2 },
+      // Composition layers (server-driven)
+      backgroundHigh: { oscillatorType: 'pulse', width: 0.3 },
+      backgroundMid: { oscillatorType: 'pwm', modulationFrequency: 0.5 },
+      backgroundLow: { oscillatorType: 'square' }
+    },
+    simplified: {
+      // Reduced complexity - fewer oscillators, simpler waveforms
+      pad: { maxPolyphony: 3, oscillatorType: 'triangle', oscillatorCount: 1, spread: 0 },
+      chords: { maxPolyphony: 4, synthType: 'Synth', oscillatorType: 'triangle' },
+      bass: { synthType: 'Synth', oscillatorType: 'sine' },
+      backgroundHigh: { oscillatorType: 'triangle' },
+      backgroundMid: { oscillatorType: 'triangle' },
+      backgroundLow: { oscillatorType: 'sine' }
+    },
+    minimal: {
+      // Minimum CPU - pure sine waves, minimal polyphony
+      pad: { maxPolyphony: 2, oscillatorType: 'sine', oscillatorCount: 1, spread: 0 },
+      chords: { maxPolyphony: 2, synthType: 'Synth', oscillatorType: 'sine' },
+      bass: { synthType: 'Synth', oscillatorType: 'sine' },
+      backgroundHigh: { oscillatorType: 'sine' },
+      backgroundMid: { oscillatorType: 'sine' },
+      backgroundLow: { oscillatorType: 'sine' }
+    },
+    'mono-sine': {
+      // Ultra-low power mode - already handled separately
+      pad: { maxPolyphony: 1, oscillatorType: 'sine', oscillatorCount: 1, spread: 0 },
+      chords: { maxPolyphony: 1, synthType: 'Synth', oscillatorType: 'sine' },
+      bass: { synthType: 'Synth', oscillatorType: 'sine' },
+      backgroundHigh: { oscillatorType: 'sine' },
+      backgroundMid: { oscillatorType: 'sine' },
+      backgroundLow: { oscillatorType: 'sine' }
+    }
+  }
+
+  /**
+   * Get synth complexity config for current audio quality setting
+   * @returns {Object} Synth configuration for all layers
+   */
+  static getSynthComplexityConfig () {
+    const audioQuality = this.get('audioQuality')
+    if (audioQuality === 'auto') {
+      return this.SYNTH_COMPLEXITY_CONFIG.full // Default to full for auto
+    }
+    const profile = this.AUDIO_QUALITY_PROFILES[audioQuality]
+    const complexity = profile?.synthComplexity || 'full'
+    return this.SYNTH_COMPLEXITY_CONFIG[complexity] || this.SYNTH_COMPLEXITY_CONFIG.full
+  }
+
   /**
    * Get a setting value from localStorage
    * @param {string} key - Setting key (audioQuality, sampleRate, audioBuffer, graphicsQuality)

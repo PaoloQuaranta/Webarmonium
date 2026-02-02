@@ -1069,9 +1069,16 @@ class AudioService {
       // Entry #56 FIX: Detect Windows browser for sample rate reduction
       const isWindowsBrowser = typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsBrowser()
 
-      // Entry #48/#56: Android Chrome and Windows browsers benefit from lower sample rate
-      // Reduces CPU processing load and helps prevent audio dropouts
-      if (isAndroidChrome || isWindowsBrowser) {
+      // FIX: Use user-configured sample rate if available, otherwise use platform defaults
+      // Sample rate is set at boot time only (AudioContext constructor parameter)
+      const userSampleRate = typeof UserSettings !== 'undefined' ? UserSettings.get('sampleRate') : 'auto'
+
+      if (userSampleRate !== 'auto') {
+        // User has explicitly set a sample rate
+        contextOptions.sampleRate = userSampleRate
+      } else if (isAndroidChrome || isWindowsBrowser) {
+        // Entry #48/#56: Android Chrome and Windows browsers benefit from lower sample rate
+        // Reduces CPU processing load and helps prevent audio dropouts
         contextOptions.sampleRate = 44100
       }
 
@@ -1246,8 +1253,191 @@ class AudioService {
           }
         }))
       }
+
+      // FIX: Recreate synths if synthComplexity changed
+      const newComplexity = this.audioProfile?.synthComplexity || 'full'
+      if (this._currentSynthComplexity && this._currentSynthComplexity !== newComplexity) {
+        this._recreateAmbientSynths()
+      }
     } catch (error) {
     }
+  }
+
+  /**
+   * Get current synth complexity config from UserSettings
+   * @returns {Object} Synth configuration for all layers
+   */
+  _getSynthConfig() {
+    if (typeof UserSettings !== 'undefined' && UserSettings.getSynthComplexityConfig) {
+      return UserSettings.getSynthComplexityConfig()
+    }
+    // Fallback to full complexity
+    return {
+      pad: { maxPolyphony: 6, oscillatorType: 'fattriangle', oscillatorCount: 2, spread: 15 },
+      chords: { maxPolyphony: 8, synthType: 'FMSynth', harmonicity: 1.5, modulationIndex: 2.5 },
+      bass: { synthType: 'FMSynth', harmonicity: 0.5, modulationIndex: 2 },
+      backgroundHigh: { oscillatorType: 'pulse', width: 0.3 },
+      backgroundMid: { oscillatorType: 'pwm', modulationFrequency: 0.5 },
+      backgroundLow: { oscillatorType: 'square' }
+    }
+  }
+
+  /**
+   * Safely recreate ambient synths when settings change
+   * Handles note release, disposal, and reconnection
+   */
+  async _recreateAmbientSynths() {
+    if (!this.ambientLayers) return
+
+    try {
+      // 1. Release all active notes (pad has 2.5s release!)
+      for (const layer of ['pad', 'chords']) {
+        if (this.ambientLayers[layer]?.releaseAll) {
+          this.ambientLayers[layer].releaseAll(0)
+        }
+      }
+      for (const layer of ['bass', 'backgroundHigh', 'backgroundMid', 'backgroundLow']) {
+        if (this.ambientLayers[layer]?.triggerRelease) {
+          this.ambientLayers[layer].triggerRelease()
+        }
+      }
+
+      // 2. Wait for releases to complete (avoid Tone.js errors)
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // 3. Disconnect and dispose old synths
+      for (const layer of Object.keys(this.ambientLayers)) {
+        if (this.ambientLayers[layer]) {
+          try {
+            this.ambientLayers[layer].disconnect()
+            this.ambientLayers[layer].dispose()
+          } catch (e) {
+            // Ignore disposal errors
+          }
+        }
+      }
+
+      // 4. Create new synths with updated config
+      const config = this._getSynthConfig()
+      this._createAmbientSynthsFromConfig(config)
+
+      // 5. Reconnect to audio chain
+      this._reconnectAmbientSynths()
+
+      // 6. Update tracking
+      this._currentSynthComplexity = this.audioProfile?.synthComplexity || 'full'
+
+    } catch (error) {
+      console.error('Error recreating ambient synths:', error)
+    }
+  }
+
+  /**
+   * Create ambient synths from configuration
+   * @param {Object} config - Synth configuration from SYNTH_COMPLEXITY_CONFIG
+   */
+  _createAmbientSynthsFromConfig(config) {
+    // BASS synth
+    const bassConfig = config.bass || {}
+    if (bassConfig.synthType === 'FMSynth') {
+      this.ambientLayers.bass = new Tone.FMSynth({
+        harmonicity: bassConfig.harmonicity || 0.5,
+        modulationIndex: bassConfig.modulationIndex || 2,
+        volume: 0,
+        oscillator: { type: 'sine' },
+        modulation: { type: 'sine' },
+        envelope: { attack: 0.02, decay: 0.15, sustain: 0.85, release: 0.3 },
+        modulationEnvelope: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.3 }
+      })
+    } else {
+      this.ambientLayers.bass = new Tone.MonoSynth({
+        oscillator: { type: bassConfig.oscillatorType || 'sine' },
+        volume: 0,
+        envelope: { attack: 0.02, decay: 0.15, sustain: 0.85, release: 0.3 }
+      })
+    }
+
+    // PAD synth (PolySynth)
+    const padConfig = config.pad || {}
+    this.ambientLayers.pad = new Tone.PolySynth(Tone.Synth, {
+      maxPolyphony: padConfig.maxPolyphony || 6
+    })
+    const padOscConfig = { type: padConfig.oscillatorType || 'fattriangle' }
+    if (padConfig.oscillatorCount) padOscConfig.count = padConfig.oscillatorCount
+    if (padConfig.spread !== undefined) padOscConfig.spread = padConfig.spread
+    this.ambientLayers.pad.set({
+      oscillator: padOscConfig,
+      volume: +5,
+      envelope: { attack: 0.8, decay: 1.5, sustain: 0.7, release: 2.5 }
+    })
+
+    // CHORDS synth (PolySynth)
+    const chordsConfig = config.chords || {}
+    const ChordsSynthClass = chordsConfig.synthType === 'FMSynth' ? Tone.FMSynth : Tone.Synth
+    this.ambientLayers.chords = new Tone.PolySynth(ChordsSynthClass, {
+      maxPolyphony: chordsConfig.maxPolyphony || 8
+    })
+    if (chordsConfig.synthType === 'FMSynth') {
+      this.ambientLayers.chords.set({
+        harmonicity: chordsConfig.harmonicity || 1.5,
+        modulationIndex: chordsConfig.modulationIndex || 2.5,
+        oscillator: { type: 'sine' },
+        modulation: { type: 'triangle' },
+        envelope: { attack: 0.01, decay: 0.5, sustain: 0.4, release: 1.0 },
+        modulationEnvelope: { attack: 0.02, decay: 0.3, sustain: 0.3, release: 0.6 }
+      })
+    } else {
+      this.ambientLayers.chords.set({
+        oscillator: { type: chordsConfig.oscillatorType || 'triangle' },
+        envelope: { attack: 0.01, decay: 0.5, sustain: 0.4, release: 1.0 }
+      })
+    }
+
+    // BACKGROUND HIGH synth
+    const bgHighConfig = config.backgroundHigh || {}
+    const bgHighOscConfig = { type: bgHighConfig.oscillatorType || 'pulse' }
+    if (bgHighConfig.width !== undefined) bgHighOscConfig.width = bgHighConfig.width
+    this.ambientLayers.backgroundHigh = new Tone.MonoSynth({
+      oscillator: bgHighOscConfig,
+      volume: +5,
+      envelope: { attack: 0.02, decay: 0.2, sustain: 0.7, release: 0.5 }
+    })
+
+    // BACKGROUND MID synth
+    const bgMidConfig = config.backgroundMid || {}
+    const bgMidOscConfig = { type: bgMidConfig.oscillatorType || 'pwm' }
+    if (bgMidConfig.modulationFrequency !== undefined) bgMidOscConfig.modulationFrequency = bgMidConfig.modulationFrequency
+    this.ambientLayers.backgroundMid = new Tone.MonoSynth({
+      oscillator: bgMidOscConfig,
+      volume: +5,
+      envelope: { attack: 0.05, decay: 0.3, sustain: 0.6, release: 0.8 }
+    })
+
+    // BACKGROUND LOW synth
+    const bgLowConfig = config.backgroundLow || {}
+    this.ambientLayers.backgroundLow = new Tone.MonoSynth({
+      oscillator: { type: bgLowConfig.oscillatorType || 'square' },
+      volume: +5,
+      envelope: { attack: 0.08, decay: 0.3, sustain: 0.8, release: 0.6 }
+    })
+  }
+
+  /**
+   * Reconnect ambient synths to audio chain after recreation
+   */
+  _reconnectAmbientSynths() {
+    if (!this.ambientLayers || !this.ambientVolumes) return
+
+    Object.keys(this.ambientLayers).forEach(layer => {
+      if (this.ambientFilters?.[layer]) {
+        // Full routing with filters
+        this.ambientLayers[layer].connect(this.ambientFilters[layer])
+        this.ambientFilters[layer].connect(this.ambientVolumes[layer])
+      } else {
+        // Direct routing (no filters)
+        this.ambientLayers[layer].connect(this.ambientVolumes[layer])
+      }
+    })
   }
 
   /**
@@ -1543,9 +1733,9 @@ class AudioService {
         // PERF: Entry #59: Use platform-specific updateInterval for Chrome Windows
         // Default is 0.025s (25ms). Higher values reduce scheduler CPU overhead
         // Chrome on Windows needs 100ms (4x default)
-        const targetUpdateInterval = typeof PlatformDetection !== 'undefined'
-          ? PlatformDetection.getAudioUpdateInterval()
-          : 0.025
+        // FIX: Use audioProfile.updateInterval if set by user, otherwise platform default
+        const targetUpdateInterval = this.audioProfile?.updateInterval
+          || (typeof PlatformDetection !== 'undefined' ? PlatformDetection.getAudioUpdateInterval() : 0.025)
 
         // Always set and log - updateInterval is critical for Chrome stability
         Tone.context.updateInterval = targetUpdateInterval
@@ -1848,152 +2038,13 @@ class AudioService {
       nextProgressionChange: 4 // Change progression after N cycles
     }
 
-    // OPTIMIZED: Reduced oscillator count for performance
-    // bass/backgroundHigh/Mid/Low = MonoSynth (1 voice each)
-    // pad = 3 voices, chords = 4 voices
-    this.ambientLayers = {
-      // ACCOMPANIMENT VOICES - Entry #216b: Sophisticated timbres distinct from virtual/real users
-      //
-      // Timbre matrix (no overlaps):
-      // - Virtual users: sawtooth (Wiki), sine (HN), triangle (GitHub)
-      // - Real users: square, pulse, fatsawtooth, fmsine (bell, modIndex 4-6)
-      // - Counterpoint: fmsine (glass, harm 2.5), amsine, fatsine
-      // - Accompaniment: fmsine (sub, harm 0.5), fattriangle, fmsine (warm, harm 1.5)
-
-      // BASS: "Organ Sub" - FM with sub-harmonics (harmonicity < 1)
-      // Distinct from Wikipedia sawtooth and counterpoint fatsine
-      bass: new Tone.FMSynth({
-        harmonicity: 0.5,            // Sub-harmonic ratio = organ pedal character
-        modulationIndex: 2,          // Moderate modulation for richness
-        volume: 0,
-        oscillator: {
-          type: 'sine'
-        },
-        modulation: {
-          type: 'sine'
-        },
-        envelope: {
-          attack: 0.02,
-          decay: 0.15,
-          sustain: 0.85,
-          release: 0.3
-        },
-        modulationEnvelope: {
-          attack: 0.05,
-          decay: 0.2,
-          sustain: 0.7,
-          release: 0.3
-        }
-      }),
-
-      // PAD: "Shimmer Chorus" - Detuned triangle ensemble
-      // Distinct from GitHub's pure triangle - adds movement and depth
-      // PERFORMANCE: Reduced from 16 to 6 voices, 3 to 2 osc per voice (was 48 osc, now 12)
-      pad: (() => {
-        const synth = new Tone.PolySynth(Tone.Synth, { maxPolyphony: 6 })
-        synth.set({
-          oscillator: {
-            type: 'fattriangle',     // Multiple detuned triangles
-            count: 2,                // 2 oscillators per voice (was 3 - CPU heavy)
-            spread: 15               // Reduced detune (was 20)
-          },
-          volume: +5,
-          envelope: {
-            attack: 0.8,
-            decay: 1.5,
-            sustain: 0.7,
-            release: 2.5             // Reduced from 4.0s (compromise: smoother fade vs voice accumulation)
-          }
-        })
-        return synth
-      })(),
-
-      // CHORDS: "Electric Piano Warm" - FM with different ratio than bell
-      // harmonicity 1.5 + triangle modulator = warmer, less metallic than bell (harm 2, modIndex 4-6)
-      // PERFORMANCE: Reduced from 24 to 8 voices (was 48 osc with FMSynth, now 16)
-      chords: (() => {
-        const synth = new Tone.PolySynth(Tone.FMSynth, { maxPolyphony: 8 })
-        synth.set({
-          harmonicity: 1.5,          // 3:2 ratio = warm, not bell-like
-          modulationIndex: 2.5,      // Less modulation than bell = smoother
-          oscillator: {
-            type: 'sine'
-          },
-          modulation: {
-            type: 'triangle'         // Triangle mod = softer harmonics than sine mod
-          },
-          envelope: {
-            attack: 0.01,
-            decay: 0.5,              // Longer decay for warmth
-            sustain: 0.4,            // Higher sustain than bell
-            release: 1.0             // Longer release
-          },
-          modulationEnvelope: {
-            attack: 0.02,
-            decay: 0.3,
-            sustain: 0.3,
-            release: 0.6
-          }
-        })
-        return synth
-      })(),
-
-      // BACKGROUND COMPOSITION LAYERS - Sophisticated timbres distinct from real/virtual users
-      // Entry #216: New FM/AM synthesis timbres for accompaniment differentiation
-      //
-      // Entry #219c: Restored original expressive timbres (pre-#208)
-      // Timbre matrix:
-      // - Virtual users: sawtooth, sine, triangle
-      // - Real users: square (bass), pulse, fatsawtooth, fmsine (bell)
-      // - Counterpoint: pulse (melody), pwm (harmony), square (bass) - distinctive, expressive
-
-      // backgroundHigh: Pulse wave (nasal, cutting) - for melody
-      // Entry #219c: Restored original timbre - more expressive than FM glass
-      backgroundHigh: new Tone.MonoSynth({
-        oscillator: {
-          type: 'pulse',
-          width: 0.3               // Narrow pulse = nasal, distinctive
-        },
-        volume: +5,
-        envelope: {
-          attack: 0.02,            // Quick attack for articulation
-          decay: 0.2,
-          sustain: 0.7,
-          release: 0.5
-        }
-      }),
-
-      // backgroundMid: PWM (animated pulse) - for harmony/arpeggios
-      // Entry #219c: Restored original timbre - more animated than AM organ
-      backgroundMid: new Tone.MonoSynth({
-        oscillator: {
-          type: 'pwm',
-          modulationFrequency: 0.5 // Slow modulation for movement
-        },
-        volume: +5,
-        envelope: {
-          attack: 0.05,
-          decay: 0.3,
-          sustain: 0.6,
-          release: 0.8
-        }
-      }),
-
-      // backgroundLow: Square wave (warm, hollow) - for bass lines
-      // Entry #219c: Restored original timbre - more defined than fatsine
-      backgroundLow: new Tone.MonoSynth({
-        oscillator: {
-          type: 'square'           // Warm, hollow bass
-        },
-        volume: +5,
-        envelope: {
-          attack: 0.08,
-          decay: 0.3,
-          sustain: 0.8,
-          release: 0.6
-        }
-      })
-    }
+    // FIX: Create synths from configuration (respects user quality settings)
+    // Synth complexity is determined by audioProfile.synthComplexity
+    // See SYNTH_COMPLEXITY_CONFIG in UserSettings.js for tier configurations
+    this.ambientLayers = {}
+    const synthConfig = this._getSynthConfig()
+    this._createAmbientSynthsFromConfig(synthConfig)
+    this._currentSynthComplexity = this.audioProfile?.synthComplexity || 'full'
 
     // MONOSYNTH TIMING FIX: Track last trigger time per layer to avoid
     // "Start time must be strictly greater than previous start time" error
@@ -2005,13 +2056,19 @@ class AudioService {
     }
 
     // Create individual filters and volumes for each layer
-    this.ambientFilters = {
-      bass: new Tone.Filter({ type: 'lowpass', frequency: 300, Q: 1.2 }),   // Entry #216b: FM sub needs low-mids for richness
-      pad: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 0.8 }),   // Entry #216b: Fattriangle shimmer needs highs
-      chords: new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 1 }),  // Entry #216b: Warm FM needs less highs than bell
-      backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 5000, Q: 1 }),    // Entry #219c: Pulse needs brightness
-      backgroundMid: new Tone.Filter({ type: 'lowpass', frequency: 3000, Q: 1 }),     // Entry #219c: PWM needs harmonics
-      backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 1.5 })    // Entry #219c: Square needs body
+    // FIX: Only create filters if useAmbientFilters is enabled (saves CPU on low-end devices)
+    if (this.audioProfile?.useAmbientFilters !== false) {
+      this.ambientFilters = {
+        bass: new Tone.Filter({ type: 'lowpass', frequency: 300, Q: 1.2 }),   // Entry #216b: FM sub needs low-mids for richness
+        pad: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 0.8 }),   // Entry #216b: Fattriangle shimmer needs highs
+        chords: new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 1 }),  // Entry #216b: Warm FM needs less highs than bell
+        backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 5000, Q: 1 }),    // Entry #219c: Pulse needs brightness
+        backgroundMid: new Tone.Filter({ type: 'lowpass', frequency: 3000, Q: 1 }),     // Entry #219c: PWM needs harmonics
+        backgroundLow: new Tone.Filter({ type: 'lowpass', frequency: 1500, Q: 1.5 })    // Entry #219c: Square needs body
+      }
+    } else {
+      // No filters - synths will connect directly to volumes
+      this.ambientFilters = null
     }
 
     // Background volumes - balanced with gestures
@@ -2027,9 +2084,16 @@ class AudioService {
 
     // Connect each layer with SEND/RETURN architecture
     // Routing: synth -> filter -> volume -> [dry to master + sends to FX]
+    // FIX: If filters disabled, route directly: synth -> volume
     Object.keys(this.ambientLayers).forEach(layer => {
-      this.ambientLayers[layer].connect(this.ambientFilters[layer])
-      this.ambientFilters[layer].connect(this.ambientVolumes[layer])
+      if (this.ambientFilters?.[layer]) {
+        // Full routing with filters
+        this.ambientLayers[layer].connect(this.ambientFilters[layer])
+        this.ambientFilters[layer].connect(this.ambientVolumes[layer])
+      } else {
+        // Direct routing (no filters - saves CPU)
+        this.ambientLayers[layer].connect(this.ambientVolumes[layer])
+      }
 
       // Dry signal to master
       this.ambientVolumes[layer].connect(this.masterVolume)
@@ -5783,9 +5847,9 @@ class AudioService {
     // rAF runs at display refresh rate and competes with rendering workloads
     // Transport scheduling is on the audio thread and immune to main thread congestion
     // PERF: Entry #59 - Use platform-specific rate (20Hz for Chrome Windows, 30Hz default)
-    const filterUpdateHz = typeof PlatformDetection !== 'undefined'
-      ? PlatformDetection.getFilterUpdateRate()
-      : 30
+    // FIX: Use audioProfile.filterUpdateRate if set by user, otherwise platform default
+    const filterUpdateHz = this.audioProfile?.filterUpdateRate
+      || (typeof PlatformDetection !== 'undefined' ? PlatformDetection.getFilterUpdateRate() : 30)
     const updateInterval = 1 / filterUpdateHz
 
     this.parameterUpdateEventId = Tone.Transport.scheduleRepeat(() => {
