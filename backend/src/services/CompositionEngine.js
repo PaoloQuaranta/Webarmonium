@@ -22,6 +22,9 @@ class CompositionEngine {
     // Entry #211: AccompanimentEngine for sophisticated accompaniment generation
     this.accompanimentEngine = new AccompanimentEngine(harmonicEngine)
 
+    // Entry #PERF: Bind partial sort method for material selection
+    this._partialSortTopK = this._partialSortTopK.bind(this)
+
     // Form structure management
     this.formStructure = null     // ABA, rondo, sonata, verse-chorus, etc.
     this.currentSection = 'A'     // Current section label
@@ -387,12 +390,50 @@ class CompositionEngine {
       allMaterial.push(...rawGestureMaterial)
     }
 
-    // Sort by relevance and freshness
-    return allMaterial.sort((a, b) => {
+    // Entry #PERF: Use partial sort for top K instead of full sort
+    // O(k·n) for small k, which beats O(n log n) full sort when k << n
+    return this._partialSortTopK(allMaterial, 5, (a, b) => {
       const scoreA = this.calculateMaterialScore(a, roomContext)
       const scoreB = this.calculateMaterialScore(b, roomContext)
-      return scoreB - scoreA
-    }).slice(0, 5) // Use top 5 most relevant materials
+      return scoreB - scoreA // Descending order (highest score first)
+    })
+  }
+
+  /**
+   * Entry #PERF: Partial sort to get top K items without sorting entire array
+   * Uses simple selection approach with O(k·n) complexity
+   * Beats O(n log n) full sort when k is small relative to n
+   * Falls back to full sort for small arrays where overhead isn't worth it
+   *
+   * @param {Array} items - Array to partially sort
+   * @param {number} k - Number of top items to return
+   * @param {Function} compareFn - Compare function (negative if a should come before b)
+   * @returns {Array} Top K items in sorted order
+   * @private
+   */
+  _partialSortTopK(items, k, compareFn) {
+    // For small arrays, full sort is faster due to lower overhead
+    if (items.length <= k * 3) {
+      return items.sort(compareFn).slice(0, k)
+    }
+
+    // Use a simple selection approach for moderate sizes
+    // For each position, find the item that belongs there
+    const result = []
+    const remaining = [...items]
+
+    for (let i = 0; i < k && remaining.length > 0; i++) {
+      let bestIndex = 0
+      for (let j = 1; j < remaining.length; j++) {
+        if (compareFn(remaining[j], remaining[bestIndex]) < 0) {
+          bestIndex = j
+        }
+      }
+      result.push(remaining[bestIndex])
+      remaining.splice(bestIndex, 1)
+    }
+
+    return result
   }
 
   /**

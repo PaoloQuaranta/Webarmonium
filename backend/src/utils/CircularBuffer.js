@@ -11,6 +11,7 @@ class CircularBuffer {
     this.buffer = new Array(maxSize)
     this.head = 0      // Next write position
     this.count = 0     // Current number of items
+    this._totalWrites = 0  // Entry #PERF-FIX: Track total writes for cache invalidation
   }
 
   /**
@@ -23,6 +24,7 @@ class CircularBuffer {
     if (this.count < this.maxSize) {
       this.count++
     }
+    this._totalWrites++  // Entry #PERF-FIX: Increment for cache invalidation
   }
 
   /**
@@ -70,6 +72,15 @@ class CircularBuffer {
   }
 
   /**
+   * Entry #PERF-FIX: Total number of writes to buffer (for cache invalidation)
+   * Useful when buffer is full and length stays constant
+   * @returns {number}
+   */
+  get totalWrites() {
+    return this._totalWrites
+  }
+
+  /**
    * Clear all items from buffer
    * Nullifies elements to allow GC of referenced objects while keeping array allocated
    */
@@ -80,6 +91,7 @@ class CircularBuffer {
     }
     this.head = 0
     this.count = 0
+    this._totalWrites = 0  // Entry #PERF-FIX: Reset on clear
   }
 
   /**

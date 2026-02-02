@@ -215,6 +215,14 @@ class AudioService {
     this._wakeRecoveryAttempts = 0
     this._maxWakeRecoveryAttempts = this._recoveryConfig.MAX_WAKE_RECOVERY_ATTEMPTS
 
+    // Entry #PERF: Exponential backoff for health checks
+    // After consecutive healthy checks, increase interval to reduce CPU usage
+    // Entry #PERF-FIX: Reduced max interval from 60s to 20s for mobile
+    // Mobile audio contexts suspend frequently, need faster recovery
+    this._consecutiveHealthyChecks = 0
+    this._currentHealthCheckInterval = null // Will be set in _startAudioHealthCheck
+    this._maxHealthCheckInterval = 20000    // Max 20 seconds between checks when healthy
+
     // Concurrency guard for recovery
     this._recoveryInProgress = false
     this._pendingRecoveryTrigger = null
@@ -756,26 +764,81 @@ class AudioService {
    * Start periodic audio health checks to detect silent state
    * This catches cases where context is "running" but audio is actually silent
    * Uses adaptive intervals: longer on mobile to save battery
+   * Entry #PERF: Uses exponential backoff after consecutive healthy checks
    */
   _startAudioHealthCheck() {
     this._stopAudioHealthCheck() // Clear any existing
 
     const config = this._recoveryConfig
 
+    // Reset backoff state
+    this._consecutiveHealthyChecks = 0
+
     // Use longer interval on mobile to save battery
-    const checkInterval = this._isMobile
+    this._currentHealthCheckInterval = this._isMobile
       ? config.HEALTH_CHECK_INTERVAL_MOBILE_MS
       : config.HEALTH_CHECK_INTERVAL_DESKTOP_MS
 
-    this._audioHealthCheckInterval = setInterval(() => {
-      this._checkAudioHealth()
-    }, checkInterval)
+    // Entry #PERF: Schedule next check with current interval
+    this._scheduleNextHealthCheck()
 
     // Entry #122: Store initial timeout ID for proper cleanup
     this._audioHealthCheckInitialTimeout = setTimeout(
       () => this._checkAudioHealth(),
       config.HEALTH_CHECK_INITIAL_DELAY_MS
     )
+  }
+
+  /**
+   * Entry #PERF: Schedule next health check with adaptive interval
+   * Uses exponential backoff after consecutive healthy checks
+   * @private
+   */
+  _scheduleNextHealthCheck() {
+    if (this._audioHealthCheckInterval) {
+      clearTimeout(this._audioHealthCheckInterval)
+    }
+
+    this._audioHealthCheckInterval = setTimeout(() => {
+      this._checkAudioHealth()
+      // Schedule next check after this one completes
+      if (this._audioState === 'PLAYING') {
+        this._scheduleNextHealthCheck()
+      }
+    }, this._currentHealthCheckInterval)
+  }
+
+  /**
+   * Entry #PERF: Update health check interval based on audio health
+   * Implements exponential backoff when audio is consistently healthy
+   * @param {boolean} isHealthy - Whether the current check found healthy audio
+   * @private
+   */
+  _updateHealthCheckBackoff(isHealthy) {
+    const config = this._recoveryConfig
+    const baseInterval = this._isMobile
+      ? config.HEALTH_CHECK_INTERVAL_MOBILE_MS
+      : config.HEALTH_CHECK_INTERVAL_DESKTOP_MS
+
+    if (isHealthy) {
+      this._consecutiveHealthyChecks++
+      // After 3 consecutive healthy checks, start increasing interval
+      if (this._consecutiveHealthyChecks > 3) {
+        // Double interval up to max, but use exponential curve
+        const backoffMultiplier = Math.min(
+          Math.pow(2, Math.floor((this._consecutiveHealthyChecks - 3) / 2)),
+          this._maxHealthCheckInterval / baseInterval
+        )
+        this._currentHealthCheckInterval = Math.min(
+          baseInterval * backoffMultiplier,
+          this._maxHealthCheckInterval
+        )
+      }
+    } else {
+      // Reset to base interval on any unhealthy check
+      this._consecutiveHealthyChecks = 0
+      this._currentHealthCheckInterval = baseInterval
+    }
   }
 
   /**
@@ -796,6 +859,7 @@ class AudioService {
   /**
    * Check if audio is actually producing sound (not just context running)
    * Respects user's explicit stop state - won't restart if user stopped audio
+   * Entry #PERF: Updates exponential backoff based on health status
    */
   _checkAudioHealth() {
     if (!this.isInitialized) return
@@ -809,28 +873,38 @@ class AudioService {
     // If context is suspended or interrupted, request tap to resume
     if (contextState !== 'running') {
       if (DEBUG_AUDIO_STATE) console.log(`[AudioState] Health check detected context ${contextState}, requesting tap to resume`)
+      this._updateHealthCheckBackoff(false) // Entry #PERF: Reset backoff
       this._setState('RESUMING', 'health-check-context-suspended')
       this._requestTapToResume()
       return
     }
 
+    // Track if any issue was found (for backoff calculation)
+    let issueFound = false
+
     // Check 2: MasterVolume stuck at -Infinity (only if not muted) - this is safe to auto-fix
     // This doesn't start audio, just restores volume on already-playing audio
     if (this.masterVolume && this.masterVolume.volume.value === -Infinity && !this.muted) {
       this.masterVolume.volume.value = -10
+      issueFound = true
     }
 
     // Check 3: Transport should be running - this is safe to auto-fix
     // Transport manages scheduled events, not audio playback itself
     if (Tone.Transport?.state !== 'started') {
       Tone.Transport.start()
+      issueFound = true
     }
 
     // Check 4: Evolving generation should be active - this is safe to auto-fix
     // This just restarts the background composition loop, doesn't start new audio
     if (!this.evolvingGenerationActive && !this.muted) {
       this.startEvolvingGeneration()
+      issueFound = true
     }
+
+    // Entry #PERF: Update backoff based on whether any issues were found
+    this._updateHealthCheckBackoff(!issueFound)
   }
 
   /**

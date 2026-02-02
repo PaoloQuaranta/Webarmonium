@@ -131,6 +131,19 @@ class BackgroundCompositionService {
       }
     }
 
+    // Entry #PERF: Percentile cache to avoid repeated sorting
+    // Caches P10 and P90 values with TTL to reduce O(n log n) sort overhead
+    this._percentileCache = new Map() // key: 'source:metric' -> { p10, p90, timestamp, totalWrites }
+    this._percentileCacheTTL = 5000   // 5 second TTL
+    this._percentileCacheMinSamples = 3 // Invalidate if samples changed by more than this
+
+    // Entry #PERF-FIX: Metrics for validating cache effectiveness
+    this._percentileCacheMetrics = {
+      hits: 0,
+      misses: 0,
+      lastResetTime: Date.now()
+    }
+
 // console.log('🎼 BackgroundCompositionService initialized')
   }
 
@@ -268,6 +281,7 @@ class BackgroundCompositionService {
   /**
    * Entry #222: Normalize a metric value using percentile-based normalization.
    * Tracks historical values and uses P10-P90 range for robust normalization.
+   * Entry #PERF: Uses cached percentiles to avoid O(n log n) sort on every call
    *
    * @param {string} source - Source name (wikipedia, hackernews, github)
    * @param {string} metricName - Metric name
@@ -308,18 +322,48 @@ class BackgroundCompositionService {
       return Math.max(0, Math.min(1, value / fallback))
     }
 
-    // Percentile normalization (P10-P90) with constants from constants.js
-    const sorted = [...samples].sort((a, b) => a - b)
+    // Entry #PERF: Check percentile cache before sorting
+    // Entry #PERF-FIX: Use totalWrites instead of length for cache invalidation
+    // CircularBuffer.length stays at maxSize (100) when full, but totalWrites keeps incrementing
+    const cacheKey = `${source}:${metricName}`
+    const cached = this._percentileCache.get(cacheKey)
+    const now = Date.now()
+    const totalWrites = stats.samples.totalWrites
 
-    // Entry #222b: Defensive bounds check - need at least 2 samples for meaningful percentiles
-    if (sorted.length < 2) {
-      return 0.5
+    let p10, p90
+
+    // Use cache if: exists, not expired, and write count hasn't changed much
+    if (cached &&
+        (now - cached.timestamp) < this._percentileCacheTTL &&
+        Math.abs(totalWrites - cached.totalWrites) <= this._percentileCacheMinSamples) {
+      p10 = cached.p10
+      p90 = cached.p90
+      this._percentileCacheMetrics.hits++  // Entry #PERF-FIX: Track cache hit
+    } else {
+      this._percentileCacheMetrics.misses++  // Entry #PERF-FIX: Track cache miss
+      // Cache miss or stale - recalculate percentiles
+      // Percentile normalization (P10-P90) with constants from constants.js
+      const sorted = [...samples].sort((a, b) => a - b)
+
+      // Entry #222b: Defensive bounds check - need at least 2 samples for meaningful percentiles
+      if (sorted.length < 2) {
+        return 0.5
+      }
+
+      const p10Index = Math.floor(sorted.length * PERCENTILE_LOWER_BOUND)
+      const p90Index = Math.floor(sorted.length * PERCENTILE_UPPER_BOUND)
+      p10 = sorted[p10Index]
+      p90 = sorted[p90Index]
+
+      // Update cache - use totalWrites for accurate invalidation when buffer is full
+      this._percentileCache.set(cacheKey, {
+        p10,
+        p90,
+        timestamp: now,
+        totalWrites
+      })
     }
 
-    const p10Index = Math.floor(sorted.length * PERCENTILE_LOWER_BOUND)
-    const p90Index = Math.floor(sorted.length * PERCENTILE_UPPER_BOUND)
-    const p10 = sorted[p10Index]
-    const p90 = sorted[p90Index]
     const range = p90 - p10
 
     if (range < 0.001) {
@@ -1770,6 +1814,26 @@ class BackgroundCompositionService {
    */
   getMaterialStats() {
     return this.materialLibrary.getStats()
+  }
+
+  /**
+   * Entry #PERF-FIX: Get performance optimization metrics for observability
+   * Useful for validating cache effectiveness and tuning parameters
+   * @returns {Object} Performance metrics
+   */
+  getPerformanceMetrics() {
+    const cacheMetrics = this._percentileCacheMetrics
+    const totalCacheOps = cacheMetrics.hits + cacheMetrics.misses
+    return {
+      percentileCache: {
+        hits: cacheMetrics.hits,
+        misses: cacheMetrics.misses,
+        hitRate: totalCacheOps > 0 ? (cacheMetrics.hits / totalCacheOps * 100).toFixed(1) + '%' : 'N/A',
+        cacheSize: this._percentileCache.size,
+        ttlMs: this._percentileCacheTTL,
+        sinceReset: Date.now() - cacheMetrics.lastResetTime
+      }
+    }
   }
 
   /**

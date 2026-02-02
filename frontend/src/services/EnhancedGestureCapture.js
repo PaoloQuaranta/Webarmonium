@@ -68,6 +68,14 @@ class EnhancedGestureCapture {
       lastUpdateTime: null
     }
 
+    // Entry #PERF: Path simplification to prevent memory growth during long drags
+    // Entry #PERF-FIX: Added documentation and bounds for Douglas-Peucker epsilon
+    this.MAX_PATH_POINTS = 500
+    // Douglas-Peucker epsilon: perpendicular distance tolerance in normalized coords (0-1)
+    // 0.002 = ~2 pixels at 1000px canvas, balances memory savings vs. path accuracy
+    // Valid range: 0.0005 (high detail) to 0.01 (aggressive simplification)
+    this.PATH_SIMPLIFICATION_EPSILON = Math.max(0.0005, Math.min(0.01, 0.002))
+
     // Gesture classification
     this.gestureClassifier = {
       minGestureLength: 20, // pixels
@@ -381,6 +389,36 @@ class EnhancedGestureCapture {
       this.gestureTracker.acceleration = acceleration
       this.gestureTracker.path.push(coordinates)
       this.gestureTracker.lastUpdateTime = now
+
+      // Entry #PERF: Limit path growth to prevent memory issues during long drags
+      // Entry #PERF-FIX: Preserve last N points to maintain accurate velocity/acceleration
+      // for real-time classification. Only simplify older path segments.
+      if (this.gestureTracker.path.length > this.MAX_PATH_POINTS) {
+        // Preserve the last 20 points (recent movement) for accurate velocity/acceleration
+        const PRESERVE_RECENT_POINTS = 20
+        const recentPoints = this.gestureTracker.path.slice(-PRESERVE_RECENT_POINTS)
+        const olderPoints = this.gestureTracker.path.slice(0, -PRESERVE_RECENT_POINTS)
+
+        // Simplify only the older portion of the path
+        let simplifiedOlder = this.simplifyPath(olderPoints, this.PATH_SIMPLIFICATION_EPSILON)
+
+        // If simplification didn't reduce enough, sample older points
+        const targetOlderLength = Math.floor(this.MAX_PATH_POINTS * 0.7) - PRESERVE_RECENT_POINTS
+        if (simplifiedOlder.length > targetOlderLength && targetOlderLength > 0) {
+          const step = Math.ceil(simplifiedOlder.length / targetOlderLength)
+          const sampled = [simplifiedOlder[0]]
+          for (let i = step; i < simplifiedOlder.length - 1; i += step) {
+            sampled.push(simplifiedOlder[i])
+          }
+          if (simplifiedOlder.length > 1) {
+            sampled.push(simplifiedOlder[simplifiedOlder.length - 1])
+          }
+          simplifiedOlder = sampled
+        }
+
+        // Reconstruct path: simplified older + preserved recent
+        this.gestureTracker.path = [...simplifiedOlder, ...recentPoints]
+      }
 
       // REAL-TIME DRAG NOTE STREAMING
       // CRITICAL FIX: Convert normalized distance (0-1) to pixels for comparison
@@ -830,6 +868,71 @@ class EnhancedGestureCapture {
     }
 
     return 'unknown'
+  }
+
+  /**
+   * Entry #PERF: Douglas-Peucker path simplification algorithm
+   * Reduces number of points while preserving path shape
+   * @param {Array} path - Array of {x, y} coordinates
+   * @param {number} epsilon - Maximum distance tolerance (0.0005-0.01 for normalized coords)
+   * @returns {Array} Simplified path
+   */
+  simplifyPath(path, epsilon) {
+    if (path.length <= 2) return path
+
+    // Entry #PERF-FIX: Validate epsilon to prevent edge cases
+    const validEpsilon = (typeof epsilon === 'number' && isFinite(epsilon) && epsilon > 0)
+      ? Math.max(0.0005, Math.min(0.01, epsilon))
+      : this.PATH_SIMPLIFICATION_EPSILON
+
+    // Find point with maximum distance from line between first and last
+    let maxDist = 0
+    let maxIndex = 0
+    const start = path[0]
+    const end = path[path.length - 1]
+
+    for (let i = 1; i < path.length - 1; i++) {
+      const dist = this._perpendicularDistance(path[i], start, end)
+      if (dist > maxDist) {
+        maxDist = dist
+        maxIndex = i
+      }
+    }
+
+    // If max distance exceeds epsilon, recursively simplify
+    if (maxDist > validEpsilon) {
+      const left = this.simplifyPath(path.slice(0, maxIndex + 1), validEpsilon)
+      const right = this.simplifyPath(path.slice(maxIndex), validEpsilon)
+      // Concatenate, removing duplicate point at junction
+      return left.slice(0, -1).concat(right)
+    } else {
+      // All points within epsilon, keep only endpoints
+      return [start, end]
+    }
+  }
+
+  /**
+   * Entry #PERF: Calculate perpendicular distance from point to line segment
+   * @param {Object} point - Point {x, y}
+   * @param {Object} lineStart - Line start point {x, y}
+   * @param {Object} lineEnd - Line end point {x, y}
+   * @returns {number} Perpendicular distance
+   */
+  _perpendicularDistance(point, lineStart, lineEnd) {
+    const dx = lineEnd.x - lineStart.x
+    const dy = lineEnd.y - lineStart.y
+    const lineLengthSquared = dx * dx + dy * dy
+
+    if (lineLengthSquared === 0) {
+      // Line is a point
+      const pdx = point.x - lineStart.x
+      const pdy = point.y - lineStart.y
+      return Math.sqrt(pdx * pdx + pdy * pdy)
+    }
+
+    // Calculate perpendicular distance using cross product
+    const numerator = Math.abs(dy * point.x - dx * point.y + lineEnd.x * lineStart.y - lineEnd.y * lineStart.x)
+    return numerator / Math.sqrt(lineLengthSquared)
   }
 
   /**
