@@ -1076,16 +1076,20 @@ class AudioService {
       if (userSampleRate !== 'auto') {
         // User has explicitly set a sample rate
         contextOptions.sampleRate = userSampleRate
+        console.log(`[AudioService] Using user-configured sample rate: ${userSampleRate}`)
       } else if (isAndroidChrome || isWindowsBrowser) {
         // Entry #48/#56: Android Chrome and Windows browsers benefit from lower sample rate
         // Reduces CPU processing load and helps prevent audio dropouts
         contextOptions.sampleRate = 44100
+        console.log('[AudioService] Using platform default sample rate: 44100')
       }
 
-      // Only create custom context if Tone hasn't started yet
-      if (window.Tone && Tone.context.state === 'suspended') {
+      // CRITICAL: Create custom context BEFORE accessing Tone.context (which auto-creates one)
+      // Must use Tone.setContext() to replace the default context with our configured one
+      if (window.Tone) {
         const customContext = new AudioContext(contextOptions)
         Tone.setContext(customContext)
+        console.log(`[AudioService] AudioContext created with sampleRate: ${customContext.sampleRate}`)
       }
     } catch (error) {
     }
