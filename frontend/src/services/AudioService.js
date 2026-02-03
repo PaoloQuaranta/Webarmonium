@@ -7003,7 +7003,16 @@ class AudioService {
         envParams.release = Math.max(0.001, Math.min(10.0, params.release))
       }
       if (Object.keys(envParams).length > 0) {
+        console.log('[AudioService] Setting envelope:', {
+          envParams,
+          synthType: this.gestureSynth?.constructor?.name,
+          beforeAttack: this.gestureSynth?.envelope?.attack?.value
+        })
         this.gestureSynth.set({ envelope: envParams })
+        console.log('[AudioService] After set envelope:', {
+          afterAttack: this.gestureSynth?.envelope?.attack?.value,
+          afterRelease: this.gestureSynth?.envelope?.release?.value
+        })
         // Mark that user has set custom envelope - don't override in playMusicalEvent
         this._hasCustomEnvelope = true
       }
@@ -7233,7 +7242,10 @@ class AudioService {
       filterCutoff: this.gestureFilter?.frequency?.value,
       filterQ: this.gestureFilter?.Q?.value,
       synthDisposed: this.gestureSynth?.disposed,
-      currentPresetSlot: this.currentPresetSlot
+      currentPresetSlot: this.currentPresetSlot,
+      envelopeAttack: this.gestureSynth?.envelope?.attack?.value,
+      envelopeRelease: this.gestureSynth?.envelope?.release?.value,
+      hasCustomEnvelope: this._hasCustomEnvelope
     })
 
     try {
