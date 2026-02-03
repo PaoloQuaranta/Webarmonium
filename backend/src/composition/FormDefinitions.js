@@ -751,11 +751,97 @@ function evolveSectionParams(sectionParams, progress) {
   }
 }
 
+// ============================================================================
+// MODULATION RULES - Entry #NEW: Form-driven modulation system
+// ============================================================================
+
+/**
+ * Rules for modulation based on section's harmonic function
+ * Determines IF modulation is allowed and target key relationships
+ */
+const SECTION_MODULATION_RULES = {
+  tonic: {
+    allowModulation: false,
+    returnToTonic: true,
+    allowedTargets: ['tonic']
+  },
+  dominant: {
+    allowModulation: true,
+    allowedTargets: ['dominant', 'relative']
+  },
+  subdominant: {
+    allowModulation: true,
+    allowedTargets: ['subdominant', 'relative']
+  },
+  predominant: {
+    allowModulation: true,
+    allowedTargets: ['dominant', 'subdominant']
+  },
+  chromatic: {
+    allowModulation: true,
+    allowedTargets: ['mediant', 'chromatic', 'tritone']
+  }
+}
+
+/**
+ * Genre-specific modulation profiles
+ * Controls modulation frequency and preferred target types per genre
+ */
+const GENRE_MODULATION_PROFILES = {
+  jazz: {
+    modulationFrequency: 'high',
+    preferredTargets: ['tritone', 'chromatic', 'dominant'],
+    temperatureMultiplier: 1.3  // Jazz accepts more distant modulations
+  },
+  classical: {
+    modulationFrequency: 'medium',
+    preferredTargets: ['dominant', 'relative'],
+    temperatureMultiplier: 0.8  // Classical prefers close modulations
+  },
+  rock: {
+    modulationFrequency: 'low',
+    preferredTargets: ['relative'],  // Rock rarely modulates
+    temperatureMultiplier: 0.5
+  },
+  electronic: {
+    modulationFrequency: 'low',
+    preferredTargets: ['relative', 'mediant'],  // Modal shifts
+    temperatureMultiplier: 0.6
+  },
+  ambient: {
+    modulationFrequency: 'very_low',
+    preferredTargets: ['relative'],
+    temperatureMultiplier: 0.3  // Ambient is very stable
+  },
+  pop: {
+    modulationFrequency: 'low',
+    preferredTargets: ['relative', 'dominant'],
+    temperatureMultiplier: 0.7
+  },
+  melodic: {
+    modulationFrequency: 'medium',
+    preferredTargets: ['relative', 'dominant'],
+    temperatureMultiplier: 0.8
+  },
+  rhythmic: {
+    modulationFrequency: 'low',
+    preferredTargets: ['relative'],
+    temperatureMultiplier: 0.5
+  },
+  experimental: {
+    modulationFrequency: 'high',
+    preferredTargets: ['tritone', 'chromatic', 'mediant'],
+    temperatureMultiplier: 1.5
+  }
+}
+
 module.exports = {
   FORM_DEFINITIONS,
   FORM_SEQUENCES,
   VOICE_ROLE_MODIFIERS,
   DEFAULT_SECTION,
+  SECTION_MODULATION_RULES,
+  GENRE_MODULATION_PROFILES,
   getSectionParams,
   getFormSequence,
   getFormCycleLength,

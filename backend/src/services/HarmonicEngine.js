@@ -1,4 +1,5 @@
 const { PHI } = require('../utils/constants')
+const { SECTION_MODULATION_RULES, GENRE_MODULATION_PROFILES } = require('../composition/FormDefinitions')
 
 // Entry #179: Mapping generi → metodi di progressione esistenti
 // Alcuni generi usano gli stessi generatori perché non hanno implementazione dedicata
@@ -23,6 +24,12 @@ class HarmonicEngine {
     this.keyInitialized = false
     this.currentChord = null
     this.progressionHistory = []
+
+    // Entry #NEW: Form-driven modulation state
+    this.previousSectionContext = null
+    this.originalTonic = null
+    this.currentTemperature = 0.3  // Smoothed temperature for modulation distance
+    this.compositionCount = 0      // Track for PHI-based determinism
 
     // Musical scales and intervals
     this.scales = {
@@ -135,6 +142,121 @@ class HarmonicEngine {
     return this._transposeKey(key, semitones)
   }
 
+  // ============================================================================
+  // FORM-DRIVEN MODULATION SYSTEM - Entry #NEW
+  // ============================================================================
+
+  /**
+   * Modulation targets ordered by distance (close to distant)
+   * Used by _performContextualModulation to select target key
+   */
+  _getModulationTargets() {
+    return {
+      tonic: [0],
+      relative: [3, -3],
+      dominant: [7],
+      subdominant: [-7],
+      mediant: [4, -4],
+      chromatic: [1, -1, 2, -2],
+      tritone: [6]
+    }
+  }
+
+  /**
+   * Calculate temperature with exponential smoothing
+   * Prevents sudden jumps in modulation distance
+   * @param {Object} webMetrics - Normalized web metrics
+   * @returns {number} Smoothed temperature (0-1)
+   */
+  _calculateSmoothedTemperature(webMetrics) {
+    if (!webMetrics) return this.currentTemperature
+
+    const wiki = webMetrics.wikipedia?.normalized || 0.5
+    const hn = webMetrics.hackernews?.normalized || 0.5
+    const gh = webMetrics.github?.normalized || 0.5
+    const rawTemperature = (wiki + hn + gh) / 3
+
+    // Exponential smoothing (alpha = 0.15)
+    const alpha = 0.15
+    this.currentTemperature = alpha * rawTemperature + (1 - alpha) * this.currentTemperature
+    return this.currentTemperature
+  }
+
+  /**
+   * Determine if modulation should occur based on section transition AND genre profile
+   * @param {Object} sectionContext - Current section context
+   * @param {Object} previousSectionContext - Previous section context
+   * @param {Object} genreProfile - Genre-specific modulation profile
+   * @returns {boolean} Whether modulation should occur
+   */
+  _shouldModulateNow(sectionContext, previousSectionContext, genreProfile) {
+    // No modulation without section context
+    if (!sectionContext) return false
+
+    // Modulate ONLY at section changes
+    const sectionChanged = !previousSectionContext ||
+      sectionContext.sectionType !== previousSectionContext.sectionType
+
+    if (!sectionChanged) return false
+
+    // Check harmonicFunction rules
+    const rules = SECTION_MODULATION_RULES[sectionContext.harmonicFunction]
+    if (!rules?.allowModulation) return false
+
+    // Apply genre-specific modulation frequency
+    const frequencyThresholds = {
+      'very_low': 0.15,
+      'low': 0.30,
+      'medium': 0.50,
+      'high': 0.70
+    }
+    const threshold = frequencyThresholds[genreProfile?.modulationFrequency] || 0.30
+    const selector = (this.compositionCount * PHI) % 1
+
+    return selector < threshold
+  }
+
+  /**
+   * Perform contextual modulation based on form, genre, and temperature
+   * @param {Object} sectionContext - Current section context
+   * @param {string} genre - Current genre
+   * @param {number} temperature - Smoothed temperature value
+   */
+  _performContextualModulation(sectionContext, genre, temperature) {
+    const harmonicFunction = sectionContext.harmonicFunction || 'tonic'
+    const rules = SECTION_MODULATION_RULES[harmonicFunction]
+    const genreProfile = GENRE_MODULATION_PROFILES[genre] || GENRE_MODULATION_PROFILES.melodic
+
+    if (!rules?.allowedTargets) return
+
+    // Scale temperature by genre multiplier
+    const scaledTemperature = Math.min(1, temperature * (genreProfile.temperatureMultiplier || 1))
+
+    // Combine allowed targets from rules with genre preferences
+    let eligibleTargets = rules.allowedTargets.filter(t =>
+      genreProfile.preferredTargets.includes(t)
+    )
+    // Fallback to all allowed targets if no overlap
+    if (eligibleTargets.length === 0) {
+      eligibleTargets = rules.allowedTargets
+    }
+
+    // Temperature determines how far to modulate
+    const maxIndex = Math.floor(scaledTemperature * eligibleTargets.length)
+    const targetCategory = eligibleTargets[Math.min(maxIndex, eligibleTargets.length - 1)]
+
+    const modulationTargets = this._getModulationTargets()
+    const semitoneOptions = modulationTargets[targetCategory]
+    if (!semitoneOptions?.length) return
+
+    const idx = Math.floor((this.compositionCount * PHI * 2) % semitoneOptions.length)
+    this.currentKey = this._transposeKey(this.currentKey, semitoneOptions[idx])
+  }
+
+  // ============================================================================
+  // END FORM-DRIVEN MODULATION SYSTEM
+  // ============================================================================
+
   /**
    * Get key offset from C (base key) to current key
    * Entry #117: Used for transposing progressions to current key
@@ -218,57 +340,27 @@ class HarmonicEngine {
     // Tension adds up to 0.3 complexity (high tension = more complex harmonies)
     const complexity = Math.min(1, baseComplexity + (tensionLevel - 0.5) * 0.6)
 
-    // Entry #171: Extract web metrics for key/mode selection
-    const wiki = webMetrics?.wikipedia?.normalized || 0.5
-    const hn = webMetrics?.hackernews?.normalized || 0.5
-    const gh = webMetrics?.github?.normalized || 0.5
-    const combinedActivity = (wiki + hn + gh) / 3
-
-    // Entry #171: Dynamic key threshold based on web metrics
-    // High activity → lower threshold → more key changes
-    // Range: 0.70 (high activity) to 0.92 (low activity)
-    const keyThreshold = 0.92 - (combinedActivity * 0.22)
+    // --- CONSERVATIVE MODULATION (Entry #NEW: without section context) ---
+    // Without section context, maintain high tonal stability
+    // Modulate only ~5% of compositions for minimal variety
+    const keyThreshold = 0.95  // Only 5% chance
     const keySelector = (compositionCount * PHI) % 1
 
     if (keySelector > keyThreshold) {
-      // Entry #171: Modulation type based on metric dominance
-      const wikiDominance = wiki / (wiki + hn + gh + 0.001)
-      const hnDominance = hn / (wiki + hn + gh + 0.001)
-      const ghDominance = gh / (wiki + hn + gh + 0.001)
-
-      if (wikiDominance > 0.4) {
-        // Wikipedia dominant → mediant modulation (±4 semitones)
-        const direction = (compositionCount % 2 === 0) ? 4 : -4
-        this.currentKey = this._transposeKey(this.currentKey, direction)
-      } else if (ghDominance > 0.4) {
-        // GitHub dominant → whole step modulation (±2 semitones)
-        // Entry #171: Changed from ±1 (too jarring) to ±2 for smoother transition
-        const direction = wiki > hn ? 2 : -2
-        this.currentKey = this._transposeKey(this.currentKey, direction)
-      } else if (hnDominance > 0.4) {
-        // HackerNews dominant → Circle of Fifths (±7 semitones)
-        const direction = gh > wiki ? 7 : -7
-        this.currentKey = this._transposeKey(this.currentKey, direction)
-      } else {
-        // No dominance → relative key modulation
-        this.currentKey = this._getRelativeKey(this.currentKey, this.currentMode)
-      }
+      // Conservative modulation: only relative key changes
+      this.currentKey = this._getRelativeKey(this.currentKey, this.currentMode)
     }
 
-    // Entry #171: Mode selection based on brightness from combined metrics
-    // Modes ordered by brightness: locrian (dark) → lydian (bright)
-    const modesByBrightness = ['locrian', 'phrygian', 'aeolian', 'dorian', 'mixolydian', 'ionian', 'lydian']
+    // Mode changes: even less frequent (3% chance)
+    const modeThreshold = 0.97
     const modeSelector = ((compositionCount * PHI * 2) % 1)
-
-    // Dynamic mode threshold: high activity → more mode changes
-    const modeThreshold = 0.80 - (combinedActivity * 0.20) // Range: 0.60-0.80
-
     if (modeSelector > modeThreshold) {
-      // Brightness based on weighted metrics combination
-      const brightnessFactor = (wiki * 0.5 + hn * 0.3 + gh * 0.2)
-      const modeIndex = Math.floor(brightnessFactor * modesByBrightness.length)
-      this.currentMode = modesByBrightness[Math.min(modeIndex, modesByBrightness.length - 1)]
+      // Limited mode palette for stability
+      const modesByBrightness = ['aeolian', 'dorian', 'mixolydian', 'ionian']
+      const modeIndex = Math.floor(modeSelector * modesByBrightness.length * 10) % modesByBrightness.length
+      this.currentMode = modesByBrightness[modeIndex]
     }
+    // --- END CONSERVATIVE MODULATION ---
 
     // Select progression type based on forced genre or dominant genre weight
     let progression
@@ -320,7 +412,11 @@ class HarmonicEngine {
         chord: this.currentChord,
         timestamp: Date.now(),
         compositionCount,
-        webMetrics: webMetrics ? { wiki, hn, gh, combined: combinedActivity } : null
+        webMetrics: webMetrics ? {
+          wiki: webMetrics.wikipedia?.normalized || 0,
+          hn: webMetrics.hackernews?.normalized || 0,
+          gh: webMetrics.github?.normalized || 0
+        } : null
       })
       // Keep history manageable (last 100 progressions)
       if (this.progressionHistory.length > 100) {
@@ -357,36 +453,46 @@ class HarmonicEngine {
     // Use blended tension as complexity for progression selection
     const complexity = blendedTension
 
-    // Select key variation based on thematic role
-    // Development sections are more likely to modulate
-    const circleOfFifths = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F']
-    const keySelector = (compositionCount * PHI) % 1
+    // Update composition count for PHI-based determinism
+    this.compositionCount = compositionCount
 
-    if (thematicRole === 'development' && keySelector > 0.7) {
-      // Development: modulate more frequently (30% vs 15%)
-      const currentKeyIndex = circleOfFifths.indexOf(this.currentKey)
-      const direction = keySelector > 0.85 ? 1 : -1
-      // Entry #NEW: Use blended tension for modulation distance
-      const distance = blendedTension > 0.6 ? 2 : 1 // Higher tension = further modulation
-      const newKeyIndex = (currentKeyIndex + direction * distance + 12) % 12
-      this.currentKey = circleOfFifths[newKeyIndex]
-    } else if (thematicRole === 'recapitulation' && keySelector > 0.9) {
-      // Recapitulation: return to tonic key (rarely modulate)
-      // Stay in current key mostly
-    } else if (keySelector > 0.85) {
-      // Other sections: standard 15% modulation rate
-      const currentKeyIndex = circleOfFifths.indexOf(this.currentKey)
-      const direction = keySelector > 0.925 ? 1 : -1
-      const newKeyIndex = (currentKeyIndex + direction + 12) % 12
-      this.currentKey = circleOfFifths[newKeyIndex]
+    // --- FORM-DRIVEN MODULATION GATE (Entry #NEW) ---
+    // Store original tonic for recapitulation return
+    if (!this.originalTonic || thematicRole === 'exposition') {
+      this.originalTonic = this.currentKey
     }
 
-    // Mode selection based on tension and thematic role
+    // Get genre profile for modulation decisions
+    const currentGenre = styleAnalysis.forcedGenre || 'melodic'
+    const genreProfile = GENRE_MODULATION_PROFILES[currentGenre] || GENRE_MODULATION_PROFILES.melodic
+
+    // Calculate smoothed temperature from web metrics
+    const temperature = this._calculateSmoothedTemperature(webMetrics)
+
+    // Cache modulation decision BEFORE updating previousSectionContext
+    const shouldModulate = this._shouldModulateNow(sectionContext, this.previousSectionContext, genreProfile)
+
+    // Recapitulation: return to original tonic (80% probability, allows false recapitulation)
+    if (thematicRole === 'recapitulation' && this.originalTonic) {
+      if ((compositionCount * PHI) % 1 < 0.8) {
+        this.currentKey = this.originalTonic
+      }
+    }
+    // Modulate ONLY if form-driven gate allows (section change + harmonicFunction + genre frequency)
+    else if (shouldModulate) {
+      this._performContextualModulation(sectionContext, currentGenre, temperature)
+    }
+
+    // Update previous section context for next comparison
+    this.previousSectionContext = { ...sectionContext }
+    // --- END FORM-DRIVEN MODULATION GATE ---
+
+    // Mode selection based on tension (keep existing logic, less frequent)
     const modes = ['ionian', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian']
     const modeSelector = ((compositionCount * PHI * 2) % 1)
 
-    if (modeSelector > 0.75) {
-      // Entry #NEW: Mode changes based on blended tension (section + external)
+    // Only change mode at section transitions and with 25% probability
+    if (modeSelector > 0.75 && shouldModulate) {
       if (blendedTension > 0.7) {
         // High tension: prefer darker modes (phrygian, locrian, aeolian)
         const darkModes = ['phrygian', 'locrian', 'aeolian']

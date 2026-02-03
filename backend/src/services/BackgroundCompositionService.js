@@ -30,8 +30,10 @@ const MIN_GENRE_PLAY_TIME = 3 * 60 * 1000   // Minimo 3 minuti prima di cambiare
 const MAX_STARVATION_TIME = 7 * 60 * 1000   // Max 7 minuti senza suonare un genere
 const STARVATION_BOOST_EXPONENT = 2         // Curva quadratica (gentile all'inizio)
 const MAX_BOOST_MULTIPLIER = 3.0            // Boost massimo 3x
-const BPM_CHANGE_INTERVAL = 60 * 1000       // 1 minuto
+const BPM_CHANGE_INTERVAL = 30 * 1000       // Entry #NEW: Reduced to 30 seconds minimum
 const BPM_SMOOTHING_STEPS = 30              // transizione graduale
+const BPM_MIN_PHRASES_BETWEEN_CHANGES = 4   // Entry #NEW: Minimum 4 phrases (32 bars @ 4/4) between BPM changes
+const BPM_NUDGE_RANGE = 0.10                // Entry #NEW: Room metrics can nudge BPM by max ±10%
 // Entry #180b: Use getAllGenres from GenreCharacteristics to stay in sync
 const ALL_GENRES = getAllGenres()
 
@@ -849,6 +851,9 @@ class BackgroundCompositionService {
         lastBPMChangeTime: Date.now(),                     // timestamp ultimo cambio BPM
         targetBPM: 100,                                    // BPM target corrente
         currentBPM: 100,                                   // BPM attuale (per smoothing)
+        // Entry #NEW: Phrase-aligned BPM change tracking
+        currentPhraseCount: 0,                             // phrase counter for BPM changes
+        lastBPMChangePhraseCount: 0,                       // phrase count at last BPM change
         // Entry #210: Manual genre override for testing via composition monitor
         manualOverride: {
           enabled: false,
@@ -922,6 +927,9 @@ class BackgroundCompositionService {
         lastBPMChangeTime: Date.now(),
         targetBPM: 100,
         currentBPM: 100,
+        // Entry #NEW: Phrase-aligned BPM change tracking
+        currentPhraseCount: 0,
+        lastBPMChangePhraseCount: 0,
         manualOverride: {
           enabled: false,
           genre: null,
@@ -1604,16 +1612,37 @@ class BackgroundCompositionService {
       cycling.lastGenreCheckTime = now
     }
 
-    // --- BPM MODULATION (ogni minuto) - INVARIATO ---
-    if (now - cycling.lastBPMChangeTime >= BPM_CHANGE_INTERVAL) {
-      const bpmRange = GENRE_BPM_RANGES[cycling.currentGenre] || GENRE_BPM_RANGES.melodic
+    // --- BPM PHRASE-ALIGNED MODULATION (Entry #NEW) ---
+    // Increment phrase counter (each composition ≈ 1 phrase)
+    cycling.currentPhraseCount = (cycling.currentPhraseCount || 0) + 1
 
-      // Variazione casuale entro il range del genere
-      const variation = (Math.random() - 0.5) * (bpmRange.max - bpmRange.min) * 0.3
+    const phrasesSinceLastChange = cycling.currentPhraseCount - (cycling.lastBPMChangePhraseCount || 0)
+    const timeSinceLastChange = now - (cycling.lastBPMChangeTime || 0)
+
+    // Change BPM only if: 4+ phrases passed AND 30+ seconds elapsed
+    const canChangeBPM = phrasesSinceLastChange >= BPM_MIN_PHRASES_BETWEEN_CHANGES &&
+                         timeSinceLastChange >= BPM_CHANGE_INTERVAL
+
+    if (canChangeBPM) {
+      const bpmRange = GENRE_BPM_RANGES[cycling.currentGenre] || GENRE_BPM_RANGES.melodic
+      const genreCenter = bpmRange.default
+
+      // Deterministic nudge based on web metrics (NOT random)
+      const webMetrics = this._normalizeWebMetrics()
+      const activity = webMetrics
+        ? (webMetrics.wikipedia?.normalized + webMetrics.hackernews?.normalized + webMetrics.github?.normalized) / 3
+        : 0.5
+
+      // Activity > 0.5 → nudge UP, < 0.5 → nudge DOWN
+      const nudgeDirection = (activity - 0.5) * 2  // -1 to +1
+      const maxNudge = genreCenter * BPM_NUDGE_RANGE
+      const nudge = nudgeDirection * maxNudge
+
       cycling.targetBPM = Math.round(
-        Math.max(bpmRange.min, Math.min(bpmRange.max, bpmRange.default + variation))
+        Math.max(bpmRange.min, Math.min(bpmRange.max, genreCenter + nudge))
       )
       cycling.lastBPMChangeTime = now
+      cycling.lastBPMChangePhraseCount = cycling.currentPhraseCount
     }
 
     // --- BPM SMOOTHING (ogni composizione) - INVARIATO ---
