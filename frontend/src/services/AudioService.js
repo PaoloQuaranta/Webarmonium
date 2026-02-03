@@ -5033,13 +5033,6 @@ class AudioService {
             synth = this.gestureSynth
             // Entry #SynthUI: Only override oscillator in Ultra-Low Power mode
             // Otherwise preserve the user's selected preset oscillator type
-            console.log('[AudioService] playMusicalEvent envelope decision:', {
-              isUltraLowPowerMode: this.isUltraLowPowerMode,
-              hasCustomEnvelope: this._hasCustomEnvelope,
-              willOverride: this.isUltraLowPowerMode || !this._hasCustomEnvelope,
-              currentEnvelope: this.gestureSynth?.get?.()?.envelope,
-              articulationEnvelope: { attack: envAttack, decay: envDecay, sustain: envSustain, release: envRelease }
-            })
             if (this.isUltraLowPowerMode) {
               this.gestureSynth.set({
                 oscillator: { type: 'sine' },
@@ -6929,15 +6922,6 @@ class AudioService {
       // Reset custom envelope flag - preset loads its own envelope
       this._hasCustomEnvelope = false
 
-      console.log(`[AudioService] selectPreset ${slot}: ${patch.name}`, {
-        hasFilter: !!this.gestureFilter,
-        filterFreq: this.gestureFilter?.frequency?.value,
-        filterQ: this.gestureFilter?.Q?.value,
-        synthType: this.gestureSynth?.constructor?.name,
-        synthConnected: this.gestureSynth?._context ? 'yes' : 'no',
-        hasPan: !!this.gesturePan,
-        hasVolume: !!this.gestureVolume
-      })
       return true
     } catch (error) {
       console.error('[AudioService] Failed to select preset:', error)
@@ -6959,16 +6943,6 @@ class AudioService {
    */
   setSynthParams(params) {
     if (!this.gestureSynth || !params) return
-
-    console.log('[AudioService] setSynthParams called:', {
-      hasGestureSynth: !!this.gestureSynth,
-      hasGestureFilter: !!this.gestureFilter,
-      synthDisposed: this.gestureSynth?.disposed,
-      filterCutoff: params.filterCutoff,
-      filterQ: params.filterQ,
-      attack: params.attack,
-      release: params.release
-    })
 
     try {
       // Oscillator-specific parameters
@@ -7010,16 +6984,7 @@ class AudioService {
         envParams.release = Math.max(0.001, Math.min(10.0, params.release))
       }
       if (Object.keys(envParams).length > 0) {
-        console.log('[AudioService] Setting envelope:', {
-          envParams,
-          synthType: this.gestureSynth?.constructor?.name,
-          hasEnvelope: !!this.gestureSynth?.envelope,
-          envelopeType: this.gestureSynth?.envelope?.constructor?.name,
-          // Try synth.get() to see current state
-          currentState: this.gestureSynth?.get?.()
-        })
         this.gestureSynth.set({ envelope: envParams })
-        console.log('[AudioService] After set envelope - get():', this.gestureSynth?.get?.()?.envelope)
         // Mark that user has set custom envelope - don't override in playMusicalEvent
         this._hasCustomEnvelope = true
       }
@@ -7243,17 +7208,6 @@ class AudioService {
       console.warn('[AudioService] playSimpleNote: gestureSynth not available')
       return
     }
-
-    console.log('[AudioService] playSimpleNote:', {
-      hasFilter: !!this.gestureFilter,
-      filterCutoff: this.gestureFilter?.frequency?.value,
-      filterQ: this.gestureFilter?.Q?.value,
-      synthDisposed: this.gestureSynth?.disposed,
-      currentPresetSlot: this.currentPresetSlot,
-      envelopeAttack: this.gestureSynth?.envelope?.attack?.value,
-      envelopeRelease: this.gestureSynth?.envelope?.release?.value,
-      hasCustomEnvelope: this._hasCustomEnvelope
-    })
 
     try {
       const now = Tone.now()
