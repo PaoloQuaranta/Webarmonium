@@ -5043,8 +5043,9 @@ class AudioService {
                   release: envRelease
                 }
               })
-            } else {
-              // Only update envelope, don't touch oscillator (preserve preset)
+            } else if (!this._hasCustomEnvelope) {
+              // Only update envelope if user hasn't set custom values via SynthPanel
+              // When _hasCustomEnvelope is true, preserve user's SynthPanel envelope settings
               this.gestureSynth.set({
                 envelope: {
                   attack: envAttack,
@@ -5054,6 +5055,7 @@ class AudioService {
                 }
               })
             }
+            // If _hasCustomEnvelope is true, don't touch envelope - user's settings are preserved
           }
 
           // Volume hierarchy: local (×1.15 boost) > remote (×1.0)
@@ -6917,6 +6919,9 @@ class AudioService {
       this._sustainedHoldLastTrigger = 0  // Context time tracker (sustained holds, playSimpleNote)
       this._playMusicalEventLastTrigger = 0  // Context time tracker (playMusicalEvent gestureSynth path)
 
+      // Reset custom envelope flag - preset loads its own envelope
+      this._hasCustomEnvelope = false
+
       // console.log(`[AudioService] Selected preset ${slot}: ${patch.name}`)
       return true
     } catch (error) {
@@ -6965,38 +6970,40 @@ class AudioService {
         }
       }
 
-      // Envelope parameters (all synth types)
+      // Envelope parameters (all synth types) - full synth range
       const envParams = {}
       if (params.attack !== undefined) {
-        envParams.attack = Math.max(0.002, Math.min(1.0, params.attack))
+        envParams.attack = Math.max(0.001, Math.min(4.0, params.attack))
       }
       if (params.decay !== undefined) {
-        envParams.decay = Math.max(0.05, Math.min(2.0, params.decay))
+        envParams.decay = Math.max(0.001, Math.min(8.0, params.decay))
       }
       if (params.sustain !== undefined) {
-        envParams.sustain = Math.max(0.1, Math.min(1.0, params.sustain))
+        envParams.sustain = Math.max(0.0, Math.min(1.0, params.sustain))
       }
       if (params.release !== undefined) {
-        envParams.release = Math.max(0.05, Math.min(4.0, params.release))
+        envParams.release = Math.max(0.001, Math.min(10.0, params.release))
       }
       if (Object.keys(envParams).length > 0) {
         this.gestureSynth.set({ envelope: envParams })
+        // Mark that user has set custom envelope - don't override in playMusicalEvent
+        this._hasCustomEnvelope = true
       }
 
-      // Filter parameters
+      // Filter parameters - full synth range
       if (this.gestureFilter) {
         if (params.filterType !== undefined) {
           this.gestureFilter.type = params.filterType
         }
         if (params.filterCutoff !== undefined) {
           this.gestureFilter.frequency.rampTo(
-            Math.max(200, Math.min(8000, params.filterCutoff)),
+            Math.max(20, Math.min(20000, params.filterCutoff)),
             0.3
           )
         }
         if (params.filterQ !== undefined) {
           this.gestureFilter.Q.rampTo(
-            Math.max(0.5, Math.min(4.0, params.filterQ)),
+            Math.max(0.1, Math.min(20.0, params.filterQ)),
             0.3
           )
         }
@@ -7016,16 +7023,16 @@ class AudioService {
         )
       }
 
-      // Effect sends
+      // Effect sends - full range (0-1.0)
       if (params.delaySend !== undefined && this.delaySends?.gesture) {
         this.delaySends.gesture.gain.rampTo(
-          Math.max(0, Math.min(0.8, params.delaySend)),
+          Math.max(0, Math.min(1.0, params.delaySend)),
           0.3
         )
       }
       if (params.reverbSend !== undefined && this.reverbSends?.gesture) {
         this.reverbSends.gesture.gain.rampTo(
-          Math.max(0, Math.min(0.8, params.reverbSend)),
+          Math.max(0, Math.min(1.0, params.reverbSend)),
           0.3
         )
       }

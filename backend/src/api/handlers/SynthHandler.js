@@ -51,33 +51,33 @@ function validateSynthParams (params) {
     validated.modulationType = validTypes.includes(params.modulationType) ? params.modulationType : 'sine'
   }
 
-  // Filter params
+  // Filter params - full synth range
   if (params.filterType !== undefined) {
     const validFilterTypes = ['lowpass', 'highpass', 'bandpass']
     validated.filterType = validFilterTypes.includes(params.filterType) ? params.filterType : 'lowpass'
   }
   if (params.filterCutoff !== undefined) {
-    validated.filterCutoff = Math.max(200, Math.min(8000, Number(params.filterCutoff) || 2000))
+    validated.filterCutoff = Math.max(20, Math.min(20000, Number(params.filterCutoff) || 2000))
   }
   if (params.filterQ !== undefined) {
-    validated.filterQ = Math.max(0.5, Math.min(4.0, Number(params.filterQ) || 1.0))
+    validated.filterQ = Math.max(0.1, Math.min(20.0, Number(params.filterQ) || 1.0))
   }
 
-  // Envelope params
+  // Envelope params - full synth range
   if (params.attack !== undefined) {
-    validated.attack = Math.max(0.002, Math.min(1.0, Number(params.attack) || 0.05))
+    validated.attack = Math.max(0.001, Math.min(4.0, Number(params.attack) || 0.05))
   }
   if (params.decay !== undefined) {
-    validated.decay = Math.max(0.05, Math.min(2.0, Number(params.decay) || 0.3))
+    validated.decay = Math.max(0.001, Math.min(8.0, Number(params.decay) || 0.3))
   }
   if (params.sustain !== undefined) {
-    validated.sustain = Math.max(0.1, Math.min(1.0, Number(params.sustain) || 0.5))
+    validated.sustain = Math.max(0.0, Math.min(1.0, Number(params.sustain) || 0.5))
   }
   if (params.release !== undefined) {
-    validated.release = Math.max(0.05, Math.min(4.0, Number(params.release) || 0.5))
+    validated.release = Math.max(0.001, Math.min(10.0, Number(params.release) || 0.5))
   }
 
-  // Effects params
+  // Effects params - full range
   if (params.volume !== undefined) {
     validated.volume = Math.max(-12, Math.min(12, Number(params.volume) || 0))
   }
@@ -85,10 +85,10 @@ function validateSynthParams (params) {
     validated.pan = Math.max(-1.0, Math.min(1.0, Number(params.pan) || 0))
   }
   if (params.delaySend !== undefined) {
-    validated.delaySend = Math.max(0, Math.min(0.8, Number(params.delaySend) || 0.2))
+    validated.delaySend = Math.max(0, Math.min(1.0, Number(params.delaySend) || 0.2))
   }
   if (params.reverbSend !== undefined) {
-    validated.reverbSend = Math.max(0, Math.min(0.8, Number(params.reverbSend) || 0.3))
+    validated.reverbSend = Math.max(0, Math.min(1.0, Number(params.reverbSend) || 0.3))
   }
 
   return validated
