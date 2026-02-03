@@ -6922,7 +6922,15 @@ class AudioService {
       // Reset custom envelope flag - preset loads its own envelope
       this._hasCustomEnvelope = false
 
-      // console.log(`[AudioService] Selected preset ${slot}: ${patch.name}`)
+      console.log(`[AudioService] selectPreset ${slot}: ${patch.name}`, {
+        hasFilter: !!this.gestureFilter,
+        filterFreq: this.gestureFilter?.frequency?.value,
+        filterQ: this.gestureFilter?.Q?.value,
+        synthType: this.gestureSynth?.constructor?.name,
+        synthConnected: this.gestureSynth?._context ? 'yes' : 'no',
+        hasPan: !!this.gesturePan,
+        hasVolume: !!this.gestureVolume
+      })
       return true
     } catch (error) {
       console.error('[AudioService] Failed to select preset:', error)
@@ -6944,6 +6952,16 @@ class AudioService {
    */
   setSynthParams(params) {
     if (!this.gestureSynth || !params) return
+
+    console.log('[AudioService] setSynthParams called:', {
+      hasGestureSynth: !!this.gestureSynth,
+      hasGestureFilter: !!this.gestureFilter,
+      synthDisposed: this.gestureSynth?.disposed,
+      filterCutoff: params.filterCutoff,
+      filterQ: params.filterQ,
+      attack: params.attack,
+      release: params.release
+    })
 
     try {
       // Oscillator-specific parameters
@@ -7209,6 +7227,14 @@ class AudioService {
       console.warn('[AudioService] playSimpleNote: gestureSynth not available')
       return
     }
+
+    console.log('[AudioService] playSimpleNote:', {
+      hasFilter: !!this.gestureFilter,
+      filterCutoff: this.gestureFilter?.frequency?.value,
+      filterQ: this.gestureFilter?.Q?.value,
+      synthDisposed: this.gestureSynth?.disposed,
+      currentPresetSlot: this.currentPresetSlot
+    })
 
     try {
       const now = Tone.now()

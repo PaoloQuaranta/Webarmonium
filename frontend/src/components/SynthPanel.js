@@ -680,6 +680,11 @@ class SynthPanel {
    * Apply current params to audio service
    */
   _applyParams () {
+    console.log('[SynthPanel] _applyParams:', {
+      hasAudioService: !!this.audioService,
+      hasSynthParams: !!this.audioService?.setSynthParams,
+      params: this.params
+    })
     if (this.audioService?.setSynthParams) {
       this.audioService.setSynthParams(this.params)
     }
