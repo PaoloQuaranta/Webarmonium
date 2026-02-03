@@ -5033,6 +5033,13 @@ class AudioService {
             synth = this.gestureSynth
             // Entry #SynthUI: Only override oscillator in Ultra-Low Power mode
             // Otherwise preserve the user's selected preset oscillator type
+            console.log('[AudioService] playMusicalEvent envelope decision:', {
+              isUltraLowPowerMode: this.isUltraLowPowerMode,
+              hasCustomEnvelope: this._hasCustomEnvelope,
+              willOverride: this.isUltraLowPowerMode || !this._hasCustomEnvelope,
+              currentEnvelope: this.gestureSynth?.get?.()?.envelope,
+              articulationEnvelope: { attack: envAttack, decay: envDecay, sustain: envSustain, release: envRelease }
+            })
             if (this.isUltraLowPowerMode) {
               this.gestureSynth.set({
                 oscillator: { type: 'sine' },
