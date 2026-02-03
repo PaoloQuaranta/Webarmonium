@@ -251,12 +251,6 @@ if (backgroundService) {
   backgroundService.compositionMonitor = compositionMonitor
 }
 
-// Inject CompositionMonitor into LandingCompositionService
-const landingService = container.get('landingCompositionService')
-if (landingService) {
-  landingService.compositionMonitor = compositionMonitor
-}
-
 // Extract services for backward compatibility
 const roomManager = container.get('roomManager')
 

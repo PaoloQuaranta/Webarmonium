@@ -14,15 +14,24 @@
 
 const HarmonicEngine = require('./HarmonicEngine')
 const PhraseMorphology = require('./PhraseMorphology')
+const BaseVirtualUserBehavior = require('./BaseVirtualUserBehavior')
 const FrequencyPositionMapper = require('../utils/FrequencyPositionMapper')
 const { getGenreVelocityMultiplier } = require('../utils/GenreUtils')
-const { VIRTUAL_USER_COLORS } = require('../constants/colors')
-const { PERCENTILE_WARMUP_SAMPLES, PERCENTILE_LOWER_BOUND, PERCENTILE_UPPER_BOUND } = require('../utils/constants')
+const {
+  VIRTUAL_USER_CONFIGS,
+  LANDING_ROOM_ID
+} = require('../constants/virtualUserConfig')
 
-class VirtualUserService {
+class VirtualUserService extends BaseVirtualUserBehavior {
   constructor() {
-    // WebMetricsPoller reference (set by ServiceContainer)
-    this.webMetricsPoller = null
+    // Initialize base class with rooms context
+    // Base class provides: metricStatistics, gestureCounters, sourceBalancing, gestureConfig,
+    // initialPositions, _gestureStats, _gestureFallbacks from virtualUserConfig.js
+    super({
+      context: 'rooms',
+      sources: ['wikipedia', 'hackernews'],
+      balancingProfile: 'rooms'
+    })
 
     // Socket.io instance (set by ServiceContainer)
     this.io = null
@@ -30,6 +39,9 @@ class VirtualUserService {
     // BackgroundCompositionService reference (set by ServiceContainer)
     // CRITICAL: Virtual user gestures must contribute to background composition
     this.backgroundCompositionService = null
+
+    // RoomManager reference (set by ServiceContainer)
+    this.roomManager = null
 
     // Active rooms with virtual users: roomId -> RoomVirtualState
     this.activeRooms = new Map()
@@ -41,158 +53,14 @@ class VirtualUserService {
     // Frequency-to-position mapper for reverse mapping (cursor follows notes)
     this.frequencyMapper = new FrequencyPositionMapper()
 
-    // Virtual user configurations
-    // Note: regions removed - cursor positions now derived from generated frequencies
-    // Colors from VIRTUAL_USER_COLORS - exclusive, never overlap with real user colors
-    this.virtualUserConfigs = {
-      wikipedia: {
-        userId: 'wikipedia-metrics',
-        color: VIRTUAL_USER_COLORS.wikipedia,
-        tessitura: 'bass',
-        frequencyRange: { min: 110, max: 220 }  // A2-A3
-      },
-      hackernews: {
-        userId: 'hackernews-metrics',
-        color: VIRTUAL_USER_COLORS.hackernews,
-        tessitura: 'tenor',
-        frequencyRange: { min: 196, max: 392 }  // G3-G4
-      },
-      github: {
-        userId: 'github-metrics',
-        color: VIRTUAL_USER_COLORS.github,
-        tessitura: 'soprano',
-        frequencyRange: { min: 523, max: 1047 }  // C5-C6
-      }
-    }
-
-    // Statistical tracking for DYNAMIC NORMALIZATION (per source)
-    // Same as LandingCompositionService: tracks historical min/max for percentile normalization
-    this.metricStatistics = {
-      wikipedia: {
-        velocity: { min: Infinity, max: 0, samples: [] },
-        editsPerMinute: { min: Infinity, max: 0, samples: [] },
-        avgEditSize: { min: Infinity, max: 0, samples: [] },
-        newArticles: { min: Infinity, max: 0, samples: [] }
-      },
-      hackernews: {
-        velocity: { min: Infinity, max: 0, samples: [] },
-        postsPerMinute: { min: Infinity, max: 0, samples: [] },
-        avgUpvotes: { min: Infinity, max: 0, samples: [] },
-        commentCount: { min: Infinity, max: 0, samples: [] }
-      },
-      github: {
-        velocity: { min: Infinity, max: 0, samples: [] },
-        commitsPerMinute: { min: Infinity, max: 0, samples: [] },
-        createsPerMinute: { min: Infinity, max: 0, samples: [] },
-        deletesPerMinute: { min: Infinity, max: 0, samples: [] }
-      }
-    }
-    this.maxSamples = 100 // Keep last 100 samples for percentile calculation (same as Landing)
-
-    // Entry #222: Gesture parameter statistics for adaptive normalization
-    // Tracks historical values to enable percentile-based normalization (same as Entry #221b)
-    this._gestureStats = {
-      intervalTiming: { samples: [] },    // Gesture interval timing (ms)
-      gestureDuration: { samples: [] },   // Actual gesture durations (ms)
-      gestureVelocity: { samples: [] },   // Gesture velocity values
-      gestureDensity: { samples: [] },    // Gesture density per cycle
-      intentThreshold: { samples: [] }    // Intent threshold values
-    }
-    this._gestureStatsMaxSamples = 100
-
-    // Entry #222: Fallback values for warm-up period (< PERCENTILE_WARMUP_SAMPLES)
-    // These represent typical mid-range values for each parameter, chosen to produce
-    // reasonable gesture behavior before percentile statistics are available.
-    // Rationale for each value:
-    // - intervalTiming: 8000ms (8s) = typical composition interval, balances activity vs. silence
-    // - gestureDuration: 1000ms (1s) = medium gesture, neither too short (tap) nor too long
-    // - gestureVelocity: 0.75 = 75% intensity, active but not frantic
-    // - gestureDensity: 0.5 = 50% pass rate, balanced gesture emission
-    // - intentThreshold: 0.1 = 10% baseline, low enough to allow some gestures during warm-up
-    this._gestureFallbacks = {
-      intervalTiming: 8000,
-      gestureDuration: 1000,
-      gestureVelocity: 0.75,
-      gestureDensity: 0.5,
-      intentThreshold: 0.1
-    }
+    // Virtual user configurations from centralized config
+    this.virtualUserConfigs = VIRTUAL_USER_CONFIGS
 
     // Clock for gesture timing
     this.clockTick = 0
 
-    // Gesture counter per source for position variation
-    // Increments with each gesture, creates cyclic variation in cursor position
-    this.gestureCounters = {
-      wikipedia: 0,
-      hackernews: 0,
-      github: 0
-    }
-
-    // Interpolation settings for smooth cursor movement
-    // FIX #5: Adjusted interpolationSpeed from 0.08 to 0.15 to match 100ms trajectory interval
-    // At 100ms intervals, 0.15 speed provides smooth movement without teleporting
+    // Interpolation interval (speed comes from base class via interpolationConfig)
     this.interpolationInterval = 50  // 20fps
-    this.interpolationSpeed = 0.15   // How fast to approach target (higher = faster, matches 100ms intervals)
-
-    // Gesture generation config for ROOMS (different from Landing)
-    // Entry #187g: Rooms need higher density because:
-    // 1. Only 2 sources vs Landing's 3 sources
-    // 2. No velocity check (removed in Entry #187f) - only density filter gates gestures
-    // Increased from 0.45-0.55 to 0.60-0.75 to compensate
-    this.gestureConfig = {
-      baseDensityMultiplier: 0.60, // 60% pass at HIGH activity (was 0.45)
-      minDensity: 0.15,            // Minimum for sparse compositions (unused in current formula)
-      maxDensity: 0.75             // 75% pass at LOW activity (was 0.55)
-    }
-
-    // Entry #187: Source-specific balancing to equalize gesture distribution
-    // Problem: Wikipedia polls every 5s with high activity, GitHub every 60s with low activity
-    // Solution: Per-source parameters to compensate for structural differences
-    //
-    // Entry #187d: ROOM-SPECIFIC TUNING - Rooms use only 2 sources (no GitHub)
-    // Without GitHub's 0.25x multiplier, need more permissive thresholds for Wiki/HN
-    // Landing uses all 3 sources with aggressive tuning (4.0x/1.2x/0.25x)
-    //
-    // Tuning methodology for gestureIntentMultiplier (2-source rooms):
-    // - Base threshold is 0.1 (10% of normalized velocity required to gesture)
-    // - Wikipedia (2.0x): threshold 0.20 → moderate reduction (~50% fewer gestures)
-    // - HackerNews (0.8x): threshold 0.08 → slightly more permissive (compensates for no GitHub)
-    // - GitHub (0.3x): threshold 0.03 → permissive (rarely selected for rooms anyway)
-    //
-    // Activity floor rationale:
-    // - Wikipedia (0.2): moderate floor
-    // - HackerNews (0.3): moderate floor for 10s poll interval
-    // - GitHub (0.5): high floor ensures presence if selected
-    //
-    // Duration bias rationale:
-    // - Wikipedia: 50% taps, 35% short, 12% medium, 3% long (mostly quick gestures)
-    // - HackerNews: balanced distribution
-    // - GitHub: more substantial gestures (15% long)
-    this.sourceBalancing = {
-      wikipedia: {
-        activityFloor: 0.2,           // Moderate floor
-        gestureIntentMultiplier: 2.0, // 2x threshold → ~50% fewer gestures
-        durationBias: { tap: 0.50, short: 0.35, medium: 0.12, long: 0.03 }  // Mostly quick gestures
-      },
-      hackernews: {
-        activityFloor: 0.3,           // Moderate floor for 10s poll interval
-        gestureIntentMultiplier: 0.8, // Slightly permissive (no GitHub to compensate)
-        durationBias: { tap: 0.25, short: 0.40, medium: 0.25, long: 0.10 }  // Balanced distribution
-      },
-      github: {
-        activityFloor: 0.5,           // High floor ensures presence if selected
-        gestureIntentMultiplier: 0.3, // 0.3x threshold → permissive
-        durationBias: { tap: 0.20, short: 0.35, medium: 0.30, long: 0.15 }  // Substantial gestures
-      }
-    }
-
-    // Initial distributed positions for each source
-    // Entry #182: Better tessellation to avoid center clustering
-    this.initialPositions = {
-      wikipedia: { x: 0.20, y: 0.80 },   // Bottom-left area (bass)
-      hackernews: { x: 0.80, y: 0.50 },  // Right-center (tenor) - moved from center
-      github: { x: 0.30, y: 0.20 }       // Top-left area (soprano)
-    }
 
     // Validate configurations at startup (fail-fast)
     this._validateConfigurations()
@@ -542,6 +410,100 @@ class VirtualUserService {
   }
 
   /**
+   * Activate virtual users for landing page
+   * Uses 3 sources (wikipedia, hackernews, github) with landing-specific balancing
+   * Creates isolated context from normal rooms
+   */
+  activateForLanding() {
+    const { SOURCE_BALANCING, GESTURE_CONFIG, INTERPOLATION_CONFIG } = require('../constants/virtualUserConfig')
+
+    // Use all 3 sources for landing (rooms use 2)
+    const landingSources = ['wikipedia', 'hackernews', 'github']
+
+    // Check if already active
+    if (this.activeRooms.has(LANDING_ROOM_ID)) {
+      const state = this.activeRooms.get(LANDING_ROOM_ID)
+      state.sources = landingSources
+      return
+    }
+
+    // Get current harmonic context
+    const currentContext = this._getCurrentHarmonicContext()
+
+    // Create cursor positions for all 3 sources
+    const currentPositions = {}
+    const targetPositions = {}
+    for (const source of landingSources) {
+      const initial = this.initialPositions[source] || { x: 0.5, y: 0.5 }
+      currentPositions[source] = { ...initial }
+      targetPositions[source] = { ...initial }
+    }
+
+    // Create landing-specific room state
+    // Note: Uses landing balancing profile via the context passed to base class
+    const roomState = {
+      roomId: LANDING_ROOM_ID,
+      sources: landingSources,
+      musicalContext: currentContext,
+      isActive: true,
+      isLanding: true,  // Flag for landing-specific behavior
+      gestureGenerationTimer: null,
+      cursorInterpolationTimer: null,
+      metricsEmissionTimer: null,  // Timer for dashboard metrics updates
+      currentPositions,
+      targetPositions,
+      // Landing-specific overrides (from virtualUserConfig)
+      sourceBalancing: SOURCE_BALANCING.landing,
+      gestureConfig: GESTURE_CONFIG.landing,
+      interpolationSpeed: INTERPOLATION_CONFIG.landing.speed
+    }
+
+    this.activeRooms.set(LANDING_ROOM_ID, roomState)
+
+    // Emit initial cursor positions for all 3 sources
+    this._emitAllCursorsForRoom(LANDING_ROOM_ID, roomState)
+
+    // Start interpolation and gesture loops for landing
+    this._startCursorInterpolation(LANDING_ROOM_ID, roomState)
+    this._startRoomLoops(LANDING_ROOM_ID)
+
+    // Emit activation event with all 3 virtual users
+    if (this.io) {
+      const virtualUsers = landingSources.map(source => ({
+        userId: this.virtualUserConfigs[source].userId,
+        color: this.virtualUserConfigs[source].color,
+        source
+      }))
+
+      this.io.to(LANDING_ROOM_ID).emit('virtual-users-activated', {
+        roomId: LANDING_ROOM_ID,
+        sources: landingSources,
+        virtualUsers,
+        timestamp: Date.now(),
+        isLanding: true
+      })
+    }
+
+    // console.log(`🎭 Landing virtual users activated: ${landingSources.join(', ')}`)
+  }
+
+  /**
+   * Deactivate virtual users for landing
+   * Convenience wrapper for deactivateForRoom
+   */
+  deactivateForLanding() {
+    this.deactivateForRoom(LANDING_ROOM_ID, true)
+  }
+
+  /**
+   * Check if landing virtual users are active
+   * @returns {boolean}
+   */
+  isActiveForLanding() {
+    return this.isActiveForRoom(LANDING_ROOM_ID)
+  }
+
+  /**
    * Deactivate virtual users for a room
    * @param {string} roomId - Room ID
    * @param {boolean} fadeOut - Whether to emit fade-out event
@@ -629,10 +591,11 @@ class VirtualUserService {
 
     // Calculate activity level for each active source
     // Same formula as LandingCompositionService
+    // Pass room's sourceBalancing for context-aware calculation (landing vs rooms)
     let totalActivity = 0
     let sourceCount = 0
     for (const source of roomState.sources) {
-      const activity = this._calculateActivityLevel(source)
+      const activity = this.calculateActivityLevel(source, roomState.sourceBalancing)
       totalActivity += activity
       sourceCount++
     }
@@ -663,14 +626,14 @@ class VirtualUserService {
       const jitterRange = variance * baseInterval * 0.6
       // Use PHI for deterministic pseudo-randomness based on gesture counter sum
       const totalGestureCount = Object.values(this.gestureCounters).reduce((sum, c) => sum + c, 0)
-      const jitterPhase = (totalGestureCount * VirtualUserService.PHI) % 1
+      const jitterPhase = (totalGestureCount * BaseVirtualUserBehavior.PHI) % 1
       jitter = (jitterPhase - 0.5) * jitterRange
     }
     const interval = baseInterval + jitter
 
     // Entry #222: Track interval for adaptive bounds (replaces hardcoded 4-12s)
     // Use percentile normalization to derive dynamic min/max bounds
-    this._normalizeGestureParam('intervalTiming', interval)
+    this.normalizeGestureParam('intervalTiming', interval)
 
     // Entry #222: Adaptive interval bounds based on historical distribution
     // Rooms need faster cycles than Landing (2 sources vs 3)
@@ -745,11 +708,11 @@ class VirtualUserService {
         const absVelocity = Math.abs(velocity)
 
         // Update statistics for ALL metrics (same as Landing)
-        this._updateStatistics(source, 'velocity', absVelocity)
+        this.updateStatistics(source, 'velocity', absVelocity)
         if (metrics[source]) {
           for (const [metricName, value] of Object.entries(metrics[source])) {
             if (typeof value === 'number') {
-              this._updateStatistics(source, metricName, value)
+              this.updateStatistics(source, metricName, value)
             }
           }
         }
@@ -761,7 +724,7 @@ class VirtualUserService {
         // ~45-55% pass rate per cycle, resulting in ~2-3 gestures/minute per source.
         // Landing keeps velocity check since it uses all 3 sources with more permissive thresholds.
 
-        const activityLevel = this._calculateActivityLevel(source)
+        const activityLevel = this.calculateActivityLevel(source, roomState.sourceBalancing)
 
         // DENSITY FILTER: Probabilistic gesture emission with INVERSE activity modulation
         // Low activity → higher density (more gestures pass, prevents silence)
@@ -769,7 +732,7 @@ class VirtualUserService {
         // Entry #222: Adaptive density using percentile normalization
         const rawDensity = this.gestureConfig.maxDensity -
           (activityLevel * (this.gestureConfig.maxDensity - this.gestureConfig.baseDensityMultiplier))
-        const density = this._adaptiveGestureValue('gestureDensity', rawDensity, 0.4, 0.85)
+        const density = this.adaptiveGestureValue('gestureDensity', rawDensity, 0.4, 0.85)
 
         if (Math.random() > density) {
           // Skip this gesture probabilistically based on density
@@ -778,11 +741,11 @@ class VirtualUserService {
 
         // Entry #174: Select duration category using PHI-based cycling
         // Guarantees balanced distribution: 20% taps, 30% short, 30% medium, 20% long
-        const { category, durationRange } = this._selectDurationCategory(source)
+        const { category, durationRange } = this.selectDurationCategory(source, roomState.sourceBalancing)
 
         // Entry #187f fix: Calculate normalizedVelocity for gesture emission
         // (needed by _emitTapGesture and _emitDragGesture for intensity/velocity values)
-        const normalizedVelocity = this._normalizeValue(source, 'velocity', absVelocity)
+        const normalizedVelocity = this.normalizeValue(source, 'velocity', absVelocity)
 
         if (category === 'tap') {
           this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
@@ -808,14 +771,14 @@ class VirtualUserService {
     this.gestureCounters[source] = ((this.gestureCounters[source] || 0) + 1) % Number.MAX_SAFE_INTEGER
 
     // 1. Calculate AUDIO frequency (constrained to tessitura)
-    const activityLevel = this._calculateActivityLevel(source)
+    const activityLevel = this.calculateActivityLevel(source, roomState.sourceBalancing)
     const { min: freqMin, max: freqMax } = config.frequencyRange
 
     // Map activity level to frequency within tessitura for AUDIO
     let rawFreq = freqMin + (activityLevel * (freqMax - freqMin))
 
     // Entry #171: Web metrics-driven variation (deterministic, no randomness)
-    const webMetrics = this._normalizeWebMetrics()
+    const webMetrics = this.normalizeWebMetrics()
     const wiki = webMetrics.wikipedia.normalized
     const hn = webMetrics.hackernews.normalized
     const gh = webMetrics.github.normalized
@@ -839,13 +802,13 @@ class VirtualUserService {
     // Entry #189: Use source-specific tessitura range (not fixed 110-1210Hz)
     // This ensures Y normalization in _calculateHybridPosition works correctly
     const cursorFreq = freqMin + (activityLevel * (freqMax - freqMin))
-    const position = this._calculateHybridPosition(source, cursorFreq)
+    const position = this.calculateHybridPosition(source, cursorFreq)
 
     // 3. Emit cursor position synchronized with note
     this._emitCursorAtPosition(roomId, source, config, position)
 
     // ORGANIC DURATION: Correlate tap duration to stability metric
-    const stability = this._calculateStabilityMetric(source)
+    const stability = this.calculateStabilityMetric(source)
     const tapDurationMs = 50 + (stability * 250)  // 50-300ms organic range
 
     // Quantize to beat grid
@@ -871,7 +834,7 @@ class VirtualUserService {
     // Entry #222: Adaptive base velocity using percentile normalization
     // Track velocity values to derive adaptive range instead of hardcoded 0.75
     const rawBaseVelocity = 0.75 + (gh * 0.25)
-    const adaptiveBaseVelocity = this._adaptiveGestureValue('gestureVelocity', rawBaseVelocity, 0.5, 1.0)
+    const adaptiveBaseVelocity = this.adaptiveGestureValue('gestureVelocity', rawBaseVelocity, 0.5, 1.0)
     // Entry #NEW: Apply genre velocity multiplier for consistency with real users
     const genreMultiplier = getGenreVelocityMultiplier(style)
     const tapVelocity = adaptiveBaseVelocity * genreMultiplier
@@ -959,16 +922,16 @@ class VirtualUserService {
     this.gestureCounters[source] = ((this.gestureCounters[source] || 0) + 1) % Number.MAX_SAFE_INTEGER
 
     // Entry #171: Web metrics-driven variation (deterministic, no randomness)
-    const webMetrics = this._normalizeWebMetrics()
+    const webMetrics = this.normalizeWebMetrics()
     const wiki = webMetrics.wikipedia.normalized
     const hn = webMetrics.hackernews.normalized
     const gh = webMetrics.github.normalized
 
     // Calculate metrics for gesture generation
-    const density = this._calculateDensityMetric(source)
+    const density = this.calculateDensityMetric(source)
     const acceleration = this.webMetricsPoller?.getAcceleration(source) || 0
     const absAccel = Math.abs(acceleration)
-    const normalizedAccel = this._normalizeValue(source, 'velocity', absAccel)
+    const normalizedAccel = this.normalizeValue(source, 'velocity', absAccel)
 
     // Calculate curvature from metric variance
     const velocityVariance = normalizedVelocity
@@ -983,7 +946,7 @@ class VirtualUserService {
     const safeDensity = Number.isFinite(density) ? Math.max(0, Math.min(1, density)) : 0.5
     const rawDuration = rangeMin + (safeDensity * (rangeMax - rangeMin))
     // Track duration and use adaptive normalization to get better distribution within category
-    const phraseDurationMs = this._adaptiveGestureValue('gestureDuration', rawDuration, rangeMin, rangeMax)
+    const phraseDurationMs = this.adaptiveGestureValue('gestureDuration', rawDuration, rangeMin, rangeMax)
 
     // Entry #182: Create gestureData for PhraseMorphology with boosted metrics
     // Old values produced weak contours → small intervals
@@ -999,7 +962,7 @@ class VirtualUserService {
       velocity: normalizedVelocity * normalizedVelocity * 100,  // Quadratic: 0.3→9, 0.5→25, 0.7→49, 1.0→100
       curvature: Math.min(1, clampedCurvature * 1.5),           // 0-1 boosted (0.5→0.75, 0.7→1.0)
       acceleration: clampedAcceleration * 30 + 20,              // -280 to 320 range, safe
-      intensity: this._calculateActivityLevel(source),
+      intensity: this.calculateActivityLevel(source, roomState.sourceBalancing),
       duration: phraseDurationMs
     }
 
@@ -1024,7 +987,7 @@ class VirtualUserService {
     // Entry #222: Adaptive velocity multiplier using percentile normalization
     // Track velocity values to derive adaptive range instead of hardcoded 0.75
     const rawVelocityMultiplier = 0.75 + (gh * 0.25)
-    const adaptiveVelocityMultiplier = this._adaptiveGestureValue('gestureVelocity', rawVelocityMultiplier, 0.5, 1.0)
+    const adaptiveVelocityMultiplier = this.adaptiveGestureValue('gestureVelocity', rawVelocityMultiplier, 0.5, 1.0)
     // Entry #NEW: Apply genre velocity multiplier for consistency with real users
     const genreMultiplier = getGenreVelocityMultiplier(style)
     const velocityMultiplier = adaptiveVelocityMultiplier * genreMultiplier
@@ -1064,7 +1027,7 @@ class VirtualUserService {
     if (noteData.length === 0) return
 
     // Entry #187j: Calculate startPosition from first note (was removed in Entry #189 but still needed)
-    const startPosition = this._calculateHybridPosition(source, noteData[0].audioFreq, 0)
+    const startPosition = this.calculateHybridPosition(source, noteData[0].audioFreq, 0)
 
     // Add material to BackgroundCompositionService
     if (this.backgroundCompositionService) {
@@ -1123,7 +1086,7 @@ class VirtualUserService {
 
         // Calculate cursor position from note frequency
         // Y based on pitch: high freq = top (low Y), low freq = bottom (high Y)
-        const notePosition = this._calculateHybridPosition(source, note.audioFreq, noteIndex)
+        const notePosition = this.calculateHybridPosition(source, note.audioFreq, noteIndex)
 
         // Move cursor to note position (synchronized with audio)
         this._emitCursorAtPosition(roomId, source, config, notePosition)
@@ -1179,154 +1142,11 @@ class VirtualUserService {
   /**
    * Entry #187: Calculate gesture intent threshold for a source
    * Extracted for clarity and testability. Lower threshold = more gestures pass.
-   *
-   * Formula: BASE_THRESHOLD × sourceMultiplier × (1 - activityLevel × ACTIVITY_MODULATION)
-   * - BASE_THRESHOLD (0.1): 10% of normalized velocity required to gesture
-   * - sourceMultiplier: per-source adjustment (1.5 = stricter, 0.5 = more permissive)
-   * - ACTIVITY_MODULATION (0.5): high activity reduces threshold by up to 50%
-   *
-   * @param {string} source - Source name
-   * @param {number} activityLevel - Activity level (0-1)
-   * @returns {number} Threshold value (0-1)
-   * @private
-   */
-  _calculateGestureIntentThreshold(source, activityLevel) {
-    const balancing = this.sourceBalancing[source] || VirtualUserService.DEFAULT_BALANCING
-
-    // Entry #222: Adaptive base threshold using percentile normalization
-    // Track thresholds over time to derive adaptive base
-    const rawThreshold = 0.1 * balancing.gestureIntentMultiplier
-    const adaptiveBase = this._adaptiveGestureValue('intentThreshold', rawThreshold, 0.05, 0.2)
-
-    const ACTIVITY_MODULATION = 0.5  // 50% reduction at max activity
-
-    return adaptiveBase * (1 - activityLevel * ACTIVITY_MODULATION)
-  }
-
-  /**
-   * Calculate activity level for a source (0.0-1.0)
-   * Uses DYNAMIC NORMALIZATION based on HISTORICAL min/max
-   * Entry #187: Applies source-specific activityFloor for balanced gesture distribution
-   * @param {string} source - Source name
-   * @returns {number} Activity level (0.0-1.0)
-   * @private
-   */
-  _calculateActivityLevel(source) {
-    const metrics = this.webMetricsPoller?.getMetrics()
-    if (!metrics || !metrics[source]) return 0.5
-
-    let rawActivity
-    switch (source) {
-      case 'wikipedia':
-        rawActivity = this._normalizeValue(source, 'editsPerMinute', metrics[source].editsPerMinute || 0)
-        break
-      case 'hackernews':
-        rawActivity = this._normalizeValue(source, 'postsPerMinute', metrics[source].postsPerMinute || 0)
-        break
-      case 'github':
-        rawActivity = this._normalizeValue(source, 'commitsPerMinute', metrics[source].commitsPerMinute || 0)
-        break
-      default:
-        rawActivity = 0.5
-    }
-
-    // Entry #187: Apply source-specific floor to ensure minimum activity
-    // Floor is a HARD MINIMUM - even if normalized activity is 0, return the floor
-    // Example: GitHub floor=0.4 means it will gesture as if at least 40% active
-    const balancing = this.sourceBalancing[source] || VirtualUserService.DEFAULT_BALANCING
-    return Math.max(balancing.activityFloor, rawActivity)
-  }
-
-  /**
-   * Normalize web metrics to 0-1 range for gesture variation
-   * Entry #171: Centralized normalization matching BackgroundCompositionService
-   * Entry #222: Uses percentile-based normalization instead of hardcoded divisors
-   * @returns {Object} Normalized metrics {wikipedia, hackernews, github}
-   * @private
-   */
-  _normalizeWebMetrics() {
-    const raw = this.webMetricsPoller?.getMetrics()
-    if (!raw) {
-      return {
-        wikipedia: { normalized: 0.5 },
-        hackernews: { normalized: 0.5 },
-        github: { normalized: 0.5 }
-      }
-    }
-
-    // Entry #222: Use percentile normalization via _normalizeValue() instead of hardcoded divisors
-    // This ensures full 0-1 range coverage based on actual data distribution
-    return {
-      wikipedia: { normalized: this._normalizeValue('wikipedia', 'editsPerMinute', raw.wikipedia?.editsPerMinute || 0) },
-      hackernews: { normalized: this._normalizeValue('hackernews', 'postsPerMinute', raw.hackernews?.postsPerMinute || 0) },
-      github: { normalized: this._normalizeValue('github', 'commitsPerMinute', raw.github?.commitsPerMinute || 0) }
-    }
-  }
-
-  /**
-   * Entry #172: Calculate curve amount based on source metrics.
-   * Used for generating curved trajectories that vary based on web activity.
-   * Extracted to avoid code duplication between trajectory generation and note positioning.
-   *
-   * @param {string} source - Source name (wikipedia, hackernews, github)
-   * @returns {number} Curve amount (-0.2 to +0.2)
-   * @private
-   */
-  _calculateCurveAmount(source) {
-    const metrics = this.webMetricsPoller?.getMetrics()
-    if (!metrics) return 0
-
-    const wikiVel = metrics.wikipedia?.velocityNorm ?? 0.5
-    const hnVel = metrics.hackernews?.velocityNorm ?? 0.5
-    const ghVel = metrics.github?.velocityNorm ?? 0.5
-
-    switch (source) {
-      case 'wikipedia': return (wikiVel - 0.5) * 0.4
-      case 'hackernews': return (hnVel - 0.5) * 0.4
-      case 'github': return (ghVel - 0.5) * 0.4
-      default: return ((wikiVel + hnVel + ghVel) / 3 - 0.5) * 0.4
-    }
-  }
-
-  /**
-   * Calculate stability metric for gesture classification
-   * Lower velocity = higher stability = tap gesture
-   * Same as LandingCompositionService
-   * @param {string} source - Source name
-   * @returns {number} Stability value (0.0-1.0)
-   * @private
-   */
-  _calculateStabilityMetric(source) {
-    const velocity = Math.abs(this.webMetricsPoller?.getVelocity(source) || 0)
-    // Normalize velocity dynamically, then invert for stability
-    const normalizedVelocity = this._normalizeValue(source, 'velocity', velocity)
-    // Higher velocity = lower stability
-    return Math.max(0, 1 - normalizedVelocity)
-  }
-
-  /**
-   * Calculate density metric for gesture classification
-   * Higher metric values = higher density = phrase gesture
-   * Same as LandingCompositionService
-   * @param {string} source - Source name
-   * @returns {number} Density value (0.0-1.0)
-   * @private
-   */
-  _calculateDensityMetric(source) {
-    const metrics = this.webMetricsPoller?.getMetrics()
-    if (!metrics || !metrics[source]) return 0.5
-
-    switch (source) {
-      case 'wikipedia':
-        return this._normalizeValue(source, 'avgEditSize', metrics[source].avgEditSize || 0)
-      case 'hackernews':
-        return this._normalizeValue(source, 'avgUpvotes', metrics[source].avgUpvotes || 0)
-      case 'github':
-        return this._normalizeValue(source, 'createsPerMinute', metrics[source].createsPerMinute || 0)
-      default:
-        return 0.5
-    }
-  }
+   * Note: _calculateGestureIntentThreshold, _calculateActivityLevel, _normalizeWebMetrics,
+   * _calculateCurveAmount, _calculateStabilityMetric, _calculateDensityMetric
+   * are now inherited from BaseVirtualUserBehavior as calculateGestureIntentThreshold,
+   * calculateActivityLevel, normalizeWebMetrics, calculateCurveAmount,
+   * calculateStabilityMetric, calculateDensityMetric (without underscore prefix)
 
   /**
    * Calculate metric-based modulation values for HYBRID position calculation
@@ -1345,7 +1165,7 @@ class VirtualUserService {
 
     const sourceMetrics = metrics[source]
     const velocity = Math.abs(this.webMetricsPoller?.getVelocity(source) || 0)
-    const normalizedVelocity = this._normalizeValue(source, 'velocity', velocity)
+    const normalizedVelocity = this.normalizeValue(source, 'velocity', velocity)
 
     // COMBINE MULTIPLE METRICS per axis for non-linear variation
     // Each source uses DIFFERENT metric combinations = unique movement patterns
@@ -1354,36 +1174,36 @@ class VirtualUserService {
     switch (source) {
       case 'wikipedia': {
         // X: editsPerMinute * velocity (activity momentum)
-        const edits = this._normalizeValue(source, 'editsPerMinute', sourceMetrics.editsPerMinute || 0)
+        const edits = this.normalizeValue(source, 'editsPerMinute', sourceMetrics.editsPerMinute || 0)
         xMetric = Math.sqrt(edits * normalizedVelocity)
 
         // Y: avgEditSize * newArticles (content creation intensity)
-        const editSize = this._normalizeValue(source, 'avgEditSize', sourceMetrics.avgEditSize || 0)
-        const newArticles = this._normalizeValue(source, 'newArticles', sourceMetrics.newArticles || 0)
+        const editSize = this.normalizeValue(source, 'avgEditSize', sourceMetrics.avgEditSize || 0)
+        const newArticles = this.normalizeValue(source, 'newArticles', sourceMetrics.newArticles || 0)
         yMetric = Math.sqrt(editSize * newArticles)
         break
       }
 
       case 'hackernews': {
         // X: postsPerMinute * commentCount (engagement momentum)
-        const posts = this._normalizeValue(source, 'postsPerMinute', sourceMetrics.postsPerMinute || 0)
-        const comments = this._normalizeValue(source, 'commentCount', sourceMetrics.commentCount || 0)
+        const posts = this.normalizeValue(source, 'postsPerMinute', sourceMetrics.postsPerMinute || 0)
+        const comments = this.normalizeValue(source, 'commentCount', sourceMetrics.commentCount || 0)
         xMetric = Math.sqrt(posts * comments)
 
         // Y: avgUpvotes * velocity (popularity momentum)
-        const upvotes = this._normalizeValue(source, 'avgUpvotes', sourceMetrics.avgUpvotes || 0)
+        const upvotes = this.normalizeValue(source, 'avgUpvotes', sourceMetrics.avgUpvotes || 0)
         yMetric = Math.sqrt(upvotes * normalizedVelocity)
         break
       }
 
       case 'github': {
         // X: pushesPerMinute * createsPerMinute (code activity)
-        const pushes = this._normalizeValue(source, 'pushesPerMinute', sourceMetrics.pushesPerMinute || 0)
-        const creates = this._normalizeValue(source, 'createsPerMinute', sourceMetrics.createsPerMinute || 0)
+        const pushes = this.normalizeValue(source, 'pushesPerMinute', sourceMetrics.pushesPerMinute || 0)
+        const creates = this.normalizeValue(source, 'createsPerMinute', sourceMetrics.createsPerMinute || 0)
         xMetric = Math.sqrt(pushes * creates)
 
         // Y: deletesPerMinute * velocity (cleanup momentum)
-        const deletes = this._normalizeValue(source, 'deletesPerMinute', sourceMetrics.deletesPerMinute || 0)
+        const deletes = this.normalizeValue(source, 'deletesPerMinute', sourceMetrics.deletesPerMinute || 0)
         yMetric = Math.sqrt(deletes * normalizedVelocity)
         break
       }
@@ -1397,169 +1217,8 @@ class VirtualUserService {
     return { x: xMetric, y: yMetric }
   }
 
-  /**
-   * Golden ratio constant for optimal distribution
-   * φ = (1 + √5) / 2 ≈ 1.618033988749895
-   * Consecutive values n*φ mod 1 are maximally spread across [0,1]
-   * @private
-   */
-  static PHI = 1.618033988749895
-  static PHI_SQ = 2.618033988749895  // φ² for Y axis (different sequence)
-
-  /**
-   * Entry #187: Default balancing configuration for sources without explicit config
-   * Used as fallback to ensure consistent behavior across all methods
-   * @static
-   */
-  static DEFAULT_BALANCING = {
-    activityFloor: 0.3,           // Neutral floor
-    gestureIntentMultiplier: 1.0, // No adjustment
-    durationBias: { tap: 0.25, short: 0.40, medium: 0.25, long: 0.10 }
-  }
-
-  /**
-   * Entry #174: Select duration category using PHI-based cycling
-   * Entry #187: Source-specific duration bias for balanced gesture character
-   * - Wikipedia: more taps/shorts (quick edits → quick gestures)
-   * - GitHub: more medium/long (commits → substantial gestures)
-   *
-   * PHI stepping creates a low-discrepancy sequence that cycles through all categories
-   * naturally without repeating patterns. Source offsets prevent synchronization.
-   *
-   * @param {string} source - Source name (wikipedia, hackernews, github)
-   * @returns {{category: string, durationRange: {min: number, max: number}}}
-   * @private
-   */
-  _selectDurationCategory(source) {
-    const gestureCount = this.gestureCounters[source] || 0
-
-    // Source-specific offset to prevent synchronization between sources
-    // Uses irrational fractions for maximum distribution
-    const sourceOffset = source === 'wikipedia' ? 0.17
-                       : source === 'hackernews' ? 0.53
-                       : 0.89
-
-    // PHI-based selector creates low-discrepancy sequence
-    const selector = ((gestureCount * VirtualUserService.PHI) + sourceOffset) % 1
-
-    // Entry #187: Get source-specific duration weights (use DEFAULT_BALANCING as fallback)
-    const balancing = this.sourceBalancing[source] || VirtualUserService.DEFAULT_BALANCING
-    const bias = balancing.durationBias
-
-    // Category boundaries from bias weights
-    const tapEnd = bias.tap
-    const shortEnd = tapEnd + bias.short
-    const mediumEnd = shortEnd + bias.medium
-
-    // Entry #215: Reduced durations - phrases were too long (max 16s → 8s)
-    if (selector < tapEnd) {
-      return { category: 'tap', durationRange: { min: 50, max: 300 } }
-    }
-    if (selector < shortEnd) {
-      return { category: 'short', durationRange: { min: 300, max: 1000 } }
-    }
-    if (selector < mediumEnd) {
-      return { category: 'medium', durationRange: { min: 1000, max: 3000 } }
-    }
-    return { category: 'long', durationRange: { min: 3000, max: 8000 } }
-  }
-
-  /**
-   * Calculate cursor position using GOLDEN RATIO distribution:
-   * - Uses golden ratio for optimal spacing between consecutive positions
-   * - stepIndex adds variation within trajectories (different for each point)
-   * - Still data-derived: position emerges from gestureCount + metrics + step
-   *
-   * @param {string} source - Source name (wikipedia, hackernews, github)
-   * @param {number} baseFrequency - Audio frequency (encodes primary metric)
-   * @param {number} stepIndex - Optional step index within trajectory (default 0)
-   * @returns {{x: number, y: number}} Canvas position (always within 0.05-0.95)
-   * @private
-   */
-  _calculateHybridPosition(source, baseFrequency, stepIndex = 0) {
-    const MIN_BOUND = 0.05
-    const MAX_BOUND = 0.95
-    const RANGE = MAX_BOUND - MIN_BOUND  // 0.9
-
-    // FIX #3: Validate input frequency - return safe fallback if invalid
-    if (!Number.isFinite(baseFrequency) || baseFrequency < 0) {
-      return this.initialPositions[source]
-    }
-
-    // Get gesture counter
-    const gestureCount = this.gestureCounters[source] || 0
-
-    // Source-specific offset to differentiate patterns (prime numbers)
-    const sourceOffset = source === 'wikipedia' ? 17 : source === 'hackernews' ? 53 : 97
-
-    // Entry #185d: X bias only - Y must purely reflect frequency
-    // Removed Y bias to prevent cursor clamping at top/bottom edges
-    const quadrantBias = {
-      wikipedia: { x: -0.15, y: 0 },     // Left side (bass)
-      hackernews: { x: 0.15, y: 0 },     // Right side (tenor)
-      github: { x: -0.05, y: 0 }         // Center-left (soprano)
-    }
-    const bias = quadrantBias[source] || { x: 0, y: 0 }
-
-    // Entry #185c: Y = frequency within source's tessitura range
-    // Each source has its own frequency range - normalize within that range
-    // Inverted: Y=0 (top) = high freq, Y=1 (bottom) = low freq
-    const sourceConfig = this.virtualUserConfigs[source]
-    const freqMin = sourceConfig?.frequencyRange?.min || 110
-    const freqMax = sourceConfig?.frequencyRange?.max || 880
-    const freqRange = freqMax - freqMin
-    const normalizedFreq = freqRange > 0
-      ? Math.max(0, Math.min(1, (baseFrequency - freqMin) / freqRange))
-      : 0.5
-    const yFromFreq = 1 - normalizedFreq  // Invert: high freq = low Y (top)
-
-    // X position from secondary metrics
-    const metrics = this.webMetricsPoller?.getMetrics()
-    let xMetric = 0.5
-
-    if (metrics && metrics[source]) {
-      const m = metrics[source]
-      switch (source) {
-        case 'wikipedia':
-          xMetric = this._normalizeValue(source, 'avgEditSize', m.avgEditSize || 0)
-          break
-        case 'hackernews':
-          xMetric = this._normalizeValue(source, 'avgUpvotes', m.avgUpvotes || 0)
-          break
-        case 'github':
-          xMetric = this._normalizeValue(source, 'createsPerMinute', m.createsPerMinute || 0)
-          break
-      }
-    }
-
-    if (!Number.isFinite(xMetric)) {
-      xMetric = 0.5
-    }
-
-    // GOLDEN RATIO DISTRIBUTION for variation
-    const combinedSeed = gestureCount + sourceOffset + stepIndex
-    const xGolden = (combinedSeed * VirtualUserService.PHI) % 1
-    const yGolden = (combinedSeed * VirtualUserService.PHI_SQ) % 1
-
-    // Entry #190: Enhanced X variation for more dynamic cursor movement
-    // - Increased golden ratio range from ±15% to ±35%
-    // - Add frequency influence: higher notes drift right, lower notes drift left
-    // - Creates diagonal movement patterns during phrases
-    const freqInfluenceOnX = (normalizedFreq - 0.5) * 0.2  // ±10% based on pitch
-    const xBase = xMetric + (xGolden - 0.5) * 0.7 + freqInfluenceOnX
-
-    // Y position: frequency-based with ±10% golden ratio variation (less variation to preserve pitch coherence)
-    const yBase = yFromFreq + (yGolden - 0.5) * 0.2
-
-    // Apply bias and clamp
-    const xBiased = Math.max(0, Math.min(1, xBase + bias.x))
-    const yBiased = Math.max(0, Math.min(1, yBase + bias.y))
-
-    const x = MIN_BOUND + xBiased * RANGE
-    const y = MIN_BOUND + yBiased * RANGE
-
-    return { x, y }
-  }
+  // Note: PHI, PHI_SQ, DEFAULT_BALANCING, _selectDurationCategory, _calculateHybridPosition
+  // now inherited from BaseVirtualUserBehavior
 
   /**
    * Generate trajectory for drag gesture:
@@ -1581,8 +1240,8 @@ class VirtualUserService {
     const positions = []
 
     // Entry #185: Calculate start and end positions from frequencies
-    const startPos = this._calculateHybridPosition(source, startFreq, 0)
-    const endPos = this._calculateHybridPosition(source, endFreq, steps)
+    const startPos = this.calculateHybridPosition(source, startFreq, 0)
+    const endPos = this.calculateHybridPosition(source, endFreq, steps)
 
     // Entry #185: Scale movement amplitude by note density (notes per second)
     // More notes = faster gesture = wider movement
@@ -1622,7 +1281,7 @@ class VirtualUserService {
     const perpY = actualDx / actualLen
 
     // Entry #185: Curve amount scales with density (faster = more curved)
-    const baseCurve = this._calculateCurveAmount(source)
+    const baseCurve = this.calculateCurveAmount(source)
     const curveAmount = baseCurve * densityFactor
 
     for (let i = 0; i <= steps; i++) {
@@ -1672,164 +1331,7 @@ class VirtualUserService {
    * @returns {string} Gesture type: 'tap' or 'drag'
    * @private
    */
-  _classifyGestureType(source) {
-    const stability = this._calculateStabilityMetric(source)
-    const density = this._calculateDensityMetric(source)
-
-
-    // Pure relative comparison: stability vs density determines gesture type
-    // Higher stability = single notes (tap), higher density = phrases (drag)
-    return stability > density ? 'tap' : 'drag'
-  }
-
-  /**
-   * Update statistics for dynamic normalization
-   * Same as LandingCompositionService - builds historical data for percentile calculation
-   * @private
-   */
-  _updateStatistics(source, metricName, value) {
-    const stats = this.metricStatistics[source]?.[metricName]
-    if (!stats) return
-
-    stats.min = Math.min(stats.min, value)
-    stats.max = Math.max(stats.max, value)
-
-    stats.samples.push(value)
-    // CRITICAL: Use slice to guarantee size bounds (prevents memory leak)
-    if (stats.samples.length > this.maxSamples) {
-      stats.samples = stats.samples.slice(-this.maxSamples)
-    }
-  }
-
-  /**
-   * DYNAMIC NORMALIZATION based on HISTORICAL RANGE with PERCENTILE STABILIZATION
-   * Same as LandingCompositionService - uses P10-P90 to prevent outlier skewing
-   * Maps metric values to [0, 1] using observed percentiles
-   * NO hardcoded thresholds - adapts to actual data range
-   * @private
-   */
-  _normalizeValue(source, metricName, value) {
-    const stats = this.metricStatistics[source]?.[metricName]
-    if (!stats) return 0.5
-
-    // Wait for warm-up period (need enough samples for percentile)
-    // Reduced from 10 to 5 for faster gesture activation
-    const MIN_SAMPLES_FOR_PERCENTILE = 5
-    if (stats.samples.length < MIN_SAMPLES_FOR_PERCENTILE) {
-      // During warm-up, use simple min/max normalization instead of returning 0.5
-      // This allows gestures to be generated immediately
-      const range = stats.max - stats.min
-      if (range > 0) {
-        return Math.max(0, Math.min(1, (value - stats.min) / range))
-      }
-      return 0.5
-    }
-
-    // If no range yet, return 0.5
-    if (stats.min === Infinity || stats.max === 0) {
-      return 0.5
-    }
-
-    // PERCENTILE-BASED normalization for stability (same as Landing)
-    // Uses P10-P90 range to prevent outliers from skewing normalization
-    const sortedSamples = [...stats.samples].sort((a, b) => a - b)
-    const p10Index = Math.floor(sortedSamples.length * 0.1)
-    const p90Index = Math.floor(sortedSamples.length * 0.9)
-    const p10 = sortedSamples[p10Index]
-    const p90 = sortedSamples[p90Index]
-
-    const stabilizedRange = p90 - p10
-    if (stabilizedRange === 0) {
-      return 0.5
-    }
-
-    // Normalize using percentile range
-    const normalized = (value - p10) / stabilizedRange
-
-    // Clamp to [0, 1]
-    return Math.max(0, Math.min(1, normalized))
-  }
-
-  /**
-   * Entry #222: Normalize gesture parameters using P10-P90 percentile normalization.
-   * Entry #222b: Uses constants from constants.js and adds defensive bounds checking.
-   *
-   * Tracks up to 100 historical samples and uses percentile-based range instead of
-   * hardcoded divisors. This ensures full 0-1 range coverage while filtering outliers.
-   *
-   * @param {string} paramName - One of: 'intervalTiming', 'gestureDuration', 'gestureVelocity',
-   *                             'gestureDensity', 'intentThreshold'
-   * @param {number} value - Raw value to normalize
-   * @returns {number} Normalized value in 0-1 range. Returns 0.5 for invalid input.
-   * @side-effect Adds value to sample buffer for future normalization
-   * @example
-   *   // During warmup (< 10 samples): uses fallback divisor
-   *   _normalizeGestureParam('gestureVelocity', 0.5)  // Returns ~0.667 (0.5 / 0.75 fallback)
-   *
-   *   // After warmup: uses P10-P90 range
-   *   _normalizeGestureParam('gestureVelocity', 0.65) // Returns value in [0, 1] based on history
-   * @private
-   */
-  _normalizeGestureParam(paramName, value) {
-    // Input validation
-    if (typeof value !== 'number' || !isFinite(value)) {
-      return 0.5
-    }
-
-    const stats = this._gestureStats[paramName]
-    if (!stats) {
-      return Math.max(0, Math.min(1, value))
-    }
-
-    // Add sample to history
-    stats.samples.push(value)
-    if (stats.samples.length > this._gestureStatsMaxSamples) {
-      stats.samples.shift()
-    }
-
-    if (stats.samples.length < PERCENTILE_WARMUP_SAMPLES) {
-      // Warm-up: use fallback divisors (see _gestureFallbacks for rationale)
-      const fallback = this._gestureFallbacks[paramName] || 1
-      return Math.max(0, Math.min(1, value / fallback))
-    }
-
-    // Percentile normalization (P10-P90)
-    const sorted = [...stats.samples].sort((a, b) => a - b)
-
-    // Entry #222b: Defensive bounds check - need at least 2 samples for meaningful percentiles
-    if (sorted.length < 2) {
-      return 0.5
-    }
-
-    const p10Index = Math.floor(sorted.length * PERCENTILE_LOWER_BOUND)
-    const p90Index = Math.floor(sorted.length * PERCENTILE_UPPER_BOUND)
-    const p10 = sorted[p10Index]
-    const p90 = sorted[p90Index]
-    const range = p90 - p10
-
-    if (range < 0.001) {
-      return 0.5  // Constant values map to middle
-    }
-
-    return Math.max(0, Math.min(1, (value - p10) / range))
-  }
-
-  /**
-   * Entry #222: Map normalized gesture parameter to output range.
-   * Inverts the normalization to produce actual values within target range.
-   *
-   * @param {string} paramName - Parameter name for stats tracking
-   * @param {number} rawValue - Raw input value to track
-   * @param {number} minOutput - Minimum output value
-   * @param {number} maxOutput - Maximum output value
-   * @returns {number} Value in [minOutput, maxOutput] range
-   * @private
-   */
-  _adaptiveGestureValue(paramName, rawValue, minOutput, maxOutput) {
-    const normalized = this._normalizeGestureParam(paramName, rawValue)
-    // Map normalized (0-1) to output range
-    return minOutput + normalized * (maxOutput - minOutput)
-  }
+  // Note: _classifyGestureType, _updateStatistics, _normalizeValue now inherited from BaseVirtualUserBehavior
 
   /**
    * Get virtual user configurations for specific sources
@@ -1841,6 +1343,61 @@ class VirtualUserService {
       ...this.virtualUserConfigs[source],
       source
     }))
+  }
+
+  /**
+   * Get virtual cursor positions for a room
+   * Used by AuthHandler to send initial cursor state to joining clients
+   * @param {string} roomId - Room ID
+   * @returns {Object} Virtual cursor positions { source: { userId, x, y, color } }
+   */
+  getVirtualCursors(roomId) {
+    const roomState = this.activeRooms.get(roomId)
+    if (!roomState) return {}
+
+    const cursors = {}
+    for (const source of roomState.sources) {
+      const pos = roomState.currentPositions[source] || { x: 0.5, y: 0.5 }
+      const config = this.virtualUserConfigs[source]
+      if (config) {
+        cursors[source] = {
+          userId: config.userId,
+          x: pos.x,
+          y: pos.y,
+          color: config.color
+        }
+      }
+    }
+    return cursors
+  }
+
+  /**
+   * Get virtual cursors for landing page
+   * Convenience wrapper for getVirtualCursors(LANDING_ROOM_ID)
+   * @returns {Object} Virtual cursor positions for all 3 landing sources
+   */
+  getVirtualCursorsForLanding() {
+    return this.getVirtualCursors(LANDING_ROOM_ID)
+  }
+
+  /**
+   * Get current web metrics for landing page
+   * Delegates to webMetricsPoller
+   * @returns {Object} Current metrics { wikipedia, hackernews, github }
+   */
+  getMetricsForLanding() {
+    if (!this.webMetricsPoller) {
+      return {
+        wikipedia: {},
+        hackernews: {},
+        github: {}
+      }
+    }
+    return this.webMetricsPoller.getMetrics() || {
+      wikipedia: {},
+      hackernews: {},
+      github: {}
+    }
   }
 
   /**

@@ -7,9 +7,10 @@
  * 3. AudioService (REUSED) - Plays compositions from backend
  * 4. DashboardUI - Displays real-time metrics from backend
  *
- * Backend-driven:
- * - WebMetricsPoller (backend) polls Wikipedia/HN/GitHub APIs
- * - LandingCompositionService (backend) generates compositions
+ * Backend-driven (Unified Services):
+ * - WebMetricsPoller polls Wikipedia/HN/GitHub APIs
+ * - BackgroundCompositionService generates compositions (same as rooms, with SectionStateManager)
+ * - VirtualUserService manages 3 virtual users (wikipedia, hackernews, github)
  * - Frontend receives compositions + cursors + metrics via socket.io
  */
 

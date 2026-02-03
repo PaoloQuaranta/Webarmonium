@@ -870,6 +870,129 @@ class BackgroundCompositionService {
   }
 
   /**
+   * Initialize composition for landing page
+   * Unlike normal rooms, landing starts continuous composition immediately (no gesture wait)
+   * Uses SectionStateManager for form/section tracking (same as rooms)
+   * @param {string} roomId - Landing room ID (usually 'landing-room')
+   */
+  initializeForLanding(roomId) {
+    // Import landing config
+    const { LANDING_ROOM_ID, COMPOSITION_TIMING } = require('../constants/virtualUserConfig')
+    const actualRoomId = roomId || LANDING_ROOM_ID
+
+    if (this.compositionTimers.has(actualRoomId)) {
+      return // Already running
+    }
+
+    // Initialize HarmonicEngine key from web metrics (same as rooms)
+    if (this.webMetricsPoller && !this.harmonicEngine.keyInitialized) {
+      const metrics = this.webMetricsPoller.getMetrics()
+      if (metrics) {
+        this.harmonicEngine.initializeKeyFromMetrics(metrics)
+        this.compositionEngine.keyCenter = this.harmonicEngine.currentKey
+        this.compositionEngine.mode = this.harmonicEngine.currentMode
+        this.syncHarmonicContext()
+      }
+    }
+
+    // Initialize room state (same as startComposition but with landing flag)
+    const initialCompositionCount = Math.floor(((Date.now() / 1000) * PHI) % 100)
+
+    // Initialize section state - landing uses same SectionStateManager as rooms
+    this.sectionStateManager.initializeState(actualRoomId, 'ABA')
+
+    this.roomCompositions.set(actualRoomId, {
+      roomId: actualRoomId,
+      roomContext: { isLanding: true, userCount: 3 },  // Virtual users count as 3
+      compositionCount: initialCompositionCount,
+      gestureCount: 0,
+      initialGestureWindow: 0,  // No gesture window for landing
+      compositionStarted: true,  // Start immediately (no gesture wait)
+      gestureHistory: new CircularBuffer(25),
+      startTime: Date.now(),
+      lastCompositionTime: Date.now(),
+      isLanding: true,  // Flag for landing-specific behavior
+
+      // Same style cycling as rooms
+      styleCycling: {
+        currentGenre: 'melodic',
+        genreHistory: this._initializeGenreHistory(Date.now()),
+        genreStartTime: Date.now(),
+        lastGenreCheckTime: Date.now(),
+        lastBPMChangeTime: Date.now(),
+        targetBPM: 100,
+        currentBPM: 100,
+        manualOverride: {
+          enabled: false,
+          genre: null,
+          setAt: null,
+          syntheticWeights: null
+        }
+      }
+    })
+
+    // Generate initial drone
+    setTimeout(() => {
+      this.generateAndBroadcastDrone(actualRoomId)
+    }, 500)
+
+    // Start continuous composition immediately (unlike rooms that wait for gestures)
+    // Use PHI-based timing (5-15s intervals) from virtualUserConfig
+    this._startContinuousComposition(actualRoomId, COMPOSITION_TIMING)
+  }
+
+  /**
+   * Start continuous composition timer for landing
+   * Generates compositions at PHI-based intervals without waiting for gestures
+   * @param {string} roomId - Room ID
+   * @param {Object} timing - Timing config { baseInterval, variationRange, minInterval, maxInterval }
+   * @private
+   */
+  _startContinuousComposition(roomId, timing = {}) {
+    const baseInterval = timing.baseInterval || 8000      // 8s base
+    const variationRange = timing.variationRange || 7000  // 0-7s variation
+    const minInterval = timing.minInterval || 5000        // 5s minimum
+    const maxInterval = timing.maxInterval || 15000       // 15s maximum
+
+    // PHI-based variation for natural, non-repeating intervals
+    const roomState = this.roomCompositions.get(roomId)
+    const compositionCount = roomState?.compositionCount || 0
+    const variation = ((compositionCount * PHI) % 1) * variationRange
+
+    const interval = Math.max(minInterval, Math.min(maxInterval, baseInterval + variation))
+
+    const timer = setTimeout(async () => {
+      if (!this.compositionTimers.has(roomId)) {
+        return // Room was stopped
+      }
+
+      try {
+        // Generate composition
+        await this.generateAndBroadcastComposition(roomId, { isLanding: true })
+
+        // Schedule next if still running
+        if (this.compositionTimers.has(roomId)) {
+          this._startContinuousComposition(roomId, timing)
+        }
+      } catch (error) {
+        console.error(`Landing composition failed for room ${roomId}:`, error.message)
+
+        // Retry after 1s
+        if (this.compositionTimers.has(roomId)) {
+          const recoveryTimer = setTimeout(() => {
+            if (this.compositionTimers.has(roomId)) {
+              this._startContinuousComposition(roomId, timing)
+            }
+          }, 1000)
+          this.compositionTimers.set(roomId, recoveryTimer)
+        }
+      }
+    }, interval)
+
+    this.compositionTimers.set(roomId, timer)
+  }
+
+  /**
    * Generate and broadcast DRONE (atmospheric pad)
    * Called initially and updated as composition evolves
    * @param {string} roomId - Room ID

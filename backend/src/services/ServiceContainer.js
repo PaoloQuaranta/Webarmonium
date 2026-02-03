@@ -200,12 +200,7 @@ function createServiceContainer (config = {}) {
     return new WebMetricsPoller()
   })
 
-  container.register('landingCompositionService', (backgroundCompositionService, gestureToMusicService) => {
-    const LandingCompositionService = require('./LandingCompositionService')
-    return new LandingCompositionService()
-  }, { dependencies: ['backgroundCompositionService', 'gestureToMusicService'] })
-
-  // Virtual user service for solo mode in normal rooms
+  // Virtual user service for solo mode in normal rooms and landing page
   container.register('virtualUserService', () => {
     const VirtualUserService = require('./VirtualUserService')
     return new VirtualUserService()
@@ -283,36 +278,6 @@ function wireServices (container, config = {}) {
         service.setSocketIO(config.io)
       }
     },
-    landingCompositionService: (service, c) => {
-      // Share StyleAnalyzer singleton to eliminate redundant computation
-      const sharedStyleAnalyzer = c.get('styleAnalyzer')
-      if (typeof service.setSharedStyleAnalyzer === 'function') {
-        service.setSharedStyleAnalyzer(sharedStyleAnalyzer)
-      }
-
-      // Link to gesture service for harmonic sync
-      const gestureToMusicService = c.get('gestureToMusicService')
-      service.setGestureToMusicService(gestureToMusicService)
-
-      // Set Socket.IO for broadcasting
-      if (config.io) {
-        service.setSocketIO(config.io)
-      }
-
-      // Link WebMetricsPoller to LandingCompositionService
-      const webMetricsPoller = c.get('webMetricsPoller')
-
-      // CRITICAL: Set WebMetricsPoller reference for velocity/acceleration access
-      service.setWebMetricsPoller(webMetricsPoller)
-
-      // Link metrics update callback
-      webMetricsPoller.onMetricsUpdate = (metrics) => {
-        service.updateMetrics(metrics)
-      }
-
-      // NOTE: WebMetricsPoller is NOT started here anymore
-      // ConnectionTracker controls polling lifecycle based on connected users
-    },
     virtualUserService: (service, c) => {
       // Link WebMetricsPoller for activity tracking and metrics
       const webMetricsPoller = c.get('webMetricsPoller')
@@ -326,6 +291,19 @@ function wireServices (container, config = {}) {
       // Set Socket.IO for broadcasting
       if (config.io) {
         service.setSocketIO(config.io)
+
+        // Emit metrics-update to landing room when new metrics are available
+        // (Replaces old LandingCompositionService.updateMetrics callback)
+        const { LANDING_ROOM_ID } = require('../constants/virtualUserConfig')
+        webMetricsPoller.onMetricsUpdate = (metrics) => {
+          // Only emit if landing is active
+          if (service.isActiveForLanding()) {
+            config.io.to(LANDING_ROOM_ID).emit('metrics-update', {
+              metrics,
+              timestamp: Date.now()
+            })
+          }
+        }
       }
     },
     roomManager: (service, c) => {
@@ -343,7 +321,6 @@ function wireServices (container, config = {}) {
     },
     connectionTracker: (service, c) => {
       const webMetricsPoller = c.get('webMetricsPoller')
-      const landingCompositionService = c.get('landingCompositionService')
 
       // Set Socket.IO for room counting
       if (config.io) {
@@ -364,15 +341,7 @@ function wireServices (container, config = {}) {
         } catch (error) {
           console.error('Error stopping WebMetricsPoller:', error.message)
         }
-
-        try {
-          // Only stop if currently running
-          if (landingCompositionService.isRunning) {
-            landingCompositionService.stop()
-          }
-        } catch (error) {
-          console.error('Error stopping LandingCompositionService:', error.message)
-        }
+        // Note: BackgroundCompositionService stops automatically when last user leaves a room
       })
 
       service.setOnFirstUserCallback(() => {
@@ -384,7 +353,7 @@ function wireServices (container, config = {}) {
         } catch (error) {
           console.error('Error starting WebMetricsPoller:', error.message)
         }
-        // landingCompositionService.start() is called in AuthHandler on join-landing
+        // BackgroundCompositionService.initializeForLanding() is called in AuthHandler on join-landing
       })
     }
   })

@@ -6,6 +6,7 @@
 
 const ValidationHandler = require('./ValidationHandler')
 const { LATENCY } = require('../../constants/MusicConstants')
+const { LANDING_ROOM_ID } = require('../../constants/virtualUserConfig')
 const { loggers } = require('../../utils/Logger')
 const RateLimiter = require('../../utils/RateLimiter')
 const logger = loggers.auth
@@ -26,7 +27,7 @@ const AuthHandler = {
           socket.userId = ValidationHandler.generateUserId()
         }
 
-        const landingRoomId = 'landing-room'
+        const landingRoomId = LANDING_ROOM_ID
 
         // Join landing room
         socket.roomId = landingRoomId
@@ -45,30 +46,39 @@ const AuthHandler = {
 //          roomId: socket.roomId,
 ////        })
 
-        // Start landing composition service
-        if (socket.services.landingCompositionService) {
-          // console.log('🎵 Starting LandingCompositionService...')
-          socket.services.landingCompositionService.start()
+        // Start unified services for landing
+        // Virtual users (3 sources: wikipedia, hackernews, github)
+        if (socket.services.virtualUserService) {
+          socket.services.virtualUserService.activateForLanding()
+        } else {
+          logger.warn('virtualUserService not available in socket.services')
+        }
 
-          // Entry #27: Always emit drone to joining socket (fixes drone not playing after stop/start)
-          // Delayed to ensure socket is fully joined
+        // Background composition (uses SectionStateManager like rooms)
+        if (socket.services.backgroundCompositionService) {
+          socket.services.backgroundCompositionService.initializeForLanding(landingRoomId)
+
+          // Emit drone to joining socket (delayed to ensure socket is fully joined)
           setTimeout(() => {
-            socket.services.landingCompositionService.emitDroneToSocket(socket)
+            const roomState = socket.services.backgroundCompositionService.roomCompositions?.get(landingRoomId)
+            if (roomState) {
+              socket.services.backgroundCompositionService.generateAndBroadcastDrone(landingRoomId)
+            }
           }, 600)
         } else {
-          logger.warn('landingCompositionService not available in socket.services')
+          logger.warn('backgroundCompositionService not available in socket.services')
         }
 
-        // Get initial cursor positions
+        // Get initial cursor positions from unified virtualUserService
         let cursors = {}
-        if (socket.services.landingCompositionService) {
-          cursors = socket.services.landingCompositionService.getVirtualCursors()
+        if (socket.services.virtualUserService) {
+          cursors = socket.services.virtualUserService.getVirtualCursorsForLanding()
         }
 
-        // Get initial metrics
+        // Get initial metrics from webMetricsPoller
         let metrics = {}
-        if (socket.services.landingCompositionService) {
-          metrics = socket.services.landingCompositionService.getMetrics()
+        if (socket.services.webMetricsPoller) {
+          metrics = socket.services.webMetricsPoller.getMetrics() || {}
         }
 
         // Get room activity (users in regular rooms, not landing)
@@ -137,20 +147,7 @@ const AuthHandler = {
           return
         }
 
-        // Landing room: use LandingCompositionService
-        if (roomId === 'landing-room') {
-          if (socket.services.landingCompositionService) {
-            // console.log('🎵 Emitting drone to landing socket')
-            socket.services.landingCompositionService.emitDroneToSocket(socket)
-            if (callback) callback({ success: true })
-          } else {
-            logger.error('Landing service unavailable')
-            if (callback) callback({ success: false, error: 'Landing service unavailable' })
-          }
-          return
-        }
-
-        // Normal room: use BackgroundCompositionService
+        // All rooms (including landing): use unified BackgroundCompositionService
         if (socket.services.backgroundCompositionService) {
           // console.log('🎵 Emitting drone to room socket:', roomId)
           socket.services.backgroundCompositionService.emitDroneToSocket(socket, roomId)
@@ -398,7 +395,7 @@ const AuthHandler = {
         if (socket.services.connectionTracker && socket.services.io) {
           const usersInRooms = socket.services.connectionTracker.getRegularRoomUserCount()
           const activeRooms = socket.services.connectionTracker.getActiveRoomCount()
-          socket.services.io.to('landing-room').emit('rooms-activity', {
+          socket.services.io.to(LANDING_ROOM_ID).emit('rooms-activity', {
             usersInRooms,
             activeRooms,
             timestamp: Date.now()
@@ -488,7 +485,7 @@ const AuthHandler = {
         if (socket.services.connectionTracker && socket.services.io) {
           const usersInRooms = socket.services.connectionTracker.getRegularRoomUserCount()
           const activeRooms = socket.services.connectionTracker.getActiveRoomCount()
-          socket.services.io.to('landing-room').emit('rooms-activity', {
+          socket.services.io.to(LANDING_ROOM_ID).emit('rooms-activity', {
             usersInRooms,
             activeRooms,
             timestamp: Date.now()
@@ -582,7 +579,7 @@ const AuthHandler = {
 
     if (socket.userId && socket.roomId) {
       // Skip room manager for landing-room (not managed by RoomManager)
-      const isLandingRoom = socket.roomId === 'landing-room'
+      const isLandingRoom = socket.roomId === LANDING_ROOM_ID
 
       if (!isLandingRoom) {
         try {
@@ -646,7 +643,7 @@ const AuthHandler = {
         if (socket.services.connectionTracker && socket.services.io) {
           const usersInRooms = socket.services.connectionTracker.getRegularRoomUserCount()
           const activeRooms = socket.services.connectionTracker.getActiveRoomCount()
-          socket.services.io.to('landing-room').emit('rooms-activity', {
+          socket.services.io.to(LANDING_ROOM_ID).emit('rooms-activity', {
             usersInRooms,
             activeRooms,
             timestamp: Date.now()
