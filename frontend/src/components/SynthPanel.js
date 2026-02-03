@@ -228,8 +228,8 @@ class SynthPanel {
               <button class="synth-filter-btn ${this.params.filterType === 'bandpass' ? 'active' : ''}" data-filter="bandpass">BP</button>
             </div>
             <div class="synth-sliders-row">
-              ${this._getSliderHTML('filterCutoff', 'Cutoff', 20, 20000, this.params.filterCutoff, 'Hz')}
-              ${this._getSliderHTML('filterQ', 'Resonance', 0.1, 20.0, this.params.filterQ, '')}
+              ${this._getFilterCutoffSliderHTML()}
+              ${this._getFilterQSliderHTML()}
             </div>
           </div>
         </div>
@@ -315,6 +315,36 @@ class SynthPanel {
         <span class="synth-value" data-value="${param}">${displayValue}</span>
       </div>
     `
+  }
+
+  /**
+   * Get filter cutoff slider HTML with type-aware limits
+   */
+  _getFilterCutoffSliderHTML () {
+    const limits = this._getCutoffLimits(this.params.filterType)
+    const value = Math.max(limits.min, Math.min(limits.max, this.params.filterCutoff))
+    return this._getSliderHTML('filterCutoff', 'Cutoff', limits.min, limits.max, value, 'Hz')
+  }
+
+  /**
+   * Get filter Q slider HTML with type-aware limits
+   * BP uses lower Q max to maintain audible bandwidth
+   */
+  _getFilterQSliderHTML () {
+    const qLimits = this._getQLimits(this.params.filterType)
+    const value = Math.max(qLimits.min, Math.min(qLimits.max, this.params.filterQ))
+    return this._getSliderHTML('filterQ', 'Resonance', qLimits.min, qLimits.max, value, '')
+  }
+
+  /**
+   * Get Q limits based on filter type
+   * BP needs lower max Q to maintain audible bandwidth
+   */
+  _getQLimits (filterType) {
+    if (filterType === 'bandpass') {
+      return { min: 0.1, max: 8.0 }  // BP: lower Q for wider bandwidth
+    }
+    return { min: 0.1, max: 20.0 }   // LP/HP: full range for self-oscillation
   }
 
   /**
@@ -515,6 +545,23 @@ class SynthPanel {
   }
 
   /**
+   * Get safe cutoff range based on filter type
+   * Prevents silencing oscillators with extreme cutoff values
+   */
+  _getCutoffLimits (filterType) {
+    switch (filterType) {
+      case 'lowpass':
+        return { min: 80, max: 20000 }   // LP min 80Hz to preserve bass
+      case 'highpass':
+        return { min: 20, max: 12000 }   // HP max 12kHz to preserve signal
+      case 'bandpass':
+        return { min: 80, max: 12000 }   // BP safe middle range
+      default:
+        return { min: 20, max: 20000 }
+    }
+  }
+
+  /**
    * Handle filter type change
    */
   _onFilterTypeChange (e) {
@@ -526,6 +573,49 @@ class SynthPanel {
     })
 
     this.params.filterType = filterType
+
+    // Clamp cutoff to safe range for new filter type
+    const limits = this._getCutoffLimits(filterType)
+    if (this.params.filterCutoff < limits.min) {
+      this.params.filterCutoff = limits.min
+    } else if (this.params.filterCutoff > limits.max) {
+      this.params.filterCutoff = limits.max
+    }
+
+    // Update cutoff slider UI
+    const cutoffSlider = this.panel?.querySelector('[data-param="filterCutoff"]')
+    if (cutoffSlider) {
+      cutoffSlider.min = limits.min
+      cutoffSlider.max = limits.max
+      cutoffSlider.step = (limits.max - limits.min) / 100
+      cutoffSlider.value = this.params.filterCutoff
+    }
+    const cutoffDisplay = this.panel?.querySelector('[data-value="filterCutoff"]')
+    if (cutoffDisplay) {
+      cutoffDisplay.textContent = this._formatValue(this.params.filterCutoff, 'Hz')
+    }
+
+    // Clamp Q to safe range for new filter type (BP has lower max)
+    const qLimits = this._getQLimits(filterType)
+    if (this.params.filterQ < qLimits.min) {
+      this.params.filterQ = qLimits.min
+    } else if (this.params.filterQ > qLimits.max) {
+      this.params.filterQ = qLimits.max
+    }
+
+    // Update Q slider UI
+    const qSlider = this.panel?.querySelector('[data-param="filterQ"]')
+    if (qSlider) {
+      qSlider.min = qLimits.min
+      qSlider.max = qLimits.max
+      qSlider.step = (qLimits.max - qLimits.min) / 100
+      qSlider.value = this.params.filterQ
+    }
+    const qDisplay = this.panel?.querySelector('[data-value="filterQ"]')
+    if (qDisplay) {
+      qDisplay.textContent = this._formatValue(this.params.filterQ, '')
+    }
+
     this._applyParams()
     this._emitParams()
   }
