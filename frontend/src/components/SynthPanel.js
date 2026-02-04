@@ -44,7 +44,15 @@ class SynthPanel {
     this._handleOverlayClick = this._handleOverlayClick.bind(this)
     this._onAuditionHoldStart = this._onAuditionHoldStart.bind(this)
     this._onAuditionHoldEnd = this._onAuditionHoldEnd.bind(this)
-    this._onAuditionCursor = this._onAuditionCursor.bind(this)
+  }
+
+  /**
+   * Check if audition is currently active
+   * Used by main.js to control gesture interaction
+   * @returns {boolean}
+   */
+  isAuditionActive () {
+    return this.auditionActive
   }
 
   _getDefaultParams () {
@@ -110,6 +118,7 @@ class SynthPanel {
   /**
    * Set up socket listeners for audition gesture events
    * Issue #5 fix: Also listen for reconnection to re-establish listeners
+   * Note: Cursor events now use standard cursor:move (handled by main.js)
    */
   _setupAuditionSocketListeners () {
     if (!this.socketService?.socket) return
@@ -119,12 +128,10 @@ class SynthPanel {
     // Remove previous listeners if any
     socket.off('hold:start', this._onAuditionHoldStart)
     socket.off('hold:end', this._onAuditionHoldEnd)
-    socket.off('audition:cursor', this._onAuditionCursor)
 
-    // Add listeners for audition events
+    // Add listeners for audition events (audio only - cursor handled by main.js)
     socket.on('hold:start', this._onAuditionHoldStart)
     socket.on('hold:end', this._onAuditionHoldEnd)
-    socket.on('audition:cursor', this._onAuditionCursor)
 
     // Issue #5 fix: Re-establish listeners on socket reconnection
     // Store handler reference for cleanup
@@ -166,24 +173,6 @@ class SynthPanel {
   _onAuditionHoldEnd (data) {
     // Currently no action needed for hold:end
     // The note duration is handled in playSimpleNote
-  }
-
-  /**
-   * Handle audition:cursor events for visual feedback
-   */
-  _onAuditionCursor (data) {
-    // Update cursor position visually
-    if (data.x !== undefined && data.y !== undefined) {
-      // Update local cursor via CursorManager (if available)
-      if (window.cursorManager?.updateRemoteCursor) {
-        window.cursorManager.updateRemoteCursor(data.userId, data.x, data.y, data.color)
-      }
-
-      // Also trigger canvas cursor update via event
-      window.dispatchEvent(new CustomEvent('synth:cursor-move', {
-        detail: { x: data.x, y: data.y, userId: data.userId, color: data.color }
-      }))
-    }
   }
 
   /**

@@ -32,11 +32,12 @@ class AuditionGestureService {
     // Active audition sessions: socketId -> AuditionState
     this.activeAuditions = new Map()
 
-    // Audition user configuration
-    this.auditionConfig = {
-      userId: 'audition-user',
-      color: '#ffd700' // Gold - distinct from virtual users
-    }
+    // HarmonicEngine reference for pitch quantization
+    this.harmonicEngine = null
+
+    // Cursor emission throttle: track last emission time per socket
+    this._lastCursorEmission = new Map()
+    this._cursorThrottleMs = 100 // 10Hz max (100ms between emissions)
 
     // Frequency range for synth (A2 to A5)
     this.baseFrequencyRange = {
@@ -46,13 +47,26 @@ class AuditionGestureService {
   }
 
   /**
+   * Set shared HarmonicEngine for pitch quantization
+   * @param {Object} harmonicEngine - HarmonicEngine instance
+   */
+  setHarmonicEngine (harmonicEngine) {
+    if (harmonicEngine && typeof harmonicEngine.constrainToScale === 'function') {
+      this.harmonicEngine = harmonicEngine
+      console.log('[AuditionGesture] HarmonicEngine connected')
+    }
+  }
+
+  /**
    * Start audition gesture generation for a socket
    * @param {string} socketId - Socket ID of the user
    * @param {string} roomId - Room ID
    * @param {Object} params - Audition parameters from UI
+   * @param {string} userId - Real user ID (not 'audition-user')
+   * @param {string} userColor - Real user color
    * @returns {Object} Audition state
    */
-  startAudition (socketId, roomId, params) {
+  startAudition (socketId, roomId, params, userId, userColor) {
     // Stop any existing audition for this socket
     if (this.activeAuditions.has(socketId)) {
       this.stopAudition(socketId)
@@ -61,6 +75,9 @@ class AuditionGestureService {
     const state = {
       socketId,
       roomId,
+      // Use real user identity (not 'audition-user')
+      userId: userId || socketId,
+      userColor: userColor || '#6bcf7f',
       params: {
         source: params.source || 'random',
         frequency: params.frequency ?? 0.5,
@@ -70,6 +87,7 @@ class AuditionGestureService {
         range: params.range ?? 0.5
       },
       isActive: true,
+      isPaused: false, // For pause/resume on real gesture
       gestureTimer: null,
       // Issue #7: gestureCount resets to 0 on each session start.
       // This is by design - each audition session starts fresh.
@@ -83,7 +101,7 @@ class AuditionGestureService {
 
     this.activeAuditions.set(socketId, state)
 
-    console.log(`[AuditionGesture] Started for socket ${socketId} in room ${roomId}`)
+    console.log(`[AuditionGesture] Started for user ${userId} (socket ${socketId}) in room ${roomId}`)
 
     // Generate first gesture immediately
     this._generateAndEmitGesture(socketId)
@@ -117,7 +135,51 @@ class AuditionGestureService {
       }
 
       this.activeAuditions.delete(socketId)
+
+      // Clean up cursor throttle tracking
+      this._lastCursorEmission.delete(socketId)
+
       console.log(`[AuditionGesture] Stopped for socket ${socketId}`)
+    }
+  }
+
+  /**
+   * Pause audition gesture generation (when user starts a real gesture)
+   * Critical fix: Also clears pendingTimers to prevent notes playing during pause
+   * @param {string} socketId - Socket ID
+   */
+  pauseAudition (socketId) {
+    const state = this.activeAuditions.get(socketId)
+    if (state && state.isActive && !state.isPaused) {
+      state.isPaused = true
+
+      // Clear pending gesture scheduling timer
+      if (state.gestureTimer) {
+        clearTimeout(state.gestureTimer)
+        state.gestureTimer = null
+      }
+
+      // Critical: Clear ALL pending note timers to stop notes during pause
+      if (state.pendingTimers && state.pendingTimers.length > 0) {
+        state.pendingTimers.forEach(timerId => clearTimeout(timerId))
+        state.pendingTimers = []
+      }
+
+      console.log(`[AuditionGesture] Paused for socket ${socketId}`)
+    }
+  }
+
+  /**
+   * Resume audition gesture generation (when user ends their real gesture)
+   * @param {string} socketId - Socket ID
+   */
+  resumeAudition (socketId) {
+    const state = this.activeAuditions.get(socketId)
+    if (state && state.isActive && state.isPaused) {
+      state.isPaused = false
+      // Resume gesture scheduling
+      this._scheduleNextGesture(socketId)
+      console.log(`[AuditionGesture] Resumed for socket ${socketId}`)
     }
   }
 
@@ -157,7 +219,7 @@ class AuditionGestureService {
    */
   _scheduleNextGesture (socketId) {
     const state = this.activeAuditions.get(socketId)
-    if (!state || !state.isActive) return
+    if (!state || !state.isActive || state.isPaused) return
 
     const { frequency, regularity } = state.params
 
@@ -188,7 +250,7 @@ class AuditionGestureService {
    */
   _generateAndEmitGesture (socketId) {
     const state = this.activeAuditions.get(socketId)
-    if (!state || !state.isActive || !this.io) return
+    if (!state || !state.isActive || state.isPaused || !this.io) return
 
     state.gestureCount++
 
@@ -211,7 +273,7 @@ class AuditionGestureService {
 
     // Update cursor position
     state.targetPosition = position
-    this._emitCursorPosition(state.roomId, socketId, position)
+    this._emitCursorPosition(state.roomId, socketId, position, state)
 
     if (isTap) {
       this._emitTapGesture(state, noteFrequency, position, activityLevel)
@@ -355,22 +417,33 @@ class AuditionGestureService {
   // ============================================================
 
   /**
-   * Emit cursor position to room
+   * Emit cursor position to room using standard cursor:move event
+   * Throttled to 10Hz max to prevent excessive network traffic
    * @param {string} roomId - Room ID
    * @param {string} socketId - Socket ID (originator)
    * @param {{x: number, y: number}} position - Canvas position
+   * @param {Object} state - Audition state with userId and userColor
    * @private
    */
-  _emitCursorPosition (roomId, socketId, position) {
-    if (!this.io) return
+  _emitCursorPosition (roomId, socketId, position, state) {
+    if (!this.io || !state) return
 
-    this.io.to(roomId).emit('audition:cursor', {
-      userId: this.auditionConfig.userId,
-      socketId: socketId,
+    // Throttle: skip if emitted too recently (10Hz max)
+    const now = Date.now()
+    const lastEmission = this._lastCursorEmission.get(socketId) || 0
+    if (now - lastEmission < this._cursorThrottleMs) {
+      return // Skip this emission, too soon
+    }
+    this._lastCursorEmission.set(socketId, now)
+
+    // Use standard cursor:move event with real user identity
+    this.io.to(roomId).emit('cursor:move', {
+      userId: state.userId,
       x: position.x,
       y: position.y,
-      color: this.auditionConfig.color,
-      timestamp: Date.now()
+      color: state.userColor,
+      isAudition: true, // Flag so frontend knows this is audition-generated
+      timestamp: now
     })
   }
 
@@ -392,16 +465,22 @@ class AuditionGestureService {
     // Velocity based on intensity
     const velocity = 0.5 + intensity * 0.4 // 0.5-0.9
 
-    // Emit hold:start for remote playback
+    // Quantize pitch to scale for harmonic coherence
+    const rawPitch = this._frequencyToMidi(frequency)
+    const quantizedPitch = this._quantizePitch(rawPitch, state.roomId)
+    const quantizedFrequency = 440 * Math.pow(2, (quantizedPitch - 69) / 12)
+
+    // Emit hold:start for remote playback (using real user identity)
     this.io.to(state.roomId).emit('hold:start', {
       type: 'hold:start',
-      userId: this.auditionConfig.userId,
+      userId: state.userId,
       noteId: noteId,
-      frequency: frequency,
+      frequency: quantizedFrequency,
+      pitch: quantizedPitch,
       velocity: velocity,
       duration: duration,
       position: position,
-      userColor: this.auditionConfig.color,
+      userColor: state.userColor,
       isRemote: true,
       isAudition: true,
       timestamp: Date.now(),
@@ -411,7 +490,7 @@ class AuditionGestureService {
     // Add material to BackgroundCompositionService (RAW params to avoid feedback)
     if (this.backgroundCompositionService) {
       const gestureData = {
-        userId: this.auditionConfig.userId,
+        userId: state.userId,
         gesture: {
           type: 'tap',
           duration: duration * 1000,
@@ -422,7 +501,7 @@ class AuditionGestureService {
       }
       const musicalPhrase = {
         notes: [{
-          pitch: this._frequencyToMidi(frequency),
+          pitch: quantizedPitch,
           duration: duration * 1000,
           velocity: velocity,
           timestamp: Date.now()
@@ -440,11 +519,11 @@ class AuditionGestureService {
       if (!state.isActive) return
       this.io.to(state.roomId).emit('hold:end', {
         type: 'hold:end',
-        userId: this.auditionConfig.userId,
+        userId: state.userId,
         noteId: noteId,
         isAudition: true,
         position: position,
-        userColor: this.auditionConfig.color,
+        userColor: state.userColor,
         duration: durationMs,
         timestamp: Date.now(),
         style: style
@@ -476,10 +555,10 @@ class AuditionGestureService {
     // Get style for harmonic coherence
     const style = this.backgroundCompositionService?.getCurrentStyleForRoom(state.roomId)
 
-    // Emit musical:event for phrase visual
+    // Emit musical:event for phrase visual (using real user identity)
     this.io.to(state.roomId).emit('musical:event', {
       type: 'phrase',
-      userId: this.auditionConfig.userId,
+      userId: state.userId,
       velocity: intensity,
       noteCount: noteCount,
       isRemote: true,
@@ -495,16 +574,22 @@ class AuditionGestureService {
     for (let i = 0; i < noteCount; i++) {
       const t = noteCount > 1 ? i / (noteCount - 1) : 0
       const noteFreq = startFrequency + (endFrequency - startFrequency) * t
+
+      // Quantize pitch to scale for harmonic coherence
+      const rawPitch = this._frequencyToMidi(noteFreq)
+      const quantizedPitch = this._quantizePitch(rawPitch, state.roomId)
+      const quantizedFrequency = 440 * Math.pow(2, (quantizedPitch - 69) / 12)
+
       const notePosition = this._frequencyToPosition(
-        noteFreq,
+        quantizedFrequency,
         Math.min(startFrequency, endFrequency) * 0.9,
         Math.max(startFrequency, endFrequency) * 1.1,
         state.gestureCount + i
       )
 
-      // Store note for material
+      // Store note for material (quantized)
       notes.push({
-        pitch: this._frequencyToMidi(noteFreq),
+        pitch: quantizedPitch,
         duration: noteInterval * 0.8,
         velocity: 0.4 + intensity * 0.4,
         timestamp: Date.now() + i * noteInterval
@@ -513,20 +598,21 @@ class AuditionGestureService {
       // Schedule note emission
       // Issue #2 fix: Track all timers for cleanup
       const noteStartTimer = setTimeout(() => {
-        if (!state.isActive) return
+        if (!state.isActive || state.isPaused) return
 
         // Update cursor position
-        this._emitCursorPosition(state.roomId, state.socketId, notePosition)
+        this._emitCursorPosition(state.roomId, state.socketId, notePosition, state)
 
         this.io.to(state.roomId).emit('hold:start', {
           type: 'hold:start',
-          userId: this.auditionConfig.userId,
+          userId: state.userId,
           noteId: `${noteId}_${i}`,
-          frequency: noteFreq,
+          frequency: quantizedFrequency,
+          pitch: quantizedPitch,
           velocity: 0.4 + intensity * 0.4,
           duration: (noteInterval * 0.8) / 1000,
           position: notePosition,
-          userColor: this.auditionConfig.color,
+          userColor: state.userColor,
           isRemote: true,
           isAudition: true,
           suppressVisual: i > 0, // Only first note triggers phrase visual
@@ -540,7 +626,7 @@ class AuditionGestureService {
           if (!state.isActive) return
           this.io.to(state.roomId).emit('hold:end', {
             type: 'hold:end',
-            userId: this.auditionConfig.userId,
+            userId: state.userId,
             noteId: `${noteId}_${i}`,
             isAudition: true,
             timestamp: Date.now()
@@ -554,7 +640,7 @@ class AuditionGestureService {
     // Add drag material to BackgroundCompositionService (RAW params)
     if (this.backgroundCompositionService) {
       const gestureData = {
-        userId: this.auditionConfig.userId,
+        userId: state.userId,
         gesture: {
           type: 'drag',
           duration: phraseDuration,
@@ -584,6 +670,39 @@ class AuditionGestureService {
    */
   _frequencyToMidi (frequency) {
     return Math.round(12 * Math.log2(frequency / 440) + 69)
+  }
+
+  /**
+   * Get room's musical context (key and mode)
+   * @param {string} roomId - Room ID
+   * @returns {{key: string, mode: string}} Musical context
+   * @private
+   */
+  _getMusicalContext (roomId) {
+    const roomState = this.backgroundCompositionService?.getRoomState?.(roomId)
+    return {
+      key: roomState?.musicalContext?.key || 'C',
+      mode: roomState?.musicalContext?.mode || 'ionian'
+    }
+  }
+
+  /**
+   * Quantize raw MIDI pitch to current scale
+   * @param {number} rawPitch - Raw MIDI pitch
+   * @param {string} roomId - Room ID for musical context
+   * @returns {number} Quantized MIDI pitch
+   * @private
+   */
+  _quantizePitch (rawPitch, roomId) {
+    if (!this.harmonicEngine) return rawPitch
+
+    try {
+      const { key, mode } = this._getMusicalContext(roomId)
+      return this.harmonicEngine.constrainToScale(rawPitch, key, mode)
+    } catch (error) {
+      console.warn(`[AuditionGesture] constrainToScale failed: ${error.message}`)
+      return rawPitch // Fallback to raw pitch on error
+    }
   }
 }
 

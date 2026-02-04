@@ -271,6 +271,11 @@ class WebarmoniumApp {
     this.gestureCapture.setHoverModulationCallback((hoverData) => {
       // console.log('🎛️ Hover modulation callback triggered:', hoverData)
 
+      // Skip hover processing during audition - cursor controlled by audition
+      if (this.uiManager?.synthPanel?.isAuditionActive?.()) {
+        return
+      }
+
       // PERFORMANCE: Batch hover updates via requestAnimationFrame
       // Instead of calling audio directly on every hover event,
       // we queue the update and process it once per frame
@@ -614,6 +619,12 @@ class WebarmoniumApp {
     // Setup gesture start/end for proper three-tier handling
     this.gestureCapture.onGestureStart = (gesture) => {
       // console.log('👆 Gesture start callback:', gesture.id)
+
+      // Pause audition generation when user starts a real gesture
+      if (this.uiManager?.synthPanel?.isAuditionActive?.()) {
+        this.socketService?.socket?.emit('audition:pause')
+      }
+
       // Handle initial gesture filtering
       if (this.audioService && this.audioService.updateFilterParams) {
         // Apply initial filter based on gesture start position
@@ -646,6 +657,11 @@ class WebarmoniumApp {
 //        gestureAction: gesture.action,
 //        willCalculate: this.gestureProcessor.determineGestureAction(gesture)
 ////      })
+
+      // Resume audition generation when user ends their real gesture
+      if (this.uiManager?.synthPanel?.isAuditionActive?.()) {
+        this.socketService?.socket?.emit('audition:resume')
+      }
 
       // CRITICAL FIX: Don't play automatic musical events for TAP and HOVER gestures
       // We want only our custom click logic for taps, and no auto-notes for hover
@@ -1103,6 +1119,38 @@ class WebarmoniumApp {
 
       // Update gradient metrics from cursor positions (throttled)
       this._updateGradientMetricsFromCursors()
+    })
+
+    // Handle audition-generated cursor:move events
+    // These use real user identity and should move local cursor during audition
+    this.socketService.on('cursor:move', (data) => {
+      if (!data || data.x === undefined || data.y === undefined) return
+
+      // Check if this is for the local user (audition-generated cursor for self)
+      const localUserId = this.socketService?.socket?.id
+      const isLocalUser = data.userId === localUserId
+
+      if (isLocalUser && data.isAudition) {
+        // Audition cursor for local user - update local cursor position
+        this._localCursorPosition = { x: data.x, y: data.y }
+
+        // Update visual service with local cursor position
+        if (this.visualService) {
+          this.visualService.updateCursorPosition(data.userId, data.x, data.y, data.color || this.currentUserColor)
+        }
+
+        // Update gradient metrics
+        this._updateGradientMetricsFromCursors()
+      } else if (!isLocalUser) {
+        // Remote user's cursor (may be audition or real)
+        if (this.cursorManager) {
+          this.cursorManager.updateCursor(data.userId, data.x, data.y, data.color, false)
+        }
+        if (this.visualService) {
+          this.visualService.updateCursorPosition(data.userId, data.x, data.y, data.color)
+        }
+        this._updateGradientMetricsFromCursors()
+      }
     })
 
     this.socketService.on('sonic-update', (update) => {

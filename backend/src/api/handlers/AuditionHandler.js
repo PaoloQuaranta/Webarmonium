@@ -52,6 +52,7 @@ const AuditionHandler = {
       try {
         const roomId = socket.roomId
         const auditionService = socket.services?.auditionGestureService
+        const roomManager = socket.services?.roomManager
 
         if (!roomId) {
           console.warn(`[AuditionHandler] No roomId for socket ${socket.id}`)
@@ -63,11 +64,27 @@ const AuditionHandler = {
           return
         }
 
+        // Critical: Validate room existence and user membership
+        const room = roomManager?.getRoom(roomId)
+        if (!room) {
+          console.warn(`[AuditionHandler] Room ${roomId} not found for socket ${socket.id}`)
+          return
+        }
+
+        const user = room.getUser(socket.userId)
+        if (!user) {
+          console.warn(`[AuditionHandler] User ${socket.userId} not member of room ${roomId}`)
+          return
+        }
+
         // Issue #3 fix: Validate and sanitize parameters
         const validatedParams = validateAuditionParams(params)
 
-        console.log(`[AuditionHandler] Start request from ${socket.id} in room ${roomId}`)
-        auditionService.startAudition(socket.id, roomId, validatedParams)
+        // Get real user identity from room
+        const userColor = user.assignedColor || '#6bcf7f'
+
+        console.log(`[AuditionHandler] Start request from ${socket.userId} (socket ${socket.id}) in room ${roomId}`)
+        auditionService.startAudition(socket.id, roomId, validatedParams, socket.userId, userColor)
       } catch (error) {
         console.error(`[AuditionHandler] Error starting audition:`, error.message)
       }
@@ -124,6 +141,48 @@ const AuditionHandler = {
   },
 
   /**
+   * Register audition:pause handler
+   * Pauses gesture generation when user starts a real gesture
+   * @param {Object} socket - Socket.io socket instance
+   */
+  registerAuditionPauseHandler (socket) {
+    socket.on('audition:pause', () => {
+      try {
+        const auditionService = socket.services?.auditionGestureService
+
+        if (!auditionService) {
+          return
+        }
+
+        auditionService.pauseAudition(socket.id)
+      } catch (error) {
+        console.error(`[AuditionHandler] Error pausing audition:`, error.message)
+      }
+    })
+  },
+
+  /**
+   * Register audition:resume handler
+   * Resumes gesture generation when user ends their real gesture
+   * @param {Object} socket - Socket.io socket instance
+   */
+  registerAuditionResumeHandler (socket) {
+    socket.on('audition:resume', () => {
+      try {
+        const auditionService = socket.services?.auditionGestureService
+
+        if (!auditionService) {
+          return
+        }
+
+        auditionService.resumeAudition(socket.id)
+      } catch (error) {
+        console.error(`[AuditionHandler] Error resuming audition:`, error.message)
+      }
+    })
+  },
+
+  /**
    * Register disconnect cleanup for audition
    * Stops any active audition when socket disconnects
    * @param {Object} socket - Socket.io socket instance
@@ -136,7 +195,8 @@ const AuditionHandler = {
           auditionService.stopAudition(socket.id)
         }
       } catch (error) {
-        // Ignore errors during disconnect cleanup
+        // Log errors during disconnect cleanup (don't throw to avoid breaking disconnect flow)
+        console.warn(`[AuditionHandler] Error during disconnect cleanup for socket ${socket.id}:`, error.message)
       }
     })
   }

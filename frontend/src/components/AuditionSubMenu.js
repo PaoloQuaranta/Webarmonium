@@ -146,9 +146,6 @@ class AuditionSubMenu {
 
   _getHTML () {
     return `
-      <div class="audition-submenu-header">
-        <span class="audition-title">Audition Settings</span>
-      </div>
       <div class="audition-submenu-content">
         <!-- Source Toggle -->
         <div class="audition-row">

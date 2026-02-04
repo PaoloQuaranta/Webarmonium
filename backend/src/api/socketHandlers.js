@@ -66,6 +66,8 @@ const socketHandlers = {
     AuditionHandler.registerAuditionStartHandler(socket)
     AuditionHandler.registerAuditionStopHandler(socket)
     AuditionHandler.registerAuditionConfigHandler(socket)
+    AuditionHandler.registerAuditionPauseHandler(socket)
+    AuditionHandler.registerAuditionResumeHandler(socket)
     AuditionHandler.registerAuditionDisconnectHandler(socket)
 
     // console.log('🔌 Registered ALL handlers for socket:', socket.id)

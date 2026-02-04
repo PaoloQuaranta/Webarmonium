@@ -334,6 +334,13 @@ function wireServices (container, config = {}) {
       const backgroundCompositionService = c.get('backgroundCompositionService')
       service.backgroundCompositionService = backgroundCompositionService
 
+      // Share HarmonicEngine for pitch quantization (harmonic coherence)
+      if (backgroundCompositionService.harmonicEngine) {
+        service.setHarmonicEngine(backgroundCompositionService.harmonicEngine)
+      } else {
+        console.warn('BackgroundCompositionService missing harmonicEngine - audition gestures will not be quantized')
+      }
+
       // Link WebMetricsPoller for metrics source option
       const webMetricsPoller = c.get('webMetricsPoller')
       service.webMetricsPoller = webMetricsPoller
