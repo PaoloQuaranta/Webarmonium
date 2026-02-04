@@ -461,12 +461,30 @@ class SynthPanel {
   }
 
   /**
-   * Get filter cutoff slider HTML with type-aware limits
+   * Get filter cutoff slider HTML with type-aware limits and logarithmic scaling
+   * Uses normalized 0-100 range internally, displays actual frequency
    */
   _getFilterCutoffSliderHTML () {
     const limits = this._getCutoffLimits(this.params.filterType)
-    const value = Math.max(limits.min, Math.min(limits.max, this.params.filterCutoff))
-    return this._getSliderHTML('filterCutoff', 'Cutoff', limits.min, limits.max, value, 'Hz')
+    const clampedFreq = Math.max(limits.min, Math.min(limits.max, this.params.filterCutoff))
+    const sliderValue = this._frequencyToSlider(clampedFreq, limits.min, limits.max)
+    const displayValue = this._formatValue(clampedFreq, 'Hz')
+
+    return `
+      <div class="synth-slider-row">
+        <label>Cutoff</label>
+        <input type="range"
+               class="synth-slider"
+               data-param="filterCutoff"
+               data-log-min="${limits.min}"
+               data-log-max="${limits.max}"
+               min="0"
+               max="100"
+               step="0.5"
+               value="${sliderValue}">
+        <span class="synth-value" data-value="filterCutoff">${displayValue}</span>
+      </div>
+    `
   }
 
   /**
@@ -488,6 +506,27 @@ class SynthPanel {
       return { min: 0.1, max: 8.0 }  // BP: lower Q for wider bandwidth
     }
     return { min: 0.1, max: 20.0 }   // LP/HP: full range for self-oscillation
+  }
+
+  /**
+   * Convert normalized slider value (0-100) to frequency using logarithmic scale
+   * Human hearing perceives pitch logarithmically - an octave is always a doubling
+   */
+  _sliderToFrequency (sliderValue, minFreq, maxFreq) {
+    const logMin = Math.log(minFreq)
+    const logMax = Math.log(maxFreq)
+    const normalizedValue = sliderValue / 100
+    return Math.exp(logMin + normalizedValue * (logMax - logMin))
+  }
+
+  /**
+   * Convert frequency to normalized slider value (0-100) using logarithmic scale
+   */
+  _frequencyToSlider (frequency, minFreq, maxFreq) {
+    const logMin = Math.log(minFreq)
+    const logMax = Math.log(maxFreq)
+    const logFreq = Math.log(Math.max(minFreq, Math.min(maxFreq, frequency)))
+    return ((logFreq - logMin) / (logMax - logMin)) * 100
   }
 
   /**
@@ -592,6 +631,7 @@ class SynthPanel {
 
   /**
    * Attach touch handler for rotated vertical sliders
+   * Improved for better touch control with larger drag distance and visual feedback
    */
   _attachTouchHandler (slider) {
     let startY = 0
@@ -603,12 +643,14 @@ class SynthPanel {
     const onTouchStart = (e) => {
       startY = e.touches[0].clientY
       startValue = parseFloat(slider.value)
+      slider.classList.add('touch-active')
       e.preventDefault()
     }
 
     const onTouchMove = (e) => {
       const deltaY = startY - e.touches[0].clientY // Inverted: up = increase
-      const sensitivity = range / 100 // 100px drag = full range
+      // 200px drag = full range (more forgiving than 100px)
+      const sensitivity = range / 200
       const newValue = Math.min(max, Math.max(min, startValue + deltaY * sensitivity))
 
       slider.value = newValue
@@ -616,8 +658,14 @@ class SynthPanel {
       e.preventDefault()
     }
 
+    const onTouchEnd = () => {
+      slider.classList.remove('touch-active')
+    }
+
     slider.addEventListener('touchstart', onTouchStart, { passive: false })
     slider.addEventListener('touchmove', onTouchMove, { passive: false })
+    slider.addEventListener('touchend', onTouchEnd)
+    slider.addEventListener('touchcancel', onTouchEnd)
   }
 
   /**
@@ -725,13 +773,14 @@ class SynthPanel {
       this.params.filterCutoff = limits.max
     }
 
-    // Update cutoff slider UI
+    // Update cutoff slider UI (logarithmic)
     const cutoffSlider = this.panel?.querySelector('[data-param="filterCutoff"]')
     if (cutoffSlider) {
-      cutoffSlider.min = limits.min
-      cutoffSlider.max = limits.max
-      cutoffSlider.step = (limits.max - limits.min) / 100
-      cutoffSlider.value = this.params.filterCutoff
+      // Update data attributes for new frequency range
+      cutoffSlider.dataset.logMin = limits.min
+      cutoffSlider.dataset.logMax = limits.max
+      // Convert frequency to slider position
+      cutoffSlider.value = this._frequencyToSlider(this.params.filterCutoff, limits.min, limits.max)
     }
     const cutoffDisplay = this.panel?.querySelector('[data-value="filterCutoff"]')
     if (cutoffDisplay) {
@@ -768,7 +817,14 @@ class SynthPanel {
    */
   _onSliderChange (e) {
     const param = e.target.dataset.param
-    const value = parseFloat(e.target.value)
+    let value = parseFloat(e.target.value)
+
+    // Handle logarithmic cutoff slider
+    if (param === 'filterCutoff') {
+      const logMin = parseFloat(e.target.dataset.logMin)
+      const logMax = parseFloat(e.target.dataset.logMax)
+      value = this._sliderToFrequency(value, logMin, logMax)
+    }
 
     this.params[param] = value
 
@@ -804,7 +860,14 @@ class SynthPanel {
     Object.entries(this.params).forEach(([param, value]) => {
       const slider = this.panel?.querySelector(`[data-param="${param}"]`)
       if (slider) {
-        slider.value = value
+        // Handle logarithmic cutoff slider
+        if (param === 'filterCutoff') {
+          const logMin = parseFloat(slider.dataset.logMin)
+          const logMax = parseFloat(slider.dataset.logMax)
+          slider.value = this._frequencyToSlider(value, logMin, logMax)
+        } else {
+          slider.value = value
+        }
       }
       const display = this.panel?.querySelector(`[data-value="${param}"]`)
       if (display) {
