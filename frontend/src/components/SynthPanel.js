@@ -246,6 +246,9 @@ class SynthPanel {
       this.auditionSubMenu = null
     }
 
+    // Clean up slider touch listeners to prevent memory leak
+    this._cleanupSliderListeners()
+
     document.removeEventListener('keydown', this._handleKeyDown)
 
     // Entry #SynthUI: Clean up socket event listener to prevent memory leak
@@ -620,6 +623,12 @@ class SynthPanel {
    * Attach slider listeners
    */
   _attachSliderListeners () {
+    // Clean up previous listeners if re-attaching
+    this._cleanupSliderListeners()
+
+    // Initialize storage for handler references
+    this._sliderListeners = []
+
     const sliders = this.panel?.querySelectorAll('.synth-slider')
     sliders?.forEach(slider => {
       slider.addEventListener('input', (e) => this._onSliderChange(e))
@@ -630,28 +639,62 @@ class SynthPanel {
   }
 
   /**
-   * Attach touch handler for rotated vertical sliders
-   * Improved for better touch control with larger drag distance and visual feedback
+   * Clean up slider touch listeners to prevent memory leaks
+   */
+  _cleanupSliderListeners () {
+    if (this._sliderListeners) {
+      this._sliderListeners.forEach(({ slider, handlers }) => {
+        slider.removeEventListener('touchstart', handlers.touchStart)
+        slider.removeEventListener('touchmove', handlers.touchMove)
+        slider.removeEventListener('touchend', handlers.touchEnd)
+        slider.removeEventListener('touchcancel', handlers.touchEnd)
+      })
+      this._sliderListeners = null
+    }
+  }
+
+  /**
+   * Check if we're in mobile layout mode
+   */
+  _isMobileLayout () {
+    return window.innerWidth <= 500
+  }
+
+  /**
+   * Attach touch handler for sliders
+   * Supports both horizontal (mobile) and vertical rotated (desktop) modes
    */
   _attachTouchHandler (slider) {
-    let startY = 0
+    let startPos = 0
     let startValue = 0
     const min = parseFloat(slider.min)
     const max = parseFloat(slider.max)
     const range = max - min
 
     const onTouchStart = (e) => {
-      startY = e.touches[0].clientY
+      const touch = e.touches[0]
+      // Use X for horizontal (mobile), Y for vertical (desktop)
+      startPos = this._isMobileLayout() ? touch.clientX : touch.clientY
       startValue = parseFloat(slider.value)
       slider.classList.add('touch-active')
       e.preventDefault()
     }
 
     const onTouchMove = (e) => {
-      const deltaY = startY - e.touches[0].clientY // Inverted: up = increase
-      // 200px drag = full range (more forgiving than 100px)
+      const touch = e.touches[0]
+      let delta
+
+      if (this._isMobileLayout()) {
+        // Horizontal: right = increase
+        delta = touch.clientX - startPos
+      } else {
+        // Vertical (rotated): up = increase
+        delta = startPos - touch.clientY
+      }
+
+      // 200px drag = full range (more forgiving)
       const sensitivity = range / 200
-      const newValue = Math.min(max, Math.max(min, startValue + deltaY * sensitivity))
+      const newValue = Math.min(max, Math.max(min, startValue + delta * sensitivity))
 
       slider.value = newValue
       slider.dispatchEvent(new Event('input', { bubbles: true }))
@@ -661,6 +704,12 @@ class SynthPanel {
     const onTouchEnd = () => {
       slider.classList.remove('touch-active')
     }
+
+    // Store handler references for cleanup
+    this._sliderListeners.push({
+      slider,
+      handlers: { touchStart: onTouchStart, touchMove: onTouchMove, touchEnd: onTouchEnd }
+    })
 
     slider.addEventListener('touchstart', onTouchStart, { passive: false })
     slider.addEventListener('touchmove', onTouchMove, { passive: false })

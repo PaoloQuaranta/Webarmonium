@@ -3188,6 +3188,133 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   }
 }
 
+/* Smartphone: horizontal sliders + scrollable layout */
+@media (max-width: 500px) {
+  .synth-overlay {
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .synth-panel {
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Compact header */
+  .synth-header {
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 8px 12px;
+    flex-shrink: 0;
+  }
+
+  .synth-header .settings-title {
+    display: none;
+  }
+
+  .synth-header-select {
+    flex: 1 1 auto;
+    max-width: 120px;
+    order: 0;
+    font-size: 10px;
+    padding: 6px 24px 6px 8px;
+  }
+
+  .synth-header .synth-generate-btn {
+    order: 1;
+    padding: 6px 10px;
+    font-size: 8px;
+  }
+
+  .synth-header .settings-close {
+    order: 2;
+    margin-left: auto;
+    padding: 8px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Scrollable content */
+  .synth-content {
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Full-width stacked groups */
+  .synth-group {
+    flex: 0 0 auto;
+    width: 100%;
+    padding: 12px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .synth-group:last-child {
+    border-bottom: none;
+  }
+
+  /* Horizontal slider layout */
+  .synth-sliders-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .synth-slider-row {
+    flex-direction: row;
+    align-items: center;
+    min-width: 100%;
+    gap: 8px;
+  }
+
+  .synth-slider-row label {
+    margin-top: 0;
+    min-width: 50px;
+    text-align: left;
+    font-size: 9px;
+  }
+
+  /* Horizontal sliders (remove rotation) */
+  .synth-slider {
+    transform: none;
+    width: 100%;
+    flex: 1;
+    margin: 0;
+    min-height: 44px;
+    height: 44px;
+    padding: 20px 0;
+  }
+
+  .synth-slider-row .synth-value {
+    min-width: 45px;
+    text-align: right;
+  }
+
+  /* Filter section mobile */
+  .synth-filter-row {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .synth-filter-type {
+    flex-direction: row;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .synth-filter-btn {
+    flex: 1;
+    padding: 10px 8px;
+    min-height: 44px;
+  }
+}
+
 /* ============================================
    Audition Sub-Menu - Coerente con SynthPanel
    ============================================ */
@@ -3385,12 +3512,62 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
 /* Responsive */
 @media (max-width: 500px) {
+  /* Bottom sheet pattern */
   .audition-submenu {
-    min-width: 260px;
-    right: -50%;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    min-width: unset;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    margin-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    transform: translateY(100%);
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .audition-submenu.visible {
+    transform: translateY(0);
+  }
+
+  /* Drag handle */
+  .audition-submenu::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+  }
+
+  .audition-submenu-content {
+    padding: 24px 16px 16px;
+  }
+
+  .audition-row {
+    margin-bottom: 16px;
   }
 
   .audition-slider {
-    max-width: 90px;
+    max-width: none;
+    flex: 1;
+    min-height: 44px;
+  }
+
+  .audition-toggle-btn {
+    padding: 10px 16px;
+    min-height: 44px;
+  }
+
+  .audition-start-btn {
+    width: 100%;
+    padding: 14px 32px;
+    min-height: 48px;
   }
 }

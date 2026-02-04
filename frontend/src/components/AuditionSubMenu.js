@@ -128,6 +128,15 @@ class AuditionSubMenu {
       this._clickOutsideHandler = null
     }
 
+    // Clean up swipe handlers
+    if (this._swipeHandlers && this.element) {
+      this.element.removeEventListener('touchstart', this._swipeHandlers.touchStart)
+      this.element.removeEventListener('touchmove', this._swipeHandlers.touchMove)
+      this.element.removeEventListener('touchend', this._swipeHandlers.touchEnd)
+      this.element.removeEventListener('touchcancel', this._swipeHandlers.touchEnd)
+      this._swipeHandlers = null
+    }
+
     // Clear any pending throttle timeout
     if (this._throttleTimeout) {
       clearTimeout(this._throttleTimeout)
@@ -261,6 +270,83 @@ class AuditionSubMenu {
       }
     }
     document.addEventListener('click', this._clickOutsideHandler)
+
+    // Mobile: swipe-to-dismiss for bottom sheet
+    this._attachSwipeHandler()
+  }
+
+  /**
+   * Attach swipe-to-dismiss handler for mobile bottom sheet
+   */
+  _attachSwipeHandler () {
+    if (!this.element) return
+
+    const DISMISS_THRESHOLD = 80 // pixels
+    let startY = 0
+    let currentY = 0
+    let isDragging = false
+
+    const onTouchStart = (e) => {
+      // Only activate on mobile
+      if (window.innerWidth > 500) return
+
+      // Don't swipe if touching an interactive element
+      if (e.target.closest('.audition-slider, .audition-toggle-btn, .audition-start-btn')) {
+        return
+      }
+
+      // Only start drag if touching the drag handle area (top 40px)
+      const rect = this.element.getBoundingClientRect()
+      const touchY = e.touches[0].clientY
+      if (touchY - rect.top > 40) return
+
+      startY = e.touches[0].clientY
+      currentY = startY
+      isDragging = true
+      this.element.style.transition = 'none'
+    }
+
+    const onTouchMove = (e) => {
+      if (!isDragging) return
+
+      currentY = e.touches[0].clientY
+      const deltaY = currentY - startY
+
+      // Only allow dragging down
+      if (deltaY > 0) {
+        this.element.style.transform = `translateY(${deltaY}px)`
+        // Visual feedback: fade opacity as approaching dismiss threshold
+        const dismissProgress = Math.min(deltaY / DISMISS_THRESHOLD, 1)
+        this.element.style.opacity = 1 - (dismissProgress * 0.3)
+      }
+    }
+
+    const onTouchEnd = () => {
+      if (!isDragging) return
+
+      isDragging = false
+      const deltaY = currentY - startY
+      this.element.style.transition = ''
+      this.element.style.transform = ''
+      this.element.style.opacity = ''
+
+      // Dismiss if dragged more than threshold
+      if (deltaY > DISMISS_THRESHOLD) {
+        this.hide()
+      }
+    }
+
+    // Store handler references for cleanup
+    this._swipeHandlers = {
+      touchStart: onTouchStart,
+      touchMove: onTouchMove,
+      touchEnd: onTouchEnd
+    }
+
+    this.element.addEventListener('touchstart', onTouchStart, { passive: true })
+    this.element.addEventListener('touchmove', onTouchMove, { passive: true })
+    this.element.addEventListener('touchend', onTouchEnd, { passive: true })
+    this.element.addEventListener('touchcancel', onTouchEnd, { passive: true })
   }
 
   // ============================================================
