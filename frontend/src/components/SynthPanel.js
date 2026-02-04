@@ -165,6 +165,24 @@ class SynthPanel {
     if (this.audioService?.playSimpleNote) {
       this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
     }
+
+    // Pulse the audition button for visual feedback
+    this._pulseAuditionButton()
+  }
+
+  /**
+   * Trigger pulse animation on audition button
+   * @private
+   */
+  _pulseAuditionButton () {
+    const btn = this.panel?.querySelector('#synth-generate-btn')
+    if (!btn) return
+
+    // Remove class to reset animation, then re-add
+    btn.classList.remove('pulse')
+    // Force reflow to restart animation
+    void btn.offsetWidth
+    btn.classList.add('pulse')
   }
 
   /**
