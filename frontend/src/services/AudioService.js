@@ -1142,7 +1142,6 @@ class AudioService {
         // Closing causes issues because it's async and can leave things in bad state
         const customContext = new Tone.Context({ latencyHint })
         Tone.setContext(customContext)
-        console.log(`[AudioService] Context configured: latencyHint=${latencyHint}`)
       }
     } catch (error) {
     }
@@ -1313,7 +1312,6 @@ class AudioService {
       // FIX: Recreate synths if synthComplexity changed
       const newComplexity = this.audioProfile?.synthComplexity || 'full'
       if (this._currentSynthComplexity && this._currentSynthComplexity !== newComplexity) {
-        console.log(`[AudioService] Synth complexity changed: ${this._currentSynthComplexity} → ${newComplexity}, recreating synths...`)
         this._recreateAmbientSynths()
       }
     } catch (error) {
@@ -2102,7 +2100,6 @@ class AudioService {
     const synthConfig = this._getSynthConfig()
     this._createAmbientSynthsFromConfig(synthConfig)
     this._currentSynthComplexity = this.audioProfile?.synthComplexity || 'full'
-    console.log(`[AudioService] Synths created with complexity: ${this._currentSynthComplexity}, pad voices: ${synthConfig.pad?.maxPolyphony || 'default'}, chords voices: ${synthConfig.chords?.maxPolyphony || 'default'}`)
 
     // MONOSYNTH TIMING FIX: Track last trigger time per layer to avoid
     // "Start time must be strictly greater than previous start time" error
@@ -7222,7 +7219,6 @@ class AudioService {
 
       this._sustainedHoldLastTrigger = safeTime
       this.gestureSynth.triggerAttackRelease(safeFreq, safeDuration, safeTime, velocity)
-      console.log(`[AudioService] playSimpleNote: ${safeFreq.toFixed(0)}Hz for ${safeDuration.toFixed(2)}s`)
     } catch (error) {
       console.warn('[AudioService] playSimpleNote failed:', error.message)
     }

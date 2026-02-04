@@ -137,7 +137,6 @@ class SynthPanel {
     // Store handler reference for cleanup
     if (!this._reconnectHandler) {
       this._reconnectHandler = () => {
-        console.log('[SynthPanel] Socket reconnected, re-establishing audition listeners')
         this._setupAuditionSocketListeners()
 
         // If audition was active before disconnect, it's now stopped server-side
@@ -870,14 +869,12 @@ class SynthPanel {
     // Ensure audio context is started (requires user interaction)
     if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
       await Tone.start()
-      console.log('[SynthPanel] Audio context started')
     }
 
     // Ensure a preset is selected (creates the gestureSynth if needed)
     if (this.audioService?.selectPreset && this.currentPresetSlot !== null) {
       const currentSlot = this.audioService.getCurrentPresetSlot?.()
       if (currentSlot === null || currentSlot === undefined) {
-        console.log('[SynthPanel] Selecting preset:', this.currentPresetSlot)
         this.audioService.selectPreset(this.currentPresetSlot)
       }
     }
@@ -886,7 +883,6 @@ class SynthPanel {
     if (this.socketService?.socket) {
       const params = this.auditionSubMenu?.getParams() || {}
       this.socketService.socket.emit('audition:start', params)
-      console.log('[SynthPanel] Audition started with params:', params)
     }
 
     this.auditionActive = true
@@ -911,7 +907,6 @@ class SynthPanel {
     // Send stop command to backend
     if (this.socketService?.socket) {
       this.socketService.socket.emit('audition:stop')
-      console.log('[SynthPanel] Audition stopped')
     }
 
     this.auditionActive = false
