@@ -3064,7 +3064,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   background: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  margin-top: -6px;
+  margin-top: -4px;
   transition: transform 0.1s;
 }
 
@@ -3079,40 +3079,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   background: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
   border: 2px solid rgba(255, 255, 255, 0.2);
-}
-
-/* Touch devices: larger touch targets */
-@media (pointer: coarse) {
-  .synth-slider {
-    height: 8px;
-  }
-
-  .synth-slider::-webkit-slider-thumb {
-    width: 32px;
-    height: 32px;
-    margin-top: -14px;
-  }
-
-  .synth-slider::-moz-range-thumb {
-    width: 32px;
-    height: 32px;
-  }
-
-  .synth-slider-row {
-    min-width: 44px;
-    padding: 8px 4px;
-  }
-}
-
-/* Active state during touch drag */
-.synth-slider.touch-active::-webkit-slider-thumb {
-  transform: scale(1.3);
-  box-shadow: 0 0 12px var(--synth-accent, var(--accent, #2dd4bf));
-}
-
-.synth-slider.touch-active::-moz-range-thumb {
-  transform: scale(1.3);
-  box-shadow: 0 0 12px var(--synth-accent, var(--accent, #2dd4bf));
 }
 
 /* Fader label */
