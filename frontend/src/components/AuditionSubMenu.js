@@ -12,6 +12,10 @@
  */
 
 class AuditionSubMenu {
+  static MOBILE_BREAKPOINT = '(max-width: 500px)'
+  static SWIPE_DISMISS_THRESHOLD = 80 // pixels
+  static DRAG_HANDLE_HEIGHT = 40 // pixels from top
+
   /**
    * @param {Object} synthPanel - Parent SynthPanel instance
    */
@@ -281,24 +285,23 @@ class AuditionSubMenu {
   _attachSwipeHandler () {
     if (!this.element) return
 
-    const DISMISS_THRESHOLD = 80 // pixels
     let startY = 0
     let currentY = 0
     let isDragging = false
 
     const onTouchStart = (e) => {
-      // Only activate on mobile
-      if (window.innerWidth > 500) return
+      // Only activate on mobile using matchMedia for CSS consistency
+      if (!window.matchMedia(AuditionSubMenu.MOBILE_BREAKPOINT).matches) return
 
       // Don't swipe if touching an interactive element
       if (e.target.closest('.audition-slider, .audition-toggle-btn, .audition-start-btn')) {
         return
       }
 
-      // Only start drag if touching the drag handle area (top 40px)
+      // Only start drag if touching the drag handle area
       const rect = this.element.getBoundingClientRect()
       const touchY = e.touches[0].clientY
-      if (touchY - rect.top > 40) return
+      if (touchY - rect.top > AuditionSubMenu.DRAG_HANDLE_HEIGHT) return
 
       startY = e.touches[0].clientY
       currentY = startY
@@ -316,7 +319,7 @@ class AuditionSubMenu {
       if (deltaY > 0) {
         this.element.style.transform = `translateY(${deltaY}px)`
         // Visual feedback: fade opacity as approaching dismiss threshold
-        const dismissProgress = Math.min(deltaY / DISMISS_THRESHOLD, 1)
+        const dismissProgress = Math.min(deltaY / AuditionSubMenu.SWIPE_DISMISS_THRESHOLD, 1)
         this.element.style.opacity = 1 - (dismissProgress * 0.3)
       }
     }
@@ -331,7 +334,7 @@ class AuditionSubMenu {
       this.element.style.opacity = ''
 
       // Dismiss if dragged more than threshold
-      if (deltaY > DISMISS_THRESHOLD) {
+      if (deltaY > AuditionSubMenu.SWIPE_DISMISS_THRESHOLD) {
         this.hide()
       }
     }

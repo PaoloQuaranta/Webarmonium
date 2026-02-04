@@ -12,6 +12,8 @@
 
 class SynthPanel {
   static ANIMATION_DURATION = 300
+  static MOBILE_BREAKPOINT = '(max-width: 500px)'
+  static TOUCH_DRAG_DISTANCE = 200 // pixels for full slider range
 
   constructor () {
     this.isOpen = false
@@ -654,10 +656,10 @@ class SynthPanel {
   }
 
   /**
-   * Check if we're in mobile layout mode
+   * Check if we're in mobile layout mode using matchMedia for consistency with CSS
    */
   _isMobileLayout () {
-    return window.innerWidth <= 500
+    return window.matchMedia(SynthPanel.MOBILE_BREAKPOINT).matches
   }
 
   /**
@@ -692,8 +694,8 @@ class SynthPanel {
         delta = startPos - touch.clientY
       }
 
-      // 200px drag = full range (more forgiving)
-      const sensitivity = range / 200
+      // Full drag distance for complete slider range
+      const sensitivity = range / SynthPanel.TOUCH_DRAG_DISTANCE
       const newValue = Math.min(max, Math.max(min, startValue + delta * sensitivity))
 
       slider.value = newValue
