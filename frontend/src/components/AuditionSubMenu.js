@@ -315,8 +315,12 @@ class AuditionSubMenu {
         if (value < 0.67) return 'Mixed'
         return 'Drags'
       case 'range':
-        // Show as semitones
-        const semitones = Math.round(3 + value * 21)
+        // Show as octaves (3 semitones to 60 semitones = 5 octaves)
+        const semitones = Math.round(3 + value * 57)
+        if (semitones >= 12) {
+          const octaves = (semitones / 12).toFixed(1)
+          return `${octaves} oct`
+        }
         return `${semitones} st`
       default:
         return value.toFixed(2)

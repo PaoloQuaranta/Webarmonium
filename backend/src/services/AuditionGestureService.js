@@ -306,14 +306,14 @@ class AuditionGestureService {
 
   /**
    * Calculate effective frequency range based on range parameter
-   * @param {number} rangeParam - 0=minor 3rd, 1=full octave range
+   * @param {number} rangeParam - 0=minor 3rd, 1=5 octaves
    * @returns {{minFreq: number, maxFreq: number}}
    * @private
    */
   _calculateFrequencyRange (rangeParam) {
-    // Range: 0 = minor 3rd (3 semitones), 1 = 2 octaves (24 semitones)
+    // Range: 0 = minor 3rd (3 semitones), 1 = 5 octaves (60 semitones)
     const minRangeSemitones = 3
-    const maxRangeSemitones = 24
+    const maxRangeSemitones = 60
 
     const rangeInSemitones = minRangeSemitones + rangeParam * (maxRangeSemitones - minRangeSemitones)
 
@@ -323,8 +323,8 @@ class AuditionGestureService {
     const ratio = Math.pow(2, halfRangeSemitones / 12)
 
     return {
-      minFreq: Math.max(65, centerFreq / ratio), // Min: C2
-      maxFreq: Math.min(2000, centerFreq * ratio) // Max: B6
+      minFreq: Math.max(32, centerFreq / ratio), // Min: C1
+      maxFreq: Math.min(4000, centerFreq * ratio) // Max: B7
     }
   }
 
