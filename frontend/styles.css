@@ -3184,9 +3184,9 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Container - stesso sfondo semitrasparente del synth-panel */
 .audition-submenu {
   position: absolute;
-  top: 100%;
+  bottom: 100%;
   right: 0;
-  margin-top: 8px;
+  margin-bottom: 8px;
   min-width: 280px;
   background: var(--ui-bg, rgba(10, 10, 20, 0.92));
   backdrop-filter: blur(16px);
@@ -3196,7 +3196,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   font-family: var(--font-mono, 'Fira Code', monospace);
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-8px);
+  transform: translateY(8px);
   transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.25s ease;
   z-index: 9995;
 }
