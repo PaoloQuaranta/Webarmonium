@@ -3568,10 +3568,18 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     height: 6px;
   }
 
+  .audition-slider::-webkit-slider-runnable-track {
+    height: 6px;
+  }
+
   .audition-slider::-webkit-slider-thumb {
     width: 20px;
     height: 20px;
     margin-top: -7px;
+  }
+
+  .audition-slider::-moz-range-track {
+    height: 6px;
   }
 
   .audition-slider::-moz-range-thumb {
