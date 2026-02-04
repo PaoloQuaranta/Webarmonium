@@ -3058,23 +3058,23 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
 .synth-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  margin-top: -8px;
+  margin-top: -6px;
   transition: transform 0.1s;
 }
 
 .synth-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.15);
+  transform: scale(1.1);
 }
 
 .synth-slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
@@ -3090,7 +3090,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   .synth-slider::-webkit-slider-thumb {
     width: 32px;
     height: 32px;
-    margin-top: -12px;
+    margin-top: -14px;
   }
 
   .synth-slider::-moz-range-thumb {
