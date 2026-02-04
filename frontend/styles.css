@@ -3201,6 +3201,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     max-height: 70vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   /* Compact header */
@@ -3243,6 +3244,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     overflow-y: auto;
     overflow-x: hidden;
     flex: 1;
+    min-height: 0; /* Flexbox scroll fix */
     -webkit-overflow-scrolling: touch;
   }
 
