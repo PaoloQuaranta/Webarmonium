@@ -3433,6 +3433,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   border-radius: 2px;
   cursor: pointer;
   margin: 0 8px;
+  touch-action: none;
 }
 
 .audition-slider::-webkit-slider-runnable-track {
@@ -3564,6 +3565,18 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   .audition-slider {
     max-width: none;
     flex: 1;
+    height: 6px;
+  }
+
+  .audition-slider::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+    margin-top: -7px;
+  }
+
+  .audition-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
   }
 
   .audition-toggle-btn {
