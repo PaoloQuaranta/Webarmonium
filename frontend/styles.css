@@ -3191,11 +3191,14 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Smartphone: horizontal sliders + scrollable layout */
 @media (max-width: 500px) {
   .synth-overlay {
+    top: 0;
     padding: 0;
     padding-bottom: env(safe-area-inset-bottom);
+    align-items: flex-end;
   }
 
   .synth-panel {
+    width: 100%;
     max-width: 100%;
     border-radius: 16px 16px 0 0;
     max-height: 70vh;
@@ -3240,10 +3243,12 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
   /* Scrollable content */
   .synth-content {
+    display: flex;
     flex-direction: column;
+    flex-wrap: nowrap;
     overflow-y: auto;
     overflow-x: hidden;
-    flex: 1;
+    flex: 1 1 0;
     min-height: 0; /* Flexbox scroll fix */
     -webkit-overflow-scrolling: touch;
   }
