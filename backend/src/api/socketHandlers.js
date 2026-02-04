@@ -12,6 +12,7 @@ const DrawingHandler = require('./handlers/DrawingHandler')
 const CursorHandler = require('./handlers/CursorHandler')
 const MusicalHandler = require('./handlers/MusicalHandler')
 const SynthHandler = require('./handlers/SynthHandler')
+const AuditionHandler = require('./handlers/AuditionHandler')
 
 const socketHandlers = {
   /**
@@ -60,6 +61,12 @@ const socketHandlers = {
     // Synth handlers (user timbre customization)
     SynthHandler.registerSynthParamsHandler(socket)
     SynthHandler.registerPresetRequestHandler(socket)
+
+    // Audition handlers (SynthPanel virtual gesture generation)
+    AuditionHandler.registerAuditionStartHandler(socket)
+    AuditionHandler.registerAuditionStopHandler(socket)
+    AuditionHandler.registerAuditionConfigHandler(socket)
+    AuditionHandler.registerAuditionDisconnectHandler(socket)
 
     // console.log('🔌 Registered ALL handlers for socket:', socket.id)
 

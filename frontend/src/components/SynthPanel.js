@@ -7,7 +7,7 @@
  * - Filter controls
  * - ADSR envelope
  * - Effects (volume, pan, delay, reverb)
- * - Generate Gestures button for audition
+ * - Audition button with sub-menu for virtual gesture generation
  */
 
 class SynthPanel {
@@ -29,9 +29,9 @@ class SynthPanel {
     this.currentPresetSlot = null
     this.params = this._getDefaultParams()
 
-    // Generate gestures state
-    this.generateGesturesActive = false
-    this.gestureTimeout = null
+    // Audition sub-menu and state
+    this.auditionSubMenu = null
+    this.auditionActive = false
 
     // Throttle params emission
     this.lastEmitTime = 0
@@ -42,6 +42,9 @@ class SynthPanel {
     this.close = this.close.bind(this)
     this._handleKeyDown = this._handleKeyDown.bind(this)
     this._handleOverlayClick = this._handleOverlayClick.bind(this)
+    this._onAuditionHoldStart = this._onAuditionHoldStart.bind(this)
+    this._onAuditionHoldEnd = this._onAuditionHoldEnd.bind(this)
+    this._onAuditionCursor = this._onAuditionCursor.bind(this)
   }
 
   _getDefaultParams () {
@@ -98,6 +101,88 @@ class SynthPanel {
         }
       }
       socketService.on?.('synth:slots-changed', this._slotsChangedHandler)
+
+      // Listen for audition events from backend
+      this._setupAuditionSocketListeners()
+    }
+  }
+
+  /**
+   * Set up socket listeners for audition gesture events
+   * Issue #5 fix: Also listen for reconnection to re-establish listeners
+   */
+  _setupAuditionSocketListeners () {
+    if (!this.socketService?.socket) return
+
+    const socket = this.socketService.socket
+
+    // Remove previous listeners if any
+    socket.off('hold:start', this._onAuditionHoldStart)
+    socket.off('hold:end', this._onAuditionHoldEnd)
+    socket.off('audition:cursor', this._onAuditionCursor)
+
+    // Add listeners for audition events
+    socket.on('hold:start', this._onAuditionHoldStart)
+    socket.on('hold:end', this._onAuditionHoldEnd)
+    socket.on('audition:cursor', this._onAuditionCursor)
+
+    // Issue #5 fix: Re-establish listeners on socket reconnection
+    // Store handler reference for cleanup
+    if (!this._reconnectHandler) {
+      this._reconnectHandler = () => {
+        console.log('[SynthPanel] Socket reconnected, re-establishing audition listeners')
+        this._setupAuditionSocketListeners()
+
+        // If audition was active before disconnect, it's now stopped server-side
+        // Reset local state to match
+        if (this.auditionActive) {
+          this.auditionActive = false
+          const btn = this.panel?.querySelector('#synth-generate-btn')
+          if (btn) btn.classList.remove('active')
+          if (this.auditionSubMenu) this.auditionSubMenu.setGenerating(false)
+        }
+      }
+    }
+    socket.off('connect', this._reconnectHandler)
+    socket.on('connect', this._reconnectHandler)
+  }
+
+  /**
+   * Handle audition hold:start events
+   */
+  _onAuditionHoldStart (data) {
+    // Only handle audition events
+    if (!data.isAudition) return
+
+    // Play the note locally using gestureSynth
+    if (this.audioService?.playSimpleNote) {
+      this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
+    }
+  }
+
+  /**
+   * Handle audition hold:end events
+   */
+  _onAuditionHoldEnd (data) {
+    // Currently no action needed for hold:end
+    // The note duration is handled in playSimpleNote
+  }
+
+  /**
+   * Handle audition:cursor events for visual feedback
+   */
+  _onAuditionCursor (data) {
+    // Update cursor position visually
+    if (data.x !== undefined && data.y !== undefined) {
+      // Update local cursor via CursorManager (if available)
+      if (window.cursorManager?.updateRemoteCursor) {
+        window.cursorManager.updateRemoteCursor(data.userId, data.x, data.y, data.color)
+      }
+
+      // Also trigger canvas cursor update via event
+      window.dispatchEvent(new CustomEvent('synth:cursor-move', {
+        detail: { x: data.x, y: data.y, userId: data.userId, color: data.color }
+      }))
     }
   }
 
@@ -146,14 +231,25 @@ class SynthPanel {
     if (!this.isOpen) return
     this.isOpen = false
 
-    // Stop gesture generation
-    this._stopGestureGeneration()
+    // Stop audition if running
+    this._stopAudition()
+
+    // Destroy sub-menu
+    if (this.auditionSubMenu) {
+      this.auditionSubMenu.destroy()
+      this.auditionSubMenu = null
+    }
 
     document.removeEventListener('keydown', this._handleKeyDown)
 
     // Entry #SynthUI: Clean up socket event listener to prevent memory leak
     if (this._slotsChangedHandler && this.socketService?.off) {
       this.socketService.off('synth:slots-changed', this._slotsChangedHandler)
+    }
+
+    // Issue #5 fix: Clean up reconnect handler
+    if (this._reconnectHandler && this.socketService?.socket) {
+      this.socketService.socket.off('connect', this._reconnectHandler)
     }
 
     if (this._previouslyFocusedElement?.focus) {
@@ -191,9 +287,50 @@ class SynthPanel {
     this.overlay.appendChild(this.panel)
     document.body.appendChild(this.overlay)
 
+    // Create and attach audition sub-menu
+    this._createAuditionSubMenu()
+
     // Attach listeners
     this._attachListeners()
     this._updateOscillatorSection()
+  }
+
+  /**
+   * Create the audition sub-menu
+   */
+  _createAuditionSubMenu () {
+    // Create sub-menu instance
+    if (typeof AuditionSubMenu !== 'undefined') {
+      this.auditionSubMenu = new AuditionSubMenu(this)
+
+      // Set up callbacks
+      this.auditionSubMenu.onParamsChange = (params) => {
+        this._onAuditionParamsChange(params)
+      }
+
+      this.auditionSubMenu.onStartStop = (shouldStart) => {
+        if (shouldStart) {
+          this._startAudition()
+        } else {
+          this._stopAudition()
+        }
+      }
+
+      // Create and attach to panel
+      const subMenuElement = this.auditionSubMenu.create()
+
+      // Position relative to audition button
+      const auditionBtn = this.panel.querySelector('#synth-generate-btn')
+      if (auditionBtn) {
+        // Wrap button in a container for positioning
+        const wrapper = document.createElement('div')
+        wrapper.style.position = 'relative'
+        wrapper.style.display = 'inline-block'
+        auditionBtn.parentNode.insertBefore(wrapper, auditionBtn)
+        wrapper.appendChild(auditionBtn)
+        wrapper.appendChild(subMenuElement)
+      }
+    }
   }
 
   /**
@@ -707,32 +844,22 @@ class SynthPanel {
   }
 
   // ==========================================
-  // Generate Gestures Feature
+  // Audition Feature (Virtual Gesture Generation)
   // ==========================================
 
   /**
-   * Toggle gesture generation
+   * Toggle audition sub-menu visibility
    */
   _toggleGestureGeneration () {
-    this.generateGesturesActive = !this.generateGesturesActive
-
-    const btn = this.panel?.querySelector('#synth-generate-btn')
-    if (btn) {
-      btn.classList.toggle('active', this.generateGesturesActive)
-      btn.textContent = this.generateGesturesActive ? 'Stop Generating' : 'Generate Gestures'
-    }
-
-    if (this.generateGesturesActive) {
-      this._startGestureGeneration()
-    } else {
-      this._stopGestureGeneration()
+    if (this.auditionSubMenu) {
+      this.auditionSubMenu.toggle()
     }
   }
 
   /**
-   * Start generating gestures
+   * Start audition gesture generation on backend
    */
-  async _startGestureGeneration () {
+  async _startAudition () {
     // Ensure audio context is started (requires user interaction)
     if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
       await Tone.start()
@@ -748,139 +875,59 @@ class SynthPanel {
       }
     }
 
-    // Play immediately on start
-    const metrics = this._getCombinedMetrics()
-    console.log('[SynthPanel] Generate Gestures - playing first note')
-    this._generateGesture(metrics)
-    // Then schedule next
-    this._scheduleNextGesture()
+    // Send start command to backend
+    if (this.socketService?.socket) {
+      const params = this.auditionSubMenu?.getParams() || {}
+      this.socketService.socket.emit('audition:start', params)
+      console.log('[SynthPanel] Audition started with params:', params)
+    }
+
+    this.auditionActive = true
+
+    // Update UI state
+    const btn = this.panel?.querySelector('#synth-generate-btn')
+    if (btn) {
+      btn.classList.add('active')
+    }
+
+    if (this.auditionSubMenu) {
+      this.auditionSubMenu.setGenerating(true)
+    }
   }
 
   /**
-   * Stop generating gestures
+   * Stop audition gesture generation
    */
-  _stopGestureGeneration () {
-    if (this.gestureTimeout) {
-      clearTimeout(this.gestureTimeout)
-      this.gestureTimeout = null
-    }
-    this.generateGesturesActive = false
+  _stopAudition () {
+    if (!this.auditionActive) return
 
+    // Send stop command to backend
+    if (this.socketService?.socket) {
+      this.socketService.socket.emit('audition:stop')
+      console.log('[SynthPanel] Audition stopped')
+    }
+
+    this.auditionActive = false
+
+    // Update UI state
     const btn = this.panel?.querySelector('#synth-generate-btn')
     if (btn) {
       btn.classList.remove('active')
-      btn.textContent = 'Generate Gestures'
+    }
+
+    if (this.auditionSubMenu) {
+      this.auditionSubMenu.setGenerating(false)
     }
   }
 
   /**
-   * Schedule next gesture generation
+   * Handle audition parameter changes from sub-menu
    */
-  _scheduleNextGesture () {
-    if (!this.generateGesturesActive) return
-
-    // Get combined metrics (or use random if not available)
-    const metrics = this._getCombinedMetrics()
-    const activityLevel = metrics.combined
-
-    // Faster delay for audition: 3s base, 1s min (quicker feedback while testing)
-    const baseDelay = 3000
-    const minDelay = 1000
-    const delay = baseDelay - (activityLevel * (baseDelay - minDelay))
-
-    this.gestureTimeout = setTimeout(() => {
-      this._generateGesture(metrics)
-      this._scheduleNextGesture()
-    }, delay)
-  }
-
-  /**
-   * Get combined metrics from all 3 sources
-   */
-  _getCombinedMetrics () {
-    // Try to access metrics from window (landing page pattern)
-    const metricsData = window.metricsData || {}
-
-    // Normalize each metric to 0-1
-    const wikipedia = Math.min(1, (metricsData.wikipedia?.editsPerMinute || 0) / 500)
-    const hackerNews = Math.min(1, (metricsData.hackerNews?.postsPerMinute || 0) / 100)
-    const github = Math.min(1, (metricsData.github?.commitsPerMinute || 0) / 50)
-
-    // If no real metrics, use random values
-    const hasRealMetrics = metricsData.wikipedia || metricsData.hackerNews || metricsData.github
-
-    return {
-      wikipedia: hasRealMetrics ? wikipedia : Math.random() * 0.5 + 0.2,
-      hackerNews: hasRealMetrics ? hackerNews : Math.random() * 0.5 + 0.2,
-      github: hasRealMetrics ? github : Math.random() * 0.5 + 0.2,
-      combined: hasRealMetrics
-        ? (wikipedia + hackerNews + github) / 3
-        : Math.random() * 0.5 + 0.25
+  _onAuditionParamsChange (params) {
+    // Send updated params to backend if audition is active
+    if (this.auditionActive && this.socketService?.socket) {
+      this.socketService.socket.emit('audition:config', params)
     }
-  }
-
-  /**
-   * Generate a gesture based on metrics
-   */
-  _generateGesture (metrics) {
-    if (!this.audioService?.playSimpleNote) {
-      console.warn('[SynthPanel] audioService.playSimpleNote not available')
-      return
-    }
-
-    // Position X: weighted average of regions (0-1)
-    const x = metrics.wikipedia * 0.17 +
-              metrics.hackerNews * 0.5 +
-              metrics.github * 0.83
-
-    // Position Y: combined activity level (0-1)
-    const y = metrics.combined
-
-    // Calculate frequency (higher y = lower pitch for musical effect)
-    const baseFreq = 110  // A2
-    const maxFreq = 880   // A5
-    const frequency = baseFreq + (1 - y) * (maxFreq - baseFreq) + x * 110
-
-    // Intensity based on variance
-    const variance = Math.abs(metrics.wikipedia - metrics.hackerNews) +
-                    Math.abs(metrics.hackerNews - metrics.github)
-    const intensity = 0.3 + variance * 0.4
-
-    // Duration: higher activity = shorter notes
-    const duration = 0.2 + (1 - metrics.combined) * 0.5
-
-    // Entry #SynthUI: Emit cursor position synced with audio
-    this._emitCursorPosition(x, y)
-
-    // Play the note
-    console.log(`[SynthPanel] Playing note: ${frequency.toFixed(0)}Hz, ${duration.toFixed(2)}s, intensity ${intensity.toFixed(2)}`)
-    this.audioService.playSimpleNote(frequency, duration, intensity)
-  }
-
-  /**
-   * Entry #SynthUI: Emit cursor position for visual feedback
-   * Moves cursor both locally and remotely in sync with generated audio
-   */
-  _emitCursorPosition (x, y) {
-    // Emit to socket for remote users
-    if (this.socketService?.socket) {
-      this.socketService.socket.emit('cursor-move', {
-        x,
-        y,
-        isDrawing: false,
-        timestamp: Date.now()
-      })
-    }
-
-    // Update local cursor via CursorManager (if available)
-    if (window.cursorManager?.updateLocalCursor) {
-      window.cursorManager.updateLocalCursor(x, y)
-    }
-
-    // Also trigger local canvas cursor update via event
-    window.dispatchEvent(new CustomEvent('synth:cursor-move', {
-      detail: { x, y }
-    }))
   }
 
   // ==========================================

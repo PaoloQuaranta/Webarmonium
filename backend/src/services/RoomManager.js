@@ -15,7 +15,12 @@ class RoomManager {
   constructor () {
     this.rooms = new Map() // roomId -> Room instance
     this.userRoomMap = new Map() // userId -> roomId
-    this.cleanupInterval = null
+
+    // Entry #PERF: Consolidated timer replaces separate cleanup and metrics timers
+    // Single timer runs every 5 seconds, cleanup runs every 60th tick (~5 minutes)
+    this._unifiedTimerInterval = null
+    this._unifiedTimerTickCount = 0
+    this._cleanupEveryNTicks = 60 // 60 * 5s = 5 minutes
 
     // Multi-user canvas services (per-room)
     this.colorServices = new Map() // roomId -> ColorAssignmentService
@@ -27,11 +32,14 @@ class RoomManager {
     // Virtual user service reference (set externally)
     this.virtualUserService = null
 
+    // Issue #4 fix: AuditionGestureService reference for cleanup (set externally)
+    this.auditionGestureService = null
+
     // Socket.IO reference for mode transition events (set externally)
     this.io = null
 
-    this.startPeriodicCleanup()
-    this.startMetricsBroadcast()
+    // Entry #PERF: Start consolidated unified timer
+    this._startUnifiedTimer()
   }
 
   /**
@@ -40,6 +48,15 @@ class RoomManager {
    */
   setVirtualUserService(service) {
     this.virtualUserService = service
+  }
+
+  /**
+   * Set AuditionGestureService reference
+   * Issue #4 fix: Needed for cleanup when rooms are destroyed
+   * @param {AuditionGestureService} service
+   */
+  setAuditionGestureService(service) {
+    this.auditionGestureService = service
   }
 
   /**
@@ -531,17 +548,44 @@ class RoomManager {
   }
 
   /**
-   * Start periodic cleanup of expired rooms and sessions
+   * Entry #PERF: Unified timer for all periodic tasks
+   * Consolidates cleanup (every ~5min) and metrics broadcast (every 5s)
+   * Reduces timer overhead from 2 intervals to 1
+   * @private
    */
-  startPeriodicCleanup () {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval)
+  _startUnifiedTimer() {
+    if (this._unifiedTimerInterval) {
+      clearInterval(this._unifiedTimerInterval)
     }
 
-    // Run cleanup every 5 minutes
-    this.cleanupInterval = setInterval(() => {
-      this.performCleanup()
-    }, 5 * 60 * 1000)
+    this._unifiedTimerTickCount = 0
+
+    this._unifiedTimerInterval = setInterval(() => {
+      this._unifiedTimerTickCount++
+
+      // Metrics broadcast: every tick (5 seconds)
+      this.rooms.forEach((room, roomId) => {
+        const parameters = this.getCompositionalParameters(roomId)
+        if (parameters && room.users.size > 0) {
+          room.compositionalParameters = parameters
+        }
+      })
+
+      // Cleanup: every N ticks (~5 minutes)
+      if (this._unifiedTimerTickCount >= this._cleanupEveryNTicks) {
+        this._unifiedTimerTickCount = 0
+        this.performCleanup()
+      }
+    }, 5000)
+  }
+
+  /**
+   * Start periodic cleanup of expired rooms and sessions
+   * @deprecated Use _startUnifiedTimer instead (kept for backward compatibility)
+   */
+  startPeriodicCleanup () {
+    // No-op: cleanup is now handled by unified timer
+    // Kept for backward compatibility with any external calls
   }
 
   /**
@@ -601,6 +645,11 @@ class RoomManager {
         this.metricsAnalyzers.delete(roomId)
       }
 
+      // Issue #4 fix: Cleanup audition sessions for deleted rooms
+      if (this.auditionGestureService) {
+        this.auditionGestureService.cleanupRoom(roomId)
+      }
+
       stats.roomsCleaned++
     })
 
@@ -608,12 +657,13 @@ class RoomManager {
   }
 
   /**
-   * Stop periodic cleanup
+   * Stop periodic cleanup and metrics broadcast
+   * Entry #PERF: Now stops unified timer
    */
   stopPeriodicCleanup () {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval)
-      this.cleanupInterval = null
+    if (this._unifiedTimerInterval) {
+      clearInterval(this._unifiedTimerInterval)
+      this._unifiedTimerInterval = null
     }
   }
 
@@ -801,24 +851,13 @@ class RoomManager {
 
   /**
    * Start periodic broadcast of compositional parameters
-   * Broadcasts every 5 seconds to all connected clients
+   * @deprecated Use _startUnifiedTimer instead (kept for backward compatibility)
    */
   startMetricsBroadcast() {
-    if (this.metricsBroadcastInterval) {
-      clearInterval(this.metricsBroadcastInterval)
-    }
-
-    // Broadcast metrics every 5 seconds
-    this.metricsBroadcastInterval = setInterval(() => {
-      this.rooms.forEach((room, roomId) => {
-        const parameters = this.getCompositionalParameters(roomId)
-        if (parameters && room.users.size > 0) {
-          // This will be picked up by socket handlers to broadcast
-          room.compositionalParameters = parameters
-        }
-      })
-    }, 5000)
+    // No-op: metrics broadcast is now handled by unified timer
+    // Kept for backward compatibility with any external calls
   }
 }
+
 
 module.exports = RoomManager

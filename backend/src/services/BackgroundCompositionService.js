@@ -1183,6 +1183,28 @@ class BackgroundCompositionService {
       }
     }
 
+    // Entry #AUDITION: Handle raw audition gestures
+    // Skip StyleAnalyzer processing for audition gestures to avoid feedback loops
+    // These gestures are already using raw parameters and shouldn't influence style analysis
+    if (gestureData.gesture?.rawParams) {
+      // Still add to material library for composition use, but skip style analysis
+      const gestureWeight = this.calculateGestureWeight(roomState.gestureCount, roomState.initialGestureWindow)
+      roomState.gestureCount++
+
+      const material = {
+        notes: musicalPhrase.notes || [],
+        duration: musicalPhrase.duration || 1000,
+        userId: gestureData.userId,
+        gestureData: gestureData,
+        weight: gestureWeight,
+        timestamp: Date.now(),
+        isAudition: true
+      }
+      this.materialLibrary.addMaterial(material)
+      // console.log(`🎵 Audition gesture added (skipping StyleAnalyzer)`)
+      return
+    }
+
     // Entry #171: Sync webMetrics before processing gesture for freshness
     // This ensures gestures use current metrics, not stale ones from last composition
     this.syncHarmonicContext()

@@ -206,6 +206,12 @@ function createServiceContainer (config = {}) {
     return new VirtualUserService()
   })
 
+  // Audition gesture service for SynthPanel audition feature
+  container.register('auditionGestureService', () => {
+    const AuditionGestureService = require('./AuditionGestureService')
+    return new AuditionGestureService()
+  })
+
   // Connection tracker for polling lifecycle control
   container.register('connectionTracker', () => {
     const ConnectionTracker = require('./ConnectionTracker')
@@ -314,9 +320,27 @@ function wireServices (container, config = {}) {
       // Give VirtualUserService access to RoomManager
       virtualUserService.setRoomManager(service)
 
+      // Issue #4 fix: Link AuditionGestureService for room cleanup
+      const auditionGestureService = c.get('auditionGestureService')
+      service.setAuditionGestureService(auditionGestureService)
+
       // Set Socket.IO for mode transition notifications
       if (config.io) {
         service.setSocketIO(config.io)
+      }
+    },
+    auditionGestureService: (service, c) => {
+      // Link BackgroundCompositionService for harmonic context and material
+      const backgroundCompositionService = c.get('backgroundCompositionService')
+      service.backgroundCompositionService = backgroundCompositionService
+
+      // Link WebMetricsPoller for metrics source option
+      const webMetricsPoller = c.get('webMetricsPoller')
+      service.webMetricsPoller = webMetricsPoller
+
+      // Set Socket.IO for broadcasting
+      if (config.io) {
+        service.io = config.io
       }
     },
     connectionTracker: (service, c) => {
