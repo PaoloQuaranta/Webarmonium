@@ -3063,8 +3063,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   border-radius: 50%;
   background: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  margin-top: -4px;
+  border: none;
   transition: transform 0.1s;
 }
 
@@ -3078,7 +3077,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   border-radius: 50%;
   background: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  border: none;
 }
 
 /* Fader label */
@@ -3448,8 +3447,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   border-radius: 50%;
   background: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  margin-top: -4px;
+  border: none;
   transition: transform 0.1s;
 }
 
@@ -3463,7 +3461,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   border-radius: 50%;
   background: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  border: none;
 }
 
 .audition-slider:focus {
@@ -3575,7 +3573,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   .audition-slider::-webkit-slider-thumb {
     width: 20px;
     height: 20px;
-    margin-top: -7px;
   }
 
   .audition-slider::-moz-range-track {
