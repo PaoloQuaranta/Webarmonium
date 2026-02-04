@@ -1127,7 +1127,8 @@ class WebarmoniumApp {
       if (!data || data.x === undefined || data.y === undefined) return
 
       // Check if this is for the local user (audition-generated cursor for self)
-      const localUserId = this.socketService?.socket?.id
+      // CRITICAL: Use currentUserId (backend-assigned UUID), NOT socket.id (Socket.io ID)
+      const localUserId = this.socketService?.currentUserId || this.socketService?.socket?.id
       const isLocalUser = data.userId === localUserId
 
       if (isLocalUser && data.isAudition) {
