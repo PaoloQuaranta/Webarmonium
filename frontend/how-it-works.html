@@ -314,7 +314,24 @@
       <p>
         <strong>Background music emerges organically in response to gestures</strong>: each parameter that feeds the composition algorithm is derived from user interactions in the room.
         No artificial or mechanical source has been used, just the room's activity metrics.
-        Several voices are driven by those data to provide a rich, modulating, polyphonic texture that adapts to user gestures and uses them as material for the composition.
+      </p>
+
+      <p>
+        The <em>CompositionEngine</em> uses a <strong>form-driven architecture</strong>: it selects musical forms
+        (sonata, ABA, verse_chorus, rondo, etc.) based on the room's energy and dominant genre, then generates
+        compositions section by section. Each section carries distinct harmonic tension, rhythmic density, and
+        dynamic contour. A full <strong>three-voice counterpoint</strong> (melody, harmony, bass) is always active,
+        providing a rich polyphonic texture. An <em>AccompanimentEngine</em> adds three supporting layers&mdash;bass,
+        pad, and keys&mdash;each with genre-specific patterns (walking bass for jazz, arpeggios for electronic,
+        power chords for rock, Alberti bass for classical).
+      </p>
+
+      <p>
+        The system selects from <strong>nine genres</strong>&mdash;ambient, electronic, jazz, rock, classical,
+        melodic, rhythmic, experimental, and pop&mdash;each with distinct BPM ranges, articulation styles,
+        swing amounts, and synth timbres. Harmonic modulation is <strong>form-driven</strong>: key changes occur
+        only at section transitions, governed by genre-specific modulation profiles. Tonal centers stay stable
+        within sections, ensuring coherent harmonic movement.
       </p>
 
       <p>
@@ -343,6 +360,21 @@
         creation and evolution are derived from gesture characteristics&mdash;high-intensity gestures at unique positions
         create new patterns, while moderate-intensity gestures evolve existing dormant patterns, creating a deterministic
         &ldquo;room personality&rdquo; that shapes the composition.
+      </p>
+
+      <p>
+        <strong>Synth Panel</strong>: In collaborative rooms, each user can customize their sound through a
+        hardware-synth-inspired channel strip. It provides controls for oscillator parameters, filter (lowpass, highpass,
+        bandpass) with cutoff and resonance, ADSR envelope, and effects (volume, pan, delay, reverb). Eight presets are
+        available, with server-side conflict resolution ensuring unique timbres. All controls are themed with the user's
+        assigned color, and changes sync in real-time across the room.
+      </p>
+
+      <p>
+        <strong>Audition</strong>: Users can test their synth patch without performing gestures. Activated from the Synth Panel,
+        the audition feature generates virtual gestures with configurable parameters: source (random or metrics-driven), event frequency,
+        timing regularity, event uniformity, gesture type (taps vs drags), and note range (from a minor third up to five octaves).
+        A pulse button provides visual feedback on each generated note.
       </p>
     </section>
 

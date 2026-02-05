@@ -396,8 +396,13 @@
           </tr>
           <tr>
             <td>Timbre assignment</td>
-            <td>Sequential (slots 0-3)</td>
-            <td>Retro Square, Nasal Reed, Warm Chorus, Bell Chime</td>
+            <td>Sequential (slots 0-7)</td>
+            <td>8 presets: Retro Square, Nasal Reed, Warm Chorus, Bell Chime, Soft Square, Wide Pulse, Bright Chorus, Deep Bell</td>
+          </tr>
+          <tr>
+            <td>Synth customization</td>
+            <td>Synth Panel</td>
+            <td>Oscillator, filter, envelope, and effects customizable in real-time per user</td>
           </tr>
           <tr>
             <td>Color assignment</td>
@@ -516,9 +521,14 @@
             <td>Note position &rarr; velocity contour, duration, gap patterns</td>
           </tr>
           <tr>
+            <td>AccompanimentEngine</td>
+            <td>Accompaniment layers</td>
+            <td>Genre-specific bass, pad, and keys patterns with voice leading</td>
+          </tr>
+          <tr>
             <td>StyleAnalyzer</td>
             <td>Pattern recognition</td>
-            <td>Extracts tempo, energy, density from gesture history</td>
+            <td>Extracts tempo, energy, density from gesture history (P10-P90 percentile normalization)</td>
           </tr>
           <tr>
             <td>MaterialLibrary</td>
@@ -537,30 +547,38 @@
       <table>
         <thead>
           <tr>
-            <th>Genre Weight</th>
+            <th>Genre</th>
             <th>Forms (Low Energy &rarr; High Energy)</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Classical (&gt;0.7)</td>
+            <td>Classical</td>
             <td>theme_and_variations &rarr; ABA &rarr; rondo &rarr; sonata</td>
           </tr>
           <tr>
-            <td>Electronic (&gt;0.7)</td>
+            <td>Electronic</td>
             <td>through_composed &rarr; strophic &rarr; verse_chorus &rarr; build_drop</td>
           </tr>
           <tr>
-            <td>Jazz (&gt;0.7)</td>
+            <td>Jazz</td>
             <td>modal &rarr; AABA &rarr; blues &rarr; rhythm_changes</td>
           </tr>
           <tr>
-            <td>Rock (&gt;0.7)</td>
+            <td>Rock</td>
             <td>strophic &rarr; AABA &rarr; verse_chorus &rarr; intro_verse_chorus_bridge_outro</td>
           </tr>
           <tr>
-            <td>Mixed/Default</td>
-            <td>strophic &rarr; ABA &rarr; verse_chorus</td>
+            <td>Ambient</td>
+            <td>through_composed &rarr; strophic &rarr; ABA</td>
+          </tr>
+          <tr>
+            <td>Melodic</td>
+            <td>ABA &rarr; verse_chorus &rarr; rondo</td>
+          </tr>
+          <tr>
+            <td>Default (pop, rhythmic, experimental)</td>
+            <td>strophic &rarr; ABA &rarr; verse_chorus &rarr; rondo &rarr; through_composed</td>
           </tr>
         </tbody>
       </table>
@@ -574,10 +592,27 @@
 
       <div class="note">
         <strong>Golden Ratio (&phi;) Stepping:</strong> All composition parameters use &phi; (1.618...) to create
-        low-discrepancy sequences that avoid predictable repetition. Form selection combines energy (40%),
-        temporal offset (40%), and history variation (20%). Note-level details (velocity, duration,
-        articulation) derive from position within the phrase using sine-wave contours.
+        low-discrepancy sequences that avoid predictable repetition. Form selection uses direct PHI stepping
+        through the forms array, with energy shifting the selection by up to 1 position. Note-level details
+        (velocity, duration, articulation) derive from position within the phrase using sine-wave contours.
       </div>
+
+      <h3>Form-Driven Section Management</h3>
+      <p>
+        Each form comprises named sections with distinct parameters: thematic role (exposition, development,
+        recapitulation), dynamic contour (crescendo, diminuendo, plateau), rhythmic density (sparse to dense),
+        harmonic tension (0.0-1.0), and harmonic function (tonic, dominant, subdominant, predominant, chromatic).
+        The <em>SectionStateManager</em> tracks section progression, ensuring the CompositionEngine and HarmonicEngine
+        stay synchronized&mdash;key changes, BPM shifts, and velocity curves all align with the current section context.
+      </p>
+
+      <h3>BPM Management</h3>
+      <p>
+        BPM changes are <strong>phrase-aligned</strong>: a minimum of 4 phrases <em>and</em> 30 seconds must
+        elapse between changes. The nudge range is capped at &plusmn;10%, smoothed over 30 transition steps
+        to prevent abrupt tempo shifts. Genre-specific BPM ranges (e.g. ambient 60-90, electronic 115-150,
+        jazz 90-150) constrain the allowed tempo space.
+      </p>
     </section>
 
     <!-- Section 5b: Data-to-Music Derivation Table -->
@@ -720,6 +755,75 @@
       </div>
     </section>
 
+    <!-- Section 5c: Genre-Aware Composition System -->
+    <section class="tech-section">
+      <h2>5c. Genre-Aware Composition System</h2>
+      <p>
+        The composition system selects from <strong>nine genres</strong>, each with distinct musical characteristics.
+        Genre selection is probabilistic with starvation prevention: genres that haven't played for 7+ minutes
+        receive a boosted selection probability (up to 3&times;). A minimum play time of 3 minutes prevents
+        rapid genre switching.
+      </p>
+
+      <h3>Genre Characteristics</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Genre</th>
+            <th>BPM Range</th>
+            <th>Articulation</th>
+            <th>Swing</th>
+            <th>Syncopation</th>
+            <th>Character</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Ambient</td><td>60-90</td><td>legato</td><td>0</td><td>0.05</td><td>Atmospheric, textural</td></tr>
+          <tr><td>Classical</td><td>70-110</td><td>legato</td><td>0</td><td>0.15</td><td>Balanced, counterpoint</td></tr>
+          <tr><td>Melodic</td><td>80-120</td><td>legato</td><td>0</td><td>0.25</td><td>Singable, clear</td></tr>
+          <tr><td>Jazz</td><td>90-150</td><td>portato</td><td>0.67</td><td>0.70</td><td>Swing, complex harmony</td></tr>
+          <tr><td>Pop</td><td>90-130</td><td>normal</td><td>0</td><td>0.30</td><td>Accessible, catchy</td></tr>
+          <tr><td>Rock</td><td>100-150</td><td>marcato</td><td>0</td><td>0.40</td><td>Backbeat, power</td></tr>
+          <tr><td>Rhythmic</td><td>110-160</td><td>staccato</td><td>0.15</td><td>0.85</td><td>Funk, groove</td></tr>
+          <tr><td>Electronic</td><td>115-150</td><td>staccato</td><td>0</td><td>0.60</td><td>Driving, 4-on-floor</td></tr>
+          <tr><td>Experimental</td><td>60-180</td><td>varied</td><td>0.30</td><td>0.60</td><td>Unpredictable, textural</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Genre Orchestration</h3>
+      <p>
+        Every genre maintains three always-active counterpoint voices (melody, harmony, bass_voice) plus
+        genre-specific accompaniment layers. The orchestration determines which accompaniment voices are active
+        and their relative velocity levels.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Genre</th>
+            <th>Accompaniment Layers</th>
+            <th>Sonic Identity</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Ambient</td><td>pad</td><td>Very low-pass filter (500Hz), slow attack (1.5s), long reverb (10s decay)</td></tr>
+          <tr><td>Classical</td><td>pad</td><td>Warm filter (1400Hz), smooth resonance, concert hall reverb (3s)</td></tr>
+          <tr><td>Melodic</td><td>pad, keys</td><td>Balanced filter (1800Hz), moderate delay and reverb</td></tr>
+          <tr><td>Jazz</td><td>pad</td><td>Warm (2200Hz), light resonance, club ambience reverb (1.8s)</td></tr>
+          <tr><td>Pop</td><td>bass_accomp, pad, keys</td><td>Clear filter (2200Hz), tempo-synced delay, medium reverb</td></tr>
+          <tr><td>Rock</td><td>bass_accomp, keys</td><td>Bright filter (2800Hz), slapback delay, tight room reverb (1s)</td></tr>
+          <tr><td>Rhythmic</td><td>bass_accomp, keys</td><td>Mid-bright filter (2500Hz), tight grooves, dry sound</td></tr>
+          <tr><td>Electronic</td><td>bass_accomp, keys</td><td>Bright filter (4000Hz), high resonance (Q=6), acid-style squelch</td></tr>
+          <tr><td>Experimental</td><td>pad, keys, bass_accomp</td><td>Mid filter (1500Hz), extreme resonance (Q=4), long delay with feedback</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <strong>PHI-Based Pattern Cycling:</strong> Each genre defines multiple rhythm patterns per voice role.
+        Patterns cycle using &phi;-based indexing across compositions, ensuring maximum variety without
+        repetition: <code>patternIndex = floor((compositionCount &times; &phi;) mod patternCount)</code>
+      </div>
+    </section>
+
     <!-- Section 6: Dynamic Normalization -->
     <section class="tech-section">
       <h2>6. Dynamic Normalization</h2>
@@ -740,6 +844,25 @@
         <li><strong>Frequency Mapping:</strong> Percentile-based (P10-P90) rather than fixed ranges</li>
         <li><strong>Velocity Calculation:</strong> Rate of change (positive = increasing, negative = decreasing)</li>
       </ul>
+
+      <h3>Deep Percentile Normalization</h3>
+      <p>
+        Gesture parameters (velocity, acceleration, density, turnAngle, pitchVariance) use adaptive P10-P90
+        percentile normalization to prevent extreme outliers from skewing the musical output. During a warmup
+        phase (first 10 samples), fallback divisors provide reasonable defaults for each metric.
+      </p>
+      <div class="formula">
+        <strong>After warmup (samples &ge; 10):</strong><br>
+        P10 = sortedSamples[floor(0.1 &times; sampleCount)]<br>
+        P90 = sortedSamples[floor(0.9 &times; sampleCount)]<br>
+        normalizedValue = (rawValue - P10) / (P90 - P10)<br><br>
+        <strong>During warmup (samples &lt; 10):</strong><br>
+        normalizedValue = rawValue / fallbackDivisor
+      </div>
+      <p>
+        Percentile calculations are cached with a 5-second TTL and invalidated only when new samples are added,
+        ensuring minimal CPU overhead during high-frequency gesture processing.
+      </p>
     </section>
 
     <!-- Section 7: Audio Architecture -->
@@ -778,7 +901,7 @@
         </tbody>
       </table>
 
-      <h3>Real User Patches (4 slots)</h3>
+      <h3>Real User Patches (8 presets)</h3>
       <table>
         <thead>
           <tr>
@@ -813,79 +936,155 @@
             <td>FM Sine</td>
             <td>Bell-like, metallic</td>
           </tr>
+          <tr>
+            <td>4</td>
+            <td>Soft Square</td>
+            <td>Square</td>
+            <td>Softer, muffled</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>Wide Pulse</td>
+            <td>Pulse (40% width)</td>
+            <td>Wider, hollower</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td>Bright Chorus</td>
+            <td>Fat Sawtooth (2 voices)</td>
+            <td>Brighter, wider spread</td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td>Deep Bell</td>
+            <td>FM Triangle</td>
+            <td>Deeper, more metallic</td>
+          </tr>
         </tbody>
       </table>
+
+      <h3>Synth Panel</h3>
+      <p>
+        In collaborative rooms, each user can customize their synth sound in real-time through a channel-strip
+        panel. Preset selection uses server-side conflict resolution: occupied presets are disabled. All parameter
+        changes sync in real-time via WebSocket to all room participants, and late-joining users receive the
+        current state on connection.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Control Group</th>
+            <th>Parameters</th>
+            <th>Range</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Oscillator</td>
+            <td>Context-sensitive: pulse width, fat spread, or FM modulation index</td>
+            <td>Depends on preset oscillator type</td>
+          </tr>
+          <tr>
+            <td>Filter</td>
+            <td>Type (LP/HP/BP), cutoff, resonance (Q)</td>
+            <td>Cutoff range depends on filter type: LP 80-20000Hz, HP 20-12000Hz, BP 80-12000Hz (logarithmic). Q range: LP/HP 0.1-20.0, BP 0.1-8.0</td>
+          </tr>
+          <tr>
+            <td>Envelope</td>
+            <td>Attack, Decay, Sustain, Release</td>
+            <td>A: 0.001-4.0s, D: 0.001-8.0s, S: 0-1, R: 0.001-10.0s</td>
+          </tr>
+          <tr>
+            <td>Output</td>
+            <td>Volume, Pan</td>
+            <td>Volume: -12 to +12dB, Pan: -1 to +1</td>
+          </tr>
+          <tr>
+            <td>Effects</td>
+            <td>Delay send, Reverb send</td>
+            <td>0-1 (dry to full wet)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <strong>Color Theming:</strong> All Synth Panel controls are themed with the user's assigned color
+        via the CSS custom property <code>--synth-accent</code>, providing instant visual identification
+        of which user's panel is active.
+      </div>
     </section>
 
     <!-- Section 8: Background Composition System -->
     <section class="tech-section">
       <h2>8. Background Composition System</h2>
 
-      <h3>GenerativeMusicEngine: Three-Layer Architecture</h3>
+      <h3>Counterpoint + Accompaniment Architecture</h3>
       <p>
-        The landing page generates continuous background music through three independent layers,
-        each with its own rhythm cycle and pattern system. The layers operate autonomously but share
-        a common harmonic context (current chord, scale, tonic).
+        Background music is generated through two complementary systems. A full <strong>counterpoint
+        engine</strong> maintains three always-active voices (melody, harmony, bass_voice) that follow
+        voice leading rules and produce independent melodic lines. An <strong>AccompanimentEngine</strong>
+        adds three supporting layers with genre-specific patterns.
       </p>
+
+      <h3>AccompanimentEngine Layers</h3>
       <table>
         <thead>
           <tr>
             <th>Layer</th>
-            <th>Rhythm Cycle</th>
+            <th>MIDI Range</th>
             <th>Role</th>
-            <th>Pattern Count</th>
+            <th>Genre Examples</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Bass</td>
-            <td>2000ms</td>
-            <td>Low frequency foundation</td>
-            <td>12 patterns</td>
+            <td>bass_accomp</td>
+            <td>E1-C3 (28-48)</td>
+            <td>Voice-led bass foundation</td>
+            <td>Walking bass (jazz), driving eighths (electronic), power bass (rock), Alberti bass (classical), sustained roots (ambient)</td>
           </tr>
           <tr>
-            <td>Pad</td>
-            <td>16000ms</td>
-            <td>Ethereal sustained tones</td>
-            <td>12 patterns</td>
+            <td>pad</td>
+            <td>C3-C5 (48-72)</td>
+            <td>Sustained harmonic pads</td>
+            <td>Chord voicings with stagger, extensions at high tension (7ths when &gt;0.6, 9ths when &gt;0.8)</td>
           </tr>
           <tr>
-            <td>Chords</td>
-            <td>4000ms</td>
-            <td>Harmonic movement</td>
-            <td>12 patterns</td>
+            <td>keys</td>
+            <td>C3-C6 (48-84)</td>
+            <td>Genre-specific rhythmic patterns</td>
+            <td>Arpeggios (electronic), jazz comping with swing, rock power stabs, classical block chords, sparse ambient pads</td>
           </tr>
         </tbody>
       </table>
+
+      <h3>Voice Leading &amp; Velocity</h3>
+      <p>
+        All accompaniment layers use voice leading to minimize intervallic jumps between chord changes.
+        Jumps exceeding 5 semitones (STEPWISE_THRESHOLD) incur a penalty, favoring smooth transitions.
+        Dynamic velocity curves shape each section: crescendo, diminuendo, swell, terraced, or stable&mdash;selected
+        based on the section's dynamic contour.
+      </p>
+      <div class="formula">
+        velocityCurve[crescendo] = 0.5 + (position &times; 0.7)&emsp;[rising through section]<br>
+        velocityCurve[diminuendo] = 1.2 - (position &times; 0.7)&emsp;[fading through section]<br>
+        velocityCurve[swell] = 0.5 + sin(position &times; &pi;) &times; 0.7&emsp;[arch shape]
+      </div>
 
       <h3>Harmonic Progressions</h3>
       <p>
-        Seven chord progressions are available, each with a distinct mood. Progressions change
-        automatically after 3-7 cycles based on complexity level.
+        Harmonic progressions are managed by the <em>HarmonicEngine</em> with genre-specific generators.
+        Each genre has 10-12 progressions ordered by complexity, selected based on harmonic tension
+        from the current section context. Progression selection uses &phi;-based stepping combined
+        with section tension for deterministic variety. Chord extensions (7ths, 9ths) are added
+        dynamically when harmonic tension exceeds threshold values.
       </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Progression</th>
-            <th>Degrees</th>
-            <th>Mood</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>I-V-vi-IV</td><td>0, 4, 5, 3</td><td>Uplifting</td></tr>
-          <tr><td>I-IV-V-IV</td><td>0, 3, 4, 3</td><td>Driving</td></tr>
-          <tr><td>i-VI-III-VII</td><td>0, 5, 2, 6</td><td>Dramatic</td></tr>
-          <tr><td>I-vi-IV-V</td><td>0, 5, 3, 4</td><td>Circular</td></tr>
-          <tr><td>I-V-vi-iii-IV</td><td>0, 4, 5, 2, 3</td><td>Flowing</td></tr>
-          <tr><td>I-iii-vi-IV</td><td>0, 2, 5, 3</td><td>Melancholic</td></tr>
-          <tr><td>I-VII-IV-V</td><td>0, 6, 3, 4</td><td>Mysterious</td></tr>
-        </tbody>
-      </table>
 
       <div class="note">
-        <strong>Chord Changes:</strong> Current chord changes every 8 seconds, cycling through the active progression.
-        Progression selection is influenced by room complexity: high complexity favors driving/uplifting progressions,
-        low complexity favors melancholic/mysterious moods.
+        <strong>&phi;-Based Variation:</strong> The AccompanimentEngine receives the current compositionCount
+        as a parameter, using &phi;-based calculations to ensure different pattern selections, velocity
+        curves, and articulation choices across successive compositions. This prevents the accompaniment
+        from becoming predictable over extended listening sessions.
       </div>
     </section>
 
@@ -994,21 +1193,26 @@
       <h2>11. Harmonic Engine &amp; Voice Leading</h2>
 
       <h3>Available Scales</h3>
-      <p>Nine scales are available for melodic generation, with pentatonic as the default (safest for improvisation):</p>
+      <p>Fourteen scales are available for melodic generation, covering all seven modes, harmonic and melodic minor variants, pentatonic scales, and special scales:</p>
       <table>
         <thead>
           <tr><th>Scale</th><th>Intervals (semitones)</th><th>Character</th></tr>
         </thead>
         <tbody>
-          <tr><td>Pentatonic (default)</td><td>0, 2, 4, 7, 9</td><td>Safe, no dissonance</td></tr>
-          <tr><td>Major (Ionian)</td><td>0, 2, 4, 5, 7, 9, 11</td><td>Bright, happy</td></tr>
-          <tr><td>Minor (Aeolian)</td><td>0, 2, 3, 5, 7, 8, 10</td><td>Sad, introspective</td></tr>
+          <tr><td>Ionian (Major)</td><td>0, 2, 4, 5, 7, 9, 11</td><td>Bright, happy</td></tr>
           <tr><td>Dorian</td><td>0, 2, 3, 5, 7, 9, 10</td><td>Jazz, modal</td></tr>
-          <tr><td>Mixolydian</td><td>0, 2, 4, 5, 7, 9, 10</td><td>Bluesy, rock</td></tr>
-          <tr><td>Blues</td><td>0, 3, 5, 6, 7, 10</td><td>Expressive, bent</td></tr>
           <tr><td>Phrygian</td><td>0, 1, 3, 5, 7, 8, 10</td><td>Spanish, exotic</td></tr>
           <tr><td>Lydian</td><td>0, 2, 4, 6, 7, 9, 11</td><td>Dreamy, floating</td></tr>
-          <tr><td>Chromatic</td><td>0-11 (all semitones)</td><td>Full spectrum</td></tr>
+          <tr><td>Mixolydian</td><td>0, 2, 4, 5, 7, 9, 10</td><td>Bluesy, rock</td></tr>
+          <tr><td>Aeolian (Natural minor)</td><td>0, 2, 3, 5, 7, 8, 10</td><td>Sad, introspective</td></tr>
+          <tr><td>Locrian</td><td>0, 1, 3, 5, 6, 8, 10</td><td>Dark, unstable</td></tr>
+          <tr><td>Harmonic Minor</td><td>0, 2, 3, 5, 7, 8, 11</td><td>Dramatic, exotic</td></tr>
+          <tr><td>Melodic Minor</td><td>0, 2, 3, 5, 7, 9, 11</td><td>Jazz sophistication</td></tr>
+          <tr><td>Major Pentatonic</td><td>0, 2, 4, 7, 9</td><td>Safe, no dissonance</td></tr>
+          <tr><td>Minor Pentatonic</td><td>0, 3, 5, 7, 10</td><td>Bluesy, safe</td></tr>
+          <tr><td>Blues</td><td>0, 3, 5, 6, 7, 10</td><td>Expressive, bent</td></tr>
+          <tr><td>Whole Tone</td><td>0, 2, 4, 6, 8, 10</td><td>Dreamlike, ambiguous</td></tr>
+          <tr><td>Diminished</td><td>0, 2, 3, 5, 6, 8, 9, 11</td><td>Symmetrical, tense</td></tr>
         </tbody>
       </table>
 
@@ -1039,11 +1243,94 @@
       <div class="formula">
         Allowed intervals: Unison (0), Minor 3rd (3), Major 3rd (4), Perfect 5th (7), Major 6th (9), Octave (12)
       </div>
+
+      <h3>Form-Driven Harmonic Modulation</h3>
+      <p>
+        Key changes are gated by the composition's form structure: modulation can only occur at section
+        transitions, not within sections. The SECTION_MODULATION_RULES determine which modulation targets
+        are allowed based on the current section's harmonic function.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Harmonic Function</th><th>Modulation Allowed</th><th>Targets</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Tonic</td><td>No (returns to tonic)</td><td>&mdash;</td></tr>
+          <tr><td>Dominant</td><td>Yes</td><td>dominant, relative</td></tr>
+          <tr><td>Subdominant</td><td>Yes</td><td>subdominant, relative</td></tr>
+          <tr><td>Predominant</td><td>Yes</td><td>dominant, subdominant</td></tr>
+          <tr><td>Chromatic</td><td>Yes</td><td>mediant, chromatic, tritone</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        Genre-specific modulation profiles control how frequently and where each genre modulates:
+      </p>
+      <table>
+        <thead>
+          <tr><th>Genre</th><th>Frequency</th><th>Preferred Targets</th><th>Temp. Multiplier</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Ambient</td><td>very low</td><td>relative</td><td>0.3</td></tr>
+          <tr><td>Rock</td><td>low</td><td>relative</td><td>0.5</td></tr>
+          <tr><td>Rhythmic</td><td>low</td><td>relative</td><td>0.5</td></tr>
+          <tr><td>Electronic</td><td>low</td><td>relative, mediant</td><td>0.6</td></tr>
+          <tr><td>Pop</td><td>low</td><td>relative, dominant</td><td>0.7</td></tr>
+          <tr><td>Classical</td><td>medium</td><td>dominant, relative</td><td>0.8</td></tr>
+          <tr><td>Melodic</td><td>medium</td><td>relative, dominant</td><td>0.8</td></tr>
+          <tr><td>Jazz</td><td>high</td><td>tritone, chromatic, dominant</td><td>1.3</td></tr>
+          <tr><td>Experimental</td><td>high</td><td>tritone, chromatic, mediant</td><td>1.5</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <strong>Temperature Smoothing:</strong> Modulation distance is smoothed using exponential smoothing
+        (alpha=0.15) to prevent sudden jumps in tonal center. Recapitulation sections return to the original
+        tonic with 80% probability, maintaining formal coherence.
+      </div>
     </section>
 
-    <!-- Section 12: Metric-to-Gesture Classification -->
+    <!-- Section 12: Audition System -->
     <section class="tech-section">
-      <h2>12. Metric-to-Gesture Classification</h2>
+      <h2>12. Audition System</h2>
+      <p>
+        The Audition feature generates virtual gestures for testing synth patches without performing manual
+        gestures. Generation occurs server-side (via the AuditionGestureService), ensuring other room
+        participants hear the audition output. Timing uses &phi;-based intervals for natural distribution.
+      </p>
+
+      <h3>Audition Parameters</h3>
+      <table>
+        <thead>
+          <tr><th>Parameter</th><th>Range</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Source</td><td>random / metrics</td><td>Random generation or web metrics-driven gesture parameters</td></tr>
+          <tr><td>Frequency</td><td>0.25-2.0 events/sec</td><td>Event rate (500ms-4000ms interval, &phi;-based jitter)</td></tr>
+          <tr><td>Regularity</td><td>0-1</td><td>Timing jitter: 0 = varied intervals, 1 = metronomic</td></tr>
+          <tr><td>Uniformity</td><td>0-1</td><td>Event similarity: 0 = diverse parameters, 1 = identical events</td></tr>
+          <tr><td>Gesture Type</td><td>0-1</td><td>0 = all taps, 1 = all drags, 0.5 = equal mix</td></tr>
+          <tr><td>Range</td><td>3-60 semitones</td><td>Note range (minor 3rd to 5 octaves)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Frequency Range</h3>
+      <div class="formula">
+        Audition frequency range: A2-A5 (110-880Hz)<br>
+        Canvas gesture range: 24-60 semitones (extended from original 24 to match audition range)
+      </div>
+
+      <div class="note">
+        <strong>Automatic Pause:</strong> Audition pauses automatically when the user performs a real gesture
+        and resumes on release, preventing collision between audition and live performance. The audition
+        button pulses with each generated note for visual feedback. Security: all audition parameters
+        are validated and clamped server-side to prevent abuse.
+      </div>
+    </section>
+
+    <!-- Section 13: Metric-to-Gesture Classification -->
+    <section class="tech-section">
+      <h2>13. Metric-to-Gesture Classification</h2>
 
       <p>
         Virtual user gestures are classified based on which metric characteristic is dominant.
