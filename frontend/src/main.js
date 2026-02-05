@@ -875,6 +875,24 @@ class WebarmoniumApp {
         return // Don't use sustained note mechanism for virtual users
       }
 
+      // AUDITION NOTES: Audio handled by SynthPanel._onAuditionHoldStart (self-releasing playSimpleNote)
+      // Skip sustained note mechanism — pause clearing pendingTimers would orphan the hold:end
+      if (data.isAudition) {
+        if (this.visualService && data.position) {
+          const color = data.userColor || '#fb923c'
+          this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
+          if (!data.suppressVisual) {
+            this.visualService.updateGestureData(data.userId, {
+              type: 'hold',
+              velocity: data.velocity || 0.7,
+              holdStart: Date.now(),
+              isActive: true
+            })
+          }
+        }
+        return
+      }
+
       // REAL REMOTE USERS: Use sustained note mechanism (gate open/close)
       // Include userId for per-user synth routing, isRemote=true for volume reduction
       const result = this.audioService.triggerSustainedNoteAttack(
@@ -938,6 +956,18 @@ class WebarmoniumApp {
           const intensity = this._calculateTrailIntensityFromDuration(data.duration)
           const sanitizedColor = this._sanitizeColor(data.userColor) || '#2dd4bf'
           this._renderTrailHalo(data.position.x, data.position.y, intensity, sanitizedColor)
+        }
+        return
+      }
+
+      // AUDITION NOTES: Audio is self-releasing (playSimpleNote), just clean up visuals
+      if (data.isAudition) {
+        if (this.visualService) {
+          this.visualService.updateGestureData(data.userId, {
+            type: 'idle',
+            velocity: 0,
+            isActive: false
+          })
         }
         return
       }
