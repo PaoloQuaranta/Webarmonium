@@ -883,9 +883,26 @@ class WebarmoniumApp {
         return // Don't use sustained note mechanism for virtual users
       }
 
-      // AUDITION NOTES: Audio handled by SynthPanel._onAuditionHoldStart (self-releasing playSimpleNote)
-      // Skip sustained note mechanism — pause clearing pendingTimers would orphan the hold:end
+      // AUDITION NOTES: Audio handled by SynthPanel for local user, UserSynthManager for remote users
+      // Skip sustained note mechanism — notes are self-releasing via triggerAttackRelease
       if (data.isAudition) {
+        const localUserId = this.socketService.currentUserId || this.socketService.socket?.id
+
+        // Remote users' audition: play through isolated per-user synth
+        if (data.userId !== localUserId) {
+          if (data.userId && this.audioService?.userSynthManager) {
+            this.audioService.userSynthManager.triggerAttackRelease(
+              data.userId,
+              data.frequency,
+              data.duration || 0.5,
+              data.velocity,
+              true  // isRemote
+            )
+          }
+        }
+        // Local user's own audition: audio handled by SynthPanel._onAuditionHoldStart
+
+        // Visual feedback for all audition notes
         if (this.visualService && data.position) {
           const color = data.userColor || '#fb923c'
           this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
@@ -903,6 +920,7 @@ class WebarmoniumApp {
 
       // SEQUENCER NOTES: Audio handled by SynthPanel for local user, UserSynthManager for remote users
       // Skip sustained note mechanism — notes are self-releasing via triggerAttackRelease
+      // data.style contains genre/harmonic context from BackgroundCompositionService (forward-compatible)
       if (data.isSequencer) {
         const localUserId = this.socketService.currentUserId || this.socketService.socket?.id
 

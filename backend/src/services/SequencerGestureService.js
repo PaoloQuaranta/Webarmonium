@@ -331,6 +331,9 @@ class SequencerGestureService {
     // Track active note for flush on stop/pause
     state.activeNotes.push({ noteId, roomId, userId })
 
+    // Get style from composition service for harmonic coherence (consistent with audition pattern)
+    const style = this.backgroundCompositionService?.getCurrentStyleForRoom?.(roomId)
+
     // Emit hold:start for remote playback
     this.io.to(roomId).emit('hold:start', {
       type: 'hold:start',
@@ -345,7 +348,8 @@ class SequencerGestureService {
       isRemote: true,
       isSequencer: true,
       isAudition: false,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      style: style || null
     })
 
     // Schedule hold:end — use closure-captured values (disconnect-safe)

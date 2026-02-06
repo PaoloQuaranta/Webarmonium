@@ -49,7 +49,6 @@ class SynthPanel {
     this._handleKeyDown = this._handleKeyDown.bind(this)
     this._handleOverlayClick = this._handleOverlayClick.bind(this)
     this._onAuditionHoldStart = this._onAuditionHoldStart.bind(this)
-    this._onAuditionHoldEnd = this._onAuditionHoldEnd.bind(this)
     this._onSequencerHoldStart = this._onSequencerHoldStart.bind(this)
   }
 
@@ -146,11 +145,10 @@ class SynthPanel {
 
     // Remove previous listeners if any
     socket.off('hold:start', this._onAuditionHoldStart)
-    socket.off('hold:end', this._onAuditionHoldEnd)
 
     // Add listeners for audition events (audio only - cursor handled by main.js)
+    // Note: hold:end not needed — notes are self-releasing via playSimpleNote (triggerAttackRelease)
     socket.on('hold:start', this._onAuditionHoldStart)
-    socket.on('hold:end', this._onAuditionHoldEnd)
 
     // Issue #5 fix: Re-establish listeners on socket reconnection
     // Store handler reference for cleanup
@@ -179,36 +177,16 @@ class SynthPanel {
     // Only handle audition events
     if (!data.isAudition) return
 
-    // Play the note locally using gestureSynth
-    if (this.audioService?.playSimpleNote) {
+    // Only play through local gestureSynth for local user's own audition notes
+    // Remote users' audition notes are routed through UserSynthManager in main.js
+    const localUserId = this.socketService?.currentUserId || this.socketService?.socket?.id
+    if (!localUserId) return // Socket not ready — skip audio playback
+    if (data.userId === localUserId && this.audioService?.playSimpleNote) {
       this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
     }
 
     // Pulse the audition button for visual feedback
-    this._pulseAuditionButton()
-  }
-
-  /**
-   * Trigger pulse animation on audition button
-   * @private
-   */
-  _pulseAuditionButton () {
-    const btn = this.panel?.querySelector('#synth-generate-btn')
-    if (!btn) return
-
-    // Remove class to reset animation, then re-add
-    btn.classList.remove('pulse')
-    // Force reflow to restart animation
-    void btn.offsetWidth
-    btn.classList.add('pulse')
-  }
-
-  /**
-   * Handle audition hold:end events
-   */
-  _onAuditionHoldEnd (data) {
-    // Currently no action needed for hold:end
-    // The note duration is handled in playSimpleNote
+    this._pulseButton('#synth-generate-btn')
   }
 
   /**
@@ -261,22 +239,24 @@ class SynthPanel {
     // Only play through local gestureSynth for local user's own sequencer notes
     // Remote users' sequencer notes are routed through UserSynthManager in main.js
     const localUserId = this.socketService?.currentUserId || this.socketService?.socket?.id
+    if (!localUserId) return // Socket not ready — skip audio playback
     if (data.userId === localUserId && this.audioService?.playSimpleNote) {
       this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
     }
 
-    this._pulseSequencerButton()
+    this._pulseButton('#synth-sequencer-btn')
   }
 
   /**
-   * Trigger pulse animation on sequencer button
+   * Trigger pulse animation on a button
+   * @param {string} selector - CSS selector for the button
    * @private
    */
-  _pulseSequencerButton () {
-    const btn = this.panel?.querySelector('#synth-sequencer-btn')
+  _pulseButton (selector) {
+    const btn = this.panel?.querySelector(selector)
     if (!btn) return
     btn.classList.remove('pulse')
-    void btn.offsetWidth
+    void btn.offsetWidth // Force reflow to restart animation
     btn.classList.add('pulse')
   }
 

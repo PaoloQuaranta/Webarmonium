@@ -3841,7 +3841,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Active LED (playing step) */
 .sequencer-step-btn.active-led {
   background: var(--synth-accent, var(--accent, #2dd4bf));
-  box-shadow: 0 0 6px var(--synth-accent, var(--accent, #2dd4bf));
   color: var(--void, #020208);
 }
 
@@ -3853,7 +3852,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 
 .sequencer-step-btn.active-led.random {
   background: #c084fc;
-  box-shadow: 0 0 6px #c084fc;
   color: var(--void, #020208);
 }
 
