@@ -480,8 +480,8 @@ class UserSynthManager {
 
       // Entry #175b fix: Apply genre-based velocity multiplier
       const genreMultiplier = this.getVelocityMultiplier(this.currentStyle)
-      // Reduce velocity for remote users
-      const finalVelocity = (isRemote ? velocity * 0.7 : velocity) * genreMultiplier
+      // All users play at equal velocity - no remote reduction
+      const finalVelocity = velocity * genreMultiplier
 
       // Trigger the note
       synthData.synth.triggerAttack(constrainedFreq, Tone.now(), finalVelocity)
@@ -539,7 +539,8 @@ class UserSynthManager {
       const constrainedFreq = this.constrainFrequencyToTessitura(frequency, userId)
       // Entry #175b fix: Apply genre-based velocity multiplier
       const genreMultiplier = this.getVelocityMultiplier(this.currentStyle)
-      const finalVelocity = (isRemote ? velocity * 0.7 : velocity) * genreMultiplier
+      // All users play at equal velocity - no remote reduction
+      const finalVelocity = velocity * genreMultiplier
 
       // MONOSYNTH TIMING FIX: Ensure strictly increasing start times
       const now = Tone.now()

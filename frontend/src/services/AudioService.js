@@ -2212,7 +2212,7 @@ class AudioService {
     this.gestureFilter.connect(this.gesturePan)
 
     // Create volume node for gesture dry signal (increased for prominence)
-    this.gestureVolume = new Tone.Volume(+6) // +6dB - gesture prominence over background
+    this.gestureVolume = new Tone.Volume(0) // 0dB - equalized with remote/virtual gestures
 
     // Dry signal routing: pan -> volume -> master
     this.gesturePan.connect(this.gestureVolume)
@@ -3153,8 +3153,8 @@ class AudioService {
       this._sustainedHoldLastTrigger = safeTime
     }
 
-    // Apply volume reduction for remote users (0.9 = slight reduction, was 0.7)
-    const actualVelocity = isRemote ? velocity * 0.9 : velocity
+    // All users play at equal velocity - no remote reduction
+    const actualVelocity = velocity
 
     // CRITICAL: Use triggerAttack (NOT triggerAttackRelease)
     // This opens the gate without closing it
