@@ -1328,9 +1328,58 @@
       </div>
     </section>
 
-    <!-- Section 13: Metric-to-Gesture Classification -->
+    <!-- Section 13: Sequencer System -->
     <section class="tech-section">
-      <h2>13. Metric-to-Gesture Classification</h2>
+      <h2>13. Sequencer System</h2>
+      <p>
+        The Sequencer generates repeating step-based melodic patterns synchronized to the room&rsquo;s composition
+        tempo. Like the Audition feature, generation occurs server-side (via the <em>SequencerGestureService</em>),
+        so all room participants hear the output. Each step emits <code>hold:start</code> / <code>hold:end</code>
+        gestures and feeds raw pitch material into the <em>BackgroundCompositionService</em>.
+      </p>
+
+      <h3>Sequencer Parameters</h3>
+      <table>
+        <thead>
+          <tr><th>Parameter</th><th>Range</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Steps</td><td>3&ndash;16</td><td>Number of steps in the loop (default: 8)</td></tr>
+          <tr><td>Speed</td><td>0.25&times;&ndash;8&times;</td><td>BPM multiplier (minimum effective interval: 100ms)</td></tr>
+          <tr><td>Per-step Pitch</td><td>0&ndash;27 (slider)</td><td>7 scale degrees (I&ndash;VII) &times; 4 octaves (2&ndash;5) = 28 positions</td></tr>
+          <tr><td>Per-step State</td><td>N / M / R</td><td>Normal (plays configured pitch), Mute (skips audio, LED still advances), Random (random degree 1&ndash;7 and octave 2&ndash;5 each cycle)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Step Timing</h3>
+      <div class="formula">
+        stepInterval = (60000 / BPM) / speedMultiplier<br>
+        noteDuration = stepInterval &times; 0.8<br>
+        // BPM refreshed from BackgroundCompositionService between steps<br>
+        // Minimum interval enforced: 100ms (max 10 steps/sec)
+      </div>
+
+      <h3>Pitch Resolution</h3>
+      <div class="formula">
+        rawMidi = tonic + scaleInterval[degree] + (octave &times; 12)<br>
+        quantizedMidi = HarmonicEngine.constrainToScale(rawMidi, key, mode)<br>
+        // Raw pitch &rarr; addMaterial() (composition input)<br>
+        // Quantized pitch &rarr; hold:start (playback only)
+      </div>
+
+      <div class="note">
+        <strong>Sequencer Behaviour:</strong> The sequencer auto-pauses when the user performs a real gesture
+        and resumes on release, identical to audition. Audition and Sequencer are mutually exclusive&mdash;starting
+        one stops the other (enforced on both frontend and backend). Timer safety follows the closure-capture
+        pattern: <code>isActive = false</code> before clearing timers, and roomId/userId/userColor are captured
+        before async operations for disconnect safety. Rate limiting: frontend throttles parameter changes at 150ms,
+        backend rate-limits config updates at 100ms/update, cursor emission capped at 10Hz.
+      </div>
+    </section>
+
+    <!-- Section 14: Metric-to-Gesture Classification -->
+    <section class="tech-section">
+      <h2>14. Metric-to-Gesture Classification</h2>
 
       <p>
         Virtual user gestures are classified based on which metric characteristic is dominant.
