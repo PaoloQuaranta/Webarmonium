@@ -35,6 +35,9 @@ class RoomManager {
     // Issue #4 fix: AuditionGestureService reference for cleanup (set externally)
     this.auditionGestureService = null
 
+    // SequencerGestureService reference for cleanup (set externally)
+    this.sequencerGestureService = null
+
     // Socket.IO reference for mode transition events (set externally)
     this.io = null
 
@@ -57,6 +60,15 @@ class RoomManager {
    */
   setAuditionGestureService(service) {
     this.auditionGestureService = service
+  }
+
+  /**
+   * Set SequencerGestureService reference
+   * Needed for cleanup when rooms are destroyed
+   * @param {SequencerGestureService} service
+   */
+  setSequencerGestureService(service) {
+    this.sequencerGestureService = service
   }
 
   /**
@@ -648,6 +660,9 @@ class RoomManager {
       // Issue #4 fix: Cleanup audition sessions for deleted rooms
       if (this.auditionGestureService) {
         this.auditionGestureService.cleanupRoom(roomId)
+      }
+      if (this.sequencerGestureService) {
+        this.sequencerGestureService.cleanupRoom(roomId)
       }
 
       stats.roomsCleaned++

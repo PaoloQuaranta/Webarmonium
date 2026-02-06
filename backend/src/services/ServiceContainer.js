@@ -212,6 +212,12 @@ function createServiceContainer (config = {}) {
     return new AuditionGestureService()
   })
 
+  // Sequencer gesture service for SynthPanel step sequencer feature
+  container.register('sequencerGestureService', () => {
+    const SequencerGestureService = require('./SequencerGestureService')
+    return new SequencerGestureService()
+  })
+
   // Connection tracker for polling lifecycle control
   container.register('connectionTracker', () => {
     const ConnectionTracker = require('./ConnectionTracker')
@@ -324,6 +330,10 @@ function wireServices (container, config = {}) {
       const auditionGestureService = c.get('auditionGestureService')
       service.setAuditionGestureService(auditionGestureService)
 
+      // Link SequencerGestureService for room cleanup
+      const sequencerGestureService = c.get('sequencerGestureService')
+      service.setSequencerGestureService(sequencerGestureService)
+
       // Set Socket.IO for mode transition notifications
       if (config.io) {
         service.setSocketIO(config.io)
@@ -344,6 +354,23 @@ function wireServices (container, config = {}) {
       // Link WebMetricsPoller for metrics source option
       const webMetricsPoller = c.get('webMetricsPoller')
       service.webMetricsPoller = webMetricsPoller
+
+      // Set Socket.IO for broadcasting
+      if (config.io) {
+        service.io = config.io
+      }
+    },
+    sequencerGestureService: (service, c) => {
+      // Link BackgroundCompositionService for harmonic context, BPM, and material
+      const backgroundCompositionService = c.get('backgroundCompositionService')
+      service.backgroundCompositionService = backgroundCompositionService
+
+      // Share HarmonicEngine for pitch quantization (harmonic coherence)
+      if (backgroundCompositionService.harmonicEngine) {
+        service.setHarmonicEngine(backgroundCompositionService.harmonicEngine)
+      } else {
+        console.warn('BackgroundCompositionService missing harmonicEngine - sequencer gestures will not be quantized')
+      }
 
       // Set Socket.IO for broadcasting
       if (config.io) {

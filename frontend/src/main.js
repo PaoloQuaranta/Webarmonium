@@ -271,8 +271,8 @@ class WebarmoniumApp {
     this.gestureCapture.setHoverModulationCallback((hoverData) => {
       // console.log('🎛️ Hover modulation callback triggered:', hoverData)
 
-      // Skip hover processing during audition - cursor controlled by audition
-      if (this.uiManager?.synthPanel?.isAuditionActive?.()) {
+      // Skip hover processing during audition/sequencer - cursor controlled by backend
+      if (this.uiManager?.synthPanel?.isAuditionActive?.() || this.uiManager?.synthPanel?.isSequencerActive?.()) {
         return
       }
 
@@ -624,6 +624,10 @@ class WebarmoniumApp {
       if (this.uiManager?.synthPanel?.isAuditionActive?.()) {
         this.socketService?.socket?.emit('audition:pause')
       }
+      // Pause sequencer when user starts a real gesture
+      if (this.uiManager?.synthPanel?.isSequencerActive?.()) {
+        this.socketService?.socket?.emit('sequencer:pause')
+      }
 
       // Handle initial gesture filtering
       if (this.audioService && this.audioService.updateFilterParams) {
@@ -661,6 +665,10 @@ class WebarmoniumApp {
       // Resume audition generation when user ends their real gesture
       if (this.uiManager?.synthPanel?.isAuditionActive?.()) {
         this.socketService?.socket?.emit('audition:resume')
+      }
+      // Resume sequencer when user ends their real gesture
+      if (this.uiManager?.synthPanel?.isSequencerActive?.()) {
+        this.socketService?.socket?.emit('sequencer:resume')
       }
 
       // CRITICAL FIX: Don't play automatic musical events for TAP and HOVER gestures

@@ -35,6 +35,10 @@ class SynthPanel {
     this.auditionSubMenu = null
     this.auditionActive = false
 
+    // Sequencer sub-menu and state
+    this.sequencerSubMenu = null
+    this.sequencerActive = false
+
     // Throttle params emission
     this.lastEmitTime = 0
     this.emitThrottleMs = 200 // Max 5Hz
@@ -46,6 +50,7 @@ class SynthPanel {
     this._handleOverlayClick = this._handleOverlayClick.bind(this)
     this._onAuditionHoldStart = this._onAuditionHoldStart.bind(this)
     this._onAuditionHoldEnd = this._onAuditionHoldEnd.bind(this)
+    this._onSequencerHoldStart = this._onSequencerHoldStart.bind(this)
   }
 
   /**
@@ -55,6 +60,15 @@ class SynthPanel {
    */
   isAuditionActive () {
     return this.auditionActive
+  }
+
+  /**
+   * Check if sequencer is currently active
+   * Used by main.js to control gesture interaction
+   * @returns {boolean}
+   */
+  isSequencerActive () {
+    return this.sequencerActive
   }
 
   _getDefaultParams () {
@@ -114,6 +128,9 @@ class SynthPanel {
 
       // Listen for audition events from backend
       this._setupAuditionSocketListeners()
+
+      // Listen for sequencer events from backend
+      this._setupSequencerSocketListeners()
     }
   }
 
@@ -195,6 +212,72 @@ class SynthPanel {
   }
 
   /**
+   * Set up socket listeners for sequencer events
+   */
+  _setupSequencerSocketListeners () {
+    if (!this.socketService?.socket) return
+    const socket = this.socketService.socket
+
+    // Sequencer step LED indicator
+    if (this._onSequencerStep) {
+      socket.off('sequencer:step', this._onSequencerStep)
+    }
+    this._onSequencerStep = (data) => {
+      const localUserId = this.socketService?.currentUserId
+      if (data.userId === localUserId && this.sequencerSubMenu) {
+        this.sequencerSubMenu.setActiveStep(data.stepIndex)
+      }
+    }
+    socket.on('sequencer:step', this._onSequencerStep)
+
+    // Sequencer note playback (via hold:start)
+    socket.off('hold:start', this._onSequencerHoldStart)
+    socket.on('hold:start', this._onSequencerHoldStart)
+
+    // Reconnection handling: reset sequencer state
+    if (!this._sequencerReconnectHandler) {
+      this._sequencerReconnectHandler = () => {
+        if (this.sequencerActive) {
+          this.sequencerActive = false
+          const btn = this.panel?.querySelector('#synth-sequencer-btn')
+          if (btn) btn.classList.remove('active')
+          if (this.sequencerSubMenu) {
+            this.sequencerSubMenu.setGenerating(false)
+            this.sequencerSubMenu.setActiveStep(-1)
+          }
+        }
+      }
+    }
+    socket.off('connect', this._sequencerReconnectHandler)
+    socket.on('connect', this._sequencerReconnectHandler)
+  }
+
+  /**
+   * Handle sequencer hold:start events
+   */
+  _onSequencerHoldStart (data) {
+    if (!data.isSequencer) return
+
+    if (this.audioService?.playSimpleNote) {
+      this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
+    }
+
+    this._pulseSequencerButton()
+  }
+
+  /**
+   * Trigger pulse animation on sequencer button
+   * @private
+   */
+  _pulseSequencerButton () {
+    const btn = this.panel?.querySelector('#synth-sequencer-btn')
+    if (!btn) return
+    btn.classList.remove('pulse')
+    void btn.offsetWidth
+    btn.classList.add('pulse')
+  }
+
+  /**
    * Set user color for UI theming
    */
   setUserColor (color) {
@@ -242,10 +325,17 @@ class SynthPanel {
     // Stop audition if running
     this._stopAudition()
 
-    // Destroy sub-menu
+    // Stop sequencer if running
+    this._stopSequencer()
+
+    // Destroy sub-menus
     if (this.auditionSubMenu) {
       this.auditionSubMenu.destroy()
       this.auditionSubMenu = null
+    }
+    if (this.sequencerSubMenu) {
+      this.sequencerSubMenu.destroy()
+      this.sequencerSubMenu = null
     }
 
     // Clean up slider touch listeners to prevent memory leak
@@ -261,6 +351,13 @@ class SynthPanel {
     // Issue #5 fix: Clean up reconnect handler
     if (this._reconnectHandler && this.socketService?.socket) {
       this.socketService.socket.off('connect', this._reconnectHandler)
+    }
+    if (this._sequencerReconnectHandler && this.socketService?.socket) {
+      this.socketService.socket.off('connect', this._sequencerReconnectHandler)
+    }
+    // Clean up sequencer step listener
+    if (this._onSequencerStep && this.socketService?.socket) {
+      this.socketService.socket.off('sequencer:step', this._onSequencerStep)
     }
 
     if (this._previouslyFocusedElement?.focus) {
@@ -300,6 +397,9 @@ class SynthPanel {
 
     // Create and attach audition sub-menu
     this._createAuditionSubMenu()
+
+    // Create and attach sequencer sub-menu
+    this._createSequencerSubMenu()
 
     // Attach listeners
     this._attachListeners()
@@ -345,6 +445,39 @@ class SynthPanel {
   }
 
   /**
+   * Create the sequencer sub-menu
+   */
+  _createSequencerSubMenu () {
+    if (typeof SequencerSubMenu !== 'undefined') {
+      this.sequencerSubMenu = new SequencerSubMenu(this)
+
+      this.sequencerSubMenu.onParamsChange = (params) => {
+        this._onSequencerParamsChange(params)
+      }
+
+      this.sequencerSubMenu.onStartStop = (shouldStart) => {
+        if (shouldStart) {
+          this._startSequencer()
+        } else {
+          this._stopSequencer()
+        }
+      }
+
+      const subMenuElement = this.sequencerSubMenu.create()
+
+      const sequencerBtn = this.panel.querySelector('#synth-sequencer-btn')
+      if (sequencerBtn) {
+        const wrapper = document.createElement('div')
+        wrapper.style.position = 'relative'
+        wrapper.style.display = 'inline-block'
+        sequencerBtn.parentNode.insertBefore(wrapper, sequencerBtn)
+        wrapper.appendChild(sequencerBtn)
+        wrapper.appendChild(subMenuElement)
+      }
+    }
+  }
+
+  /**
    * Get panel HTML structure
    */
   _getPanelHTML () {
@@ -357,6 +490,7 @@ class SynthPanel {
           ${presetOptions}
         </select>
         <button id="synth-generate-btn" class="synth-generate-btn">Audition</button>
+        <button id="synth-sequencer-btn" class="synth-generate-btn">Sequencer</button>
         <button class="settings-close" aria-label="Close">&times;</button>
       </div>
       <div class="synth-content">
@@ -615,6 +749,12 @@ class SynthPanel {
     const generateBtn = this.panel.querySelector('#synth-generate-btn')
     if (generateBtn) {
       generateBtn.addEventListener('click', () => this._toggleGestureGeneration())
+    }
+
+    // Sequencer button
+    const sequencerBtn = this.panel.querySelector('#synth-sequencer-btn')
+    if (sequencerBtn) {
+      sequencerBtn.addEventListener('click', () => this._toggleSequencer())
     }
 
     // Sliders
@@ -980,6 +1120,11 @@ class SynthPanel {
    * Start audition gesture generation on backend
    */
   async _startAudition () {
+    // Mutual exclusion: stop sequencer if active
+    if (this.sequencerActive) {
+      this._stopSequencer()
+    }
+
     // Ensure audio context is started (requires user interaction)
     if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
       await Tone.start()
@@ -1043,6 +1188,86 @@ class SynthPanel {
     // Send updated params to backend if audition is active
     if (this.auditionActive && this.socketService?.socket) {
       this.socketService.socket.emit('audition:config', params)
+    }
+  }
+
+  // ==========================================
+  // Sequencer Feature (Step Sequencer)
+  // ==========================================
+
+  /**
+   * Toggle sequencer sub-menu visibility
+   */
+  _toggleSequencer () {
+    if (this.sequencerSubMenu) {
+      this.sequencerSubMenu.toggle()
+    }
+  }
+
+  /**
+   * Start sequencer on backend
+   */
+  async _startSequencer () {
+    // Mutual exclusion: stop audition if active
+    if (this.auditionActive) {
+      this._stopAudition()
+    }
+
+    // Ensure audio context is started
+    if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+      await Tone.start()
+    }
+
+    // Ensure a preset is selected
+    if (this.audioService?.selectPreset && this.currentPresetSlot !== null) {
+      const currentSlot = this.audioService.getCurrentPresetSlot?.()
+      if (currentSlot === null || currentSlot === undefined) {
+        this.audioService.selectPreset(this.currentPresetSlot)
+      }
+    }
+
+    if (this.socketService?.socket) {
+      const params = this.sequencerSubMenu?.getParams() || {}
+      this.socketService.socket.emit('sequencer:start', params)
+    }
+
+    this.sequencerActive = true
+
+    const btn = this.panel?.querySelector('#synth-sequencer-btn')
+    if (btn) btn.classList.add('active')
+
+    if (this.sequencerSubMenu) {
+      this.sequencerSubMenu.setGenerating(true)
+    }
+  }
+
+  /**
+   * Stop sequencer
+   */
+  _stopSequencer () {
+    if (!this.sequencerActive) return
+
+    if (this.socketService?.socket) {
+      this.socketService.socket.emit('sequencer:stop')
+    }
+
+    this.sequencerActive = false
+
+    const btn = this.panel?.querySelector('#synth-sequencer-btn')
+    if (btn) btn.classList.remove('active')
+
+    if (this.sequencerSubMenu) {
+      this.sequencerSubMenu.setGenerating(false)
+      this.sequencerSubMenu.setActiveStep(-1)
+    }
+  }
+
+  /**
+   * Handle sequencer parameter changes from sub-menu
+   */
+  _onSequencerParamsChange (params) {
+    if (this.sequencerActive && this.socketService?.socket) {
+      this.socketService.socket.emit('sequencer:config', params)
     }
   }
 

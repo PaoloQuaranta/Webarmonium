@@ -3064,7 +3064,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   background: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  margin-top: -4px;
+  margin-top: -3px;
   transition: transform 0.1s;
 }
 
@@ -3330,7 +3330,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   position: absolute;
   bottom: 100%;
   right: 0;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
   min-width: 280px;
   background: var(--ui-bg, rgba(10, 10, 20, 0.92));
   backdrop-filter: blur(16px);
@@ -3391,17 +3391,16 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   gap: 4px;
 }
 
-/* Pill-shaped toggle buttons */
 .audition-toggle-btn {
-  padding: 5px 14px;
-  font-size: 8px;
+  padding: 6px 12px;
+  font-size: 9px;
   font-weight: 600;
   font-family: inherit;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 100px; /* Pill shape */
+  border-radius: 6px;
   color: var(--dim, #5a5a70);
   cursor: pointer;
   transition: all 0.15s;
@@ -3449,7 +3448,7 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   background: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  margin-top: -4px;
+  margin-top: -3px;
   transition: transform 0.1s;
 }
 
@@ -3487,9 +3486,8 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   justify-content: center;
 }
 
-/* Pill-shaped Start/Stop button */
 .audition-start-btn {
-  padding: 8px 32px;
+  padding: 6px 12px;
   font-size: 9px;
   font-weight: 600;
   font-family: inherit;
@@ -3497,11 +3495,10 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   letter-spacing: 0.05em;
   background: transparent;
   border: 1px solid var(--synth-accent, var(--accent, #2dd4bf));
-  border-radius: 100px; /* Pill shape */
+  border-radius: 6px;
   color: var(--synth-accent, var(--accent, #2dd4bf));
   cursor: pointer;
   transition: all 0.2s;
-  width: auto; /* Not full width - pill shape */
 }
 
 .audition-start-btn:hover {
@@ -3593,6 +3590,388 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   }
 
   .audition-start-btn {
+    width: 100%;
+    padding: 14px 32px;
+    min-height: 48px;
+  }
+}
+
+/* ============================================================
+   SEQUENCER SUBMENU
+   ============================================================ */
+
+.sequencer-submenu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 16px;
+  min-width: 280px;
+  background: var(--ui-bg, rgba(10, 10, 20, 0.92));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  font-family: var(--font-mono, 'Fira Code', monospace);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.25s ease;
+  z-index: 9995;
+}
+
+.sequencer-submenu.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.sequencer-submenu-content {
+  padding: 16px 12px 12px;
+  border-radius: 12px 12px 0 0;
+}
+
+/* Header row: Steps select + Speed toggle */
+.sequencer-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.sequencer-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sequencer-header-left label {
+  font-size: 8px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--light, #9090a8);
+  white-space: nowrap;
+}
+
+.sequencer-step-count-select {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: var(--light, #9090a8);
+  font-size: 8px;
+  font-family: inherit;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.sequencer-step-count-select:focus,
+.sequencer-step-count-select:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sequencer-speed-btn {
+  padding: 6px 12px;
+  font-size: 9px;
+  font-weight: 600;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: transparent;
+  border: 1px solid var(--synth-accent, var(--accent, #2dd4bf));
+  border-radius: 6px;
+  color: var(--synth-accent, var(--accent, #2dd4bf));
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sequencer-speed-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sequencer-speed-btn:focus {
+  outline: none;
+}
+
+/* Steps container: horizontally scrollable */
+.sequencer-steps-container {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 8px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+
+.sequencer-steps-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.sequencer-steps-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sequencer-steps-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+/* Individual step column */
+.sequencer-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 32px;
+}
+
+/* Degree label on top */
+.sequencer-step-label {
+  font-size: 8px;
+  color: var(--synth-accent, var(--accent, #2dd4bf));
+  opacity: 0.8;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Vertical slider wrapper: rotates a horizontal slider to vertical */
+.sequencer-slider-wrap {
+  width: 20px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sequencer-step-slider {
+  width: 80px;
+  height: 4px;
+  margin: 0;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  cursor: pointer;
+  touch-action: none;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+.sequencer-step-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.sequencer-step-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--synth-accent, var(--accent, #2dd4bf));
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  margin-top: -3px;
+}
+
+.sequencer-step-slider::-moz-range-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  border: none;
+}
+
+.sequencer-step-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--synth-accent, var(--accent, #2dd4bf));
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.sequencer-step-slider:focus {
+  outline: none;
+}
+
+/* Tri-state button with N/M/R label */
+.sequencer-step-btn {
+  width: 22px;
+  height: 18px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid var(--synth-accent, var(--accent, #2dd4bf));
+  background: transparent;
+  padding: 0;
+  font-size: 8px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--synth-accent, var(--accent, #2dd4bf));
+  line-height: 1;
+  text-align: center;
+}
+
+.sequencer-step-btn:hover {
+  border-color: var(--synth-accent, var(--accent, #2dd4bf));
+  background: rgba(45, 212, 191, 0.1);
+}
+
+.sequencer-step-btn:focus {
+  outline: none;
+}
+
+/* Muted state */
+.sequencer-step-btn.muted {
+  border-color: var(--dim, #5a5a70);
+  opacity: 0.4;
+  background: transparent;
+  color: var(--dim, #5a5a70);
+}
+
+/* Random state */
+.sequencer-step-btn.random {
+  border-color: #c084fc;
+  background: rgba(192, 132, 252, 0.15);
+  color: #c084fc;
+}
+
+/* Active LED (playing step) */
+.sequencer-step-btn.active-led {
+  background: var(--synth-accent, var(--accent, #2dd4bf));
+  box-shadow: 0 0 6px var(--synth-accent, var(--accent, #2dd4bf));
+  color: var(--void, #020208);
+}
+
+.sequencer-step-btn.active-led.muted {
+  background: var(--dim, #5a5a70);
+  box-shadow: none;
+  color: var(--void, #020208);
+}
+
+.sequencer-step-btn.active-led.random {
+  background: #c084fc;
+  box-shadow: 0 0 6px #c084fc;
+  color: var(--void, #020208);
+}
+
+/* Footer: Start/Stop button */
+.sequencer-submenu-footer {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  justify-content: center;
+}
+
+.sequencer-start-btn {
+  padding: 6px 12px;
+  font-size: 9px;
+  font-weight: 600;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: transparent;
+  border: 1px solid var(--synth-accent, var(--accent, #2dd4bf));
+  border-radius: 6px;
+  color: var(--synth-accent, var(--accent, #2dd4bf));
+  cursor: pointer;
+  transition: all 0.2s;
+  width: auto;
+}
+
+.sequencer-start-btn:hover {
+  background: rgba(45, 212, 191, 0.15);
+}
+
+.sequencer-start-btn.active {
+  background: var(--synth-accent, var(--accent, #2dd4bf));
+  color: var(--void, #020208);
+}
+
+.sequencer-start-btn:focus {
+  outline: none;
+}
+
+/* Mobile responsive */
+@media (max-width: 500px) {
+  .sequencer-submenu {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    min-width: unset;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    margin-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    transform: translateY(100%);
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .sequencer-submenu.visible {
+    transform: translateY(0);
+  }
+
+  .sequencer-submenu::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+  }
+
+  .sequencer-submenu-content {
+    padding: 24px 12px 16px;
+  }
+
+  .sequencer-step {
+    min-width: 44px;
+  }
+
+  .sequencer-step-label {
+    font-size: 9px;
+  }
+
+  .sequencer-slider-wrap {
+    height: 100px;
+  }
+
+  .sequencer-step-slider {
+    width: 100px;
+  }
+
+  .sequencer-step-slider::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+  }
+
+  .sequencer-step-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+  }
+
+  .sequencer-step-btn {
+    width: 36px;
+    height: 28px;
+    font-size: 10px;
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .sequencer-speed-btn {
+    padding: 12px 16px;
+    min-height: 48px;
+  }
+
+  .sequencer-start-btn {
     width: 100%;
     padding: 14px 32px;
     min-height: 48px;

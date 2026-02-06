@@ -13,6 +13,7 @@ const CursorHandler = require('./handlers/CursorHandler')
 const MusicalHandler = require('./handlers/MusicalHandler')
 const SynthHandler = require('./handlers/SynthHandler')
 const AuditionHandler = require('./handlers/AuditionHandler')
+const SequencerHandler = require('./handlers/SequencerHandler')
 
 const socketHandlers = {
   /**
@@ -69,6 +70,14 @@ const socketHandlers = {
     AuditionHandler.registerAuditionPauseHandler(socket)
     AuditionHandler.registerAuditionResumeHandler(socket)
     AuditionHandler.registerAuditionDisconnectHandler(socket)
+
+    // Sequencer handlers (SynthPanel step sequencer)
+    SequencerHandler.registerSequencerStartHandler(socket)
+    SequencerHandler.registerSequencerStopHandler(socket)
+    SequencerHandler.registerSequencerConfigHandler(socket)
+    SequencerHandler.registerSequencerPauseHandler(socket)
+    SequencerHandler.registerSequencerResumeHandler(socket)
+    SequencerHandler.registerSequencerDisconnectHandler(socket)
 
     // console.log('🔌 Registered ALL handlers for socket:', socket.id)
 

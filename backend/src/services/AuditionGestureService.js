@@ -501,7 +501,7 @@ class AuditionGestureService {
       }
       const musicalPhrase = {
         notes: [{
-          pitch: quantizedPitch,
+          pitch: rawPitch,
           duration: duration * 1000,
           velocity: velocity,
           timestamp: Date.now()
@@ -587,9 +587,9 @@ class AuditionGestureService {
         state.gestureCount + i
       )
 
-      // Store note for material (quantized)
+      // Store note for material (raw pitch to avoid harmonic feedback)
       notes.push({
-        pitch: quantizedPitch,
+        pitch: rawPitch,
         duration: noteInterval * 0.8,
         velocity: 0.4 + intensity * 0.4,
         timestamp: Date.now() + i * noteInterval

@@ -270,6 +270,11 @@ class AuditionSubMenu {
         if (auditionBtn && auditionBtn.contains(e.target)) {
           return // Don't close if clicking the audition button
         }
+        // Don't close if clicking sequencer button or its submenu
+        const seqBtn = document.querySelector('#synth-sequencer-btn')
+        if (seqBtn && seqBtn.contains(e.target)) return
+        const seqSubmenu = document.querySelector('.sequencer-submenu')
+        if (seqSubmenu && seqSubmenu.contains(e.target)) return
         this.hide()
       }
     }

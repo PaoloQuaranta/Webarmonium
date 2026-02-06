@@ -83,6 +83,12 @@ const AuditionHandler = {
         // Get real user identity from room
         const userColor = user.assignedColor || '#6bcf7f'
 
+        // Mutual exclusion: stop sequencer first
+        const sequencerService = socket.services?.sequencerGestureService
+        if (sequencerService) {
+          sequencerService.stopSequencer(socket.id)
+        }
+
         console.log(`[AuditionHandler] Start request from ${socket.userId} (socket ${socket.id}) in room ${roomId}`)
         auditionService.startAudition(socket.id, roomId, validatedParams, socket.userId, userColor)
       } catch (error) {
