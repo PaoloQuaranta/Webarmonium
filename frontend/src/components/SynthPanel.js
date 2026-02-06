@@ -258,7 +258,10 @@ class SynthPanel {
   _onSequencerHoldStart (data) {
     if (!data.isSequencer) return
 
-    if (this.audioService?.playSimpleNote) {
+    // Only play through local gestureSynth for local user's own sequencer notes
+    // Remote users' sequencer notes are routed through UserSynthManager in main.js
+    const localUserId = this.socketService?.currentUserId || this.socketService?.socket?.id
+    if (data.userId === localUserId && this.audioService?.playSimpleNote) {
       this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
     }
 

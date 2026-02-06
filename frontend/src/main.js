@@ -901,6 +901,39 @@ class WebarmoniumApp {
         return
       }
 
+      // SEQUENCER NOTES: Audio handled by SynthPanel for local user, UserSynthManager for remote users
+      // Skip sustained note mechanism — notes are self-releasing via triggerAttackRelease
+      if (data.isSequencer) {
+        const localUserId = this.socketService.currentUserId || this.socketService.socket?.id
+
+        // Remote users' sequencer: play through isolated per-user synth
+        if (data.userId !== localUserId) {
+          if (data.userId && this.audioService?.userSynthManager) {
+            this.audioService.userSynthManager.triggerAttackRelease(
+              data.userId,
+              data.frequency,
+              data.duration || 0.5,
+              data.velocity,
+              true  // isRemote
+            )
+          }
+        }
+        // Local user's own sequencer: audio handled by SynthPanel._onSequencerHoldStart
+
+        // Visual feedback for all sequencer notes
+        if (this.visualService && data.position) {
+          const color = data.userColor || '#fb923c'
+          this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
+          this.visualService.updateGestureData(data.userId, {
+            type: 'hold',
+            velocity: data.velocity || 0.7,
+            holdStart: Date.now(),
+            isActive: true
+          })
+        }
+        return
+      }
+
       // REAL REMOTE USERS: Use sustained note mechanism (gate open/close)
       // Include userId for per-user synth routing, isRemote=true for volume reduction
       const result = this.audioService.triggerSustainedNoteAttack(
@@ -970,6 +1003,18 @@ class WebarmoniumApp {
 
       // AUDITION NOTES: Audio is self-releasing (playSimpleNote), just clean up visuals
       if (data.isAudition) {
+        if (this.visualService) {
+          this.visualService.updateGestureData(data.userId, {
+            type: 'idle',
+            velocity: 0,
+            isActive: false
+          })
+        }
+        return
+      }
+
+      // SEQUENCER NOTES: Audio is self-releasing (triggerAttackRelease/playSimpleNote), just clean up visuals
+      if (data.isSequencer) {
         if (this.visualService) {
           this.visualService.updateGestureData(data.userId, {
             type: 'idle',
