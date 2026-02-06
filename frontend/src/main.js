@@ -840,7 +840,7 @@ class WebarmoniumApp {
       // Entry #186b: Use safe trigger methods to avoid "Start time must be strictly greater" errors
       if (data.isVirtual) {
         const noteDuration = data.duration || 0.5
-        const velocity = data.velocity * 0.6 // Quieter for virtual users
+        const velocity = data.velocity // Equal volume for all users
 
         // Try to use UserSynthManager's safe triggerAttackRelease
         if (data.userId && this.audioService?.userSynthManager) {

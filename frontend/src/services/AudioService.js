@@ -2180,7 +2180,7 @@ class AudioService {
       oscillator: {
         type: 'sawtooth'
       },
-      volume: +3,  // INCREASED from -5dB - virtual taps must be audible over background!
+      volume: 0,  // 0dB - equalized with remote/virtual users
       envelope: {
         attack: 0.02,  // Faster attack
         decay: 0.2,   // Faster decay
@@ -2956,8 +2956,8 @@ class AudioService {
       // Trigger gesture-responsive note with three-tier duration
       // Use volume from gesture as velocity parameter (0.5-1.0 range for prominence)
       if (this.gestureSynth && this.gestureSynth.triggerAttackRelease) {
-        // Higher velocity range for local gesture prominence
-        const velocity = Math.max(0.5, Math.min(1.0, 0.5 + (volume * 0.5)))
+        // Velocity from gesture Y position (equalized with remote/virtual users)
+        const velocity = Math.max(0.3, Math.min(0.8, volume))
 
         // console.log(`🔊 LOCAL GESTURE TRIGGER:`)
         // console.log(`  ↳ Frequency: ${frequency.toFixed(1)}Hz`)
@@ -6548,7 +6548,7 @@ class AudioService {
 
     // CRITICAL FIX: Reset gesture synth volume to prevent tremolo from persisting
     if (this.gestureSynth && this.gestureSynth.volume) {
-      this.gestureSynth.volume.value = -6 // Reset to normal volume
+      this.gestureSynth.volume.value = 0 // Reset to equalized volume
       // console.log('🔧 Gesture synth volume reset to normal')
     }
 

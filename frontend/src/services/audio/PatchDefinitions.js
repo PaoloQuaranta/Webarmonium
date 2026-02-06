@@ -31,7 +31,7 @@ const VIRTUAL_USER_PATCHES = {
       frequency: 600,       // Let harmonics through for audibility
       Q: 1.2
     },
-    volume: 5,              // Entry #212: Balanced for perceived loudness (sawtooth -3 dB vs sine)
+    volume: -1,             // Sawtooth has rich harmonics, needs less boost
     effects: {
       delaySend: 0.2,       // ADDED delay send for bass echoes
       reverbSend: 0.2
@@ -56,7 +56,7 @@ const VIRTUAL_USER_PATCHES = {
       frequency: 2000,      // Let the sine through cleanly
       Q: 0.7
     },
-    volume: 8,              // Entry #212: Increased to match remote real users level
+    volume: 2,              // Sine needs boost for perceived loudness
     effects: {
       delaySend: 0.4,       // INCREASED from 0.2 - more echoes
       reverbSend: 0.3
@@ -81,7 +81,7 @@ const VIRTUAL_USER_PATCHES = {
       frequency: 800,       // Center frequency
       Q: 1.5                // Moderate resonance
     },
-    volume: 6,              // Entry #212: Balanced for perceived loudness (triangle -2 dB vs sine)
+    volume: 0,              // Triangle is moderate, no boost needed
     effects: {
       delaySend: 0.5,       // INCREASED from 0.35 - more echoes
       reverbSend: 0.5       // More reverb - ethereal
@@ -114,7 +114,7 @@ const REAL_USER_PATCHES = {
       frequency: 2500,
       Q: 1.2
     },
-    volume: 9,              // BOOSTED +6dB to match gestureSynth (+3 synth + 6 gestureVolume = +9)
+    volume: 3,              // Square has harmonics, moderate boost
     effects: {
       delaySend: 0.15,
       reverbSend: 0.2
@@ -138,7 +138,7 @@ const REAL_USER_PATCHES = {
       frequency: 1000,
       Q: 2
     },
-    volume: 11,             // BOOSTED +6dB to match gestureSynth level
+    volume: 5,              // Pulse/bandpass is narrow, needs boost
     effects: {
       delaySend: 0.1,
       reverbSend: 0.2
@@ -163,7 +163,7 @@ const REAL_USER_PATCHES = {
       frequency: 1800,
       Q: 0.8
     },
-    volume: 10,             // BOOSTED +6dB to match gestureSynth level
+    volume: 4,              // Fatsawtooth is rich, moderate boost
     effects: {
       delaySend: 0.2,
       reverbSend: 0.4
@@ -188,7 +188,7 @@ const REAL_USER_PATCHES = {
       frequency: 250,
       Q: 0.7
     },
-    volume: 12,             // BOOSTED: FM/sine has few harmonics, needs significant boost
+    volume: 6,              // FM/sine has few harmonics, needs more boost
     effects: {
       delaySend: 0.25,
       reverbSend: 0.35
@@ -214,7 +214,7 @@ const REAL_USER_PATCHES = {
       frequency: 1500,      // More muffled than slot 0
       Q: 0.8
     },
-    volume: 9,              // BOOSTED +6dB to match gestureSynth level
+    volume: 3,              // Square variant, moderate boost
     effects: {
       delaySend: 0.3,       // More delay
       reverbSend: 0.4
@@ -238,7 +238,7 @@ const REAL_USER_PATCHES = {
       frequency: 1500,
       Q: 1.2
     },
-    volume: 11,             // BOOSTED +6dB to match gestureSynth level
+    volume: 5,              // Pulse variant, needs boost
     effects: {
       delaySend: 0.25,
       reverbSend: 0.35
@@ -263,7 +263,7 @@ const REAL_USER_PATCHES = {
       frequency: 300,
       Q: 0.5
     },
-    volume: 10,             // BOOSTED +6dB to match gestureSynth level
+    volume: 4,              // Fatsawtooth variant, moderate boost
     effects: {
       delaySend: 0.15,
       reverbSend: 0.25
@@ -288,7 +288,7 @@ const REAL_USER_PATCHES = {
       frequency: 3000,
       Q: 1.0
     },
-    volume: 11,             // BOOSTED: FM/sine has few harmonics
+    volume: 5,              // FM/sine variant, needs boost
     effects: {
       delaySend: 0.4,       // More delay
       reverbSend: 0.5       // More reverb
