@@ -35,6 +35,10 @@ class UserSynthManager {
       console.error('❌ UserSynthManager: PatchDefinitions NOT available - synths cannot be created!')
     }
 
+    // Persistent set of userIds with custom synth params
+    // Survives synth cleanup/recreation during preset changes and late-join races
+    this.usersWithCustomParams = new Set()
+
     // Slot lookup function - will be set by AudioService to use backend-assigned slots
     // Falls back to hash if not set
     this.slotLookupFn = null
@@ -117,6 +121,10 @@ class UserSynthManager {
     // Apply to all synths
     for (const [userId, synthData] of this.userSynths) {
       if (synthData.disposing) continue
+
+      // Skip users with custom synth params (set via SynthPanel)
+      // Check both per-synth flag AND persistent Set (covers recreation race window)
+      if (synthData.hasCustomParams || this.usersWithCustomParams.has(userId)) continue
 
       try {
         // Apply envelope
@@ -403,7 +411,8 @@ class UserSynthManager {
         reverbSend,
         patch,
         slot,
-        lastTriggerTime: 0  // Track last trigger time to prevent MonoSynth timing errors
+        lastTriggerTime: 0,  // Track last trigger time to prevent MonoSynth timing errors
+        hasCustomParams: this.usersWithCustomParams.has(userId)  // Restore flag if user had custom params before synth recreation
       })
 
       // console.log(`Created synth for ${userId}: ${patch.name} (oscillator: ${oscillatorConfig.type})`)
@@ -654,6 +663,7 @@ class UserSynthManager {
       this.cleanupUserSynth(userId)
     }
     this.activeNotes.clear()
+    this.usersWithCustomParams.clear()
   }
 
   /**

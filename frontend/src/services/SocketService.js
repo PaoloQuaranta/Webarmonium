@@ -594,7 +594,12 @@ class SocketService {
     if (userId === this.currentUserId || userId === this.socket?.id) {
       return this.currentSlot
     }
-    // Look up in the userSlots map
+    // Check user's chosen preset slot first (updated on synth:params / synth:preset-changed)
+    const presetSlot = this.userPresetSlots.get(userId)
+    if (presetSlot !== undefined) {
+      return presetSlot
+    }
+    // Fall back to room-assigned slot (initial assignment)
     const mapSlot = this.userSlots.get(userId)
     return mapSlot !== undefined ? mapSlot : null
   }

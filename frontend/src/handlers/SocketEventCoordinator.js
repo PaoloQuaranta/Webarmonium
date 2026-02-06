@@ -161,6 +161,7 @@ class SocketEventCoordinator {
       // CRITICAL: Cleanup user's synth on disconnect to prevent memory leak
       // Each user has a dedicated synth that must be disposed when they leave
       if (data.userId && this.audioService?.userSynthManager) {
+        this.audioService.userSynthManager.usersWithCustomParams.delete(data.userId)
         this.audioService.userSynthManager.cleanupUserSynth(data.userId)
       }
 

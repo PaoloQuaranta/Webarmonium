@@ -7104,6 +7104,9 @@ class AudioService {
   applyRemoteSynthParams(userId, params, presetSlot) {
     if (!this.userSynthManager) return
 
+    // Persist custom params flag BEFORE cleanup — survives synth destruction/recreation
+    this.userSynthManager.usersWithCustomParams.add(userId)
+
     // If preset changed, clean up old synth so it gets recreated with new slot
     const existingSynth = this.userSynthManager.userSynths.get(userId)
     if (existingSynth && presetSlot !== undefined) {
@@ -7119,6 +7122,9 @@ class AudioService {
     // Get or create synth for this user
     const synthData = this.userSynthManager.getSynthForUser(userId)
     if (!synthData?.synth) return
+
+    // Mark per-synth flag too (fast check in applyStyleToAllSynths)
+    synthData.hasCustomParams = true
 
     try {
       // Apply oscillator-specific params
