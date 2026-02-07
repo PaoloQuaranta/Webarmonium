@@ -910,6 +910,7 @@ class SynthPanel {
       this.params.decay = patch.envelope?.decay || 0.3
       this.params.sustain = patch.envelope?.sustain || 0.5
       this.params.release = patch.envelope?.release || 0.5
+      this.params.volume = patch.volume ?? 0
       this.params.delaySend = patch.effects?.delaySend || 0.2
       this.params.reverbSend = patch.effects?.reverbSend || 0.3
 
@@ -926,6 +927,9 @@ class SynthPanel {
 
     // Update UI sliders
     this._updateSliderValues()
+
+    // Apply params to local audio engine (volume, filter, etc.)
+    this._applyParams()
 
     // Emit to server
     this._emitParams()
