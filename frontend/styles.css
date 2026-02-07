@@ -4012,12 +4012,17 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* ============================================================
    Adaptive Panel Resizing — Desktop Only
    Panel with gesture focus scales up, others scale down.
+   Targets .synth-content and submenus independently to avoid
+   parent transform containment issues.
    ============================================================ */
 @media (min-width: 501px) {
-  /* Pre-set transform-origins (no visual effect on translate-only transforms) */
-  .settings-visible .synth-panel {
-    transform-origin: bottom center;
+  /* Enable transitions on synth-content for adaptive resize */
+  .synth-content {
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+    transform-origin: center top;
   }
+
+  /* Pre-set submenu transform-origins */
   .audition-submenu {
     transform-origin: bottom right;
   }
@@ -4025,27 +4030,27 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     transform-origin: bottom left;
   }
 
-  /* Shrink synth panel when gesture has focus */
-  .settings-visible .synth-panel.gesture-audition,
-  .settings-visible .synth-panel.gesture-sequencer {
-    transform: translateY(0) scale(0.8);
-    opacity: 0.7;
+  /* Shrink synth controls when gesture has focus */
+  .synth-panel.gesture-audition > .synth-content,
+  .synth-panel.gesture-sequencer > .synth-content {
+    transform: scale(0.78);
+    opacity: 0.6;
   }
 
-  /* Grow focused audition submenu (1.6 × parent 0.8 = 1.28 visual) */
+  /* Grow focused audition submenu */
   .synth-panel.gesture-audition .audition-submenu.visible {
-    transform: translateY(0) scale(1.6);
+    transform: translateY(0) scale(1.35);
   }
 
   /* Grow focused sequencer submenu */
   .synth-panel.gesture-sequencer .sequencer-submenu.visible {
-    transform: translateY(0) scale(1.6);
+    transform: translateY(0) scale(1.35);
   }
 }
 
 /* Respect reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
-  .synth-panel,
+  .synth-content,
   .audition-submenu,
   .sequencer-submenu {
     transition-duration: 0.01ms !important;
