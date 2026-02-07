@@ -2351,11 +2351,11 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Room Page Styles                             */
 /* ============================================ */
 
-/* Room app container - fills dynamic viewport to prevent Chrome mobile clipping */
+/* Room app container - fills dynamic viewport to prevent Chrome mobile clipping.
+   Uses position:relative (not fixed) so fixed-position children like .room-interface
+   are NOT clipped by overflow:hidden — they position relative to the viewport. */
 #app {
-  position: fixed;
-  top: 0;
-  left: 0;
+  position: relative;
   width: 100%;
   height: 100vh; /* Fallback for browsers without dvh support */
   height: 100dvh;
@@ -2755,6 +2755,13 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     right: max(10px, env(safe-area-inset-right, 10px));
     padding: 0.5rem 1rem;
     padding-top: 3rem; /* Space for logo row */
+  }
+
+  /* Mobile: UI bar always visible, never auto-hide */
+  .room-interface.collapsed {
+    transform: none;
+    opacity: 1;
+    pointer-events: auto;
   }
 
   /* Logo stays absolute top-left */

@@ -724,6 +724,9 @@ class UIManager {
    * Hide controls (room interface)
    */
   hideControls() {
+    // Mobile: UI bar is always visible, never auto-hide
+    if (this.isMobile) return
+
     const el = document.querySelector('.room-interface')
     if (el) {
       el.classList.add('collapsed')
