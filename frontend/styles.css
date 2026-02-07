@@ -3672,27 +3672,38 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   background: rgba(255, 255, 255, 0.08);
 }
 
-.sequencer-speed-btn {
-  padding: 6px 12px;
-  font-size: 9px;
-  font-weight: 600;
-  font-family: inherit;
+.sequencer-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sequencer-header-right label {
+  font-size: 8px;
+  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: transparent;
-  border: 1px solid var(--synth-accent, var(--accent, #2dd4bf));
+  color: var(--light, #9090a8);
+  white-space: nowrap;
+}
+
+.sequencer-speed-select {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
-  color: var(--synth-accent, var(--accent, #2dd4bf));
+  color: var(--light, #9090a8);
+  font-size: 8px;
+  font-family: inherit;
+  padding: 4px 8px;
   cursor: pointer;
-  transition: all 0.15s;
 }
 
-.sequencer-speed-btn:hover {
+.sequencer-speed-select:focus,
+.sequencer-speed-select:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
   background: rgba(255, 255, 255, 0.08);
-}
-
-.sequencer-speed-btn:focus {
-  outline: none;
 }
 
 /* Steps container: horizontally scrollable */

@@ -4,7 +4,7 @@
  * Sub-menu UI component for the Sequencer feature in SynthPanel.
  * Provides a mini step sequencer with:
  * - Step count: 3-16 steps (select dropdown)
- * - Speed: 0.25x, 0.5x, 1x, 2x system BPM (toggle pill)
+ * - Speed: 0.25x, 0.5x, 1x, 2x, 4x, 8x system BPM (select dropdown)
  * - Per-step vertical slider: scale degree + octave (28 positions: 7 degrees x 4 octaves)
  * - Per-step tri-state LED button: Normal / Mute / Random
  * - Active step LED highlight
@@ -18,7 +18,7 @@ class SequencerSubMenu {
   static MOBILE_BREAKPOINT = '(max-width: 500px)'
   static SWIPE_DISMISS_THRESHOLD = 80
   static DRAG_HANDLE_HEIGHT = 40
-  static SPEED_CYCLE = [1, 2, 4, 8, 0.25, 0.5]
+  static SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4, 8]
   static ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']
 
   /**
@@ -224,7 +224,10 @@ class SequencerSubMenu {
             <label>Steps</label>
             <select class="sequencer-step-count-select">${stepCountOptions.join('')}</select>
           </div>
-          <button class="sequencer-speed-btn" data-speed="${this.params.speedMultiplier}">${this.params.speedMultiplier}x</button>
+          <div class="sequencer-header-right">
+            <label>Speed</label>
+            <select class="sequencer-speed-select">${SequencerSubMenu.SPEED_OPTIONS.map(s => `<option value="${s}" ${s === this.params.speedMultiplier ? 'selected' : ''}>${s}x</option>`).join('')}</select>
+          </div>
         </div>
         <div class="sequencer-steps-container">
           ${stepsHTML}
@@ -278,14 +281,11 @@ class SequencerSubMenu {
       })
     }
 
-    // Speed toggle
-    const speedBtn = this.element.querySelector('.sequencer-speed-btn')
-    if (speedBtn) {
-      speedBtn.addEventListener('click', () => {
-        const idx = SequencerSubMenu.SPEED_CYCLE.indexOf(this.params.speedMultiplier)
-        this.params.speedMultiplier = SequencerSubMenu.SPEED_CYCLE[(idx + 1) % SequencerSubMenu.SPEED_CYCLE.length]
-        speedBtn.textContent = this.params.speedMultiplier + 'x'
-        speedBtn.dataset.speed = this.params.speedMultiplier
+    // Speed select
+    const speedSelect = this.element.querySelector('.sequencer-speed-select')
+    if (speedSelect) {
+      speedSelect.addEventListener('change', (e) => {
+        this.params.speedMultiplier = parseFloat(e.target.value)
         this._notifyParamsChange()
       })
     }
@@ -383,7 +383,7 @@ class SequencerSubMenu {
 
     const onTouchStart = (e) => {
       if (!window.matchMedia(SequencerSubMenu.MOBILE_BREAKPOINT).matches) return
-      if (e.target.closest('.sequencer-step-slider, .sequencer-step-btn, .sequencer-start-btn, .sequencer-speed-btn, .sequencer-step-count-select')) return
+      if (e.target.closest('.sequencer-step-slider, .sequencer-step-btn, .sequencer-start-btn, .sequencer-speed-select, .sequencer-step-count-select')) return
 
       const rect = this.element.getBoundingClientRect()
       const touchY = e.touches[0].clientY
@@ -450,12 +450,9 @@ class SequencerSubMenu {
     const select = this.element.querySelector('.sequencer-step-count-select')
     if (select) select.value = this.params.stepCount
 
-    // Update speed button
-    const speedBtn = this.element.querySelector('.sequencer-speed-btn')
-    if (speedBtn) {
-      speedBtn.textContent = this.params.speedMultiplier + 'x'
-      speedBtn.dataset.speed = this.params.speedMultiplier
-    }
+    // Update speed select
+    const speedSelect = this.element.querySelector('.sequencer-speed-select')
+    if (speedSelect) speedSelect.value = this.params.speedMultiplier
 
     // Rebuild steps area
     this._rebuildSteps()
