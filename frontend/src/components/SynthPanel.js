@@ -351,10 +351,12 @@ class SynthPanel {
     if (this.auditionActive) {
       const btn = this.panel?.querySelector('#synth-generate-btn')
       if (btn) btn.classList.add('active')
+      this.panel.classList.add('gesture-audition')
     }
     if (this.sequencerActive) {
       const btn = this.panel?.querySelector('#synth-sequencer-btn')
       if (btn) btn.classList.add('active')
+      this.panel.classList.add('gesture-sequencer')
     }
 
     document.addEventListener('keydown', this._handleKeyDown)
@@ -1211,6 +1213,7 @@ class SynthPanel {
     }
 
     this.auditionActive = true
+    if (this.panel) this.panel.classList.add('gesture-audition')
     this._updateExternalButtonState()
 
     // Update UI state
@@ -1236,6 +1239,7 @@ class SynthPanel {
     }
 
     this.auditionActive = false
+    if (this.panel) this.panel.classList.remove('gesture-audition')
     this._updateExternalButtonState()
 
     // Update UI state
@@ -1303,6 +1307,7 @@ class SynthPanel {
     }
 
     this.sequencerActive = true
+    if (this.panel) this.panel.classList.add('gesture-sequencer')
     this._updateExternalButtonState()
 
     const btn = this.panel?.querySelector('#synth-sequencer-btn')
@@ -1324,6 +1329,7 @@ class SynthPanel {
     }
 
     this.sequencerActive = false
+    if (this.panel) this.panel.classList.remove('gesture-sequencer')
     this._updateExternalButtonState()
 
     const btn = this.panel?.querySelector('#synth-sequencer-btn')

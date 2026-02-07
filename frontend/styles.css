@@ -4008,3 +4008,46 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     min-height: 48px;
   }
 }
+
+/* ============================================================
+   Adaptive Panel Resizing — Desktop Only
+   Panel with gesture focus scales up, others scale down.
+   ============================================================ */
+@media (min-width: 501px) {
+  /* Pre-set transform-origins (no visual effect on translate-only transforms) */
+  .settings-visible .synth-panel {
+    transform-origin: bottom center;
+  }
+  .audition-submenu {
+    transform-origin: bottom right;
+  }
+  .sequencer-submenu {
+    transform-origin: bottom left;
+  }
+
+  /* Shrink synth panel when gesture has focus */
+  .settings-visible .synth-panel.gesture-audition,
+  .settings-visible .synth-panel.gesture-sequencer {
+    transform: translateY(0) scale(0.8);
+    opacity: 0.7;
+  }
+
+  /* Grow focused audition submenu (1.6 × parent 0.8 = 1.28 visual) */
+  .synth-panel.gesture-audition .audition-submenu.visible {
+    transform: translateY(0) scale(1.6);
+  }
+
+  /* Grow focused sequencer submenu */
+  .synth-panel.gesture-sequencer .sequencer-submenu.visible {
+    transform: translateY(0) scale(1.6);
+  }
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .synth-panel,
+  .audition-submenu,
+  .sequencer-submenu {
+    transition-duration: 0.01ms !important;
+  }
+}
