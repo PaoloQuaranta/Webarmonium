@@ -4035,7 +4035,6 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   .synth-panel.gesture-sequencer > .synth-content {
     transform: scale(0.78);
     opacity: 0.6;
-    outline: 3px solid red; /* DEBUG — remove after testing */
   }
 
   /* Grow focused audition submenu */

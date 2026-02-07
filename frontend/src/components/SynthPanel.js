@@ -351,12 +351,10 @@ class SynthPanel {
     if (this.auditionActive) {
       const btn = this.panel?.querySelector('#synth-generate-btn')
       if (btn) btn.classList.add('active')
-      this.panel.classList.add('gesture-audition')
     }
     if (this.sequencerActive) {
       const btn = this.panel?.querySelector('#synth-sequencer-btn')
       if (btn) btn.classList.add('active')
-      this.panel.classList.add('gesture-sequencer')
     }
 
     document.addEventListener('keydown', this._handleKeyDown)
@@ -788,6 +786,20 @@ class SynthPanel {
    * Attach all event listeners
    */
   _attachListeners () {
+    // Adaptive panel focus — click on a panel area to give it focus
+    this.panel.addEventListener('click', (e) => {
+      const target = e.target
+      if (target.closest('.audition-submenu')) {
+        this.panel.classList.add('gesture-audition')
+        this.panel.classList.remove('gesture-sequencer')
+      } else if (target.closest('.sequencer-submenu')) {
+        this.panel.classList.add('gesture-sequencer')
+        this.panel.classList.remove('gesture-audition')
+      } else {
+        this.panel.classList.remove('gesture-audition', 'gesture-sequencer')
+      }
+    })
+
     // Close button
     const closeBtn = this.panel.querySelector('.settings-close')
     if (closeBtn) {
@@ -1213,10 +1225,6 @@ class SynthPanel {
     }
 
     this.auditionActive = true
-    if (this.panel) {
-      this.panel.classList.add('gesture-audition')
-      console.log('[DEBUG] gesture-audition added, classList:', this.panel.className)
-    }
     this._updateExternalButtonState()
 
     // Update UI state
@@ -1242,7 +1250,6 @@ class SynthPanel {
     }
 
     this.auditionActive = false
-    if (this.panel) this.panel.classList.remove('gesture-audition')
     this._updateExternalButtonState()
 
     // Update UI state
@@ -1310,7 +1317,6 @@ class SynthPanel {
     }
 
     this.sequencerActive = true
-    if (this.panel) this.panel.classList.add('gesture-sequencer')
     this._updateExternalButtonState()
 
     const btn = this.panel?.querySelector('#synth-sequencer-btn')
@@ -1332,7 +1338,6 @@ class SynthPanel {
     }
 
     this.sequencerActive = false
-    if (this.panel) this.panel.classList.remove('gesture-sequencer')
     this._updateExternalButtonState()
 
     const btn = this.panel?.querySelector('#synth-sequencer-btn')
