@@ -1,18 +1,13 @@
 /**
  * PolyphonyManager.js
- * Manages sustained notes, voice lifecycle, and polyphony limits
- * Extracted from AudioService.js for Phase 2 refactoring
+ * Manages sustained notes and active note cleanup.
+ * Voice tracking and priority-based polyphony management is handled
+ * by AudioService (generativeState.activeVoices) — see trackVoice() there.
  */
 class PolyphonyManager {
-  constructor(maxVoices = 16) {
-    // Maximum total voices across all synths
-    this.maxTotalVoices = maxVoices
-
+  constructor() {
     // Track active sustained notes for later release
     this.activeSustainedNotes = new Map()
-
-    // Track all active voices for polyphony management
-    this.activeVoices = new Map()
 
     // Track active notes for cleanup
     this.activeNotes = new Map()
@@ -39,13 +34,11 @@ class PolyphonyManager {
    */
   triggerSustainedNoteAttack(frequency, velocity, position) {
     if (!this.synth || this.synth.disposed) {
-      // console.warn('🚫 Synth not available for sustained note')
       return null
     }
 
     // Check audio context state
     if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
-      // console.warn('⚠️ Audio context not running, cannot start sustained note')
       return null
     }
 
@@ -59,7 +52,7 @@ class PolyphonyManager {
       }
     })
 
-    const noteId = `sustained-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const noteId = `sustained-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
     const now = typeof Tone !== 'undefined' ? Tone.now() : 0
 
     // Use triggerAttack (NOT triggerAttackRelease) to open gate without closing it
@@ -74,8 +67,6 @@ class PolyphonyManager {
       synth: this.synth
     })
 
-    // console.log(`🎵 Sustained note ATTACK: ${frequency.toFixed(1)}Hz, vel=${velocity.toFixed(2)}, noteId=${noteId}`)
-
     return { noteId, frequency, startTime: Date.now() }
   }
 
@@ -85,13 +76,11 @@ class PolyphonyManager {
    */
   triggerSustainedNoteRelease(noteId) {
     if (!this.synth || this.synth.disposed) {
-      // console.warn('🚫 Synth not available for note release')
       return
     }
 
     const noteData = this.activeSustainedNotes.get(noteId)
     if (!noteData) {
-      // console.warn(`⚠️ No active sustained note found for ${noteId}`)
       return
     }
 
@@ -99,9 +88,6 @@ class PolyphonyManager {
     this.synth.triggerRelease(noteData.frequency, now)
 
     this.activeSustainedNotes.delete(noteId)
-
-    const duration = Date.now() - noteData.startTime
-    // console.log(`🎵 Sustained note RELEASE: ${noteData.frequency.toFixed(1)}Hz, held ${duration}ms, noteId=${noteId}`)
   }
 
   /**
@@ -110,8 +96,6 @@ class PolyphonyManager {
   releaseAllSustainedNotes() {
     if (this.activeSustainedNotes.size === 0) return
 
-    // console.log(`🛑 Releasing ${this.activeSustainedNotes.size} active sustained notes`)
-
     for (const [noteId, noteData] of this.activeSustainedNotes.entries()) {
       try {
         if (this.synth && !this.synth.disposed) {
@@ -119,64 +103,11 @@ class PolyphonyManager {
           this.synth.triggerRelease(noteData.frequency, now)
         }
       } catch (e) {
-        // console.warn(`⚠️ Error releasing sustained note ${noteId}:`, e.message)
+        // Ignore release errors
       }
     }
 
     this.activeSustainedNotes.clear()
-  }
-
-  /**
-   * Check and manage polyphony to prevent audio overload
-   */
-  managePolyphony() {
-    const totalActiveVoices = this.activeVoices.size
-
-    if (totalActiveVoices > this.maxTotalVoices) {
-      const voicesToCleanup = totalActiveVoices - this.maxTotalVoices
-      const now = Date.now()
-
-      // Find oldest voices and release them
-      const voicesByAge = Array.from(this.activeVoices.entries())
-        .sort((a, b) => a[1].startTime - b[1].startTime)
-
-      for (let i = 0; i < voicesToCleanup && i < voicesByAge.length; i++) {
-        const [voiceId, voiceData] = voicesByAge[i]
-
-        // Release the voice if it's been playing for more than 1 second
-        if (now - voiceData.startTime > 1000) {
-          if (voiceData.synth && voiceData.synth.releaseAll) {
-            voiceData.synth.releaseAll()
-          }
-          this.activeVoices.delete(voiceId)
-          // console.log(`🔇 Cleaned up voice ${voiceId} for polyphony management`)
-        }
-      }
-    }
-  }
-
-  /**
-   * Track a new voice for polyphony management
-   * @param {string} voiceId - Unique voice identifier
-   * @param {Object} synth - Synth instance
-   * @param {number} duration - Note duration in seconds
-   */
-  trackVoice(voiceId, synth, duration) {
-    this.activeVoices.set(voiceId, {
-      synth,
-      startTime: Date.now(),
-      duration
-    })
-
-    // Schedule voice cleanup
-    setTimeout(() => {
-      if (this.activeVoices.has(voiceId)) {
-        this.activeVoices.delete(voiceId)
-      }
-    }, duration * 1000 + 500) // Add 500ms buffer
-
-    // Check polyphony limits
-    this.managePolyphony()
   }
 
   /**
@@ -206,7 +137,6 @@ class PolyphonyManager {
           noteData.synth.triggerRelease(noteData.frequency)
         }
         this.activeNotes.delete(noteId)
-        // console.log(`🔇 Released note: ${noteData.frequency.toFixed(1)}Hz`)
       } catch (e) {
         this.activeNotes.delete(noteId)
       }
@@ -229,7 +159,6 @@ class PolyphonyManager {
             noteData.synth.triggerRelease(noteData.frequency)
           }
           this.activeNotes.delete(noteId)
-          // console.log(`🔇 Force-released hanging note: ${noteData.frequency.toFixed(1)}Hz`)
         } catch (e) {
           this.activeNotes.delete(noteId)
         }
@@ -243,14 +172,6 @@ class PolyphonyManager {
    */
   getActiveSustainedNotesCount() {
     return this.activeSustainedNotes.size
-  }
-
-  /**
-   * Get count of active voices
-   * @returns {number} Number of active voices
-   */
-  getActiveVoicesCount() {
-    return this.activeVoices.size
   }
 
   /**
@@ -272,16 +193,7 @@ class PolyphonyManager {
   }
 
   /**
-   * Set maximum polyphony
-   * @param {number} maxVoices - Maximum number of voices
-   */
-  setMaxPolyphony(maxVoices) {
-    this.maxTotalVoices = maxVoices
-    this.managePolyphony() // Apply immediately if needed
-  }
-
-  /**
-   * Release all voices and notes
+   * Release all sustained notes and active notes
    */
   releaseAll() {
     this.releaseAllSustainedNotes()
@@ -297,11 +209,6 @@ class PolyphonyManager {
       }
     })
     this.activeNotes.clear()
-
-    // Clear voice tracking
-    this.activeVoices.clear()
-
-    // console.log('🔇 PolyphonyManager: All voices released')
   }
 
   /**
@@ -311,9 +218,7 @@ class PolyphonyManager {
   getStatus() {
     return {
       activeSustainedNotes: this.activeSustainedNotes.size,
-      activeVoices: this.activeVoices.size,
-      activeNotes: this.activeNotes.size,
-      maxPolyphony: this.maxTotalVoices
+      activeNotes: this.activeNotes.size
     }
   }
 }

@@ -243,6 +243,7 @@ class DeviceCapabilities {
         updateInterval: 0.025,    // 25ms
         filterUpdateRate: 30,     // Hz
         maxPolyphony: 8,
+        compositionLayers: ['backgroundHigh', 'backgroundMid', 'backgroundLow'],
         backgroundLayers: ['bass', 'pad', 'chords'],
         useAmbientFilters: true,
         synthComplexity: 'full'
@@ -252,7 +253,8 @@ class DeviceCapabilities {
         updateInterval: 0.05,     // 50ms
         filterUpdateRate: 20,     // Hz
         maxPolyphony: 4,
-        backgroundLayers: ['bass', 'pad'],
+        compositionLayers: ['backgroundHigh', 'backgroundMid'],
+        backgroundLayers: ['bass', 'pad', 'chords'],
         useAmbientFilters: true,
         synthComplexity: 'simplified'
       },
@@ -261,7 +263,8 @@ class DeviceCapabilities {
         updateInterval: 0.1,      // 100ms
         filterUpdateRate: 10,     // Hz
         maxPolyphony: 2,
-        backgroundLayers: ['bass'],
+        compositionLayers: ['backgroundHigh'],
+        backgroundLayers: ['bass', 'pad'],
         useAmbientFilters: false,
         synthComplexity: 'minimal'
       },
@@ -270,6 +273,7 @@ class DeviceCapabilities {
         updateInterval: 0.2,      // 200ms
         filterUpdateRate: 5,      // Hz
         maxPolyphony: 1,
+        compositionLayers: [],    // No counterpoint
         backgroundLayers: [],     // No background
         useAmbientFilters: false,
         synthComplexity: 'mono-sine'

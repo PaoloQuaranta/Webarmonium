@@ -22,6 +22,7 @@ class UserSettings {
       updateInterval: 0.025,
       filterUpdateRate: 30,
       maxPolyphony: 8,
+      compositionLayers: ['backgroundHigh', 'backgroundMid', 'backgroundLow'],
       backgroundLayers: ['bass', 'pad', 'chords'],
       useAmbientFilters: true,
       synthComplexity: 'full'
@@ -31,7 +32,8 @@ class UserSettings {
       updateInterval: 0.05,
       filterUpdateRate: 20,
       maxPolyphony: 4,
-      backgroundLayers: ['bass', 'pad'],
+      compositionLayers: ['backgroundHigh', 'backgroundMid'],
+      backgroundLayers: ['bass', 'pad', 'chords'],
       useAmbientFilters: true,
       synthComplexity: 'simplified'
     },
@@ -40,7 +42,8 @@ class UserSettings {
       updateInterval: 0.1,
       filterUpdateRate: 15,
       maxPolyphony: 2,
-      backgroundLayers: ['bass'],
+      compositionLayers: ['backgroundHigh'],
+      backgroundLayers: ['bass', 'pad'],
       useAmbientFilters: false,
       synthComplexity: 'minimal'
     },
@@ -49,6 +52,7 @@ class UserSettings {
       updateInterval: 0.2,
       filterUpdateRate: 5,
       maxPolyphony: 1,
+      compositionLayers: [],
       backgroundLayers: [],
       useAmbientFilters: false,
       synthComplexity: 'mono-sine'

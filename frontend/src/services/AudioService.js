@@ -450,6 +450,14 @@ class AudioService {
         // Context still running - just restart health check
         this._startAudioHealthCheck()
       }
+
+      // Reload audio profile in case device tier changed while tab was hidden
+      // (e.g., battery saver activated, thermal throttling)
+      try {
+        this.reloadAudioProfile()
+      } catch (e) {
+        // Ignore - non-critical
+      }
     }
   }
 
@@ -854,6 +862,11 @@ class AudioService {
       clearTimeout(this._audioHealthCheckInitialTimeout)
       this._audioHealthCheckInitialTimeout = null
     }
+    // Clear voice cleanup interval
+    if (this._voiceCleanupInterval) {
+      clearInterval(this._voiceCleanupInterval)
+      this._voiceCleanupInterval = null
+    }
   }
 
   /**
@@ -1200,8 +1213,9 @@ class AudioService {
     try {
 
       const wasUltraLow = this.isUltraLowPowerMode
-      // Entry #74 FIX: Track previous background layers to detect changes
+      // Entry #74 FIX: Track previous layers to detect changes
       const previousLayers = this.audioProfile?.backgroundLayers || ['bass', 'pad', 'chords']
+      const previousCompositionLayers = this.audioProfile?.compositionLayers || ['backgroundHigh', 'backgroundMid', 'backgroundLow']
 
       // Re-fetch base profile from PlatformDetection
       let baseProfile = null
@@ -1238,6 +1252,23 @@ class AudioService {
               this.ambientLayers[layer].triggerRelease()
             }
           }
+        })
+      }
+
+      // Release notes on composition layers that are no longer enabled
+      const newCompositionLayers = this.audioProfile.compositionLayers || ['backgroundHigh', 'backgroundMid', 'backgroundLow']
+      const disabledCompositionLayers = previousCompositionLayers.filter(layer => !newCompositionLayers.includes(layer))
+      if (disabledCompositionLayers.length > 0 && this.ambientLayers) {
+        disabledCompositionLayers.forEach(layer => {
+          if (this.ambientLayers[layer] && !this.ambientLayers[layer].disposed) {
+            if (this.ambientLayers[layer].releaseAll) {
+              this.ambientLayers[layer].releaseAll(0.3)
+            } else if (this.ambientLayers[layer].triggerRelease) {
+              this.ambientLayers[layer].triggerRelease()
+            }
+          }
+          // Remove from active voice tracking
+          this._removeLayerFromActiveVoices(layer)
         })
       }
 
@@ -1528,45 +1559,99 @@ class AudioService {
 
         this.stressMonitor.start(Tone.context)
       }
+
+      // Periodic voice cleanup: remove expired voice tracking entries every 500ms
+      if (!this._voiceCleanupInterval) {
+        this._voiceCleanupInterval = setInterval(() => {
+          this._cleanupExpiredVoices()
+        }, 500)
+      }
     } catch (error) {
     }
   }
 
   /**
    * Entry #73: Apply audio degradation based on stress mode
+   * Uses _disabledByStress Set + _isLayerEnabled() to actually release voices (saves CPU)
+   * Priority order: counterpoint (priority 1) disabled first, then accompaniment (priority 2)
    * @param {'normal'|'degraded'|'minimal'|'emergency'} mode
    */
   _applyStressDegradation(mode) {
+    if (!this._disabledByStress) this._disabledByStress = new Set()
     try {
       switch (mode) {
         case 'degraded':
-          // Reduce filter update rate
           this.filterUpdateInterval = 100 // 10Hz
           this.ambientFilterUpdateInterval = 500 // 2Hz
+          // Disable counterpoint (priority 1 — lowest, first to go)
+          ;['backgroundHigh', 'backgroundMid', 'backgroundLow'].forEach(l => {
+            this._disabledByStress.add(l)
+            this._releaseLayer(l)
+            this._removeLayerFromActiveVoices(l)
+          })
           break
 
         case 'minimal':
-          // Further reduce updates, consider stopping some layers
           this.filterUpdateInterval = 200 // 5Hz
           this.ambientFilterUpdateInterval = 1000 // 1Hz
+          // Disable counterpoint + accompaniment (priority 1 & 2)
+          ;['backgroundHigh', 'backgroundMid', 'backgroundLow', 'bass', 'pad', 'chords'].forEach(l => {
+            this._disabledByStress.add(l)
+            this._releaseLayer(l)
+            this._removeLayerFromActiveVoices(l)
+          })
           break
 
         case 'emergency':
-          // Stop background composition, only play direct gestures
+          // Stop everything except direct gestures
           if (this.evolvingGenerationActive) {
             this.stopEvolvingGeneration()
           }
+          ;['backgroundHigh', 'backgroundMid', 'backgroundLow', 'bass', 'pad', 'chords'].forEach(l => {
+            this._disabledByStress.add(l)
+            this._releaseLayer(l)
+            this._removeLayerFromActiveVoices(l)
+          })
           break
 
         case 'normal':
         default:
-          // Restore normal rates based on profile
+          // Restore: clear stress-disabled set, restore normal rates
+          this._disabledByStress.clear()
           const filterRate = this.audioProfile?.filterUpdateRate || 30
           this.filterUpdateInterval = Math.round(1000 / filterRate)
           this.ambientFilterUpdateInterval = 200
           break
       }
     } catch (error) {
+    }
+  }
+
+  /**
+   * Release all active notes on a layer synth
+   * @param {string} layerName - Layer to release
+   */
+  _releaseLayer(layerName) {
+    const layer = this.ambientLayers && this.ambientLayers[layerName]
+    if (!layer || layer.disposed) return
+    try {
+      if (layer.releaseAll) layer.releaseAll(0.1)
+      else if (layer.triggerRelease) layer.triggerRelease()
+    } catch (e) {
+      // Ignore release errors
+    }
+  }
+
+  /**
+   * Remove all active voice tracking entries for a given layer
+   * @param {string} layerName - Layer name prefix to match
+   */
+  _removeLayerFromActiveVoices(layerName) {
+    if (!this.generativeState?.activeVoices) return
+    for (const [voiceId] of this.generativeState.activeVoices) {
+      if (voiceId.startsWith(`mono-${layerName}`) || voiceId.startsWith(`${layerName}-`) || voiceId.startsWith(`ambient-${layerName}`)) {
+        this.generativeState.activeVoices.delete(voiceId)
+      }
     }
   }
 
@@ -1599,15 +1684,20 @@ class AudioService {
     // This is the most aggressive power-saving mode for very limited devices
     if (this.isUltraLowPowerMode) return false
 
-    // COMPOSITION LAYERS: Always enabled (except Ultra-Low Power, handled above)
-    // These are server-sent compositions that create the shared musical experience
-    // They use different synths (backgroundHigh/Mid/Low) than ambient layers
+    // Stress degradation: check if layer was disabled by stress monitor (Step 7)
+    if (this._disabledByStress && this._disabledByStress.has(layerName)) return false
+
+    // COMPOSITION LAYERS (counterpoint): Controlled by compositionLayers profile
+    // Priority 1 (lowest) — first to be reduced on lower device tiers
     if (layerName === 'backgroundHigh' || layerName === 'backgroundMid' || layerName === 'backgroundLow') {
-      return true
+      if (this.audioProfile && this.audioProfile.compositionLayers !== undefined) {
+        return this.audioProfile.compositionLayers.includes(layerName)
+      }
+      return true  // backward compat: if compositionLayers field missing, all enabled
     }
 
-    // AMBIENT LAYERS: Controlled by device profile
-    // Check audioProfile.backgroundLayers array for bass, pad, chords
+    // AMBIENT LAYERS (accompaniment): Controlled by backgroundLayers profile
+    // Priority 2 — reduced after counterpoint on lower device tiers
     if (this.audioProfile && this.audioProfile.backgroundLayers) {
       return this.audioProfile.backgroundLayers.includes(layerName)
     }
@@ -1996,6 +2086,16 @@ class AudioService {
     // Connect send buses to FX
     Object.values(this.delaySends).forEach(send => send.connect(this.delay))
     Object.values(this.reverbSends).forEach(send => send.connect(this.reverb))
+
+    // Voice stealing priority levels (higher = more protected)
+    this.VOICE_PRIORITY = { COUNTERPOINT: 1, ACCOMPANIMENT: 2, REMOTE_GESTURE: 3, LOCAL_GESTURE: 4 }
+    this.LAYER_PRIORITY_MAP = {
+      backgroundHigh: 1, backgroundMid: 1, backgroundLow: 1,
+      bass: 2, pad: 2, chords: 2
+    }
+
+    // Stress-disabled layers (populated by _applyStressDegradation)
+    this._disabledByStress = new Set()
 
     // Initialize generative composition state
     this.generativeState = {
@@ -3179,6 +3279,11 @@ class AudioService {
       this.activeSustainedNotes = new Map()
     }
 
+    // Voice priority tracking for sustained notes
+    const voiceTrackingId = `sustained-${noteId}`
+    const voicePriority = userId ? this.VOICE_PRIORITY.REMOTE_GESTURE : this.VOICE_PRIORITY.LOCAL_GESTURE
+    this.trackVoice(voiceTrackingId, synth, 30, voicePriority)
+
     this.activeSustainedNotes.set(noteId, {
       noteId,
       frequency: actualFrequency,
@@ -3188,7 +3293,8 @@ class AudioService {
       synth: synth,
       userId: userId,
       useUserSynth: useUserSynth,
-      originalEnvelope: originalEnvelope  // Entry #SynthUIFix: Store for restoration on release
+      originalEnvelope: originalEnvelope,  // Entry #SynthUIFix: Store for restoration on release
+      voiceTrackingId  // For activeVoices cleanup on release
     })
 
     // console.log(`🎵 Sustained note ATTACK: ${actualFrequency.toFixed(1)}Hz, vel=${actualVelocity.toFixed(2)}, noteId=${noteId}, user=${userId || 'local'}`)
@@ -3234,6 +3340,11 @@ class AudioService {
       }, 100)
     }
 
+    // Remove from voice tracking (always attempt, even if trackVoice() had failed)
+    if (noteData.voiceTrackingId) {
+      this.generativeState?.activeVoices?.delete(noteData.voiceTrackingId)
+    }
+
     // Remove from tracking
     this.activeSustainedNotes.delete(noteId)
 
@@ -3242,29 +3353,38 @@ class AudioService {
   }
 
   /**
-   * Check and manage polyphony to prevent audio overload
+   * Check and manage polyphony to prevent audio overload.
+   * Priority-aware: steals lowest priority first, then oldest among ties.
+   * Never steals LOCAL_GESTURE (priority 4) or isPolySynth voices.
    */
   managePolyphony() {
     if (!this.generativeState || !this.generativeState.activeVoices) return
 
     const totalActiveVoices = this.generativeState.activeVoices.size
 
-    // If we're exceeding polyphony limits, clean up old voices
     if (totalActiveVoices > this.maxTotalVoices) {
       const voicesToCleanup = totalActiveVoices - this.maxTotalVoices
       const now = Date.now()
 
-      // Find oldest voices and release them
-      const voicesByAge = Array.from(this.generativeState.activeVoices.entries())
-        .sort((a, b) => a[1].startTime - b[1].startTime)
+      // Sort by priority ASC (lowest first), then startTime ASC (oldest first)
+      const sorted = Array.from(this.generativeState.activeVoices.entries())
+        .sort((a, b) => {
+          const pA = a[1].priority || 1
+          const pB = b[1].priority || 1
+          if (pA !== pB) return pA - pB
+          return a[1].startTime - b[1].startTime
+        })
 
-      for (let i = 0; i < voicesToCleanup && i < voicesByAge.length; i++) {
-        const [voiceId, voiceData] = voicesByAge[i]
+      let cleaned = 0
+      for (let i = 0; i < sorted.length && cleaned < voicesToCleanup; i++) {
+        const [voiceId, voiceData] = sorted[i]
 
-        // Release the voice if it's been playing for more than 1 second
+        // Never steal local gestures or PolySynth voices
+        if ((voiceData.priority || 1) >= this.VOICE_PRIORITY.LOCAL_GESTURE) break
+        if (voiceData.isPolySynth) continue
+
         if (now - voiceData.startTime > 1000) {
           if (voiceData.synth) {
-            // Support both PolySynth (releaseAll) and MonoSynth (triggerRelease)
             if (voiceData.synth.releaseAll) {
               voiceData.synth.releaseAll()
             } else if (voiceData.synth.triggerRelease) {
@@ -3272,7 +3392,7 @@ class AudioService {
             }
           }
           this.generativeState.activeVoices.delete(voiceId)
-          // console.log(`🔇 Cleaned up voice ${voiceId} for polyphony management`)
+          cleaned++
         }
       }
     }
@@ -3283,63 +3403,126 @@ class AudioService {
    * PERFORMANCE FIX: Check limits BEFORE adding voice to prevent race conditions
    * @param {string} voiceId - Unique voice identifier
    * @param {Object} synth - Synth instance
-   * @param {number} duration - Note duration
+   * @param {number} duration - Note duration in seconds
+   * @param {number} priority - Voice priority (1=counterpoint, 2=accompaniment, 3=remote, 4=local)
+   * @param {boolean} isPolySynth - If true, excluded from external stealing (Tone.js manages internally)
    * @returns {boolean} True if voice was tracked, false if rejected
    */
-  trackVoice(voiceId, synth, duration) {
+  trackVoice(voiceId, synth, duration, priority = 1, isPolySynth = false) {
     if (!this.generativeState) return false
 
-    // PERFORMANCE FIX: Synchronous polyphony check BEFORE adding new voice
-    // This prevents exceeding voice limit which causes audio stuttering
     const currentVoices = this.generativeState.activeVoices.size
 
-    if (currentVoices >= this.maxTotalVoices) {
-      // Force release of oldest voice to make room
-      const oldest = this._getOldestVoice()
-      if (oldest) {
-        this._forceReleaseVoice(oldest)
-      } else {
-        // No voice to release, reject this one
-        return false
-      }
+    // FAST PATH: Pool not full, just add directly
+    if (currentVoices < this.maxTotalVoices) {
+      this.generativeState.activeVoices.set(voiceId, {
+        synth, startTime: Date.now(), duration, priority, isPolySynth
+      })
+      return true
     }
 
-    // Now safe to add the new voice
+    // SLOW PATH: Pool full, find a voice to steal
+    const victim = this._getStealableVoice(priority)
+    if (victim) {
+      this._forceReleaseVoice(victim)
+    } else {
+      // No stealable voice found — reject
+      return false
+    }
+
     this.generativeState.activeVoices.set(voiceId, {
-      synth,
-      startTime: Date.now(),
-      duration
+      synth, startTime: Date.now(), duration, priority, isPolySynth
     })
-
-    // Schedule voice cleanup using Transport for audio-thread timing
-    const cleanupTime = Tone.now() + duration + 0.5 // 500ms buffer
-    Tone.Transport.scheduleOnce(() => {
-      if (this.generativeState?.activeVoices.has(voiceId)) {
-        this.generativeState.activeVoices.delete(voiceId)
-      }
-    }, cleanupTime)
-
     return true
   }
 
   /**
-   * Get the oldest active voice for polyphony management
-   * @returns {string|null} Voice ID of oldest voice, or null if none
+   * Generate a unique voice ID
+   * @param {string} prefix - Voice ID prefix
+   * @returns {string} Unique voice ID
    */
-  _getOldestVoice() {
+  _generateVoiceId(prefix) {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+  }
+
+  /**
+   * Cleanup expired voice entries (called periodically by _voiceCleanupInterval)
+   */
+  _cleanupExpiredVoices() {
+    if (!this.generativeState?.activeVoices) return
+    const now = Date.now()
+    for (const [voiceId, v] of this.generativeState.activeVoices) {
+      if (now - v.startTime > v.duration * 1000 + 250) {
+        this.generativeState.activeVoices.delete(voiceId)
+      }
+    }
+  }
+
+  /**
+   * Get the best voice to steal using priority-based selection with anti-deadlock fallback.
+   * 4-level strategy:
+   *   1. Steal lowest-priority voice (below incoming), oldest among ties
+   *   2. Steal same-priority voice (oldest first) — prevents deadlock
+   *   3. Emergency: steal oldest non-local, non-PolySynth voice
+   *   4. Last resort: steal oldest PolySynth voice (but never LOCAL_GESTURE)
+   * NEVER steals LOCAL_GESTURE (priority 4).
+   * @param {number} incomingPriority - Priority of the voice requesting a slot
+   * @returns {string|null} Voice ID to steal, or null if none stealable
+   */
+  _getStealableVoice(incomingPriority) {
     if (!this.generativeState?.activeVoices?.size) return null
 
-    let oldestId = null
-    let oldestTime = Infinity
+    let lowerBestId = null
+    let lowerBestPriority = Infinity
+    let lowerBestTime = Infinity
 
-    for (const [voiceId, voiceData] of this.generativeState.activeVoices.entries()) {
-      if (voiceData.startTime < oldestTime) {
-        oldestTime = voiceData.startTime
-        oldestId = voiceId
+    let sameBestId = null
+    let sameBestTime = Infinity
+
+    let emergencyBestId = null
+    let emergencyBestTime = Infinity
+
+    let lastResortBestId = null
+    let lastResortBestTime = Infinity
+
+    for (const [voiceId, voice] of this.generativeState.activeVoices) {
+      const vp = voice.priority || 1
+
+      // Never steal local gestures
+      if (vp >= this.VOICE_PRIORITY.LOCAL_GESTURE) continue
+
+      // Level 4 (last resort): any non-local voice including PolySynth
+      if (voice.startTime < lastResortBestTime) {
+        lastResortBestId = voiceId
+        lastResortBestTime = voice.startTime
+      }
+
+      // Levels 1-3 exclude PolySynth
+      if (voice.isPolySynth) continue
+
+      // Level 1: lower priority than incoming
+      if (vp < incomingPriority) {
+        if (vp < lowerBestPriority || (vp === lowerBestPriority && voice.startTime < lowerBestTime)) {
+          lowerBestId = voiceId
+          lowerBestPriority = vp
+          lowerBestTime = voice.startTime
+        }
+      }
+
+      // Level 2: same priority as incoming (oldest first)
+      if (vp === incomingPriority && voice.startTime < sameBestTime) {
+        sameBestId = voiceId
+        sameBestTime = voice.startTime
+      }
+
+      // Level 3: emergency — any non-local, non-PolySynth voice (oldest)
+      if (voice.startTime < emergencyBestTime) {
+        emergencyBestId = voiceId
+        emergencyBestTime = voice.startTime
       }
     }
 
-    return oldestId
+    return lowerBestId || sameBestId || emergencyBestId || lastResortBestId
   }
 
   /**
@@ -3352,7 +3535,6 @@ class AudioService {
 
     try {
       if (voice.synth) {
-        // Force immediate release without scheduling
         if (voice.synth.releaseAll) {
           voice.synth.releaseAll(Tone.now())
         } else if (voice.synth.triggerRelease) {
@@ -4124,11 +4306,14 @@ class AudioService {
         const delay = (note.startBeat || 0) * beatDuration
         const scheduleTime = now + lookahead + delay
 
+        const padDur = duration
         const eventId = Tone.Transport.schedule((audioTime) => {
           // Use pad synth from ambientLayers (PolySynth)
           if (this.ambientLayers && this.ambientLayers.pad && !this.ambientLayers.pad.disposed) {
             try {
-              this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
+              this.ambientLayers.pad.triggerAttackRelease(frequency, padDur, audioTime, velocity)
+              // Track PolySynth voice (excluded from external stealing)
+              this.trackVoice(this._generateVoiceId('pad'), this.ambientLayers.pad, padDur, this.VOICE_PRIORITY.ACCOMPANIMENT, true)
             } catch (e) { /* ignore */ }
           }
         }, scheduleTime)
@@ -4148,11 +4333,14 @@ class AudioService {
         const delay = (note.startBeat || 0) * beatDuration
         const scheduleTime = now + lookahead + delay
 
+        const keysDur = duration
         const eventId = Tone.Transport.schedule((audioTime) => {
           // Use chords synth from ambientLayers (FM synth)
           if (this.ambientLayers && this.ambientLayers.chords && !this.ambientLayers.chords.disposed) {
             try {
-              this.ambientLayers.chords.triggerAttackRelease(frequency, duration, audioTime, velocity)
+              this.ambientLayers.chords.triggerAttackRelease(frequency, keysDur, audioTime, velocity)
+              // Track PolySynth voice (excluded from external stealing)
+              this.trackVoice(this._generateVoiceId('chords'), this.ambientLayers.chords, keysDur, this.VOICE_PRIORITY.ACCOMPANIMENT, true)
             } catch (e) { /* ignore */ }
           }
         }, scheduleTime)
@@ -4553,6 +4741,8 @@ class AudioService {
           const audioTime = Tone.now() + 0.05 + delay
           // console.log(`🎹 DRONE IMMEDIATE: freq=${frequency.toFixed(1)}Hz, time=${audioTime.toFixed(2)}s`)
           layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
+          // Track PolySynth voice (excluded from external stealing, counted in budget)
+          this.trackVoice(this._generateVoiceId('ambient-pad'), layer, duration, this.VOICE_PRIORITY.ACCOMPANIMENT, true)
         }
 
         // Schedule repeating drone using RELATIVE time syntax ("+8" means 8 seconds from now)
@@ -4572,6 +4762,8 @@ class AudioService {
               // Ignore release errors
             }
             this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
+            // Track repeating PolySynth voice
+            this.trackVoice(this._generateVoiceId('ambient-pad'), this.ambientLayers.pad, duration, this.VOICE_PRIORITY.ACCOMPANIMENT, true)
           }
         }, duration, repeatStartTime)
         this.droneRepeatEventIds.push(repeatEventId)
@@ -4583,6 +4775,8 @@ class AudioService {
         if (layer) {
           const audioTime = Tone.now() + 0.1 + delay
           layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
+          // Track PolySynth voice (excluded from external stealing, counted in budget)
+          this.trackVoice(this._generateVoiceId('ambient-pad'), layer, duration, this.VOICE_PRIORITY.ACCOMPANIMENT, true)
         }
 
         // Schedule repeating (same pattern as drones)
@@ -4596,6 +4790,8 @@ class AudioService {
               this.ambientLayers.pad.releaseAll(0.05)
             } catch (e) { /* ignore */ }
             this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
+            // Track repeating PolySynth voice
+            this.trackVoice(this._generateVoiceId('ambient-pad'), this.ambientLayers.pad, duration, this.VOICE_PRIORITY.ACCOMPANIMENT, true)
           }
         }, duration, repeatStartTime)
         this.droneRepeatEventIds.push(repeatEventId)
@@ -4647,10 +4843,26 @@ class AudioService {
     const layer = this.ambientLayers && this.ambientLayers[layerName]
     if (!layer) return
 
-    // For PolySynth layers, just trigger normally
+    // Voice priority tracking: MonoSynth uses fixed voiceId per layer (overwrites previous)
+    const durationSec = typeof duration === 'number' ? duration : 0.5
+    const priority = this.LAYER_PRIORITY_MAP[layerName] || 1
+
+    // For PolySynth layers, just trigger normally (no MonoSynth timing logic)
     if (!this.monoSynthLastTrigger || !(layerName in this.monoSynthLastTrigger)) {
       layer.triggerAttackRelease(frequency, duration, time, velocity)
+      // Track PolySynth voice (excluded from external stealing)
+      if (this.generativeState) {
+        const polyVoiceId = this._generateVoiceId(layerName)
+        this.trackVoice(polyVoiceId, layer, durationSec, priority, true)
+      }
       return
+    }
+
+    // MonoSynth: fixed voiceId per layer — overwrite previous entry
+    if (this.generativeState) {
+      const voiceId = `mono-${layerName}`
+      this.generativeState.activeVoices.delete(voiceId)
+      if (!this.trackVoice(voiceId, layer, durationSec, priority)) return
     }
 
     // MonoSynth: ensure time is strictly greater than last trigger
@@ -4685,6 +4897,13 @@ class AudioService {
    */
   safeGestureSynthTrigger(frequency, duration, time, velocity) {
     if (!this.gestureSynth) return
+
+    // Voice priority tracking: MonoSynth uses fixed voiceId (overwrites previous)
+    const durationSec = typeof duration === 'number' ? duration : 0.5
+    if (this.generativeState) {
+      this.generativeState.activeVoices.delete('mono-gesture')
+      if (!this.trackVoice('mono-gesture', this.gestureSynth, durationSec, this.VOICE_PRIORITY.LOCAL_GESTURE)) return
+    }
 
     // Convert relative time strings ("+0.5") to absolute time
     let requestedTime
@@ -5053,6 +5272,15 @@ class AudioService {
               })
             }
             // If _hasCustomEnvelope is true, don't touch envelope - user's settings are preserved
+          }
+
+          // Voice priority tracking: done after synth lookup so we have actual synth reference
+          // MonoSynth fixed voiceId per synth prevents stale entries
+          const voicePriority = userId ? this.VOICE_PRIORITY.REMOTE_GESTURE : this.VOICE_PRIORITY.LOCAL_GESTURE
+          const voiceId = userId ? `mono-remote-${userId}` : 'mono-gesture'
+          if (this.generativeState) {
+            this.generativeState.activeVoices.delete(voiceId)
+            this.trackVoice(voiceId, synth, eventDuration, voicePriority)
           }
 
           // Volume hierarchy: local (×1.15 boost) > remote (×1.0)
