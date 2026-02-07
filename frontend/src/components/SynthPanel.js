@@ -1213,7 +1213,10 @@ class SynthPanel {
     }
 
     this.auditionActive = true
-    if (this.panel) this.panel.classList.add('gesture-audition')
+    if (this.panel) {
+      this.panel.classList.add('gesture-audition')
+      console.log('[DEBUG] gesture-audition added, classList:', this.panel.className)
+    }
     this._updateExternalButtonState()
 
     // Update UI state
