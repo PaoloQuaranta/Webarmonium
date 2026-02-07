@@ -67,6 +67,11 @@ class CanvasManager {
     this.boundResizeHandler = () => this.resize()
     window.addEventListener('resize', this.boundResizeHandler)
 
+    // Chrome mobile: URL bar show/hide fires visualViewport resize, not window resize
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', this.boundResizeHandler)
+    }
+
     // console.log('✅ CanvasManager: Canvases initialized')
 
     return this.getCanvasRefs()
@@ -180,6 +185,9 @@ class CanvasManager {
   destroy() {
     if (this.boundResizeHandler) {
       window.removeEventListener('resize', this.boundResizeHandler)
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', this.boundResizeHandler)
+      }
       this.boundResizeHandler = null
     }
 

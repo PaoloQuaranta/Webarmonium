@@ -2351,6 +2351,17 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
 /* Room Page Styles                             */
 /* ============================================ */
 
+/* Room app container - fills dynamic viewport to prevent Chrome mobile clipping */
+#app {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh; /* Fallback for browsers without dvh support */
+  height: 100dvh;
+  overflow: hidden;
+}
+
 /* Room interface top bar */
 .room-interface {
   position: fixed;
