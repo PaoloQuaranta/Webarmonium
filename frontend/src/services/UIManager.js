@@ -294,8 +294,8 @@ class UIManager {
     // Sliders icon (equalizer style)
     synthBtn.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 2a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM9.05 3a2.5 2.5 0 0 1 4.9 0H16v1h-2.05a2.5 2.5 0 0 1-4.9 0H0V3h9.05zM4.5 7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM2.05 8a2.5 2.5 0 0 1 4.9 0H16v1H6.95a2.5 2.5 0 0 1-4.9 0H0V8h2.05zm9.45 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm-2.45 1a2.5 2.5 0 0 1 4.9 0H16v1h-2.05a2.5 2.5 0 0 1-4.9 0H0v-1h9.05z"/></svg>'
     synthBtn.title = 'Synth'
-    synthBtn.setAttribute('aria-label', 'Open synth settings')
-    synthBtn.onclick = () => this.openSynthPanel()
+    synthBtn.setAttribute('aria-label', 'Toggle synth settings')
+    synthBtn.onclick = () => this.toggleSynthPanel()
 
     // Create label
     const label = document.createElement('span')
@@ -467,6 +467,9 @@ class UIManager {
     // Create panel instance if needed
     if (!this.synthPanel && typeof SynthPanel !== 'undefined') {
       this.synthPanel = new SynthPanel()
+      if (this.desktopSynthBtn) {
+        this.synthPanel.setExternalButton(this.desktopSynthBtn)
+      }
     }
 
     // Set services if available
@@ -495,6 +498,17 @@ class UIManager {
   }
 
   /**
+   * Entry #SynthUI: Toggle the synth panel open/closed
+   */
+  toggleSynthPanel () {
+    if (this.synthPanel && this.synthPanel.isOpen) {
+      this.closeSynthPanel()
+    } else {
+      this.openSynthPanel()
+    }
+  }
+
+  /**
    * Entry #SynthUI: Set services for SynthPanel
    * @param {Object} audioService - AudioService instance
    * @param {Object} socketService - SocketService instance
@@ -508,6 +522,9 @@ class UIManager {
       this.synthPanel.setServices(audioService, socketService)
       if (userColor) {
         this.synthPanel.setUserColor(userColor)
+      }
+      if (this.desktopSynthBtn) {
+        this.synthPanel.setExternalButton(this.desktopSynthBtn)
       }
     }
   }

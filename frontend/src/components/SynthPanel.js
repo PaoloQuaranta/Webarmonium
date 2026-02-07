@@ -39,6 +39,9 @@ class SynthPanel {
     this.sequencerSubMenu = null
     this.sequencerActive = false
 
+    // External synth button reference (always in DOM, set by UIManager)
+    this._externalBtn = null
+
     // Saved audition/sequencer params for persistence across close/reopen
     this._savedAuditionParams = null
     this._savedSequencerParams = null
@@ -167,6 +170,7 @@ class SynthPanel {
           const btn = this.panel?.querySelector('#synth-generate-btn')
           if (btn) btn.classList.remove('active')
           if (this.auditionSubMenu) this.auditionSubMenu.setGenerating(false)
+          this._updateExternalButtonState()
         }
       }
     }
@@ -191,6 +195,7 @@ class SynthPanel {
 
     // Pulse the audition button for visual feedback
     this._pulseButton('#synth-generate-btn')
+    this._pulseExternalButton()
   }
 
   /**
@@ -227,6 +232,7 @@ class SynthPanel {
             this.sequencerSubMenu.setGenerating(false)
             this.sequencerSubMenu.setActiveStep(-1)
           }
+          this._updateExternalButtonState()
         }
       }
     }
@@ -249,6 +255,7 @@ class SynthPanel {
     }
 
     this._pulseButton('#synth-sequencer-btn')
+    this._pulseExternalButton()
   }
 
   /**
@@ -265,6 +272,43 @@ class SynthPanel {
   }
 
   /**
+   * Set reference to the external synth button for pulse/color effects
+   * @param {HTMLElement} btn - The #desktopSynthBtn element
+   */
+  setExternalButton (btn) {
+    this._externalBtn = btn
+    this._updateExternalButtonState()
+  }
+
+  /**
+   * Update external synth button active state (color + class)
+   * @private
+   */
+  _updateExternalButtonState () {
+    const btn = this._externalBtn
+    if (!btn) return
+    if (this.auditionActive || this.sequencerActive) {
+      btn.classList.add('synth-active')
+      btn.style.setProperty('--synth-btn-color', this.userColor)
+    } else {
+      btn.classList.remove('synth-active')
+      btn.style.removeProperty('--synth-btn-color')
+    }
+  }
+
+  /**
+   * Trigger parallax depth-pulse on the external synth button
+   * @private
+   */
+  _pulseExternalButton () {
+    const btn = this._externalBtn
+    if (!btn) return
+    btn.classList.remove('synth-parallax-pulse')
+    void btn.offsetWidth
+    btn.classList.add('synth-parallax-pulse')
+  }
+
+  /**
    * Set user color for UI theming
    */
   setUserColor (color) {
@@ -272,6 +316,7 @@ class SynthPanel {
     if (this.panel) {
       this.panel.style.setProperty('--synth-accent', color)
     }
+    this._updateExternalButtonState()
   }
 
   /**
@@ -1154,6 +1199,7 @@ class SynthPanel {
     }
 
     this.auditionActive = true
+    this._updateExternalButtonState()
 
     // Update UI state
     const btn = this.panel?.querySelector('#synth-generate-btn')
@@ -1178,6 +1224,7 @@ class SynthPanel {
     }
 
     this.auditionActive = false
+    this._updateExternalButtonState()
 
     // Update UI state
     const btn = this.panel?.querySelector('#synth-generate-btn')
@@ -1241,6 +1288,7 @@ class SynthPanel {
     }
 
     this.sequencerActive = true
+    this._updateExternalButtonState()
 
     const btn = this.panel?.querySelector('#synth-sequencer-btn')
     if (btn) btn.classList.add('active')
@@ -1261,6 +1309,7 @@ class SynthPanel {
     }
 
     this.sequencerActive = false
+    this._updateExternalButtonState()
 
     const btn = this.panel?.querySelector('#synth-sequencer-btn')
     if (btn) btn.classList.remove('active')

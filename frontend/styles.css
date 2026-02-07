@@ -2547,11 +2547,21 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   align-items: center;
   justify-content: center;
   transition: border-color 0.2s ease, color 0.2s ease;
+  transform-style: preserve-3d;
+  perspective: 200px;
+  will-change: transform;
 }
 
 .desktop-settings-btn:hover {
   border-color: var(--light);
   color: var(--light);
+}
+
+/* Active state when audition/sequencer is running */
+.desktop-settings-btn.synth-active {
+  border-color: var(--synth-btn-color, var(--accent));
+  color: var(--synth-btn-color, var(--accent));
+  transition: border-color 0.3s ease, color 0.3s ease;
 }
 
 /* Room instructions */
@@ -2950,6 +2960,18 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   0% { transform: scale(1); }
   50% { transform: scale(1.04); }
   100% { transform: scale(1); }
+}
+
+/* Parallax depth-pulse for external synth button */
+@keyframes synth-parallax-pulse {
+  0%   { transform: scale(1) translateZ(0); }
+  15%  { transform: scale(1.12) translateZ(8px); }
+  40%  { transform: scale(0.97) translateZ(-2px); }
+  100% { transform: scale(1) translateZ(0); }
+}
+
+.desktop-settings-btn.synth-active.synth-parallax-pulse {
+  animation: synth-parallax-pulse 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .synth-header .synth-generate-btn:focus {
