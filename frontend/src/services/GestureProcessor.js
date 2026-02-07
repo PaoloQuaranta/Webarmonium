@@ -106,6 +106,15 @@ class GestureProcessor {
    * @param {boolean} isAudioStarted - Whether audio system is active
    */
   processGesture(gesture, isAudioStarted) {
+    // Play gate: don't broadcast any gestures if audio not started
+    // Local visual trail still renders for feedback
+    if (!isAudioStarted) {
+      if (this.drawGestureTrailCallback) {
+        this.drawGestureTrailCallback(gesture)
+      }
+      return
+    }
+
     // CRITICAL CHECK: If drag streaming was active, notes already played in real-time
     // Skip local note generation to avoid doubling
     if (gesture.streamingWasActive) {
@@ -167,7 +176,7 @@ class GestureProcessor {
 
     // CRITICAL FIX: Mark gesture so backend knows not to generate additional notes
     // This prevents double playback: frontend phrase + backend gestureToMusicService phrase
-    if (gestureAction === 'drag' && isAudioStarted) {
+    if (gestureAction === 'drag') {
       gestureToSend.localPhraseGenerated = true
     }
 
@@ -182,15 +191,6 @@ class GestureProcessor {
 
     // Send gesture to server with position field
     this.socketService.sendGesture(gestureToSend)
-
-    // Handle different gesture types for local audio
-    if (!isAudioStarted) {
-      // console.log('🎵 Gesture captured but audio not started')
-      if (this.drawGestureTrailCallback) {
-        this.drawGestureTrailCallback(gesture)
-      }
-      return
-    }
 
     // Clear any existing timer
     if (this.gestureTimer) {
@@ -410,7 +410,8 @@ class GestureProcessor {
 
             // CRITICAL: Also broadcast to remote users for synchronization
             // The backend will relay this to other clients in the room
-            if (this.socketService?.socket) {
+            // Play gate: check isPlaying to handle mid-drag Stop scenario
+            if (this.socketService?.socket && this.socketService.isPlaying) {
               this.socketService.socket.emit('musical:event', {
                 event: musicalEvent,
                 timestamp: broadcastTime + delayMs

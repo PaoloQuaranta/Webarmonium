@@ -446,8 +446,8 @@ class WebarmoniumApp {
       // Velocity based on Y position (higher = louder)
       const velocity = 0.6 + (1 - y) * 0.4 // 0.6-1.0 range
 
-      // EMIT TO NETWORK: Always emit hold:start for remote sync, even if local audio not ready
-      if (this.socketService && this.socketService.socket) {
+      // EMIT TO NETWORK: Only emit hold:start when audio is started (play gate)
+      if (this.isAudioStarted && this.socketService && this.socketService.socket) {
         const emitData = {
           noteId: holdData.noteId,
           userId: this.socketService.socket.id,
@@ -538,9 +538,9 @@ class WebarmoniumApp {
     this.gestureCapture.onSustainedHoldEnd = (endData) => {
       // console.log('🎵 Sustained hold end callback:', endData)
 
-      // EMIT TO NETWORK: Always emit hold:end for remote sync
+      // EMIT TO NETWORK: Only emit hold:end when audio is started (play gate)
       // Use pendingHoldNoteData (set in onSustainedHoldStart) for network emission
-      if (this.socketService && this.socketService.socket && this.pendingHoldNoteData) {
+      if (this.isAudioStarted && this.socketService && this.socketService.socket && this.pendingHoldNoteData) {
         const holdNoteId = this.pendingHoldNoteData.noteId
         this.socketService.socket.emit('hold:end', {
           noteId: holdNoteId,
@@ -621,11 +621,11 @@ class WebarmoniumApp {
       // console.log('👆 Gesture start callback:', gesture.id)
 
       // Pause audition generation when user starts a real gesture
-      if (this.uiManager?.synthPanel?.isAuditionActive?.()) {
+      if (this.isAudioStarted && this.uiManager?.synthPanel?.isAuditionActive?.()) {
         this.socketService?.socket?.emit('audition:pause')
       }
       // Pause sequencer when user starts a real gesture
-      if (this.uiManager?.synthPanel?.isSequencerActive?.()) {
+      if (this.isAudioStarted && this.uiManager?.synthPanel?.isSequencerActive?.()) {
         this.socketService?.socket?.emit('sequencer:pause')
       }
 
@@ -663,11 +663,11 @@ class WebarmoniumApp {
 ////      })
 
       // Resume audition generation when user ends their real gesture
-      if (this.uiManager?.synthPanel?.isAuditionActive?.()) {
+      if (this.isAudioStarted && this.uiManager?.synthPanel?.isAuditionActive?.()) {
         this.socketService?.socket?.emit('audition:resume')
       }
       // Resume sequencer when user ends their real gesture
-      if (this.uiManager?.synthPanel?.isSequencerActive?.()) {
+      if (this.isAudioStarted && this.uiManager?.synthPanel?.isSequencerActive?.()) {
         this.socketService?.socket?.emit('sequencer:resume')
       }
 
@@ -1757,6 +1757,7 @@ class WebarmoniumApp {
 
         if (startResult) {
           this.isAudioStarted = true
+          this.socketService.isPlaying = true
           button.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>'
           button.classList.remove('disabled')
           button.classList.add('playing')
@@ -1811,8 +1812,17 @@ class WebarmoniumApp {
       }
     } else {
       // console.log('🔇 Stopping audio...')
-      this.audioService.stop()
+      // 1. Gate broadcasts FIRST (in-flight callbacks see gate immediately)
+      this.socketService.isPlaying = false
       this.isAudioStarted = false
+
+      // 2. Stop audition/sequencer if active
+      if (this.uiManager?.synthPanel) {
+        this.uiManager.synthPanel.stopAllPlayback()
+      }
+
+      // 3. Stop audio engine
+      this.audioService.stop()
       button.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><polygon points="4,2 14,8 4,14"/></svg>'
       button.classList.remove('playing')
 
@@ -2092,6 +2102,9 @@ class WebarmoniumApp {
 
     // Draw locally (always, no throttling)
     this._renderTrailHalo(coordinates.x, coordinates.y, trailIntensity, userColor)
+
+    // Play gate: only broadcast trail when audio is started
+    if (!this.isAudioStarted) return
 
     // Entry #80: Throttle network broadcast (~60fps max)
     const now = Date.now()

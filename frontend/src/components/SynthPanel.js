@@ -77,6 +77,15 @@ class SynthPanel {
     return this.sequencerActive
   }
 
+  /**
+   * Stop all active playback (audition and sequencer)
+   * Called by main.js when user presses Stop
+   */
+  stopAllPlayback () {
+    if (this.auditionActive) this._stopAudition()
+    if (this.sequencerActive) this._stopSequencer()
+  }
+
   _getDefaultParams () {
     return {
       filterType: 'lowpass',
@@ -1174,6 +1183,9 @@ class SynthPanel {
    * Start audition gesture generation on backend
    */
   async _startAudition () {
+    // Play gate: only allow audition when main audio is started
+    if (!this.socketService?.isPlaying) return
+
     // Mutual exclusion: stop sequencer if active
     if (this.sequencerActive) {
       this._stopSequencer()
@@ -1264,6 +1276,9 @@ class SynthPanel {
    * Start sequencer on backend
    */
   async _startSequencer () {
+    // Play gate: only allow sequencer when main audio is started
+    if (!this.socketService?.isPlaying) return
+
     // Mutual exclusion: stop audition if active
     if (this.auditionActive) {
       this._stopAudition()
