@@ -39,6 +39,10 @@ class SynthPanel {
     this.sequencerSubMenu = null
     this.sequencerActive = false
 
+    // Saved audition/sequencer params for persistence across close/reopen
+    this._savedAuditionParams = null
+    this._savedSequencerParams = null
+
     // Throttle params emission
     this.lastEmitTime = 0
     this.emitThrottleMs = 200 // Max 5Hz
@@ -289,6 +293,16 @@ class SynthPanel {
     this._previouslyFocusedElement = document.activeElement
     this._createPanel()
 
+    // Restore active button states if audition/sequencer are still running
+    if (this.auditionActive) {
+      const btn = this.panel?.querySelector('#synth-generate-btn')
+      if (btn) btn.classList.add('active')
+    }
+    if (this.sequencerActive) {
+      const btn = this.panel?.querySelector('#synth-sequencer-btn')
+      if (btn) btn.classList.add('active')
+    }
+
     document.addEventListener('keydown', this._handleKeyDown)
 
     requestAnimationFrame(() => {
@@ -305,13 +319,15 @@ class SynthPanel {
     if (!this.isOpen) return
     this.isOpen = false
 
-    // Stop audition if running
-    this._stopAudition()
+    // Save submenu params before destroying (persist across close/reopen)
+    if (this.auditionSubMenu) {
+      this._savedAuditionParams = this.auditionSubMenu.getParams()
+    }
+    if (this.sequencerSubMenu) {
+      this._savedSequencerParams = this.sequencerSubMenu.getParams()
+    }
 
-    // Stop sequencer if running
-    this._stopSequencer()
-
-    // Destroy sub-menus
+    // Destroy sub-menus (UI only — do NOT stop backend generation)
     if (this.auditionSubMenu) {
       this.auditionSubMenu.destroy()
       this.auditionSubMenu = null
@@ -326,22 +342,12 @@ class SynthPanel {
 
     document.removeEventListener('keydown', this._handleKeyDown)
 
-    // Entry #SynthUI: Clean up socket event listener to prevent memory leak
-    if (this._slotsChangedHandler && this.socketService?.off) {
-      this.socketService.off('synth:slots-changed', this._slotsChangedHandler)
-    }
-
-    // Issue #5 fix: Clean up reconnect handler
-    if (this._reconnectHandler && this.socketService?.socket) {
-      this.socketService.socket.off('connect', this._reconnectHandler)
-    }
-    if (this._sequencerReconnectHandler && this.socketService?.socket) {
-      this.socketService.socket.off('connect', this._sequencerReconnectHandler)
-    }
-    // Clean up sequencer step listener
-    if (this._onSequencerStep && this.socketService?.socket) {
-      this.socketService.socket.off('sequencer:step', this._onSequencerStep)
-    }
+    // Socket listeners (hold:start, connect, sequencer:step, synth:slots-changed)
+    // are NOT cleaned up here — they persist safely:
+    // - Registered once in setServices() with stable bound references
+    // - All handlers are null-safe when panel/submenus don't exist
+    // - They read this.panel/this.sequencerSubMenu dynamically,
+    //   so they pick up new instances when panel reopens
 
     if (this._previouslyFocusedElement?.focus) {
       this._previouslyFocusedElement.focus()
@@ -413,6 +419,14 @@ class SynthPanel {
       // Create and attach to panel
       const subMenuElement = this.auditionSubMenu.create()
 
+      // Restore saved params and active state from previous session
+      if (this._savedAuditionParams) {
+        this.auditionSubMenu.setParams(this._savedAuditionParams)
+      }
+      if (this.auditionActive) {
+        this.auditionSubMenu.setGenerating(true)
+      }
+
       // Position relative to audition button
       const auditionBtn = this.panel.querySelector('#synth-generate-btn')
       if (auditionBtn) {
@@ -447,6 +461,14 @@ class SynthPanel {
       }
 
       const subMenuElement = this.sequencerSubMenu.create()
+
+      // Restore saved params and active state from previous session
+      if (this._savedSequencerParams) {
+        this.sequencerSubMenu.setParams(this._savedSequencerParams)
+      }
+      if (this.sequencerActive) {
+        this.sequencerSubMenu.setGenerating(true)
+      }
 
       const sequencerBtn = this.panel.querySelector('#synth-sequencer-btn')
       if (sequencerBtn) {
