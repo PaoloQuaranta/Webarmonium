@@ -799,6 +799,12 @@ class WebarmoniumApp {
       if (data.userId && this.visualService) {
         this.visualService.removeUser(data.userId)
       }
+
+      // Clean up remote user's synth to prevent memory leak
+      if (data.userId && this.audioService?.userSynthManager) {
+        this.audioService.userSynthManager.usersWithCustomParams.delete(data.userId)
+        this.audioService.userSynthManager.cleanupUserSynth(data.userId)
+      }
     })
 
     // FIX: Handle user-disconnected for unexpected disconnects (e.g., browser close)
@@ -816,6 +822,12 @@ class WebarmoniumApp {
       }
       if (data.userId && this.visualService) {
         this.visualService.removeUser(data.userId)
+      }
+
+      // Clean up remote user's synth to prevent memory leak
+      if (data.userId && this.audioService?.userSynthManager) {
+        this.audioService.userSynthManager.usersWithCustomParams.delete(data.userId)
+        this.audioService.userSynthManager.cleanupUserSynth(data.userId)
       }
     })
 

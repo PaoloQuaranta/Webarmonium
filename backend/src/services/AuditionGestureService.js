@@ -96,7 +96,9 @@ class AuditionGestureService {
       currentPosition: { x: 0.5, y: 0.5 },
       targetPosition: { x: 0.5, y: 0.5 },
       // Issue #2 fix: Track all pending timers for cleanup
-      pendingTimers: []
+      pendingTimers: [],
+      // Track active noteIds for hold:end flush on stop/disconnect
+      activeNotes: []
     }
 
     this.activeAuditions.set(socketId, state)
@@ -134,6 +136,9 @@ class AuditionGestureService {
         state.pendingTimers = []
       }
 
+      // Flush active notes: emit hold:end immediately to prevent hanging visuals
+      this._flushActiveNotes(state)
+
       this.activeAuditions.delete(socketId)
 
       // Clean up cursor throttle tracking
@@ -165,6 +170,9 @@ class AuditionGestureService {
         state.pendingTimers = []
       }
 
+      // Flush active notes to prevent hanging on pause
+      this._flushActiveNotes(state)
+
       console.log(`[AuditionGesture] Paused for socket ${socketId}`)
     }
   }
@@ -194,6 +202,28 @@ class AuditionGestureService {
       state.params = { ...state.params, ...params }
       console.log(`[AuditionGesture] Params updated for socket ${socketId}:`, state.params)
     }
+  }
+
+  /**
+   * Flush all active notes by emitting hold:end immediately.
+   * Prevents hanging visuals when audition is stopped or paused.
+   * @param {Object} state - Audition state
+   * @private
+   */
+  _flushActiveNotes (state) {
+    if (!state.activeNotes || state.activeNotes.length === 0) return
+
+    for (const note of state.activeNotes) {
+      this.io.to(note.roomId).emit('hold:end', {
+        type: 'hold:end',
+        userId: note.userId,
+        noteId: note.noteId,
+        isAudition: true,
+        timestamp: Date.now()
+      })
+    }
+
+    state.activeNotes = []
   }
 
   /**
@@ -487,6 +517,9 @@ class AuditionGestureService {
       style: style
     })
 
+    // Track active note for flush on stop/disconnect
+    state.activeNotes.push({ noteId, roomId: state.roomId, userId: state.userId })
+
     // Add material to BackgroundCompositionService (RAW params to avoid feedback)
     if (this.backgroundCompositionService) {
       const gestureData = {
@@ -517,6 +550,8 @@ class AuditionGestureService {
     const durationMs = duration * 1000
     const holdEndTimer = setTimeout(() => {
       if (!state.isActive) return
+      // Remove from active notes
+      state.activeNotes = state.activeNotes.filter(n => n.noteId !== noteId)
       this.io.to(state.roomId).emit('hold:end', {
         type: 'hold:end',
         userId: state.userId,
@@ -603,10 +638,12 @@ class AuditionGestureService {
         // Update cursor position
         this._emitCursorPosition(state.roomId, state.socketId, notePosition, state)
 
+        const dragNoteId = `${noteId}_${i}`
+
         this.io.to(state.roomId).emit('hold:start', {
           type: 'hold:start',
           userId: state.userId,
-          noteId: `${noteId}_${i}`,
+          noteId: dragNoteId,
           frequency: quantizedFrequency,
           pitch: quantizedPitch,
           velocity: 0.4 + intensity * 0.4,
@@ -620,14 +657,19 @@ class AuditionGestureService {
           style: style
         })
 
+        // Track active note for flush on stop/disconnect
+        state.activeNotes.push({ noteId: dragNoteId, roomId: state.roomId, userId: state.userId })
+
         // Emit hold:end after note duration
         // Issue #2 fix: Track nested timer
         const noteEndTimer = setTimeout(() => {
           if (!state.isActive) return
+          // Remove from active notes
+          state.activeNotes = state.activeNotes.filter(n => n.noteId !== dragNoteId)
           this.io.to(state.roomId).emit('hold:end', {
             type: 'hold:end',
             userId: state.userId,
-            noteId: `${noteId}_${i}`,
+            noteId: dragNoteId,
             isAudition: true,
             timestamp: Date.now()
           })
