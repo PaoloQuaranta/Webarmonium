@@ -265,16 +265,8 @@ class AuditionSubMenu {
     // Issue #1 fix: Store handler reference for cleanup in destroy()
     this._clickOutsideHandler = (e) => {
       if (this.isVisible && this.element && !this.element.contains(e.target)) {
-        // Check if click is on the audition button itself
-        const auditionBtn = document.querySelector('#synth-generate-btn')
-        if (auditionBtn && auditionBtn.contains(e.target)) {
-          return // Don't close if clicking the audition button
-        }
-        // Don't close if clicking sequencer button or its submenu
-        const seqBtn = document.querySelector('#synth-sequencer-btn')
-        if (seqBtn && seqBtn.contains(e.target)) return
-        const seqSubmenu = document.querySelector('.sequencer-submenu')
-        if (seqSubmenu && seqSubmenu.contains(e.target)) return
+        // Don't close if clicking anywhere inside the synth panel
+        if (e.target.closest('.synth-panel')) return
         this.hide()
       }
     }

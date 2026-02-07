@@ -306,13 +306,8 @@ class SequencerSubMenu {
     // Click outside dismiss
     this._clickOutsideHandler = (e) => {
       if (this.isVisible && this.element && !this.element.contains(e.target)) {
-        const seqBtn = document.querySelector('#synth-sequencer-btn')
-        if (seqBtn && seqBtn.contains(e.target)) return
-        // Don't close if clicking audition button or its submenu
-        const audBtn = document.querySelector('#synth-generate-btn')
-        if (audBtn && audBtn.contains(e.target)) return
-        const audSubmenu = document.querySelector('.audition-submenu')
-        if (audSubmenu && audSubmenu.contains(e.target)) return
+        // Don't close if clicking anywhere inside the synth panel
+        if (e.target.closest('.synth-panel')) return
         this.hide()
       }
     }
