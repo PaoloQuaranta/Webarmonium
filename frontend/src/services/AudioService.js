@@ -731,11 +731,12 @@ class AudioService {
           await Tone.context.resume()
         }
 
-        // Poll for state change with timeout
-        const startTime = Date.now()
-
-        while (Tone.context.state !== 'running' && Date.now() - startTime < config.RESUME_POLL_TIMEOUT_MS) {
-          await new Promise(resolve => setTimeout(resolve, config.RESUME_POLL_INTERVAL_MS))
+        // AUDIO PRIORITY: Exponential backoff polling instead of constant 20ms intervals
+        // Reduces main thread blocking from 15 iterations to max 6, with shorter initial delays
+        const delays = [5, 10, 20, 40, 80, 145] // Total ~300ms
+        for (const delay of delays) {
+          if (Tone.context.state === 'running') break
+          await new Promise(resolve => setTimeout(resolve, delay))
         }
 
         if (Tone.context.state === 'running') {
@@ -862,11 +863,8 @@ class AudioService {
       clearTimeout(this._audioHealthCheckInitialTimeout)
       this._audioHealthCheckInitialTimeout = null
     }
-    // Clear voice cleanup interval
-    if (this._voiceCleanupInterval) {
-      clearInterval(this._voiceCleanupInterval)
-      this._voiceCleanupInterval = null
-    }
+    // Stop voice cleanup scheduling
+    this._voiceCleanupActive = false
   }
 
   /**
@@ -1560,11 +1558,11 @@ class AudioService {
         this.stressMonitor.start(Tone.context)
       }
 
-      // Periodic voice cleanup: remove expired voice tracking entries every 500ms
-      if (!this._voiceCleanupInterval) {
-        this._voiceCleanupInterval = setInterval(() => {
-          this._cleanupExpiredVoices()
-        }, 500)
+      // AUDIO PRIORITY: Voice cleanup via requestIdleCallback instead of setInterval
+      // Defers non-critical cleanup to idle time, freeing main thread for audio scheduling
+      if (!this._voiceCleanupActive) {
+        this._voiceCleanupActive = true
+        this._scheduleVoiceCleanup()
       }
     } catch (error) {
     }
@@ -3506,7 +3504,41 @@ class AudioService {
   }
 
   /**
-   * Cleanup expired voice entries (called periodically by _voiceCleanupInterval)
+   * AUDIO PRIORITY: Schedule voice cleanup during browser idle time
+   * Uses requestIdleCallback to avoid competing with audio scheduling on main thread
+   * Hybrid approach: immediate cleanup if voice count exceeds threshold
+   * @private
+   */
+  _scheduleVoiceCleanup() {
+    if (!this.isInitialized) {
+      this._voiceCleanupActive = false
+      return
+    }
+
+    const doCleanup = () => {
+      this._cleanupExpiredVoices()
+      if (this.isInitialized) {
+        this._scheduleVoiceCleanup()
+      } else {
+        this._voiceCleanupActive = false
+      }
+    }
+
+    // Immediate cleanup if voice count is high (prevent memory leak)
+    const voiceCount = this.generativeState?.activeVoices?.size || 0
+    if (voiceCount > 50) {
+      doCleanup()
+      return
+    }
+
+    // Defer to idle time with fallback
+    const rIC = window.requestIdleCallback ||
+      ((cb) => setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 50 }), 16))
+    rIC(doCleanup, { timeout: 1000 })
+  }
+
+  /**
+   * Cleanup expired voice entries
    */
   _cleanupExpiredVoices() {
     if (!this.generativeState?.activeVoices) return

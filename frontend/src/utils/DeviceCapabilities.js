@@ -294,14 +294,14 @@ class DeviceCapabilities {
       'high': {
         shadowBlur: true,
         particleCount: 120,
-        attractorPoints: 1200,
+        attractorPoints: 900,
         pulseGlow: true,
         cascadeEnabled: true
       },
       'medium': {
         shadowBlur: true,
         particleCount: 80,
-        attractorPoints: 800,
+        attractorPoints: 600,
         pulseGlow: true,
         cascadeEnabled: true
       },

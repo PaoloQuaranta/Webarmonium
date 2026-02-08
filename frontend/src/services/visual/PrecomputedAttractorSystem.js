@@ -18,7 +18,7 @@
 class PrecomputedAttractorSystem {
   constructor() {
     // Configuration
-    this.pointCount = 1200    // More points for denser cloud
+    this.pointCount = 900     // Reduced from 1200 for audio priority (fewer canvas calls per frame)
     this.frameCount = 90      // ~1.5 seconds of animation at 60fps
     this.loopDuration = 8000  // ms for full loop
 

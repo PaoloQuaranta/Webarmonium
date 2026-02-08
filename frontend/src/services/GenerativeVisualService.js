@@ -58,9 +58,16 @@ class GenerativeVisualService {
 
     // Performance configuration
     this.targetFps = 30
+    this._originalTargetFps = 30
     this.degradeThreshold = 20
     this.disableThreshold = 15
     this.recoveryThreshold = 28
+
+    // AUDIO PRIORITY: Audio-driven performance override with hysteresis
+    this._audioPerformanceOverride = null  // null = no audio override active
+    this._pendingAudioStress = null        // Queued for frame-boundary application
+    this._lastQualityTransition = 0        // Timestamp for cooldown enforcement
+    this._consecutiveOverruns = 0          // Frame budget overrun counter
 
     // P&P emission throttling per user
     this._lastEmitByUser = new Map()
@@ -272,6 +279,12 @@ class GenerativeVisualService {
       return
     }
 
+    // AUDIO PRIORITY: Apply queued audio stress at frame boundary
+    if (this._pendingAudioStress) {
+      this._applyAudioStressInternal(this._pendingAudioStress)
+      this._pendingAudioStress = null
+    }
+
     // Calculate delta time and FPS
     const now = p.millis()
     const delta = now - this.lastFrameTime
@@ -287,6 +300,12 @@ class GenerativeVisualService {
     // Performance monitoring
     this.updatePerformanceMetrics(p)
 
+    // AUDIO PRIORITY: Frame budget enforcement
+    // Reserve time for audio scheduling, browser compositor, and GC headroom
+    const frameStart = performance.now()
+    const OVERHEAD_RESERVE_MS = 16  // 8ms audio + 5ms browser + 3ms GC
+    const frameBudgetMs = (1000 / this.targetFps) - OVERHEAD_RESERVE_MS
+
     // Clear background (theme-aware)
     p.background(...this.bgColor)
 
@@ -296,52 +315,64 @@ class GenerativeVisualService {
       this.renderSimpleNodes(p)
     } else {
       // Phase 3 Idle Detection: Skip wave/particle updates if no recent activity
-      const now = Date.now()
+      const nowMs = Date.now()
       // DEFENSIVE FIX: Use Math.max to handle clock adjustments (NTP, timezone, DST)
-      const waveIdle = Math.max(0, now - this.lastWaveEmit) > this.idleThreshold
-      const particleIdle = Math.max(0, now - this.lastParticleEmit) > this.idleThreshold
+      const waveIdle = Math.max(0, nowMs - this.lastWaveEmit) > this.idleThreshold
+      const particleIdle = Math.max(0, nowMs - this.lastParticleEmit) > this.idleThreshold
 
-      // Always update physics and ambient effects
+      // PRIORITY 1 (always): Physics + spring mesh (core visual identity)
       this.springMesh.updatePhysics(dt)
       if (this.nebulas) this.nebulas.update(dt)
       if (this.attractors) this.attractors.update(dt)
+      if (!waveIdle) this.wavePackets.update(dt)
+      if (!particleIdle) this.particles.update(dt)
 
-      // Conditionally update wave packets and particles (Phase 3 optimization)
-      if (!waveIdle) {
-        this.wavePackets.update(dt)
-      }
-      if (!particleIdle) {
-        this.particles.update(dt)
-      }
-
-      // Render layers (back to front)
-      // 0. Nebulas (background layer) - render in both normal and degraded modes
-      if (this.nebulas) {
-        this.nebulas.setPerformanceMode(this.performanceMode)
-        this.nebulas.render(p)
-      }
-
-      // 1. Spring mesh network (curved edges + nodes)
+      // Render: spring mesh always renders (core identity)
       this.springMesh.render(p)
 
-      // 2. Wave pulses
-      this.wavePackets.render(p)
+      // PRIORITY 2: Nebulas (cheap - offscreen buffer blit)
+      if (performance.now() - frameStart < frameBudgetMs) {
+        if (this.nebulas) {
+          this.nebulas.setPerformanceMode(this.performanceMode)
+          this.nebulas.render(p)
+        }
+      }
 
-      // 3. Particles (skip in degraded mode)
-      if (this.performanceMode === 'normal') {
+      // PRIORITY 3: Wave pulses
+      if (performance.now() - frameStart < frameBudgetMs) {
+        this.wavePackets.render(p)
+      }
+
+      // PRIORITY 4: Attractors (expensive - 900+ ellipses)
+      if (performance.now() - frameStart < frameBudgetMs * 0.85) {
+        if (this.attractors) {
+          this.attractors.setPerformanceMode(this.performanceMode)
+          this.attractors.setStressFactor(this.stressFactor)
+          if (this.nebulas && this.nebulas.currentPalette) {
+            const nebulaColor = this.nebulas.currentPalette.colors[0]
+            this.attractors.setBaseColor(nebulaColor)
+          }
+          this.attractors.render(p)
+        }
+      }
+
+      // PRIORITY 5: Particles (lowest priority, skip in degraded mode)
+      if (this.performanceMode === 'normal' && performance.now() - frameStart < frameBudgetMs * 0.85) {
         this.particles.render(p)
       }
 
-      // 4. Attractors (top layer)
-      if (this.attractors) {
-        this.attractors.setPerformanceMode(this.performanceMode)
-        this.attractors.setStressFactor(this.stressFactor)
-        // Sync color with current nebula palette
-        if (this.nebulas && this.nebulas.currentPalette) {
-          const nebulaColor = this.nebulas.currentPalette.colors[0]
-          this.attractors.setBaseColor(nebulaColor)
+      // AUDIO PRIORITY: Track frame overruns for preemptive stress reduction
+      // Only apply when no audio override is active (prevents double penalty)
+      const frameTime = performance.now() - frameStart
+      if (!this._audioPerformanceOverride && frameTime > frameBudgetMs * 1.5) {
+        this._consecutiveOverruns = (this._consecutiveOverruns || 0) + 1
+        this.stressFactor = Math.max(0.3, this.stressFactor - 0.05)
+        if (this._consecutiveOverruns >= 2) {
+          this.stressFactor = Math.max(0.3, this.stressFactor - 0.1)
+          this._consecutiveOverruns = 0
         }
-        this.attractors.render(p)
+      } else {
+        this._consecutiveOverruns = 0
       }
 
       // Hold indicators REMOVED - SpringMeshNetwork already renders hold state via node pulsing
@@ -485,21 +516,21 @@ class GenerativeVisualService {
 
     // Only check performance every N frames to avoid overhead
     if (this.frameCount % this.frameSampleInterval === 0) {
-      // Performance mode based on FPS only - audio stress should NOT affect graphics
-      // The user experience is more important than "protecting" audio
       const graphicsBudget = Math.min(1.0, Math.max(0.3, this.fps / this.targetFps))
 
-      // PERF: Expose stress factor for subsystems (particle/pulse limiting)
-      // Entry #46 FIX: Enforce minimum 0.3 to prevent zero particle/pulse limits
-      // If FPS drops very low, stressFactor could become < 0.3 without this enforcement
-      this.stressFactor = Math.max(0.3, graphicsBudget)
+      // AUDIO PRIORITY: When audio override is active, use the LOWER of graphics and audio stress
+      // This ensures graphics never exceeds what audio can tolerate
+      if (this._audioPerformanceOverride) {
+        this.stressFactor = Math.max(0.3, Math.min(graphicsBudget, this.stressFactor))
+      } else {
+        this.stressFactor = Math.max(0.3, graphicsBudget)
+      }
 
-      let targetMode = this.performanceMode
+      let targetMode = this._audioPerformanceOverride || this.performanceMode
 
       if (graphicsBudget < 0.5) {
-        // Only degrade if graphics FPS is actually low
         targetMode = 'degraded'
-      } else {
+      } else if (!this._audioPerformanceOverride) {
         targetMode = 'normal'
       }
 
@@ -514,6 +545,91 @@ class GenerativeVisualService {
         this.isPaused = true
         // console.log('GenerativeVisualService: Paused due to inactivity')
       }
+    }
+  }
+
+  // =========================================================================
+  // AUDIO PRIORITY: Audio stress → graphics degradation with hysteresis
+  // =========================================================================
+
+  /**
+   * Queue audio stress data for application at next frame boundary
+   * Prevents mid-frame state inconsistency
+   * @param {Object} stressData - { stressFactor, mode, underrunCount }
+   */
+  applyAudioStress(stressData) {
+    this._pendingAudioStress = stressData
+  }
+
+  /**
+   * Apply queued audio stress at frame boundary (called from draw())
+   * Uses hysteresis to prevent quality oscillation
+   * @param {Object} stressData - { stressFactor, mode, underrunCount }
+   * @private
+   */
+  _applyAudioStressInternal(stressData) {
+    const COOLDOWN_MS = 2000
+    const DEGRADE_THRESHOLD = 0.5
+    const RECOVER_THRESHOLD = 0.7
+
+    const now = Date.now()
+    if (now - this._lastQualityTransition < COOLDOWN_MS) return
+
+    const { stressFactor: audioStress, mode } = stressData
+    const currentMode = this._audioPerformanceOverride || 'normal'
+
+    // Hysteresis: different thresholds for degradation vs recovery
+    if (mode !== 'normal' && currentMode === 'normal') {
+      if (audioStress >= DEGRADE_THRESHOLD) return
+    }
+    if (mode === 'normal' && currentMode !== 'normal') {
+      if (audioStress <= RECOVER_THRESHOLD) return
+    }
+
+    this._lastQualityTransition = now
+
+    if (mode === 'emergency' || mode === 'minimal') {
+      this._setAudioDrivenPerformanceMode('degraded')
+      this._reduceFrameRate(15)
+      if (this.springMesh) this.springMesh.setCurveSegments(5)
+    } else if (mode === 'degraded') {
+      this._setAudioDrivenPerformanceMode('degraded')
+      this._reduceFrameRate(20)
+      if (this.springMesh) this.springMesh.setCurveSegments(10)
+    } else {
+      this._clearAudioDrivenPerformanceMode()
+      this._restoreFrameRate()
+      const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent)
+      if (this.springMesh) this.springMesh.setCurveSegments(isMobile ? 10 : 14)
+    }
+  }
+
+  /** @private */
+  _setAudioDrivenPerformanceMode(mode) {
+    this._audioPerformanceOverride = mode
+    if (this.performanceMode !== 'disabled') {
+      this.performanceMode = mode
+    }
+  }
+
+  /** @private */
+  _clearAudioDrivenPerformanceMode() {
+    this._audioPerformanceOverride = null
+  }
+
+  /** @private */
+  _reduceFrameRate(targetFps) {
+    if (this.p5Instance && this.targetFps > targetFps) {
+      this.targetFps = targetFps
+      this.p5Instance.frameRate(targetFps)
+    }
+  }
+
+  /** @private */
+  _restoreFrameRate() {
+    if (this.p5Instance && this.targetFps < this._originalTargetFps) {
+      this.targetFps = this._originalTargetFps
+      this.p5Instance.frameRate(this._originalTargetFps)
     }
   }
 
@@ -618,7 +734,7 @@ class GenerativeVisualService {
     let baseProfile = {
       shadowBlur: true,
       particleCount: 120,
-      attractorPoints: 1200,
+      attractorPoints: 900,
       pulseGlow: true,
       cascadeEnabled: true
     }
@@ -672,21 +788,21 @@ class GenerativeVisualService {
       full: {
         shadowBlur: true,
         particleCount: 120,
-        attractorPoints: 1200,
+        attractorPoints: 900,
         pulseGlow: true,
         cascadeEnabled: true
       },
       reduced: {
         shadowBlur: false,
         particleCount: 80,
-        attractorPoints: 800,
+        attractorPoints: 600,
         pulseGlow: false,
         cascadeEnabled: true
       },
       minimal: {
         shadowBlur: false,
         particleCount: 40,
-        attractorPoints: 400,
+        attractorPoints: 300,
         pulseGlow: false,
         cascadeEnabled: false
       }
@@ -730,6 +846,10 @@ class GenerativeVisualService {
     if (this._handleThemeChange) {
       window.removeEventListener('theme-change', this._handleThemeChange)
     }
+
+    // AUDIO PRIORITY: Clear pending stress state
+    this._pendingAudioStress = null
+    this._audioPerformanceOverride = null
 
     // Dispose subsystems
     if (this.attractors) {

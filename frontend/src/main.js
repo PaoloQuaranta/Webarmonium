@@ -1791,6 +1791,26 @@ class WebarmoniumApp {
             }, 250)  // Check every 250ms
           }
 
+          // AUDIO PRIORITY: Wire audio stress → visual degradation
+          // AudioStressMonitor dispatches these events when timing drift or underruns detected
+          if (this.visualService && !this._audioStressListenersWired) {
+            this._audioStressListenersWired = true
+            window.addEventListener('audio-stress-change', (event) => {
+              if (this.visualService) {
+                this.visualService.applyAudioStress(event.detail)
+              }
+            })
+            window.addEventListener('audio-mode-change', (event) => {
+              if (this.visualService) {
+                this.visualService.applyAudioStress({
+                  stressFactor: event.detail.stressFactor,
+                  mode: event.detail.to,
+                  underrunCount: event.detail.underrunCount
+                })
+              }
+            })
+          }
+
           // Play pending drone if saved
           // Entry #175: Pass saved style for genre-aware audio
           if (this.pendingDrone) {

@@ -108,7 +108,7 @@ class SpringMeshNetwork {
     // Visual configuration
     this.controlPointOffset = edgeConfig.controlPointOffset
     // OPTIMIZATION: Mobile devices use fewer curve segments for better performance
-    this.curveSegments = this.isMobile ? 10 : edgeConfig.segments  // 10 segments mobile, 20 desktop
+    this.curveSegments = this.isMobile ? 10 : Math.min(14, edgeConfig.segments)  // 10 mobile, 14 desktop (reduced from 20 for audio priority)
 
     // Store configs for use in methods
     this.EDGE_CONFIG = edgeConfig
@@ -123,6 +123,24 @@ class SpringMeshNetwork {
 
     // Entry #74: Shadow blur control for graphics quality settings
     this._shadowBlurEnabled = true
+
+    // AUDIO PRIORITY: Pre-allocated RGB buffers to eliminate GC pressure
+    // drawGradientCurve() was creating ~17,400 array allocations/frame (522,000/sec)
+    this._rgbBuffer1 = [0, 0, 0]
+    this._rgbBuffer2 = [0, 0, 0]
+    this._rgbBufferTemp = [0, 0, 0]  // For intermediate/background node rendering
+  }
+
+  /**
+   * AUDIO PRIORITY: Dynamically adjust curve segments at runtime
+   * Called by GenerativeVisualService when audio stress changes
+   * @param {number} count - Number of segments (5-20)
+   */
+  setCurveSegments(count) {
+    const clamped = Math.max(5, Math.min(20, Math.round(count)))
+    if (clamped === this.curveSegments) return
+    this.curveSegments = clamped
+    this.bezierBasisCache = this._precomputeBezierBasis(clamped)
   }
 
   /**
@@ -657,8 +675,18 @@ class SpringMeshNetwork {
    * @param {p5} p - p5.js instance
    */
   render(p) {
+    // AUDIO PRIORITY: Simplify or skip TERTIARY edges under stress
+    const stressFactor = window.visualService?.stressFactor ?? 1.0
+
     // Draw edges first (behind nodes)
     for (const edge of this.edges) {
+      if (edge.type === this.EDGE_TYPES.TERTIARY) {
+        if (stressFactor < 0.5) continue  // Skip entirely under high stress
+        if (stressFactor < 0.7) {
+          this.renderSimpleLine(p, edge)  // Single line instead of gradient Bezier
+          continue
+        }
+      }
       this.renderEdge(p, edge)
     }
 
@@ -752,6 +780,29 @@ class SpringMeshNetwork {
   }
 
   /**
+   * AUDIO PRIORITY: Render edge as a single straight line (1 canvas call instead of 14)
+   * Used for TERTIARY edges under moderate stress to preserve audio scheduling headroom
+   * @param {p5} p - p5.js instance
+   * @param {Object} edge - Edge object
+   */
+  renderSimpleLine(p, edge) {
+    const nodeA = this.getNodeOrIntermediate(edge.sourceId)
+    const nodeB = this.getNodeOrIntermediate(edge.targetId)
+    if (!nodeA || !nodeB) return
+
+    // Viewport culling (same as renderEdge)
+    const margin = 50 / Math.max(p.width, p.height)
+    if ((nodeA.x < -margin || nodeA.x > 1 + margin || nodeA.y < -margin || nodeA.y > 1 + margin) &&
+        (nodeB.x < -margin || nodeB.x > 1 + margin || nodeB.y < -margin || nodeB.y > 1 + margin)) {
+      return
+    }
+
+    p.stroke(128, 128, 144, 25)
+    p.strokeWeight(1)
+    p.line(nodeA.x * p.width, nodeA.y * p.height, nodeB.x * p.width, nodeB.y * p.height)
+  }
+
+  /**
    * Draw gradient curve using segmented approach
    * @param {p5} p - p5.js instance
    * @param {number} x1, y1 - Start point
@@ -762,8 +813,8 @@ class SpringMeshNetwork {
    */
   drawGradientCurve(p, x1, y1, cx, cy, x2, y2, color1, color2, alphaMultiplier = 1.0) {
     const segments = this.curveSegments
-    const rgb1 = this.hexToRgbArray(color1)
-    const rgb2 = this.hexToRgbArray(color2)
+    const rgb1 = this.hexToRgbArray(color1, this._rgbBuffer1)
+    const rgb2 = this.hexToRgbArray(color2, this._rgbBuffer2)
 
     // OPTIMIZATION: Use precomputed Bezier basis functions (eliminates 80 Math.pow calls per edge)
     const basis = this.bezierBasisCache
@@ -853,7 +904,7 @@ class SpringMeshNetwork {
     const size = baseSize * 0.5  // Halved size
 
     // Parse hex color and apply half opacity
-    const rgb = this.hexToRgbArray(node.color)
+    const rgb = this.hexToRgbArray(node.color, this._rgbBufferTemp)
     const alpha = 127  // Half opacity (255 / 2)
 
     p.noStroke()
@@ -909,14 +960,25 @@ class SpringMeshNetwork {
 
   /**
    * Helper: Convert hex to RGB array
+   * AUDIO PRIORITY: Accepts optional pre-allocated buffer to eliminate GC pressure
+   * @param {string} hex - Hex color string
+   * @param {Array} [buffer] - Optional pre-allocated [r,g,b] array to reuse
+   * @returns {Array} RGB array [r, g, b]
    */
-  hexToRgbArray(hex) {
+  hexToRgbArray(hex, buffer) {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-    return result ? [
-      parseInt(result[1], 16),
-      parseInt(result[2], 16),
-      parseInt(result[3], 16)
-    ] : [255, 255, 255]
+    if (result) {
+      const target = buffer || [0, 0, 0]
+      target[0] = parseInt(result[1], 16)
+      target[1] = parseInt(result[2], 16)
+      target[2] = parseInt(result[3], 16)
+      return target
+    }
+    if (buffer) {
+      buffer[0] = 255; buffer[1] = 255; buffer[2] = 255
+      return buffer
+    }
+    return [255, 255, 255]
   }
 
   /**

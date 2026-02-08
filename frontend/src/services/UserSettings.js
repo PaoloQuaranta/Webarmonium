@@ -72,21 +72,21 @@ class UserSettings {
     full: {
       shadowBlur: true,
       particleCount: 120,
-      attractorPoints: 1200,
+      attractorPoints: 900,
       pulseGlow: true,
       cascadeEnabled: true
     },
     reduced: {
       shadowBlur: false,
       particleCount: 80,
-      attractorPoints: 800,
+      attractorPoints: 600,
       pulseGlow: false,
       cascadeEnabled: true
     },
     minimal: {
       shadowBlur: false,
       particleCount: 40,
-      attractorPoints: 400,
+      attractorPoints: 300,
       pulseGlow: false,
       cascadeEnabled: false
     }
