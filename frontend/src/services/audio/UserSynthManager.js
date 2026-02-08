@@ -42,6 +42,20 @@ class UserSynthManager {
     // Slot lookup function - will be set by AudioService to use backend-assigned slots
     // Falls back to hash if not set
     this.slotLookupFn = null
+
+    // OPTIMIZATION: Synth pooling and automatic cleanup
+    // Detect browser to set appropriate synth limits (Safari has 1000 node limit)
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+    const isFirefox = /firefox/i.test(navigator.userAgent)
+    this.maxSynths = isSafari ? 8 : (isFirefox ? 10 : 12)  // Browser-specific limits
+
+    // CRITICAL: Extended thresholds to prevent cleanup during long release envelopes
+    this.IDLE_THRESHOLD = 90000  // 90 seconds (not 60)
+    this.RELEASE_BUFFER = 10000  // 10 seconds for longest release envelopes
+
+    // Start automatic cleanup interval (every 30 seconds)
+    this.cleanupInterval = setInterval(() => this._cleanupInactiveSynths(), 30000)
+    // console.log(`✅ UserSynthManager: Auto-cleanup started (max ${this.maxSynths} synths)`)
   }
 
   /**
@@ -484,6 +498,10 @@ class UserSynthManager {
     }
 
     try {
+      // OPTIMIZATION: Track usage for cleanup logic
+      synthData.lastUsedTime = Date.now()
+      synthData.isPlaying = true
+
       // Apply tessitura constraint
       const constrainedFreq = this.constrainFrequencyToTessitura(frequency, userId)
 
@@ -520,6 +538,10 @@ class UserSynthManager {
     const synthData = this.userSynths.get(noteData.userId)
     if (synthData) {
       try {
+        // OPTIMIZATION: Track state for cleanup logic
+        synthData.isPlaying = false
+        synthData.lastUsedTime = Date.now()
+
         // MonoSynth.triggerRelease(time?) does NOT take frequency argument
         synthData.synth.triggerRelease(Tone.now())
       } catch (error) {
@@ -585,6 +607,57 @@ class UserSynthManager {
   }
 
   /**
+   * OPTIMIZATION: Automatic cleanup of inactive synths
+   * Runs every 30 seconds to prevent memory leaks
+   * CRITICAL: Uses 90s + 10s buffer to prevent cleanup during long release envelopes
+   * @private
+   */
+  _cleanupInactiveSynths() {
+    const now = Date.now()
+
+    for (const [userId, synthData] of this.userSynths.entries()) {
+      const lastUsed = synthData.lastUsedTime || synthData.lastTriggerTime || 0
+      const idleTime = now - lastUsed
+
+      // CRITICAL: Check THREE conditions before cleanup:
+      // 1. Not currently playing
+      // 2. Idle longer than threshold + release buffer
+      // 3. Not marked as disposing
+      if (!synthData.isPlaying &&
+          !synthData.disposing &&
+          idleTime > (this.IDLE_THRESHOLD + this.RELEASE_BUFFER)) {
+
+        // DEFENSIVE: Double-check no active notes in activeNotes map
+        const hasActiveNotes = Array.from(this.activeNotes.values())
+          .some(noteData => noteData.userId === userId)
+
+        if (!hasActiveNotes) {
+          // console.log(`🧹 Auto-cleanup synth for ${userId.substring(0, 8)} (idle ${(idleTime/1000).toFixed(0)}s)`)
+          this.cleanupUserSynth(userId)
+        }
+      }
+    }
+
+    // Enforce maximum capacity by removing least-recently-used synths
+    if (this.userSynths.size > this.maxSynths) {
+      const sorted = Array.from(this.userSynths.entries())
+        .filter(([_, data]) => !data.isPlaying && !data.disposing)
+        .sort((a, b) => {
+          const aTime = a[1].lastUsedTime || a[1].lastTriggerTime || 0
+          const bTime = b[1].lastUsedTime || b[1].lastTriggerTime || 0
+          return aTime - bTime  // Oldest first
+        })
+
+      const toRemove = this.userSynths.size - this.maxSynths
+      for (let i = 0; i < toRemove && i < sorted.length; i++) {
+        const userId = sorted[i][0]
+        // console.log(`🧹 Max capacity cleanup for ${userId.substring(0, 8)}`)
+        this.cleanupUserSynth(userId)
+      }
+    }
+  }
+
+  /**
    * Release all notes for a user
    * @param {string} userId - The user ID
    */
@@ -629,18 +702,23 @@ class UserSynthManager {
       // Release all notes
       this.releaseAllForUser(userId)
 
+      // CRITICAL FIX: Capture nodes in closure BEFORE deleting from map
+      // This prevents race condition if user rejoins within 1 second
+      const { delaySend, reverbSend, pan, volume, filter, synth } = synthData
+
       // Remove from map immediately to prevent new getSynthForUser calls
       this.userSynths.delete(userId)
 
       // Wait for release envelopes to complete, THEN dispose audio nodes
       setTimeout(() => {
         try {
-          if (synthData.delaySend) synthData.delaySend.dispose()
-          if (synthData.reverbSend) synthData.reverbSend.dispose()
-          if (synthData.pan) synthData.pan.dispose()
-          if (synthData.volume) synthData.volume.dispose()
-          if (synthData.filter) synthData.filter.dispose()
-          if (synthData.synth) synthData.synth.dispose()
+          // Use captured references (not synthData) to avoid disposing NEW synth
+          if (delaySend) delaySend.dispose()
+          if (reverbSend) reverbSend.dispose()
+          if (pan) pan.dispose()
+          if (volume) volume.dispose()
+          if (filter) filter.dispose()
+          if (synth) synth.dispose()
 
           // console.log(`Fully disposed synth for ${userId}`)
         } catch (e) {
@@ -659,6 +737,12 @@ class UserSynthManager {
    * Cleanup all synths
    */
   cleanupAll() {
+    // OPTIMIZATION: Clear automatic cleanup interval
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval)
+      this.cleanupInterval = null
+    }
+
     for (const userId of this.userSynths.keys()) {
       this.cleanupUserSynth(userId)
     }

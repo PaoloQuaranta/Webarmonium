@@ -46,9 +46,14 @@ class GenerativeVisualService {
     // Exposed for subsystems to reduce particle/pulse counts under stress
     this.stressFactor = 1.0
 
-    // Idle detection
+    // Idle detection (Phase 3 optimization)
     this.lastActivityTime = Date.now()
-    this.idleThreshold = 10000 // 10 seconds
+    this.lastWaveEmit = Date.now()
+    this.lastParticleEmit = Date.now()
+
+    // Mobile-specific idle thresholds
+    const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent)
+    this.idleThreshold = isMobile ? 1000 : 2000  // 1s mobile, 2s desktop (Phase 3)
     this.isPaused = false
 
     // Performance configuration
@@ -290,12 +295,24 @@ class GenerativeVisualService {
       // Minimal rendering - simple nodes only
       this.renderSimpleNodes(p)
     } else {
-      // Update all systems
+      // Phase 3 Idle Detection: Skip wave/particle updates if no recent activity
+      const now = Date.now()
+      // DEFENSIVE FIX: Use Math.max to handle clock adjustments (NTP, timezone, DST)
+      const waveIdle = Math.max(0, now - this.lastWaveEmit) > this.idleThreshold
+      const particleIdle = Math.max(0, now - this.lastParticleEmit) > this.idleThreshold
+
+      // Always update physics and ambient effects
       this.springMesh.updatePhysics(dt)
-      this.wavePackets.update(dt)
-      this.particles.update(dt)
       if (this.nebulas) this.nebulas.update(dt)
       if (this.attractors) this.attractors.update(dt)
+
+      // Conditionally update wave packets and particles (Phase 3 optimization)
+      if (!waveIdle) {
+        this.wavePackets.update(dt)
+      }
+      if (!particleIdle) {
+        this.particles.update(dt)
+      }
 
       // Render layers (back to front)
       // 0. Nebulas (background layer) - render in both normal and degraded modes
@@ -413,6 +430,7 @@ class GenerativeVisualService {
           // Emit pulse
           if (this.wavePackets) {
             this.wavePackets.emitPulse(userId, node.color)
+            this.lastWaveEmit = Date.now()  // Track wave emission for idle detection
           }
 
           // Also emit particles on tap/hold for better visual feedback
@@ -421,6 +439,7 @@ class GenerativeVisualService {
           const particleCount = Math.max(1, Math.floor(baseCount * this.stressFactor))
           if (this.particles) {
             this.particles.emitParticles(userId, particleCount)
+            this.lastParticleEmit = Date.now()  // Track particle emission for idle detection
           }
         }
       }
