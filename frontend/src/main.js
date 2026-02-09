@@ -302,6 +302,36 @@ class WebarmoniumApp {
         return null // No note played
       }
 
+      // DRUM MODE: Drag → snare roll (repeated hits at drag speed)
+      if (this.audioService?.isDrumMode) {
+        const speed = noteData.velocity // 0-1, from EnhancedGestureCapture
+        const velocity = Math.max(0.2, Math.min(1.0, 0.3 + speed * 0.7)) // 0.3-1.0
+
+        this.audioService.playDrumHit('sn', velocity)
+
+        // Emit to network (throttled at ~50ms)
+        const streamNow = Date.now()
+        const MIN_STREAM_INTERVAL = 50
+        if (!this._lastNoteStreamTime || (streamNow - this._lastNoteStreamTime) >= MIN_STREAM_INTERVAL) {
+          this._lastNoteStreamTime = streamNow
+          if (this.socketService?.socket?.connected) {
+            this.socketService.socket.emit('hold:start', {
+              noteId: `drum-roll-${streamNow}-${Math.random().toString(36).substr(2, 5)}`,
+              userId: this.socketService.socket.id,
+              roomId: this.socketService.currentRoom?.roomId,
+              position: noteData.position,
+              isDrum: true,
+              drumInstrument: 'sn',
+              velocity,
+              duration: 0.15,
+              timestamp: streamNow
+            })
+          }
+        }
+
+        return null // Skip melodic path
+      }
+
       const x = noteData.position.x
       const y = noteData.position.y
 
@@ -424,6 +454,36 @@ class WebarmoniumApp {
     this.gestureCapture.onSustainedHoldStart = (holdData) => {
       // console.log('🎵 Sustained hold start callback:', holdData)
 
+      // DRUM MODE: Canvas tap → snare hit (skip melodic path entirely)
+      if (this.audioService?.isDrumMode) {
+        const velocity = 0.6 + (1 - holdData.position.y) * 0.4 // 0.6-1.0
+
+        // Emit drum hold:start to network
+        if (this.isAudioStarted && this.socketService?.socket) {
+          this.socketService.socket.emit('hold:start', {
+            noteId: holdData.noteId,
+            userId: this.socketService.socket.id,
+            roomId: this.socketService.currentRoom?.roomId,
+            position: holdData.position,
+            isDrum: true,
+            drumInstrument: 'sn',
+            velocity,
+            duration: 0.15,
+            timestamp: Date.now()
+          })
+        }
+
+        // Store for hold end
+        this.pendingHoldNoteData = { noteId: holdData.noteId, isDrum: true }
+
+        // Local playback
+        if (this.isAudioStarted && this.audioService) {
+          this.audioService.playDrumHit('sn', velocity)
+          this.audioService.registerDroneActivity()
+        }
+        return // Skip melodic path
+      }
+
       // Calculate frequency from position (reuse existing logic from drag streaming)
       // CRITICAL: Calculate this regardless of audio state for network sync
       const x = holdData.position.x
@@ -538,6 +598,20 @@ class WebarmoniumApp {
     this.gestureCapture.onSustainedHoldEnd = (endData) => {
       // console.log('🎵 Sustained hold end callback:', endData)
 
+      // DRUM MODE: Drums are self-releasing, skip hold:end and gate release
+      if (this.pendingHoldNoteData?.isDrum) {
+        // Still update visuals (idle state)
+        if (this.visualService && this.socketService?.socket) {
+          const userId = this.socketService.currentUserId || this.socketService.socket.id
+          if (userId) {
+            this.visualService.updateGestureData(userId, { type: 'idle', velocity: 0, isActive: false })
+          }
+        }
+        this.activeLocalHold = null
+        this.pendingHoldNoteData = null
+        return
+      }
+
       // EMIT TO NETWORK: Only emit hold:end when audio is started (play gate)
       // Use pendingHoldNoteData (set in onSustainedHoldStart) for network emission
       if (this.isAudioStarted && this.socketService && this.socketService.socket && this.pendingHoldNoteData) {
@@ -621,12 +695,15 @@ class WebarmoniumApp {
       // console.log('👆 Gesture start callback:', gesture.id)
 
       // Pause audition generation when user starts a real gesture
+      // Drum mode: partial pause (only snare layer muted, BD+HH continue)
       if (this.isAudioStarted && this.uiManager?.synthPanel?.isAuditionActive?.()) {
-        this.socketService?.socket?.emit('audition:pause')
+        const pauseOpts = this.audioService?.isDrumMode ? { layer: 'sn' } : undefined
+        this.socketService?.socket?.emit('audition:pause', pauseOpts)
       }
       // Pause sequencer when user starts a real gesture
       if (this.isAudioStarted && this.uiManager?.synthPanel?.isSequencerActive?.()) {
-        this.socketService?.socket?.emit('sequencer:pause')
+        const pauseOpts = this.audioService?.isDrumMode ? { layer: 'sn' } : undefined
+        this.socketService?.socket?.emit('sequencer:pause', pauseOpts)
       }
 
       // Handle initial gesture filtering
@@ -663,12 +740,15 @@ class WebarmoniumApp {
 ////      })
 
       // Resume audition generation when user ends their real gesture
+      // Drum mode: partial resume (unmute snare layer)
       if (this.isAudioStarted && this.uiManager?.synthPanel?.isAuditionActive?.()) {
-        this.socketService?.socket?.emit('audition:resume')
+        const resumeOpts = this.audioService?.isDrumMode ? { layer: 'sn' } : undefined
+        this.socketService?.socket?.emit('audition:resume', resumeOpts)
       }
       // Resume sequencer when user ends their real gesture
       if (this.isAudioStarted && this.uiManager?.synthPanel?.isSequencerActive?.()) {
-        this.socketService?.socket?.emit('sequencer:resume')
+        const resumeOpts = this.audioService?.isDrumMode ? { layer: 'sn' } : undefined
+        this.socketService?.socket?.emit('sequencer:resume', resumeOpts)
       }
 
       // CRITICAL FIX: Don't play automatic musical events for TAP and HOVER gestures

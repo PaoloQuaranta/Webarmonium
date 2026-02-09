@@ -163,7 +163,7 @@ const AuditionHandler = {
    * @param {Object} socket - Socket.io socket instance
    */
   registerAuditionPauseHandler (socket) {
-    socket.on('audition:pause', () => {
+    socket.on('audition:pause', (options) => {
       try {
         const auditionService = socket.services?.auditionGestureService
 
@@ -171,7 +171,11 @@ const AuditionHandler = {
           return
         }
 
-        auditionService.pauseAudition(socket.id)
+        // Validate layer if provided (whitelist: bd, sn, hh)
+        const validLayers = ['bd', 'sn', 'hh']
+        const safeOptions = (options?.layer && validLayers.includes(options.layer))
+          ? { layer: options.layer } : undefined
+        auditionService.pauseAudition(socket.id, safeOptions)
       } catch (error) {
         console.error(`[AuditionHandler] Error pausing audition:`, error.message)
       }
@@ -181,10 +185,11 @@ const AuditionHandler = {
   /**
    * Register audition:resume handler
    * Resumes gesture generation when user ends their real gesture
+   * Supports partial resume with { layer } option for drum mode
    * @param {Object} socket - Socket.io socket instance
    */
   registerAuditionResumeHandler (socket) {
-    socket.on('audition:resume', () => {
+    socket.on('audition:resume', (options) => {
       try {
         const auditionService = socket.services?.auditionGestureService
 
@@ -192,7 +197,10 @@ const AuditionHandler = {
           return
         }
 
-        auditionService.resumeAudition(socket.id)
+        const validLayers = ['bd', 'sn', 'hh']
+        const safeOptions = (options?.layer && validLayers.includes(options.layer))
+          ? { layer: options.layer } : undefined
+        auditionService.resumeAudition(socket.id, safeOptions)
       } catch (error) {
         console.error(`[AuditionHandler] Error resuming audition:`, error.message)
       }

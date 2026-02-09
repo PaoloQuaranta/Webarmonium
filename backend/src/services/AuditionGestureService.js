@@ -100,7 +100,9 @@ class AuditionGestureService {
       // Issue #2 fix: Track all pending timers for cleanup
       pendingTimers: [],
       // Track active noteIds for hold:end flush on stop/disconnect
-      activeNotes: []
+      activeNotes: [],
+      // For partial drum pause (mute individual layers during user gesture)
+      mutedLayers: new Set()
     }
 
     this.activeAuditions.set(socketId, state)
@@ -141,6 +143,9 @@ class AuditionGestureService {
       // Flush active notes: emit hold:end immediately to prevent hanging visuals
       this._flushActiveNotes(state)
 
+      // Clear partial layer mutes
+      if (state.mutedLayers) state.mutedLayers.clear()
+
       this.activeAuditions.delete(socketId)
 
       // Clean up cursor throttle tracking
@@ -152,12 +157,23 @@ class AuditionGestureService {
 
   /**
    * Pause audition gesture generation (when user starts a real gesture)
+   * Supports partial pause with options.layer for drum mode (mutes single layer)
    * Critical fix: Also clears pendingTimers to prevent notes playing during pause
    * @param {string} socketId - Socket ID
+   * @param {Object} [options] - Optional: { layer: 'sn' } for partial drum pause
    */
-  pauseAudition (socketId) {
+  pauseAudition (socketId, options) {
     const state = this.activeAuditions.get(socketId)
-    if (state && state.isActive && !state.isPaused) {
+    if (!state || !state.isActive) return
+
+    // DRUM MODE partial pause: mute only specified layer, keep scheduling running
+    if (options?.layer && state.isDrumMode) {
+      state.mutedLayers.add(options.layer)
+      console.log(`[AuditionGesture] Muted layer ${options.layer} for socket ${socketId}`)
+      return
+    }
+
+    if (!state.isPaused) {
       state.isPaused = true
 
       // Clear pending gesture scheduling timer
@@ -181,12 +197,25 @@ class AuditionGestureService {
 
   /**
    * Resume audition gesture generation (when user ends their real gesture)
+   * Supports partial resume with options.layer for drum mode (unmutes single layer)
    * @param {string} socketId - Socket ID
+   * @param {Object} [options] - Optional: { layer: 'sn' } for partial drum resume
    */
-  resumeAudition (socketId) {
+  resumeAudition (socketId, options) {
     const state = this.activeAuditions.get(socketId)
-    if (state && state.isActive && state.isPaused) {
+    if (!state || !state.isActive) return
+
+    // DRUM MODE partial resume: unmute specified layer
+    if (options?.layer && state.isDrumMode) {
+      state.mutedLayers.delete(options.layer)
+      console.log(`[AuditionGesture] Unmuted layer ${options.layer} for socket ${socketId}`)
+      return
+    }
+
+    if (state.isPaused) {
       state.isPaused = false
+      // Clear any partial layer mutes accumulated during full pause
+      if (state.mutedLayers) state.mutedLayers.clear()
       // Resume gesture scheduling
       this._scheduleNextGesture(socketId)
       console.log(`[AuditionGesture] Resumed for socket ${socketId}`)
@@ -366,6 +395,9 @@ class AuditionGestureService {
     } else {
       instrument = 'hh'
     }
+
+    // Skip muted layers (partial pause during user gesture)
+    if (state.mutedLayers.has(instrument)) return
 
     // Complexity (gestureType param) adds double-hits and rolls
     const doDoubleHit = gestureType > 0.7 && ((state.gestureCount * PHI_SQ) % 1) > 0.6

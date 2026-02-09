@@ -7585,6 +7585,12 @@ class AudioService {
         }
       }
 
+      // Volume (global slider, 0-1 → -12dB to +12dB)
+      if (params.volume !== undefined) {
+        const dB = (params.volume - 0.5) * 24
+        if (this.gestureVolume) this.gestureVolume.volume.rampTo(dB, 0.1)
+      }
+
       // Reverb (global slider, BD special behavior)
       if (params.reverb !== undefined) {
         const r = params.reverb

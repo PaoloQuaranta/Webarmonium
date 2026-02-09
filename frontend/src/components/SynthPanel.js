@@ -703,7 +703,8 @@ class SynthPanel {
       bd: { pitch: inst.bd.pitch, decay: inst.bd.decay, tone: inst.bd.tone },
       sn: { pitch: inst.sn.pitch, decay: inst.sn.decay, tone: inst.sn.tone, delay: inst.sn.delay || 0 },
       hh: { pitch: inst.hh.pitch, decay: inst.hh.decay, tone: inst.hh.tone, delay: inst.hh.delay || 0 },
-      reverb: patch.reverb || 0
+      reverb: patch.reverb || 0,
+      volume: 0.5
     }
   }
 
@@ -746,6 +747,13 @@ class SynthPanel {
           ${this._getDrumSliderHTML('hh', 'decay', 'Decay', hh.decay)}
           ${this._getDrumSliderHTML('hh', 'tone', 'Tone', hh.tone)}
           ${this._getDrumSliderHTML('hh', 'delay', 'Delay', hh.delay)}
+        </div>
+      </div>
+      <!-- VOLUME -->
+      <div class="synth-group">
+        <div class="settings-group-title">VOLUME</div>
+        <div class="synth-sliders-row">
+          ${this._getDrumSliderHTML('global', 'volume', 'Volume', this.params.volume ?? 0.5)}
         </div>
       </div>
       <!-- REVERB -->
@@ -1316,7 +1324,8 @@ class SynthPanel {
     if (drumInst && drumParam) {
       const value = parseFloat(e.target.value)
       if (drumInst === 'global') {
-        this.params.reverb = value
+        if (drumParam === 'reverb') this.params.reverb = value
+        else if (drumParam === 'volume') this.params.volume = value
       } else {
         if (!this.params[drumInst]) this.params[drumInst] = {}
         this.params[drumInst][drumParam] = value

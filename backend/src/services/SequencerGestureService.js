@@ -104,7 +104,9 @@ class SequencerGestureService {
       stepTimer: null,
       pendingTimers: [],
       activeNotes: [], // Track active noteIds for hold:end flush on stop
-      gestureCount: 0
+      gestureCount: 0,
+      // For partial drum pause (mute individual layers during user gesture)
+      mutedLayers: new Set()
     }
 
     this.activeSequencers.set(socketId, state)
@@ -148,6 +150,9 @@ class SequencerGestureService {
     // Flush active notes: emit hold:end immediately to prevent hanging notes
     this._flushActiveNotes(state)
 
+    // Clear partial layer mutes
+    if (state.mutedLayers) state.mutedLayers.clear()
+
     this.activeSequencers.delete(socketId)
     this._lastCursorEmission.delete(socketId)
 
@@ -156,12 +161,23 @@ class SequencerGestureService {
 
   /**
    * Pause sequencer (when user starts a real gesture)
+   * Supports partial pause with options.layer for drum mode (mutes single layer)
    * Clears pending timers to prevent notes playing during pause.
    * @param {string} socketId - Socket ID
+   * @param {Object} [options] - Optional: { layer: 'sn' } for partial drum pause
    */
-  pauseSequencer (socketId) {
+  pauseSequencer (socketId, options) {
     const state = this.activeSequencers.get(socketId)
-    if (state && state.isActive && !state.isPaused) {
+    if (!state || !state.isActive) return
+
+    // DRUM MODE partial pause: mute only specified layer, keep scheduling running
+    if (options?.layer && state.isDrumMode) {
+      state.mutedLayers.add(options.layer)
+      console.log(`[SequencerGesture] Muted layer ${options.layer} for socket ${socketId}`)
+      return
+    }
+
+    if (!state.isPaused) {
       state.isPaused = true
 
       if (state.stepTimer) {
@@ -183,12 +199,25 @@ class SequencerGestureService {
 
   /**
    * Resume sequencer (when user ends their real gesture)
+   * Supports partial resume with options.layer for drum mode (unmutes single layer)
    * @param {string} socketId - Socket ID
+   * @param {Object} [options] - Optional: { layer: 'sn' } for partial drum resume
    */
-  resumeSequencer (socketId) {
+  resumeSequencer (socketId, options) {
     const state = this.activeSequencers.get(socketId)
-    if (state && state.isActive && state.isPaused) {
+    if (!state || !state.isActive) return
+
+    // DRUM MODE partial resume: unmute specified layer
+    if (options?.layer && state.isDrumMode) {
+      state.mutedLayers.delete(options.layer)
+      console.log(`[SequencerGesture] Unmuted layer ${options.layer} for socket ${socketId}`)
+      return
+    }
+
+    if (state.isPaused) {
       state.isPaused = false
+      // Clear any partial layer mutes accumulated during full pause
+      if (state.mutedLayers) state.mutedLayers.clear()
       // Refresh BPM on resume
       state.currentBPM = this._getSystemBPM(state.roomId)
       this._scheduleNextStep(socketId)
@@ -457,6 +486,7 @@ class SequencerGestureService {
 
     // Process each layer
     for (const inst of ['bd', 'sn', 'hh']) {
+      if (state.mutedLayers.has(inst)) continue // Skip muted layer (partial pause)
       const layer = state.params.layers?.[inst]
       if (!layer || layer.muted) continue
 

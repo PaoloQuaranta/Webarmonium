@@ -202,11 +202,14 @@ const SequencerHandler = {
    * @param {Object} socket - Socket.io socket instance
    */
   registerSequencerPauseHandler (socket) {
-    socket.on('sequencer:pause', () => {
+    socket.on('sequencer:pause', (options) => {
       try {
         const sequencerService = socket.services?.sequencerGestureService
         if (!sequencerService) return
-        sequencerService.pauseSequencer(socket.id)
+        const validLayers = ['bd', 'sn', 'hh']
+        const safeOptions = (options?.layer && validLayers.includes(options.layer))
+          ? { layer: options.layer } : undefined
+        sequencerService.pauseSequencer(socket.id, safeOptions)
       } catch (error) {
         console.error(`[SequencerHandler] Error pausing sequencer:`, error.message)
       }
@@ -216,14 +219,18 @@ const SequencerHandler = {
   /**
    * Register sequencer:resume handler
    * Resumes step sequencer when user ends their real gesture
+   * Supports partial resume with { layer } option for drum mode
    * @param {Object} socket - Socket.io socket instance
    */
   registerSequencerResumeHandler (socket) {
-    socket.on('sequencer:resume', () => {
+    socket.on('sequencer:resume', (options) => {
       try {
         const sequencerService = socket.services?.sequencerGestureService
         if (!sequencerService) return
-        sequencerService.resumeSequencer(socket.id)
+        const validLayers = ['bd', 'sn', 'hh']
+        const safeOptions = (options?.layer && validLayers.includes(options.layer))
+          ? { layer: options.layer } : undefined
+        sequencerService.resumeSequencer(socket.id, safeOptions)
       } catch (error) {
         console.error(`[SequencerHandler] Error resuming sequencer:`, error.message)
       }
