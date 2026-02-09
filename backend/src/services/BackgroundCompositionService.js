@@ -56,6 +56,10 @@ class BackgroundCompositionService {
     // Composition state per room
     this.roomCompositions = new Map() // roomId -> composition state
 
+    // Per-room engine instances for composition isolation
+    // Each room gets its own MaterialLibrary, StyleAnalyzer, HarmonicEngine, CompositionEngine
+    this.roomEngines = new Map() // roomId -> { materialLibrary, styleAnalyzer, harmonicEngine, compositionEngine }
+
     // Composition intervals (in milliseconds)
     // Slowed down for less chaotic modulation
     this.minCompositionInterval = 5000  // 5 seconds minimum between compositions
@@ -81,8 +85,7 @@ class BackgroundCompositionService {
     this.styleCache = new Map() // roomId -> { style, timestamp }
     this.STYLE_CACHE_TTL = 5000 // 5 seconds cache TTL
 
-    // Entry #183: Error tracking for styleAnalyzer recovery
-    this.styleAnalyzerErrorCount = 0
+    // Entry #183: Error tracking for styleAnalyzer recovery (per-room in roomCompositions)
     this.MAX_STYLE_ANALYZER_ERRORS = 5
 
     // Performance optimization: Adaptive throttle for style analysis
@@ -93,8 +96,7 @@ class BackgroundCompositionService {
     this.GESTURE_RATE_THRESHOLD = 3  // gestures/second to trigger fast mode
 
     // Performance optimization: Throttle MaterialLibrary lifecycle updates
-    // Hybrid: Quick cleanup on every composition, full cleanup every 10s
-    this.lastFullMaterialCleanup = 0
+    // Hybrid: Quick cleanup on every composition, full cleanup every 10s (per-room in roomCompositions)
     this.MATERIAL_FULL_CLEANUP_INTERVAL = 10000  // 10 seconds for full cleanup
 
     // Entry #220: Genre coverage tracking for monitoring parameter distribution
@@ -147,6 +149,58 @@ class BackgroundCompositionService {
     }
 
 // console.log('🎼 BackgroundCompositionService initialized')
+  }
+
+  /**
+   * Create a fresh set of per-room engine instances.
+   * Each room gets independent MaterialLibrary, StyleAnalyzer, HarmonicEngine, CompositionEngine
+   * so that harmonic context, form structure, and material don't bleed between rooms.
+   * @returns {Object} { materialLibrary, styleAnalyzer, harmonicEngine, compositionEngine }
+   * @private
+   */
+  _createRoomEngines() {
+    const materialLibrary = new MaterialLibrary()
+    const styleAnalyzer = new StyleAnalyzer()
+    const harmonicEngine = new HarmonicEngine()
+    const compositionEngine = new CompositionEngine(materialLibrary, styleAnalyzer, harmonicEngine)
+    return { materialLibrary, styleAnalyzer, harmonicEngine, compositionEngine }
+  }
+
+  /**
+   * Get engine instances for a specific room, falling back to global engines.
+   * @param {string} roomId
+   * @returns {Object} { materialLibrary, styleAnalyzer, harmonicEngine, compositionEngine }
+   * @private
+   */
+  _getEngines(roomId) {
+    const roomEngines = this.roomEngines.get(roomId)
+    if (!roomEngines && roomId) {
+      console.warn(`[BCS] Per-room engines not found for ${roomId}, using global fallback`)
+    }
+    return roomEngines || {
+      materialLibrary: this.materialLibrary,
+      styleAnalyzer: this.styleAnalyzer,
+      harmonicEngine: this.harmonicEngine,
+      compositionEngine: this.compositionEngine
+    }
+  }
+
+  /**
+   * Get the HarmonicEngine for a specific room (public API for dependent services).
+   * @param {string} roomId
+   * @returns {HarmonicEngine}
+   */
+  getHarmonicEngineForRoom(roomId) {
+    return this.roomEngines.get(roomId)?.harmonicEngine || this.harmonicEngine
+  }
+
+  /**
+   * Get the StyleAnalyzer for a specific room (public API).
+   * @param {string} roomId
+   * @returns {StyleAnalyzer}
+   */
+  getStyleAnalyzerForRoom(roomId) {
+    return this.roomEngines.get(roomId)?.styleAnalyzer || this.styleAnalyzer
   }
 
   /**
@@ -558,8 +612,11 @@ class BackgroundCompositionService {
     const isManualOverride = manualOverride?.enabled === true
     const overrideWeights = isManualOverride ? manualOverride.syntheticWeights : null
 
+    // Use per-room StyleAnalyzer
+    const engines = this._getEngines(roomId)
+
     // Default style using factory if styleAnalyzer unavailable
-    if (!this.styleAnalyzer) {
+    if (!engines.styleAnalyzer) {
       const style = createStyleObject({
         forcedGenre,
         currentBPM: cycling?.currentBPM,
@@ -573,9 +630,9 @@ class BackgroundCompositionService {
 
     try {
       // Use 'background' context for state isolation from other services
-      const styleAnalyzerOutput = this.styleAnalyzer.getCurrentStyleForContext
-        ? this.styleAnalyzer.getCurrentStyleForContext('background')
-        : this.styleAnalyzer.getCurrentStyle()
+      const styleAnalyzerOutput = engines.styleAnalyzer.getCurrentStyleForContext
+        ? engines.styleAnalyzer.getCurrentStyleForContext('background')
+        : engines.styleAnalyzer.getCurrentStyle()
 
       // Entry #210: If manual override active, replace genreWeights with synthetic weights
       if (isManualOverride && styleAnalyzerOutput) {
@@ -592,7 +649,8 @@ class BackgroundCompositionService {
       style.isManualOverride = isManualOverride
 
       // Reset error count on success
-      this.styleAnalyzerErrorCount = 0
+      const roomState = this.roomCompositions.get(roomId)
+      if (roomState) roomState.styleAnalyzerErrorCount = 0
 
       // Cache the result
       this.styleCache.set(roomId, { style, timestamp: now })
@@ -600,19 +658,27 @@ class BackgroundCompositionService {
     } catch (error) {
       // Entry #183: Enhanced error handling with recovery
       console.error('Error getting style for room:', error.message, error.stack)
-      this.styleAnalyzerErrorCount++
+      const errRoomState = this.roomCompositions.get(roomId)
+      const errorCount = (errRoomState?.styleAnalyzerErrorCount || 0) + 1
+      if (errRoomState) errRoomState.styleAnalyzerErrorCount = errorCount
 
-      // Attempt to reinitialize styleAnalyzer on repeated failures
-      if (this.styleAnalyzerErrorCount >= this.MAX_STYLE_ANALYZER_ERRORS) {
-        console.warn(`StyleAnalyzer failed ${this.styleAnalyzerErrorCount} times, attempting reinitialization`)
+      // Attempt to reinitialize per-room styleAnalyzer on repeated failures
+      if (errorCount >= this.MAX_STYLE_ANALYZER_ERRORS) {
+        console.warn(`StyleAnalyzer failed ${errorCount} times for room ${roomId}, attempting reinitialization`)
         try {
           // Entry #218b: Use public API to preserve manual override state
-          const savedOverride = this.styleAnalyzer?.exportOverrideState()
-          this.styleAnalyzer = new StyleAnalyzer()
-          this.styleAnalyzerErrorCount = 0
+          const savedOverride = engines.styleAnalyzer?.exportOverrideState()
+          const roomEngineSet = this.roomEngines.get(roomId)
+          if (roomEngineSet) {
+            roomEngineSet.styleAnalyzer = new StyleAnalyzer()
+            // Also update CompositionEngine's reference
+            roomEngineSet.compositionEngine.styleAnalyzer = roomEngineSet.styleAnalyzer
+          }
+          if (errRoomState) errRoomState.styleAnalyzerErrorCount = 0
           // Entry #218b: Restore manual override using public API
-          if (savedOverride) {
-            this.styleAnalyzer.restoreOverrideState(savedOverride)
+          const newAnalyzer = roomEngineSet?.styleAnalyzer
+          if (savedOverride && newAnalyzer) {
+            newAnalyzer.restoreOverrideState(savedOverride)
             console.log('StyleAnalyzer reinitialized with preserved manual override:', savedOverride.forcedGenre)
           } else {
             console.log('StyleAnalyzer reinitialized successfully')
@@ -676,10 +742,11 @@ class BackgroundCompositionService {
     // Also update currentGenre to match
     roomState.styleCycling.currentGenre = genre
 
-    // Entry #210 Fix: Propagate override to StyleAnalyzer so ALL getCurrentStyle() calls see it
+    // Entry #210 Fix: Propagate override to per-room StyleAnalyzer so ALL getCurrentStyle() calls see it
     // This fixes the escape point where CompositionEngine gets style directly from StyleAnalyzer
-    if (this.styleAnalyzer) {
-      this.styleAnalyzer.setManualOverride(syntheticWeights, genre)
+    const engines = this._getEngines(roomId)
+    if (engines.styleAnalyzer) {
+      engines.styleAnalyzer.setManualOverride(syntheticWeights, genre)
     }
 
     // Invalidate style cache to force immediate update
@@ -708,9 +775,10 @@ class BackgroundCompositionService {
       syntheticWeights: null
     }
 
-    // Entry #210 Fix: Clear override from StyleAnalyzer
-    if (this.styleAnalyzer) {
-      this.styleAnalyzer.clearManualOverride()
+    // Entry #210 Fix: Clear override from per-room StyleAnalyzer
+    const engines = this._getEngines(roomId)
+    if (engines.styleAnalyzer) {
+      engines.styleAnalyzer.clearManualOverride()
     }
 
     // Invalidate style cache to trigger fresh style calculation
@@ -757,20 +825,21 @@ class BackgroundCompositionService {
   // ========== End Entry #210 ==========
 
   /**
-   * Sync harmonic context and web metrics to GestureToMusicService
-   * Entry #209: HarmonicEngine is now shared (see ServiceContainer wiring),
-   * so we only need to sync GestureToMusicService's local key/mode properties.
-   * Entry #213: Also sync to VirtualUserService so virtual users follow key/mode changes.
+   * Sync harmonic context and web metrics to GestureToMusicService and VirtualUserService.
+   * Uses per-room engines when roomId is provided, falling back to globals.
+   * @param {string|null} roomId - Room ID for per-room engine lookup (null for global fallback)
    */
-  syncHarmonicContext() {
+  syncHarmonicContext(roomId = null) {
+    const engines = roomId ? this._getEngines(roomId) : { compositionEngine: this.compositionEngine }
+
     if (this.gestureToMusicService) {
-      // Sync local key/mode properties used by GestureToMusicService
-      this.gestureToMusicService.currentKey = this.compositionEngine.keyCenter
-      this.gestureToMusicService.currentMode = this.compositionEngine.mode
+      // Sync local key/mode properties used by GestureToMusicService (fallback for per-room lookup)
+      this.gestureToMusicService.currentKey = engines.compositionEngine.keyCenter
+      this.gestureToMusicService.currentMode = engines.compositionEngine.mode
 
       // Entry #171: Sync web metrics for deterministic gesture variation
       this.gestureToMusicService.webMetrics = this._normalizeWebMetrics()
-// console.log(`🎵 Synced harmonic context: ${this.compositionEngine.keyCenter} ${this.compositionEngine.mode}`)
+// console.log(`🎵 Synced harmonic context: ${engines.compositionEngine.keyCenter} ${engines.compositionEngine.mode}`)
     }
 
     // Entry #213: Sync harmonic context to virtual users
@@ -778,18 +847,20 @@ class BackgroundCompositionService {
     if (this.virtualUserService) {
       // Snapshot room IDs to avoid issues if map changes during iteration
       const activeRoomIds = Array.from(this.compositionTimers.keys())
-      for (const roomId of activeRoomIds) {
+      for (const activeRoomId of activeRoomIds) {
         try {
           // Only sync if virtual users are actually active for this room
-          if (this.virtualUserService.isActiveForRoom(roomId)) {
-            this.virtualUserService.updateMusicalContext(roomId, {
-              key: this.compositionEngine.keyCenter,
-              mode: this.compositionEngine.mode,
-              tempo: this.compositionEngine.tempo
+          if (this.virtualUserService.isActiveForRoom(activeRoomId)) {
+            // Use per-room engines for each active room
+            const roomEngines = this._getEngines(activeRoomId)
+            this.virtualUserService.updateMusicalContext(activeRoomId, {
+              key: roomEngines.compositionEngine.keyCenter,
+              mode: roomEngines.compositionEngine.mode,
+              tempo: roomEngines.compositionEngine.tempo
             })
           }
         } catch (error) {
-          console.error(`Entry #213: Failed to sync harmonic context for room ${roomId}:`, error.message)
+          console.error(`Entry #213: Failed to sync harmonic context for room ${activeRoomId}:`, error.message)
         }
       }
     }
@@ -808,17 +879,21 @@ class BackgroundCompositionService {
 
 // console.log(`🎼 Starting with DRONE (waiting for gestures to define composition)`)
 
+    // Create per-room engine instances for composition isolation
+    this.roomEngines.set(roomId, this._createRoomEngines())
+    const engines = this._getEngines(roomId)
+
     // Entry #163: Initialize HarmonicEngine key from web metrics (same as LandingCompositionService)
     // This ensures rooms start with varied keys based on current web activity
-    if (this.webMetricsPoller && !this.harmonicEngine.keyInitialized) {
+    if (this.webMetricsPoller && !engines.harmonicEngine.keyInitialized) {
       const metrics = this.webMetricsPoller.getMetrics()
       if (metrics) {
-        this.harmonicEngine.initializeKeyFromMetrics(metrics)
+        engines.harmonicEngine.initializeKeyFromMetrics(metrics)
         // Sync to CompositionEngine
-        this.compositionEngine.keyCenter = this.harmonicEngine.currentKey
-        this.compositionEngine.mode = this.harmonicEngine.currentMode
+        engines.compositionEngine.keyCenter = engines.harmonicEngine.currentKey
+        engines.compositionEngine.mode = engines.harmonicEngine.currentMode
         // Sync to GestureToMusicService
-        this.syncHarmonicContext()
+        this.syncHarmonicContext(roomId)
       }
     }
 
@@ -889,14 +964,18 @@ class BackgroundCompositionService {
       return // Already running
     }
 
+    // Create per-room engine instances for landing page isolation
+    this.roomEngines.set(actualRoomId, this._createRoomEngines())
+    const engines = this._getEngines(actualRoomId)
+
     // Initialize HarmonicEngine key from web metrics (same as rooms)
-    if (this.webMetricsPoller && !this.harmonicEngine.keyInitialized) {
+    if (this.webMetricsPoller && !engines.harmonicEngine.keyInitialized) {
       const metrics = this.webMetricsPoller.getMetrics()
       if (metrics) {
-        this.harmonicEngine.initializeKeyFromMetrics(metrics)
-        this.compositionEngine.keyCenter = this.harmonicEngine.currentKey
-        this.compositionEngine.mode = this.harmonicEngine.currentMode
-        this.syncHarmonicContext()
+        engines.harmonicEngine.initializeKeyFromMetrics(metrics)
+        engines.compositionEngine.keyCenter = engines.harmonicEngine.currentKey
+        engines.compositionEngine.mode = engines.harmonicEngine.currentMode
+        this.syncHarmonicContext(actualRoomId)
       }
     }
 
@@ -1006,9 +1085,10 @@ class BackgroundCompositionService {
    * @param {string} roomId - Room ID
    */
   generateAndBroadcastDrone(roomId) {
-    // Get current harmonic context from composition engine
-    const keyCenter = this.compositionEngine.keyCenter || 'C'
-    const mode = this.compositionEngine.mode || 'ionian'
+    // Get current harmonic context from per-room composition engine
+    const engines = this._getEngines(roomId)
+    const keyCenter = engines.compositionEngine.keyCenter || 'C'
+    const mode = engines.compositionEngine.mode || 'ionian'
 
     // Drone note follows the current key center (bass register)
     const droneNote = `${keyCenter}3`
@@ -1081,8 +1161,9 @@ class BackgroundCompositionService {
    * @param {string} roomId - Room ID
    */
   emitDroneToSocket(socket, roomId) {
-    const keyCenter = this.compositionEngine.keyCenter || 'C'
-    const mode = this.compositionEngine.mode || 'ionian'
+    const engines = this._getEngines(roomId)
+    const keyCenter = engines.compositionEngine.keyCenter || 'C'
+    const mode = engines.compositionEngine.mode || 'ionian'
     const droneNote = `${keyCenter}3`
     const fifthMap = { 'C': 'G', 'D': 'A', 'E': 'B', 'F': 'C', 'G': 'D', 'A': 'E', 'B': 'F#' }
     const fifthNote = `${fifthMap[keyCenter] || 'G'}3`
@@ -1120,7 +1201,8 @@ class BackgroundCompositionService {
    * @param {string} previousKeyCenter - KeyCenter before composition
    */
   updateDroneIfKeyChanged(roomId, previousKeyCenter) {
-    const currentKeyCenter = this.compositionEngine.keyCenter
+    const engines = this._getEngines(roomId)
+    const currentKeyCenter = engines.compositionEngine.keyCenter
     if (currentKeyCenter !== previousKeyCenter) {
       // KeyCenter changed - broadcast new drone to room
       this.generateAndBroadcastDrone(roomId)
@@ -1137,6 +1219,8 @@ class BackgroundCompositionService {
       clearTimeout(timer)
       this.compositionTimers.delete(roomId)
       this.roomCompositions.delete(roomId)
+      // Clean up per-room engine instances
+      this.roomEngines.delete(roomId)
       // Entry #218b: Clean up style cache to prevent memory leaks
       this.styleCache.delete(roomId)
       // Entry #169: Clean up section state
@@ -1183,6 +1267,9 @@ class BackgroundCompositionService {
       }
     }
 
+    // Get per-room engines
+    const engines = this._getEngines(roomId)
+
     // Entry #AUDITION: Handle raw audition gestures
     // Skip StyleAnalyzer processing for audition gestures to avoid feedback loops
     // These gestures are already using raw parameters and shouldn't influence style analysis
@@ -1200,29 +1287,29 @@ class BackgroundCompositionService {
         timestamp: Date.now(),
         isAudition: true
       }
-      this.materialLibrary.addMaterial(material)
+      engines.materialLibrary.addMaterial(material)
       // console.log(`🎵 Audition gesture added (skipping StyleAnalyzer)`)
       return
     }
 
     // Entry #171: Sync webMetrics before processing gesture for freshness
     // This ensures gestures use current metrics, not stale ones from last composition
-    this.syncHarmonicContext()
+    this.syncHarmonicContext(roomId)
 
     // INCREMENT GESTURE COUNT for session profiling
     roomState.gestureCount++
 
     // Entry #163: Initialize key from web metrics if not done yet
     // Fallback for cases where metrics weren't available at startComposition
-    if (this.webMetricsPoller && !this.harmonicEngine.keyInitialized) {
+    if (this.webMetricsPoller && !engines.harmonicEngine.keyInitialized) {
       const metrics = this.webMetricsPoller.getMetrics()
       if (metrics) {
-        this.harmonicEngine.initializeKeyFromMetrics(metrics)
+        engines.harmonicEngine.initializeKeyFromMetrics(metrics)
         // Sync to CompositionEngine
-        this.compositionEngine.keyCenter = this.harmonicEngine.currentKey
-        this.compositionEngine.mode = this.harmonicEngine.currentMode
+        engines.compositionEngine.keyCenter = engines.harmonicEngine.currentKey
+        engines.compositionEngine.mode = engines.harmonicEngine.currentMode
         // Sync to GestureToMusicService
-        this.syncHarmonicContext()
+        this.syncHarmonicContext(roomId)
       }
     }
 
@@ -1243,8 +1330,8 @@ class BackgroundCompositionService {
       timestamp: Date.now()
     }
 
-    // Add to material library
-    const materialId = this.materialLibrary.addMaterial(material)
+    // Add to per-room material library
+    const materialId = engines.materialLibrary.addMaterial(material)
 
     // Entry #169: Also store raw gesture data for section-aware phrase generation
     const rawGesture = new RawGestureData(gestureData.gesture, {
@@ -1252,7 +1339,7 @@ class BackgroundCompositionService {
       roomId: roomId,
       weight: gestureWeight
     })
-    this.materialLibrary.addRawGesture(gestureData.gesture, {
+    engines.materialLibrary.addRawGesture(gestureData.gesture, {
       userId: gestureData.userId,
       roomId: roomId,
       weight: gestureWeight
@@ -1355,7 +1442,7 @@ class BackgroundCompositionService {
     if (shouldRunFullAnalysis) {
       // Use 'background' context for state isolation from other services
       // Entry #220: Pass compositionCount for PHI-based genre drift exploration
-      this.styleAnalyzer.analyzeGestureStyle(
+      engines.styleAnalyzer.analyzeGestureStyle(
         roomState.gestureHistory.toArray(),
         gestureWeight,
         'background',
@@ -1689,9 +1776,12 @@ class BackgroundCompositionService {
     // Entry #179: Update style cycling and get current genre/BPM
     const cycling = this.updateStyleCycle(roomId)
 
+    // Use per-room engines
+    const engines = this._getEngines(roomId)
+
     // MAP STYLE TO COMPOSITION PARAMETERS
     // Entry #179: Tempo from cycling (genre-biased) instead of gesture-derived
-    this.compositionEngine.tempo = Math.round(cycling.currentBPM)
+    engines.compositionEngine.tempo = Math.round(cycling.currentBPM)
 
     // Entry #179: Set forced genre for HarmonicEngine to use
     style.forcedGenre = cycling.currentGenre
@@ -1704,16 +1794,16 @@ class BackgroundCompositionService {
     // compositionCount and web metrics, providing smooth musical transitions.
 
     // Complexity and density from energy
-    this.compositionEngine.complexityLevel = Math.min(0.9, Math.max(0.1, style.energy))
+    engines.compositionEngine.complexityLevel = Math.min(0.9, Math.max(0.1, style.energy))
 
     // Entry #186: Use forcedGenre for density calculation to match actual composition genre
     // Previously used style.genreWeights which could mismatch with cycling.currentGenre
     const forcedGenreWeights = { [cycling.currentGenre]: 1.0 }
-    const genreDensityMultiplier = this.compositionEngine.getGenreDensityMultiplier(forcedGenreWeights)
+    const genreDensityMultiplier = engines.compositionEngine.getGenreDensityMultiplier(forcedGenreWeights)
     const baseDensity = style.energy * 1.2
-    this.compositionEngine.density = Math.min(0.9, Math.max(0.1, baseDensity * genreDensityMultiplier))
+    engines.compositionEngine.density = Math.min(0.9, Math.max(0.1, baseDensity * genreDensityMultiplier))
 
-// console.log(`🎼 Applied style: genre=${cycling.currentGenre}, tempo=${this.compositionEngine.tempo}, energy=${style.energy.toFixed(2)}`)
+// console.log(`🎼 Applied style: genre=${cycling.currentGenre}, tempo=${engines.compositionEngine.tempo}, energy=${style.energy.toFixed(2)}`)
   }
 
   /**
@@ -1751,10 +1841,11 @@ class BackgroundCompositionService {
   scheduleNextComposition(roomId, roomContext) {
     // Calculate next composition interval BASED ON CURRENT TEMPO
     // Generate compositions at a fixed number of beats, not fixed time
-    // Use 'background' context for state isolation from other services
-    const currentStyle = this.styleAnalyzer.getCurrentStyleForContext
-      ? this.styleAnalyzer.getCurrentStyleForContext('background')
-      : this.styleAnalyzer.getCurrentStyle()
+    // Use per-room StyleAnalyzer with 'background' context for state isolation
+    const engines = this._getEngines(roomId)
+    const currentStyle = engines.styleAnalyzer.getCurrentStyleForContext
+      ? engines.styleAnalyzer.getCurrentStyleForContext('background')
+      : engines.styleAnalyzer.getCurrentStyle()
 
     // Get room state for deterministic calculation
     const roomState = this.roomCompositions.get(roomId)
@@ -1840,15 +1931,18 @@ class BackgroundCompositionService {
       // This ensures forcedGenre and BPM are updated even without gestures
       this.applyStyleToComposition(roomId)
 
+      // Use per-room engines
+      const engines = this._getEngines(roomId)
+
       // Entry #115: Save keyCenter before composition to detect changes
-      const previousKeyCenter = this.compositionEngine.keyCenter
+      const previousKeyCenter = engines.compositionEngine.keyCenter
 
       // Entry #169: Get current section context and update progress
       const sectionContext = this.sectionStateManager.updateProgress(roomId)
 
-      // Generate composition using CompositionEngine with section context
+      // Generate composition using per-room CompositionEngine with section context
       // Pass compositionCount for temporal variation (Entry #114)
-      const composition = this.compositionEngine.compose({
+      const composition = engines.compositionEngine.compose({
         roomId,
         userCount: roomContext.userCount || 1,
         activeUsers: roomContext.activeUsers || [],
@@ -1885,10 +1979,10 @@ class BackgroundCompositionService {
       // Broadcast composition to room
       // Entry #175: Include style info for genre-aware audio playback
       // Entry #179: Use forcedGenre from cycling
-      // Use 'background' context for state isolation from other services
-      const currentStyle = this.styleAnalyzer.getCurrentStyleForContext
-        ? this.styleAnalyzer.getCurrentStyleForContext('background')
-        : this.styleAnalyzer.getCurrentStyle()
+      // Use per-room StyleAnalyzer with 'background' context for state isolation
+      const currentStyle = engines.styleAnalyzer.getCurrentStyleForContext
+        ? engines.styleAnalyzer.getCurrentStyleForContext('background')
+        : engines.styleAnalyzer.getCurrentStyle()
       const forcedGenre = roomState.styleCycling?.currentGenre
       if (this.io) {
         // Entry #180: Include synthParams for frontend filter/envelope modulation
@@ -1918,12 +2012,13 @@ class BackgroundCompositionService {
 // console.log(`🎼 No Socket.IO instance, composition not broadcast`)
       }
 
-      // Update material library lifecycle (THROTTLED)
+      // Update per-room material library lifecycle (THROTTLED)
       // Full cleanup every 10 seconds to balance memory vs CPU
       const lifecycleNow = Date.now()
-      if ((lifecycleNow - this.lastFullMaterialCleanup) >= this.MATERIAL_FULL_CLEANUP_INTERVAL) {
-        this.materialLibrary.updateMaterialLifecycle()
-        this.lastFullMaterialCleanup = lifecycleNow
+      const lastCleanup = roomState.lastFullMaterialCleanup || 0
+      if ((lifecycleNow - lastCleanup) >= this.MATERIAL_FULL_CLEANUP_INTERVAL) {
+        engines.materialLibrary.updateMaterialLifecycle()
+        roomState.lastFullMaterialCleanup = lifecycleNow
       }
 
       // Entry #115: Update drone if keyCenter changed during composition
@@ -1935,10 +2030,10 @@ class BackgroundCompositionService {
           try {
             const snapshot = this.compositionMonitor.createSnapshot(
               roomId,
-              this.compositionEngine,
-              this.harmonicEngine,
-              this.styleAnalyzer,
-              this.materialLibrary,
+              engines.compositionEngine,
+              engines.harmonicEngine,
+              engines.styleAnalyzer,
+              engines.materialLibrary,
               roomState,
               'room'
             )
@@ -1986,8 +2081,9 @@ class BackgroundCompositionService {
    * Get material library stats
    * @returns {Object} Stats
    */
-  getMaterialStats() {
-    return this.materialLibrary.getStats()
+  getMaterialStats(roomId = null) {
+    const engines = roomId ? this._getEngines(roomId) : { materialLibrary: this.materialLibrary }
+    return engines.materialLibrary.getStats()
   }
 
   /**
@@ -2017,13 +2113,14 @@ class BackgroundCompositionService {
    * @param {string} mode - Mode (e.g., 'ionian', 'dorian')
    */
   setKey(roomId, key, mode = 'ionian') {
-    this.materialLibrary.setKeyCenter(key, mode)
-    this.harmonicEngine.setKeyCenter(key, mode)
-    this.compositionEngine.keyCenter = key
-    this.compositionEngine.mode = mode
+    const engines = this._getEngines(roomId)
+    engines.materialLibrary.setKeyCenter(key, mode)
+    engines.harmonicEngine.setKeyCenter(key, mode)
+    engines.compositionEngine.keyCenter = key
+    engines.compositionEngine.mode = mode
 
     // SYNC: Update GestureToMusicService harmonic context
-    this.syncHarmonicContext()
+    this.syncHarmonicContext(roomId)
 
 // console.log(`🎼 Set key for room ${roomId}: ${key} ${mode} (synced to gestures)`)
   }
@@ -2034,8 +2131,9 @@ class BackgroundCompositionService {
    * @param {number} tempo - Tempo in BPM
    */
   setTempo(roomId, tempo) {
-    this.materialLibrary.setTempo(tempo)
-    this.compositionEngine.tempo = tempo
+    const engines = this._getEngines(roomId)
+    engines.materialLibrary.setTempo(tempo)
+    engines.compositionEngine.tempo = tempo
 
 // console.log(`🎼 Set tempo for room ${roomId}: ${tempo} BPM`)
   }

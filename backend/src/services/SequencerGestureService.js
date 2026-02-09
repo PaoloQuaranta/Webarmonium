@@ -306,8 +306,9 @@ class SequencerGestureService {
 
     // Build raw MIDI pitch from scale degree + octave
     const { key, mode } = this._getMusicalContext(roomId)
-    const scale = this.harmonicEngine?.scales?.[mode] || [0, 2, 4, 5, 7, 9, 11]
-    const tonicMidi = this.harmonicEngine?.getTonicNote?.(key) || 60
+    const he = this._getHarmonicEngineForRoom(roomId)
+    const scale = he?.scales?.[mode] || [0, 2, 4, 5, 7, 9, 11]
+    const tonicMidi = he?.getTonicNote?.(key) || 60
     const tonicRoot = tonicMidi % 12 // Pitch class (0-11)
     const scaleInterval = scale[(degree - 1) % scale.length]
     const rawMidi = tonicRoot + scaleInterval + (octave * 12)
@@ -501,15 +502,30 @@ class SequencerGestureService {
   }
 
   /**
+   * Get the HarmonicEngine for a specific room, falling back to shared engine.
+   * @param {string} roomId
+   * @returns {HarmonicEngine}
+   * @private
+   */
+  _getHarmonicEngineForRoom (roomId) {
+    if (roomId && this.backgroundCompositionService) {
+      const roomEngine = this.backgroundCompositionService.getHarmonicEngineForRoom(roomId)
+      if (roomEngine) return roomEngine
+    }
+    return this.harmonicEngine
+  }
+
+  /**
    * Get room's musical context (key and mode)
    * @param {string} roomId - Room ID
    * @returns {{key: string, mode: string}} Musical context
    * @private
    */
   _getMusicalContext (roomId) {
+    const he = this._getHarmonicEngineForRoom(roomId)
     return {
-      key: this.harmonicEngine?.currentKey || 'C',
-      mode: this.harmonicEngine?.currentMode || 'ionian'
+      key: he?.currentKey || 'C',
+      mode: he?.currentMode || 'ionian'
     }
   }
 
@@ -521,11 +537,12 @@ class SequencerGestureService {
    * @private
    */
   _quantizePitch (rawPitch, roomId) {
-    if (!this.harmonicEngine) return rawPitch
+    const he = this._getHarmonicEngineForRoom(roomId)
+    if (!he) return rawPitch
 
     try {
       const { key, mode } = this._getMusicalContext(roomId)
-      return this.harmonicEngine.constrainToScale(rawPitch, key, mode)
+      return he.constrainToScale(rawPitch, key, mode)
     } catch (error) {
       console.warn(`[SequencerGesture] constrainToScale failed: ${error.message}`)
       return rawPitch

@@ -715,15 +715,30 @@ class AuditionGestureService {
   }
 
   /**
+   * Get the HarmonicEngine for a specific room, falling back to shared engine.
+   * @param {string} roomId
+   * @returns {HarmonicEngine}
+   * @private
+   */
+  _getHarmonicEngineForRoom (roomId) {
+    if (roomId && this.backgroundCompositionService) {
+      const roomEngine = this.backgroundCompositionService.getHarmonicEngineForRoom(roomId)
+      if (roomEngine) return roomEngine
+    }
+    return this.harmonicEngine
+  }
+
+  /**
    * Get room's musical context (key and mode)
    * @param {string} roomId - Room ID
    * @returns {{key: string, mode: string}} Musical context
    * @private
    */
   _getMusicalContext (roomId) {
+    const he = this._getHarmonicEngineForRoom(roomId)
     return {
-      key: this.harmonicEngine?.currentKey || 'C',
-      mode: this.harmonicEngine?.currentMode || 'ionian'
+      key: he?.currentKey || 'C',
+      mode: he?.currentMode || 'ionian'
     }
   }
 
@@ -735,11 +750,12 @@ class AuditionGestureService {
    * @private
    */
   _quantizePitch (rawPitch, roomId) {
-    if (!this.harmonicEngine) return rawPitch
+    const he = this._getHarmonicEngineForRoom(roomId)
+    if (!he) return rawPitch
 
     try {
       const { key, mode } = this._getMusicalContext(roomId)
-      return this.harmonicEngine.constrainToScale(rawPitch, key, mode)
+      return he.constrainToScale(rawPitch, key, mode)
     } catch (error) {
       console.warn(`[AuditionGesture] constrainToScale failed: ${error.message}`)
       return rawPitch // Fallback to raw pitch on error

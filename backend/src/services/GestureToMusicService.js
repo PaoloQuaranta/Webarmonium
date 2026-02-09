@@ -112,6 +112,28 @@ class GestureToMusicService {
   }
 
   /**
+   * Set BackgroundCompositionService reference for per-room HarmonicEngine lookup.
+   * @param {BackgroundCompositionService} bcs
+   */
+  setBackgroundCompositionService(bcs) {
+    this.backgroundCompositionService = bcs
+  }
+
+  /**
+   * Get the HarmonicEngine for a specific room, falling back to shared engine.
+   * @param {string} roomId
+   * @returns {HarmonicEngine}
+   * @private
+   */
+  _getHarmonicEngineForRoom(roomId) {
+    if (roomId && this.backgroundCompositionService) {
+      const roomEngine = this.backgroundCompositionService.getHarmonicEngineForRoom(roomId)
+      if (roomEngine) return roomEngine
+    }
+    return this.harmonicEngine
+  }
+
+  /**
    * Set shared StyleAnalyzer singleton to eliminate redundant computation
    * When 3 services each had their own instance, every gesture triggered
    * analyzeGestureStyle() 3 times. Now all services share one instance.
@@ -218,6 +240,16 @@ class GestureToMusicService {
     // Entry #171 fix: Sync fresh metrics BEFORE processing gesture
     // This ensures real user gestures use current web metrics, not stale ones
     this.webMetrics = this._normalizeWebMetrics()
+
+    // Per-room HarmonicEngine: temporarily swap to room's engine so all sub-methods
+    // (generateDragPhrase, generateTapPhrase, etc.) use the correct room's scale/key/mode.
+    // Safe because Node.js is single-threaded — no concurrent access.
+    const roomId = gestureData.roomId
+    const prevHE = this.harmonicEngine
+    if (roomId) {
+      this.harmonicEngine = this._getHarmonicEngineForRoom(roomId)
+    }
+
     try {
 // console.log('🎵 GestureToMusicService processing gesture:', gestureData)
 
@@ -241,6 +273,9 @@ class GestureToMusicService {
     } catch (error) {
 // console.error('Error processing gesture:', error)
       return this.createFallbackEvents(gestureData)
+    } finally {
+      // Restore original HarmonicEngine after per-room processing
+      this.harmonicEngine = prevHE
     }
   }
 

@@ -472,15 +472,16 @@ describe('Genre Override Feature', () => {
       service.startComposition('test-room', { userCount: 1 })
       service.setManualGenreOverride('test-room', 'electronic')
 
-      // The styleAnalyzer should now have the override
-      expect(service.styleAnalyzer.isManualOverrideActive()).toBe(true)
+      // The per-room styleAnalyzer should now have the override
+      const roomStyleAnalyzer = service.getStyleAnalyzerForRoom('test-room')
+      expect(roomStyleAnalyzer.isManualOverrideActive()).toBe(true)
 
-      const style = service.styleAnalyzer.getCurrentStyle()
+      const style = roomStyleAnalyzer.getCurrentStyle()
       expect(style.forcedGenre).toBe('electronic')
       expect(style.genreWeights.electronic).toBe(1.0)
 
       service.clearManualGenreOverride('test-room')
-      expect(service.styleAnalyzer.isManualOverrideActive()).toBe(false)
+      expect(roomStyleAnalyzer.isManualOverrideActive()).toBe(false)
 
       service.stopComposition('test-room')
     })

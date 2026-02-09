@@ -698,8 +698,8 @@ let compositionalBroadcastInterval = setInterval(() => {
         // Entry #183: Include style for genre-aware voice parameters
         const style = backgroundService?.getCurrentStyleForRoom(roomId) || {}
 
-        // Entry #HarmonicCoherence: Include key/mode from HarmonicEngine for full mode support
-        const harmonicEngine = backgroundService?.harmonicEngine
+        // Entry #HarmonicCoherence: Include key/mode from per-room HarmonicEngine for full mode support
+        const harmonicEngine = backgroundService?.getHarmonicEngineForRoom(roomId)
         const harmonicContext = {
           key: harmonicEngine?.currentKey || 'C',
           mode: harmonicEngine?.currentMode || 'ionian'
