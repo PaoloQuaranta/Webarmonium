@@ -507,10 +507,9 @@ class SequencerGestureService {
    * @private
    */
   _getMusicalContext (roomId) {
-    const roomState = this.backgroundCompositionService?.getRoomState?.(roomId)
     return {
-      key: roomState?.musicalContext?.key || 'C',
-      mode: roomState?.musicalContext?.mode || 'ionian'
+      key: this.harmonicEngine?.currentKey || 'C',
+      mode: this.harmonicEngine?.currentMode || 'ionian'
     }
   }
 
