@@ -87,6 +87,7 @@ const AuditionHandler = {
         const sequencerService = socket.services?.sequencerGestureService
         if (sequencerService) {
           sequencerService.stopSequencer(socket.id)
+          socket.emit('sequencer:stopped')
         }
 
         console.log(`[AuditionHandler] Start request from ${socket.userId} (socket ${socket.id}) in room ${roomId}`)

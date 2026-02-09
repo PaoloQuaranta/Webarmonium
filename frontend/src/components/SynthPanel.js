@@ -34,10 +34,12 @@ class SynthPanel {
     // Audition sub-menu and state
     this.auditionSubMenu = null
     this.auditionActive = false
+    this._auditionStarting = false
 
     // Sequencer sub-menu and state
     this.sequencerSubMenu = null
     this.sequencerActive = false
+    this._sequencerStarting = false
 
     // External synth button reference (always in DOM, set by UIManager)
     this._externalBtn = null
@@ -57,6 +59,8 @@ class SynthPanel {
     this._handleOverlayClick = this._handleOverlayClick.bind(this)
     this._onAuditionHoldStart = this._onAuditionHoldStart.bind(this)
     this._onSequencerHoldStart = this._onSequencerHoldStart.bind(this)
+    this._onAuditionForceStopped = () => { this._stopAudition(false) }
+    this._onSequencerForceStopped = () => { this._stopSequencer(false) }
   }
 
   /**
@@ -82,8 +86,8 @@ class SynthPanel {
    * Called by main.js when user presses Stop
    */
   stopAllPlayback () {
-    if (this.auditionActive) this._stopAudition()
-    if (this.sequencerActive) this._stopSequencer()
+    if (this.auditionActive || this._auditionStarting) this._stopAudition()
+    if (this.sequencerActive || this._sequencerStarting) this._stopSequencer()
   }
 
   _getDefaultParams () {
@@ -166,21 +170,17 @@ class SynthPanel {
     // Note: hold:end not needed — notes are self-releasing via playSimpleNote (triggerAttackRelease)
     socket.on('hold:start', this._onAuditionHoldStart)
 
+    // Listen for backend force-stop (mutual exclusion: sequencer started, so audition was killed)
+    socket.off('audition:stopped', this._onAuditionForceStopped)
+    socket.on('audition:stopped', this._onAuditionForceStopped)
+
     // Issue #5 fix: Re-establish listeners on socket reconnection
     // Store handler reference for cleanup
     if (!this._reconnectHandler) {
       this._reconnectHandler = () => {
         this._setupAuditionSocketListeners()
-
-        // If audition was active before disconnect, it's now stopped server-side
-        // Reset local state to match
-        if (this.auditionActive) {
-          this.auditionActive = false
-          const btn = this.panel?.querySelector('#synth-generate-btn')
-          if (btn) btn.classList.remove('active')
-          if (this.auditionSubMenu) this.auditionSubMenu.setGenerating(false)
-          this._updateExternalButtonState()
-        }
+        // Backend already cleaned up on disconnect — reset local state (idempotent)
+        this._stopAudition(false)
       }
     }
     socket.off('connect', this._reconnectHandler)
@@ -230,19 +230,16 @@ class SynthPanel {
     socket.off('hold:start', this._onSequencerHoldStart)
     socket.on('hold:start', this._onSequencerHoldStart)
 
+    // Listen for backend force-stop (mutual exclusion: audition started, so sequencer was killed)
+    socket.off('sequencer:stopped', this._onSequencerForceStopped)
+    socket.on('sequencer:stopped', this._onSequencerForceStopped)
+
     // Reconnection handling: reset sequencer state
     if (!this._sequencerReconnectHandler) {
       this._sequencerReconnectHandler = () => {
-        if (this.sequencerActive) {
-          this.sequencerActive = false
-          const btn = this.panel?.querySelector('#synth-sequencer-btn')
-          if (btn) btn.classList.remove('active')
-          if (this.sequencerSubMenu) {
-            this.sequencerSubMenu.setGenerating(false)
-            this.sequencerSubMenu.setActiveStep(-1)
-          }
-          this._updateExternalButtonState()
-        }
+        this._setupSequencerSocketListeners()
+        // Backend already cleaned up on disconnect — reset local state (idempotent)
+        this._stopSequencer(false)
       }
     }
     socket.off('connect', this._sequencerReconnectHandler)
@@ -1200,59 +1197,67 @@ class SynthPanel {
     // Play gate: only allow audition when main audio is started
     if (!this.socketService?.isPlaying) return
 
-    // Mutual exclusion: stop sequencer if active
-    if (this.sequencerActive) {
-      this._stopSequencer()
-    }
+    // Concurrency lock: prevent double-click during await Tone.start()
+    if (this._auditionStarting) return
+    this._auditionStarting = true
 
-    // Ensure audio context is started (requires user interaction)
-    if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
-      await Tone.start()
-    }
-
-    // Ensure a preset is selected (creates the gestureSynth if needed)
-    if (this.audioService?.selectPreset && this.currentPresetSlot !== null) {
-      const currentSlot = this.audioService.getCurrentPresetSlot?.()
-      if (currentSlot === null || currentSlot === undefined) {
-        this.audioService.selectPreset(this.currentPresetSlot)
+    try {
+      // Mutual exclusion: stop sequencer if active
+      if (this.sequencerActive) {
+        this._stopSequencer()
       }
-    }
 
-    // Send start command to backend
-    if (this.socketService?.socket) {
-      const params = this.auditionSubMenu?.getParams() || {}
-      this.socketService.socket.emit('audition:start', params)
-    }
+      // Ensure audio context is started (requires user interaction)
+      if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+        await Tone.start()
+      }
 
-    this.auditionActive = true
-    this._updateExternalButtonState()
+      // Re-check play gate after await (user may have pressed Stop during Tone.start())
+      if (!this.socketService?.isPlaying) return
 
-    // Update UI state
-    const btn = this.panel?.querySelector('#synth-generate-btn')
-    if (btn) {
-      btn.classList.add('active')
-    }
+      // Ensure a preset is selected (creates the gestureSynth if needed)
+      if (this.audioService?.selectPreset && this.currentPresetSlot !== null) {
+        const currentSlot = this.audioService.getCurrentPresetSlot?.()
+        if (currentSlot === null || currentSlot === undefined) {
+          this.audioService.selectPreset(this.currentPresetSlot)
+        }
+      }
 
-    if (this.auditionSubMenu) {
-      this.auditionSubMenu.setGenerating(true)
+      // Send start command to backend
+      if (this.socketService?.socket) {
+        const params = this.auditionSubMenu?.getParams() || {}
+        this.socketService.socket.emit('audition:start', params)
+      }
+
+      this.auditionActive = true
+      this._updateExternalButtonState()
+
+      // Update UI state
+      const btn = this.panel?.querySelector('#synth-generate-btn')
+      if (btn) {
+        btn.classList.add('active')
+      }
+
+      if (this.auditionSubMenu) {
+        this.auditionSubMenu.setGenerating(true)
+      }
+    } finally {
+      this._auditionStarting = false
     }
   }
 
   /**
    * Stop audition gesture generation
    */
-  _stopAudition () {
-    if (!this.auditionActive) return
-
-    // Send stop command to backend
-    if (this.socketService?.socket) {
+  _stopAudition (emitToBackend = true) {
+    if (emitToBackend && this.socketService?.socket) {
       this.socketService.socket.emit('audition:stop')
     }
 
     this.auditionActive = false
+    this._auditionStarting = false
     this._updateExternalButtonState()
 
-    // Update UI state
     const btn = this.panel?.querySelector('#synth-generate-btn')
     if (btn) {
       btn.classList.remove('active')
@@ -1293,51 +1298,61 @@ class SynthPanel {
     // Play gate: only allow sequencer when main audio is started
     if (!this.socketService?.isPlaying) return
 
-    // Mutual exclusion: stop audition if active
-    if (this.auditionActive) {
-      this._stopAudition()
-    }
+    // Concurrency lock: prevent double-click during await Tone.start()
+    if (this._sequencerStarting) return
+    this._sequencerStarting = true
 
-    // Ensure audio context is started
-    if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
-      await Tone.start()
-    }
-
-    // Ensure a preset is selected
-    if (this.audioService?.selectPreset && this.currentPresetSlot !== null) {
-      const currentSlot = this.audioService.getCurrentPresetSlot?.()
-      if (currentSlot === null || currentSlot === undefined) {
-        this.audioService.selectPreset(this.currentPresetSlot)
+    try {
+      // Mutual exclusion: stop audition if active
+      if (this.auditionActive) {
+        this._stopAudition()
       }
-    }
 
-    if (this.socketService?.socket) {
-      const params = this.sequencerSubMenu?.getParams() || {}
-      this.socketService.socket.emit('sequencer:start', params)
-    }
+      // Ensure audio context is started
+      if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+        await Tone.start()
+      }
 
-    this.sequencerActive = true
-    this._updateExternalButtonState()
+      // Re-check play gate after await (user may have pressed Stop during Tone.start())
+      if (!this.socketService?.isPlaying) return
 
-    const btn = this.panel?.querySelector('#synth-sequencer-btn')
-    if (btn) btn.classList.add('active')
+      // Ensure a preset is selected
+      if (this.audioService?.selectPreset && this.currentPresetSlot !== null) {
+        const currentSlot = this.audioService.getCurrentPresetSlot?.()
+        if (currentSlot === null || currentSlot === undefined) {
+          this.audioService.selectPreset(this.currentPresetSlot)
+        }
+      }
 
-    if (this.sequencerSubMenu) {
-      this.sequencerSubMenu.setGenerating(true)
+      if (this.socketService?.socket) {
+        const params = this.sequencerSubMenu?.getParams() || {}
+        this.socketService.socket.emit('sequencer:start', params)
+      }
+
+      this.sequencerActive = true
+      this._updateExternalButtonState()
+
+      const btn = this.panel?.querySelector('#synth-sequencer-btn')
+      if (btn) btn.classList.add('active')
+
+      if (this.sequencerSubMenu) {
+        this.sequencerSubMenu.setGenerating(true)
+      }
+    } finally {
+      this._sequencerStarting = false
     }
   }
 
   /**
    * Stop sequencer
    */
-  _stopSequencer () {
-    if (!this.sequencerActive) return
-
-    if (this.socketService?.socket) {
+  _stopSequencer (emitToBackend = true) {
+    if (emitToBackend && this.socketService?.socket) {
       this.socketService.socket.emit('sequencer:stop')
     }
 
     this.sequencerActive = false
+    this._sequencerStarting = false
     this._updateExternalButtonState()
 
     const btn = this.panel?.querySelector('#synth-sequencer-btn')

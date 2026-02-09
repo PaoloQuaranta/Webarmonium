@@ -94,6 +94,7 @@ const SequencerHandler = {
         // Mutual exclusion: stop audition first
         if (auditionService) {
           auditionService.stopAudition(socket.id)
+          socket.emit('audition:stopped')
         }
 
         // Validate and sanitize parameters
