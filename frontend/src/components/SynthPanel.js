@@ -831,10 +831,7 @@ class SynthPanel {
     const content = this.panel?.querySelector('.synth-content')
     if (!content) return
 
-    // Re-render the full synth content from _getSynthContentHTML
-    content.innerHTML = this._getSynthContentHTML()
-
-    // Restore params defaults
+    // Restore params BEFORE generating HTML (HTML reads this.params for slider values)
     const patch = window.PatchDefinitions?.REAL_USER_PATCHES?.[this.currentPresetSlot]
     if (patch) {
       this.params = {
@@ -850,6 +847,9 @@ class SynthPanel {
         reverbSend: patch.effects?.reverbSend || 0.3
       }
     }
+
+    // Re-render the full synth content from _getSynthContentHTML
+    content.innerHTML = this._getSynthContentHTML()
 
     // Re-bind slider events and update values
     this._updateSliderValues()

@@ -7437,12 +7437,12 @@ class AudioService {
       frequency: 200 + inst.hh.pitch * 400,
       envelope: {
         attack: 0.001,
-        decay: 0.01 + inst.hh.decay * 0.29,
-        release: 0.01
+        decay: 0.05 + inst.hh.decay * 0.35,
+        release: 0.02
       },
       harmonicity: 0.5 + inst.hh.tone * 4.5,
       resonance: 4000,
-      volume: -6
+      volume: 0
     })
 
     return kit
@@ -7522,7 +7522,7 @@ class AudioService {
           kit.snNoise.triggerAttackRelease('16n', safeTime, vel)
           break
         case 'hh':
-          kit.hh.triggerAttackRelease('32n', safeTime, vel)
+          kit.hh.triggerAttackRelease('16n', safeTime, vel)
           break
       }
     } catch (error) {
@@ -7575,7 +7575,7 @@ class AudioService {
           kit.hh.set({ frequency: 200 + params.hh.pitch * 400 })
         }
         if (params.hh.decay !== undefined) {
-          kit.hh.set({ envelope: { decay: 0.01 + params.hh.decay * 0.29 } })
+          kit.hh.set({ envelope: { decay: 0.05 + params.hh.decay * 0.35 } })
         }
         if (params.hh.tone !== undefined) {
           kit.hh.set({ harmonicity: 0.5 + params.hh.tone * 4.5 })

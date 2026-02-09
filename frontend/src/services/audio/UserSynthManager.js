@@ -660,8 +660,8 @@ class UserSynthManager {
         // HH: MetalSynth
         kit.hh = new Tone.MetalSynth({
           frequency: 200 + inst.hh.pitch * 400,
-          envelope: { attack: 0.001, decay: 0.01 + inst.hh.decay * 0.29, release: 0.01 },
-          harmonicity: 0.5 + inst.hh.tone * 4.5, resonance: 4000, volume: -6
+          envelope: { attack: 0.001, decay: 0.05 + inst.hh.decay * 0.35, release: 0.02 },
+          harmonicity: 0.5 + inst.hh.tone * 4.5, resonance: 4000, volume: 0
         })
 
         // Connect all to master volume
@@ -695,7 +695,7 @@ class UserSynthManager {
           kit.snNoise.triggerAttackRelease('16n', safeTime, vel)
           break
         case 'hh':
-          kit.hh.triggerAttackRelease('32n', safeTime, vel)
+          kit.hh.triggerAttackRelease('16n', safeTime, vel)
           break
       }
     } catch (error) {
