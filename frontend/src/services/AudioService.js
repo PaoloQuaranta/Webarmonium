@@ -7525,7 +7525,7 @@ class AudioService {
           kit.snNoise.triggerAttackRelease('16n', safeTime, vel)
           break
         case 'hh':
-          kit.hh.triggerAttackRelease('16n', safeTime, vel)
+          kit.hh.triggerAttackRelease(kit.hh.frequency.value, '16n', safeTime, vel)
           break
       }
     } catch (error) {
