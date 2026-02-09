@@ -2035,7 +2035,7 @@ class BackgroundCompositionService {
               engines.styleAnalyzer,
               engines.materialLibrary,
               roomState,
-              'room'
+              roomState.isLanding ? 'landing' : 'room'
             )
             if (snapshot) {
               this.compositionMonitor.recordSnapshot(roomId, snapshot)

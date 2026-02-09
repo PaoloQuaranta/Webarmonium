@@ -672,6 +672,11 @@
     let events = [];
     const MAX_EVENTS = 50;
 
+    // Per-room filtering state
+    let selectedRoomId = 'all';
+    const latestSnapshotByRoom = new Map();
+    let latestEventCounts = {};
+
     // Chart update throttling with requestAnimationFrame
     let pendingHistoryUpdate = null;
     let lastHistoryData = null;
@@ -727,12 +732,30 @@
           if (data.numericHistory) {
             updateHistoryCharts(data.numericHistory);
           }
+          // Populate room selector from known active rooms
+          if (data.activeRoomIds) {
+            data.activeRoomIds.forEach(id => ensureRoomInSelector(id));
+          }
         }, 100);
       });
 
       socket.on('monitor:snapshot', (event) => {
-        updateFromSnapshot(event.data, event.eventCounts);
+        const snapshotRoomId = event.roomId || event.data?.roomId;
+
+        // Always log all events
         addEvent('SNAPSHOT', formatSnapshot(event.data));
+
+        // Cache latest snapshot per room
+        if (snapshotRoomId) {
+          latestSnapshotByRoom.set(snapshotRoomId, event.data);
+          latestEventCounts = event.eventCounts || latestEventCounts;
+          ensureRoomInSelector(snapshotRoomId);
+        }
+
+        // Only update dashboard if this room matches the filter
+        if (selectedRoomId === 'all' || selectedRoomId === snapshotRoomId) {
+          updateFromSnapshot(event.data, event.eventCounts);
+        }
       });
 
       // History updates are sent separately (throttled every 5 seconds)
@@ -785,24 +808,16 @@
 
       socket.on('monitor:all-override-states', (data) => {
         if (data.states) {
-          // Update room selector with active rooms
+          // Ensure all rooms from override states are in the selector
+          for (const roomId of Object.keys(data.states)) {
+            ensureRoomInSelector(roomId);
+          }
+
+          // Update override UI for the currently selected room
           const select = document.getElementById('targetRoom');
           if (select) {
-            const currentValue = select.value;
-            select.innerHTML = '<option value="landing-room">Landing Page</option>';
-            for (const roomId of Object.keys(data.states)) {
-              if (roomId !== 'landing-room') {
-                const option = document.createElement('option');
-                option.value = roomId;
-                option.textContent = `Room: ${roomId.slice(0, 8)}...`;
-                select.appendChild(option);
-              }
-            }
-            if (data.states[currentValue]) {
-              select.value = currentValue;
-            }
-            // Update UI for current selection
-            updateOverrideUI(select.value, data.states[select.value]);
+            const currentRoom = select.value === 'all' ? 'landing-room' : select.value;
+            updateOverrideUI(currentRoom, data.states[currentRoom]);
           }
         }
       });
@@ -816,13 +831,18 @@
     // Entry #210: Genre Override Control functions
     let currentOverride = { enabled: false, genre: null, roomId: 'landing-room' };
 
+    function getOverrideTargetRoom() {
+      const val = document.getElementById('targetRoom')?.value || 'landing-room';
+      // 'all' is not a valid target for override - default to landing-room
+      return val === 'all' ? 'landing-room' : val;
+    }
+
     function initGenreOverrideControls() {
       // Genre button click handlers
       document.querySelectorAll('.genre-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const genre = btn.dataset.genre;
-          const roomId = document.getElementById('targetRoom')?.value || 'landing-room';
-          setGenreOverride(roomId, genre);
+          setGenreOverride(getOverrideTargetRoom(), genre);
         });
       });
 
@@ -830,17 +850,42 @@
       const clearBtn = document.getElementById('clearOverride');
       if (clearBtn) {
         clearBtn.addEventListener('click', () => {
-          const roomId = document.getElementById('targetRoom')?.value || 'landing-room';
-          clearGenreOverride(roomId);
+          clearGenreOverride(getOverrideTargetRoom());
         });
       }
 
-      // Room selector change handler
+      // Room selector change handler (controls both data display and genre override)
       const roomSelect = document.getElementById('targetRoom');
       if (roomSelect) {
+        // Restore selected value after re-render
+        roomSelect.value = selectedRoomId;
+
         roomSelect.addEventListener('change', () => {
+          selectedRoomId = roomSelect.value;
+
+          // Update label
+          const label = document.getElementById('roomSourceLabel');
+          if (label) {
+            const opt = roomSelect.options[roomSelect.selectedIndex];
+            label.textContent = `Viewing: ${opt?.textContent || selectedRoomId}`;
+          }
+
+          // Request override states for the new room
           if (socket) {
             socket.emit('monitor:get-override-states');
+          }
+
+          // Immediately display cached snapshot for this room
+          if (selectedRoomId !== 'all') {
+            const cached = latestSnapshotByRoom.get(selectedRoomId);
+            if (cached) {
+              updateFromSnapshot(cached, latestEventCounts);
+            }
+          }
+
+          // Re-filter history charts
+          if (lastHistoryData) {
+            updateHistoryCharts(lastHistoryData);
           }
         });
       }
@@ -895,6 +940,22 @@
       currentOverride = { ...override, roomId };
     }
 
+    function ensureRoomInSelector(roomId) {
+      if (!roomId) return;
+      const select = document.getElementById('targetRoom');
+      if (!select) return;
+      // Check if option already exists
+      for (const opt of select.options) {
+        if (opt.value === roomId) return;
+      }
+      const option = document.createElement('option');
+      option.value = roomId;
+      option.textContent = roomId === 'landing-room'
+        ? 'Landing Page'
+        : `Room: ${roomId.slice(0, 8)}...`;
+      select.appendChild(option);
+    }
+
     async function loadInitialData() {
       try {
         const headers = { 'X-Admin-Key': API_KEY };
@@ -908,6 +969,9 @@
             initHistoryCharts();
             if (data.numericHistory) {
               updateHistoryCharts(data.numericHistory);
+            }
+            if (data.activeRoomIds) {
+              data.activeRoomIds.forEach(id => ensureRoomInSelector(id));
             }
           }, 100);
         } else {
@@ -932,6 +996,16 @@
       const harmonic = style.harmonicComplexity || {};
 
       document.getElementById('app').innerHTML = `
+        <!-- Room Filter Bar -->
+        <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; display: flex; align-items: center; gap: 12px;">
+          <label class="param-label" style="white-space: nowrap;">Monitor Room:</label>
+          <select id="targetRoom" class="override-select" style="max-width: 300px; margin-top: 0;">
+            <option value="all">All Rooms</option>
+            <option value="landing-room">Landing Page</option>
+          </select>
+          <span id="roomSourceLabel" style="font-size: 0.75rem; color: var(--text-secondary); margin-left: auto;">Viewing: All Rooms</span>
+        </div>
+
         <div class="grid">
           <!-- Core Parameters -->
           <div class="card">
@@ -1154,15 +1228,7 @@
               </div>
             </div>
 
-            <!-- Room selector -->
-            <div style="margin-bottom: 12px;">
-              <label class="param-label">Target Room</label>
-              <select id="targetRoom" class="override-select">
-                <option value="landing-room">Landing Page</option>
-              </select>
-            </div>
-
-            <!-- Genre selector -->
+            <!-- Genre selector (uses global #targetRoom from filter bar) -->
             <div style="margin-bottom: 12px;">
               <label class="param-label">Force Genre</label>
               <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px;">
@@ -1438,8 +1504,20 @@
 
         if (!chart || !data || data.length === 0) continue;
 
-        // Data format: [[relativeSeconds, value], ...]
-        const sorted = [...data].sort((a, b) => b[0] - a[0]);
+        // Data format: [[relativeSeconds, value, roomId], ...]
+        // Filter by selected room
+        const filtered = selectedRoomId === 'all'
+          ? data
+          : data.filter(entry => entry[2] === selectedRoomId);
+
+        if (filtered.length === 0) {
+          chart.data.labels = [];
+          chart.data.datasets[0].data = [];
+          chart.update('none');
+          continue;
+        }
+
+        const sorted = [...filtered].sort((a, b) => b[0] - a[0]);
 
         const scaledData = sorted.map(([time, val]) => ({
           x: time,

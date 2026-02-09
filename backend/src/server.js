@@ -487,53 +487,27 @@ monitorNamespace.on('connection', (socket) => {
     const { roomId, genre } = validation
 
     try {
-      if (roomId === 'landing-room') {
-        // Handle landing page
-        if (!landingService) {
-          return socket.emit('monitor:override-status', {
-            success: false,
-            error: 'Landing service not available',
-            context: { roomId, genre }
-          })
-        }
-
-        const result = landingService.setManualGenreOverride(genre)
-        socket.emit('monitor:override-status', {
-          success: true,
-          roomId,
-          override: result
+      if (!backgroundService) {
+        return socket.emit('monitor:override-status', {
+          success: false,
+          error: 'Background service not available',
+          context: { roomId, genre }
         })
-        monitorNamespace.emit('monitor:genre-override-changed', {
-          roomId,
-          override: result,
-          timestamp: Date.now()
-        })
-        serverLogger.info('[GenreOverride] Manual override set for landing', { genre })
-      } else {
-        // Handle room
-        if (!backgroundService) {
-          return socket.emit('monitor:override-status', {
-            success: false,
-            error: 'Background service not available',
-            context: { roomId, genre }
-          })
-        }
-
-        const result = backgroundService.setManualGenreOverride(roomId, genre)
-        socket.emit('monitor:override-status', {
-          success: true,
-          roomId,
-          override: result
-        })
-        monitorNamespace.emit('monitor:genre-override-changed', {
-          roomId,
-          override: result,
-          timestamp: Date.now()
-        })
-        serverLogger.info('[GenreOverride] Manual override set for room', { roomId, genre })
       }
+
+      const result = backgroundService.setManualGenreOverride(roomId, genre)
+      socket.emit('monitor:override-status', {
+        success: true,
+        roomId,
+        override: result
+      })
+      monitorNamespace.emit('monitor:genre-override-changed', {
+        roomId,
+        override: result,
+        timestamp: Date.now()
+      })
+      serverLogger.info('[GenreOverride] Manual override set', { roomId, genre })
     } catch (serviceError) {
-      // Service-level error (e.g., invalid genre, room not found)
       socket.emit('monitor:override-status', {
         success: false,
         error: serviceError.message,
@@ -565,41 +539,22 @@ monitorNamespace.on('connection', (socket) => {
     const { roomId } = validation
 
     try {
-      if (roomId === 'landing-room') {
-        if (!landingService) {
-          return socket.emit('monitor:override-status', {
-            success: false,
-            error: 'Landing service not available',
-            context: { roomId }
-          })
-        }
-
-        const result = landingService.clearManualGenreOverride()
-        socket.emit('monitor:override-status', { success: true, roomId, override: result })
-        monitorNamespace.emit('monitor:genre-override-changed', {
-          roomId,
-          override: result,
-          timestamp: Date.now()
+      if (!backgroundService) {
+        return socket.emit('monitor:override-status', {
+          success: false,
+          error: 'Background service not available',
+          context: { roomId }
         })
-        serverLogger.info('[GenreOverride] Override cleared for landing')
-      } else {
-        if (!backgroundService) {
-          return socket.emit('monitor:override-status', {
-            success: false,
-            error: 'Background service not available',
-            context: { roomId }
-          })
-        }
-
-        const result = backgroundService.clearManualGenreOverride(roomId)
-        socket.emit('monitor:override-status', { success: true, roomId, override: result })
-        monitorNamespace.emit('monitor:genre-override-changed', {
-          roomId,
-          override: result,
-          timestamp: Date.now()
-        })
-        serverLogger.info('[GenreOverride] Override cleared for room', { roomId })
       }
+
+      const result = backgroundService.clearManualGenreOverride(roomId)
+      socket.emit('monitor:override-status', { success: true, roomId, override: result })
+      monitorNamespace.emit('monitor:genre-override-changed', {
+        roomId,
+        override: result,
+        timestamp: Date.now()
+      })
+      serverLogger.info('[GenreOverride] Override cleared', { roomId })
     } catch (serviceError) {
       socket.emit('monitor:override-status', {
         success: false,
@@ -618,19 +573,7 @@ monitorNamespace.on('connection', (socket) => {
    */
   socket.on('monitor:get-override-states', () => {
     try {
-      const states = {}
-
-      // Landing page
-      if (landingService) {
-        states['landing-room'] = landingService.getManualOverrideState() || { enabled: false }
-      }
-
-      // Active rooms
-      if (backgroundService) {
-        const roomStates = backgroundService.getAllOverrideStates()
-        Object.assign(states, roomStates)
-      }
-
+      const states = backgroundService ? backgroundService.getAllOverrideStates() : {}
       socket.emit('monitor:all-override-states', { states, timestamp: Date.now() })
     } catch (error) {
       socket.emit('monitor:all-override-states', { error: error.message })

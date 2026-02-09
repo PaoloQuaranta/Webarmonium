@@ -269,10 +269,14 @@ class CompositionMonitor {
     // Prune history buffer before returning
     this._pruneHistoryBuffer()
 
+    // Collect unique active roomIds from buffer
+    const activeRoomIds = [...new Set(this.buffer.map(s => s.roomId).filter(Boolean))]
+
     return {
       enabled: true,
       currentSnapshot: this.buffer[this.buffer.length - 1] || null,
       recentSnapshots: this.buffer.slice(-20),
+      activeRoomIds,
       eventCounts: { ...this.stats.eventCounts },
       uptime: Date.now() - this.stats.startTime,
       subscriberCount: this.subscribers.size,
@@ -293,7 +297,8 @@ class CompositionMonitor {
       if (entries.length > 0) {
         history[field] = entries.map(e => [
           Math.round((now - e.timestamp) / 1000), // relative seconds ago
-          Math.round(e.value * 1000) / 1000 // rounded value
+          Math.round(e.value * 1000) / 1000, // rounded value
+          e.roomId // room identifier for per-room filtering
         ])
       }
     }
@@ -435,7 +440,7 @@ class CompositionMonitor {
       history[field] = entries.map(e => ({
         timestamp: e.timestamp,
         value: e.value,
-        // Relative time in seconds for easier graphing
+        roomId: e.roomId,
         relativeTime: Math.round((Date.now() - e.timestamp) / 1000)
       }))
     }
@@ -479,6 +484,7 @@ class CompositionMonitor {
       data: entries.map(e => ({
         timestamp: e.timestamp,
         value: e.value,
+        roomId: e.roomId,
         relativeTime: Math.round((Date.now() - e.timestamp) / 1000)
       }))
     }
@@ -492,6 +498,7 @@ class CompositionMonitor {
    */
   _updateHistoryBuffer(snapshot) {
     const timestamp = snapshot.timestamp
+    const roomId = snapshot.roomId
     const core = snapshot.core || {}
     const harmony = snapshot.harmony || {}
     const style = snapshot.style || {}
@@ -502,7 +509,7 @@ class CompositionMonitor {
     const addToHistory = (field, value) => {
       if (value !== undefined && value !== null && !isNaN(value)) {
         const buffer = this.historyBuffer[field]
-        buffer.push({ timestamp, value })
+        buffer.push({ timestamp, value, roomId })
         // Safety guard: prevent unbounded growth
         if (buffer.length > this.maxHistoryEntriesPerField) {
           buffer.shift()
@@ -695,6 +702,7 @@ class CompositionMonitor {
     const event = {
       type: 'snapshot',
       data: snapshot,
+      roomId: snapshot.roomId, // top-level for easy frontend filtering
       eventCounts: { ...this.stats.eventCounts },
       timestamp: Date.now()
     }
