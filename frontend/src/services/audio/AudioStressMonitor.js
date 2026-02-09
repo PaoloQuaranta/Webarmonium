@@ -17,8 +17,8 @@ class AudioStressMonitor {
     this.isMonitoring = false
 
     // Configuration
-    this.STRESS_RECOVERY_RATE = 0.01      // Per check (recovers ~0.6/minute at 1Hz checks)
-    this.STRESS_PENALTY = 0.15            // Per underrun
+    this.STRESS_RECOVERY_RATE = 0.03      // Per check (recovers ~1.8/minute at 1Hz checks)
+    this.STRESS_PENALTY = 0.08            // Per underrun (gentler: 9 underruns to reach emergency)
     this.MIN_STRESS_FACTOR = 0.3          // Floor (matches visual system)
     this.MAX_STRESS_FACTOR = 1.0
     this.UNDERRUN_RESET_INTERVAL = 30000  // Reset underrun count every 30s
@@ -30,9 +30,9 @@ class AudioStressMonitor {
     this.lastActualTime = null
     this.driftSamples = []
     this.MAX_DRIFT_SAMPLES = 10
-    this.DRIFT_THRESHOLD_MS = 100         // >100ms drift indicates stress (was 50ms - too sensitive)
+    this.DRIFT_THRESHOLD_MS = 200         // >200ms late drift indicates stress (tolerates normal GC pauses)
     this.consecutiveHighDrift = 0         // Track consecutive high drift events
-    this.CONSECUTIVE_DRIFT_TRIGGER = 3    // Require 3 consecutive high drifts before recording underrun
+    this.CONSECUTIVE_DRIFT_TRIGGER = 5    // Require 5 consecutive high drifts before recording underrun
 
     // Callbacks
     this.onStressChange = null
@@ -128,7 +128,11 @@ class AudioStressMonitor {
   recordTiming (scheduledTime, actualTime) {
     if (!this.isMonitoring) return
 
-    const drift = Math.abs(actualTime - scheduledTime) * 1000 // Convert to ms
+    // Only LATE callbacks indicate stress. Early firing is normal Tone.js look-ahead.
+    // scheduledTime = audioTime (future), actualTime = Tone.now() (current)
+    // Late: actualTime > scheduledTime → positive drift (real stress)
+    // Early: actualTime < scheduledTime → negative → clamped to 0 (normal look-ahead)
+    const drift = Math.max(0, (actualTime - scheduledTime)) * 1000 // Convert to ms
 
     this.driftSamples.push(drift)
     if (this.driftSamples.length > this.MAX_DRIFT_SAMPLES) {
@@ -172,8 +176,8 @@ class AudioStressMonitor {
       this.stressFactor - this.STRESS_PENALTY
     )
 
-    // Check for emergency mode (3+ underruns in current window)
-    if (this.underrunCount >= 3) {
+    // Check for emergency mode (5+ underruns in current window)
+    if (this.underrunCount >= 5) {
       this._setMode('emergency')
     }
 
@@ -203,11 +207,14 @@ class AudioStressMonitor {
       : 0
 
     // If no recent underruns and drift is low, gradually recover
+    // Anti-oscillation: slower recovery when exiting emergency to prevent rapid degrade/recover cycles
     const timeSinceUnderrun = Date.now() - this.lastUnderrunTime
-    if (timeSinceUnderrun > 5000 && avgDrift < this.DRIFT_THRESHOLD_MS / 2) {
+    if (timeSinceUnderrun > 3000 && avgDrift < this.DRIFT_THRESHOLD_MS / 2) {
+      let effectiveRecovery = this.STRESS_RECOVERY_RATE
+      if (this.currentMode === 'emergency') effectiveRecovery *= 0.5
       this.stressFactor = Math.min(
         this.MAX_STRESS_FACTOR,
-        this.stressFactor + this.STRESS_RECOVERY_RATE
+        this.stressFactor + effectiveRecovery
       )
       this._updateMode()
     }
@@ -237,7 +244,7 @@ class AudioStressMonitor {
   _updateMode () {
     let newMode = 'normal'
 
-    if (this.stressFactor < 0.3 || this.underrunCount >= 3) {
+    if (this.stressFactor < 0.3 || this.underrunCount >= 5) {
       newMode = 'emergency'
     } else if (this.stressFactor < 0.5) {
       newMode = 'minimal'

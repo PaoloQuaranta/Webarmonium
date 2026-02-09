@@ -363,12 +363,14 @@ class GenerativeVisualService {
 
       // AUDIO PRIORITY: Track frame overruns for preemptive stress reduction
       // Only apply when no audio override is active (prevents double penalty)
+      // Visual-only stress floor at 0.5: frame overruns alone can't trigger emergency-like state
       const frameTime = performance.now() - frameStart
+      const VISUAL_ONLY_FLOOR = 0.5
       if (!this._audioPerformanceOverride && frameTime > frameBudgetMs * 1.5) {
         this._consecutiveOverruns = (this._consecutiveOverruns || 0) + 1
-        this.stressFactor = Math.max(0.3, this.stressFactor - 0.05)
+        this.stressFactor = Math.max(VISUAL_ONLY_FLOOR, this.stressFactor - 0.05)
         if (this._consecutiveOverruns >= 2) {
-          this.stressFactor = Math.max(0.3, this.stressFactor - 0.1)
+          this.stressFactor = Math.max(VISUAL_ONLY_FLOOR, this.stressFactor - 0.1)
           this._consecutiveOverruns = 0
         }
       } else {
