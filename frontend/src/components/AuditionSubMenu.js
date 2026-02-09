@@ -25,6 +25,9 @@ class AuditionSubMenu {
     this.isVisible = false
     this.isGenerating = false
 
+    // Drum mode flag (set by SynthPanel on preset change)
+    this.isDrumMode = false
+
     // Default parameters
     this.params = {
       source: 'random', // 'random' | 'metrics'
@@ -109,7 +112,11 @@ class AuditionSubMenu {
    * @returns {Object}
    */
   getParams () {
-    return { ...this.params }
+    const params = { ...this.params }
+    if (this.isDrumMode) {
+      params.isDrumMode = true
+    }
+    return params
   }
 
   /**
@@ -119,6 +126,35 @@ class AuditionSubMenu {
   setParams (params) {
     this.params = { ...this.params, ...params }
     this._updateUI()
+  }
+
+  /**
+   * Switch between melodic and drum mode (relabels sliders)
+   * @param {boolean} isDrum
+   */
+  setDrumMode (isDrum) {
+    this.isDrumMode = isDrum
+    if (this.element) {
+      this._rebuildContent()
+    }
+  }
+
+  /**
+   * Rebuild the submenu content (preserves element, re-renders inner HTML)
+   */
+  _rebuildContent () {
+    if (!this.element) return
+    this.element.innerHTML = this._getHTML()
+    this._attachEventListeners()
+    this._updateUI()
+    // Restore generating state
+    if (this.isGenerating) {
+      const btn = this.element.querySelector('.audition-start-btn')
+      if (btn) {
+        btn.textContent = 'Stop'
+        btn.classList.add('active')
+      }
+    }
   }
 
   /**
@@ -158,20 +194,29 @@ class AuditionSubMenu {
   // ============================================================
 
   _getHTML () {
-    return `
-      <div class="audition-submenu-content">
-        <!-- Source Toggle -->
+    // Labels change based on drum mode vs melodic mode
+    const labels = this.isDrumMode
+      ? { frequency: 'Density', regularity: 'Regularity', uniformity: 'Balance', gestureType: 'Complexity', range: 'Velocity' }
+      : { frequency: 'Frequency', regularity: 'Regularity', uniformity: 'Uniformity', gestureType: 'Gesture', range: 'Range' }
+
+    // Source toggle is only shown in melodic mode (drums don't use metrics source)
+    const sourceRow = this.isDrumMode ? '' : `
         <div class="audition-row">
           <label>Source</label>
           <div class="audition-toggle">
-            <button class="audition-toggle-btn active" data-value="random">Random</button>
-            <button class="audition-toggle-btn" data-value="metrics">Metrics</button>
+            <button class="audition-toggle-btn ${this.params.source === 'random' ? 'active' : ''}" data-value="random">Random</button>
+            <button class="audition-toggle-btn ${this.params.source === 'metrics' ? 'active' : ''}" data-value="metrics">Metrics</button>
           </div>
         </div>
+    `
 
-        <!-- Frequency Slider -->
+    return `
+      <div class="audition-submenu-content">
+        ${sourceRow}
+
+        <!-- Frequency / Density Slider -->
         <div class="audition-row">
-          <label>Frequency</label>
+          <label>${labels.frequency}</label>
           <input type="range" class="audition-slider" data-param="frequency"
                  min="0" max="1" step="0.01" value="${this.params.frequency}">
           <span class="audition-value" data-value="frequency">${this._formatValue('frequency', this.params.frequency)}</span>
@@ -179,31 +224,31 @@ class AuditionSubMenu {
 
         <!-- Regularity Slider -->
         <div class="audition-row">
-          <label>Regularity</label>
+          <label>${labels.regularity}</label>
           <input type="range" class="audition-slider" data-param="regularity"
                  min="0" max="1" step="0.01" value="${this.params.regularity}">
           <span class="audition-value" data-value="regularity">${this._formatValue('regularity', this.params.regularity)}</span>
         </div>
 
-        <!-- Uniformity Slider -->
+        <!-- Uniformity / Balance Slider -->
         <div class="audition-row">
-          <label>Uniformity</label>
+          <label>${labels.uniformity}</label>
           <input type="range" class="audition-slider" data-param="uniformity"
                  min="0" max="1" step="0.01" value="${this.params.uniformity}">
           <span class="audition-value" data-value="uniformity">${this._formatValue('uniformity', this.params.uniformity)}</span>
         </div>
 
-        <!-- Gesture Type Slider -->
+        <!-- Gesture Type / Complexity Slider -->
         <div class="audition-row">
-          <label>Gesture</label>
+          <label>${labels.gestureType}</label>
           <input type="range" class="audition-slider" data-param="gestureType"
                  min="0" max="1" step="0.01" value="${this.params.gestureType}">
           <span class="audition-value" data-value="gestureType">${this._formatValue('gestureType', this.params.gestureType)}</span>
         </div>
 
-        <!-- Range Slider -->
+        <!-- Range / Velocity Slider -->
         <div class="audition-row">
-          <label>Range</label>
+          <label>${labels.range}</label>
           <input type="range" class="audition-slider" data-param="range"
                  min="0" max="1" step="0.01" value="${this.params.range}">
           <span class="audition-value" data-value="range">${this._formatValue('range', this.params.range)}</span>
@@ -383,11 +428,40 @@ class AuditionSubMenu {
    * @returns {string} Formatted display string
    */
   _formatValue (param, value) {
+    // Drum mode formatting
+    if (this.isDrumMode) {
+      switch (param) {
+        case 'frequency': {
+          const eventsPerSec = (0.25 + value * 1.75).toFixed(1)
+          return `${eventsPerSec}/s`
+        }
+        case 'regularity':
+          if (value < 0.33) return 'Loose'
+          if (value < 0.67) return 'Mixed'
+          return 'Tight'
+        case 'uniformity':
+          if (value < 0.33) return 'BD heavy'
+          if (value < 0.67) return 'Even'
+          return 'HH heavy'
+        case 'gestureType':
+          if (value < 0.33) return 'Simple'
+          if (value < 0.67) return 'Mixed'
+          return 'Complex'
+        case 'range':
+          if (value < 0.33) return 'Soft'
+          if (value < 0.67) return 'Medium'
+          return 'Hard'
+        default:
+          return value.toFixed(2)
+      }
+    }
+
+    // Melodic mode formatting
     switch (param) {
-      case 'frequency':
-        // Show as events per second (faster at higher values)
+      case 'frequency': {
         const eventsPerSec = (0.25 + value * 1.75).toFixed(1)
         return `${eventsPerSec}/s`
+      }
       case 'regularity':
         if (value < 0.33) return 'Varied'
         if (value < 0.67) return 'Mixed'
@@ -400,14 +474,14 @@ class AuditionSubMenu {
         if (value < 0.33) return 'Taps'
         if (value < 0.67) return 'Mixed'
         return 'Drags'
-      case 'range':
-        // Show as octaves (3 semitones to 60 semitones = 5 octaves)
+      case 'range': {
         const semitones = Math.round(3 + value * 57)
         if (semitones >= 12) {
           const octaves = (semitones / 12).toFixed(1)
           return `${octaves} oct`
         }
         return `${semitones} st`
+      }
       default:
         return value.toFixed(2)
     }

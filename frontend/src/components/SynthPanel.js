@@ -198,8 +198,12 @@ class SynthPanel {
     // Remote users' audition notes are routed through UserSynthManager in main.js
     const localUserId = this.socketService?.currentUserId || this.socketService?.socket?.id
     if (!localUserId) return // Socket not ready — skip audio playback
-    if (data.userId === localUserId && this.audioService?.playSimpleNote) {
-      this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
+    if (data.userId === localUserId) {
+      if (data.isDrum && data.drumInstrument && this.audioService?.playDrumHit) {
+        this.audioService.playDrumHit(data.drumInstrument, data.velocity)
+      } else if (this.audioService?.playSimpleNote) {
+        this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
+      }
     }
 
     // Pulse the audition button for visual feedback
@@ -256,8 +260,12 @@ class SynthPanel {
     // Remote users' sequencer notes are routed through UserSynthManager in main.js
     const localUserId = this.socketService?.currentUserId || this.socketService?.socket?.id
     if (!localUserId) return // Socket not ready — skip audio playback
-    if (data.userId === localUserId && this.audioService?.playSimpleNote) {
-      this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
+    if (data.userId === localUserId) {
+      if (data.isDrum && data.drumInstrument && this.audioService?.playDrumHit) {
+        this.audioService.playDrumHit(data.drumInstrument, data.velocity)
+      } else if (this.audioService?.playSimpleNote) {
+        this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
+      }
     }
 
     this._pulseButton('#synth-sequencer-btn')
@@ -616,7 +624,10 @@ class SynthPanel {
       { slot: 4, name: 'Soft Square' },
       { slot: 5, name: 'Wide Pulse' },
       { slot: 6, name: 'Bright Chorus' },
-      { slot: 7, name: 'Deep Bell' }
+      { slot: 7, name: 'Deep Bell' },
+      { slot: 8, name: '808 Kit' },
+      { slot: 9, name: 'Acoustic Kit' },
+      { slot: 10, name: 'Electronic Kit' }
     ]
 
     // Get occupied slots
@@ -653,6 +664,188 @@ class SynthPanel {
         <span class="synth-value" data-value="${param}">${displayValue}</span>
       </div>
     `
+  }
+
+  /**
+   * Get drum slider HTML (uses data-drum-instrument + data-drum-param attributes)
+   */
+  _getDrumSliderHTML (instrument, param, label, value) {
+    return `
+      <div class="synth-slider-row">
+        <label>${label}</label>
+        <input type="range"
+               class="synth-slider"
+               data-drum-instrument="${instrument}"
+               data-drum-param="${param}"
+               min="0"
+               max="1"
+               step="0.01"
+               value="${value}">
+        <span class="synth-value" data-drum-value="${instrument}-${param}">${value.toFixed(2)}</span>
+      </div>
+    `
+  }
+
+  /**
+   * Load drum instrument defaults into this.params
+   */
+  _loadDrumParams (patch) {
+    if (!patch?.instruments) return
+    const inst = patch.instruments
+
+    // Save current synth params so they can be restored when switching back
+    if (!this.params.isDrum) {
+      this._savedSynthParams = { ...this.params }
+    }
+
+    this.params = {
+      isDrum: true,
+      bd: { pitch: inst.bd.pitch, decay: inst.bd.decay, tone: inst.bd.tone },
+      sn: { pitch: inst.sn.pitch, decay: inst.sn.decay, tone: inst.sn.tone, delay: inst.sn.delay || 0 },
+      hh: { pitch: inst.hh.pitch, decay: inst.hh.decay, tone: inst.hh.tone, delay: inst.hh.delay || 0 },
+      reverb: patch.reverb || 0
+    }
+  }
+
+  /**
+   * Render drum content into synth-content div
+   */
+  _renderDrumContent () {
+    const content = this.panel?.querySelector('.synth-content')
+    if (!content) return
+
+    const bd = this.params.bd || { pitch: 0.5, decay: 0.5, tone: 0.5 }
+    const sn = this.params.sn || { pitch: 0.5, decay: 0.5, tone: 0.5, delay: 0.15 }
+    const hh = this.params.hh || { pitch: 0.5, decay: 0.5, tone: 0.5, delay: 0 }
+
+    content.innerHTML = `
+      <!-- BASS DRUM -->
+      <div class="synth-group">
+        <div class="settings-group-title">BASS DRUM</div>
+        <div class="synth-sliders-row">
+          ${this._getDrumSliderHTML('bd', 'pitch', 'Pitch', bd.pitch)}
+          ${this._getDrumSliderHTML('bd', 'decay', 'Decay', bd.decay)}
+          ${this._getDrumSliderHTML('bd', 'tone', 'Tone', bd.tone)}
+        </div>
+      </div>
+      <!-- SNARE -->
+      <div class="synth-group">
+        <div class="settings-group-title">SNARE</div>
+        <div class="synth-sliders-row">
+          ${this._getDrumSliderHTML('sn', 'pitch', 'Pitch', sn.pitch)}
+          ${this._getDrumSliderHTML('sn', 'decay', 'Decay', sn.decay)}
+          ${this._getDrumSliderHTML('sn', 'tone', 'Tone', sn.tone)}
+          ${this._getDrumSliderHTML('sn', 'delay', 'Delay', sn.delay)}
+        </div>
+      </div>
+      <!-- HI-HAT -->
+      <div class="synth-group">
+        <div class="settings-group-title">HI-HAT</div>
+        <div class="synth-sliders-row">
+          ${this._getDrumSliderHTML('hh', 'pitch', 'Pitch', hh.pitch)}
+          ${this._getDrumSliderHTML('hh', 'decay', 'Decay', hh.decay)}
+          ${this._getDrumSliderHTML('hh', 'tone', 'Tone', hh.tone)}
+          ${this._getDrumSliderHTML('hh', 'delay', 'Delay', hh.delay)}
+        </div>
+      </div>
+      <!-- REVERB -->
+      <div class="synth-group">
+        <div class="settings-group-title">REVERB</div>
+        <div class="synth-sliders-row">
+          ${this._getDrumSliderHTML('global', 'reverb', 'Reverb', this.params.reverb || 0)}
+        </div>
+      </div>
+    `
+  }
+
+  /**
+   * Get synth content inner HTML (for restoring after drum mode)
+   */
+  _getSynthContentHTML () {
+    return `
+      <!-- OSCILLATOR -->
+      <div class="synth-group" id="synth-osc-group">
+        <div class="settings-group-title">OSC</div>
+        <div id="synth-osc-controls"></div>
+      </div>
+
+      <!-- FILTER -->
+      <div class="synth-group synth-group-filter">
+        <div class="settings-group-title">Filter</div>
+        <div class="synth-filter-row">
+          <div class="synth-filter-type">
+            <button class="synth-filter-btn ${this.params.filterType === 'lowpass' ? 'active' : ''}" data-filter="lowpass">LP</button>
+            <button class="synth-filter-btn ${this.params.filterType === 'highpass' ? 'active' : ''}" data-filter="highpass">HP</button>
+            <button class="synth-filter-btn ${this.params.filterType === 'bandpass' ? 'active' : ''}" data-filter="bandpass">BP</button>
+          </div>
+          <div class="synth-sliders-row">
+            ${this._getFilterCutoffSliderHTML()}
+            ${this._getFilterQSliderHTML()}
+          </div>
+        </div>
+      </div>
+
+      <!-- ENVELOPE -->
+      <div class="synth-group">
+        <div class="settings-group-title">Envelope</div>
+        <div class="synth-sliders-row">
+          ${this._getSliderHTML('attack', 'A', 0.001, 4.0, this.params.attack, 's')}
+          ${this._getSliderHTML('decay', 'D', 0.001, 8.0, this.params.decay, 's')}
+          ${this._getSliderHTML('sustain', 'S', 0.0, 1.0, this.params.sustain, '')}
+          ${this._getSliderHTML('release', 'R', 0.001, 10.0, this.params.release, 's')}
+        </div>
+      </div>
+
+      <!-- OUTPUT -->
+      <div class="synth-group">
+        <div class="settings-group-title">OUT</div>
+        <div class="synth-sliders-row">
+          ${this._getSliderHTML('volume', 'Vol', -12, 12, this.params.volume, 'dB')}
+          ${this._getSliderHTML('pan', 'Pan', -1.0, 1.0, this.params.pan || 0, '')}
+        </div>
+      </div>
+
+      <!-- EFFECTS -->
+      <div class="synth-group">
+        <div class="settings-group-title">FX</div>
+        <div class="synth-sliders-row">
+          ${this._getSliderHTML('delaySend', 'Delay', 0, 1.0, this.params.delaySend, '')}
+          ${this._getSliderHTML('reverbSend', 'Reverb', 0, 1.0, this.params.reverbSend, '')}
+        </div>
+      </div>
+    `
+  }
+
+  /**
+   * Restore synth content (when switching from drum back to synth mode)
+   */
+  _renderSynthContent () {
+    const content = this.panel?.querySelector('.synth-content')
+    if (!content) return
+
+    // Re-render the full synth content from _getSynthContentHTML
+    content.innerHTML = this._getSynthContentHTML()
+
+    // Restore params defaults
+    const patch = window.PatchDefinitions?.REAL_USER_PATCHES?.[this.currentPresetSlot]
+    if (patch) {
+      this.params = {
+        filterType: patch.filter?.type || 'lowpass',
+        filterCutoff: patch.filter?.frequency || 2000,
+        filterQ: patch.filter?.Q || 1.0,
+        attack: patch.envelope?.attack || 0.05,
+        decay: patch.envelope?.decay || 0.3,
+        sustain: patch.envelope?.sustain || 0.5,
+        release: patch.envelope?.release || 0.5,
+        volume: patch.volume ?? 0,
+        delaySend: patch.effects?.delaySend || 0.2,
+        reverbSend: patch.effects?.reverbSend || 0.3
+      }
+    }
+
+    // Re-bind slider events and update values
+    this._updateSliderValues()
+    this._updateOscillatorSection()
   }
 
   /**
@@ -962,39 +1155,75 @@ class SynthPanel {
       this.audioService.selectPreset(slot)
     }
 
-    // Update oscillator controls for new preset type
-    this._updateOscillatorSection()
-
-    // Update params from new preset defaults
+    // Check if switching to/from drum mode
     const patch = window.PatchDefinitions?.REAL_USER_PATCHES?.[slot]
-    if (patch) {
-      this.params.filterType = patch.filter?.type || 'lowpass'
-      this.params.filterCutoff = patch.filter?.frequency || 2000
-      this.params.filterQ = patch.filter?.Q || 1.0
-      this.params.attack = patch.envelope?.attack || 0.05
-      this.params.decay = patch.envelope?.decay || 0.3
-      this.params.sustain = patch.envelope?.sustain || 0.5
-      this.params.release = patch.envelope?.release || 0.5
-      this.params.volume = patch.volume ?? 0
-      this.params.delaySend = patch.effects?.delaySend || 0.2
-      this.params.reverbSend = patch.effects?.reverbSend || 0.3
+    const wasDrumMode = this._isDrumMode
+    this._isDrumMode = patch?.type === 'drum'
 
-      if (patch.oscillator?.width !== undefined) {
-        this.params.pulseWidth = patch.oscillator.width
+    // Update title
+    const title = this.panel?.querySelector('#synth-title')
+    if (title) title.textContent = this._isDrumMode ? 'Drums' : 'Synth'
+
+    if (this._isDrumMode) {
+      // Load drum instrument defaults into params
+      this._loadDrumParams(patch)
+      // Replace synth content with drum UI
+      this._renderDrumContent()
+      // Re-attach slider listeners to new drum slider elements
+      this._attachSliderListeners()
+    } else {
+      // Restore synth UI if switching from drums
+      if (wasDrumMode) {
+        this._renderSynthContent()
+        // Re-attach slider listeners to restored synth slider elements
+        this._attachSliderListeners()
+
+        // Restore saved synth params if available
+        if (this._savedSynthParams) {
+          this.params = { ...this._savedSynthParams }
+          this._savedSynthParams = null
+        }
       }
-      if (patch.oscillator?.spread !== undefined) {
-        this.params.fatSpread = patch.oscillator.spread
+
+      // Update oscillator controls for new preset type
+      this._updateOscillatorSection()
+
+      // Update params from new preset defaults (only if not restoring saved params)
+      if (patch && !wasDrumMode) {
+        this.params.filterType = patch.filter?.type || 'lowpass'
+        this.params.filterCutoff = patch.filter?.frequency || 2000
+        this.params.filterQ = patch.filter?.Q || 1.0
+        this.params.attack = patch.envelope?.attack || 0.05
+        this.params.decay = patch.envelope?.decay || 0.3
+        this.params.sustain = patch.envelope?.sustain || 0.5
+        this.params.release = patch.envelope?.release || 0.5
+        this.params.volume = patch.volume ?? 0
+        this.params.delaySend = patch.effects?.delaySend || 0.2
+        this.params.reverbSend = patch.effects?.reverbSend || 0.3
+
+        if (patch.oscillator?.width !== undefined) {
+          this.params.pulseWidth = patch.oscillator.width
+        }
+        if (patch.oscillator?.spread !== undefined) {
+          this.params.fatSpread = patch.oscillator.spread
+        }
+        if (patch.oscillator?.modulationIndex !== undefined) {
+          this.params.modulationIndex = patch.oscillator.modulationIndex
+        }
       }
-      if (patch.oscillator?.modulationIndex !== undefined) {
-        this.params.modulationIndex = patch.oscillator.modulationIndex
-      }
+
+      // Update UI sliders
+      this._updateSliderValues()
     }
 
-    // Update UI sliders
-    this._updateSliderValues()
-
-    // Apply params to local audio engine (volume, filter, etc.)
+    // Apply params to local audio engine
     this._applyParams()
+
+    // Switch submenu mode if changed
+    if (wasDrumMode !== this._isDrumMode) {
+      if (this.auditionSubMenu) this.auditionSubMenu.setDrumMode(this._isDrumMode)
+      if (this.sequencerSubMenu) this.sequencerSubMenu.setDrumMode(this._isDrumMode)
+    }
 
     // Emit to server
     this._emitParams()
@@ -1081,6 +1310,26 @@ class SynthPanel {
    * Handle slider change
    */
   _onSliderChange (e) {
+    // Handle drum instrument sliders
+    const drumInst = e.target.dataset.drumInstrument
+    const drumParam = e.target.dataset.drumParam
+    if (drumInst && drumParam) {
+      const value = parseFloat(e.target.value)
+      if (drumInst === 'global') {
+        this.params.reverb = value
+      } else {
+        if (!this.params[drumInst]) this.params[drumInst] = {}
+        this.params[drumInst][drumParam] = value
+      }
+      // Update display
+      const display = this.panel?.querySelector(`[data-drum-value="${drumInst}-${drumParam}"]`)
+      if (display) display.textContent = value.toFixed(2)
+      // Apply drum params + emit
+      if (this.audioService?.setDrumParams) this.audioService.setDrumParams(this.params)
+      this._emitParamsThrottled()
+      return
+    }
+
     const param = e.target.dataset.param
     let value = parseFloat(e.target.value)
 
@@ -1151,8 +1400,14 @@ class SynthPanel {
    * Apply current params to audio service
    */
   _applyParams () {
-    if (this.audioService?.setSynthParams) {
-      this.audioService.setSynthParams(this.params)
+    if (this._isDrumMode) {
+      if (this.audioService?.setDrumParams) {
+        this.audioService.setDrumParams(this.params)
+      }
+    } else {
+      if (this.audioService?.setSynthParams) {
+        this.audioService.setSynthParams(this.params)
+      }
     }
   }
 

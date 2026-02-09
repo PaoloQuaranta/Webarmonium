@@ -218,7 +218,7 @@ class Room {
   /**
    * Assign synth timbre slot to user from available pool
    * @param {User} user - User to assign slot to
-   * @returns {number} Assigned slot number (0-7)
+   * @returns {number} Assigned slot number (0-7, initial synth timbre)
    * @throws {Error} If no slots available
    */
   assignSlotToUser (user) {

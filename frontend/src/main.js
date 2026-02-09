@@ -903,13 +903,19 @@ class WebarmoniumApp {
         // Remote users' audition: play through isolated per-user synth
         if (data.userId !== localUserId) {
           if (data.userId && this.audioService?.userSynthManager) {
-            this.audioService.userSynthManager.triggerAttackRelease(
-              data.userId,
-              data.frequency,
-              data.duration || 0.5,
-              data.velocity,
-              true  // isRemote
-            )
+            if (data.isDrum && data.drumInstrument) {
+              this.audioService.userSynthManager.playDrumHit(
+                data.userId, data.drumInstrument, data.velocity, data.drumPresetSlot
+              )
+            } else {
+              this.audioService.userSynthManager.triggerAttackRelease(
+                data.userId,
+                data.frequency,
+                data.duration || 0.5,
+                data.velocity,
+                true  // isRemote
+              )
+            }
           }
         }
         // Local user's own audition: audio handled by SynthPanel._onAuditionHoldStart
@@ -939,13 +945,19 @@ class WebarmoniumApp {
         // Remote users' sequencer: play through isolated per-user synth
         if (data.userId !== localUserId) {
           if (data.userId && this.audioService?.userSynthManager) {
-            this.audioService.userSynthManager.triggerAttackRelease(
-              data.userId,
-              data.frequency,
-              data.duration || 0.5,
-              data.velocity,
-              true  // isRemote
-            )
+            if (data.isDrum && data.drumInstrument) {
+              this.audioService.userSynthManager.playDrumHit(
+                data.userId, data.drumInstrument, data.velocity, data.drumPresetSlot
+              )
+            } else {
+              this.audioService.userSynthManager.triggerAttackRelease(
+                data.userId,
+                data.frequency,
+                data.duration || 0.5,
+                data.velocity,
+                true  // isRemote
+              )
+            }
           }
         }
         // Local user's own sequencer: audio handled by SynthPanel._onSequencerHoldStart

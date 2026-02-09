@@ -29,6 +29,11 @@ function validateAuditionParams (params) {
     validated.source = params.source
   }
 
+  // Validate drum mode flag
+  if (typeof params.isDrumMode === 'boolean') {
+    validated.isDrumMode = params.isDrumMode
+  }
+
   // Validate numeric parameters (all must be 0-1 range)
   const numericParams = ['frequency', 'regularity', 'uniformity', 'gestureType', 'range']
   for (const param of numericParams) {
@@ -88,6 +93,11 @@ const AuditionHandler = {
         if (sequencerService) {
           sequencerService.stopSequencer(socket.id)
           socket.emit('sequencer:stopped')
+        }
+
+        // Include preset slot for correct remote drum kit timbre
+        if (validatedParams.isDrumMode && user.synthPresetSlot !== undefined) {
+          validatedParams.drumPresetSlot = user.synthPresetSlot
         }
 
         console.log(`[AuditionHandler] Start request from ${socket.userId} (socket ${socket.id}) in room ${roomId}`)

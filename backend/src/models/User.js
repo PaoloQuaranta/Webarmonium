@@ -8,7 +8,7 @@ class User {
     this.id = userId
     this.roomId = null
     this.assignedColor = null // Hex color from 10-color pool (multi-user canvas)
-    this.assignedSlot = null  // Synth timbre slot (0-7) - exclusive per room
+    this.assignedSlot = null  // Synth timbre slot (0-10: 0-7 synth, 8-10 drum) - exclusive per room
     this.isActive = false
     this.joinedAt = new Date()
     this.lastActivity = new Date()
@@ -17,7 +17,7 @@ class User {
     this.capabilities = userData.capabilities || {}
 
     // Entry #SynthUI: User's selected synth preset and parameters
-    this.synthPresetSlot = null // Selected preset slot (0-7), null = use assignedSlot
+    this.synthPresetSlot = null // Selected preset slot (0-10), null = use assignedSlot
     this.synthParams = null     // Custom synth parameters object
   }
 
@@ -61,24 +61,24 @@ class User {
   }
 
   /**
-   * Assign synth timbre slot (0-7 for real users)
-   * @param {number} slot - Slot number (0-7)
+   * Assign synth timbre slot (0-10 for real users: 0-7 synth, 8-10 drum kits)
+   * @param {number} slot - Slot number (0-10)
    * @throws {Error} If slot is invalid
    */
   assignSlot (slot) {
-    if (typeof slot !== 'number' || slot < 0 || slot > 7) {
-      throw new Error(`Invalid slot: ${slot}. Must be 0-7`)
+    if (typeof slot !== 'number' || slot < 0 || slot > 10) {
+      throw new Error(`Invalid slot: ${slot}. Must be 0-10`)
     }
     this.assignedSlot = slot
   }
 
   /**
    * Entry #SynthUI: Set user's selected synth preset slot
-   * @param {number|null} slot - Preset slot (0-7) or null to use default
+   * @param {number|null} slot - Preset slot (0-10) or null to use default
    */
   setSynthPresetSlot (slot) {
-    if (slot !== null && (typeof slot !== 'number' || slot < 0 || slot > 7)) {
-      throw new Error(`Invalid synth preset slot: ${slot}. Must be 0-7 or null`)
+    if (slot !== null && (typeof slot !== 'number' || slot < 0 || slot > 10)) {
+      throw new Error(`Invalid synth preset slot: ${slot}. Must be 0-10 or null`)
     }
     this.synthPresetSlot = slot
   }

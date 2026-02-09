@@ -3022,79 +3022,6 @@ class AudioService {
   }
 
   /**
-   * Update sonic parameters from gesture data per FR-002
-   * System MUST translate user gestures into real-time sonic parameter modifications
-   * FIX: Restored background filter modulation and added polyphony management
-   * @param {Object} sonicParams - Parameters from gesture processing
-   */
-  updateSonicParams(sonicParams) {
-    if (!this.isInitialized || !this.gestureSynth) return
-
-    try {
-      // Real-time gesture-to-sonic parameter mapping per FR-002
-      const frequency = this.mapGestureToFrequency(sonicParams)
-      const volume = this.mapGestureToVolume(sonicParams)
-      const filterParams = this.mapGestureToFilter(sonicParams)
-
-      // Handle both old format (number) and new format (object) for backward compatibility
-      let cutoffFrequency, resonance, tremoloAmount
-      if (typeof filterParams === 'object' && filterParams !== null) {
-        cutoffFrequency = filterParams.cutoffFrequency
-        resonance = filterParams.resonance
-        tremoloAmount = filterParams.tremoloAmount || 0
-      } else {
-        //  treat as cutoff frequency
-        cutoffFrequency = filterFreq || 1000
-        resonance = 1.0
-        tremoloAmount = 0
-      }
-
-      // Entry #109: gestureFilter removed - tremolo still available if needed
-      if (tremoloAmount > 0 && this.gestureSynth) {
-        const currentTime = Tone.context && Tone.context.currentTime ? Tone.context.currentTime : Tone.now()
-        this.applyTremolo(tremoloAmount, currentTime)
-      }
-
-      // Calculate three-tier duration based on gesture velocity
-      const gestureVelocity = sonicParams.velocity || 200
-      const tierDuration = this.calculateThreeTierDuration(gestureVelocity, '8n')
-
-      // Trigger gesture-responsive note with three-tier duration
-      // Use volume from gesture as velocity parameter (0.5-1.0 range for prominence)
-      if (this.gestureSynth && this.gestureSynth.triggerAttackRelease) {
-        // Velocity from gesture Y position (equalized with remote/virtual users)
-        const velocity = Math.max(0.3, Math.min(0.8, volume))
-
-        // console.log(`🔊 LOCAL GESTURE TRIGGER:`)
-        // console.log(`  ↳ Frequency: ${frequency.toFixed(1)}Hz`)
-        // console.log(`  ↳ Duration: ${tierDuration}s`)
-        // console.log(`  ↳ Velocity: ${velocity.toFixed(2)}`)
-        // console.log(`  ↳ Synth volume: ${this.gestureSynth.volume.value}dB`)
-        // console.log(`  ↳ Active voices before: ${this.gestureSynth.activeVoices}`)
-
-        // Trigger note with full velocity (no reduction multiplier)
-        // Use safe trigger for MonoSynth timing compliance
-        this.safeGestureSynthTrigger(frequency, tierDuration, undefined, velocity)
-
-        // console.log(`  ↳ Active voices after: ${this.gestureSynth.activeVoices}`)
-        // console.log(`  ↳ Trigger successful!`)
-      } else {
-        // console.warn('🔇 Gesture synth not available for note triggering')
-      }
-
-      // FIX: Update background filters with gesture modulation
-      this.updateBackgroundFilters(sonicParams)
-
-      // Log for performance monitoring per FR-006 (<200ms latency)
-      const timestamp = performance.now()
-      // console.log(`🎵 Gesture processed: ${frequency.toFixed(1)}Hz at ${timestamp.toFixed(1)}ms`)
-
-    } catch (error) {
-      // console.warn('Audio playback error:', error)
-    }
-  }
-
-  /**
    * Update filter parameters directly (for remote filter modulation)
    * FIX: Added this missing method for hover and remote filter modulation
    * @param {Object} filterParams - Filter parameters
@@ -3135,36 +3062,6 @@ class AudioService {
     }
   }
 
-
-  /**
-   * Update background filters - DISABLED
-   * Ambient filters controlled by composition system only.
-   * @deprecated
-   * @param {Object} sonicParams - Unused
-   */
-  updateBackgroundFilters(sonicParams) {
-    // Disabled - ambient filters controlled by composition only
-  }
-
-  /**
-   * Calculate filter frequency from gesture parameters
-   * @param {Object} sonicParams - Sonic parameters
-   * @returns {number} Filter frequency
-   */
-  calculateFilterFrequency(sonicParams) {
-    const y = sonicParams.y || 0.5
-    return 200 + ((1 - y) * 3800) // 200Hz to 4000Hz, inverted Y axis
-  }
-
-  /**
-   * Calculate filter resonance from gesture parameters
-   * @param {Object} sonicParams - Sonic parameters
-   * @returns {number} Filter resonance (Q)
-   */
-  calculateFilterResonance(sonicParams) {
-    const x = sonicParams.x || 0.5
-    return 0.5 + (x * 4.5) // 0.5 to 5.0 Q range
-  }
 
   /**
    * SUSTAINED HOLD: Trigger sustained note attack (gate opens)
@@ -3650,81 +3547,6 @@ class AudioService {
   }
 
   /**
-   * Map gesture coordinates to frequency per FR-002
-   */
-  mapGestureToFrequency(sonicParams) {
-    // X coordinate maps to frequency (no musical theory constraints per FR-002)
-    const x = sonicParams.x || sonicParams.frequency || 0.5
-    return 100 + (x * 1000) // 100Hz to 1100Hz range
-  }
-
-  /**
-   * Map gesture intensity to volume per FR-002
-   */
-  mapGestureToVolume(sonicParams) {
-    // Y coordinate or intensity maps to volume
-    const intensity = sonicParams.y || sonicParams.amplitude || sonicParams.intensity || 0.5
-    return Math.max(0.1, Math.min(0.8, intensity))
-  }
-
-  /**
-   * Map gesture movement to filter parameters per FR-002
-   * FIX: Added validation to prevent null returns and implemented three-tier modulation
-   */
-  mapGestureToFilter(sonicParams) {
-    const tier = sonicParams.tier || 'local'
-
-    if (tier === 'local') {
-      // LOCAL MODULATION: Y controls cutoff, X controls resonance
-      const y = sonicParams.y || 0.5
-      const x = sonicParams.x || 0.5
-
-      const cutoff = 200 + ((1 - y) * 3800) // 200Hz to 4000Hz, inverted Y axis
-      const resonance = 0.5 + (x * 4.5) // 0.5 to 5.0 Q range
-
-      // console.log(`🎛️ Local filter modulation: Y=${y.toFixed(2)}→cutoff=${cutoff.toFixed(1)}Hz, X=${x.toFixed(2)}→resonance=${resonance.toFixed(2)}`)
-
-      return {
-        cutoffFrequency: cutoff,
-        resonance: resonance,
-        tremoloAmount: 0 // No tremolo for local modulation
-      }
-    } else if (tier === 'remote') {
-      // REMOTE MODULATION: X = LFO speed, Y = LFO amplitude that modulates cutoff frequency
-      const y = sonicParams.y || 0.5
-      const x = sonicParams.x || 0.5
-
-      // X controls LFO speed (0.05Hz to 10Hz)
-      const lfoSpeed = 0.05 + (x * 9.95) // 0.05Hz to 10Hz
-
-      // Y controls LFO amplitude (0% to 100% modulation depth)
-      const lfoAmplitude = y // 0.0 to 1.0 (0% to 100%)
-
-      // console.log(`🎛️ Remote LFO modulation: X=${x.toFixed(2)}→speed=${lfoSpeed.toFixed(2)}Hz, Y=${y.toFixed(2)}→amplitude=${(lfoAmplitude * 100).toFixed(0)}%`)
-
-      return {
-        lfoSpeed: lfoSpeed,
-        lfoAmplitude: lfoAmplitude,
-        isRemoteLFO: true
-      }
-    } else {
-      // Background/default modulation (no tremolo)
-      const movement = sonicParams?.z ?? sonicParams?.movement ?? sonicParams?.y ?? 0.5
-      const validMovement = typeof movement === 'number' && !isNaN(movement) ? movement : 0.5
-      const clampedMovement = Math.max(0, Math.min(1, validMovement))
-
-      const filterFreq = 200 + (clampedMovement * 2000) // 200Hz to 2200Hz filter range
-      // console.log(`🎛️ Background filter modulation: movement=${validMovement} → freq=${filterFreq.toFixed(1)}Hz`)
-
-      return {
-        cutoffFrequency: filterFreq,
-        resonance: 1.0, // Default resonance for background
-        tremoloAmount: 0 // No tremolo for background
-      }
-    }
-  }
-
-  /**
    * Update sound patterns from collaborative data
    * Plays audio feedback for remote users' gestures (FR-003)
    * EVOLUTIVE: Also influences generative composition and adds filter modulation
@@ -3779,20 +3601,6 @@ class AudioService {
       return
     }
     this.lastCollaborativePatterns = [...(patterns || [])]
-
-    // FIX: Apply filter modulation from remote patterns
-    if (patterns && patterns.length > 0) {
-      // Calculate average position for filter modulation
-      const avgPosition = {
-        x: patterns.reduce((sum, p) => sum + (p.x || 0.5), 0) / patterns.length,
-        y: patterns.reduce((sum, p) => sum + (p.y || 0.5), 0) / patterns.length,
-        z: patterns.reduce((sum, p) => sum + (p.z || 0.5), 0) / patterns.length
-      }
-
-      // Apply remote filter modulation to background
-      this.updateBackgroundFilters(avgPosition)
-      // console.log(`🎛️ Applied remote filter modulation: x=${avgPosition.x.toFixed(2)}, y=${avgPosition.y.toFixed(2)}`)
-    }
 
     // Play audio feedback for each pattern from remote users (FR-003, FR-006)
     // FIX: Added note hanging prevention and safe note management
@@ -7144,7 +6952,7 @@ class AudioService {
 
   /**
    * Select a preset and recreate the local gesture synth
-   * @param {number} slot - Preset slot (0-7)
+   * @param {number} slot - Preset slot (0-10: 0-7 synth, 8-10 drum)
    * @returns {boolean} Success status
    */
   selectPreset(slot) {
@@ -7166,6 +6974,35 @@ class AudioService {
     }
 
     try {
+      // Handle drum kit vs melodic synth
+      if (patch.type === 'drum') {
+        // Dispose melodic synth if switching to drums
+        if (this.gestureSynth) {
+          this.gestureSynth.disconnect()
+          this.gestureSynth.dispose()
+          this.gestureSynth = null
+        }
+        if (this.gestureFilter) {
+          this.gestureFilter.disconnect()
+          this.gestureFilter.dispose()
+          this.gestureFilter = null
+        }
+        // Dispose previous drum kit if any
+        this._disposeDrumKit()
+        // Create and connect new drum kit
+        this.drumSynths = this._createDrumKit(patch)
+        this._connectDrumKit(this.drumSynths, patch)
+        this.isDrumMode = true
+        this.currentPresetSlot = slot
+        this.currentPatch = patch
+        return true
+      }
+
+      // Switching from drum to melodic: dispose drum kit
+      if (this.isDrumMode) {
+        this._disposeDrumKit()
+      }
+
       // Disconnect and dispose old synth
       if (this.gestureSynth) {
         this.gestureSynth.disconnect()
@@ -7375,6 +7212,13 @@ class AudioService {
       presetSlot: this.currentPresetSlot ?? null
     }
 
+    // Drum mode: return drum params
+    if (this.isDrumMode && this.drumSynths) {
+      params.isDrum = true
+      // Return current instrument params from synths
+      return params
+    }
+
     if (this.gestureSynth) {
       // Oscillator-specific
       if (this.gestureSynth instanceof Tone.FMSynth) {
@@ -7526,6 +7370,256 @@ class AudioService {
 
     // Filter: slots not occupied by others (but my current slot is always available)
     return allSlots.filter(s => !occupiedSlots.includes(s) || s === mySlot)
+  }
+
+  // ============================================================
+  // DRUM KIT SYNTHESIS
+  // ============================================================
+
+  /**
+   * Create drum kit synths from patch definition
+   * @param {Object} patch - Drum kit patch definition
+   * @returns {Object} Drum kit synths object
+   */
+  _createDrumKit (patch) {
+    const inst = patch.instruments
+    const kit = {}
+
+    // === BASS DRUM: MembraneSynth ===
+    kit.bd = new Tone.MembraneSynth({
+      pitchDecay: 0.05 + inst.bd.pitch * 0.3,
+      octaves: 2 + inst.bd.tone * 6,
+      envelope: {
+        attack: 0.001,
+        decay: 0.05 + inst.bd.decay * 1.45,
+        sustain: 0,
+        release: 0.1
+      }
+    })
+    kit.bd.frequency.value = 30 + inst.bd.pitch * 60 // 30-90Hz
+
+    // === SNARE: MembraneSynth (body) + NoiseSynth (snap) ===
+    kit.snBody = new Tone.MembraneSynth({
+      pitchDecay: 0.02,
+      octaves: 3,
+      envelope: {
+        attack: 0.001,
+        decay: 0.08,
+        sustain: 0,
+        release: 0.05
+      }
+    })
+    kit.snBody.frequency.value = 120 + inst.sn.pitch * 180 // 120-300Hz
+
+    kit.snNoise = new Tone.NoiseSynth({
+      noise: { type: 'white' },
+      envelope: {
+        attack: 0.001,
+        decay: 0.05 + inst.sn.decay * 0.45,
+        sustain: 0,
+        release: 0.01
+      }
+    })
+
+    kit.snFilter = new Tone.Filter({
+      type: 'bandpass',
+      frequency: 1000 + inst.sn.tone * 7000,
+      Q: 1.5
+    })
+
+    kit.snMerge = new Tone.Gain(1)
+    kit.snBody.connect(kit.snMerge)
+    kit.snNoise.connect(kit.snFilter)
+    kit.snFilter.connect(kit.snMerge)
+
+    // === HI-HAT: MetalSynth ===
+    kit.hh = new Tone.MetalSynth({
+      frequency: 200 + inst.hh.pitch * 400,
+      envelope: {
+        attack: 0.001,
+        decay: 0.01 + inst.hh.decay * 0.29,
+        release: 0.01
+      },
+      harmonicity: 0.5 + inst.hh.tone * 4.5,
+      resonance: 4000,
+      volume: -6
+    })
+
+    return kit
+  }
+
+  /**
+   * Connect drum kit to audio routing (reuses existing global nodes)
+   * @param {Object} kit - Drum kit synths object
+   * @param {Object} patch - Drum kit patch definition
+   */
+  _connectDrumKit (kit, patch) {
+    const inst = patch.instruments
+
+    // BD → gain → gesturePan
+    kit.bdGain = new Tone.Gain(1)
+    kit.bd.connect(kit.bdGain)
+    kit.bdGain.connect(this.gesturePan)
+
+    // SN (merged body+noise) → gesturePan
+    kit.snMerge.connect(this.gesturePan)
+
+    // HH → gain → gesturePan
+    kit.hhGain = new Tone.Gain(1)
+    kit.hh.connect(kit.hhGain)
+    kit.hhGain.connect(this.gesturePan)
+
+    // Delay sends (SN + HH only, BD has no delay)
+    if (this.delaySends?.gesture) {
+      const delayNode = this.delaySends.gesture // existing gesture delay send node
+      kit.snDelaySend = new Tone.Gain(inst.sn.delay || 0.15)
+      kit.snMerge.connect(kit.snDelaySend)
+      kit.snDelaySend.connect(delayNode)
+
+      kit.hhDelaySend = new Tone.Gain(inst.hh.delay || 0)
+      kit.hhGain.connect(kit.hhDelaySend)
+      kit.hhDelaySend.connect(delayNode)
+    }
+
+    // Reverb sends (all 3, BD with special behavior: max 20%, only above 50% slider)
+    if (this.reverbSends?.gesture) {
+      const reverbNode = this.reverbSends.gesture
+      kit.bdReverbSend = new Tone.Gain(0)
+      kit.bdGain.connect(kit.bdReverbSend)
+      kit.bdReverbSend.connect(reverbNode)
+
+      kit.snReverbSend = new Tone.Gain(patch.reverb || 0)
+      kit.snMerge.connect(kit.snReverbSend)
+      kit.snReverbSend.connect(reverbNode)
+
+      kit.hhReverbSend = new Tone.Gain(patch.reverb || 0)
+      kit.hhGain.connect(kit.hhReverbSend)
+      kit.hhReverbSend.connect(reverbNode)
+    }
+  }
+
+  /**
+   * Play a drum hit on the local drum kit
+   * @param {string} instrument - 'bd', 'sn', or 'hh'
+   * @param {number} velocity - Hit velocity (0-1)
+   */
+  playDrumHit (instrument, velocity = 0.7) {
+    if (!this.drumSynths || !this.isDrumMode) return
+
+    try {
+      const kit = this.drumSynths
+      const now = Tone.now()
+      const safeTime = Math.max(now, (this._lastDrumTrigger || 0) + 0.01)
+      this._lastDrumTrigger = safeTime
+      const vel = Math.max(0.1, Math.min(1.0, velocity))
+
+      switch (instrument) {
+        case 'bd':
+          kit.bd.triggerAttackRelease('C1', '8n', safeTime, vel)
+          break
+        case 'sn':
+          kit.snBody.triggerAttackRelease('E1', '16n', safeTime, vel * 0.6)
+          kit.snNoise.triggerAttackRelease('16n', safeTime, vel)
+          break
+        case 'hh':
+          kit.hh.triggerAttackRelease('32n', safeTime, vel)
+          break
+      }
+    } catch (error) {
+      console.warn('[AudioService] playDrumHit failed:', error.message)
+    }
+  }
+
+  /**
+   * Apply drum parameter changes from UI sliders
+   * @param {Object} params - Drum parameters { bd: {pitch,decay,tone}, sn: {...,delay}, hh: {...,delay}, reverb }
+   */
+  setDrumParams (params) {
+    if (!this.drumSynths || !this.isDrumMode || !params) return
+    const kit = this.drumSynths
+
+    try {
+      // BD params
+      if (params.bd) {
+        if (params.bd.pitch !== undefined) {
+          kit.bd.frequency.rampTo(30 + params.bd.pitch * 60, 0.1)
+          kit.bd.set({ pitchDecay: 0.05 + params.bd.pitch * 0.3 })
+        }
+        if (params.bd.decay !== undefined) {
+          kit.bd.set({ envelope: { decay: 0.05 + params.bd.decay * 1.45 } })
+        }
+        if (params.bd.tone !== undefined) {
+          kit.bd.set({ octaves: 2 + params.bd.tone * 6 })
+        }
+      }
+
+      // SN params
+      if (params.sn) {
+        if (params.sn.pitch !== undefined) {
+          kit.snBody.frequency.rampTo(120 + params.sn.pitch * 180, 0.1)
+        }
+        if (params.sn.decay !== undefined) {
+          kit.snNoise.set({ envelope: { decay: 0.05 + params.sn.decay * 0.45 } })
+        }
+        if (params.sn.tone !== undefined) {
+          kit.snFilter.frequency.rampTo(1000 + params.sn.tone * 7000, 0.1)
+        }
+        if (params.sn.delay !== undefined && kit.snDelaySend) {
+          kit.snDelaySend.gain.rampTo(params.sn.delay, 0.1)
+        }
+      }
+
+      // HH params
+      if (params.hh) {
+        if (params.hh.pitch !== undefined) {
+          kit.hh.set({ frequency: 200 + params.hh.pitch * 400 })
+        }
+        if (params.hh.decay !== undefined) {
+          kit.hh.set({ envelope: { decay: 0.01 + params.hh.decay * 0.29 } })
+        }
+        if (params.hh.tone !== undefined) {
+          kit.hh.set({ harmonicity: 0.5 + params.hh.tone * 4.5 })
+        }
+        if (params.hh.delay !== undefined && kit.hhDelaySend) {
+          kit.hhDelaySend.gain.rampTo(params.hh.delay, 0.1)
+        }
+      }
+
+      // Reverb (global slider, BD special behavior)
+      if (params.reverb !== undefined) {
+        const r = params.reverb
+        if (kit.snReverbSend) kit.snReverbSend.gain.rampTo(r, 0.1)
+        if (kit.hhReverbSend) kit.hhReverbSend.gain.rampTo(r, 0.1)
+        // BD: 0% below 50% slider, then 0-20% mapped from 50%-100% range
+        if (kit.bdReverbSend) {
+          kit.bdReverbSend.gain.rampTo(r > 0.5 ? (r - 0.5) * 2 * 0.2 : 0, 0.1)
+        }
+      }
+    } catch (error) {
+      console.warn('[AudioService] setDrumParams failed:', error.message)
+    }
+  }
+
+  /**
+   * Dispose all drum kit synths and nodes
+   */
+  _disposeDrumKit () {
+    if (!this.drumSynths) return
+
+    const nodes = [
+      this.drumSynths.bd, this.drumSynths.bdGain, this.drumSynths.bdReverbSend,
+      this.drumSynths.snBody, this.drumSynths.snNoise, this.drumSynths.snFilter,
+      this.drumSynths.snMerge, this.drumSynths.snDelaySend, this.drumSynths.snReverbSend,
+      this.drumSynths.hh, this.drumSynths.hhGain, this.drumSynths.hhDelaySend, this.drumSynths.hhReverbSend
+    ]
+    nodes.forEach(n => {
+      if (n && !n.disposed) {
+        try { n.disconnect(); n.dispose() } catch (e) { /* already disposed */ }
+      }
+    })
+    this.drumSynths = null
+    this.isDrumMode = false
+    this._lastDrumTrigger = 0
   }
 
   /**

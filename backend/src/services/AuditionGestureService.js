@@ -78,6 +78,8 @@ class AuditionGestureService {
       // Use real user identity (not 'audition-user')
       userId: userId || socketId,
       userColor: userColor || '#6bcf7f',
+      isDrumMode: params.isDrumMode || false,
+      drumPresetSlot: params.drumPresetSlot,
       params: {
         source: params.source || 'random',
         frequency: params.frequency ?? 0.5,
@@ -291,6 +293,12 @@ class AuditionGestureService {
 
     state.gestureCount++
 
+    // Route to drum gesture generation if in drum mode
+    if (state.isDrumMode) {
+      this._generateAndEmitDrumGesture(socketId)
+      return
+    }
+
     const { source, uniformity, gestureType, range } = state.params
 
     // Determine tap vs drag based on gestureType parameter
@@ -316,6 +324,117 @@ class AuditionGestureService {
       this._emitTapGesture(state, noteFrequency, position, activityLevel)
     } else {
       this._emitDragGesture(state, noteFrequency, position, activityLevel, uniformity)
+    }
+  }
+
+  // ============================================================
+  // PRIVATE: DRUM GESTURE GENERATION
+  // ============================================================
+
+  /**
+   * Generate and emit a drum hit gesture
+   * Uses audition params remapped for drum context:
+   * - uniformity → balance (BD/SN/HH distribution)
+   * - gestureType → complexity (pattern variation)
+   * - range → velocity range
+   * NO addMaterial() - drums excluded from harmonic learning
+   * NO hold:end - drums are self-releasing
+   * @param {string} socketId
+   * @private
+   */
+  _generateAndEmitDrumGesture (socketId) {
+    const state = this.activeAuditions.get(socketId)
+    if (!state || !state.isActive || !this.io) return
+
+    const { uniformity, gestureType, range } = state.params
+
+    // Instrument selection using balance (uniformity param)
+    // balance=0 → BD heavy, balance=0.5 → even, balance=1 → HH heavy
+    const selector = ((state.gestureCount * PHI) % 1)
+    let instrument
+    const bdWeight = (1 - uniformity) * 0.5
+    const snWeight = 0.3
+    const hhWeight = uniformity * 0.5
+
+    const total = bdWeight + snWeight + hhWeight
+    const normalizedSelector = selector * total
+
+    if (normalizedSelector < bdWeight) {
+      instrument = 'bd'
+    } else if (normalizedSelector < bdWeight + snWeight) {
+      instrument = 'sn'
+    } else {
+      instrument = 'hh'
+    }
+
+    // Complexity (gestureType param) adds double-hits and rolls
+    const doDoubleHit = gestureType > 0.7 && ((state.gestureCount * PHI_SQ) % 1) > 0.6
+
+    // Velocity from range param
+    const baseVelocity = 0.4 + range * 0.4 // 0.4-0.8
+    const velocityVariance = range * 0.3 // Up to ±0.3
+    const velocity = Math.max(0.1, Math.min(1.0,
+      baseVelocity + (((state.gestureCount * PHI) % 1) - 0.5) * velocityVariance
+    ))
+
+    // Duration for visual feedback only (drums are self-releasing)
+    const DURATION_MAP = { bd: 0.3, sn: 0.15, hh: 0.08 }
+
+    // Position for visual (instrument-based Y position)
+    const position = {
+      x: 0.3 + ((state.gestureCount * PHI) % 1) * 0.4,
+      y: instrument === 'bd' ? 0.8 : instrument === 'sn' ? 0.5 : 0.2
+    }
+
+    // Emit cursor position
+    this._emitCursorPosition(state.roomId, socketId, position, state)
+
+    // Emit drum hit via hold:start
+    this.io.to(state.roomId).emit('hold:start', {
+      type: 'hold:start',
+      userId: state.userId,
+      userColor: state.userColor,
+      isDrum: true,
+      drumInstrument: instrument,
+      drumPresetSlot: state.drumPresetSlot,
+      velocity: velocity,
+      duration: DURATION_MAP[instrument],
+      position: position,
+      isRemote: true,
+      isAudition: true,
+      isSequencer: false,
+      timestamp: Date.now()
+    })
+
+    // Complexity: emit a second hit shortly after
+    if (doDoubleHit) {
+      const secondInst = instrument === 'hh' ? 'hh' : (instrument === 'bd' ? 'sn' : 'hh')
+      const delay = 50 + Math.random() * 30 // 50-80ms flam
+      // Closure-capture values for disconnect safety (M3 fix)
+      const capturedRoomId = state.roomId
+      const capturedUserId = state.userId
+      const capturedUserColor = state.userColor
+      const capturedPresetSlot = state.drumPresetSlot
+
+      const timerId = setTimeout(() => {
+        if (!state.isActive) return
+        this.io.to(capturedRoomId).emit('hold:start', {
+          type: 'hold:start',
+          userId: capturedUserId,
+          userColor: capturedUserColor,
+          isDrum: true,
+          drumInstrument: secondInst,
+          drumPresetSlot: capturedPresetSlot,
+          velocity: velocity * 0.7,
+          duration: DURATION_MAP[secondInst],
+          position: { x: position.x + 0.05, y: secondInst === 'bd' ? 0.8 : secondInst === 'sn' ? 0.5 : 0.2 },
+          isRemote: true,
+          isAudition: true,
+          isSequencer: false,
+          timestamp: Date.now()
+        })
+      }, delay)
+      state.pendingTimers.push(timerId)
     }
   }
 

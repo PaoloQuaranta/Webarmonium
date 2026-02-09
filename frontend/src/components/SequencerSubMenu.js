@@ -30,6 +30,9 @@ class SequencerSubMenu {
     this.isVisible = false
     this.isGenerating = false
 
+    // Drum mode flag (set by SynthPanel on preset change)
+    this.isDrumMode = false
+
     // Default parameters
     this.params = {
       stepCount: 8,
@@ -39,6 +42,14 @@ class SequencerSubMenu {
         octave: 3,
         state: 'normal'
       }))
+    }
+
+    // Drum sequencer layers (3 instruments, 4-state velocity per step)
+    // Default: basic 4/4 pattern — kick on 1/3, snare on 2/4, hat eighths
+    this.drumLayers = {
+      bd: { muted: false, steps: Array(16).fill(null).map((_, i) => ({ state: i % 4 === 0 ? 'normal' : 'off' })) },
+      sn: { muted: false, steps: Array(16).fill(null).map((_, i) => ({ state: (i === 4 || i === 12) ? 'normal' : 'off' })) },
+      hh: { muted: false, steps: Array(16).fill(null).map((_, i) => ({ state: i % 2 === 0 ? 'ghost' : 'off' })) }
     }
 
     this.activeStep = -1
@@ -53,6 +64,7 @@ class SequencerSubMenu {
     this._swipeHandlers = null
     this._throttleTimeout = null
     this._throttleDelayMs = 150
+    this._stepListenersCleanup = null
   }
 
   // ============================================================
@@ -117,6 +129,17 @@ class SequencerSubMenu {
   }
 
   /**
+   * Switch between melodic and drum mode
+   * @param {boolean} isDrum
+   */
+  setDrumMode (isDrum) {
+    this.isDrumMode = isDrum
+    if (this.element) {
+      this._rebuildSteps()
+    }
+  }
+
+  /**
    * Set active step index for LED highlight
    * @param {number} index - Step index, or -1 to clear all
    */
@@ -124,13 +147,29 @@ class SequencerSubMenu {
     if (!this.element) return
     this.activeStep = index
 
-    const buttons = this.element.querySelectorAll('.sequencer-step-btn')
-    buttons.forEach((btn, i) => {
-      btn.classList.toggle('active-led', i === index)
-    })
+    if (this.isDrumMode) {
+      // Highlight all 3 layers at the active step
+      this.element.querySelectorAll('.drum-seq-cell').forEach(cell => {
+        const stepIdx = parseInt(cell.dataset.step, 10)
+        cell.classList.toggle('active-led', stepIdx === index)
+      })
+    } else {
+      const buttons = this.element.querySelectorAll('.sequencer-step-btn')
+      buttons.forEach((btn, i) => {
+        btn.classList.toggle('active-led', i === index)
+      })
+    }
   }
 
   getParams () {
+    if (this.isDrumMode) {
+      return {
+        stepCount: this.params.stepCount,
+        speedMultiplier: this.params.speedMultiplier,
+        isDrumMode: true,
+        layers: JSON.parse(JSON.stringify(this.drumLayers))
+      }
+    }
     return {
       stepCount: this.params.stepCount,
       speedMultiplier: this.params.speedMultiplier,
@@ -148,6 +187,10 @@ class SequencerSubMenu {
   }
 
   destroy () {
+    if (this._stepListenersCleanup) {
+      this._stepListenersCleanup()
+      this._stepListenersCleanup = null
+    }
     if (this._clickOutsideHandler) {
       document.removeEventListener('click', this._clickOutsideHandler)
       this._clickOutsideHandler = null
@@ -240,6 +283,13 @@ class SequencerSubMenu {
   }
 
   _getStepsHTML () {
+    if (this.isDrumMode) {
+      return this._getDrumStepsHTML()
+    }
+    return this._getMelodicStepsHTML()
+  }
+
+  _getMelodicStepsHTML () {
     let html = ''
     for (let i = 0; i < this.params.stepCount; i++) {
       const step = this.params.steps[i]
@@ -261,6 +311,33 @@ class SequencerSubMenu {
         </div>
       `
     }
+    return html
+  }
+
+  _getDrumStepsHTML () {
+    const DRUM_LABELS = { bd: 'BD', sn: 'SN', hh: 'HH' }
+    let html = '<div class="drum-seq-grid">'
+
+    for (const inst of ['bd', 'sn', 'hh']) {
+      const layer = this.drumLayers[inst]
+      const mutedClass = layer.muted ? 'muted' : ''
+
+      html += `<div class="drum-seq-layer ${mutedClass}" data-layer="${inst}">`
+      html += `<span class="drum-seq-label">${DRUM_LABELS[inst]}</span>`
+      html += '<div class="drum-seq-steps">'
+
+      for (let i = 0; i < this.params.stepCount; i++) {
+        const step = layer.steps[i] || { state: 'off' }
+        const activeLed = i === this.activeStep ? 'active-led' : ''
+        html += `<div class="drum-seq-cell ${step.state} ${activeLed}" data-layer="${inst}" data-step="${i}"></div>`
+      }
+
+      html += '</div>'
+      html += `<button class="drum-seq-mute ${layer.muted ? 'muted' : ''}" data-layer="${inst}">M</button>`
+      html += '</div>'
+    }
+
+    html += '</div>'
     return html
   }
 
@@ -320,11 +397,25 @@ class SequencerSubMenu {
   _attachStepListeners () {
     if (!this.element) return
 
+    // Clean up previous delegated listeners before re-attaching
+    if (this._stepListenersCleanup) {
+      this._stepListenersCleanup()
+      this._stepListenersCleanup = null
+    }
+
     const container = this.element.querySelector('.sequencer-steps-container')
     if (!container) return
 
+    if (this.isDrumMode) {
+      this._attachDrumStepListeners(container)
+    } else {
+      this._attachMelodicStepListeners(container)
+    }
+  }
+
+  _attachMelodicStepListeners (container) {
     // Slider input (delegated)
-    container.addEventListener('input', (e) => {
+    const inputHandler = (e) => {
       if (!e.target.classList.contains('sequencer-step-slider')) return
       const stepIndex = parseInt(e.target.dataset.step, 10)
       const value = parseInt(e.target.value, 10)
@@ -341,10 +432,10 @@ class SequencerSubMenu {
       }
 
       this._notifyParamsChange()
-    })
+    }
 
     // Tri-state button click (delegated)
-    container.addEventListener('click', (e) => {
+    const clickHandler = (e) => {
       const btn = e.target.closest('.sequencer-step-btn')
       if (!btn) return
       const stepIndex = parseInt(btn.dataset.step, 10)
@@ -366,7 +457,67 @@ class SequencerSubMenu {
       btn.textContent = step.state === 'mute' ? 'M' : step.state === 'random' ? 'R' : 'N'
 
       this._notifyParamsChange()
-    })
+    }
+
+    container.addEventListener('input', inputHandler)
+    container.addEventListener('click', clickHandler)
+
+    this._stepListenersCleanup = () => {
+      container.removeEventListener('input', inputHandler)
+      container.removeEventListener('click', clickHandler)
+    }
+  }
+
+  static DRUM_STATES = ['off', 'ghost', 'normal', 'accent']
+
+  _attachDrumStepListeners (container) {
+    // Drum cell click: cycle 4 states (off → ghost → normal → accent → off)
+    const clickHandler = (e) => {
+      // Cell click
+      const cell = e.target.closest('.drum-seq-cell')
+      if (cell) {
+        const layerName = cell.dataset.layer
+        const stepIndex = parseInt(cell.dataset.step, 10)
+        const layer = this.drumLayers[layerName]
+        if (!layer) return
+
+        const step = layer.steps[stepIndex]
+        if (!step) return
+
+        const currentIdx = SequencerSubMenu.DRUM_STATES.indexOf(step.state)
+        step.state = SequencerSubMenu.DRUM_STATES[(currentIdx + 1) % 4]
+
+        // Update cell classes
+        cell.className = `drum-seq-cell ${step.state}`
+        if (stepIndex === this.activeStep) cell.classList.add('active-led')
+
+        this._notifyParamsChange()
+        return
+      }
+
+      // Mute button click
+      const muteBtn = e.target.closest('.drum-seq-mute')
+      if (muteBtn) {
+        const layerName = muteBtn.dataset.layer
+        const layer = this.drumLayers[layerName]
+        if (!layer) return
+
+        layer.muted = !layer.muted
+        muteBtn.classList.toggle('muted', layer.muted)
+
+        // Dim the entire row
+        const layerRow = muteBtn.closest('.drum-seq-layer')
+        if (layerRow) layerRow.classList.toggle('muted', layer.muted)
+
+        this._notifyParamsChange()
+      }
+    }
+
+    container.addEventListener('click', clickHandler)
+
+    this._stepListenersCleanup = () => {
+      container.removeEventListener('click', clickHandler)
+    }
   }
 
   _attachSwipeHandler () {
@@ -378,7 +529,7 @@ class SequencerSubMenu {
 
     const onTouchStart = (e) => {
       if (!window.matchMedia(SequencerSubMenu.MOBILE_BREAKPOINT).matches) return
-      if (e.target.closest('.sequencer-step-slider, .sequencer-step-btn, .sequencer-start-btn, .sequencer-speed-select, .sequencer-step-count-select')) return
+      if (e.target.closest('.sequencer-step-slider, .sequencer-step-btn, .sequencer-start-btn, .sequencer-speed-select, .sequencer-step-count-select, .drum-seq-cell, .drum-seq-mute')) return
 
       const rect = this.element.getBoundingClientRect()
       const touchY = e.touches[0].clientY
@@ -436,6 +587,7 @@ class SequencerSubMenu {
     const container = this.element?.querySelector('.sequencer-steps-container')
     if (!container) return
     container.innerHTML = this._getStepsHTML()
+    this._attachStepListeners()
   }
 
   _updateUI () {

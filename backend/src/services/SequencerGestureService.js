@@ -89,10 +89,13 @@ class SequencerGestureService {
       roomId,
       userId: userId || socketId,
       userColor: userColor || '#6bcf7f',
+      isDrumMode: params.isDrumMode || false,
+      drumPresetSlot: params.drumPresetSlot,
       params: {
         stepCount,
         speedMultiplier,
-        steps
+        steps,
+        layers: params.layers || null
       },
       isActive: true,
       isPaused: false,
@@ -214,6 +217,12 @@ class SequencerGestureService {
     if (Array.isArray(params.steps)) {
       state.params.steps = params.steps
     }
+    if (params.layers) {
+      state.params.layers = params.layers
+    }
+    if (typeof params.isDrumMode === 'boolean') {
+      state.isDrumMode = params.isDrumMode
+    }
 
     // Reset step index if step count changed
     if (state.params.stepCount !== oldStepCount) {
@@ -271,6 +280,12 @@ class SequencerGestureService {
   _executeStep (socketId) {
     const state = this.activeSequencers.get(socketId)
     if (!state || !state.isActive || state.isPaused) return
+
+    // Route to drum step execution if in drum mode
+    if (state.isDrumMode) {
+      this._executeDrumStep(socketId)
+      return
+    }
 
     const stepIndex = state.currentStepIndex
     const step = state.params.steps[stepIndex]
@@ -372,7 +387,12 @@ class SequencerGestureService {
     state.pendingTimers.push(holdEndTimer)
 
     // Prune pendingTimers array if too large (memory safeguard)
+    // Clear old timers before discarding their IDs to prevent uncancellable ghost notes
     if (state.pendingTimers.length > 500) {
+      const toDiscard = state.pendingTimers.length - 250
+      for (let i = 0; i < toDiscard; i++) {
+        clearTimeout(state.pendingTimers[i])
+      }
       state.pendingTimers = state.pendingTimers.slice(-250)
     }
 
@@ -397,6 +417,73 @@ class SequencerGestureService {
         duration: duration * 1000,
         type: 'tap'
       })
+    }
+  }
+
+  // ============================================================
+  // PRIVATE: DRUM STEP EXECUTION
+  // ============================================================
+
+  /**
+   * Execute a drum sequencer step - process all 3 layers
+   * NO addMaterial() for drums (excluded from harmonic learning)
+   * NO hold:end for drums (self-releasing via triggerAttackRelease)
+   * @param {string} socketId
+   * @private
+   */
+  _executeDrumStep (socketId) {
+    const state = this.activeSequencers.get(socketId)
+    if (!state || !state.isActive || state.isPaused) return
+
+    const stepIndex = state.currentStepIndex
+    const stepCount = state.params.stepCount
+
+    // Capture values in closure (disconnect-safe)
+    const { roomId, userId, userColor } = state
+
+    // Emit sequencer:step for LED update
+    const originSocket = this.io.sockets?.sockets?.get(socketId)
+    if (originSocket) {
+      originSocket.emit('sequencer:step', { stepIndex, userId })
+    }
+
+    // Advance index (wrapping)
+    state.currentStepIndex = (stepIndex + 1) % stepCount
+    state.gestureCount++
+
+    // Velocity map for 4 drum states
+    const VELOCITY_MAP = { ghost: 0.3, normal: 0.7, accent: 1.0 }
+    const DURATION_MAP = { bd: 0.3, sn: 0.15, hh: 0.08 }
+
+    // Process each layer
+    for (const inst of ['bd', 'sn', 'hh']) {
+      const layer = state.params.layers?.[inst]
+      if (!layer || layer.muted) continue
+
+      const step = layer.steps?.[stepIndex]
+      if (!step || step.state === 'off') continue
+
+      const velocity = VELOCITY_MAP[step.state] || 0.7
+
+      this.io.to(roomId).emit('hold:start', {
+        type: 'hold:start',
+        userId,
+        userColor,
+        isDrum: true,
+        drumInstrument: inst,
+        drumPresetSlot: state.drumPresetSlot,
+        velocity,
+        duration: DURATION_MAP[inst],
+        position: {
+          x: 0.3 + ((state.gestureCount * 1.618) % 1) * 0.4,
+          y: inst === 'bd' ? 0.8 : inst === 'sn' ? 0.5 : 0.2
+        },
+        isRemote: true,
+        isSequencer: true,
+        isAudition: false,
+        timestamp: Date.now()
+      })
+      // NO hold:end, NO addMaterial for drums
     }
   }
 

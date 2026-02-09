@@ -51,6 +51,35 @@ function validateSequencerParams (params) {
     })
   }
 
+  // Drum mode flag
+  if (typeof params.isDrumMode === 'boolean') {
+    validated.isDrumMode = params.isDrumMode
+  }
+
+  // Drum layer params (3 layers: bd, sn, hh)
+  if (params.layers && typeof params.layers === 'object') {
+    const validDrumStates = ['off', 'ghost', 'normal', 'accent']
+    const stepCount = validated.stepCount || params.stepCount || 8
+    validated.layers = {}
+    for (const inst of ['bd', 'sn', 'hh']) {
+      const layer = params.layers[inst]
+      if (layer && typeof layer === 'object') {
+        validated.layers[inst] = {
+          muted: !!layer.muted,
+          steps: (Array.isArray(layer.steps) ? layer.steps : [])
+            .slice(0, stepCount)
+            .map(s => ({
+              state: validDrumStates.includes(s?.state) ? s.state : 'off'
+            }))
+        }
+        // Pad to stepCount
+        while (validated.layers[inst].steps.length < stepCount) {
+          validated.layers[inst].steps.push({ state: 'off' })
+        }
+      }
+    }
+  }
+
   return validated
 }
 
@@ -99,6 +128,11 @@ const SequencerHandler = {
 
         // Validate and sanitize parameters
         const validatedParams = validateSequencerParams(params)
+
+        // Include preset slot for correct remote drum kit timbre
+        if (validatedParams.isDrumMode && user.synthPresetSlot !== undefined) {
+          validatedParams.drumPresetSlot = user.synthPresetSlot
+        }
 
         // Get real user identity from room
         const userColor = user.assignedColor || '#6bcf7f'

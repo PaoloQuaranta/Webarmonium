@@ -18,7 +18,55 @@ const PRESET_NAMES = {
   4: 'Soft Square',
   5: 'Wide Pulse',
   6: 'Bright Chorus',
-  7: 'Deep Bell'
+  7: 'Deep Bell',
+  8: '808 Kit',
+  9: 'Acoustic Kit',
+  10: 'Electronic Kit'
+}
+
+const DRUM_SLOTS = [8, 9, 10]
+
+/**
+ * Clamp a number to [min, max]
+ */
+function clamp (value, min, max) {
+  return Math.max(min, Math.min(max, value))
+}
+
+/**
+ * Validate drum-specific params
+ * @param {Object} params - Drum parameters
+ * @returns {Object} Validated and clamped drum parameters
+ */
+function validateDrumParams (params) {
+  if (!params || typeof params !== 'object') {
+    return { isDrum: true }
+  }
+
+  const validated = { isDrum: true }
+
+  for (const inst of ['bd', 'sn', 'hh']) {
+    if (params[inst] && typeof params[inst] === 'object') {
+      validated[inst] = {
+        pitch: clamp(Number(params[inst].pitch) || 0.5, 0, 1),
+        decay: clamp(Number(params[inst].decay) || 0.5, 0, 1),
+        tone: clamp(Number(params[inst].tone) || 0.5, 0, 1)
+      }
+      // SN and HH have delay param, BD does not
+      if (inst !== 'bd' && params[inst].delay !== undefined) {
+        validated[inst].delay = clamp(Number(params[inst].delay) || 0, 0, 1)
+      }
+    }
+  }
+
+  if (typeof params.reverb === 'number') {
+    validated.reverb = clamp(params.reverb, 0, 1)
+  }
+  if (typeof params.volume === 'number') {
+    validated.volume = clamp(params.volume, -12, 12)
+  }
+
+  return validated
 }
 
 /**
@@ -140,13 +188,16 @@ const SynthHandler = {
           return
         }
 
-        // Validate and clamp params
-        const validatedParams = validateSynthParams(data.params)
+        // Validate and clamp params (drum vs synth)
+        const isDrumPreset = data.presetSlot !== undefined && DRUM_SLOTS.includes(Number(data.presetSlot))
+        const validatedParams = (data.params?.isDrum || isDrumPreset)
+          ? validateDrumParams(data.params)
+          : validateSynthParams(data.params)
 
-        // Validate preset slot if provided
+        // Validate preset slot if provided (0-10: 0-7 synth, 8-10 drum)
         let presetSlot = data.presetSlot
         if (presetSlot !== undefined) {
-          presetSlot = Math.max(0, Math.min(7, Math.round(Number(presetSlot) || 0)))
+          presetSlot = Math.max(0, Math.min(10, Math.round(Number(presetSlot) || 0)))
         }
 
         // Store in user object for late joiners
@@ -201,7 +252,7 @@ const SynthHandler = {
           return
         }
 
-        const requestedSlot = Math.max(0, Math.min(7, Math.round(Number(data.requestedSlot) || 0)))
+        const requestedSlot = Math.max(0, Math.min(10, Math.round(Number(data.requestedSlot) || 0)))
 
         const room = socket.services.roomManager.getRoom(socket.roomId)
         if (!room) {
@@ -212,16 +263,34 @@ const SynthHandler = {
         }
 
         // Check if slot is already used by another user
+        // Drum slots (8-10) are grouped: if ANY is taken, ALL are unavailable
+        const isDrumRequest = DRUM_SLOTS.includes(requestedSlot)
+
         for (const [userId, user] of room.users) {
-          if (userId !== socket.userId && user.synthPresetSlot === requestedSlot) {
-            // Slot is taken
-            if (callback) {
-              callback({
-                granted: false,
-                takenBy: PRESET_NAMES[requestedSlot] || `Preset ${requestedSlot}`
-              })
+          if (userId === socket.userId) continue
+
+          if (isDrumRequest) {
+            // Check if any drum slot is occupied by another user
+            if (DRUM_SLOTS.includes(user.synthPresetSlot)) {
+              if (callback) {
+                callback({
+                  granted: false,
+                  takenBy: 'Drum Machine (in use)'
+                })
+              }
+              return
             }
-            return
+          } else {
+            // Regular synth slot check
+            if (user.synthPresetSlot === requestedSlot) {
+              if (callback) {
+                callback({
+                  granted: false,
+                  takenBy: PRESET_NAMES[requestedSlot] || `Preset ${requestedSlot}`
+                })
+              }
+              return
+            }
           }
         }
 
@@ -282,11 +351,24 @@ const SynthHandler = {
    */
   getOccupiedSlots (room) {
     const occupied = []
+    let drumOccupied = false
 
     if (room?.users) {
       for (const [userId, user] of room.users) {
         if (user.synthPresetSlot !== undefined) {
           occupied.push(user.synthPresetSlot)
+          if (DRUM_SLOTS.includes(user.synthPresetSlot)) {
+            drumOccupied = true
+          }
+        }
+      }
+    }
+
+    // If any drum slot is occupied, mark ALL drum slots as occupied
+    if (drumOccupied) {
+      for (const slot of DRUM_SLOTS) {
+        if (!occupied.includes(slot)) {
+          occupied.push(slot)
         }
       }
     }

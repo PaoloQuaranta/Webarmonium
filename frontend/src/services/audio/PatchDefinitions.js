@@ -90,12 +90,17 @@ const VIRTUAL_USER_PATCHES = {
 }
 
 /**
- * Real User Patches - 4 slots for max 4 users per room
- * EACH USES A UNIQUE OSCILLATOR TYPE (different from virtual users):
+ * Real User Patches - 11 slots (0-7 synth, 8-10 drum kits)
+ * SYNTH PRESETS (each uses unique oscillator type):
  * - Slot 0: SQUARE (retro, 8-bit feel)
  * - Slot 1: PULSE (nasal, reedy)
  * - Slot 2: FATSAWTOOTH (chorus, lush)
  * - Slot 3: FMSINE (bell-like, metallic)
+ * - Slots 4-7: Variants of 0-3
+ * DRUM KIT PRESETS (1 per room, type: 'drum'):
+ * - Slot 8: 808 Kit (deep sub-bass BD, tight SN, closed HH)
+ * - Slot 9: Acoustic Kit (natural resonant BD, bright SN, shimmer HH)
+ * - Slot 10: Electronic Kit (punchy synthetic BD, noisy SN, glitchy HH)
  */
 const REAL_USER_PATCHES = {
   0: {
@@ -293,6 +298,46 @@ const REAL_USER_PATCHES = {
       delaySend: 0.4,       // More delay
       reverbSend: 0.5       // More reverb
     }
+  },
+
+  // SLOTS 8-10: Drum kit presets
+  // Only 1 drum machine per room (slots 8-10 grouped as single resource)
+  // type: 'drum' enables drum mode in SynthPanel, AudioService, Audition, Sequencer
+
+  8: {
+    name: '808 Kit',
+    type: 'drum',
+    instruments: {
+      bd: { pitch: 0.4, decay: 0.7, tone: 0.4 },
+      sn: { pitch: 0.45, decay: 0.3, tone: 0.7, delay: 0.15 },
+      hh: { pitch: 0.3, decay: 0.2, tone: 0.3, delay: 0.0 }
+    },
+    reverb: 0.2,
+    volume: 0
+  },
+
+  9: {
+    name: 'Acoustic Kit',
+    type: 'drum',
+    instruments: {
+      bd: { pitch: 0.55, decay: 0.5, tone: 0.6 },
+      sn: { pitch: 0.6, decay: 0.6, tone: 0.5, delay: 0.25 },
+      hh: { pitch: 0.6, decay: 0.4, tone: 0.7, delay: 0.1 }
+    },
+    reverb: 0.45,
+    volume: 0
+  },
+
+  10: {
+    name: 'Electronic Kit',
+    type: 'drum',
+    instruments: {
+      bd: { pitch: 0.5, decay: 0.3, tone: 0.9 },
+      sn: { pitch: 0.35, decay: 0.8, tone: 0.8, delay: 0.4 },
+      hh: { pitch: 0.7, decay: 0.1, tone: 0.9, delay: 0.35 }
+    },
+    reverb: 0.15,
+    volume: 0
   }
 }
 
@@ -317,16 +362,17 @@ function isVirtualUser(userId) {
 /**
  * Get the patch definition for a user
  * @param {string} userId - The user ID
- * @param {number} userSlot - The slot number for real users (0-3)
+ * @param {number} userSlot - The slot number for real users (0-10)
  * @returns {Object|null} The patch definition or null if not found
  */
 function getPatchForUser(userId, userSlot = 0) {
   if (isVirtualUser(userId)) {
     return VIRTUAL_USER_PATCHES[userId]
   }
-  // Real user - use slot-based patch (8 slots for race condition handling)
-  const slot = Math.abs(userSlot) % 8  // Ensure slot is 0-7
-  return REAL_USER_PATCHES[slot]
+  // Real user - use slot-based patch (11 slots: 0-7 synth + 8-10 drum kits)
+  const safeSlot = Number.isFinite(userSlot) ? Math.abs(userSlot) : 0
+  const slot = safeSlot % 11  // Ensure slot is 0-10
+  return REAL_USER_PATCHES[slot] || REAL_USER_PATCHES[0]
 }
 
 /**
@@ -336,6 +382,20 @@ function getPatchForUser(userId, userSlot = 0) {
 function getVirtualUserIds() {
   return [...VIRTUAL_USER_IDS]
 }
+
+/**
+ * Check if a preset slot is a drum kit
+ * @param {number} slot - The preset slot number
+ * @returns {boolean} True if drum kit preset
+ */
+function isDrumPreset (slot) {
+  return REAL_USER_PATCHES[slot]?.type === 'drum'
+}
+
+/**
+ * Drum preset slot range
+ */
+const DRUM_SLOTS = [8, 9, 10]
 
 /**
  * Get patch by name (for debugging/testing)
@@ -360,7 +420,9 @@ if (typeof window !== 'undefined') {
     VIRTUAL_USER_PATCHES,
     REAL_USER_PATCHES,
     VIRTUAL_USER_IDS,
+    DRUM_SLOTS,
     isVirtualUser,
+    isDrumPreset,
     getPatchForUser,
     getVirtualUserIds,
     getPatchByName
@@ -374,7 +436,9 @@ if (typeof module !== 'undefined' && module.exports) {
     VIRTUAL_USER_PATCHES,
     REAL_USER_PATCHES,
     VIRTUAL_USER_IDS,
+    DRUM_SLOTS,
     isVirtualUser,
+    isDrumPreset,
     getPatchForUser,
     getVirtualUserIds,
     getPatchByName

@@ -637,7 +637,7 @@ class SocketService {
 
   /**
    * Request to use a specific preset slot
-   * @param {number} slot - Requested preset slot (0-7)
+   * @param {number} slot - Requested preset slot (0-10: 0-7 synth, 8-10 drum)
    * @returns {Promise<{granted: boolean, takenBy?: string}>}
    */
   async requestPresetSlot(slot) {

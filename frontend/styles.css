@@ -3943,6 +3943,114 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   outline: none;
 }
 
+/* ============================================================
+   Drum Sequencer Grid
+   3-layer grid (BD/SN/HH) with per-layer mute and 4-state cells
+   ============================================================ */
+.drum-seq-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 4px;
+}
+
+.drum-seq-layer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.drum-seq-label {
+  width: 22px;
+  font-size: 8px;
+  text-transform: uppercase;
+  color: var(--synth-accent, var(--accent, #2dd4bf));
+  text-align: center;
+  flex-shrink: 0;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.drum-seq-steps {
+  display: flex;
+  gap: 3px;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.drum-seq-cell {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.1s;
+  flex-shrink: 0;
+}
+
+.drum-seq-cell.off {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.drum-seq-cell.ghost {
+  background: var(--synth-accent, var(--accent, #2dd4bf));
+  opacity: 0.25;
+}
+
+.drum-seq-cell.normal {
+  background: var(--synth-accent, var(--accent, #2dd4bf));
+  opacity: 0.65;
+}
+
+.drum-seq-cell.accent {
+  background: var(--synth-accent, var(--accent, #2dd4bf));
+  opacity: 1;
+  border-color: #fff;
+}
+
+.drum-seq-cell.active-led {
+  box-shadow: 0 0 6px var(--synth-accent, var(--accent, #2dd4bf));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .drum-seq-cell:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+}
+
+.drum-seq-mute {
+  width: 22px;
+  height: 20px;
+  font-size: 7px;
+  font-weight: 600;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  color: var(--dim, #6b7280);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.drum-seq-mute:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.drum-seq-mute.muted {
+  opacity: 0.3;
+  background: rgba(255, 100, 100, 0.15);
+  border-color: rgba(255, 100, 100, 0.3);
+  color: #ff6b6b;
+}
+
+.drum-seq-layer.muted .drum-seq-cell {
+  opacity: 0.15 !important;
+}
+
 /* Mobile responsive */
 @media (max-width: 500px) {
   .sequencer-submenu {
@@ -4024,6 +4132,23 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
     width: 100%;
     padding: 14px 32px;
     min-height: 48px;
+  }
+
+  /* Drum grid mobile */
+  .drum-seq-cell {
+    width: 28px;
+    height: 28px;
+  }
+  .drum-seq-label {
+    font-size: 10px;
+    width: 28px;
+  }
+  .drum-seq-mute {
+    width: 28px;
+    height: 28px;
+    font-size: 8px;
+    min-height: 44px;
+    min-width: 44px;
   }
 }
 

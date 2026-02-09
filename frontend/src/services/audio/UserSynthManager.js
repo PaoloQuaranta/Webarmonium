@@ -20,6 +20,9 @@ class UserSynthManager {
     // Map<userId, { synth, filter, volume, pan, delaySend, reverbSend }>
     this.userSynths = new Map()
 
+    // Map<userId, drumKit> - cached drum kits for remote users
+    this.userDrumKits = new Map()
+
     // Track active notes per user for cleanup
     this.activeNotes = new Map()  // Map<noteId, userId>
 
@@ -364,9 +367,9 @@ class UserSynthManager {
         else if (userId === 'github-metrics') panValue = 0.5
         // hackernews-metrics stays at center (0)
       } else {
-        // Real users: slight spread based on slot (8 slots now)
-        // Map slot 0-7 to pan -0.7 to +0.7
-        panValue = ((slot % 8) - 3.5) * 0.2  // Clamps naturally to -0.7 to +0.7
+        // Real users: slight spread based on slot (11 slots: 0-7 synth, 8-10 drum)
+        // Map slot 0-7 to pan -0.7 to +0.7, drum slots 8-10 center
+        panValue = slot >= 8 ? 0 : ((slot % 8) - 3.5) * 0.2
       }
       // DEFENSIVE: Clamp pan value to valid range [-1, 1]
       panValue = Math.max(-1, Math.min(1, panValue))
@@ -607,6 +610,120 @@ class UserSynthManager {
   }
 
   /**
+   * Play a drum hit for a remote user
+   * Creates/caches a drum kit per user using PatchDefinitions defaults
+   * @param {string} userId - Remote user ID
+   * @param {string} instrument - 'bd', 'sn', or 'hh'
+   * @param {number} velocity - Hit velocity (0-1)
+   * @param {number} presetSlot - Drum kit preset slot (8-10), defaults to 8
+   */
+  playDrumHit (userId, instrument, velocity = 0.7, presetSlot = 8) {
+    if (!userId || !instrument) return
+
+    try {
+      let kit = this.userDrumKits.get(userId)
+
+      // Create drum kit if not cached (use actual preset slot for correct timbre)
+      if (!kit) {
+        const patchDefs = this.patchDefinitions || window.PatchDefinitions
+        const drumPatch = patchDefs?.REAL_USER_PATCHES?.[presetSlot] ||
+                          patchDefs?.REAL_USER_PATCHES?.[8] // Fallback to 808
+        if (!drumPatch || drumPatch.type !== 'drum') return
+
+        const inst = drumPatch.instruments
+        kit = {}
+
+        // BD: MembraneSynth
+        kit.bd = new Tone.MembraneSynth({
+          pitchDecay: 0.05 + inst.bd.pitch * 0.3,
+          octaves: 2 + inst.bd.tone * 6,
+          envelope: { attack: 0.001, decay: 0.05 + inst.bd.decay * 1.45, sustain: 0, release: 0.1 }
+        })
+        kit.bd.frequency.value = 30 + inst.bd.pitch * 60
+
+        // SN: MembraneSynth + NoiseSynth
+        kit.snBody = new Tone.MembraneSynth({
+          pitchDecay: 0.02, octaves: 3,
+          envelope: { attack: 0.001, decay: 0.08, sustain: 0, release: 0.05 }
+        })
+        kit.snBody.frequency.value = 120 + inst.sn.pitch * 180
+        kit.snNoise = new Tone.NoiseSynth({
+          noise: { type: 'white' },
+          envelope: { attack: 0.001, decay: 0.05 + inst.sn.decay * 0.45, sustain: 0, release: 0.01 }
+        })
+        kit.snFilter = new Tone.Filter({ type: 'bandpass', frequency: 1000 + inst.sn.tone * 7000, Q: 1.5 })
+        kit.snMerge = new Tone.Gain(1)
+        kit.snBody.connect(kit.snMerge)
+        kit.snNoise.connect(kit.snFilter)
+        kit.snFilter.connect(kit.snMerge)
+
+        // HH: MetalSynth
+        kit.hh = new Tone.MetalSynth({
+          frequency: 200 + inst.hh.pitch * 400,
+          envelope: { attack: 0.001, decay: 0.01 + inst.hh.decay * 0.29, release: 0.01 },
+          harmonicity: 0.5 + inst.hh.tone * 4.5, resonance: 4000, volume: -6
+        })
+
+        // Connect all to master volume
+        if (this.masterVolume) {
+          const gain = new Tone.Gain(0.7)
+          kit.bd.connect(gain)
+          kit.snMerge.connect(gain)
+          kit.hh.connect(gain)
+          gain.connect(this.masterVolume)
+          kit.outputGain = gain
+        }
+
+        kit.lastUsedTime = Date.now()
+        this.userDrumKits.set(userId, kit)
+      }
+
+      kit.lastUsedTime = Date.now()
+
+      // Trigger hit
+      const now = Tone.now()
+      const safeTime = Math.max(now, (kit.lastTriggerTime || 0) + 0.01)
+      kit.lastTriggerTime = safeTime
+      const vel = Math.max(0.1, Math.min(1.0, velocity))
+
+      switch (instrument) {
+        case 'bd':
+          kit.bd.triggerAttackRelease('C1', '8n', safeTime, vel)
+          break
+        case 'sn':
+          kit.snBody.triggerAttackRelease('E1', '16n', safeTime, vel * 0.6)
+          kit.snNoise.triggerAttackRelease('16n', safeTime, vel)
+          break
+        case 'hh':
+          kit.hh.triggerAttackRelease('32n', safeTime, vel)
+          break
+      }
+    } catch (error) {
+      console.warn(`[UserSynthManager] playDrumHit failed for ${userId}:`, error.message)
+    }
+  }
+
+  /**
+   * Cleanup a user's cached drum kit
+   * @param {string} userId
+   */
+  cleanupUserDrumKit (userId) {
+    const kit = this.userDrumKits.get(userId)
+    if (!kit) return
+
+    const nodes = [
+      kit.bd, kit.snBody, kit.snNoise, kit.snFilter, kit.snMerge,
+      kit.hh, kit.outputGain
+    ]
+    nodes.forEach(n => {
+      if (n && !n.disposed) {
+        try { n.disconnect(); n.dispose() } catch (e) { /* already disposed */ }
+      }
+    })
+    this.userDrumKits.delete(userId)
+  }
+
+  /**
    * OPTIMIZATION: Automatic cleanup of inactive synths
    * Runs every 30 seconds to prevent memory leaks
    * CRITICAL: Uses 90s + 10s buffer to prevent cleanup during long release envelopes
@@ -653,6 +770,14 @@ class UserSynthManager {
         const userId = sorted[i][0]
         // console.log(`🧹 Max capacity cleanup for ${userId.substring(0, 8)}`)
         this.cleanupUserSynth(userId)
+      }
+    }
+
+    // Also cleanup idle drum kits
+    for (const [userId, kit] of this.userDrumKits.entries()) {
+      const idleTime = now - (kit.lastUsedTime || 0)
+      if (idleTime > this.IDLE_THRESHOLD) {
+        this.cleanupUserDrumKit(userId)
       }
     }
   }

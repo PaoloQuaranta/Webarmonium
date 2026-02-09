@@ -36,8 +36,6 @@ class GestureAudioMapper {
       '#ff2d92', '#00d4ff', '#a855f7',  // Virtual users (Wikipedia, HackerNews, GitHub)
       '#a3e635', '#fb923c', '#2dd4bf', '#facc15', '#f472b6', '#38bdf8', '#22c55e'  // Real users
     ]
-    this.colorFrequencyRange = { min: 200, max: 800 }
-
     // Current parameters state for smoothing
     this.currentParameters = {}
   }
@@ -288,47 +286,6 @@ class GestureAudioMapper {
    */
   midiNoteToFrequency(midiNote) {
     return 440 * Math.pow(2, (midiNote - 69) / 12)
-  }
-
-  /**
-   * Map color to frequency based on 10-color pool
-   * @param {string} color - Hex color (#rrggbb)
-   * @returns {number|null} Frequency in Hz (200-800) or null if invalid
-   */
-  mapColorToFrequency(color) {
-    if (!color || typeof color !== 'string') {
-      return null
-    }
-
-    const normalizedColor = color.toLowerCase()
-    const colorIndex = this.colorPool.findIndex(c => c.toLowerCase() === normalizedColor)
-
-    if (colorIndex === -1) {
-      return null
-    }
-
-    const { min, max } = this.colorFrequencyRange
-    return min + (colorIndex / (this.colorPool.length - 1)) * (max - min)
-  }
-
-  /**
-   * Calculate filter frequency from gesture parameters
-   * @param {Object} sonicParams - Sonic parameters
-   * @returns {number} Filter frequency
-   */
-  calculateFilterFrequency(sonicParams) {
-    const y = sonicParams.y || 0.5
-    return 200 + ((1 - y) * 3800)
-  }
-
-  /**
-   * Calculate filter resonance from gesture parameters
-   * @param {Object} sonicParams - Sonic parameters
-   * @returns {number} Filter resonance (Q)
-   */
-  calculateFilterResonance(sonicParams) {
-    const x = sonicParams.x || 0.5
-    return 0.5 + (x * 4.5)
   }
 
   /**
