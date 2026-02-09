@@ -661,7 +661,7 @@ class UserSynthManager {
         kit.hh = new Tone.MetalSynth({
           frequency: 200 + inst.hh.pitch * 600,
           envelope: { attack: 0.001, decay: 0.08 + inst.hh.decay * 0.32, release: 0.05 },
-          harmonicity: 5.1 + inst.hh.tone * 3, resonance: 300, octaves: 4, volume: 0
+          harmonicity: 5.1 + inst.hh.tone * 3, resonance: 300, octaves: 4, volume: -6
         })
 
         // Connect all to master volume

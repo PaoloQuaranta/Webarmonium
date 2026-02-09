@@ -7445,7 +7445,7 @@ class AudioService {
       harmonicity: 5.1 + inst.hh.tone * 3,
       resonance: 300,
       octaves: 4,
-      volume: 0
+      volume: -6
     })
 
     return kit
