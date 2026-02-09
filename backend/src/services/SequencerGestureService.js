@@ -498,7 +498,7 @@ class SequencerGestureService {
    */
   _getSystemBPM (roomId) {
     const style = this.backgroundCompositionService?.getCurrentStyleForRoom?.(roomId)
-    return style?.tempo || 120
+    return style?.currentBPM || 120
   }
 
   /**
