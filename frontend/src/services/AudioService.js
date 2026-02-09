@@ -7433,17 +7433,19 @@ class AudioService {
     kit.snFilter.connect(kit.snMerge)
 
     // === HI-HAT: MetalSynth ===
+    // resonance = highpass filter resting freq; octaves = sweep range during envelope
+    // Old resonance (1500) blocked fundamental (300-700Hz) — lowered to 300 so partials pass through
     kit.hh = new Tone.MetalSynth({
-      frequency: 300 + inst.hh.pitch * 400,
+      frequency: 200 + inst.hh.pitch * 600,
       envelope: {
         attack: 0.001,
-        decay: 0.05 + inst.hh.decay * 0.35,
-        release: 0.02
+        decay: 0.08 + inst.hh.decay * 0.32,
+        release: 0.05
       },
-      harmonicity: 3 + inst.hh.tone * 7,
-      resonance: 1500,
-      octaves: 2,
-      volume: 6
+      harmonicity: 5.1 + inst.hh.tone * 3,
+      resonance: 300,
+      octaves: 4,
+      volume: 0
     })
 
     return kit
@@ -7573,13 +7575,14 @@ class AudioService {
       // HH params
       if (params.hh) {
         if (params.hh.pitch !== undefined) {
-          kit.hh.set({ frequency: 300 + params.hh.pitch * 400 })
+          kit.hh.set({ frequency: 200 + params.hh.pitch * 600 })
         }
         if (params.hh.decay !== undefined) {
-          kit.hh.set({ envelope: { decay: 0.05 + params.hh.decay * 0.35 } })
+          kit.hh.set({ envelope: { decay: 0.08 + params.hh.decay * 0.32 } })
         }
         if (params.hh.tone !== undefined) {
-          kit.hh.set({ harmonicity: 3 + params.hh.tone * 7 })
+          kit.hh.set({ harmonicity: 5.1 + params.hh.tone * 3 })
+          kit.hh.octaves = 3.5 + params.hh.tone * 1.5 // property setter — ricalcola highpass sweep
         }
         if (params.hh.delay !== undefined && kit.hhDelaySend) {
           kit.hhDelaySend.gain.rampTo(params.hh.delay, 0.1)

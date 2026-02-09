@@ -657,11 +657,11 @@ class UserSynthManager {
         kit.snNoise.connect(kit.snFilter)
         kit.snFilter.connect(kit.snMerge)
 
-        // HH: MetalSynth
+        // HH: MetalSynth — resonance=300 keeps highpass below fundamental so partials pass through
         kit.hh = new Tone.MetalSynth({
-          frequency: 300 + inst.hh.pitch * 400,
-          envelope: { attack: 0.001, decay: 0.05 + inst.hh.decay * 0.35, release: 0.02 },
-          harmonicity: 3 + inst.hh.tone * 7, resonance: 1500, octaves: 2, volume: 6
+          frequency: 200 + inst.hh.pitch * 600,
+          envelope: { attack: 0.001, decay: 0.08 + inst.hh.decay * 0.32, release: 0.05 },
+          harmonicity: 5.1 + inst.hh.tone * 3, resonance: 300, octaves: 4, volume: 0
         })
 
         // Connect all to master volume
