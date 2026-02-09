@@ -243,7 +243,10 @@ class AuditionGestureService {
   // ============================================================
 
   /**
-   * Schedule next gesture with PHI-based timing
+   * Schedule next gesture quantized to composition BPM clock.
+   * frequency param maps to beat subdivisions:
+   *   0 → 4 beats (whole note), 0.5 → 1 beat (quarter), 1 → 0.25 beats (sixteenth)
+   * regularity controls grid tightness (1 = exact, 0 = loose)
    * @param {string} socketId - Socket ID
    * @private
    */
@@ -253,18 +256,22 @@ class AuditionGestureService {
 
     const { frequency, regularity } = state.params
 
-    // Base interval: 500ms (fast) to 4000ms (slow)
-    // frequency=1 → 500ms, frequency=0 → 4000ms
-    const baseInterval = 500 + (1 - frequency) * 3500
+    // Derive interval from composition BPM
+    const bpm = this._getSystemBPM(state.roomId)
+    const beatMs = 60000 / bpm
 
-    // Regularity affects jitter: 0 = high variance, 1 = precise timing
-    const jitterRange = baseInterval * 0.5 * (1 - regularity)
+    // Exponential mapping: frequency 0→4 beats, 0.5→1 beat, 1→0.25 beats
+    const beatCount = 4 * Math.pow(0.0625, frequency)
+    const baseInterval = beatMs * beatCount
+
+    // Regularity: snap to grid (1 = exact grid, 0 = loose timing)
+    const jitterRange = beatMs * 0.5 * (1 - regularity)
     const randomJitter = (Math.random() - 0.5) * 2 * jitterRange
 
-    // PHI-based variation for natural feel
-    const phiVariation = ((state.gestureCount * PHI) % 1 - 0.5) * 0.2 * baseInterval
+    // PHI-based variation for natural feel (reduced, relative to beat)
+    const phiVariation = ((state.gestureCount * PHI) % 1 - 0.5) * 0.15 * beatMs
 
-    const interval = Math.max(200, baseInterval + randomJitter + phiVariation)
+    const interval = Math.max(100, baseInterval + randomJitter + phiVariation)
 
     state.gestureTimer = setTimeout(() => {
       if (!state.isActive) return
@@ -487,7 +494,9 @@ class AuditionGestureService {
    */
   _emitTapGesture (state, frequency, position, intensity) {
     const noteId = `audition_tap_${Date.now()}_${state.gestureCount}`
-    const duration = 0.15 + Math.random() * 0.35 // 150-500ms
+    // Duration relative to beat: 50-80% of one beat
+    const beatSec = 60 / this._getSystemBPM(state.roomId)
+    const duration = beatSec * (0.5 + Math.random() * 0.3)
 
     // Get style from composition service for harmonic coherence
     const style = this.backgroundCompositionService?.getCurrentStyleForRoom(state.roomId)
@@ -579,8 +588,9 @@ class AuditionGestureService {
   _emitDragGesture (state, startFrequency, startPosition, intensity, uniformity) {
     const noteId = `audition_drag_${Date.now()}_${state.gestureCount}`
 
-    // Phrase duration: 500ms to 2500ms (shorter for uniformity=1)
-    const phraseDuration = 500 + (1 - uniformity) * 2000
+    // Phrase duration relative to beat: 1-4 beats (shorter for uniformity=1)
+    const beatMs = 60000 / this._getSystemBPM(state.roomId)
+    const phraseDuration = beatMs * (1 + (1 - uniformity) * 3)
     const noteCount = Math.floor(2 + Math.random() * 5) // 2-6 notes
 
     // Calculate frequency trajectory (end frequency varies based on uniformity)
@@ -726,6 +736,17 @@ class AuditionGestureService {
       if (roomEngine) return roomEngine
     }
     return this.harmonicEngine
+  }
+
+  /**
+   * Get system BPM from BackgroundCompositionService
+   * @param {string} roomId - Room ID
+   * @returns {number} BPM (defaults to 120)
+   * @private
+   */
+  _getSystemBPM (roomId) {
+    const style = this.backgroundCompositionService?.getCurrentStyleForRoom?.(roomId)
+    return style?.currentBPM || 120
   }
 
   /**
