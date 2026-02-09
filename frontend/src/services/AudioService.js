@@ -7434,15 +7434,16 @@ class AudioService {
 
     // === HI-HAT: MetalSynth ===
     kit.hh = new Tone.MetalSynth({
-      frequency: 200 + inst.hh.pitch * 400,
+      frequency: 300 + inst.hh.pitch * 400,
       envelope: {
         attack: 0.001,
         decay: 0.05 + inst.hh.decay * 0.35,
         release: 0.02
       },
-      harmonicity: 0.5 + inst.hh.tone * 4.5,
-      resonance: 4000,
-      volume: 0
+      harmonicity: 3 + inst.hh.tone * 7,
+      resonance: 1500,
+      octaves: 2,
+      volume: 6
     })
 
     return kit
@@ -7572,13 +7573,13 @@ class AudioService {
       // HH params
       if (params.hh) {
         if (params.hh.pitch !== undefined) {
-          kit.hh.set({ frequency: 200 + params.hh.pitch * 400 })
+          kit.hh.set({ frequency: 300 + params.hh.pitch * 400 })
         }
         if (params.hh.decay !== undefined) {
           kit.hh.set({ envelope: { decay: 0.05 + params.hh.decay * 0.35 } })
         }
         if (params.hh.tone !== undefined) {
-          kit.hh.set({ harmonicity: 0.5 + params.hh.tone * 4.5 })
+          kit.hh.set({ harmonicity: 3 + params.hh.tone * 7 })
         }
         if (params.hh.delay !== undefined && kit.hhDelaySend) {
           kit.hhDelaySend.gain.rampTo(params.hh.delay, 0.1)
