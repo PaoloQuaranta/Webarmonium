@@ -10,7 +10,7 @@
  * - PrecomputedAttractorSystem: Strange attractors (Lorenz/Rossler) with precomputed keyframes
  *
  * Responsibilities:
- * - p5.js instance lifecycle (setup, draw, dispose)
+ * - CanvasAdapter instance lifecycle (setup, draw, dispose)
  * - Coordinate all visual subsystems
  * - Maintain API compatibility (updateCursorPosition, updateGestureData, removeUser)
  * - Performance monitoring and degradation modes
@@ -18,7 +18,7 @@
 
 class GenerativeVisualService {
   constructor() {
-    // p5.js instance (created in instance mode)
+    // CanvasAdapter instance (p5-compatible, created in instance mode)
     this.p5Instance = null
 
     // Subsystems
@@ -109,8 +109,8 @@ class GenerativeVisualService {
   }
 
   /**
-   * Initialize p5.js instance and all subsystems
-   * @param {HTMLElement} containerElement - DOM element to attach p5.js canvas
+   * Initialize CanvasAdapter instance and all subsystems
+   * @param {HTMLElement} containerElement - DOM element to attach canvas
    */
   initialize(containerElement) {
 
@@ -139,8 +139,8 @@ class GenerativeVisualService {
 
       this.attractors = new PrecomputedAttractorSystem()
 
-      // Create p5.js instance in instance mode
-      this.p5Instance = new p5((p) => {
+      // Create CanvasAdapter instance (lightweight p5-compatible replacement)
+      this.p5Instance = new CanvasAdapter((p) => {
         p.setup = () => {
           this.setup(p)
         }
@@ -152,9 +152,9 @@ class GenerativeVisualService {
       // PERF: Expose instance on window for subsystem stress factor access
       window.visualService = this
 
-      // Note: Graphics quality is now applied in setup() after p5.js canvas is ready
+      // Note: Graphics quality is now applied in setup() after canvas is ready
       // This prevents race conditions where settings are applied before subsystems
-      // are fully connected to the p5 rendering context
+      // are fully connected to the rendering context
 
       // Apply reduced motion settings if user prefers
       if (this.prefersReducedMotion) {
@@ -219,8 +219,8 @@ class GenerativeVisualService {
   }
 
   /**
-   * p5.js setup - runs once on initialization
-   * @param {p5} p - p5.js instance
+   * Canvas setup - runs once on initialization
+   * @param {CanvasAdapter} p - CanvasAdapter instance
    */
   setup(p) {
     // CRITICAL: Set pixel density to 1 for consistent coordinate mapping
@@ -270,8 +270,8 @@ class GenerativeVisualService {
   }
 
   /**
-   * p5.js draw - runs every frame
-   * @param {p5} p - p5.js instance
+   * Canvas draw - runs every frame
+   * @param {CanvasAdapter} p - CanvasAdapter instance
    */
   draw(p) {
     // Check idle state
@@ -317,8 +317,8 @@ class GenerativeVisualService {
       // Phase 3 Idle Detection: Skip wave/particle updates if no recent activity
       const nowMs = Date.now()
       // DEFENSIVE FIX: Use Math.max to handle clock adjustments (NTP, timezone, DST)
-      const waveIdle = Math.max(0, nowMs - this.lastWaveEmit) > this.idleThreshold
-      const particleIdle = Math.max(0, nowMs - this.lastParticleEmit) > this.idleThreshold
+      const waveIdle = Math.max(0, nowMs - this.lastWaveEmit) > this.idleThreshold && this.wavePackets.getPulseCount() === 0
+      const particleIdle = Math.max(0, nowMs - this.lastParticleEmit) > this.idleThreshold && this.particles.getParticleCount() === 0
 
       // PRIORITY 1 (always): Physics + spring mesh (core visual identity)
       this.springMesh.updatePhysics(dt)
@@ -879,7 +879,7 @@ class GenerativeVisualService {
       this.springMesh = null
     }
 
-    // Remove p5.js instance
+    // Remove CanvasAdapter instance
     if (this.p5Instance) {
       this.p5Instance.remove()
       this.p5Instance = null
