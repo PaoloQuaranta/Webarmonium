@@ -447,14 +447,18 @@ class NeonNebulaSystem {
 
         if (alpha < C.MIN_ALPHA_THRESHOLD) continue
 
-        // Skip ~40% of cells for organic texture (hash instead of noise — ~100x faster)
-        const skipHash = ((x * 73856093 ^ y * 19349663) & 0xFFFF) / 0xFFFF
-        if (skipHash < C.CELL_SKIP_THRESHOLD) continue
+        // Integer hash for skip + jitter (replaces 3 Perlin noise calls, zero allocations)
+        const blobSeed = (blob.noiseOffsetX * 997) | 0
+        let h = ((x | 0) * 374761393 + (y | 0) * 668265263 + blobSeed) | 0
+        h = ((h ^ (h >>> 13)) * 1274126177) | 0
+        h = (h ^ (h >>> 16)) | 0
 
-        // Jitter derived from already-computed noise values (0 extra noise calls)
-        // edgeNoise and texNoise use different inputs (angle vs position), so decorrelated
-        const jitterX = (edgeNoise - 0.5) * cellSize * 0.8
-        const jitterY = (texNoise - 0.5) * cellSize * 0.8
+        // Skip ~40% of cells for organic texture
+        if (((h & 0xFFFF) / 0xFFFF) < C.CELL_SKIP_THRESHOLD) continue
+
+        // Jitter from different hash bits (decorrelated X and Y)
+        const jitterX = (((h >>> 4) & 0xFF) / 255 - 0.5) * cellSize * 0.8
+        const jitterY = (((h >>> 12) & 0xFF) / 255 - 0.5) * cellSize * 0.8
         const cellCenterX = x + cellSize / 2 + jitterX
         const cellCenterY = y + cellSize / 2 + jitterY
 
