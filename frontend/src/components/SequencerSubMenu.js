@@ -137,6 +137,10 @@ class SequencerSubMenu {
     if (this.element) {
       this._rebuildSteps()
     }
+    // If sequencer is running, notify backend of mode change
+    if (this.isGenerating) {
+      this._notifyParamsChange()
+    }
   }
 
   /**
@@ -173,6 +177,7 @@ class SequencerSubMenu {
     return {
       stepCount: this.params.stepCount,
       speedMultiplier: this.params.speedMultiplier,
+      isDrumMode: false,
       steps: this.params.steps.map(s => ({ ...s }))
     }
   }

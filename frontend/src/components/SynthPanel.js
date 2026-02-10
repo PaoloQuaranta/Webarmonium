@@ -843,8 +843,12 @@ class SynthPanel {
         sustain: patch.envelope?.sustain || 0.5,
         release: patch.envelope?.release || 0.5,
         volume: patch.volume ?? 0,
+        pan: 0,
         delaySend: patch.effects?.delaySend || 0.2,
-        reverbSend: patch.effects?.reverbSend || 0.3
+        reverbSend: patch.effects?.reverbSend || 0.3,
+        pulseWidth: patch.oscillator?.width || 0.3,
+        fatSpread: patch.oscillator?.spread || 25,
+        modulationIndex: patch.oscillator?.modulationIndex || 4
       }
     }
 
@@ -929,6 +933,7 @@ class SynthPanel {
    * Format value for display
    */
   _formatValue (value, unit) {
+    if (value == null || typeof value !== 'number') return '—'
     if (unit === 'Hz') {
       return Math.round(value) + unit
     } else if (unit === 's') {
