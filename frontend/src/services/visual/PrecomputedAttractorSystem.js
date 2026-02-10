@@ -97,6 +97,16 @@ class PrecomputedAttractorSystem {
 
     // Initialize
     this._precomputeAttractors()
+
+    // Pre-allocated interpolation buffers (zero GC pressure in render loop)
+    this._interpBuffer1 = new Array(this.pointCount)
+    this._interpBuffer2 = new Array(this.pointCount)
+    this._morphOutput = new Array(this.pointCount)
+    for (let i = 0; i < this.pointCount; i++) {
+      this._interpBuffer1[i] = { x: 0, y: 0, z: 0 }
+      this._interpBuffer2[i] = { x: 0, y: 0, z: 0 }
+      this._morphOutput[i] = { x: 0, y: 0, z: 0 }
+    }
   }
 
   /**
@@ -249,9 +259,12 @@ class PrecomputedAttractorSystem {
   }
 
   /**
-   * Get interpolated points for current time
+   * Get interpolated points for current time (zero-allocation: writes to pre-allocated buffer)
+   * @param {Array} frames - Precomputed keyframes
+   * @param {Array} outputBuffer - Pre-allocated output buffer to write into
+   * @returns {Array} The outputBuffer (same reference)
    */
-  _getInterpolatedPoints(frames) {
+  _getInterpolatedPoints(frames, outputBuffer) {
     const t = (this.loopTime % this.loopDuration) / this.loopDuration
     const floatIndex = t * (frames.length - 1)
     const frame0 = Math.floor(floatIndex)
@@ -261,14 +274,13 @@ class PrecomputedAttractorSystem {
     const points0 = frames[frame0]
     const points1 = frames[frame1]
 
-    return points0.map((p0, i) => {
-      const p1 = points1[i]
-      return {
-        x: p0.x + (p1.x - p0.x) * blend,
-        y: p0.y + (p1.y - p0.y) * blend,
-        z: p0.z + (p1.z - p0.z) * blend
-      }
-    })
+    for (let i = 0; i < points0.length; i++) {
+      const p0 = points0[i], p1 = points1[i], out = outputBuffer[i]
+      out.x = p0.x + (p1.x - p0.x) * blend
+      out.y = p0.y + (p1.y - p0.y) * blend
+      out.z = p0.z + (p1.z - p0.z) * blend
+    }
+    return outputBuffer
   }
 
   /**
@@ -321,27 +333,29 @@ class PrecomputedAttractorSystem {
     const centerY = height / 2
     const displaySize = Math.min(width, height) * this.scale
 
-    // Get points from current attractor(s)
+    // Get points from current attractor(s) — zero-allocation using pre-allocated buffers
     let points
     if (this.morphProgress < 1.0) {
       // Morphing between attractors
       const fromFrames = this.currentAttractor === 'lorenz' ? this.lorenzFrames : this.rosslerFrames
       const toFrames = this.targetAttractor === 'lorenz' ? this.lorenzFrames : this.rosslerFrames
 
-      const fromPoints = this._getInterpolatedPoints(fromFrames)
-      const toPoints = this._getInterpolatedPoints(toFrames)
+      const fromPoints = this._getInterpolatedPoints(fromFrames, this._interpBuffer1)
+      const toPoints = this._getInterpolatedPoints(toFrames, this._interpBuffer2)
 
-      // Blend between attractors
+      // Blend between attractors into morphOutput buffer
       const t = this._easeInOutCubic(this.morphProgress)
-      points = fromPoints.map((fp, i) => ({
-        x: fp.x + (toPoints[i].x - fp.x) * t,
-        y: fp.y + (toPoints[i].y - fp.y) * t,
-        z: fp.z + (toPoints[i].z - fp.z) * t
-      }))
+      for (let i = 0; i < fromPoints.length; i++) {
+        const fp = fromPoints[i], tp = toPoints[i], out = this._morphOutput[i]
+        out.x = fp.x + (tp.x - fp.x) * t
+        out.y = fp.y + (tp.y - fp.y) * t
+        out.z = fp.z + (tp.z - fp.z) * t
+      }
+      points = this._morphOutput
     } else {
       // Single attractor
       const frames = this.currentAttractor === 'lorenz' ? this.lorenzFrames : this.rosslerFrames
-      points = this._getInterpolatedPoints(frames)
+      points = this._getInterpolatedPoints(frames, this._interpBuffer1)
     }
 
     // Render points with canvas-level rotation (preserves attractor geometry)
@@ -585,6 +599,16 @@ class PrecomputedAttractorSystem {
       // Regenerate precomputed frames with new point count
       // This is expensive so only do it if really changing
       this._precomputeAttractors()
+
+      // Re-allocate interpolation buffers for new point count
+      this._interpBuffer1 = new Array(this.pointCount)
+      this._interpBuffer2 = new Array(this.pointCount)
+      this._morphOutput = new Array(this.pointCount)
+      for (let i = 0; i < this.pointCount; i++) {
+        this._interpBuffer1[i] = { x: 0, y: 0, z: 0 }
+        this._interpBuffer2[i] = { x: 0, y: 0, z: 0 }
+        this._morphOutput[i] = { x: 0, y: 0, z: 0 }
+      }
     }
   }
 

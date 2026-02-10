@@ -111,6 +111,11 @@ class NeonNebulaSystem {
     this.lastBufferWidth = 0
     this.lastBufferHeight = 0
 
+    // Buffer frame caching — nebula moves at noise time += 0.0003/frame,
+    // imperceptible to update every 3 frames instead of every frame
+    this._bufferAge = 0
+    this._bufferRefreshInterval = 3
+
     // Initialize blobs with staggered lifecycle phases
     this.initializeBlobs()
   }
@@ -331,23 +336,31 @@ class NeonNebulaSystem {
     const bufferHeight = Math.floor(p.height * scale)
 
     // Create or resize buffer if needed
-    if (!this.buffer || this.lastBufferWidth !== bufferWidth || this.lastBufferHeight !== bufferHeight) {
+    const bufferResized = !this.buffer || this.lastBufferWidth !== bufferWidth || this.lastBufferHeight !== bufferHeight
+    if (bufferResized) {
       this.buffer = p.createGraphics(bufferWidth, bufferHeight)
       this.lastBufferWidth = bufferWidth
       this.lastBufferHeight = bufferHeight
     }
 
-    // Clear buffer with transparent background
-    this.buffer.clear()
-    this.buffer.colorMode(this.buffer.HSB, 360, 100, 100, 100)
-    this.buffer.noStroke()
+    // Only re-render buffer every N frames (noise moves imperceptibly between frames)
+    this._bufferAge++
+    const needsRefresh = bufferResized || this._bufferAge >= this._bufferRefreshInterval
+    if (needsRefresh) {
+      this._bufferAge = 0
 
-    // Render each blob to the low-res buffer
-    for (const blob of this.blobs) {
-      this.renderBlobToBuffer(this.buffer, blob, scale)
+      // Clear buffer with transparent background
+      this.buffer.clear()
+      this.buffer.colorMode(this.buffer.HSB, 360, 100, 100, 100)
+      this.buffer.noStroke()
+
+      // Render each blob to the low-res buffer
+      for (const blob of this.blobs) {
+        this.renderBlobToBuffer(this.buffer, blob, scale)
+      }
     }
 
-    // Draw scaled-up buffer to main canvas (bilinear interpolation = free blur)
+    // Always blit cached buffer to main canvas (bilinear interpolation = free blur)
     p.push()
     p.imageMode(p.CORNER)
     p.image(this.buffer, 0, 0, p.width, p.height)
@@ -434,13 +447,14 @@ class NeonNebulaSystem {
 
         if (alpha < C.MIN_ALPHA_THRESHOLD) continue
 
-        // Skip ~40% of cells for organic texture
-        const skipNoise = buf.noise(x * 0.05 + blob.noiseOffsetX, y * 0.05 + blob.noiseOffsetY)
-        if (skipNoise < C.CELL_SKIP_THRESHOLD) continue
+        // Skip ~40% of cells for organic texture (hash instead of noise — ~100x faster)
+        const skipHash = ((x * 73856093 ^ y * 19349663) & 0xFFFF) / 0xFFFF
+        if (skipHash < C.CELL_SKIP_THRESHOLD) continue
 
-        // Jitter
-        const jitterX = (buf.noise(x * 0.1, y * 0.1, blob.noiseOffsetX) - 0.5) * cellSize * 0.8
-        const jitterY = (buf.noise(x * 0.1 + 100, y * 0.1 + 100, blob.noiseOffsetY) - 0.5) * cellSize * 0.8
+        // Jitter derived from already-computed noise values (0 extra noise calls)
+        // edgeNoise and texNoise use different inputs (angle vs position), so decorrelated
+        const jitterX = (edgeNoise - 0.5) * cellSize * 0.8
+        const jitterY = (texNoise - 0.5) * cellSize * 0.8
         const cellCenterX = x + cellSize / 2 + jitterX
         const cellCenterY = y + cellSize / 2 + jitterY
 
