@@ -112,9 +112,9 @@ class NeonNebulaSystem {
     this.lastBufferHeight = 0
 
     // Buffer frame caching — nebula moves at noise time += 0.0003/frame,
-    // imperceptible to update every 3 frames instead of every frame
+    // imperceptible to update every 2 frames instead of every frame
     this._bufferAge = 0
-    this._bufferRefreshInterval = 3
+    this._bufferRefreshInterval = 2
 
     // Initialize blobs with staggered lifecycle phases
     this.initializeBlobs()
@@ -447,18 +447,12 @@ class NeonNebulaSystem {
 
         if (alpha < C.MIN_ALPHA_THRESHOLD) continue
 
-        // Integer hash for skip + jitter (replaces 3 Perlin noise calls, zero allocations)
-        const blobSeed = (blob.noiseOffsetX * 997) | 0
-        let h = ((x | 0) * 374761393 + (y | 0) * 668265263 + blobSeed) | 0
-        h = ((h ^ (h >>> 13)) * 1274126177) | 0
-        h = (h ^ (h >>> 16)) | 0
+        // Skip ~40% of cells using texNoise (already computed, spatially coherent = organic clusters)
+        if (texNoise < C.CELL_SKIP_THRESHOLD) continue
 
-        // Skip ~40% of cells for organic texture
-        if (((h & 0xFFFF) / 0xFFFF) < C.CELL_SKIP_THRESHOLD) continue
-
-        // Jitter from different hash bits (decorrelated X and Y)
-        const jitterX = (((h >>> 4) & 0xFF) / 255 - 0.5) * cellSize * 0.8
-        const jitterY = (((h >>> 12) & 0xFF) / 255 - 0.5) * cellSize * 0.8
+        // Smooth jitter from sin/cos (spatially coherent, nearly free, per-blob variation)
+        const jitterX = Math.sin(x * 0.3 + y * 0.7 + blob.noiseOffsetX) * cellSize * 0.4
+        const jitterY = Math.cos(x * 0.5 + y * 0.3 + blob.noiseOffsetY) * cellSize * 0.4
         const cellCenterX = x + cellSize / 2 + jitterX
         const cellCenterY = y + cellSize / 2 + jitterY
 
