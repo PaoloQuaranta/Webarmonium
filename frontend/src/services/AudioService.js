@@ -1576,6 +1576,10 @@ class AudioService {
    */
   _applyStressDegradation(mode) {
     if (!this._disabledByStress) this._disabledByStress = new Set()
+
+    // AUDIO PRIORITY: Dynamic lookAhead adjustment
+    this._adjustLookAheadForStress(mode)
+
     try {
       switch (mode) {
         case 'degraded':
@@ -1622,6 +1626,30 @@ class AudioService {
           break
       }
     } catch (error) {
+    }
+  }
+
+  /**
+   * AUDIO PRIORITY: Dynamically adjust Tone.js lookAhead during stress.
+   * Saves the FINAL computed lookAhead (post platform+user overrides) on first call.
+   * Increases scheduling buffer under stress so Transport has more time to prepare events.
+   * @param {'normal'|'degraded'|'minimal'|'emergency'} mode
+   * @private
+   */
+  _adjustLookAheadForStress(mode) {
+    if (!window.Tone || !Tone.context) return
+
+    // Save original lookAhead on first invocation (final value after all overrides)
+    if (this._originalLookAhead === undefined) {
+      this._originalLookAhead = Tone.context.lookAhead
+    }
+
+    const multipliers = { normal: 1.0, degraded: 1.5, minimal: 2.0, emergency: 2.5 }
+    const multiplier = multipliers[mode] || 1.0
+    const newLookAhead = Math.min(0.35, this._originalLookAhead * multiplier) // Cap 350ms
+
+    if (Tone.context.lookAhead !== newLookAhead) {
+      Tone.context.lookAhead = newLookAhead
     }
   }
 

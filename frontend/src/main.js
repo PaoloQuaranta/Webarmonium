@@ -55,6 +55,8 @@ class WebarmoniumApp {
     // Trail fade animation for gesture trails
     this._trailFadeFrameId = null
     this._trailFadeRate = 0.02  // Alpha reduction per frame (lower = slower fade)
+    this._trailFadeFrameCounter = 0   // AUDIO PRIORITY: Frame counter for skip logic
+    this._trailFadeSkipFrames = 0     // AUDIO PRIORITY: 0 = no skip, set by _adjustTrailFadeForAudioStress
 
     // FIX: Track if virtual users are currently active
     this.virtualUsersActive = false
@@ -1893,12 +1895,31 @@ class WebarmoniumApp {
               }
             })
             window.addEventListener('audio-mode-change', (event) => {
+              const mode = event.detail.to
+              const prevMode = event.detail.from
+
+              // Visual degradation
               if (this.visualService) {
                 this.visualService.applyAudioStress({
                   stressFactor: event.detail.stressFactor,
-                  mode: event.detail.to,
+                  mode,
                   underrunCount: event.detail.underrunCount
                 })
+              }
+
+              // AUDIO PRIORITY: Throttle trail fade
+              this._adjustTrailFadeForAudioStress(mode)
+
+              // AUDIO PRIORITY: Pause/resume UnifiedUpdateLoop
+              if (typeof UnifiedUpdateLoop !== 'undefined') {
+                const loop = UnifiedUpdateLoop.getInstance()
+                if (loop) {
+                  if (mode === 'emergency') {
+                    loop.pause()
+                  } else if (prevMode === 'emergency' && mode !== 'emergency') {
+                    loop.resume()
+                  }
+                }
               }
             })
           }
@@ -2396,11 +2417,45 @@ class WebarmoniumApp {
   _startTrailFade() {
     if (this._trailFadeFrameId) return  // Already running
 
+    // AUDIO PRIORITY: Reset frame counter (skip rate preserved from stress events)
+    this._trailFadeFrameCounter = 0
+
     const fade = () => {
+      // Skip frames based on audio stress level
+      if (this._trailFadeSkipFrames > 0) {
+        this._trailFadeFrameCounter++
+        if (this._trailFadeFrameCounter <= this._trailFadeSkipFrames) {
+          this._trailFadeFrameId = requestAnimationFrame(fade)
+          return
+        }
+        this._trailFadeFrameCounter = 0
+      }
+
       this._fadeTrailCanvas()
       this._trailFadeFrameId = requestAnimationFrame(fade)
     }
     this._trailFadeFrameId = requestAnimationFrame(fade)
+  }
+
+  /**
+   * AUDIO PRIORITY: Adjust trail fade rate based on audio stress mode
+   * @param {'normal'|'degraded'|'minimal'|'emergency'} mode
+   * @private
+   */
+  _adjustTrailFadeForAudioStress(mode) {
+    switch (mode) {
+      case 'emergency':
+        this._trailFadeSkipFrames = 11  // ~5fps
+        break
+      case 'minimal':
+        this._trailFadeSkipFrames = 5   // ~10fps
+        break
+      case 'degraded':
+        this._trailFadeSkipFrames = 2   // ~20fps
+        break
+      default:
+        this._trailFadeSkipFrames = 0   // 60fps
+    }
   }
 
   /**
@@ -2434,8 +2489,10 @@ class WebarmoniumApp {
       this._lastFadeTime = now
 
       // Target 60fps behavior: scale alpha by actual delta time
+      // AUDIO PRIORITY: Clamp to 0.12 — at 5fps emergency this yields ~0.6 alpha/sec
+      // (slower than normal 1.2 alpha/sec, preserving trails during stress)
       const targetDelta = 16.67  // 60fps target
-      const scaledAlpha = Math.min(1.0, this._trailFadeRate * (deltaTime / targetDelta))
+      const scaledAlpha = Math.min(0.12, this._trailFadeRate * (deltaTime / targetDelta))
 
       // Use logical (CSS) dimensions since context is scaled by DPR
       // canvas.width/height are scaled by devicePixelRatio, but ctx has scale(dpr,dpr)

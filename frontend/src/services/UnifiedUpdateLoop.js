@@ -48,6 +48,10 @@ class UnifiedUpdateLoop {
     // Frame budget (16.67ms for 60fps, but we aim for 30Hz updates)
     this.maxFrameTime = 33.33 // 30fps target for updates
 
+    // AUDIO PRIORITY: Pause state for emergency mode
+    this.isPaused = false
+    this._justResumed = false
+
     // Bind the loop function once to avoid creating new closures
     this._boundLoop = this._loop.bind(this)
   }
@@ -127,6 +131,26 @@ class UnifiedUpdateLoop {
   }
 
   /**
+   * AUDIO PRIORITY: Pause all callbacks without stopping the rAF loop.
+   * Used during audio emergency to free main thread for audio scheduling.
+   */
+  pause() {
+    this.isPaused = true
+  }
+
+  /**
+   * AUDIO PRIORITY: Resume callbacks after pause.
+   * Sets _justResumed flag so _loop() resets all lastCall timestamps
+   * on next frame, preventing burst of accumulated callbacks.
+   */
+  resume() {
+    if (this.isPaused) {
+      this.isPaused = false
+      this._justResumed = true
+    }
+  }
+
+  /**
    * Main loop function - called by requestAnimationFrame
    * @param {number} timestamp - High-resolution timestamp from rAF
    */
@@ -145,18 +169,29 @@ class UnifiedUpdateLoop {
       this.lastFpsTime = timestamp
     }
 
-    // Process all registered callbacks based on their target frequency
-    for (const [id, entry] of this.callbacks) {
-      const timeSinceLastCall = timestamp - entry.lastCall
-
-      // Only call if enough time has passed for this callback's frequency
-      if (timeSinceLastCall >= entry.interval) {
-        try {
-          // Pass delta time in seconds for consistency with existing code
-          const dtSeconds = timeSinceLastCall / 1000
-          entry.callback(dtSeconds)
+    // AUDIO PRIORITY: Skip callbacks when paused (emergency mode)
+    if (!this.isPaused) {
+      // After resume: reset all lastCall timestamps to prevent callback burst
+      if (this._justResumed) {
+        this._justResumed = false
+        for (const [, entry] of this.callbacks) {
           entry.lastCall = timestamp
-        } catch (error) {
+        }
+      }
+
+      // Process all registered callbacks based on their target frequency
+      for (const [id, entry] of this.callbacks) {
+        const timeSinceLastCall = timestamp - entry.lastCall
+
+        // Only call if enough time has passed for this callback's frequency
+        if (timeSinceLastCall >= entry.interval) {
+          try {
+            // Pass delta time in seconds for consistency with existing code
+            const dtSeconds = timeSinceLastCall / 1000
+            entry.callback(dtSeconds)
+            entry.lastCall = timestamp
+          } catch (error) {
+          }
         }
       }
     }

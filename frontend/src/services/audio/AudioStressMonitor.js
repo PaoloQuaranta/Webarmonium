@@ -45,6 +45,12 @@ class AudioStressMonitor {
     // Timer references
     this._checkTimer = null
     this._underrunResetTimer = null
+
+    // AUDIO PRIORITY: Long task monitoring
+    this._longTaskObserver = null
+    this._consecutiveLongTasks = 0
+    this.LONG_TASK_THRESHOLD_MS = 150   // >150ms considered problematic (above normal GC)
+    this.CONSECUTIVE_LONG_TASK_TRIGGER = 3 // Require 3 consecutive before recording underrun
   }
 
   /**
@@ -69,6 +75,9 @@ class AudioStressMonitor {
 
     // Try to hook into AudioContext events (limited browser support)
     this._setupAudioContextMonitoring()
+
+    // AUDIO PRIORITY: Monitor main thread long tasks
+    this._setupLongTaskMonitoring()
   }
 
   /**
@@ -88,6 +97,13 @@ class AudioStressMonitor {
       clearInterval(this._underrunResetTimer)
       this._underrunResetTimer = null
     }
+
+    // AUDIO PRIORITY: Stop long task observer
+    if (this._longTaskObserver) {
+      this._longTaskObserver.disconnect()
+      this._longTaskObserver = null
+    }
+    this._consecutiveLongTasks = 0
 
     this.stressFactor = 1.0
     this.underrunCount = 0
@@ -115,6 +131,46 @@ class AudioStressMonitor {
           this._recordUnderrun('context-state-change')
         }
       }
+    }
+  }
+
+  /**
+   * AUDIO PRIORITY: Set up PerformanceObserver for long task detection.
+   * Detects main thread jank (>150ms) that can delay audio scheduling callbacks.
+   * Requires 3 consecutive long tasks before recording underrun (prevents false positives from GC).
+   * @private
+   */
+  _setupLongTaskMonitoring () {
+    if (typeof PerformanceObserver === 'undefined') return
+
+    // Feature detection: check if longtask is supported
+    if (!PerformanceObserver.supportedEntryTypes ||
+        !PerformanceObserver.supportedEntryTypes.includes('longtask')) {
+      return
+    }
+
+    try {
+      this._consecutiveLongTasks = 0
+
+      this._longTaskObserver = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (entry.duration > this.LONG_TASK_THRESHOLD_MS) {
+            this._consecutiveLongTasks++
+
+            if (this._consecutiveLongTasks >= this.CONSECUTIVE_LONG_TASK_TRIGGER) {
+              this._recordUnderrun('sustained-long-tasks')
+              this._consecutiveLongTasks = 0
+            }
+          } else {
+            this._consecutiveLongTasks = 0
+          }
+        }
+      })
+
+      // Use type-based observe (not entryTypes), no buffered flag (unsupported for longtask)
+      this._longTaskObserver.observe({ type: 'longtask' })
+    } catch (error) {
+      // longtask not supported — fall back to existing drift detection
     }
   }
 

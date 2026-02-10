@@ -303,7 +303,7 @@ class GenerativeVisualService {
     // AUDIO PRIORITY: Frame budget enforcement
     // Reserve time for audio scheduling, browser compositor, and GC headroom
     const frameStart = performance.now()
-    const OVERHEAD_RESERVE_MS = 16  // 8ms audio + 5ms browser + 3ms GC
+    const OVERHEAD_RESERVE_MS = 22  // 12ms audio + 6ms browser + 4ms GC (audio priority)
     const frameBudgetMs = (1000 / this.targetFps) - OVERHEAD_RESERVE_MS
 
     // Clear background (theme-aware)
@@ -590,10 +590,15 @@ class GenerativeVisualService {
 
     this._lastQualityTransition = now
 
-    if (mode === 'emergency' || mode === 'minimal') {
+    if (mode === 'emergency') {
+      // AUDIO PRIORITY: Near-freeze — maximum main thread freedom for audio
       this._setAudioDrivenPerformanceMode('degraded')
-      this._reduceFrameRate(15)
-      if (this.springMesh) this.springMesh.setCurveSegments(5)
+      this._reduceFrameRate(5)
+      if (this.springMesh) this.springMesh.setCurveSegments(2)
+    } else if (mode === 'minimal') {
+      this._setAudioDrivenPerformanceMode('degraded')
+      this._reduceFrameRate(10)
+      if (this.springMesh) this.springMesh.setCurveSegments(4)
     } else if (mode === 'degraded') {
       this._setAudioDrivenPerformanceMode('degraded')
       this._reduceFrameRate(20)
