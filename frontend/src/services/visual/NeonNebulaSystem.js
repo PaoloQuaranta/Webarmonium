@@ -447,8 +447,9 @@ class NeonNebulaSystem {
 
         if (alpha < C.MIN_ALPHA_THRESHOLD) continue
 
-        // Skip ~40% of cells using texNoise (already computed, spatially coherent = organic clusters)
-        if (texNoise < C.CELL_SKIP_THRESHOLD) continue
+        // Skip ~40% of cells (dedicated noise at different scale = decorrelated from texture)
+        const skipNoise = buf.noise(x * 0.05 + blob.noiseOffsetX, y * 0.05 + blob.noiseOffsetY)
+        if (skipNoise < C.CELL_SKIP_THRESHOLD) continue
 
         // Smooth jitter from sin/cos (spatially coherent, nearly free, per-blob variation)
         const jitterX = Math.sin(x * 0.3 + y * 0.7 + blob.noiseOffsetX) * cellSize * 0.4
