@@ -1022,6 +1022,19 @@ class WebarmoniumApp {
       // Skip sustained note mechanism — notes are self-releasing via triggerAttackRelease
       // data.style contains genre/harmonic context from BackgroundCompositionService (forward-compatible)
       if (data.isSequencer) {
+        // v0.7.9: Track sequencer timing for diagnostic (tonal mode uses hold:start)
+        const seqNow = Date.now()
+        if (!this._drumTiming) this._drumTiming = { deltas: [], lastArrival: 0, serverDelays: [] }
+        if (this._drumTiming.lastArrival > 0) {
+          this._drumTiming.deltas.push(seqNow - this._drumTiming.lastArrival)
+          if (this._drumTiming.deltas.length > 20) this._drumTiming.deltas.shift()
+        }
+        this._drumTiming.lastArrival = seqNow
+        if (data.timestamp) {
+          this._drumTiming.serverDelays.push(seqNow - data.timestamp)
+          if (this._drumTiming.serverDelays.length > 20) this._drumTiming.serverDelays.shift()
+        }
+
         const localUserId = this.socketService.currentUserId || this.socketService.socket?.id
 
         // Remote users' sequencer: play through isolated per-user synth

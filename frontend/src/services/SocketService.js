@@ -224,6 +224,11 @@ class SocketService {
       this.emit('hold:end', data)
     })
 
+    // v0.7.9: Batched drum events from sequencer
+    this.socket.on('drum:batch', (data) => {
+      this.emit('drum:batch', data)
+    })
+
     // Real-time drag note streaming from remote users
     this.socket.on('note:stream', (data) => {
       this.emit('note:stream', data)
