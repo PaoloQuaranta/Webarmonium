@@ -336,6 +336,10 @@ function wireServices (container, config = {}) {
       const sequencerGestureService = c.get('sequencerGestureService')
       service.setSequencerGestureService(sequencerGestureService)
 
+      // Link BackgroundCompositionService for room cleanup (stop compositions, free engines)
+      const backgroundCompositionService = c.get('backgroundCompositionService')
+      service.setBackgroundCompositionService(backgroundCompositionService)
+
       // Set Socket.IO for mode transition notifications
       if (config.io) {
         service.setSocketIO(config.io)

@@ -87,6 +87,7 @@ class MaterialLibrary {
         age: 0,
         usageCount: 0,
         lastUsed: Date.now(),
+        createdAt: Date.now(),
         isVital: true
       })
 
@@ -365,31 +366,44 @@ class MaterialLibrary {
   }
 
   cleanupOldMaterial() {
-    const now = Date.now()
     const veryOldThreshold = this.maxAge * 2 // 4 minutes
 
-    // Remove very old and overused material
+    // Collect IDs of materials that survive cleanup
+    const survivingIds = new Set()
+
+    // Unified filter: same criteria for both array types to prevent inconsistency
+    const shouldKeep = (material) => {
+      const lifetime = this.lifetimes.get(material.id)
+      if (!lifetime) return false
+      const isVeryOld = lifetime.age > veryOldThreshold
+      const isOverused = lifetime.usageCount > this.usageThreshold * 2
+      return !isVeryOld && !isOverused
+    }
+
+    // Remove very old and overused material from function arrays
     Object.keys(this.materials).forEach(functionKey => {
       this.materials[functionKey] = this.materials[functionKey].filter(material => {
-        const lifetime = this.lifetimes.get(material.id)
-        if (!lifetime) return false
-
-        const isVeryOld = lifetime.age > veryOldThreshold
-        const isOverused = lifetime.usageCount > this.usageThreshold * 2
-
-        return !isVeryOld && !isOverused
+        const keep = shouldKeep(material)
+        if (keep) survivingIds.add(material.id)
+        return keep
       })
     })
 
-    // Clean up by character too
+    // Remove very old and overused material from character arrays (same criteria)
     Object.keys(this.byCharacter).forEach(characterKey => {
       this.byCharacter[characterKey] = this.byCharacter[characterKey].filter(material => {
-        const lifetime = this.lifetimes.get(material.id)
-        return lifetime && lifetime.isVital
+        const keep = shouldKeep(material)
+        if (keep) survivingIds.add(material.id)
+        return keep
       })
     })
 
-    // console.log(`🧹 MaterialLibrary: Cleaned up old material, ${this.getTotalCount()} items remaining`)
+    // Prune lifetimes Map: remove entries for materials no longer in any array
+    for (const materialId of this.lifetimes.keys()) {
+      if (!survivingIds.has(materialId)) {
+        this.lifetimes.delete(materialId)
+      }
+    }
   }
 
   useMaterial(materialId) {

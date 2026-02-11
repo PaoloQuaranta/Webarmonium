@@ -72,6 +72,15 @@ class RoomManager {
   }
 
   /**
+   * Set BackgroundCompositionService reference
+   * Needed to stop compositions and free per-room engines when rooms are destroyed
+   * @param {BackgroundCompositionService} service
+   */
+  setBackgroundCompositionService(service) {
+    this.backgroundCompositionService = service
+  }
+
+  /**
    * Set Socket.IO reference for broadcasting
    * @param {SocketIO} io
    */
@@ -663,6 +672,10 @@ class RoomManager {
       }
       if (this.sequencerGestureService) {
         this.sequencerGestureService.cleanupRoom(roomId)
+      }
+      // Stop composition and free per-room engines (MaterialLibrary, HarmonicEngine, etc.)
+      if (this.backgroundCompositionService) {
+        this.backgroundCompositionService.stopComposition(roomId)
       }
 
       stats.roomsCleaned++

@@ -941,6 +941,7 @@ class AudioService {
             clearTimeout(this._compositionWallTimeBackup)
             this._compositionWallTimeBackup = null
           }
+          this._compositionCallbackGeneration++ // Invalidate any pending backup timers
           this._compositionQueue = []
         }
         issueFound = true
@@ -3755,7 +3756,7 @@ class AudioService {
    * Tone.js automatically removes executed events from Transport, but our tracking
    * array still holds the stale eventIds. This method clears them periodically.
    *
-   * Strategy: Keep last 100 events max. Events in Tone.js Transport that have
+   * Strategy: Keep last 50 events max. Events in Tone.js Transport that have
    * already fired are automatically removed, so clearing stale IDs is safe.
    * @private
    */
@@ -3766,17 +3767,17 @@ class AudioService {
     }
 
     // If array is small, no cleanup needed
-    if (this.scheduledTransportEvents.length <= 100) {
+    if (this.scheduledTransportEvents.length <= 50) {
       return
     }
 
-    // Keep only the most recent 100 events (older ones have likely already fired)
+    // Keep only the most recent 50 events (older ones have likely already fired)
     // Drone events are preserved separately via droneRepeatEventIds
     const droneEventIds = new Set(this.droneRepeatEventIds || [])
-    const recentEvents = this.scheduledTransportEvents.slice(-100)
+    const recentEvents = this.scheduledTransportEvents.slice(-50)
 
     // Clear old events from Transport (they may already be gone, that's OK)
-    const oldEvents = this.scheduledTransportEvents.slice(0, -100)
+    const oldEvents = this.scheduledTransportEvents.slice(0, -50)
     oldEvents.forEach(eventId => {
       if (!droneEventIds.has(eventId)) {
         try {
@@ -4002,6 +4003,12 @@ class AudioService {
    * @private
    */
   _playCompositionNow(composition, isDrone, style) {
+    // Entry #208: Clear pending notes from previous composition before scheduling new ones
+    // Prevents Transport event accumulation when compositions arrive faster than they play
+    // SAFETY: Only clears future scheduled events. Notes already triggered are sustained
+    // by synth envelopes and tracked separately in activeVoices Map. Drones preserved.
+    this.clearPendingCompositionNotes()
+
     // Entry #206: Clear old scheduled events to prevent memory buildup
     // Events from previous compositions that have already executed are stale
     // but remain in the array. This cleanup removes them before adding new ones.
@@ -4072,8 +4079,10 @@ class AudioService {
   applyGenreToSynths(style) {
     if (!this.ambientLayers || !style?.dominantGenre) return
 
-    // Skip if genre hasn't changed (unless synthParams are provided)
-    const hasNewSynthParams = style.synthParams && this._lastSynthParams !== style.synthParams
+    // Skip if genre hasn't changed (unless synthParams values differ)
+    // Note: each composition creates a new synthParams object, so use JSON comparison
+    const hasNewSynthParams = style.synthParams &&
+      JSON.stringify(style.synthParams) !== JSON.stringify(this._lastSynthParams)
     if (this._lastAppliedGenre === style.dominantGenre && !hasNewSynthParams) return
     this._lastAppliedGenre = style.dominantGenre
     this._lastSynthParams = style.synthParams
@@ -7790,7 +7799,7 @@ class AudioService {
    */
   playSimpleNote (frequency, duration, intensity = 0.5) {
     if (!this.gestureSynth) {
-      if (this.isInitialized) {
+      if (this.isInitialized && !this.isDrumMode) {
         console.warn('[AudioService] playSimpleNote: gestureSynth not available')
       }
       return
