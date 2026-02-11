@@ -67,6 +67,8 @@ class AudioService {
     this._nextCompositionEventId = null  // Tone.Transport event ID
     this.MAX_COMPOSITION_QUEUE_SIZE = 3  // Prevent unbounded growth
     this.COMPOSITION_QUEUE_WATCHDOG_MS = 15000  // 15s: ~2x typical composition at 120 BPM
+    this._compositionWallTimeBackup = null  // setTimeout backup for clock stall resilience
+    this._compositionCallbackGeneration = 0 // Anti-double-fire: generation counter for dual scheduling
 
     // Mute and volume controls (DEPRECATED: use volumeController instead)
     this.muted = false
@@ -934,6 +936,10 @@ class AudioService {
           if (this._nextCompositionEventId !== null) {
             try { Tone.Transport.clear(this._nextCompositionEventId) } catch (e) { /* already cleared */ }
             this._nextCompositionEventId = null
+          }
+          if (this._compositionWallTimeBackup) {
+            clearTimeout(this._compositionWallTimeBackup)
+            this._compositionWallTimeBackup = null
           }
           this._compositionQueue = []
         }
@@ -2975,6 +2981,10 @@ class AudioService {
       }
       this._compositionQueue = []
       this._isPlayingComposition = false
+      if (this._compositionWallTimeBackup) {
+        clearTimeout(this._compositionWallTimeBackup)
+        this._compositionWallTimeBackup = null
+      }
 
       // STEP 2: Clear scheduled Transport events and stop Transport
       try {
@@ -3846,7 +3856,7 @@ class AudioService {
     // Watchdog: if queue is stuck (e.g., after clock stall lost the scheduled event),
     // force reset so new compositions can play. Uses wall time since Transport.seconds
     // may be stalled during a WASAPI clock stall.
-    if (this._isPlayingComposition && this._compositionQueue.length >= 2) {
+    if (this._isPlayingComposition && this._compositionQueue.length >= 1) {
       const oldestInQueue = this._compositionQueue[0]
       if (typeof oldestInQueue?.addedWallTime === 'number' &&
           (Date.now() - oldestInQueue.addedWallTime) > this.COMPOSITION_QUEUE_WATCHDOG_MS) {
@@ -3855,6 +3865,10 @@ class AudioService {
         if (this._nextCompositionEventId !== null) {
           try { Tone.Transport.clear(this._nextCompositionEventId) } catch (e) { /* already cleared */ }
           this._nextCompositionEventId = null
+        }
+        if (this._compositionWallTimeBackup) {
+          clearTimeout(this._compositionWallTimeBackup)
+          this._compositionWallTimeBackup = null
         }
       }
     }
@@ -3884,11 +3898,19 @@ class AudioService {
     if (this._audioState === 'STOPPED' || this._audioState === 'IDLE') {
       this._isPlayingComposition = false
       this._compositionQueue = []
+      if (this._compositionWallTimeBackup) {
+        clearTimeout(this._compositionWallTimeBackup)
+        this._compositionWallTimeBackup = null
+      }
       return
     }
 
     if (!this._compositionQueue || this._compositionQueue.length === 0) {
       this._isPlayingComposition = false
+      if (this._compositionWallTimeBackup) {
+        clearTimeout(this._compositionWallTimeBackup)
+        this._compositionWallTimeBackup = null
+      }
       return
     }
 
@@ -3928,9 +3950,48 @@ class AudioService {
       }
     }
 
+    // Anti-double-fire: generation counter prevents both callbacks from executing
+    // when Transport and setTimeout fire in the same event loop tick
+    this._compositionCallbackGeneration++
+    const expectedGeneration = this._compositionCallbackGeneration
+
+    // PRIMARY: Transport-based scheduling (precise audio-clock timing)
     this._nextCompositionEventId = Tone.Transport.scheduleOnce(() => {
-      this._playNextFromQueue()
+      if (this._compositionCallbackGeneration !== expectedGeneration) return
+      this._nextCompositionEventId = null  // Clear own stale event ID
+      // Cancel wall-time backup — Transport callback fired normally
+      if (this._compositionWallTimeBackup) {
+        clearTimeout(this._compositionWallTimeBackup)
+        this._compositionWallTimeBackup = null
+      }
+      try {
+        this._playNextFromQueue()
+      } catch (error) {
+        console.error('[AudioService] Scheduled composition callback failed:', error)
+        this._isPlayingComposition = false
+        this._compositionCallbackGeneration++  // Invalidate backup timer
+        if (this._compositionWallTimeBackup) {
+          clearTimeout(this._compositionWallTimeBackup)
+          this._compositionWallTimeBackup = null
+        }
+      }
     }, endTime)
+
+    // BACKUP: Wall-time safety net — fires if Transport callback missed (clock stall)
+    // 2s buffer accounts for normal scheduling variance
+    if (this._compositionWallTimeBackup) clearTimeout(this._compositionWallTimeBackup)
+    this._compositionWallTimeBackup = setTimeout(() => {
+      this._compositionWallTimeBackup = null
+      if (this._compositionCallbackGeneration !== expectedGeneration) return
+      if (this._isPlayingComposition) {
+        console.warn('[AudioService] Composition wall-time backup triggered — Transport callback missed')
+        if (this._nextCompositionEventId !== null) {
+          try { Tone.Transport.clear(this._nextCompositionEventId) } catch (e) {}
+          this._nextCompositionEventId = null
+        }
+        this._playNextFromQueue()
+      }
+    }, (durationSeconds + 2) * 1000)
 
     // Track for cleanup
     this.scheduledTransportEvents.push(this._nextCompositionEventId)
@@ -3979,7 +4040,7 @@ class AudioService {
         this.playAmbientComposition(content, tempo, isDrone)
       }
     } catch (error) {
-      // Silent fail - continue to next composition
+      console.error('[AudioService] Composition playback error:', error)
     }
   }
 
@@ -7729,7 +7790,9 @@ class AudioService {
    */
   playSimpleNote (frequency, duration, intensity = 0.5) {
     if (!this.gestureSynth) {
-      console.warn('[AudioService] playSimpleNote: gestureSynth not available')
+      if (this.isInitialized) {
+        console.warn('[AudioService] playSimpleNote: gestureSynth not available')
+      }
       return
     }
 
