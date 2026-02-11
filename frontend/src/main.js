@@ -2811,6 +2811,44 @@ window.addEventListener('beforeunload', () => {
 // Make available globally for debugging
 window.WebarmoniumApp = WebarmoniumApp
 
+// v0.7.9: Frontend health diagnostic monitor
+// Logs key metrics every 10s to help identify progressive slowdown causes
+window._diagInterval = setInterval(() => {
+  const app = window.webarmoniumApp
+  if (!app) return
+  const audio = app.audioService
+  const vis = app.visualService
+
+  const mem = performance.memory
+    ? { heap: Math.round(performance.memory.usedJSHeapSize / 1048576), limit: Math.round(performance.memory.jsHeapSizeLimit / 1048576) }
+    : null
+
+  // Tone.js Transport internal timeline size (private API, may fail)
+  let transportEvents = '?'
+  try { transportEvents = Tone.Transport._timeline?.length ?? '?' } catch (e) {}
+  let transportRepeats = '?'
+  try { transportRepeats = Tone.Transport._repeatedEvents?.size ?? '?' } catch (e) {}
+
+  const diag = {
+    heap: mem ? `${mem.heap}/${mem.limit}MB` : 'N/A',
+    transportTimeline: transportEvents,
+    transportRepeats: transportRepeats,
+    scheduledEvents: audio?.scheduledTransportEvents?.length ?? '?',
+    droneRepeats: audio?.droneRepeatEventIds?.length ?? '?',
+    activeVoices: audio?.generativeState?.activeVoices?.size ?? '?',
+    compositionQueue: audio?._compositionQueue?.length ?? '?',
+    isPlaying: audio?._isPlayingComposition ?? '?',
+    particles: vis?.particles?.particles?.size ?? '?',
+    wavePulses: vis?.wavePackets?.activePulses?.size ?? '?',
+    waveContexts: vis?.wavePackets?.waveContexts?.size ?? '?',
+    particleWaveCtx: vis?.particles?.waveContexts?.size ?? '?',
+    meshNodes: vis?.springMesh?.nodes?.size ?? '?',
+    meshEdges: vis?.springMesh?.edges?.length ?? '?',
+    fps: vis?.fps?.toFixed(1) ?? '?'
+  }
+  console.log('[DIAG]', JSON.stringify(diag))
+}, 10000)
+
 // Expose filter test method for debugging
 window.testFilterModulation = () => {
   if (window.webarmoniumApp && window.webarmoniumApp.audioService) {
