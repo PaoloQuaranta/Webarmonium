@@ -66,6 +66,7 @@ class AudioService {
     this._isPlayingComposition = false
     this._nextCompositionEventId = null  // Tone.Transport event ID
     this.MAX_COMPOSITION_QUEUE_SIZE = 3  // Prevent unbounded growth
+    this.COMPOSITION_QUEUE_WATCHDOG_MS = 15000  // 15s: ~2x typical composition at 120 BPM
 
     // Mute and volume controls (DEPRECATED: use volumeController instead)
     this.muted = false
@@ -221,10 +222,13 @@ class AudioService {
     // Mobile audio contexts suspend frequently, need faster recovery
     this._consecutiveHealthyChecks = 0
     this._currentHealthCheckInterval = null // Will be set in _startAudioHealthCheck
-    this._maxHealthCheckInterval = 20000    // Max 20 seconds between checks when healthy
+    // Windows Chrome: reduced from 20s to 10s — WASAPI clock stalls need faster detection
+    this._maxHealthCheckInterval = (typeof PlatformDetection !== 'undefined' &&
+      PlatformDetection.isWindowsChromePure()) ? 10000 : 20000
 
-    // Concurrency guard for recovery
+    // Concurrency guards for recovery
     this._recoveryInProgress = false
+    this._healthCheckInProgress = false
     this._pendingRecoveryTrigger = null
 
     // Platform detection for recovery behavior
@@ -872,50 +876,82 @@ class AudioService {
    * Respects user's explicit stop state - won't restart if user stopped audio
    * Entry #PERF: Updates exponential backoff based on health status
    */
-  _checkAudioHealth() {
+  async _checkAudioHealth() {
     if (!this.isInitialized) return
 
-    // STATE MACHINE: Only check health if in PLAYING state
-    if (this._audioState !== 'PLAYING') return
+    // Reentrancy guard: prevent overlapping async calls (clock stall recovery can take 300ms+)
+    if (this._healthCheckInProgress) return
+    this._healthCheckInProgress = true
 
-    const contextState = Tone.context?.state
+    try {
+      // STATE MACHINE: Only check health if in PLAYING state
+      if (this._audioState !== 'PLAYING') return
 
-    // Check 1: Context state - must be "running"
-    // If context is suspended or interrupted, request tap to resume
-    if (contextState !== 'running') {
-      if (DEBUG_AUDIO_STATE) console.log(`[AudioState] Health check detected context ${contextState}, requesting tap to resume`)
-      this._updateHealthCheckBackoff(false) // Entry #PERF: Reset backoff
-      this._setState('RESUMING', 'health-check-context-suspended')
-      this._requestTapToResume()
-      return
+      const contextState = Tone.context?.state
+
+      // Check 1: Context state - must be "running"
+      // If context is suspended or interrupted, request tap to resume
+      if (contextState !== 'running') {
+        if (DEBUG_AUDIO_STATE) console.log(`[AudioState] Health check detected context ${contextState}, requesting tap to resume`)
+        this._updateHealthCheckBackoff(false) // Entry #PERF: Reset backoff
+        this._setState('RESUMING', 'health-check-context-suspended')
+        this._requestTapToResume()
+        return
+      }
+
+      // Track if any issue was found (for backoff calculation)
+      let issueFound = false
+
+      // Check 1.5: AudioContext clock stall (Chrome/Windows WASAPI issue)
+      // Context reports 'running' but audio rendering thread is frozen.
+      // Detected by AudioStressMonitor comparing wall clock vs audio clock.
+      if (this.stressMonitor?.isClockCurrentlyStalled) {
+        if (DEBUG_AUDIO_STATE) console.log('[AudioState] Clock stall detected, attempting recovery via _resumeAudioContext')
+        const recovered = await this._resumeAudioContext('clock-stall-recovery')
+        if (!recovered) {
+          // If resume didn't unstall the clock, request user tap as last resort
+          this._setState('RESUMING', 'clock-stall-unrecoverable')
+          this._requestTapToResume()
+          return
+        }
+        issueFound = true
+      }
+
+      // Check 2: MasterVolume stuck at -Infinity (only if not muted) - this is safe to auto-fix
+      // This doesn't start audio, just restores volume on already-playing audio
+      if (this.masterVolume && this.masterVolume.volume.value === -Infinity && !this.muted) {
+        this.masterVolume.volume.value = -10
+        issueFound = true
+      }
+
+      // Check 3: Transport should be running - this is safe to auto-fix
+      // Transport manages scheduled events, not audio playback itself
+      if (Tone.Transport?.state !== 'started') {
+        Tone.Transport.start()
+        // Reset composition queue — scheduled events are lost after Transport restart
+        if (this._isPlayingComposition) {
+          this._isPlayingComposition = false
+          if (this._nextCompositionEventId !== null) {
+            try { Tone.Transport.clear(this._nextCompositionEventId) } catch (e) { /* already cleared */ }
+            this._nextCompositionEventId = null
+          }
+          this._compositionQueue = []
+        }
+        issueFound = true
+      }
+
+      // Check 4: Evolving generation should be active - this is safe to auto-fix
+      // This just restarts the background composition loop, doesn't start new audio
+      if (!this.evolvingGenerationActive && !this.muted) {
+        this.startEvolvingGeneration()
+        issueFound = true
+      }
+
+      // Entry #PERF: Update backoff based on whether any issues were found
+      this._updateHealthCheckBackoff(!issueFound)
+    } finally {
+      this._healthCheckInProgress = false
     }
-
-    // Track if any issue was found (for backoff calculation)
-    let issueFound = false
-
-    // Check 2: MasterVolume stuck at -Infinity (only if not muted) - this is safe to auto-fix
-    // This doesn't start audio, just restores volume on already-playing audio
-    if (this.masterVolume && this.masterVolume.volume.value === -Infinity && !this.muted) {
-      this.masterVolume.volume.value = -10
-      issueFound = true
-    }
-
-    // Check 3: Transport should be running - this is safe to auto-fix
-    // Transport manages scheduled events, not audio playback itself
-    if (Tone.Transport?.state !== 'started') {
-      Tone.Transport.start()
-      issueFound = true
-    }
-
-    // Check 4: Evolving generation should be active - this is safe to auto-fix
-    // This just restarts the background composition loop, doesn't start new audio
-    if (!this.evolvingGenerationActive && !this.muted) {
-      this.startEvolvingGeneration()
-      issueFound = true
-    }
-
-    // Entry #PERF: Update backoff based on whether any issues were found
-    this._updateHealthCheckBackoff(!issueFound)
   }
 
   /**
@@ -3807,6 +3843,22 @@ class AudioService {
     // Instead of playing immediately, queue compositions and play them in sequence
     // This prevents gaps and ensures beat-quantized transitions
 
+    // Watchdog: if queue is stuck (e.g., after clock stall lost the scheduled event),
+    // force reset so new compositions can play. Uses wall time since Transport.seconds
+    // may be stalled during a WASAPI clock stall.
+    if (this._isPlayingComposition && this._compositionQueue.length >= 2) {
+      const oldestInQueue = this._compositionQueue[0]
+      if (typeof oldestInQueue?.addedWallTime === 'number' &&
+          (Date.now() - oldestInQueue.addedWallTime) > this.COMPOSITION_QUEUE_WATCHDOG_MS) {
+        console.warn(`[AudioService] Composition queue stuck for ${this.COMPOSITION_QUEUE_WATCHDOG_MS / 1000}s, forcing reset`)
+        this._isPlayingComposition = false
+        if (this._nextCompositionEventId !== null) {
+          try { Tone.Transport.clear(this._nextCompositionEventId) } catch (e) { /* already cleared */ }
+          this._nextCompositionEventId = null
+        }
+      }
+    }
+
     // Entry #198: Limit queue size to prevent unbounded growth
     if (this._compositionQueue.length >= this.MAX_COMPOSITION_QUEUE_SIZE) {
       // Drop oldest composition (FIFO eviction)
@@ -3814,7 +3866,7 @@ class AudioService {
     }
 
     // Add to queue with metadata
-    this._compositionQueue.push({ composition, style, addedAt: Tone.Transport.seconds })
+    this._compositionQueue.push({ composition, style, addedAt: Tone.Transport.seconds, addedWallTime: Date.now() })
 
     // If nothing is currently playing, start playback
     if (!this._isPlayingComposition) {

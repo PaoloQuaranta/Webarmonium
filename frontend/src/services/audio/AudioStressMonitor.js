@@ -51,6 +51,17 @@ class AudioStressMonitor {
     this._consecutiveLongTasks = 0
     this.LONG_TASK_THRESHOLD_MS = 150   // >150ms considered problematic (above normal GC)
     this.CONSECUTIVE_LONG_TASK_TRIGGER = 3 // Require 3 consecutive before recording underrun
+
+    // Clock stall detection (Chrome/Windows WASAPI issue)
+    // Compares wall clock (performance.now) vs audio clock (AudioContext.currentTime)
+    // to detect when the audio rendering thread stalls but context.state stays 'running'
+    this._lastWallTime = null
+    this._lastAudioTime = null
+    this._clockDivergenceSamples = []
+    this.MAX_DIVERGENCE_SAMPLES = 3       // Require 3 consecutive divergent samples
+    this.CLOCK_STALL_THRESHOLD_MS = 300   // Per-sample: audio >300ms behind wall clock
+    this.isClockCurrentlyStalled = false
+    this._stallStartTime = null
   }
 
   /**
@@ -109,6 +120,13 @@ class AudioStressMonitor {
     this.underrunCount = 0
     this.driftSamples = []
     this.currentMode = 'normal'
+
+    // Reset clock stall detection
+    this._lastWallTime = null
+    this._lastAudioTime = null
+    this._clockDivergenceSamples = []
+    this.isClockCurrentlyStalled = false
+    this._stallStartTime = null
   }
 
   /**
@@ -277,6 +295,63 @@ class AudioStressMonitor {
 
     // Check AudioContext baseLatency if available (Chrome/Firefox)
     this._checkBaseLatency()
+
+    // Clock stall detection: compare wall clock vs audio clock
+    // AudioContext.currentTime can freeze on Chrome/Windows (WASAPI stall)
+    // while context.state still reports 'running'
+    this._checkClockStall()
+  }
+
+  /**
+   * Detect AudioContext clock stall by comparing wall clock vs audio clock.
+   * On Chrome/Windows, WASAPI can stall the audio rendering thread while
+   * context.state remains 'running'. This is undetectable by state checks alone.
+   * Requires 3 consecutive samples where audio falls >300ms behind wall clock.
+   * @private
+   */
+  _checkClockStall () {
+    // Skip when tab is backgrounded — browsers throttle wall clock and audio clock
+    // at different rates, causing false divergence that looks like a stall
+    if (typeof document !== 'undefined' && document.hidden) {
+      this._clockDivergenceSamples = []
+      return
+    }
+
+    const wallNow = performance.now()
+    const rawContext = this.toneContext?.rawContext
+    const audioNow = (rawContext?.currentTime ?? 0) * 1000
+
+    if (this._lastWallTime !== null && audioNow > 0) {
+      const wallDelta = wallNow - this._lastWallTime
+      const audioDelta = audioNow - this._lastAudioTime
+      const divergence = wallDelta - audioDelta // positive = audio behind wall
+
+      this._clockDivergenceSamples.push(divergence)
+      if (this._clockDivergenceSamples.length > this.MAX_DIVERGENCE_SAMPLES) {
+        this._clockDivergenceSamples.shift()
+      }
+
+      // Stall = 3 consecutive samples where audio fell behind by >300ms each
+      const isStalled = this._clockDivergenceSamples.length >= this.MAX_DIVERGENCE_SAMPLES &&
+        this._clockDivergenceSamples.every(d => d > this.CLOCK_STALL_THRESHOLD_MS)
+
+      if (isStalled && !this.isClockCurrentlyStalled) {
+        this.isClockCurrentlyStalled = true
+        this._stallStartTime = performance.now()
+        this._recordUnderrun('audio-clock-stall')
+        console.warn('[AudioStress] Clock stall detected — audio clock behind wall clock')
+      } else if (!isStalled) {
+        if (this.isClockCurrentlyStalled) {
+          const stallDuration = performance.now() - this._stallStartTime
+          console.warn(`[AudioStress] Clock stall resolved after ${(stallDuration / 1000).toFixed(1)}s`)
+        }
+        this.isClockCurrentlyStalled = false
+        this._stallStartTime = null
+      }
+    }
+
+    this._lastWallTime = wallNow
+    this._lastAudioTime = audioNow
   }
 
   /**
@@ -392,7 +467,8 @@ class AudioStressMonitor {
       isMonitoring: this.isMonitoring,
       avgDrift: this.driftSamples.length > 0
         ? this.driftSamples.reduce((a, b) => a + b, 0) / this.driftSamples.length
-        : 0
+        : 0,
+      isClockStalled: this.isClockCurrentlyStalled
     }
   }
 }
