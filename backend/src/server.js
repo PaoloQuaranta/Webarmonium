@@ -89,12 +89,11 @@ const io = socketIo(server, {
     methods: ["GET", "POST"]
   },
   // Limit payload size BEFORE parsing to prevent memory exhaustion
-  maxHttpBufferSize: MAX_PAYLOAD_SIZE,
-  // Limit number of event listeners per socket
-  connectionStateRecovery: {
-    maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
-    skipMiddlewares: false
-  }
+  maxHttpBufferSize: MAX_PAYLOAD_SIZE
+  // connectionStateRecovery REMOVED (v0.7.9 OOM fix)
+  // Was buffering ALL emitted events for 2 minutes in native memory (~5 MB/room at 8x drum).
+  // Musical events (hold:start/hold:end) have no value after reconnection.
+  // Frontend already handles reconnection by requesting room:state.
 })
 
 // Connection rate limiting per IP (prevents connection flood attacks)
@@ -257,8 +256,22 @@ const roomManager = container.get('roomManager')
 // Global services object for socket handlers (backward compatible)
 const services = container.toObject()
 
-
-
+// v0.7.9: Memory watchdog - periodic heap/RSS logging + emergency cleanup
+const HEAP_WARN_MB = 200 // ~78% of 256MB limit
+setInterval(() => {
+  const mem = process.memoryUsage()
+  const heapMB = Math.round(mem.heapUsed / 1024 / 1024)
+  const rssMB = Math.round(mem.rss / 1024 / 1024)
+  console.log(`[MEM] heap=${heapMB}MB rss=${rssMB}MB`)
+  if (heapMB > HEAP_WARN_MB) {
+    console.warn(`[MEM] WARNING: heap ${heapMB}MB exceeds ${HEAP_WARN_MB}MB threshold - forcing cleanup`)
+    try {
+      backgroundService.forceGlobalCleanup()
+    } catch (err) {
+      console.error('[MEM] Cleanup error:', err.message)
+    }
+  }
+}, 60000)
 
 // Admin authentication middleware for protected endpoints
 // Entry #Security: Logs failed attempts and successful admin actions

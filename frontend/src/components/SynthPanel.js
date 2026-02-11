@@ -59,6 +59,7 @@ class SynthPanel {
     this._handleOverlayClick = this._handleOverlayClick.bind(this)
     this._onAuditionHoldStart = this._onAuditionHoldStart.bind(this)
     this._onSequencerHoldStart = this._onSequencerHoldStart.bind(this)
+    this._onDrumBatch = this._onDrumBatch.bind(this)
     this._onAuditionForceStopped = () => { this._stopAudition(false) }
     this._onSequencerForceStopped = () => { this._stopSequencer(false) }
   }
@@ -230,9 +231,11 @@ class SynthPanel {
     }
     socket.on('sequencer:step', this._onSequencerStep)
 
-    // Sequencer note playback (via hold:start)
+    // Sequencer note playback (via hold:start for tonal, drum:batch for drums)
     socket.off('hold:start', this._onSequencerHoldStart)
     socket.on('hold:start', this._onSequencerHoldStart)
+    socket.off('drum:batch', this._onDrumBatch)
+    socket.on('drum:batch', this._onDrumBatch)
 
     // Listen for backend force-stop (mutual exclusion: audition started, so sequencer was killed)
     socket.off('sequencer:stopped', this._onSequencerForceStopped)
@@ -265,6 +268,25 @@ class SynthPanel {
         this.audioService.playDrumHit(data.drumInstrument, data.velocity)
       } else if (this.audioService?.playSimpleNote) {
         this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
+      }
+    }
+
+    this._pulseButton('#synth-sequencer-btn')
+    this._pulseExternalButton()
+  }
+
+  /**
+   * Handle batched drum events from sequencer (v0.7.9)
+   * Plays all drum hits in one batch, pulses button once
+   */
+  _onDrumBatch (data) {
+    const localUserId = this.socketService?.currentUserId || this.socketService?.socket?.id
+    if (!localUserId) return
+    if (data.userId === localUserId) {
+      if (this.audioService?.playDrumHit) {
+        for (const hit of data.hits) {
+          this.audioService.playDrumHit(hit.drumInstrument, hit.velocity)
+        }
       }
     }
 

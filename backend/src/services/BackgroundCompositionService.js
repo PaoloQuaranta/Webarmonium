@@ -1230,6 +1230,19 @@ class BackgroundCompositionService {
   }
 
   /**
+   * v0.7.9: Force material cleanup on all active rooms
+   * Called by memory watchdog when heap exceeds threshold
+   */
+  forceGlobalCleanup () {
+    for (const [roomId] of this.roomEngines) {
+      const engines = this._getEngines(roomId)
+      if (engines?.materialLibrary) {
+        engines.materialLibrary.cleanupOldMaterial()
+      }
+    }
+  }
+
+  /**
    * Get section state manager for external access
    * Entry #169: Allows other services to subscribe to section changes
    * @returns {SectionStateManager}

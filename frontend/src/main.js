@@ -1095,6 +1095,42 @@ class WebarmoniumApp {
       }
     })
 
+    // DRUM BATCH: Handle batched drum events from sequencer (v0.7.9 OOM fix)
+    // Replaces 3 individual hold:start events per step with 1 drum:batch event
+    this.socketService.on('drum:batch', (data) => {
+      if (!this.isAudioStarted || !data.isRemote) return
+
+      if (this.audioService) {
+        this.audioService.registerDroneActivity()
+      }
+
+      const localUserId = this.socketService.currentUserId || this.socketService.socket?.id
+
+      // Remote users' drum hits: play through UserSynthManager
+      if (data.userId !== localUserId) {
+        if (data.userId && this.audioService?.userSynthManager) {
+          for (const hit of data.hits) {
+            this.audioService.userSynthManager.playDrumHit(
+              data.userId, hit.drumInstrument, hit.velocity, data.drumPresetSlot
+            )
+          }
+        }
+      }
+      // Local user's own drum hits: audio handled by SynthPanel._onDrumBatch
+
+      // Visual feedback (once per batch, not per hit)
+      if (this.visualService && data.position) {
+        const color = data.userColor || '#fb923c'
+        this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
+        this.visualService.updateGestureData(data.userId, {
+          type: 'hold',
+          velocity: data.hits[0]?.velocity || 0.7,
+          holdStart: Date.now(),
+          isActive: true
+        })
+      }
+    })
+
     // SUSTAINED HOLD: Handle remote user hold:end events
     this.socketService.on('hold:end', (data) => {
       // Entry #28: Register note end for drone void detection (remote users/virtual users)

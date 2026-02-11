@@ -49,6 +49,9 @@ class MaterialLibrary {
     this.lifetimes = new Map()  // Material age and usage tracking
     this.maxAge = 120000        // 2 minutes in milliseconds
     this.usageThreshold = 5     // Max uses before material is considered "tired"
+
+    // v0.7.9: Hard cap per function category to prevent unbounded growth
+    this.MAX_MATERIALS_PER_FUNCTION = 30 // 30 per function x 4 functions = 120 max
   }
 
   addMaterial(material) {
@@ -75,6 +78,20 @@ class MaterialLibrary {
           gestureData: material.gestureData || null,
           complexity: this.calculateComplexity(material),
           emotionalValence: this.analyzeEmotionalValence(material)
+        }
+      }
+
+      // v0.7.9: Evict oldest material if function category is at cap
+      const functionArray = this.materials[harmonicFunction]
+      if (functionArray.length >= this.MAX_MATERIALS_PER_FUNCTION) {
+        const removed = functionArray.shift()
+        this.lifetimes.delete(removed.id)
+        // Remove from byCharacter cross-reference
+        const removedCharacter = removed.metadata?.character
+        if (removedCharacter && this.byCharacter[removedCharacter]) {
+          const charArray = this.byCharacter[removedCharacter]
+          const idx = charArray.findIndex(m => m.id === removed.id)
+          if (idx !== -1) charArray.splice(idx, 1)
         }
       }
 

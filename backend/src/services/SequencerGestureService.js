@@ -484,7 +484,8 @@ class SequencerGestureService {
     const VELOCITY_MAP = { ghost: 0.3, normal: 0.7, accent: 1.0 }
     const DURATION_MAP = { bd: 0.3, sn: 0.15, hh: 0.08 }
 
-    // Process each layer
+    // v0.7.9: Batch drum hits into single event (30 events/sec → 10 events/sec)
+    const hits = []
     for (const inst of ['bd', 'sn', 'hh']) {
       if (state.mutedLayers.has(inst)) continue // Skip muted layer (partial pause)
       const layer = state.params.layers?.[inst]
@@ -493,20 +494,23 @@ class SequencerGestureService {
       const step = layer.steps?.[stepIndex]
       if (!step || step.state === 'off') continue
 
-      const velocity = VELOCITY_MAP[step.state] || 0.7
+      hits.push({
+        drumInstrument: inst,
+        velocity: VELOCITY_MAP[step.state] || 0.7,
+        duration: DURATION_MAP[inst]
+      })
+    }
 
-      this.io.to(roomId).emit('hold:start', {
-        type: 'hold:start',
+    if (hits.length > 0) {
+      this.io.to(roomId).emit('drum:batch', {
         userId,
         userColor,
         isDrum: true,
-        drumInstrument: inst,
         drumPresetSlot: state.drumPresetSlot,
-        velocity,
-        duration: DURATION_MAP[inst],
+        hits,
         position: {
           x: 0.3 + ((state.gestureCount * 1.618) % 1) * 0.4,
-          y: inst === 'bd' ? 0.8 : inst === 'sn' ? 0.5 : 0.2
+          y: 0.5
         },
         isRemote: true,
         isSequencer: true,
