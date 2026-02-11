@@ -464,6 +464,17 @@ class SequencerGestureService {
     const state = this.activeSequencers.get(socketId)
     if (!state || !state.isActive || state.isPaused) return
 
+    // v0.7.9: Track actual step interval for jitter detection
+    const now = Date.now()
+    if (state._lastStepTime) {
+      const delta = now - state._lastStepTime
+      const expected = Math.max(100, (60000 / state.currentBPM) / state.params.speedMultiplier)
+      if (delta > expected * 1.5) {
+        console.warn(`[SequencerGesture] Step jitter: ${delta}ms (expected ${Math.round(expected)}ms) for socket ${socketId}`)
+      }
+    }
+    state._lastStepTime = now
+
     const stepIndex = state.currentStepIndex
     const stepCount = state.params.stepCount
 

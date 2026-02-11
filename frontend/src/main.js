@@ -1100,6 +1100,19 @@ class WebarmoniumApp {
     this.socketService.on('drum:batch', (data) => {
       if (!this.isAudioStarted || !data.isRemote) return
 
+      // v0.7.9: Track drum timing for diagnostic
+      const now = Date.now()
+      if (!this._drumTiming) this._drumTiming = { deltas: [], lastArrival: 0, serverDelays: [] }
+      if (this._drumTiming.lastArrival > 0) {
+        this._drumTiming.deltas.push(now - this._drumTiming.lastArrival)
+        if (this._drumTiming.deltas.length > 20) this._drumTiming.deltas.shift()
+      }
+      this._drumTiming.lastArrival = now
+      if (data.timestamp) {
+        this._drumTiming.serverDelays.push(now - data.timestamp)
+        if (this._drumTiming.serverDelays.length > 20) this._drumTiming.serverDelays.shift()
+      }
+
       if (this.audioService) {
         this.audioService.registerDroneActivity()
       }
@@ -2833,6 +2846,19 @@ window._diagInterval = setInterval(() => {
   const ft = vis?._frameTiming
   const timing = ft ? `phy=${ft.physics.toFixed(1)} mesh=${ft.mesh.toFixed(1)} neb=${ft.nebula.toFixed(1)} wav=${ft.wave.toFixed(1)} att=${ft.attractor.toFixed(1)} par=${ft.particle.toFixed(1)}` : '?'
 
+  // Drum timing analysis
+  const dt = app._drumTiming
+  let drumStats = null
+  if (dt && dt.deltas.length > 0) {
+    const avg = Math.round(dt.deltas.reduce((a, b) => a + b, 0) / dt.deltas.length)
+    const max = Math.max(...dt.deltas)
+    const min = Math.min(...dt.deltas)
+    const avgDelay = dt.serverDelays.length > 0
+      ? Math.round(dt.serverDelays.reduce((a, b) => a + b, 0) / dt.serverDelays.length)
+      : '?'
+    drumStats = `avg=${avg}ms min=${min} max=${max} delay=${avgDelay}ms n=${dt.deltas.length}`
+  }
+
   const diag = {
     heap: mem ? `${mem.heap}/${mem.limit}MB` : 'N/A',
     transportTimeline: transportEvents,
@@ -2846,6 +2872,7 @@ window._diagInterval = setInterval(() => {
     particles: vis?.particles?.particles?.size ?? '?',
     edges: ft?.edges ?? '?',
     fps: vis?.fps?.toFixed(1) ?? '?',
+    drumTiming: drumStats,
     timing
   }
   console.log('[DIAG]', JSON.stringify(diag))

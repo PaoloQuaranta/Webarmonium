@@ -256,13 +256,18 @@ const roomManager = container.get('roomManager')
 // Global services object for socket handlers (backward compatible)
 const services = container.toObject()
 
-// v0.7.9: Memory watchdog - periodic heap/RSS logging + emergency cleanup
+// v0.7.9: Memory watchdog - periodic heap/RSS logging + event loop lag + emergency cleanup
 const HEAP_WARN_MB = 200 // ~78% of 256MB limit
+let _lastWatchdogTime = Date.now()
 setInterval(() => {
+  const now = Date.now()
+  const lagMs = now - _lastWatchdogTime - 60000 // how late this interval fired
+  _lastWatchdogTime = now
   const mem = process.memoryUsage()
   const heapMB = Math.round(mem.heapUsed / 1024 / 1024)
   const rssMB = Math.round(mem.rss / 1024 / 1024)
-  console.log(`[MEM] heap=${heapMB}MB rss=${rssMB}MB`)
+  const seqCount = container.get('sequencerGestureService')?.activeSequencers?.size || 0
+  console.log(`[MEM] heap=${heapMB}MB rss=${rssMB}MB lag=${lagMs}ms seq=${seqCount}`)
   if (heapMB > HEAP_WARN_MB) {
     console.warn(`[MEM] WARNING: heap ${heapMB}MB exceeds ${HEAP_WARN_MB}MB threshold - forcing cleanup`)
     try {
