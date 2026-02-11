@@ -41,6 +41,9 @@ class SocketService {
 
     // Message queue for when disconnected
     this.messageQueue = []
+
+    // v0.7.9: Store server URL for reconnection (fixes localhost fallback bug)
+    this._serverUrl = null
   }
 
   /**
@@ -48,7 +51,13 @@ class SocketService {
    * @param {string} serverUrl - WebSocket server URL
    * @param {Object} options - Connection options
    */
-  async connect(serverUrl = 'http://localhost:3001', options = {}) {
+  async connect(serverUrl, options = {}) {
+    // Use stored URL for reconnection, fall back to localhost for dev
+    if (serverUrl) {
+      this._serverUrl = serverUrl
+    }
+    const url = this._serverUrl || 'http://localhost:3001'
+
     if (this.socket && this.socket.connected) {
       // console.warn('Already connected to WebSocket')
       return
@@ -57,7 +66,7 @@ class SocketService {
     const connectionStartTime = performance.now()
 
     try {
-      this.socket = io(serverUrl, {
+      this.socket = io(url, {
         transports: ['websocket', 'polling'],
         timeout: 5000,
         forceNew: true,
