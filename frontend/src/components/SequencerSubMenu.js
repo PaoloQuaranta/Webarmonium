@@ -145,24 +145,59 @@ class SequencerSubMenu {
 
   /**
    * Set active step index for LED highlight
+   * v0.7.9: Cache cell elements and toggle only changed steps to eliminate
+   * querySelectorAll + 24 classList.toggle calls at 10/sec (240 DOM ops/sec → 4)
    * @param {number} index - Step index, or -1 to clear all
    */
   setActiveStep (index) {
     if (!this.element) return
+    const prevStep = this.activeStep
     this.activeStep = index
 
+    if (prevStep === index) return // No change
+
     if (this.isDrumMode) {
-      // Highlight all 3 layers at the active step
-      this.element.querySelectorAll('.drum-seq-cell').forEach(cell => {
-        const stepIdx = parseInt(cell.dataset.step, 10)
-        cell.classList.toggle('active-led', stepIdx === index)
-      })
+      // Build cache on first call or after grid rebuild
+      if (!this._drumStepCache) this._buildDrumStepCache()
+
+      // Remove LED from previous step cells
+      if (prevStep >= 0 && this._drumStepCache[prevStep]) {
+        for (const cell of this._drumStepCache[prevStep]) {
+          cell.classList.remove('active-led')
+        }
+      }
+      // Add LED to current step cells
+      if (index >= 0 && this._drumStepCache[index]) {
+        for (const cell of this._drumStepCache[index]) {
+          cell.classList.add('active-led')
+        }
+      }
     } else {
-      const buttons = this.element.querySelectorAll('.sequencer-step-btn')
-      buttons.forEach((btn, i) => {
-        btn.classList.toggle('active-led', i === index)
-      })
+      // Build cache on first call
+      if (!this._tonalStepCache) {
+        this._tonalStepCache = Array.from(this.element.querySelectorAll('.sequencer-step-btn'))
+      }
+      // Toggle only changed steps
+      if (prevStep >= 0 && this._tonalStepCache[prevStep]) {
+        this._tonalStepCache[prevStep].classList.remove('active-led')
+      }
+      if (index >= 0 && this._tonalStepCache[index]) {
+        this._tonalStepCache[index].classList.add('active-led')
+      }
     }
+  }
+
+  /**
+   * Build cache of drum step cells indexed by step number
+   * @private
+   */
+  _buildDrumStepCache () {
+    this._drumStepCache = {}
+    this.element.querySelectorAll('.drum-seq-cell').forEach(cell => {
+      const stepIdx = parseInt(cell.dataset.step, 10)
+      if (!this._drumStepCache[stepIdx]) this._drumStepCache[stepIdx] = []
+      this._drumStepCache[stepIdx].push(cell)
+    })
   }
 
   getParams () {
@@ -593,6 +628,9 @@ class SequencerSubMenu {
     if (!container) return
     container.innerHTML = this._getStepsHTML()
     this._attachStepListeners()
+    // v0.7.9: Invalidate cached step elements after grid rebuild
+    this._drumStepCache = null
+    this._tonalStepCache = null
   }
 
   _updateUI () {

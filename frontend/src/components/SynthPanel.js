@@ -296,15 +296,20 @@ class SynthPanel {
 
   /**
    * Trigger pulse animation on a button
+   * v0.7.9: Replaced CSS class toggle + forced reflow (void btn.offsetWidth) with
+   * Web Animations API. Eliminates 20 forced reflows/sec during sequencer playback,
+   * which caused progressive main-thread saturation and FPS death spiral.
    * @param {string} selector - CSS selector for the button
    * @private
    */
   _pulseButton (selector) {
     const btn = this.panel?.querySelector(selector)
     if (!btn) return
-    btn.classList.remove('pulse')
-    void btn.offsetWidth // Force reflow to restart animation
-    btn.classList.add('pulse')
+    if (btn._pulseAnim) btn._pulseAnim.cancel()
+    btn._pulseAnim = btn.animate(
+      [{ transform: 'scale(1.04)' }, { transform: 'scale(1)' }],
+      { duration: 250, easing: 'ease-out' }
+    )
   }
 
   /**
@@ -334,14 +339,21 @@ class SynthPanel {
 
   /**
    * Trigger parallax depth-pulse on the external synth button
+   * v0.7.9: Web Animations API — no forced reflow
    * @private
    */
   _pulseExternalButton () {
     const btn = this._externalBtn
     if (!btn) return
-    btn.classList.remove('synth-parallax-pulse')
-    void btn.offsetWidth
-    btn.classList.add('synth-parallax-pulse')
+    if (btn._pulseAnim) btn._pulseAnim.cancel()
+    btn._pulseAnim = btn.animate(
+      [
+        { transform: 'scale(1.12) translateZ(8px)' },
+        { transform: 'scale(0.97) translateZ(-2px)', offset: 0.4 },
+        { transform: 'scale(1) translateZ(0)' }
+      ],
+      { duration: 350, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+    )
   }
 
   /**

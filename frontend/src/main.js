@@ -2829,22 +2829,24 @@ window._diagInterval = setInterval(() => {
   let transportRepeats = '?'
   try { transportRepeats = Tone.Transport._repeatedEvents?.size ?? '?' } catch (e) {}
 
+  // Frame timing breakdown from GenerativeVisualService (ms per section)
+  const ft = vis?._frameTiming
+  const timing = ft ? `phy=${ft.physics.toFixed(1)} mesh=${ft.mesh.toFixed(1)} neb=${ft.nebula.toFixed(1)} wav=${ft.wave.toFixed(1)} att=${ft.attractor.toFixed(1)} par=${ft.particle.toFixed(1)}` : '?'
+
   const diag = {
     heap: mem ? `${mem.heap}/${mem.limit}MB` : 'N/A',
     transportTimeline: transportEvents,
-    transportRepeats: transportRepeats,
     scheduledEvents: audio?.scheduledTransportEvents?.length ?? '?',
     droneRepeats: audio?.droneRepeatEventIds?.length ?? '?',
     activeVoices: audio?.generativeState?.activeVoices?.size ?? '?',
     compositionQueue: audio?._compositionQueue?.length ?? '?',
     isPlaying: audio?._isPlayingComposition ?? '?',
-    particles: vis?.particles?.particles?.size ?? '?',
     wavePulses: vis?.wavePackets?.activePulses?.size ?? '?',
-    waveContexts: vis?.wavePackets?.waveContexts?.size ?? '?',
-    particleWaveCtx: vis?.particles?.waveContexts?.size ?? '?',
-    meshNodes: vis?.springMesh?.nodes?.size ?? '?',
-    meshEdges: vis?.springMesh?.edges?.length ?? '?',
-    fps: vis?.fps?.toFixed(1) ?? '?'
+    waveCtx: vis?.wavePackets?.waveContexts?.size ?? '?',
+    particles: vis?.particles?.particles?.size ?? '?',
+    edges: ft?.edges ?? '?',
+    fps: vis?.fps?.toFixed(1) ?? '?',
+    timing
   }
   console.log('[DIAG]', JSON.stringify(diag))
 }, 10000)

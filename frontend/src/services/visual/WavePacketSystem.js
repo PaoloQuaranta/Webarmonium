@@ -456,12 +456,14 @@ class WavePacketSystem {
     for (const [pulseId, pulse] of this.activePulses) {
       // FIX: Check for pulses marked for removal during render
       if (pulse._markedForRemoval) {
+        if (pulse.waveContext) pulse.waveContext.activePulseCount--
         pulsesToRemove.push(pulseId)
         continue
       }
 
       // FIX: Validate pulse has required properties
       if (!pulse.edge || !isFinite(pulse.progress) || !isFinite(pulse.speed)) {
+        if (pulse.waveContext) pulse.waveContext.activePulseCount--
         pulsesToRemove.push(pulseId)
         continue
       }
@@ -475,6 +477,7 @@ class WavePacketSystem {
 
       // FIX: Check for NaN after progress update
       if (!isFinite(pulse.progress)) {
+        if (pulse.waveContext) pulse.waveContext.activePulseCount--
         pulsesToRemove.push(pulseId)
         continue
       }
@@ -494,6 +497,12 @@ class WavePacketSystem {
         arrivingPulses.push(pulse)
         pulsesToRemove.push(pulseId)
       } else if (displayIntensity <= 0.01) {
+        // v0.7.9 FIX: Decrement activePulseCount for fading pulses too.
+        // Previously only arriving pulses decremented, causing waveContexts
+        // to accumulate indefinitely (leak ~3 contexts/sec during sequencer).
+        if (pulse.waveContext) {
+          pulse.waveContext.activePulseCount--
+        }
         pulsesToRemove.push(pulseId)
       }
     }
