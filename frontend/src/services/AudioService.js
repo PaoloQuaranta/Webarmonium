@@ -7422,7 +7422,8 @@ class AudioService {
         decay: 0.05 + inst.bd.decay * 1.45,
         sustain: 0,
         release: 0.1
-      }
+      },
+      volume: 4 // +4dB: compensate for perceptual quietness of sub frequencies (30-90Hz)
     })
     kit.bd.frequency.value = 30 + inst.bd.pitch * 60 // 30-90Hz
 
@@ -7473,7 +7474,7 @@ class AudioService {
       harmonicity: 5.1 + inst.hh.tone * 3,
       resonance: 300,
       octaves: 4,
-      volume: -6
+      volume: -12 // was -6: tame perceptually dominant high-frequency partials
     })
 
     return kit
@@ -7500,32 +7501,38 @@ class AudioService {
     kit.hh.connect(kit.hhGain)
     kit.hhGain.connect(this.gesturePan)
 
-    // Delay sends (SN + HH only, BD has no delay)
-    if (this.delaySends?.gesture) {
-      const delayNode = this.delaySends.gesture // existing gesture delay send node
+    // Delay sends (SN + HH only, BD never gets delay)
+    // Connect directly to FX processor, bypassing delaySends.gesture (style-immune)
+    if (this.delay && !this.delay.disposed) {
+      kit.drumDelaySendMaster = new Tone.Gain(0.25) // fixed level, style cannot scale this
+      kit.drumDelaySendMaster.connect(this.delay)
+
       kit.snDelaySend = new Tone.Gain(inst.sn.delay || 0.15)
       kit.snMerge.connect(kit.snDelaySend)
-      kit.snDelaySend.connect(delayNode)
+      kit.snDelaySend.connect(kit.drumDelaySendMaster)
 
       kit.hhDelaySend = new Tone.Gain(inst.hh.delay || 0)
       kit.hhGain.connect(kit.hhDelaySend)
-      kit.hhDelaySend.connect(delayNode)
+      kit.hhDelaySend.connect(kit.drumDelaySendMaster)
     }
 
-    // Reverb sends (all 3, BD with special behavior: max 20%, only above 50% slider)
-    if (this.reverbSends?.gesture) {
-      const reverbNode = this.reverbSends.gesture
+    // Reverb sends (all 3, BD special: max 20%, only above 50% slider)
+    // Connect directly to FX processor, bypassing reverbSends.gesture (style-immune)
+    if (this.reverb && !this.reverb.disposed) {
+      kit.drumReverbSendMaster = new Tone.Gain(0.3) // fixed level, style cannot scale this
+      kit.drumReverbSendMaster.connect(this.reverb)
+
       kit.bdReverbSend = new Tone.Gain(0)
       kit.bdGain.connect(kit.bdReverbSend)
-      kit.bdReverbSend.connect(reverbNode)
+      kit.bdReverbSend.connect(kit.drumReverbSendMaster)
 
       kit.snReverbSend = new Tone.Gain(patch.reverb || 0)
       kit.snMerge.connect(kit.snReverbSend)
-      kit.snReverbSend.connect(reverbNode)
+      kit.snReverbSend.connect(kit.drumReverbSendMaster)
 
       kit.hhReverbSend = new Tone.Gain(patch.reverb || 0)
       kit.hhGain.connect(kit.hhReverbSend)
-      kit.hhReverbSend.connect(reverbNode)
+      kit.hhReverbSend.connect(kit.drumReverbSendMaster)
     }
   }
 
@@ -7648,7 +7655,8 @@ class AudioService {
       this.drumSynths.bd, this.drumSynths.bdGain, this.drumSynths.bdReverbSend,
       this.drumSynths.snBody, this.drumSynths.snNoise, this.drumSynths.snFilter,
       this.drumSynths.snMerge, this.drumSynths.snDelaySend, this.drumSynths.snReverbSend,
-      this.drumSynths.hh, this.drumSynths.hhGain, this.drumSynths.hhDelaySend, this.drumSynths.hhReverbSend
+      this.drumSynths.hh, this.drumSynths.hhGain, this.drumSynths.hhDelaySend, this.drumSynths.hhReverbSend,
+      this.drumSynths.drumDelaySendMaster, this.drumSynths.drumReverbSendMaster
     ]
     nodes.forEach(n => {
       if (n && !n.disposed) {
