@@ -440,6 +440,19 @@ class AudioService {
       // Tab becoming hidden - audio keeps playing, just stop monitoring
       if (this._audioState === 'PLAYING') {
         this._stopAudioHealthCheck()
+        // v0.7.9: Flush composition queue to prevent Transport event accumulation
+        // Chrome throttles AudioContext in background tabs, causing stale events
+        // to pile up. New compositions will arrive when tab becomes visible again.
+        this._compositionQueue = []
+        this._isPlayingComposition = false
+        if (this._nextCompositionEventId !== null) {
+          try { Tone.Transport.clear(this._nextCompositionEventId) } catch (e) { /* already cleared */ }
+          this._nextCompositionEventId = null
+        }
+        if (this._compositionWallTimeBackup) {
+          clearTimeout(this._compositionWallTimeBackup)
+          this._compositionWallTimeBackup = null
+        }
       }
       return
     }
@@ -3841,6 +3854,12 @@ class AudioService {
     }
 
     if (!composition || !composition.content) {
+      return
+    }
+
+    // v0.7.9: Drop compositions when tab is hidden — Chrome throttles AudioContext
+    // and Transport events accumulate causing progressive slowdown on return
+    if (document.hidden) {
       return
     }
 
