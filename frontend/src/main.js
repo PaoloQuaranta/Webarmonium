@@ -2998,6 +2998,7 @@ window._diagInterval = setInterval(() => {
     longTasks: `n=${window._ltCount || 0} total=${Math.round(window._ltTotalMs || 0)}ms`,
     // v0.7.11: Drum synth triggerAttackRelease cost (detect AudioParam accumulation)
     drumHitCost: audio?._drumHitStats ? `n=${audio._drumHitStats.count} avg=${(audio._drumHitStats.totalMs / Math.max(1, audio._drumHitStats.count)).toFixed(1)}ms max=${audio._drumHitStats.maxMs.toFixed(1)}ms` : null,
+    drumRecycles: audio?._drumHitCount !== undefined ? `count=${audio._drumHitCount}/300` : null,
     tickerPatched: window._toneTickerPatched
   }
   // Reset cumulative stats for next window

@@ -680,13 +680,75 @@ class UserSynthManager {
 
       kit.lastUsedTime = Date.now()
 
+      // Recycle drum synths to clear Chrome AudioParam automation accumulation
+      kit.hitCount = (kit.hitCount || 0) + 1
+      if (kit.hitCount >= 300) {
+        // Dispose old kit nodes asynchronously (let current notes decay)
+        const oldKit = kit
+        setTimeout(() => {
+          const nodes = [oldKit.bd, oldKit.snBody, oldKit.snNoise, oldKit.snFilter, oldKit.snMerge, oldKit.hh, oldKit.outputGain]
+          nodes.forEach(n => { if (n && !n.disposed) { try { n.disconnect(); n.dispose() } catch (e) {} } })
+        }, 500)
+        // Remove from cache — will be recreated fresh on next call
+        this.userDrumKits.delete(userId)
+        // Recreate immediately for this call
+        kit = null
+      }
+
+      // Recreate if recycled above
+      if (!kit) {
+        const patchDefs = this.patchDefinitions || window.PatchDefinitions
+        const drumPatch = patchDefs?.REAL_USER_PATCHES?.[presetSlot] ||
+                          patchDefs?.REAL_USER_PATCHES?.[8]
+        if (!drumPatch || drumPatch.type !== 'drum') return
+
+        const inst = drumPatch.instruments
+        kit = {}
+        kit.bd = new Tone.MembraneSynth({
+          pitchDecay: 0.05 + inst.bd.pitch * 0.3,
+          octaves: 2 + inst.bd.tone * 6,
+          envelope: { attack: 0.001, decay: 0.05 + inst.bd.decay * 1.45, sustain: 0, release: 0.1 }
+        })
+        kit.bd.frequency.value = 30 + inst.bd.pitch * 60
+        kit.snBody = new Tone.MembraneSynth({
+          pitchDecay: 0.02, octaves: 3,
+          envelope: { attack: 0.001, decay: 0.08, sustain: 0, release: 0.05 }
+        })
+        kit.snBody.frequency.value = 120 + inst.sn.pitch * 180
+        kit.snNoise = new Tone.NoiseSynth({
+          noise: { type: 'white' },
+          envelope: { attack: 0.001, decay: 0.05 + inst.sn.decay * 0.45, sustain: 0, release: 0.01 }
+        })
+        kit.snFilter = new Tone.Filter({ type: 'bandpass', frequency: 1000 + inst.sn.tone * 7000, Q: 1.5 })
+        kit.snMerge = new Tone.Gain(1)
+        kit.snBody.connect(kit.snMerge)
+        kit.snNoise.connect(kit.snFilter)
+        kit.snFilter.connect(kit.snMerge)
+        kit.hh = new Tone.MetalSynth({
+          frequency: 200 + inst.hh.pitch * 600,
+          envelope: { attack: 0.001, decay: 0.08 + inst.hh.decay * 0.32, release: 0.05 },
+          harmonicity: 5.1 + inst.hh.tone * 3, resonance: 300, octaves: 4, volume: -6
+        })
+        if (this.masterVolume) {
+          const gain = new Tone.Gain(0.7)
+          kit.bd.connect(gain)
+          kit.snMerge.connect(gain)
+          kit.hh.connect(gain)
+          gain.connect(this.masterVolume)
+          kit.outputGain = gain
+        }
+        kit.hitCount = 0
+        kit.lastUsedTime = Date.now()
+        kit.lastTriggerTime = 0
+        this.userDrumKits.set(userId, kit)
+      }
+
       // Trigger hit
       const now = Tone.now()
       const safeTime = Math.max(now, (kit.lastTriggerTime || 0) + 0.01)
       kit.lastTriggerTime = safeTime
       const vel = Math.max(0.1, Math.min(1.0, velocity))
 
-      // v0.7.11 DIAG: Measure triggerAttackRelease cost
       const _dht0 = performance.now()
 
       switch (instrument) {

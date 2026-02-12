@@ -7180,6 +7180,8 @@ class AudioService {
         this.drumSynths = this._createDrumKit(patch)
         this._connectDrumKit(this.drumSynths, patch)
         this.isDrumMode = true
+        this._drumHitCount = 0
+        this._currentDrumParams = null
         this.currentPresetSlot = slot
         this.currentPatch = patch
         return true
@@ -7704,13 +7706,18 @@ class AudioService {
     if (!this.drumSynths || !this.isDrumMode) return
 
     try {
+      // Recycle drum synths to clear Chrome AudioParam automation accumulation
+      this._drumHitCount = (this._drumHitCount || 0) + 1
+      if (this._drumHitCount >= 300) {
+        this._recycleDrumKit()
+      }
+
       const kit = this.drumSynths
       const now = Tone.now()
       const safeTime = Math.max(now, (this._lastDrumTrigger || 0) + 0.01)
       this._lastDrumTrigger = safeTime
       const vel = Math.max(0.1, Math.min(1.0, velocity))
 
-      // v0.7.11 DIAG: Measure triggerAttackRelease cost to detect AudioParam accumulation
       const _dht0 = performance.now()
 
       switch (instrument) {
@@ -7728,7 +7735,6 @@ class AudioService {
 
       const _dht = performance.now() - _dht0
       if (typeof window !== 'undefined' && window._opTimings) window._opTimings.drum += _dht
-      // Track cumulative drum synth cost for DIAG
       if (!this._drumHitStats) this._drumHitStats = { count: 0, totalMs: 0, maxMs: 0 }
       this._drumHitStats.count++
       this._drumHitStats.totalMs += _dht
@@ -7745,6 +7751,14 @@ class AudioService {
   setDrumParams (params) {
     if (!this.drumSynths || !this.isDrumMode || !params) return
     const kit = this.drumSynths
+
+    // Save params for drum kit recycling (merge incrementally)
+    if (!this._currentDrumParams) this._currentDrumParams = {}
+    if (params.bd) this._currentDrumParams.bd = { ...(this._currentDrumParams.bd || {}), ...params.bd }
+    if (params.sn) this._currentDrumParams.sn = { ...(this._currentDrumParams.sn || {}), ...params.sn }
+    if (params.hh) this._currentDrumParams.hh = { ...(this._currentDrumParams.hh || {}), ...params.hh }
+    if (params.volume !== undefined) this._currentDrumParams.volume = params.volume
+    if (params.reverb !== undefined) this._currentDrumParams.reverb = params.reverb
 
     try {
       // BD params
@@ -7813,6 +7827,46 @@ class AudioService {
     } catch (error) {
       console.warn('[AudioService] setDrumParams failed:', error.message)
     }
+  }
+
+  /**
+   * Recycle drum synths to clear Chrome AudioParam automation event accumulation.
+   * Chrome never GCs past automation events from AudioParam timelines, causing
+   * triggerAttackRelease to slow from ~3ms to 400ms+ after ~300 hits.
+   * Fix: create fresh synths, then dispose old ones after current notes decay.
+   */
+  _recycleDrumKit () {
+    if (!this.drumSynths || !this.currentPatch) return
+
+    const savedParams = this._currentDrumParams
+    const oldKit = this.drumSynths
+
+    // Create new kit first (zero audio gap)
+    this.drumSynths = this._createDrumKit(this.currentPatch)
+    this._connectDrumKit(this.drumSynths, this.currentPatch)
+    this._drumHitCount = 0
+    this._lastDrumTrigger = 0
+
+    // Re-apply user-adjusted params on fresh synths
+    if (savedParams) {
+      this.setDrumParams(savedParams)
+    }
+
+    // Dispose old kit after current drum hits decay (~500ms max for BD)
+    setTimeout(() => {
+      const nodes = [
+        oldKit.bd, oldKit.bdGain, oldKit.bdReverbSend,
+        oldKit.snBody, oldKit.snNoise, oldKit.snFilter,
+        oldKit.snMerge, oldKit.snDelaySend, oldKit.snReverbSend,
+        oldKit.hh, oldKit.hhGain, oldKit.hhDelaySend, oldKit.hhReverbSend,
+        oldKit.drumDelaySendMaster, oldKit.drumReverbSendMaster
+      ]
+      nodes.forEach(n => {
+        if (n && !n.disposed) {
+          try { n.disconnect(); n.dispose() } catch (e) { /* already disposed */ }
+        }
+      })
+    }, 500)
   }
 
   /**
