@@ -1022,19 +1022,6 @@ class WebarmoniumApp {
       // Skip sustained note mechanism — notes are self-releasing via triggerAttackRelease
       // data.style contains genre/harmonic context from BackgroundCompositionService (forward-compatible)
       if (data.isSequencer) {
-        // v0.7.9: Track sequencer timing for diagnostic (tonal mode uses hold:start)
-        const seqNow = Date.now()
-        if (!this._drumTiming) this._drumTiming = { deltas: [], lastArrival: 0, serverDelays: [] }
-        if (this._drumTiming.lastArrival > 0) {
-          this._drumTiming.deltas.push(seqNow - this._drumTiming.lastArrival)
-          if (this._drumTiming.deltas.length > 20) this._drumTiming.deltas.shift()
-        }
-        this._drumTiming.lastArrival = seqNow
-        if (data.timestamp) {
-          this._drumTiming.serverDelays.push(seqNow - data.timestamp)
-          if (this._drumTiming.serverDelays.length > 20) this._drumTiming.serverDelays.shift()
-        }
-
         const localUserId = this.socketService.currentUserId || this.socketService.socket?.id
 
         // Remote users' sequencer: play through isolated per-user synth
@@ -1110,24 +1097,10 @@ class WebarmoniumApp {
       }
     })
 
-    // DRUM BATCH: Handle batched drum events from sequencer (v0.7.9 OOM fix)
+    // DRUM BATCH: Handle batched drum events from sequencer
     // Replaces 3 individual hold:start events per step with 1 drum:batch event
     this.socketService.on('drum:batch', (data) => {
-      const _dt0 = performance.now()
       if (!this.isAudioStarted || !data.isRemote) return
-
-      // v0.7.9: Track drum timing for diagnostic
-      const now = Date.now()
-      if (!this._drumTiming) this._drumTiming = { deltas: [], lastArrival: 0, serverDelays: [] }
-      if (this._drumTiming.lastArrival > 0) {
-        this._drumTiming.deltas.push(now - this._drumTiming.lastArrival)
-        if (this._drumTiming.deltas.length > 20) this._drumTiming.deltas.shift()
-      }
-      this._drumTiming.lastArrival = now
-      if (data.timestamp) {
-        this._drumTiming.serverDelays.push(now - data.timestamp)
-        if (this._drumTiming.serverDelays.length > 20) this._drumTiming.serverDelays.shift()
-      }
 
       if (this.audioService) {
         this.audioService.registerDroneActivity()
@@ -1148,8 +1121,7 @@ class WebarmoniumApp {
       // Local user's own drum hits: audio handled by SynthPanel._onDrumBatch
 
       // Visual feedback (once per batch, not per hit)
-      // v0.7.9 FIX: Use type 'sequencer' — 'hold' triggers emitPulse() which created
-      // ~3.3 WaveContexts/sec, accumulating to 88 and crushing FPS from 30 to 3.
+      // Use type 'sequencer' — 'hold' triggers emitPulse() which creates WaveContexts
       if (this.visualService && data.position) {
         const color = data.userColor || '#fb923c'
         this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
@@ -1159,7 +1131,6 @@ class WebarmoniumApp {
           isActive: true
         })
       }
-      if (typeof window !== 'undefined') window._opTimings.drum += performance.now() - _dt0
     })
 
     // SUSTAINED HOLD: Handle remote user hold:end events
@@ -2842,174 +2813,6 @@ window.addEventListener('beforeunload', () => {
 // Make available globally for debugging
 window.WebarmoniumApp = WebarmoniumApp
 
-// v0.7.10: Long Task observer with accumulated timing for accurate attribution.
-// The _opMarker approach was flawed — observer fires AFTER the task, so marker
-// was always 'idle'. Now we track cumulative time per code path since last LONGTASK.
-window._opMarker = 'idle'  // Kept for backward compat
-window._ltCount = 0        // Cumulative count for DIAG
-window._ltTotalMs = 0      // Cumulative duration for DIAG
-window._opTimings = { draw: 0, drum: 0, comp: 0, tick: 0 }  // Accumulated ms per code path
-if (typeof PerformanceObserver !== 'undefined') {
-  try {
-    const _ltObs = new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) {
-        if (entry.duration > 50) {
-          window._ltCount++
-          window._ltTotalMs += entry.duration
-          if (entry.duration > 100) {
-            const app = window.webarmoniumApp
-            const sched = app?.audioService?.scheduledTransportEvents?.length ?? '?'
-            const ot = window._opTimings
-            const accounted = ot.draw + ot.drum + ot.comp + ot.tick
-            console.warn(`[LONGTASK] ${entry.duration.toFixed(0)}ms sched=${sched} draw=${ot.draw.toFixed(0)} drum=${ot.drum.toFixed(0)} comp=${ot.comp.toFixed(0)} tick=${ot.tick.toFixed(0)} unaccounted=${Math.max(0, entry.duration - accounted).toFixed(0)}`)
-          }
-          // Reset per-path timings after each LONGTASK report
-          window._opTimings = { draw: 0, drum: 0, comp: 0, tick: 0 }
-        }
-      }
-    })
-    _ltObs.observe({ type: 'longtask', buffered: false })
-  } catch (e) { /* longtask not supported */ }
-}
-
-// v0.7.9: Event-loop latency probe — measures how long macrotasks wait in queue
-// Growing latency = main thread increasingly congested
-window._eventLoopDelay = { last: 0, max: 0, samples: 0 }
-setInterval(() => {
-  const t0 = performance.now()
-  setTimeout(() => {
-    const delay = performance.now() - t0
-    const eld = window._eventLoopDelay
-    eld.last = delay
-    if (delay > eld.max) eld.max = delay
-    eld.samples++
-  }, 0)
-}, 2000)
-
-// v0.7.11 DIAG: Monkey-patch Tone.js Context ticker to measure Transport overhead
-// The ticker fires every updateInterval (~100ms on Windows Chrome) and processes
-// the Transport timeline. If this gets slow, it causes the "unaccounted" LONGTASKs.
-window._toneTickerPatched = false
-window._patchToneTicker = function () {
-  if (window._toneTickerPatched) return
-  try {
-    const ctx = Tone?.getContext?.() || Tone?.context
-    if (!ctx) return
-    // Tone.js Context wraps native AudioContext, ticker is internal
-    // Try multiple internal paths (varies by Tone.js version)
-    const ticker = ctx._ticker
-    if (ticker && ticker._callback) {
-      const origCb = ticker._callback
-      ticker._callback = function () {
-        const t0 = performance.now()
-        origCb.apply(this, arguments)
-        const dur = performance.now() - t0
-        if (window._opTimings) window._opTimings.tick += dur
-      }
-      window._toneTickerPatched = true
-      console.log('[DIAG] Tone.js ticker patched for timing')
-    } else {
-      console.log('[DIAG] Tone.js ticker not found — cannot patch')
-    }
-  } catch (e) {
-    console.log('[DIAG] Tone.js ticker patch failed:', e.message)
-  }
-}
-// Attempt patch after audio init (will be called from DIAG interval if not yet patched)
-
-// v0.7.9: Main thread jank detector (rAF-based)
-// Tracks longest gap between animation frames — any gap >100ms indicates main thread blockage
-window._jankDetector = { maxGap: 0, lastRaf: 0, jankCount: 0, running: false }
-if (!window._jankDetector.running) {
-  window._jankDetector.running = true
-  const _trackJank = (now) => {
-    const jd = window._jankDetector
-    if (jd.lastRaf > 0) {
-      const gap = now - jd.lastRaf
-      if (gap > 100) {
-        jd.jankCount++
-        jd.maxGap = Math.max(jd.maxGap, gap)
-      }
-    }
-    jd.lastRaf = now
-    requestAnimationFrame(_trackJank)
-  }
-  requestAnimationFrame(_trackJank)
-}
-
-// v0.7.9: Frontend health diagnostic monitor
-// Logs key metrics every 10s to help identify progressive slowdown causes
-window._diagInterval = setInterval(() => {
-  const app = window.webarmoniumApp
-  if (!app) return
-  const audio = app.audioService
-  const vis = app.visualService
-
-  const mem = performance.memory
-    ? { heap: Math.round(performance.memory.usedJSHeapSize / 1048576), limit: Math.round(performance.memory.jsHeapSizeLimit / 1048576) }
-    : null
-
-  // Tone.js Transport internal timeline size (private API, may fail)
-  let transportEvents = '?'
-  try { transportEvents = Tone.Transport._timeline?.length ?? '?' } catch (e) {}
-  let transportRepeats = '?'
-  try { transportRepeats = Tone.Transport._repeatedEvents?.size ?? '?' } catch (e) {}
-
-  // Frame timing breakdown from GenerativeVisualService (ms per section)
-  const ft = vis?._frameTiming
-  const timing = ft ? `phy=${ft.physics.toFixed(1)} mesh=${ft.mesh.toFixed(1)} neb=${ft.nebula.toFixed(1)} wav=${ft.wave.toFixed(1)} att=${ft.attractor.toFixed(1)} par=${ft.particle.toFixed(1)}` : '?'
-
-  // Drum timing analysis
-  const dt = app._drumTiming
-  let drumStats = null
-  if (dt && dt.deltas.length > 0) {
-    const avg = Math.round(dt.deltas.reduce((a, b) => a + b, 0) / dt.deltas.length)
-    const max = Math.max(...dt.deltas)
-    const min = Math.min(...dt.deltas)
-    const avgDelay = dt.serverDelays.length > 0
-      ? Math.round(dt.serverDelays.reduce((a, b) => a + b, 0) / dt.serverDelays.length)
-      : '?'
-    drumStats = `avg=${avg}ms min=${min} max=${max} delay=${avgDelay}ms n=${dt.deltas.length}`
-  }
-
-  // Jank detector results (reset after each snapshot)
-  const jd = window._jankDetector
-  const jank = jd ? `max=${Math.round(jd.maxGap)}ms n=${jd.jankCount}` : 'N/A'
-  if (jd) { jd.maxGap = 0; jd.jankCount = 0 }
-
-  const diag = {
-    heap: mem ? `${mem.heap}/${mem.limit}MB` : 'N/A',
-    transportTimeline: transportEvents,
-    scheduledEvents: audio?.scheduledTransportEvents?.length ?? '?',
-    droneRepeats: audio?.droneRepeatEventIds?.length ?? '?',
-    activeVoices: audio?.generativeState?.activeVoices?.size ?? '?',
-    compositionQueue: audio?._compositionQueue?.length ?? '?',
-    isPlaying: audio?._isPlayingComposition ?? '?',
-    wavePulses: vis?.wavePackets?.activePulses?.size ?? '?',
-    waveCtx: vis?.wavePackets?.waveContexts?.size ?? '?',
-    particles: vis?.particles?.particles?.size ?? '?',
-    edges: ft?.edges ?? '?',
-    fps: vis?.fps?.toFixed(1) ?? '?',
-    jank,
-    drumTiming: drumStats,
-    timing,
-    // v0.7.9: Event-loop latency and LONGTASK tracking
-    elDelay: window._eventLoopDelay ? `last=${Math.round(window._eventLoopDelay.last)}ms max=${Math.round(window._eventLoopDelay.max)}ms` : 'N/A',
-    longTasks: `n=${window._ltCount || 0} total=${Math.round(window._ltTotalMs || 0)}ms`,
-    // v0.7.11: Drum synth triggerAttackRelease cost (detect AudioParam accumulation)
-    drumHitCost: audio?._drumHitStats ? `n=${audio._drumHitStats.count} avg=${(audio._drumHitStats.totalMs / Math.max(1, audio._drumHitStats.count)).toFixed(1)}ms max=${audio._drumHitStats.maxMs.toFixed(1)}ms` : null,
-    drumRecycles: audio?._drumHitCount !== undefined ? `count=${audio._drumHitCount}/64` : null,
-    tickerPatched: window._toneTickerPatched
-  }
-  // Reset cumulative stats for next window
-  window._ltCount = 0
-  window._ltTotalMs = 0
-  if (window._eventLoopDelay) window._eventLoopDelay.max = 0
-  if (audio?._drumHitStats) { audio._drumHitStats.count = 0; audio._drumHitStats.totalMs = 0; audio._drumHitStats.maxMs = 0 }
-  // Attempt Tone.js ticker patch if not yet done
-  if (!window._toneTickerPatched && window._patchToneTicker) window._patchToneTicker()
-  console.log('[DIAG]', JSON.stringify(diag))
-}, 10000)
 
 // Expose filter test method for debugging
 window.testFilterModulation = () => {

@@ -2649,12 +2649,7 @@ class AudioService {
 
       // The callback timing is precise, but we do the work synchronously
       // This is still better than setTimeout because the *timing* is audio-accurate
-      // v0.7.10 DIAG: Track compositionTick timing for LONGTASK attribution
-      const _ctStart = performance.now()
       compositionTick()
-      const _ctDur = performance.now() - _ctStart
-      if (_ctDur > 10) console.warn(`[COMP-TICK] ${_ctDur.toFixed(0)}ms`)
-      if (typeof window !== 'undefined' && window._opTimings) window._opTimings.tick += _ctDur
     }, 0.1, startTime) // 100ms interval
 
     // Track for cleanup
@@ -4027,21 +4022,15 @@ class AudioService {
    * @private
    */
   _playCompositionNow(composition, isDrone, style) {
-    // v0.7.9 DIAG: Time the entire method to detect main thread blocks
-    const _t0 = performance.now()
-
     // Entry #208: Clear pending notes from previous composition before scheduling new ones
     this.clearPendingCompositionNotes()
-    const _t1 = performance.now()
 
     // Entry #206: Clear old scheduled events to prevent memory buildup
     this._cleanupStaleEvents()
-    const _t2 = performance.now()
 
     // Entry #175: Store style for use in playback methods
     this.currentStyle = style
     this.applyGenreToSynths(style)
-    const _t3 = performance.now()
 
     // Entry #213: Sync harmonic context with composition being played
     const keyCenter = composition.metadata?.keyCenter
@@ -4062,37 +4051,17 @@ class AudioService {
     const type = composition.type
     const tempo = composition.metadata?.tempo || 120
 
-    // v0.7.9 DIAG: Count notes for profiling
-    let noteCount = 0
-
     try {
       if (type === 'polyphonic' && content.voices) {
-        for (const v of content.voices) noteCount += v.notes?.length || 0
-        if (content.accompaniment) {
-          noteCount += content.accompaniment.bass_accomp?.notes?.length || 0
-          noteCount += content.accompaniment.pad?.notes?.length || 0
-          noteCount += content.accompaniment.keys?.notes?.length || 0
-        }
         this.playPolyphonicComposition(content, tempo)
       } else if (type === 'homophonic' && content.melody) {
-        noteCount += content.melody.notes?.length || 0
-        if (content.accompaniment) noteCount += content.accompaniment.chords?.length || 0
         this.playHomophonicComposition(content, tempo)
       } else if (type === 'ambient' && content.texture) {
-        noteCount += content.texture.layers?.length || 0
         this.playAmbientComposition(content, tempo, isDrone)
       }
     } catch (error) {
       console.error('[AudioService] Composition playback error:', error)
     }
-
-    const _t4 = performance.now()
-    const total = _t4 - _t0
-    if (total > 20) {
-      console.warn(`[COMP-TIMING] ${total.toFixed(0)}ms total (clear=${(_t1-_t0).toFixed(0)} cleanup=${(_t2-_t1).toFixed(0)} genre=${(_t3-_t2).toFixed(0)} schedule=${(_t4-_t3).toFixed(0)}) notes=${noteCount} type=${type}`)
-    }
-    // LONGTASK accumulated timing
-    if (typeof window !== 'undefined' && window._opTimings) window._opTimings.comp += performance.now() - _t0
   }
 
   /**
@@ -4243,9 +4212,7 @@ class AudioService {
           if (Math.abs(currentDecay - targetDecay) > 0.5) {
             const now = Date.now()
             if (now - this._lastReverbDecayChange > this._reverbDecayThrottleMs) {
-              const _rvT0 = performance.now()
               this.reverb.decay = targetDecay
-              if (typeof window !== 'undefined' && window._opTimings) window._opTimings.comp += performance.now() - _rvT0
               this._lastReverbDecayChange = now
             }
           }
@@ -7718,8 +7685,6 @@ class AudioService {
       this._lastDrumTrigger = safeTime
       const vel = Math.max(0.1, Math.min(1.0, velocity))
 
-      const _dht0 = performance.now()
-
       switch (instrument) {
         case 'bd':
           kit.bd.triggerAttackRelease('C1', '8n', safeTime, vel)
@@ -7732,13 +7697,6 @@ class AudioService {
           kit.hh.triggerAttackRelease(kit.hh.frequency.value, '16n', safeTime, vel)
           break
       }
-
-      const _dht = performance.now() - _dht0
-      if (typeof window !== 'undefined' && window._opTimings) window._opTimings.drum += _dht
-      if (!this._drumHitStats) this._drumHitStats = { count: 0, totalMs: 0, maxMs: 0 }
-      this._drumHitStats.count++
-      this._drumHitStats.totalMs += _dht
-      if (_dht > this._drumHitStats.maxMs) this._drumHitStats.maxMs = _dht
     } catch (error) {
       console.warn('[AudioService] playDrumHit failed:', error.message)
     }

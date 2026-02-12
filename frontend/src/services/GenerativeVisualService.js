@@ -279,9 +279,6 @@ class GenerativeVisualService {
       return
     }
 
-    // LONGTASK accumulated timing
-    const _drawT0 = performance.now()
-
     // AUDIO PRIORITY: Apply queued audio stress at frame boundary
     if (this._pendingAudioStress) {
       this._applyAudioStressInternal(this._pendingAudioStress)
@@ -324,43 +321,31 @@ class GenerativeVisualService {
       const particleIdle = Math.max(0, nowMs - this.lastParticleEmit) > this.idleThreshold && this.particles.getParticleCount() === 0
 
       // PRIORITY 1 (always): Physics + spring mesh (core visual identity)
-      let t0 = performance.now()
       this.springMesh.updatePhysics(dt)
       if (this.nebulas) this.nebulas.update(dt)
       if (this.attractors) this.attractors.update(dt)
       if (!waveIdle) this.wavePackets.update(dt)
       if (!particleIdle) this.particles.update(dt)
-      const tPhysics = performance.now() - t0
 
       // Render: spring mesh always renders (core identity)
-      t0 = performance.now()
       this.springMesh.render(p)
-      const tMesh = performance.now() - t0
 
       // PRIORITY 2: Nebulas (cheap - offscreen buffer blit)
-      let tNebula = 0
       if (performance.now() - frameStart < frameBudgetMs) {
         if (this.nebulas) {
-          t0 = performance.now()
           this.nebulas.setPerformanceMode(this.performanceMode)
           this.nebulas.render(p)
-          tNebula = performance.now() - t0
         }
       }
 
       // PRIORITY 3: Wave pulses
-      let tWave = 0
       if (performance.now() - frameStart < frameBudgetMs) {
-        t0 = performance.now()
         this.wavePackets.render(p)
-        tWave = performance.now() - t0
       }
 
       // PRIORITY 4: Attractors (expensive - 900+ ellipses)
-      let tAttractor = 0
       if (performance.now() - frameStart < frameBudgetMs * 0.85) {
         if (this.attractors) {
-          t0 = performance.now()
           this.attractors.setPerformanceMode(this.performanceMode)
           this.attractors.setStressFactor(this.stressFactor)
           if (this.nebulas && this.nebulas.currentPalette) {
@@ -368,27 +353,12 @@ class GenerativeVisualService {
             this.attractors.setBaseColor(nebulaColor)
           }
           this.attractors.render(p)
-          tAttractor = performance.now() - t0
         }
       }
 
-      // PRIORITY 5: Particles (lowest priority, skip in degraded mode)
-      let tParticle = 0
-      if (this.performanceMode === 'normal' && performance.now() - frameStart < frameBudgetMs * 0.85) {
-        t0 = performance.now()
+      // PRIORITY 5: Particles
+      if (performance.now() - frameStart < frameBudgetMs * 0.85) {
         this.particles.render(p)
-        tParticle = performance.now() - t0
-      }
-
-      // v0.7.9: Store per-section frame timing for diagnostic monitor
-      this._frameTiming = {
-        physics: tPhysics,
-        mesh: tMesh,
-        nebula: tNebula,
-        wave: tWave,
-        attractor: tAttractor,
-        particle: tParticle,
-        edges: this.springMesh.edges.length
       }
 
       // AUDIO PRIORITY: Track frame overruns for preemptive stress reduction
@@ -410,8 +380,6 @@ class GenerativeVisualService {
       // Hold indicators REMOVED - SpringMeshNetwork already renders hold state via node pulsing
     }
 
-    // LONGTASK accumulated timing
-    if (typeof window !== 'undefined' && window._opTimings) window._opTimings.draw += performance.now() - _drawT0
   }
 
   /**
@@ -506,6 +474,20 @@ class GenerativeVisualService {
           if (this.particles) {
             this.particles.emitParticles(userId, particleCount)
             this.lastParticleEmit = Date.now()  // Track particle emission for idle detection
+          }
+        }
+
+        // Sequencer events: emit particles only (no wave pulses — those cause WaveContext leak)
+        if (gestureData.type === 'sequencer') {
+          const now = Date.now()
+          const lastEmit = this._lastEmitByUser.get(userId) || 0
+          if (now - lastEmit >= this.MIN_EMIT_INTERVAL) {
+            this._lastEmitByUser.set(userId, now)
+            if (this.particles) {
+              const particleCount = Math.max(1, Math.floor(2 * this.stressFactor))
+              this.particles.emitParticles(userId, particleCount)
+              this.lastParticleEmit = now
+            }
           }
         }
       }

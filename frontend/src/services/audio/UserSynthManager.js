@@ -749,8 +749,6 @@ class UserSynthManager {
       kit.lastTriggerTime = safeTime
       const vel = Math.max(0.1, Math.min(1.0, velocity))
 
-      const _dht0 = performance.now()
-
       switch (instrument) {
         case 'bd':
           kit.bd.triggerAttackRelease('C1', '8n', safeTime, vel)
@@ -763,8 +761,6 @@ class UserSynthManager {
           kit.hh.triggerAttackRelease(kit.hh.frequency.value, '16n', safeTime, vel)
           break
       }
-
-      if (typeof window !== 'undefined' && window._opTimings) window._opTimings.drum += performance.now() - _dht0
     } catch (error) {
       console.warn(`[UserSynthManager] playDrumHit failed for ${userId}:`, error.message)
     }
