@@ -617,172 +617,78 @@ class UserSynthManager {
    * @param {number} velocity - Hit velocity (0-1)
    * @param {number} presetSlot - Drum kit preset slot (8-10), defaults to 8
    */
-  playDrumHit (userId, instrument, velocity = 0.7, presetSlot = 8) {
+  async playDrumHit (userId, instrument, velocity = 0.7, presetSlot = 8) {
     if (!userId || !instrument) return
 
     try {
-      let kit = this.userDrumKits.get(userId)
+      let cached = this.userDrumKits.get(userId)
 
-      // Create drum kit if not cached (use actual preset slot for correct timbre)
-      if (!kit) {
+      // Render buffers if not cached or preset changed
+      if (!cached || cached.presetSlot !== presetSlot) {
         const patchDefs = this.patchDefinitions || window.PatchDefinitions
         const drumPatch = patchDefs?.REAL_USER_PATCHES?.[presetSlot] ||
                           patchDefs?.REAL_USER_PATCHES?.[8] // Fallback to 808
         if (!drumPatch || drumPatch.type !== 'drum') return
 
-        const inst = drumPatch.instruments
-        kit = {}
+        const buffers = await DrumBufferRenderer.renderKit(drumPatch)
 
-        // BD: MembraneSynth
-        kit.bd = new Tone.MembraneSynth({
-          pitchDecay: 0.05 + inst.bd.pitch * 0.3,
-          octaves: 2 + inst.bd.tone * 6,
-          envelope: { attack: 0.001, decay: 0.05 + inst.bd.decay * 1.45, sustain: 0, release: 0.1 }
-        })
-        kit.bd.frequency.value = 30 + inst.bd.pitch * 60
-
-        // SN: MembraneSynth + NoiseSynth
-        kit.snBody = new Tone.MembraneSynth({
-          pitchDecay: 0.02, octaves: 3,
-          envelope: { attack: 0.001, decay: 0.08, sustain: 0, release: 0.05 }
-        })
-        kit.snBody.frequency.value = 120 + inst.sn.pitch * 180
-        kit.snNoise = new Tone.NoiseSynth({
-          noise: { type: 'white' },
-          envelope: { attack: 0.001, decay: 0.05 + inst.sn.decay * 0.45, sustain: 0, release: 0.01 }
-        })
-        kit.snFilter = new Tone.Filter({ type: 'bandpass', frequency: 1000 + inst.sn.tone * 7000, Q: 1.5 })
-        kit.snMerge = new Tone.Gain(1)
-        kit.snBody.connect(kit.snMerge)
-        kit.snNoise.connect(kit.snFilter)
-        kit.snFilter.connect(kit.snMerge)
-
-        // HH: MetalSynth — resonance=300 keeps highpass below fundamental so partials pass through
-        kit.hh = new Tone.MetalSynth({
-          frequency: 200 + inst.hh.pitch * 600,
-          envelope: { attack: 0.001, decay: 0.08 + inst.hh.decay * 0.32, release: 0.05 },
-          harmonicity: 5.1 + inst.hh.tone * 3, resonance: 300, octaves: 4, volume: -6
-        })
-
-        // Connect all to master volume
+        // Create output gain for remote user volume
+        const outputGain = new Tone.Gain(0.7) // remote users quieter
         if (this.masterVolume) {
-          const gain = new Tone.Gain(0.7)
-          kit.bd.connect(gain)
-          kit.snMerge.connect(gain)
-          kit.hh.connect(gain)
-          gain.connect(this.masterVolume)
-          kit.outputGain = gain
+          outputGain.connect(this.masterVolume)
         }
 
-        kit.lastUsedTime = Date.now()
-        this.userDrumKits.set(userId, kit)
-      }
-
-      kit.lastUsedTime = Date.now()
-
-      // Recycle drum synths to clear Chrome AudioParam automation accumulation
-      kit.hitCount = (kit.hitCount || 0) + 1
-      if (kit.hitCount >= 64) {
-        // Dispose old kit nodes asynchronously (let current notes decay)
-        const oldKit = kit
-        setTimeout(() => {
-          const nodes = [oldKit.bd, oldKit.snBody, oldKit.snNoise, oldKit.snFilter, oldKit.snMerge, oldKit.hh, oldKit.outputGain]
-          nodes.forEach(n => { if (n && !n.disposed) { try { n.disconnect(); n.dispose() } catch (e) {} } })
-        }, 500)
-        // Remove from cache — will be recreated fresh on next call
-        this.userDrumKits.delete(userId)
-        // Recreate immediately for this call
-        kit = null
-      }
-
-      // Recreate if recycled above
-      if (!kit) {
-        const patchDefs = this.patchDefinitions || window.PatchDefinitions
-        const drumPatch = patchDefs?.REAL_USER_PATCHES?.[presetSlot] ||
-                          patchDefs?.REAL_USER_PATCHES?.[8]
-        if (!drumPatch || drumPatch.type !== 'drum') return
-
-        const inst = drumPatch.instruments
-        kit = {}
-        kit.bd = new Tone.MembraneSynth({
-          pitchDecay: 0.05 + inst.bd.pitch * 0.3,
-          octaves: 2 + inst.bd.tone * 6,
-          envelope: { attack: 0.001, decay: 0.05 + inst.bd.decay * 1.45, sustain: 0, release: 0.1 }
-        })
-        kit.bd.frequency.value = 30 + inst.bd.pitch * 60
-        kit.snBody = new Tone.MembraneSynth({
-          pitchDecay: 0.02, octaves: 3,
-          envelope: { attack: 0.001, decay: 0.08, sustain: 0, release: 0.05 }
-        })
-        kit.snBody.frequency.value = 120 + inst.sn.pitch * 180
-        kit.snNoise = new Tone.NoiseSynth({
-          noise: { type: 'white' },
-          envelope: { attack: 0.001, decay: 0.05 + inst.sn.decay * 0.45, sustain: 0, release: 0.01 }
-        })
-        kit.snFilter = new Tone.Filter({ type: 'bandpass', frequency: 1000 + inst.sn.tone * 7000, Q: 1.5 })
-        kit.snMerge = new Tone.Gain(1)
-        kit.snBody.connect(kit.snMerge)
-        kit.snNoise.connect(kit.snFilter)
-        kit.snFilter.connect(kit.snMerge)
-        kit.hh = new Tone.MetalSynth({
-          frequency: 200 + inst.hh.pitch * 600,
-          envelope: { attack: 0.001, decay: 0.08 + inst.hh.decay * 0.32, release: 0.05 },
-          harmonicity: 5.1 + inst.hh.tone * 3, resonance: 300, octaves: 4, volume: -6
-        })
-        if (this.masterVolume) {
-          const gain = new Tone.Gain(0.7)
-          kit.bd.connect(gain)
-          kit.snMerge.connect(gain)
-          kit.hh.connect(gain)
-          gain.connect(this.masterVolume)
-          kit.outputGain = gain
+        // Dispose old outputGain if switching preset
+        if (cached?.outputGain && !cached.outputGain.disposed) {
+          try { cached.outputGain.disconnect(); cached.outputGain.dispose() } catch (e) { /* ok */ }
         }
-        kit.hitCount = 0
-        kit.lastUsedTime = Date.now()
-        kit.lastTriggerTime = 0
-        this.userDrumKits.set(userId, kit)
+
+        cached = {
+          bd: buffers.bd, sn: buffers.sn, hh: buffers.hh,
+          presetSlot, outputGain,
+          lastUsedTime: Date.now(), lastTriggerTime: 0
+        }
+        this.userDrumKits.set(userId, cached)
       }
 
-      // Trigger hit
+      cached.lastUsedTime = Date.now()
+
+      const buffer = cached[instrument]
+      if (!buffer || buffer.duration === 0) return
+
+      // One-shot playback (zero automation accumulation, no recycling needed)
       const now = Tone.now()
-      const safeTime = Math.max(now, (kit.lastTriggerTime || 0) + 0.01)
-      kit.lastTriggerTime = safeTime
+      const safeTime = Math.max(now, (cached.lastTriggerTime || 0) + 0.01)
+      cached.lastTriggerTime = safeTime
       const vel = Math.max(0.1, Math.min(1.0, velocity))
 
-      switch (instrument) {
-        case 'bd':
-          kit.bd.triggerAttackRelease('C1', '8n', safeTime, vel)
-          break
-        case 'sn':
-          kit.snBody.triggerAttackRelease('E1', '16n', safeTime, vel * 0.6)
-          kit.snNoise.triggerAttackRelease('16n', safeTime, vel)
-          break
-        case 'hh':
-          kit.hh.triggerAttackRelease(kit.hh.frequency.value, '16n', safeTime, vel)
-          break
-      }
+      const source = new Tone.ToneBufferSource(buffer)
+      const hitGain = new Tone.Gain(vel)
+      source.connect(hitGain)
+      hitGain.connect(cached.outputGain)
+      source.start(safeTime)
+
+      // Self-cleanup after buffer finishes
+      const ms = (buffer.duration + 0.5) * 1000
+      setTimeout(() => {
+        try { source.dispose(); hitGain.dispose() } catch (e) { /* already disposed */ }
+      }, ms)
     } catch (error) {
       console.warn(`[UserSynthManager] playDrumHit failed for ${userId}:`, error.message)
     }
   }
 
   /**
-   * Cleanup a user's cached drum kit
+   * Cleanup a user's cached drum kit (buffers + output gain)
    * @param {string} userId
    */
   cleanupUserDrumKit (userId) {
-    const kit = this.userDrumKits.get(userId)
-    if (!kit) return
+    const cached = this.userDrumKits.get(userId)
+    if (!cached) return
 
-    const nodes = [
-      kit.bd, kit.snBody, kit.snNoise, kit.snFilter, kit.snMerge,
-      kit.hh, kit.outputGain
-    ]
-    nodes.forEach(n => {
-      if (n && !n.disposed) {
-        try { n.disconnect(); n.dispose() } catch (e) { /* already disposed */ }
-      }
-    })
+    if (cached.outputGain && !cached.outputGain.disposed) {
+      try { cached.outputGain.disconnect(); cached.outputGain.dispose() } catch (e) { /* ok */ }
+    }
     this.userDrumKits.delete(userId)
   }
 

@@ -1,0 +1,146 @@
+/**
+ * DrumBufferRenderer — Offline rendering of drum sounds into AudioBuffers.
+ *
+ * Instead of using live synths (MembraneSynth, NoiseSynth, MetalSynth) that
+ * accumulate AudioParam automation events in Chrome (causing progressive
+ * slowdown), this module pre-renders each drum sound into a ToneAudioBuffer.
+ * Playback uses one-shot ToneBufferSource nodes which are garbage-collected
+ * after playback — zero automation accumulation, zero recycling needed.
+ *
+ * Synth definitions are identical to AudioService._createDrumKit() to
+ * preserve the exact same timbral character.
+ */
+
+// eslint-disable-next-line no-unused-vars
+class DrumBufferRenderer {
+  /**
+   * Render a bass drum buffer from parameters.
+   * Uses MembraneSynth with sub-bass frequency (30-90Hz).
+   * @param {Object} params - { pitch: 0-1, decay: 0-1, tone: 0-1 }
+   * @returns {Promise<ToneAudioBuffer>}
+   */
+  static async renderBd (params) {
+    const attack = 0.001
+    const decay = 0.05 + params.decay * 1.45
+    const release = 0.1
+    const duration = attack + decay + release + 0.15 // safety margin for tail
+
+    const buffer = await Tone.Offline(() => {
+      const bd = new Tone.MembraneSynth({
+        pitchDecay: 0.05 + params.pitch * 0.3,
+        octaves: 2 + params.tone * 6,
+        envelope: { attack, decay, sustain: 0, release },
+        volume: 4 // +4dB: compensate for perceptual quietness of sub frequencies
+      }).toDestination()
+      bd.frequency.value = 30 + params.pitch * 60 // 30-90Hz
+      bd.triggerAttackRelease('C1', '8n', 0, 1.0)
+    }, duration, 1, Tone.context?.sampleRate || 44100)
+
+    if (!buffer || buffer.duration === 0) {
+      throw new Error('[DrumBufferRenderer] Empty BD buffer')
+    }
+    return buffer
+  }
+
+  /**
+   * Render a snare buffer from parameters.
+   * Combines MembraneSynth (body) + NoiseSynth (snap) through bandpass filter.
+   * Uses explicit merge node to guarantee correct summing in offline context.
+   * @param {Object} params - { pitch: 0-1, decay: 0-1, tone: 0-1 }
+   * @returns {Promise<ToneAudioBuffer>}
+   */
+  static async renderSn (params) {
+    const bodyDur = 0.001 + 0.08 + 0.05 // attack + decay + release
+    const noiseDur = 0.001 + (0.05 + params.decay * 0.45) + 0.01
+    const duration = Math.max(bodyDur, noiseDur) + 0.15
+
+    const buffer = await Tone.Offline(() => {
+      // Explicit merge node — don't rely on multiple .toDestination() calls
+      const merge = new Tone.Gain(1).toDestination()
+
+      // Snare body: pitched membrane thump
+      const snBody = new Tone.MembraneSynth({
+        pitchDecay: 0.02,
+        octaves: 3,
+        envelope: { attack: 0.001, decay: 0.08, sustain: 0, release: 0.05 }
+      })
+      snBody.frequency.value = 120 + params.pitch * 180 // 120-300Hz
+      snBody.connect(merge)
+
+      // Snare snap: filtered white noise
+      const snFilter = new Tone.Filter({
+        type: 'bandpass',
+        frequency: 1000 + params.tone * 7000, // 1000-8000Hz
+        Q: 1.5
+      })
+      const snNoise = new Tone.NoiseSynth({
+        noise: { type: 'white' },
+        envelope: {
+          attack: 0.001,
+          decay: 0.05 + params.decay * 0.45,
+          sustain: 0,
+          release: 0.01
+        }
+      })
+      snNoise.connect(snFilter)
+      snFilter.connect(merge)
+
+      // Trigger both simultaneously — body at 0.6 velocity, noise at full
+      snBody.triggerAttackRelease('E1', '16n', 0, 0.6)
+      snNoise.triggerAttackRelease('16n', 0, 1.0)
+    }, duration, 1, Tone.context?.sampleRate || 44100)
+
+    if (!buffer || buffer.duration === 0) {
+      throw new Error('[DrumBufferRenderer] Empty SN buffer')
+    }
+    return buffer
+  }
+
+  /**
+   * Render a hi-hat buffer from parameters.
+   * Uses MetalSynth for metallic partials with highpass sweep.
+   * @param {Object} params - { pitch: 0-1, decay: 0-1, tone: 0-1 }
+   * @returns {Promise<ToneAudioBuffer>}
+   */
+  static async renderHh (params) {
+    const decay = 0.08 + params.decay * 0.32
+    const duration = 0.001 + decay + 0.05 + 0.15 // attack + decay + release + margin
+
+    const buffer = await Tone.Offline(() => {
+      const hh = new Tone.MetalSynth({
+        frequency: 200 + params.pitch * 600, // 200-800Hz
+        envelope: { attack: 0.001, decay, release: 0.05 },
+        harmonicity: 5.1 + params.tone * 3,
+        resonance: 300, // highpass resting freq — tuned to let partials pass
+        octaves: 4,
+        volume: -12 // tame perceptually dominant high-frequency partials
+      }).toDestination()
+      // MetalSynth MUST receive frequency as first arg (inherited from Instrument)
+      hh.triggerAttackRelease(hh.frequency.value, '16n', 0, 1.0)
+    }, duration, 1, Tone.context?.sampleRate || 44100)
+
+    if (!buffer || buffer.duration === 0) {
+      throw new Error('[DrumBufferRenderer] Empty HH buffer')
+    }
+    return buffer
+  }
+
+  /**
+   * Render a complete drum kit (bd, sn, hh) in parallel.
+   * @param {Object} patch - Drum patch from PatchDefinitions (must have .instruments)
+   * @returns {Promise<{bd: ToneAudioBuffer, sn: ToneAudioBuffer, hh: ToneAudioBuffer}>}
+   */
+  static async renderKit (patch) {
+    const [bd, sn, hh] = await Promise.all([
+      DrumBufferRenderer.renderBd(patch.instruments.bd),
+      DrumBufferRenderer.renderSn(patch.instruments.sn),
+      DrumBufferRenderer.renderHh(patch.instruments.hh)
+    ])
+    return { bd, sn, hh }
+  }
+}
+
+// Export to window for vanilla JS script loading
+if (typeof window !== 'undefined') {
+  window.DrumBufferRenderer = DrumBufferRenderer
+}

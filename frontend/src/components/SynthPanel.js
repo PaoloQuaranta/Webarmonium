@@ -1218,10 +1218,10 @@ class SynthPanel {
       await Tone.start()
     }
 
-    // Apply preset locally
+    // Apply preset locally (await for drum buffer rendering)
     this.currentPresetSlot = slot
     if (this.audioService?.selectPreset) {
-      this.audioService.selectPreset(slot)
+      await this.audioService.selectPreset(slot)
     }
 
     // Check if switching to/from drum mode

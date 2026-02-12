@@ -378,14 +378,15 @@
     <script src="src/services/audio/ParameterController.js?v=1"></script>
     <script src="src/services/audio/AudioServiceFacade.js?v=1"></script>
     <script src="src/services/audio/PatchDefinitions.js?v=5"></script> <!-- Entry #68: Real user volume boost -->
-    <script src="src/services/audio/UserSynthManager.js?v=13"></script> <!-- Entry #68: MAX_PATCH_VOLUME_DB raised to 12 -->
+    <script src="src/services/audio/DrumBufferRenderer.js?v=1"></script> <!-- Offline drum buffer rendering -->
+    <script src="src/services/audio/UserSynthManager.js?v=14"></script> <!-- Buffer-based drum playback -->
     <script src="src/services/audio/GenreMelodicStrategies.js?v=1"></script> <!-- Entry #181: Genre-specific melodic patterns -->
 
     <!-- Entry #73: Audio stress monitoring and ultra-low power mode -->
     <script src="src/services/audio/AudioStressMonitor.js?v=2"></script> <!-- Entry #73 FIX: Consecutive drift -->
     <script src="src/services/audio/UltraLowPowerAudio.js?v=3"></script> <!-- Entry #73 FIX: Error recovery -->
 
-    <script src="src/services/AudioService.js?v=46"></script> <!-- Entry #SynthUI: selectPreset, setSynthParams -->
+    <script src="src/services/AudioService.js?v=47"></script> <!-- Buffer-based drum playback, async selectPreset -->
     <script src="src/services/DroneVoidController.js?v=2"></script> <!-- PERF: UnifiedUpdateLoop integration -->
     <!-- PHASE 1+2: Re-enabled hover, musical architecture loaded -->
     <script>

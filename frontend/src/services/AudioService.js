@@ -7105,11 +7105,12 @@ class AudioService {
   // ============================================================
 
   /**
-   * Select a preset and recreate the local gesture synth
+   * Select a preset and recreate the local gesture synth.
+   * Async for drum presets (buffer rendering via Tone.Offline).
    * @param {number} slot - Preset slot (0-10: 0-7 synth, 8-10 drum)
-   * @returns {boolean} Success status
+   * @returns {Promise<boolean>|boolean} Success status
    */
-  selectPreset(slot) {
+  async selectPreset(slot) {
     if (!window.PatchDefinitions) {
       console.error('[AudioService] PatchDefinitions not available')
       return false
@@ -7143,15 +7144,27 @@ class AudioService {
         }
         // Dispose previous drum kit if any
         this._disposeDrumKit()
-        // Create and connect new drum kit
-        this.drumSynths = this._createDrumKit(patch)
-        this._connectDrumKit(this.drumSynths, patch)
-        this.isDrumMode = true
-        this._drumHitCount = 0
-        this._currentDrumParams = null
-        this.currentPresetSlot = slot
-        this.currentPatch = patch
-        return true
+
+        // Render drum buffers offline (async, ~30-50ms)
+        this._drumRenderGeneration = (this._drumRenderGeneration || 0) + 1
+        const gen = this._drumRenderGeneration
+
+        try {
+          const buffers = await DrumBufferRenderer.renderKit(patch)
+          // Race guard: if user switched preset during render, discard
+          if (this._drumRenderGeneration !== gen) return false
+
+          this.drumBuffers = buffers
+          this._createDrumRouting(patch)
+          this.isDrumMode = true
+          this._currentDrumParams = null
+          this.currentPresetSlot = slot
+          this.currentPatch = patch
+          return true
+        } catch (error) {
+          console.error('[AudioService] Drum buffer render failed:', error)
+          return false
+        }
       }
 
       // Switching from drum to melodic: dispose drum kit
@@ -7369,7 +7382,7 @@ class AudioService {
     }
 
     // Drum mode: return drum params
-    if (this.isDrumMode && this.drumSynths) {
+    if (this.isDrumMode && this.drumBuffers) {
       params.isDrum = true
       // Return current instrument params from synths
       return params
@@ -7533,184 +7546,110 @@ class AudioService {
   // ============================================================
 
   /**
-   * Create drum kit synths from patch definition
-   * @param {Object} patch - Drum kit patch definition
-   * @returns {Object} Drum kit synths object
-   */
-  _createDrumKit (patch) {
-    const inst = patch.instruments
-    const kit = {}
-
-    // === BASS DRUM: MembraneSynth ===
-    kit.bd = new Tone.MembraneSynth({
-      pitchDecay: 0.05 + inst.bd.pitch * 0.3,
-      octaves: 2 + inst.bd.tone * 6,
-      envelope: {
-        attack: 0.001,
-        decay: 0.05 + inst.bd.decay * 1.45,
-        sustain: 0,
-        release: 0.1
-      },
-      volume: 4 // +4dB: compensate for perceptual quietness of sub frequencies (30-90Hz)
-    })
-    kit.bd.frequency.value = 30 + inst.bd.pitch * 60 // 30-90Hz
-
-    // === SNARE: MembraneSynth (body) + NoiseSynth (snap) ===
-    kit.snBody = new Tone.MembraneSynth({
-      pitchDecay: 0.02,
-      octaves: 3,
-      envelope: {
-        attack: 0.001,
-        decay: 0.08,
-        sustain: 0,
-        release: 0.05
-      }
-    })
-    kit.snBody.frequency.value = 120 + inst.sn.pitch * 180 // 120-300Hz
-
-    kit.snNoise = new Tone.NoiseSynth({
-      noise: { type: 'white' },
-      envelope: {
-        attack: 0.001,
-        decay: 0.05 + inst.sn.decay * 0.45,
-        sustain: 0,
-        release: 0.01
-      }
-    })
-
-    kit.snFilter = new Tone.Filter({
-      type: 'bandpass',
-      frequency: 1000 + inst.sn.tone * 7000,
-      Q: 1.5
-    })
-
-    kit.snMerge = new Tone.Gain(1)
-    kit.snBody.connect(kit.snMerge)
-    kit.snNoise.connect(kit.snFilter)
-    kit.snFilter.connect(kit.snMerge)
-
-    // === HI-HAT: MetalSynth ===
-    // resonance = highpass filter resting freq; octaves = sweep range during envelope
-    // Old resonance (1500) blocked fundamental (300-700Hz) — lowered to 300 so partials pass through
-    kit.hh = new Tone.MetalSynth({
-      frequency: 200 + inst.hh.pitch * 600,
-      envelope: {
-        attack: 0.001,
-        decay: 0.08 + inst.hh.decay * 0.32,
-        release: 0.05
-      },
-      harmonicity: 5.1 + inst.hh.tone * 3,
-      resonance: 300,
-      octaves: 4,
-      volume: -12 // was -6: tame perceptually dominant high-frequency partials
-    })
-
-    return kit
-  }
-
-  /**
-   * Connect drum kit to audio routing (reuses existing global nodes)
-   * @param {Object} kit - Drum kit synths object
+   * Create persistent routing nodes for drum buffer playback.
+   * No synths are created — only gain/send nodes that one-shot
+   * ToneBufferSource nodes connect to per hit.
    * @param {Object} patch - Drum kit patch definition
    */
-  _connectDrumKit (kit, patch) {
+  _createDrumRouting (patch) {
     const inst = patch.instruments
+    const routing = {}
 
     // BD → gain → gesturePan
-    kit.bdGain = new Tone.Gain(1)
-    kit.bd.connect(kit.bdGain)
-    kit.bdGain.connect(this.gesturePan)
+    const bdGain = new Tone.Gain(1)
+    bdGain.connect(this.gesturePan)
+    routing.bd = { gain: bdGain }
 
-    // SN (merged body+noise) → gesturePan
-    kit.snMerge.connect(this.gesturePan)
+    // SN → gain → gesturePan (buffer already has body+noise merged)
+    const snGain = new Tone.Gain(1)
+    snGain.connect(this.gesturePan)
+    routing.sn = { gain: snGain }
 
     // HH → gain → gesturePan
-    kit.hhGain = new Tone.Gain(1)
-    kit.hh.connect(kit.hhGain)
-    kit.hhGain.connect(this.gesturePan)
+    const hhGain = new Tone.Gain(1)
+    hhGain.connect(this.gesturePan)
+    routing.hh = { gain: hhGain }
 
     // Delay sends (SN + HH only, BD never gets delay)
     // Connect directly to FX processor, bypassing delaySends.gesture (style-immune)
     if (this.delay && !this.delay.disposed) {
-      kit.drumDelaySendMaster = new Tone.Gain(0.25) // fixed level, style cannot scale this
-      kit.drumDelaySendMaster.connect(this.delay)
+      routing.drumDelaySendMaster = new Tone.Gain(0.25) // fixed level, style cannot scale this
+      routing.drumDelaySendMaster.connect(this.delay)
 
-      kit.snDelaySend = new Tone.Gain(inst.sn.delay || 0.15)
-      kit.snMerge.connect(kit.snDelaySend)
-      kit.snDelaySend.connect(kit.drumDelaySendMaster)
+      routing.sn.delaySend = new Tone.Gain(inst.sn.delay || 0.15)
+      snGain.connect(routing.sn.delaySend)
+      routing.sn.delaySend.connect(routing.drumDelaySendMaster)
 
-      kit.hhDelaySend = new Tone.Gain(inst.hh.delay || 0)
-      kit.hhGain.connect(kit.hhDelaySend)
-      kit.hhDelaySend.connect(kit.drumDelaySendMaster)
+      routing.hh.delaySend = new Tone.Gain(inst.hh.delay || 0)
+      hhGain.connect(routing.hh.delaySend)
+      routing.hh.delaySend.connect(routing.drumDelaySendMaster)
     }
 
     // Reverb sends (all 3, BD special: max 20%, only above 50% slider)
     // Connect directly to FX processor, bypassing reverbSends.gesture (style-immune)
     if (this.reverb && !this.reverb.disposed) {
-      kit.drumReverbSendMaster = new Tone.Gain(0.3) // fixed level, style cannot scale this
-      kit.drumReverbSendMaster.connect(this.reverb)
+      routing.drumReverbSendMaster = new Tone.Gain(0.3) // fixed level, style cannot scale this
+      routing.drumReverbSendMaster.connect(this.reverb)
 
-      kit.bdReverbSend = new Tone.Gain(0)
-      kit.bdGain.connect(kit.bdReverbSend)
-      kit.bdReverbSend.connect(kit.drumReverbSendMaster)
+      routing.bd.reverbSend = new Tone.Gain(0)
+      bdGain.connect(routing.bd.reverbSend)
+      routing.bd.reverbSend.connect(routing.drumReverbSendMaster)
 
-      kit.snReverbSend = new Tone.Gain(patch.reverb || 0)
-      kit.snMerge.connect(kit.snReverbSend)
-      kit.snReverbSend.connect(kit.drumReverbSendMaster)
+      routing.sn.reverbSend = new Tone.Gain(patch.reverb || 0)
+      snGain.connect(routing.sn.reverbSend)
+      routing.sn.reverbSend.connect(routing.drumReverbSendMaster)
 
-      kit.hhReverbSend = new Tone.Gain(patch.reverb || 0)
-      kit.hhGain.connect(kit.hhReverbSend)
-      kit.hhReverbSend.connect(kit.drumReverbSendMaster)
+      routing.hh.reverbSend = new Tone.Gain(patch.reverb || 0)
+      hhGain.connect(routing.hh.reverbSend)
+      routing.hh.reverbSend.connect(routing.drumReverbSendMaster)
     }
+
+    this._drumRouting = routing
   }
 
   /**
-   * Play a drum hit on the local drum kit
+   * Play a drum hit using pre-rendered buffer (one-shot, zero automation accumulation).
+   * Creates a ToneBufferSource + Gain per hit, auto-disposed after playback.
    * @param {string} instrument - 'bd', 'sn', or 'hh'
    * @param {number} velocity - Hit velocity (0-1)
    */
   playDrumHit (instrument, velocity = 0.7) {
-    if (!this.drumSynths || !this.isDrumMode) return
+    if (!this.drumBuffers || !this._drumRouting || !this.isDrumMode) return
+    const buffer = this.drumBuffers[instrument]
+    if (!buffer || buffer.duration === 0) return
 
     try {
-      // Recycle drum synths to clear Chrome AudioParam automation accumulation
-      this._drumHitCount = (this._drumHitCount || 0) + 1
-      if (this._drumHitCount >= 64) {
-        this._recycleDrumKit()
-      }
-
-      const kit = this.drumSynths
       const now = Tone.now()
       const safeTime = Math.max(now, (this._lastDrumTrigger || 0) + 0.01)
       this._lastDrumTrigger = safeTime
       const vel = Math.max(0.1, Math.min(1.0, velocity))
 
-      switch (instrument) {
-        case 'bd':
-          kit.bd.triggerAttackRelease('C1', '8n', safeTime, vel)
-          break
-        case 'sn':
-          kit.snBody.triggerAttackRelease('E1', '16n', safeTime, vel * 0.6)
-          kit.snNoise.triggerAttackRelease('16n', safeTime, vel)
-          break
-        case 'hh':
-          kit.hh.triggerAttackRelease(kit.hh.frequency.value, '16n', safeTime, vel)
-          break
-      }
+      const source = new Tone.ToneBufferSource(buffer)
+      const hitGain = new Tone.Gain(vel)
+      source.connect(hitGain)
+      hitGain.connect(this._drumRouting[instrument].gain)
+      source.start(safeTime)
+
+      // Self-cleanup after buffer finishes playing
+      const ms = (buffer.duration + 0.5) * 1000
+      setTimeout(() => {
+        try { source.dispose(); hitGain.dispose() } catch (e) { /* already disposed */ }
+      }, ms)
     } catch (error) {
       console.warn('[AudioService] playDrumHit failed:', error.message)
     }
   }
 
   /**
-   * Apply drum parameter changes from UI sliders
+   * Apply drum parameter changes from UI sliders.
+   * Routing params (volume, reverb, delay) apply immediately to persistent gain nodes.
+   * Timbral params (pitch, decay, tone) trigger debounced buffer re-render.
    * @param {Object} params - Drum parameters { bd: {pitch,decay,tone}, sn: {...,delay}, hh: {...,delay}, reverb }
    */
   setDrumParams (params) {
-    if (!this.drumSynths || !this.isDrumMode || !params) return
-    const kit = this.drumSynths
+    if (!this._drumRouting || !this.isDrumMode || !params) return
 
-    // Save params for drum kit recycling (merge incrementally)
+    // Save params incrementally (for re-render)
     if (!this._currentDrumParams) this._currentDrumParams = {}
     if (params.bd) this._currentDrumParams.bd = { ...(this._currentDrumParams.bd || {}), ...params.bd }
     if (params.sn) this._currentDrumParams.sn = { ...(this._currentDrumParams.sn || {}), ...params.sn }
@@ -7719,52 +7658,9 @@ class AudioService {
     if (params.reverb !== undefined) this._currentDrumParams.reverb = params.reverb
 
     try {
-      // BD params
-      if (params.bd) {
-        if (params.bd.pitch !== undefined) {
-          kit.bd.frequency.rampTo(30 + params.bd.pitch * 60, 0.1)
-          kit.bd.set({ pitchDecay: 0.05 + params.bd.pitch * 0.3 })
-        }
-        if (params.bd.decay !== undefined) {
-          kit.bd.set({ envelope: { decay: 0.05 + params.bd.decay * 1.45 } })
-        }
-        if (params.bd.tone !== undefined) {
-          kit.bd.set({ octaves: 2 + params.bd.tone * 6 })
-        }
-      }
+      const routing = this._drumRouting
 
-      // SN params
-      if (params.sn) {
-        if (params.sn.pitch !== undefined) {
-          kit.snBody.frequency.rampTo(120 + params.sn.pitch * 180, 0.1)
-        }
-        if (params.sn.decay !== undefined) {
-          kit.snNoise.set({ envelope: { decay: 0.05 + params.sn.decay * 0.45 } })
-        }
-        if (params.sn.tone !== undefined) {
-          kit.snFilter.frequency.rampTo(1000 + params.sn.tone * 7000, 0.1)
-        }
-        if (params.sn.delay !== undefined && kit.snDelaySend) {
-          kit.snDelaySend.gain.rampTo(params.sn.delay, 0.1)
-        }
-      }
-
-      // HH params
-      if (params.hh) {
-        if (params.hh.pitch !== undefined) {
-          kit.hh.set({ frequency: 200 + params.hh.pitch * 600 })
-        }
-        if (params.hh.decay !== undefined) {
-          kit.hh.set({ envelope: { decay: 0.08 + params.hh.decay * 0.32 } })
-        }
-        if (params.hh.tone !== undefined) {
-          kit.hh.set({ harmonicity: 5.1 + params.hh.tone * 3 })
-          kit.hh.octaves = 3.5 + params.hh.tone * 1.5 // property setter — ricalcola highpass sweep
-        }
-        if (params.hh.delay !== undefined && kit.hhDelaySend) {
-          kit.hhDelaySend.gain.rampTo(params.hh.delay, 0.1)
-        }
-      }
+      // === ROUTING: apply immediately to persistent gain nodes ===
 
       // Volume (global slider, 0-1 → -12dB to +12dB)
       if (params.volume !== undefined) {
@@ -7772,15 +7668,33 @@ class AudioService {
         if (this.gestureVolume) this.gestureVolume.volume.rampTo(dB, 0.1)
       }
 
-      // Reverb (global slider, BD special behavior)
+      // Reverb (global slider, BD special behavior: 0% below 50%, then 0-20%)
       if (params.reverb !== undefined) {
         const r = params.reverb
-        if (kit.snReverbSend) kit.snReverbSend.gain.rampTo(r, 0.1)
-        if (kit.hhReverbSend) kit.hhReverbSend.gain.rampTo(r, 0.1)
-        // BD: 0% below 50% slider, then 0-20% mapped from 50%-100% range
-        if (kit.bdReverbSend) {
-          kit.bdReverbSend.gain.rampTo(r > 0.5 ? (r - 0.5) * 2 * 0.2 : 0, 0.1)
+        if (routing.sn.reverbSend) routing.sn.reverbSend.gain.rampTo(r, 0.1)
+        if (routing.hh.reverbSend) routing.hh.reverbSend.gain.rampTo(r, 0.1)
+        if (routing.bd.reverbSend) {
+          routing.bd.reverbSend.gain.rampTo(r > 0.5 ? (r - 0.5) * 2 * 0.2 : 0, 0.1)
         }
+      }
+
+      // Delay sends (routing only, no re-render needed)
+      if (params.sn?.delay !== undefined && routing.sn.delaySend) {
+        routing.sn.delaySend.gain.rampTo(params.sn.delay, 0.1)
+      }
+      if (params.hh?.delay !== undefined && routing.hh.delaySend) {
+        routing.hh.delaySend.gain.rampTo(params.hh.delay, 0.1)
+      }
+
+      // === TIMBRAL: debounce → re-render affected buffer ===
+      if (params.bd && (params.bd.pitch !== undefined || params.bd.decay !== undefined || params.bd.tone !== undefined)) {
+        this._scheduleBufferRerender('bd')
+      }
+      if (params.sn && (params.sn.pitch !== undefined || params.sn.decay !== undefined || params.sn.tone !== undefined)) {
+        this._scheduleBufferRerender('sn')
+      }
+      if (params.hh && (params.hh.pitch !== undefined || params.hh.decay !== undefined || params.hh.tone !== undefined)) {
+        this._scheduleBufferRerender('hh')
       }
     } catch (error) {
       console.warn('[AudioService] setDrumParams failed:', error.message)
@@ -7788,66 +7702,89 @@ class AudioService {
   }
 
   /**
-   * Recycle drum synths to clear Chrome AudioParam automation event accumulation.
-   * Chrome never GCs past automation events from AudioParam timelines, causing
-   * triggerAttackRelease to slow from ~3ms to 400ms+ after ~300 hits.
-   * Fix: create fresh synths, then dispose old ones after current notes decay.
+   * Schedule a debounced buffer re-render for a drum instrument.
+   * @param {string} instrument - 'bd', 'sn', or 'hh'
    */
-  _recycleDrumKit () {
-    if (!this.drumSynths || !this.currentPatch) return
+  _scheduleBufferRerender (instrument) {
+    if (!this._drumRerenderTimers) this._drumRerenderTimers = {}
+    clearTimeout(this._drumRerenderTimers[instrument])
+    this._drumRerenderTimers[instrument] = setTimeout(() => {
+      this._rerenderBuffer(instrument)
+    }, 100)
+  }
 
-    const savedParams = this._currentDrumParams
-    const oldKit = this.drumSynths
+  /**
+   * Re-render a single drum instrument buffer with updated parameters.
+   * Uses generation counter to prevent stale renders from overwriting newer ones.
+   * @param {string} instrument - 'bd', 'sn', or 'hh'
+   */
+  async _rerenderBuffer (instrument) {
+    if (!this.drumBuffers || !this._currentDrumParams?.[instrument] || !this.currentPatch) return
 
-    // Create new kit first (zero audio gap)
-    this.drumSynths = this._createDrumKit(this.currentPatch)
-    this._connectDrumKit(this.drumSynths, this.currentPatch)
-    this._drumHitCount = 0
-    this._lastDrumTrigger = 0
+    if (!this._drumRerenderGeneration) this._drumRerenderGeneration = { bd: 0, sn: 0, hh: 0 }
+    this._drumRerenderGeneration[instrument]++
+    const gen = this._drumRerenderGeneration[instrument]
 
-    // Re-apply user-adjusted params on fresh synths
-    if (savedParams) {
-      this.setDrumParams(savedParams)
+    try {
+      const instParams = {
+        ...this.currentPatch.instruments[instrument],
+        ...this._currentDrumParams[instrument]
+      }
+
+      let newBuffer
+      switch (instrument) {
+        case 'bd': newBuffer = await DrumBufferRenderer.renderBd(instParams); break
+        case 'sn': newBuffer = await DrumBufferRenderer.renderSn(instParams); break
+        case 'hh': newBuffer = await DrumBufferRenderer.renderHh(instParams); break
+      }
+
+      // Race guard: discard if a newer render started
+      if (this._drumRerenderGeneration[instrument] !== gen) return
+
+      // Hot-swap buffer (in-flight hits still use old buffer until their cleanup)
+      this.drumBuffers[instrument] = newBuffer
+    } catch (error) {
+      console.warn(`[AudioService] Re-render ${instrument} buffer failed:`, error.message)
+    }
+  }
+
+  /**
+   * Dispose drum routing nodes and clear buffers.
+   * No synths to dispose — only persistent gain/send nodes.
+   */
+  _disposeDrumKit () {
+    // Cancel pending re-render timers
+    if (this._drumRerenderTimers) {
+      Object.values(this._drumRerenderTimers).forEach(t => clearTimeout(t))
+      this._drumRerenderTimers = {}
     }
 
-    // Dispose old kit after current drum hits decay (~500ms max for BD)
-    setTimeout(() => {
-      const nodes = [
-        oldKit.bd, oldKit.bdGain, oldKit.bdReverbSend,
-        oldKit.snBody, oldKit.snNoise, oldKit.snFilter,
-        oldKit.snMerge, oldKit.snDelaySend, oldKit.snReverbSend,
-        oldKit.hh, oldKit.hhGain, oldKit.hhDelaySend, oldKit.hhReverbSend,
-        oldKit.drumDelaySendMaster, oldKit.drumReverbSendMaster
-      ]
+    // Dispose routing nodes
+    if (this._drumRouting) {
+      const nodes = []
+      for (const inst of ['bd', 'sn', 'hh']) {
+        const r = this._drumRouting[inst]
+        if (r) {
+          if (r.gain) nodes.push(r.gain)
+          if (r.delaySend) nodes.push(r.delaySend)
+          if (r.reverbSend) nodes.push(r.reverbSend)
+        }
+      }
+      if (this._drumRouting.drumDelaySendMaster) nodes.push(this._drumRouting.drumDelaySendMaster)
+      if (this._drumRouting.drumReverbSendMaster) nodes.push(this._drumRouting.drumReverbSendMaster)
+
       nodes.forEach(n => {
         if (n && !n.disposed) {
           try { n.disconnect(); n.dispose() } catch (e) { /* already disposed */ }
         }
       })
-    }, 500)
-  }
+      this._drumRouting = null
+    }
 
-  /**
-   * Dispose all drum kit synths and nodes
-   */
-  _disposeDrumKit () {
-    if (!this.drumSynths) return
-
-    const nodes = [
-      this.drumSynths.bd, this.drumSynths.bdGain, this.drumSynths.bdReverbSend,
-      this.drumSynths.snBody, this.drumSynths.snNoise, this.drumSynths.snFilter,
-      this.drumSynths.snMerge, this.drumSynths.snDelaySend, this.drumSynths.snReverbSend,
-      this.drumSynths.hh, this.drumSynths.hhGain, this.drumSynths.hhDelaySend, this.drumSynths.hhReverbSend,
-      this.drumSynths.drumDelaySendMaster, this.drumSynths.drumReverbSendMaster
-    ]
-    nodes.forEach(n => {
-      if (n && !n.disposed) {
-        try { n.disconnect(); n.dispose() } catch (e) { /* already disposed */ }
-      }
-    })
-    this.drumSynths = null
+    this.drumBuffers = null
     this.isDrumMode = false
     this._lastDrumTrigger = 0
+    this._drumRerenderGeneration = null
   }
 
   /**
