@@ -66,7 +66,7 @@ class AudioService {
     this._isPlayingComposition = false
     this._nextCompositionEventId = null  // Tone.Transport event ID
     this.MAX_COMPOSITION_QUEUE_SIZE = 3  // Prevent unbounded growth
-    this.COMPOSITION_QUEUE_WATCHDOG_MS = 15000  // 15s: ~2x typical composition at 120 BPM
+    this.COMPOSITION_QUEUE_WATCHDOG_MS = 10000  // 10s: slightly above backup timer (duration+2s)
     this._compositionWallTimeBackup = null  // setTimeout backup for clock stall resilience
     this._compositionCallbackGeneration = 0 // Anti-double-fire: generation counter for dual scheduling
 
@@ -958,6 +958,39 @@ class AudioService {
           this._compositionQueue = []
         }
         issueFound = true
+      }
+
+      // Check 3b: Composition queue stuck (Transport may be 'started' but clock frozen)
+      if (this._isPlayingComposition && this._compositionQueue.length >= 1) {
+        const oldest = this._compositionQueue[0]
+        if (typeof oldest?.addedWallTime === 'number' &&
+            (Date.now() - oldest.addedWallTime) > 10000) {
+          console.warn('[AudioService] Health check: composition queue stale, recovering')
+          // Flush all stale items (>8s). 10s detection - 8s freshness = 2s safety margin.
+          this._compositionQueue = this._compositionQueue.filter(
+            item => (Date.now() - item.addedWallTime) < 8000
+          )
+          this._compositionCallbackGeneration++ // Invalidate any pending Transport/backup callbacks
+          this._isPlayingComposition = false
+          if (this._nextCompositionEventId !== null) {
+            try { Tone.Transport.clear(this._nextCompositionEventId) } catch (e) { /* already cleared */ }
+            this._nextCompositionEventId = null
+          }
+          if (this._compositionWallTimeBackup) {
+            clearTimeout(this._compositionWallTimeBackup)
+            this._compositionWallTimeBackup = null
+          }
+          // Immediately drain if fresh items remain
+          if (this._compositionQueue.length > 0) {
+            try {
+              this._playNextFromQueue()
+            } catch (error) {
+              console.error('[AudioService] Health check queue drain failed:', error)
+              this._isPlayingComposition = false
+            }
+          }
+          issueFound = true
+        }
       }
 
       // Check 4: Evolving generation should be active - this is safe to auto-fix
@@ -3881,6 +3914,10 @@ class AudioService {
       if (typeof oldestInQueue?.addedWallTime === 'number' &&
           (Date.now() - oldestInQueue.addedWallTime) > this.COMPOSITION_QUEUE_WATCHDOG_MS) {
         console.warn(`[AudioService] Composition queue stuck for ${this.COMPOSITION_QUEUE_WATCHDOG_MS / 1000}s, forcing reset`)
+        // Flush stale items — don't play outdated compositions after recovery
+        this._compositionQueue = this._compositionQueue.filter(
+          item => (Date.now() - item.addedWallTime) < 8000
+        )
         this._isPlayingComposition = false
         if (this._nextCompositionEventId !== null) {
           try { Tone.Transport.clear(this._nextCompositionEventId) } catch (e) { /* already cleared */ }
@@ -3904,7 +3941,13 @@ class AudioService {
 
     // If nothing is currently playing, start playback
     if (!this._isPlayingComposition) {
-      this._playNextFromQueue()
+      try {
+        this._playNextFromQueue()
+      } catch (error) {
+        console.error('[AudioService] playComposition _playNextFromQueue failed:', error)
+        this._isPlayingComposition = false
+        this._compositionCallbackGeneration++
+      }
     }
   }
 
@@ -3952,7 +3995,14 @@ class AudioService {
       totalBeats = durationBars * beatsPerBar
     }
 
-    const durationSeconds = (totalBeats * 60) / tempo
+    let durationSeconds = (totalBeats * 60) / tempo
+
+    // Guard against NaN/Infinity/zero breaking both Transport and backup scheduling
+    if (!isFinite(durationSeconds) || durationSeconds < 2) {
+      durationSeconds = 8  // safe fallback: 4 bars @ 120 BPM
+    } else if (durationSeconds > 30) {
+      durationSeconds = 30
+    }
 
     // Play the composition now
     this._playCompositionNow(composition, false, style)
@@ -3977,7 +4027,10 @@ class AudioService {
 
     // PRIMARY: Transport-based scheduling (precise audio-clock timing)
     this._nextCompositionEventId = Tone.Transport.scheduleOnce(() => {
-      if (this._compositionCallbackGeneration !== expectedGeneration) return
+      if (this._compositionCallbackGeneration !== expectedGeneration) {
+        console.warn(`[AudioService] Transport callback generation mismatch: current=${this._compositionCallbackGeneration}, expected=${expectedGeneration}`)
+        return
+      }
       this._nextCompositionEventId = null  // Clear own stale event ID
       // Cancel wall-time backup — Transport callback fired normally
       if (this._compositionWallTimeBackup) {
@@ -4002,19 +4055,30 @@ class AudioService {
     if (this._compositionWallTimeBackup) clearTimeout(this._compositionWallTimeBackup)
     this._compositionWallTimeBackup = setTimeout(() => {
       this._compositionWallTimeBackup = null
-      if (this._compositionCallbackGeneration !== expectedGeneration) return
+      if (this._compositionCallbackGeneration !== expectedGeneration) {
+        console.warn(`[AudioService] Backup timer generation mismatch: current=${this._compositionCallbackGeneration}, expected=${expectedGeneration}`)
+        return
+      }
       if (this._isPlayingComposition) {
         console.warn('[AudioService] Composition wall-time backup triggered — Transport callback missed')
         if (this._nextCompositionEventId !== null) {
           try { Tone.Transport.clear(this._nextCompositionEventId) } catch (e) {}
           this._nextCompositionEventId = null
         }
-        this._playNextFromQueue()
+        try {
+          this._playNextFromQueue()
+        } catch (error) {
+          console.error('[AudioService] Backup timer _playNextFromQueue failed:', error)
+          this._isPlayingComposition = false
+          this._compositionCallbackGeneration++
+        }
       }
     }, (durationSeconds + 2) * 1000)
 
-    // Track for cleanup
-    this.scheduledTransportEvents.push(this._nextCompositionEventId)
+    // Note: _nextCompositionEventId is NOT pushed to scheduledTransportEvents.
+    // It's a queue-control event managed explicitly (watchdog, health check, Transport
+    // callback self-cleanup, backup timer cleanup). Putting it in scheduledTransportEvents
+    // would cause clearPendingCompositionNotes() to Transport.clear() it on next composition.
   }
 
   /**
