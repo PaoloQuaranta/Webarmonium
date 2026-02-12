@@ -132,18 +132,20 @@ class DrumBufferRenderer {
   static async _renderHhInternal (params) {
     const decay = 0.08 + params.decay * 0.32
     const duration = 0.001 + decay + 0.05 + 0.15 // attack + decay + release + margin
+    const freq = 200 + params.pitch * 600 // 200-800Hz
 
     const buffer = await Tone.Offline(() => {
       const hh = new Tone.MetalSynth({
-        frequency: 200 + params.pitch * 600, // 200-800Hz
         envelope: { attack: 0.001, decay, release: 0.05 },
         harmonicity: 5.1 + params.tone * 3,
         resonance: 300, // highpass resting freq — tuned to let partials pass
         octaves: 4,
         volume: -12 // tame perceptually dominant high-frequency partials
       }).toDestination()
+      // MetalSynth constructor IGNORES the frequency option — must set explicitly
+      hh.frequency.value = freq
       // MetalSynth MUST receive frequency as first arg (inherited from Instrument)
-      hh.triggerAttackRelease(hh.frequency.value, '16n', 0, 1.0)
+      hh.triggerAttackRelease(freq, '16n', 0, 1.0)
     }, duration, 1, Tone.context?.sampleRate || 44100)
 
     if (!buffer || buffer.duration === 0) {
