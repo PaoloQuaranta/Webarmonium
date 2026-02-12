@@ -857,8 +857,8 @@ class SpringMeshNetwork {
       size = this.NODE_CONFIG.tapSize
     } else if (node.gestureType === 'drag') {
       size = this.NODE_CONFIG.dragSize
-    } else if (node.gestureType === 'hold') {
-      // Pulsing animation for holds (sine wave)
+    } else if (node.gestureType === 'hold' || node.gestureType === 'sequencer') {
+      // Pulsing animation for holds and sequencer activity (sine wave)
       const pulse = Math.sin(p.millis() * this.NODE_CONFIG.holdPulseSpeed) * 5
       size = (this.NODE_CONFIG.holdPulseMin + this.NODE_CONFIG.holdPulseMax) / 2 + pulse
     }

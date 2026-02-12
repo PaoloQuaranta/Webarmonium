@@ -1058,13 +1058,15 @@ class WebarmoniumApp {
         // Local user's own sequencer: audio handled by SynthPanel._onSequencerHoldStart
 
         // Visual feedback for all sequencer notes
+        // v0.7.9 FIX: Use type 'sequencer' instead of 'hold' to prevent wave pulse emission.
+        // 'hold' triggers emitPulse() at 3.3/sec, creating WaveContexts that accumulate
+        // to 80+ and crush FPS to 3. Sequencer events are automated, not user gestures.
         if (this.visualService && data.position) {
           const color = data.userColor || '#fb923c'
           this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
           this.visualService.updateGestureData(data.userId, {
-            type: 'hold',
+            type: 'sequencer',
             velocity: data.velocity || 0.7,
-            holdStart: Date.now(),
             isActive: true
           })
         }
@@ -1145,13 +1147,14 @@ class WebarmoniumApp {
       // Local user's own drum hits: audio handled by SynthPanel._onDrumBatch
 
       // Visual feedback (once per batch, not per hit)
+      // v0.7.9 FIX: Use type 'sequencer' — 'hold' triggers emitPulse() which created
+      // ~3.3 WaveContexts/sec, accumulating to 88 and crushing FPS from 30 to 3.
       if (this.visualService && data.position) {
         const color = data.userColor || '#fb923c'
         this.visualService.updateCursorPosition(data.userId, data.position.x, data.position.y, color)
         this.visualService.updateGestureData(data.userId, {
-          type: 'hold',
+          type: 'sequencer',
           velocity: data.hits[0]?.velocity || 0.7,
-          holdStart: Date.now(),
           isActive: true
         })
       }
@@ -2837,6 +2840,26 @@ window.addEventListener('beforeunload', () => {
 // Make available globally for debugging
 window.WebarmoniumApp = WebarmoniumApp
 
+// v0.7.9: Main thread jank detector (rAF-based)
+// Tracks longest gap between animation frames — any gap >100ms indicates main thread blockage
+window._jankDetector = { maxGap: 0, lastRaf: 0, jankCount: 0, running: false }
+if (!window._jankDetector.running) {
+  window._jankDetector.running = true
+  const _trackJank = (now) => {
+    const jd = window._jankDetector
+    if (jd.lastRaf > 0) {
+      const gap = now - jd.lastRaf
+      if (gap > 100) {
+        jd.jankCount++
+        jd.maxGap = Math.max(jd.maxGap, gap)
+      }
+    }
+    jd.lastRaf = now
+    requestAnimationFrame(_trackJank)
+  }
+  requestAnimationFrame(_trackJank)
+}
+
 // v0.7.9: Frontend health diagnostic monitor
 // Logs key metrics every 10s to help identify progressive slowdown causes
 window._diagInterval = setInterval(() => {
@@ -2872,6 +2895,11 @@ window._diagInterval = setInterval(() => {
     drumStats = `avg=${avg}ms min=${min} max=${max} delay=${avgDelay}ms n=${dt.deltas.length}`
   }
 
+  // Jank detector results (reset after each snapshot)
+  const jd = window._jankDetector
+  const jank = jd ? `max=${Math.round(jd.maxGap)}ms n=${jd.jankCount}` : 'N/A'
+  if (jd) { jd.maxGap = 0; jd.jankCount = 0 }
+
   const diag = {
     heap: mem ? `${mem.heap}/${mem.limit}MB` : 'N/A',
     transportTimeline: transportEvents,
@@ -2885,6 +2913,7 @@ window._diagInterval = setInterval(() => {
     particles: vis?.particles?.particles?.size ?? '?',
     edges: ft?.edges ?? '?',
     fps: vis?.fps?.toFixed(1) ?? '?',
+    jank,
     drumTiming: drumStats,
     timing
   }
