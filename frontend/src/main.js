@@ -2840,6 +2840,20 @@ window.addEventListener('beforeunload', () => {
 // Make available globally for debugging
 window.WebarmoniumApp = WebarmoniumApp
 
+// v0.7.9: Long Task observer — logs any main thread task >200ms with attribution
+if (typeof PerformanceObserver !== 'undefined') {
+  try {
+    const _ltObs = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (entry.duration > 200) {
+          console.warn(`[LONGTASK] ${entry.duration.toFixed(0)}ms name=${entry.name}`)
+        }
+      }
+    })
+    _ltObs.observe({ type: 'longtask', buffered: false })
+  } catch (e) { /* longtask not supported */ }
+}
+
 // v0.7.9: Main thread jank detector (rAF-based)
 // Tracks longest gap between animation frames — any gap >100ms indicates main thread blockage
 window._jankDetector = { maxGap: 0, lastRaf: 0, jankCount: 0, running: false }

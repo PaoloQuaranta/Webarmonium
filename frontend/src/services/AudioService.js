@@ -2649,7 +2649,11 @@ class AudioService {
 
       // The callback timing is precise, but we do the work synchronously
       // This is still better than setTimeout because the *timing* is audio-accurate
+      // v0.7.9 DIAG: Detect if compositionTick is slow
+      const _ctStart = performance.now()
       compositionTick()
+      const _ctDur = performance.now() - _ctStart
+      if (_ctDur > 10) console.warn(`[COMP-TICK] ${_ctDur.toFixed(0)}ms`)
     }, 0.1, startTime) // 100ms interval
 
     // Track for cleanup
@@ -4022,23 +4026,23 @@ class AudioService {
    * @private
    */
   _playCompositionNow(composition, isDrone, style) {
+    // v0.7.9 DIAG: Time the entire method to detect main thread blocks
+    const _t0 = performance.now()
+
     // Entry #208: Clear pending notes from previous composition before scheduling new ones
-    // Prevents Transport event accumulation when compositions arrive faster than they play
-    // SAFETY: Only clears future scheduled events. Notes already triggered are sustained
-    // by synth envelopes and tracked separately in activeVoices Map. Drones preserved.
     this.clearPendingCompositionNotes()
+    const _t1 = performance.now()
 
     // Entry #206: Clear old scheduled events to prevent memory buildup
-    // Events from previous compositions that have already executed are stale
-    // but remain in the array. This cleanup removes them before adding new ones.
     this._cleanupStaleEvents()
+    const _t2 = performance.now()
 
     // Entry #175: Store style for use in playback methods
     this.currentStyle = style
     this.applyGenreToSynths(style)
+    const _t3 = performance.now()
 
     // Entry #213: Sync harmonic context with composition being played
-    // This ensures user notes are quantized to the same key/mode as the current composition
     const keyCenter = composition.metadata?.keyCenter
     const mode = composition.metadata?.mode
     if (keyCenter && mode) {
@@ -4057,16 +4061,34 @@ class AudioService {
     const type = composition.type
     const tempo = composition.metadata?.tempo || 120
 
+    // v0.7.9 DIAG: Count notes for profiling
+    let noteCount = 0
+
     try {
       if (type === 'polyphonic' && content.voices) {
+        for (const v of content.voices) noteCount += v.notes?.length || 0
+        if (content.accompaniment) {
+          noteCount += content.accompaniment.bass_accomp?.notes?.length || 0
+          noteCount += content.accompaniment.pad?.notes?.length || 0
+          noteCount += content.accompaniment.keys?.notes?.length || 0
+        }
         this.playPolyphonicComposition(content, tempo)
       } else if (type === 'homophonic' && content.melody) {
+        noteCount += content.melody.notes?.length || 0
+        if (content.accompaniment) noteCount += content.accompaniment.chords?.length || 0
         this.playHomophonicComposition(content, tempo)
       } else if (type === 'ambient' && content.texture) {
+        noteCount += content.texture.layers?.length || 0
         this.playAmbientComposition(content, tempo, isDrone)
       }
     } catch (error) {
       console.error('[AudioService] Composition playback error:', error)
+    }
+
+    const _t4 = performance.now()
+    const total = _t4 - _t0
+    if (total > 20) {
+      console.warn(`[COMP-TIMING] ${total.toFixed(0)}ms total (clear=${(_t1-_t0).toFixed(0)} cleanup=${(_t2-_t1).toFixed(0)} genre=${(_t3-_t2).toFixed(0)} schedule=${(_t4-_t3).toFixed(0)}) notes=${noteCount} type=${type}`)
     }
   }
 
