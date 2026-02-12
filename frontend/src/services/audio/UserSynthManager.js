@@ -668,10 +668,11 @@ class UserSynthManager {
       hitGain.connect(cached.outputGain)
       source.start(safeTime)
 
-      // Self-cleanup after buffer finishes
+      // Self-cleanup after buffer finishes playing
+      // IMPORTANT: Do NOT call source.dispose() — it destroys the shared buffer
       const ms = (buffer.duration + 0.5) * 1000
       setTimeout(() => {
-        try { source.dispose(); hitGain.dispose() } catch (e) { /* already disposed */ }
+        try { source.disconnect(); hitGain.disconnect(); hitGain.dispose() } catch (e) { /* already cleaned up */ }
       }, ms)
     } catch (error) {
       console.warn(`[UserSynthManager] playDrumHit failed for ${userId}:`, error.message)

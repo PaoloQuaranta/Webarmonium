@@ -7631,9 +7631,12 @@ class AudioService {
       source.start(safeTime)
 
       // Self-cleanup after buffer finishes playing
+      // IMPORTANT: Do NOT call source.dispose() — ToneBufferSource.dispose() calls
+      // this._buffer.dispose() which destroys the shared ToneAudioBuffer, muting all
+      // subsequent hits. Just disconnect and let the native node be GC'd.
       const ms = (buffer.duration + 0.5) * 1000
       setTimeout(() => {
-        try { source.dispose(); hitGain.dispose() } catch (e) { /* already disposed */ }
+        try { source.disconnect(); hitGain.disconnect(); hitGain.dispose() } catch (e) { /* already cleaned up */ }
       }, ms)
     } catch (error) {
       console.warn('[AudioService] playDrumHit failed:', error.message)
