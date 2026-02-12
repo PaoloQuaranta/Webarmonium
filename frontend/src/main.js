@@ -2886,6 +2886,37 @@ setInterval(() => {
   }, 0)
 }, 2000)
 
+// v0.7.11 DIAG: Monkey-patch Tone.js Context ticker to measure Transport overhead
+// The ticker fires every updateInterval (~100ms on Windows Chrome) and processes
+// the Transport timeline. If this gets slow, it causes the "unaccounted" LONGTASKs.
+window._toneTickerPatched = false
+window._patchToneTicker = function () {
+  if (window._toneTickerPatched) return
+  try {
+    const ctx = Tone?.getContext?.() || Tone?.context
+    if (!ctx) return
+    // Tone.js Context wraps native AudioContext, ticker is internal
+    // Try multiple internal paths (varies by Tone.js version)
+    const ticker = ctx._ticker
+    if (ticker && ticker._callback) {
+      const origCb = ticker._callback
+      ticker._callback = function () {
+        const t0 = performance.now()
+        origCb.apply(this, arguments)
+        const dur = performance.now() - t0
+        if (window._opTimings) window._opTimings.tick += dur
+      }
+      window._toneTickerPatched = true
+      console.log('[DIAG] Tone.js ticker patched for timing')
+    } else {
+      console.log('[DIAG] Tone.js ticker not found — cannot patch')
+    }
+  } catch (e) {
+    console.log('[DIAG] Tone.js ticker patch failed:', e.message)
+  }
+}
+// Attempt patch after audio init (will be called from DIAG interval if not yet patched)
+
 // v0.7.9: Main thread jank detector (rAF-based)
 // Tracks longest gap between animation frames — any gap >100ms indicates main thread blockage
 window._jankDetector = { maxGap: 0, lastRaf: 0, jankCount: 0, running: false }
@@ -2964,12 +2995,18 @@ window._diagInterval = setInterval(() => {
     timing,
     // v0.7.9: Event-loop latency and LONGTASK tracking
     elDelay: window._eventLoopDelay ? `last=${Math.round(window._eventLoopDelay.last)}ms max=${Math.round(window._eventLoopDelay.max)}ms` : 'N/A',
-    longTasks: `n=${window._ltCount || 0} total=${Math.round(window._ltTotalMs || 0)}ms`
+    longTasks: `n=${window._ltCount || 0} total=${Math.round(window._ltTotalMs || 0)}ms`,
+    // v0.7.11: Drum synth triggerAttackRelease cost (detect AudioParam accumulation)
+    drumHitCost: audio?._drumHitStats ? `n=${audio._drumHitStats.count} avg=${(audio._drumHitStats.totalMs / Math.max(1, audio._drumHitStats.count)).toFixed(1)}ms max=${audio._drumHitStats.maxMs.toFixed(1)}ms` : null,
+    tickerPatched: window._toneTickerPatched
   }
-  // Reset cumulative LONGTASK stats and event-loop max for next window
+  // Reset cumulative stats for next window
   window._ltCount = 0
   window._ltTotalMs = 0
   if (window._eventLoopDelay) window._eventLoopDelay.max = 0
+  if (audio?._drumHitStats) { audio._drumHitStats.count = 0; audio._drumHitStats.totalMs = 0; audio._drumHitStats.maxMs = 0 }
+  // Attempt Tone.js ticker patch if not yet done
+  if (!window._toneTickerPatched && window._patchToneTicker) window._patchToneTicker()
   console.log('[DIAG]', JSON.stringify(diag))
 }, 10000)
 

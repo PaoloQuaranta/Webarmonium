@@ -2583,14 +2583,6 @@ class AudioService {
         return
       }
 
-      // PERF: Skip layer playback during drum mode.
-      // Each triggerAttackRelease adds automation events to Chrome's AudioParam
-      // internal timelines. At 10Hz × 6 notes, this accumulates ~7000 events
-      // in 30s, causing progressive 100→280ms main-thread blocks.
-      if (this.isDrumMode) {
-        return
-      }
-
       try {
         const now = Date.now()
         const deltaTime = now - this.lastVoiceUpdateTime
@@ -3867,13 +3859,6 @@ class AudioService {
     }
 
     if (!composition || !composition.content) {
-      return
-    }
-
-    // PERF: Drop compositions during drum mode — drums provide their own musical
-    // content, and scheduling 20-40 Transport events per composition causes
-    // AudioParam accumulation that progressively blocks the main thread.
-    if (this.isDrumMode && !isDrone) {
       return
     }
 
@@ -7197,25 +7182,6 @@ class AudioService {
         this.isDrumMode = true
         this.currentPresetSlot = slot
         this.currentPatch = patch
-
-        // PERF: Release ambient layers and clear composition queue to prevent
-        // AudioParam accumulation from ongoing composition playback
-        if (this.ambientLayers) {
-          for (const name of ['bass', 'pad', 'chords']) {
-            const layer = this.ambientLayers[name]
-            if (layer && !layer.disposed) {
-              try { layer.releaseAll ? layer.releaseAll(0.1) : layer.triggerRelease(Tone.now() + 0.1) } catch (e) { /* ignore */ }
-            }
-          }
-        }
-        this.clearPendingCompositionNotes()
-        this._compositionQueue = []
-        this._isPlayingComposition = false
-        if (this._compositionWallTimeBackup) {
-          clearTimeout(this._compositionWallTimeBackup)
-          this._compositionWallTimeBackup = null
-        }
-
         return true
       }
 
@@ -7744,6 +7710,9 @@ class AudioService {
       this._lastDrumTrigger = safeTime
       const vel = Math.max(0.1, Math.min(1.0, velocity))
 
+      // v0.7.11 DIAG: Measure triggerAttackRelease cost to detect AudioParam accumulation
+      const _dht0 = performance.now()
+
       switch (instrument) {
         case 'bd':
           kit.bd.triggerAttackRelease('C1', '8n', safeTime, vel)
@@ -7756,6 +7725,14 @@ class AudioService {
           kit.hh.triggerAttackRelease(kit.hh.frequency.value, '16n', safeTime, vel)
           break
       }
+
+      const _dht = performance.now() - _dht0
+      if (typeof window !== 'undefined' && window._opTimings) window._opTimings.drum += _dht
+      // Track cumulative drum synth cost for DIAG
+      if (!this._drumHitStats) this._drumHitStats = { count: 0, totalMs: 0, maxMs: 0 }
+      this._drumHitStats.count++
+      this._drumHitStats.totalMs += _dht
+      if (_dht > this._drumHitStats.maxMs) this._drumHitStats.maxMs = _dht
     } catch (error) {
       console.warn('[AudioService] playDrumHit failed:', error.message)
     }
