@@ -7708,7 +7708,7 @@ class AudioService {
     try {
       // Recycle drum synths to clear Chrome AudioParam automation accumulation
       this._drumHitCount = (this._drumHitCount || 0) + 1
-      if (this._drumHitCount >= 300) {
+      if (this._drumHitCount >= 64) {
         this._recycleDrumKit()
       }
 

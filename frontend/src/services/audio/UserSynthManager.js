@@ -682,7 +682,7 @@ class UserSynthManager {
 
       // Recycle drum synths to clear Chrome AudioParam automation accumulation
       kit.hitCount = (kit.hitCount || 0) + 1
-      if (kit.hitCount >= 300) {
+      if (kit.hitCount >= 64) {
         // Dispose old kit nodes asynchronously (let current notes decay)
         const oldKit = kit
         setTimeout(() => {
