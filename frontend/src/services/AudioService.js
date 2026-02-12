@@ -4026,6 +4026,8 @@ class AudioService {
    * @private
    */
   _playCompositionNow(composition, isDrone, style) {
+    // LONGTASK correlation marker
+    if (typeof window !== 'undefined') window._opMarker = 'comp'
     // v0.7.9 DIAG: Time the entire method to detect main thread blocks
     const _t0 = performance.now()
 
@@ -4090,6 +4092,8 @@ class AudioService {
     if (total > 20) {
       console.warn(`[COMP-TIMING] ${total.toFixed(0)}ms total (clear=${(_t1-_t0).toFixed(0)} cleanup=${(_t2-_t1).toFixed(0)} genre=${(_t3-_t2).toFixed(0)} schedule=${(_t4-_t3).toFixed(0)}) notes=${noteCount} type=${type}`)
     }
+    // LONGTASK correlation: reset marker
+    if (typeof window !== 'undefined') window._opMarker = 'idle'
   }
 
   /**
@@ -4222,22 +4226,33 @@ class AudioService {
     }
 
     // Entry #191: Apply reverb decay from synthParams (regenerates impulse response)
-    // This is throttled to prevent excessive CPU usage from impulse response regeneration
+    // DISABLED during sequencer/audition: Setting reverb.decay triggers Tone.js to:
+    // 1. Create OfflineAudioContext and render new impulse response
+    // 2. Assign buffer to ConvolverNode → browser computes FFT on MAIN THREAD
+    // For a 3s decay at 44100Hz = 132K samples → FFT takes 200-300ms → LONGTASK
+    // This blocks the event loop, delaying drum events and causing progressive slowdown.
+    // Reverb send levels (cheap gain changes) are still applied above.
     if (synthParams && synthParams.reverbDecay !== undefined && this.reverb && !this.reverb.disposed) {
-      try {
-        const currentDecay = this.reverb.decay
-        const targetDecay = synthParams.reverbDecay
-        // Only update if decay changed significantly (>0.5s difference) and throttle permits
-        if (Math.abs(currentDecay - targetDecay) > 0.5) {
-          const now = Date.now()
-          if (now - this._lastReverbDecayChange > this._reverbDecayThrottleMs) {
-            this.reverb.decay = targetDecay
-            this._lastReverbDecayChange = now
-            // console.log(`🎛️ Reverb decay updated: ${currentDecay.toFixed(1)}s → ${targetDecay.toFixed(1)}s (${style.dominantGenre})`)
+      // Skip if any music is actively playing — the 200ms main-thread block is catastrophic
+      // evolvingGenerationActive = compositionTick running, isDrumMode = drum sequencer
+      if (this.evolvingGenerationActive || this.isDrumMode) {
+        // Reverb send levels already adjusted above — skip expensive impulse regeneration
+      } else {
+        try {
+          const currentDecay = this.reverb.decay
+          const targetDecay = synthParams.reverbDecay
+          if (Math.abs(currentDecay - targetDecay) > 0.5) {
+            const now = Date.now()
+            if (now - this._lastReverbDecayChange > this._reverbDecayThrottleMs) {
+              if (typeof window !== 'undefined') window._opMarker = 'reverb'
+              this.reverb.decay = targetDecay
+              if (typeof window !== 'undefined') window._opMarker = 'idle'
+              this._lastReverbDecayChange = now
+            }
           }
+        } catch (e) {
+          // Reverb may not be ready or disposed, ignore
         }
-      } catch (e) {
-        // Reverb may not be ready or disposed, ignore
       }
     }
 
@@ -6267,27 +6282,9 @@ class AudioService {
 
     this.updateLoopActive = true
 
-    // Ensure Transport is running
-    if (Tone.Transport.state !== 'started') {
-      Tone.Transport.start()
-    }
-
-    // REAL-TIME FIX: Use Transport.scheduleRepeat (sufficient for audio params)
-    // rAF runs at display refresh rate and competes with rendering workloads
-    // Transport scheduling is on the audio thread and immune to main thread congestion
-    // PERF: Entry #59 - Use platform-specific rate (20Hz for Chrome Windows, 30Hz default)
-    // FIX: Use audioProfile.filterUpdateRate if set by user, otherwise platform default
-    const filterUpdateHz = this.audioProfile?.filterUpdateRate
-      || (typeof PlatformDetection !== 'undefined' ? PlatformDetection.getFilterUpdateRate() : 30)
-    const updateInterval = 1 / filterUpdateHz
-
-    this.parameterUpdateEventId = Tone.Transport.scheduleRepeat(() => {
-      if (!this.updateLoopActive) return
-      this.performParameterUpdate()
-    }, updateInterval)
-
-    // Track for cleanup
-    this.scheduledTransportEvents.push(this.parameterUpdateEventId)
+    // performParameterUpdate() is completely disabled (returns immediately).
+    // Don't waste a Transport.scheduleRepeat callback firing 20-30x/sec for nothing.
+    // This was causing ~30 unnecessary main-thread callbacks/sec during sequencer playback.
   }
 
   /**

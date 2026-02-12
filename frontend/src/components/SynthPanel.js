@@ -226,6 +226,11 @@ class SynthPanel {
     this._onSequencerStep = (data) => {
       const localUserId = this.socketService?.currentUserId
       if (data.userId === localUserId && this.sequencerSubMenu) {
+        // Throttle LED updates: max 8/sec — at 8x speed (16 steps/sec) the LED
+        // sweep is imperceptible, but 16 classList mutations/sec cause layout thrashing
+        const now = performance.now()
+        if (now - (this._lastStepTime || 0) < 125) return
+        this._lastStepTime = now
         this.sequencerSubMenu.setActiveStep(data.stepIndex)
       }
     }
@@ -303,7 +308,19 @@ class SynthPanel {
    * @private
    */
   _pulseButton (selector) {
-    const btn = this.panel?.querySelector(selector)
+    // Throttle: max 4 pulses/sec (250ms min interval) — at 8x drum speed
+    // 10-16 animate() calls/sec was creating excessive compositor work + GC pressure
+    const now = performance.now()
+    if (now - (this._lastPulseTime || 0) < 250) return
+    this._lastPulseTime = now
+
+    // Cache DOM lookup (querySelector every call was unnecessary)
+    if (!this._pulseButtonCache) this._pulseButtonCache = {}
+    let btn = this._pulseButtonCache[selector]
+    if (!btn) {
+      btn = this.panel?.querySelector(selector)
+      if (btn) this._pulseButtonCache[selector] = btn
+    }
     if (!btn) return
     if (btn._pulseAnim) btn._pulseAnim.cancel()
     btn._pulseAnim = btn.animate(
@@ -343,6 +360,11 @@ class SynthPanel {
    * @private
    */
   _pulseExternalButton () {
+    // Shares throttle with _pulseButton — max 4 pulses/sec total
+    const now = performance.now()
+    if (now - (this._lastPulseTime || 0) < 250) return
+    this._lastPulseTime = now
+
     const btn = this._externalBtn
     if (!btn) return
     if (btn._pulseAnim) btn._pulseAnim.cancel()

@@ -1113,6 +1113,7 @@ class WebarmoniumApp {
     // DRUM BATCH: Handle batched drum events from sequencer (v0.7.9 OOM fix)
     // Replaces 3 individual hold:start events per step with 1 drum:batch event
     this.socketService.on('drum:batch', (data) => {
+      if (typeof window !== 'undefined') window._opMarker = 'drum'
       if (!this.isAudioStarted || !data.isRemote) return
 
       // v0.7.9: Track drum timing for diagnostic
@@ -1158,6 +1159,7 @@ class WebarmoniumApp {
           isActive: true
         })
       }
+      if (typeof window !== 'undefined') window._opMarker = 'idle'
     })
 
     // SUSTAINED HOLD: Handle remote user hold:end events
@@ -2840,19 +2842,43 @@ window.addEventListener('beforeunload', () => {
 // Make available globally for debugging
 window.WebarmoniumApp = WebarmoniumApp
 
-// v0.7.9: Long Task observer — logs any main thread task >200ms with attribution
+// v0.7.9: Long Task observer — logs tasks >50ms with event-loop context
+// Tracks operation markers to correlate LONGTASKs with specific code paths
+window._opMarker = 'idle'  // Current operation: 'idle'|'draw'|'drum'|'comp'|'socket'
+window._ltCount = 0        // Cumulative count for DIAG
+window._ltTotalMs = 0      // Cumulative duration for DIAG
 if (typeof PerformanceObserver !== 'undefined') {
   try {
     const _ltObs = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
-        if (entry.duration > 200) {
-          console.warn(`[LONGTASK] ${entry.duration.toFixed(0)}ms name=${entry.name}`)
+        if (entry.duration > 50) {
+          window._ltCount++
+          window._ltTotalMs += entry.duration
+          if (entry.duration > 100) {
+            const app = window.webarmoniumApp
+            const sched = app?.audioService?.scheduledTransportEvents?.length ?? '?'
+            console.warn(`[LONGTASK] ${entry.duration.toFixed(0)}ms op=${window._opMarker} sched=${sched}`)
+          }
         }
       }
     })
     _ltObs.observe({ type: 'longtask', buffered: false })
   } catch (e) { /* longtask not supported */ }
 }
+
+// v0.7.9: Event-loop latency probe — measures how long macrotasks wait in queue
+// Growing latency = main thread increasingly congested
+window._eventLoopDelay = { last: 0, max: 0, samples: 0 }
+setInterval(() => {
+  const t0 = performance.now()
+  setTimeout(() => {
+    const delay = performance.now() - t0
+    const eld = window._eventLoopDelay
+    eld.last = delay
+    if (delay > eld.max) eld.max = delay
+    eld.samples++
+  }, 0)
+}, 2000)
 
 // v0.7.9: Main thread jank detector (rAF-based)
 // Tracks longest gap between animation frames — any gap >100ms indicates main thread blockage
@@ -2929,8 +2955,15 @@ window._diagInterval = setInterval(() => {
     fps: vis?.fps?.toFixed(1) ?? '?',
     jank,
     drumTiming: drumStats,
-    timing
+    timing,
+    // v0.7.9: Event-loop latency and LONGTASK tracking
+    elDelay: window._eventLoopDelay ? `last=${Math.round(window._eventLoopDelay.last)}ms max=${Math.round(window._eventLoopDelay.max)}ms` : 'N/A',
+    longTasks: `n=${window._ltCount || 0} total=${Math.round(window._ltTotalMs || 0)}ms`
   }
+  // Reset cumulative LONGTASK stats and event-loop max for next window
+  window._ltCount = 0
+  window._ltTotalMs = 0
+  if (window._eventLoopDelay) window._eventLoopDelay.max = 0
   console.log('[DIAG]', JSON.stringify(diag))
 }, 10000)
 
