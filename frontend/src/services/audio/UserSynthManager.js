@@ -625,12 +625,25 @@ class UserSynthManager {
 
       // Render buffers if not cached or preset changed
       if (!cached || cached.presetSlot !== presetSlot) {
+        // Guard: skip hits while render is in progress for this user
+        if (!this._drumRenderPending) this._drumRenderPending = new Set()
+        if (this._drumRenderPending.has(userId)) return
+        this._drumRenderPending.add(userId)
+
         const patchDefs = this.patchDefinitions || window.PatchDefinitions
         const drumPatch = patchDefs?.REAL_USER_PATCHES?.[presetSlot] ||
                           patchDefs?.REAL_USER_PATCHES?.[8] // Fallback to 808
-        if (!drumPatch || drumPatch.type !== 'drum') return
+        if (!drumPatch || drumPatch.type !== 'drum') {
+          this._drumRenderPending.delete(userId)
+          return
+        }
 
-        const buffers = await DrumBufferRenderer.renderKit(drumPatch)
+        let buffers
+        try {
+          buffers = await DrumBufferRenderer.renderKit(drumPatch)
+        } finally {
+          this._drumRenderPending.delete(userId)
+        }
 
         // Create output gain for remote user volume
         const outputGain = new Tone.Gain(0.7) // remote users quieter

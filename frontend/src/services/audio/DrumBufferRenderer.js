@@ -14,12 +14,31 @@
 // eslint-disable-next-line no-unused-vars
 class DrumBufferRenderer {
   /**
+   * Global render queue — serializes ALL Tone.Offline calls.
+   * Tone.Offline temporarily swaps the global audio context. Concurrent calls
+   * corrupt the save/restore chain, leaving Tone.js pointed at a dead
+   * OfflineAudioContext. This queue guarantees at most one Offline render at a time.
+   * @private
+   */
+  static _renderQueue = Promise.resolve()
+
+  static _enqueue (fn) {
+    const next = DrumBufferRenderer._renderQueue.catch(() => {}).then(fn)
+    DrumBufferRenderer._renderQueue = next.catch(() => {})
+    return next
+  }
+
+  /**
    * Render a bass drum buffer from parameters.
    * Uses MembraneSynth with sub-bass frequency (30-90Hz).
    * @param {Object} params - { pitch: 0-1, decay: 0-1, tone: 0-1 }
    * @returns {Promise<ToneAudioBuffer>}
    */
   static async renderBd (params) {
+    return DrumBufferRenderer._enqueue(() => DrumBufferRenderer._renderBdInternal(params))
+  }
+
+  static async _renderBdInternal (params) {
     const attack = 0.001
     const decay = 0.05 + params.decay * 1.45
     const release = 0.1
@@ -50,6 +69,10 @@ class DrumBufferRenderer {
    * @returns {Promise<ToneAudioBuffer>}
    */
   static async renderSn (params) {
+    return DrumBufferRenderer._enqueue(() => DrumBufferRenderer._renderSnInternal(params))
+  }
+
+  static async _renderSnInternal (params) {
     const bodyDur = 0.001 + 0.08 + 0.05 // attack + decay + release
     const noiseDur = 0.001 + (0.05 + params.decay * 0.45) + 0.01
     const duration = Math.max(bodyDur, noiseDur) + 0.15
@@ -103,6 +126,10 @@ class DrumBufferRenderer {
    * @returns {Promise<ToneAudioBuffer>}
    */
   static async renderHh (params) {
+    return DrumBufferRenderer._enqueue(() => DrumBufferRenderer._renderHhInternal(params))
+  }
+
+  static async _renderHhInternal (params) {
     const decay = 0.08 + params.decay * 0.32
     const duration = 0.001 + decay + 0.05 + 0.15 // attack + decay + release + margin
 
@@ -135,10 +162,12 @@ class DrumBufferRenderer {
    * @returns {Promise<{bd: ToneAudioBuffer, sn: ToneAudioBuffer, hh: ToneAudioBuffer}>}
    */
   static async renderKit (patch) {
-    const bd = await DrumBufferRenderer.renderBd(patch.instruments.bd)
-    const sn = await DrumBufferRenderer.renderSn(patch.instruments.sn)
-    const hh = await DrumBufferRenderer.renderHh(patch.instruments.hh)
-    return { bd, sn, hh }
+    return DrumBufferRenderer._enqueue(async () => {
+      const bd = await DrumBufferRenderer._renderBdInternal(patch.instruments.bd)
+      const sn = await DrumBufferRenderer._renderSnInternal(patch.instruments.sn)
+      const hh = await DrumBufferRenderer._renderHhInternal(patch.instruments.hh)
+      return { bd, sn, hh }
+    })
   }
 }
 
