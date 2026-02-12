@@ -126,16 +126,18 @@ class DrumBufferRenderer {
   }
 
   /**
-   * Render a complete drum kit (bd, sn, hh) in parallel.
+   * Render a complete drum kit (bd, sn, hh) sequentially.
+   * MUST be sequential: Tone.Offline temporarily swaps the global audio context.
+   * Concurrent renders via Promise.all corrupt the context chain — each save/restore
+   * captures the wrong context, leaving Tone.js pointed at an OfflineAudioContext
+   * after completion. Nodes created afterwards end up in the wrong context.
    * @param {Object} patch - Drum patch from PatchDefinitions (must have .instruments)
    * @returns {Promise<{bd: ToneAudioBuffer, sn: ToneAudioBuffer, hh: ToneAudioBuffer}>}
    */
   static async renderKit (patch) {
-    const [bd, sn, hh] = await Promise.all([
-      DrumBufferRenderer.renderBd(patch.instruments.bd),
-      DrumBufferRenderer.renderSn(patch.instruments.sn),
-      DrumBufferRenderer.renderHh(patch.instruments.hh)
-    ])
+    const bd = await DrumBufferRenderer.renderBd(patch.instruments.bd)
+    const sn = await DrumBufferRenderer.renderSn(patch.instruments.sn)
+    const hh = await DrumBufferRenderer.renderHh(patch.instruments.hh)
     return { bd, sn, hh }
   }
 }
