@@ -279,8 +279,8 @@ class GenerativeVisualService {
       return
     }
 
-    // LONGTASK correlation marker
-    if (typeof window !== 'undefined') window._opMarker = 'draw'
+    // LONGTASK accumulated timing
+    const _drawT0 = performance.now()
 
     // AUDIO PRIORITY: Apply queued audio stress at frame boundary
     if (this._pendingAudioStress) {
@@ -410,8 +410,8 @@ class GenerativeVisualService {
       // Hold indicators REMOVED - SpringMeshNetwork already renders hold state via node pulsing
     }
 
-    // LONGTASK correlation: reset marker after draw completes
-    if (typeof window !== 'undefined') window._opMarker = 'idle'
+    // LONGTASK accumulated timing
+    if (typeof window !== 'undefined' && window._opTimings) window._opTimings.draw += performance.now() - _drawT0
   }
 
   /**

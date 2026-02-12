@@ -1113,7 +1113,7 @@ class WebarmoniumApp {
     // DRUM BATCH: Handle batched drum events from sequencer (v0.7.9 OOM fix)
     // Replaces 3 individual hold:start events per step with 1 drum:batch event
     this.socketService.on('drum:batch', (data) => {
-      if (typeof window !== 'undefined') window._opMarker = 'drum'
+      const _dt0 = performance.now()
       if (!this.isAudioStarted || !data.isRemote) return
 
       // v0.7.9: Track drum timing for diagnostic
@@ -1159,7 +1159,7 @@ class WebarmoniumApp {
           isActive: true
         })
       }
-      if (typeof window !== 'undefined') window._opMarker = 'idle'
+      if (typeof window !== 'undefined') window._opTimings.drum += performance.now() - _dt0
     })
 
     // SUSTAINED HOLD: Handle remote user hold:end events
@@ -2842,11 +2842,13 @@ window.addEventListener('beforeunload', () => {
 // Make available globally for debugging
 window.WebarmoniumApp = WebarmoniumApp
 
-// v0.7.9: Long Task observer — logs tasks >50ms with event-loop context
-// Tracks operation markers to correlate LONGTASKs with specific code paths
-window._opMarker = 'idle'  // Current operation: 'idle'|'draw'|'drum'|'comp'|'socket'
+// v0.7.10: Long Task observer with accumulated timing for accurate attribution.
+// The _opMarker approach was flawed — observer fires AFTER the task, so marker
+// was always 'idle'. Now we track cumulative time per code path since last LONGTASK.
+window._opMarker = 'idle'  // Kept for backward compat
 window._ltCount = 0        // Cumulative count for DIAG
 window._ltTotalMs = 0      // Cumulative duration for DIAG
+window._opTimings = { draw: 0, drum: 0, comp: 0, tick: 0 }  // Accumulated ms per code path
 if (typeof PerformanceObserver !== 'undefined') {
   try {
     const _ltObs = new PerformanceObserver((list) => {
@@ -2857,8 +2859,12 @@ if (typeof PerformanceObserver !== 'undefined') {
           if (entry.duration > 100) {
             const app = window.webarmoniumApp
             const sched = app?.audioService?.scheduledTransportEvents?.length ?? '?'
-            console.warn(`[LONGTASK] ${entry.duration.toFixed(0)}ms op=${window._opMarker} sched=${sched}`)
+            const ot = window._opTimings
+            const accounted = ot.draw + ot.drum + ot.comp + ot.tick
+            console.warn(`[LONGTASK] ${entry.duration.toFixed(0)}ms sched=${sched} draw=${ot.draw.toFixed(0)} drum=${ot.drum.toFixed(0)} comp=${ot.comp.toFixed(0)} tick=${ot.tick.toFixed(0)} unaccounted=${Math.max(0, entry.duration - accounted).toFixed(0)}`)
           }
+          // Reset per-path timings after each LONGTASK report
+          window._opTimings = { draw: 0, drum: 0, comp: 0, tick: 0 }
         }
       }
     })

@@ -2583,6 +2583,14 @@ class AudioService {
         return
       }
 
+      // PERF: Skip layer playback during drum mode.
+      // Each triggerAttackRelease adds automation events to Chrome's AudioParam
+      // internal timelines. At 10Hz × 6 notes, this accumulates ~7000 events
+      // in 30s, causing progressive 100→280ms main-thread blocks.
+      if (this.isDrumMode) {
+        return
+      }
+
       try {
         const now = Date.now()
         const deltaTime = now - this.lastVoiceUpdateTime
@@ -2649,11 +2657,12 @@ class AudioService {
 
       // The callback timing is precise, but we do the work synchronously
       // This is still better than setTimeout because the *timing* is audio-accurate
-      // v0.7.9 DIAG: Detect if compositionTick is slow
+      // v0.7.10 DIAG: Track compositionTick timing for LONGTASK attribution
       const _ctStart = performance.now()
       compositionTick()
       const _ctDur = performance.now() - _ctStart
       if (_ctDur > 10) console.warn(`[COMP-TICK] ${_ctDur.toFixed(0)}ms`)
+      if (typeof window !== 'undefined' && window._opTimings) window._opTimings.tick += _ctDur
     }, 0.1, startTime) // 100ms interval
 
     // Track for cleanup
@@ -3861,6 +3870,13 @@ class AudioService {
       return
     }
 
+    // PERF: Drop compositions during drum mode — drums provide their own musical
+    // content, and scheduling 20-40 Transport events per composition causes
+    // AudioParam accumulation that progressively blocks the main thread.
+    if (this.isDrumMode && !isDrone) {
+      return
+    }
+
     // v0.7.9: Drop compositions when tab is hidden — Chrome throttles AudioContext
     // and Transport events accumulate causing progressive slowdown on return
     if (document.hidden) {
@@ -4026,8 +4042,6 @@ class AudioService {
    * @private
    */
   _playCompositionNow(composition, isDrone, style) {
-    // LONGTASK correlation marker
-    if (typeof window !== 'undefined') window._opMarker = 'comp'
     // v0.7.9 DIAG: Time the entire method to detect main thread blocks
     const _t0 = performance.now()
 
@@ -4092,8 +4106,8 @@ class AudioService {
     if (total > 20) {
       console.warn(`[COMP-TIMING] ${total.toFixed(0)}ms total (clear=${(_t1-_t0).toFixed(0)} cleanup=${(_t2-_t1).toFixed(0)} genre=${(_t3-_t2).toFixed(0)} schedule=${(_t4-_t3).toFixed(0)}) notes=${noteCount} type=${type}`)
     }
-    // LONGTASK correlation: reset marker
-    if (typeof window !== 'undefined') window._opMarker = 'idle'
+    // LONGTASK accumulated timing
+    if (typeof window !== 'undefined' && window._opTimings) window._opTimings.comp += performance.now() - _t0
   }
 
   /**
@@ -4244,9 +4258,9 @@ class AudioService {
           if (Math.abs(currentDecay - targetDecay) > 0.5) {
             const now = Date.now()
             if (now - this._lastReverbDecayChange > this._reverbDecayThrottleMs) {
-              if (typeof window !== 'undefined') window._opMarker = 'reverb'
+              const _rvT0 = performance.now()
               this.reverb.decay = targetDecay
-              if (typeof window !== 'undefined') window._opMarker = 'idle'
+              if (typeof window !== 'undefined' && window._opTimings) window._opTimings.comp += performance.now() - _rvT0
               this._lastReverbDecayChange = now
             }
           }
@@ -7183,6 +7197,25 @@ class AudioService {
         this.isDrumMode = true
         this.currentPresetSlot = slot
         this.currentPatch = patch
+
+        // PERF: Release ambient layers and clear composition queue to prevent
+        // AudioParam accumulation from ongoing composition playback
+        if (this.ambientLayers) {
+          for (const name of ['bass', 'pad', 'chords']) {
+            const layer = this.ambientLayers[name]
+            if (layer && !layer.disposed) {
+              try { layer.releaseAll ? layer.releaseAll(0.1) : layer.triggerRelease(Tone.now() + 0.1) } catch (e) { /* ignore */ }
+            }
+          }
+        }
+        this.clearPendingCompositionNotes()
+        this._compositionQueue = []
+        this._isPlayingComposition = false
+        if (this._compositionWallTimeBackup) {
+          clearTimeout(this._compositionWallTimeBackup)
+          this._compositionWallTimeBackup = null
+        }
+
         return true
       }
 
