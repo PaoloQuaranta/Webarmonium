@@ -7619,19 +7619,27 @@ class AudioService {
     const inst = patch.instruments
     const routing = {}
 
-    // BD → gain → gesturePan
+    // Drums get their own volume node — completely separate from gesturePan.
+    // gesturePan fans out to delaySends.gesture + reverbSends.gesture, which are
+    // style-scaled by applyGenreToSynths(). Routing drums through gesturePan
+    // caused ALL drum audio to leak into style-controlled delay/reverb sends,
+    // giving BD unwanted delay and letting style params override drum FX levels.
+    routing.drumVolume = new Tone.Volume(0)
+    routing.drumVolume.connect(this.masterVolume)
+
+    // BD → gain → drumVolume (never through gesturePan)
     const bdGain = new Tone.Gain(1)
-    bdGain.connect(this.gesturePan)
+    bdGain.connect(routing.drumVolume)
     routing.bd = { gain: bdGain }
 
-    // SN → gain → gesturePan (buffer already has body+noise merged)
+    // SN → gain → drumVolume (buffer already has body+noise merged)
     const snGain = new Tone.Gain(1)
-    snGain.connect(this.gesturePan)
+    snGain.connect(routing.drumVolume)
     routing.sn = { gain: snGain }
 
-    // HH → gain → gesturePan
+    // HH → gain → drumVolume
     const hhGain = new Tone.Gain(1)
-    hhGain.connect(this.gesturePan)
+    hhGain.connect(routing.drumVolume)
     routing.hh = { gain: hhGain }
 
     // Delay sends (SN + HH only, BD never gets delay)
@@ -7729,10 +7737,10 @@ class AudioService {
 
       // === ROUTING: apply immediately to persistent gain nodes ===
 
-      // Volume (global slider, 0-1 → -12dB to +12dB)
+      // Volume (global slider, 0-1 → -12dB to +12dB) — uses drum's own volume node
       if (params.volume !== undefined) {
         const dB = (params.volume - 0.5) * 24
-        if (this.gestureVolume) this.gestureVolume.volume.rampTo(dB, 0.1)
+        if (routing.drumVolume) routing.drumVolume.volume.rampTo(dB, 0.1)
       }
 
       // Reverb (global slider, BD special behavior: 0% below 50%, then 0-20%)
@@ -7839,6 +7847,7 @@ class AudioService {
       }
       if (this._drumRouting.drumDelaySendMaster) nodes.push(this._drumRouting.drumDelaySendMaster)
       if (this._drumRouting.drumReverbSendMaster) nodes.push(this._drumRouting.drumReverbSendMaster)
+      if (this._drumRouting.drumVolume) nodes.push(this._drumRouting.drumVolume)
 
       nodes.forEach(n => {
         if (n && !n.disposed) {
