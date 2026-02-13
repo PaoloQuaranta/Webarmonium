@@ -83,7 +83,9 @@ class DeviceCapabilities {
   static _getMemoryGB () {
     // navigator.deviceMemory is only available in Chrome and some browsers
     // Returns approximate RAM in GB (0.25, 0.5, 1, 2, 4, 8)
-    return navigator.deviceMemory || 2
+    // Entry #226: Default to 8GB when API unsupported (Firefox, Safari)
+    // navigator.deviceMemory is Chrome-only; assuming low RAM penalizes capable devices
+    return navigator.deviceMemory || 8
   }
 
   /**
@@ -216,10 +218,12 @@ class DeviceCapabilities {
       return 'low'
     }
 
-    // High tier criteria - desktop with good specs
+    // Entry #226: Relaxed high tier — previous thresholds (8 cores, 8GB) excluded
+    // most laptops and all Firefox/Safari users (no deviceMemory API → defaulted to 2GB)
+    // High tier criteria - desktop or capable laptop
     if (
-      cpuCores >= 8 &&
-      memoryGB >= 8 &&
+      cpuCores >= 4 &&
+      memoryGB >= 4 &&
       !isLowEndGPU &&
       !isMobile
     ) {
@@ -252,8 +256,8 @@ class DeviceCapabilities {
         lookAhead: 0.2,           // 200ms
         updateInterval: 0.05,     // 50ms
         filterUpdateRate: 20,     // Hz
-        maxPolyphony: 4,
-        compositionLayers: ['backgroundHigh', 'backgroundMid'],
+        maxPolyphony: 8,          // Entry #226: Was 4 — too low, silently rejected notes
+        compositionLayers: ['backgroundHigh', 'backgroundMid', 'backgroundLow'],  // Entry #226: Was missing backgroundLow — bass counterpoint was muted
         backgroundLayers: ['bass', 'pad', 'chords'],
         useAmbientFilters: true,
         synthComplexity: 'simplified'

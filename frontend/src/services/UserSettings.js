@@ -31,8 +31,8 @@ class UserSettings {
       lookAhead: 0.2,
       updateInterval: 0.05,
       filterUpdateRate: 20,
-      maxPolyphony: 4,
-      compositionLayers: ['backgroundHigh', 'backgroundMid'],
+      maxPolyphony: 8,          // Entry #226: Was 4
+      compositionLayers: ['backgroundHigh', 'backgroundMid', 'backgroundLow'],  // Entry #226: Was missing backgroundLow
       backgroundLayers: ['bass', 'pad', 'chords'],
       useAmbientFilters: true,
       synthComplexity: 'simplified'

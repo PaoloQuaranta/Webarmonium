@@ -3903,6 +3903,16 @@ class AudioService {
       return
     }
 
+    // Entry #226: Diagnostic log — tier, layers, stress, note counts
+    const _voices = composition.content?.voices?.length || 0
+    const _melNotes = composition.content?.melody?.notes?.length || '-'
+    const _voiceNotes = composition.content?.voices?.map(v => `${v.voiceRole}:${v.notes?.length||0}`).join(',') || '-'
+    const _accompKeys = composition.content?.accompaniment ? Object.keys(composition.content.accompaniment).join(',') : '-'
+    console.log(`[BG] type=${composition.type} voices=${_voices}(${_voiceNotes}) melody=${_melNotes} accomp=${_accompKeys} ` +
+      `tier=${this.audioProfile?.tier} poly=${this.maxTotalVoices} ` +
+      `comp=[${this.audioProfile?.compositionLayers?.join(',') || '?'}] bg=[${this.audioProfile?.backgroundLayers?.join(',') || '?'}] ` +
+      `stress=${this.stressMonitor?.getMode() || '?'} isDrone=${isDrone}`)
+
     // v0.7.9: Drop compositions when tab is hidden — Chrome throttles AudioContext
     // and Transport events accumulate causing progressive slowdown on return
     if (document.hidden) {
@@ -4399,7 +4409,9 @@ class AudioService {
         const note = notes[noteIndex]
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
-        const duration = note.duration || 0.5
+        // Entry #226: Convert duration from beats to seconds (backend sends beats)
+        // Accompaniment already did this correctly; counterpoint was passing beats as seconds
+        const duration = (note.duration || 0.5) * beatDuration
 
         // Entry #175: Calculate delay with optional jazz swing
         let delay = (note.startBeat || 0) * beatDuration
@@ -4563,7 +4575,8 @@ class AudioService {
         const note = notes[i]
         const pitch = note.pitch || 60
         const frequency = this.midiToFrequency(pitch)
-        const duration = note.duration || 0.5
+        // Entry #226: Convert duration from beats to seconds (backend sends beats)
+        const duration = (note.duration || 0.5) * beatDuration
         const velocity = velocityConfig.melody
 
         // Entry #175: Calculate delay with optional jazz swing

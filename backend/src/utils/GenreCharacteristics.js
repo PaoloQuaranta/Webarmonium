@@ -33,9 +33,9 @@ const GENRE_CHARACTERISTICS = {
     voiceConfig: {
       voiceCount: 3,  // Entry #219: Increased from 2 to support full counterpoint
       roles: ['melody', 'harmony', 'bass'],  // Entry #219: Updated for 3-voice counterpoint
-      melodyDensity: 0.15,   // Sparse, atmospheric melody
-      harmonyDensity: 0.20,  // Entry #219: Added for new harmony voice
-      bassDensity: 0.20,     // Gentle bass foundation
+      melodyDensity: 0.25,   // Entry #226: Was 0.15 — too sparse, caused audible gaps
+      harmonyDensity: 0.25,  // Entry #226: Was 0.20
+      bassDensity: 0.30,     // Entry #226: Was 0.20
       padDensity: 0.9        // For pad accompaniment layer (atmospheric drones)
     },
     // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)

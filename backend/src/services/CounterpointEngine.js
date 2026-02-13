@@ -290,14 +290,14 @@ class CounterpointEngine {
       const transposeInterval = Math.floor(temporalOffset * 5) - 2
       const role = profile.role || 'melody'
 
-      // Entry #225d: Material notes path also needs minimum coverage for sparse voices
-      // Over time, MaterialLibrary accumulates materials with few notes, causing stuttering
+      // Entry #226: Minimum coverage for ALL roles in material notes path (was only bass/pad)
+      // Ensures materials with few notes are extended to fill the section
+      const expectedDurations = { melody: 0.5, harmony: 1.0, bass: 3.0, pad: 7.0 }
+      const expectedDuration = expectedDurations[role] || 1.0
+      const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
       let notesToUse = material.notes
-      if ((role === 'bass' || role === 'pad') && material.notes.length < 4) {
+      if (material.notes.length < minNotesForCoverage) {
         // Extend sparse materials by repeating notes to ensure coverage
-        const expectedDurations = { bass: 3.0, pad: 7.0 }
-        const expectedDuration = expectedDurations[role]
-        const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
         const repeatCount = Math.ceil(minNotesForCoverage / material.notes.length)
         notesToUse = []
         for (let r = 0; r < repeatCount; r++) {
@@ -372,20 +372,17 @@ class CounterpointEngine {
       // Generate new voice based on role with section parameters
       const role = profile.role || 'melody'
 
-      // Entry #225b: Note count scales with section for sparse voices only
-      // Entry #225c: Only bass/pad need coverage scaling - melody/harmony are already dense
-      const baseCounts = { melody: 8, harmony: 5, bass: 3, pad: 2 }
+      // Entry #226: Raised baseCounts (was melody:8, harmony:5, bass:3, pad:2)
+      const baseCounts = { melody: 10, harmony: 7, bass: 4, pad: 3 }
       const densityMultiplier = 0.5 + (voiceContext.rhythmicDensity || 0.5) * 1.0
       const densityBasedCount = Math.round((baseCounts[role] || 5) * densityMultiplier)
 
-      // Only sparse roles (bass, pad) need minimum coverage enforcement
-      let noteCount = densityBasedCount
-      if (role === 'bass' || role === 'pad') {
-        const expectedDurations = { bass: 3.0, pad: 7.0 }
-        const expectedDuration = expectedDurations[role]
-        const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
-        noteCount = Math.max(densityBasedCount, minNotesForCoverage)
-      }
+      // Entry #226: Minimum coverage for ALL roles (was only bass/pad)
+      // Ensures every voice has enough notes to fill the section without audible gaps
+      const expectedDurations = { melody: 0.5, harmony: 1.0, bass: 3.0, pad: 7.0 }
+      const expectedDuration = expectedDurations[role] || 1.0
+      const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
+      const noteCount = Math.max(densityBasedCount, minNotesForCoverage)
 
       // Entry #207: For small noteCount (< 6), use connected timing
       const useEvenDistribution = noteCount < 6
