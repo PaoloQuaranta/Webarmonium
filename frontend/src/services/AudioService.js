@@ -2368,9 +2368,9 @@ class AudioService {
       bass: new Tone.Volume(+3),      // Entry #216c: +3 dB (was 0) - fuller foundation
       pad: new Tone.Volume(0),        // Entry #216c: 0 dB (was -3) - more presence
       chords: new Tone.Volume(+3),    // Entry #216c: +3 dB (was 0) - more definition
-      backgroundHigh: new Tone.Volume(-7),   // Entry #226: -7 dB — counterpoint below gesture/virtual user level
-      backgroundMid: new Tone.Volume(-9),   // Entry #226: -9 dB — harmony subtle support
-      backgroundLow: new Tone.Volume(-8)    // Entry #226: -8 dB — bass counterpoint foundation
+      backgroundHigh: new Tone.Volume(-11),   // -11 dB — counterpoint well below gesture/virtual user level
+      backgroundMid: new Tone.Volume(-13),   // -13 dB — harmony subtle support
+      backgroundLow: new Tone.Volume(-12)    // -12 dB — bass counterpoint foundation
     }
 
     // Connect each layer with SEND/RETURN architecture
