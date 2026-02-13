@@ -1516,7 +1516,7 @@ class AudioService {
       this.ambientLayers.bass = new Tone.FMSynth({
         harmonicity: bassConfig.harmonicity || 0.5,
         modulationIndex: bassConfig.modulationIndex || 2,
-        volume: 0,
+        volume: +5,
         oscillator: { type: 'sine' },
         modulation: { type: 'sine' },
         envelope: { attack: 0.02, decay: 0.15, sustain: 0.85, release: 0.3 },
@@ -1525,7 +1525,7 @@ class AudioService {
     } else {
       this.ambientLayers.bass = new Tone.MonoSynth({
         oscillator: { type: bassConfig.oscillatorType || 'sine' },
-        volume: 0,
+        volume: +5,
         envelope: { attack: 0.02, decay: 0.15, sustain: 0.85, release: 0.3 }
       })
     }
@@ -4153,11 +4153,15 @@ class AudioService {
     // Entry #221: Increased from ultra-conservative values (0.08-0.20) that made
     // counterpoint voices inaudible after dropout fix relaxed voice reduction
     const configs = {
-      ambient:     { melody: 0.30, harmony: 0.25, bass: 0.28, pad: 0.15 },
-      jazz:        { melody: 0.35, harmony: 0.28, bass: 0.32, pad: 0.18 },
-      electronic:  { melody: 0.35, harmony: 0.30, bass: 0.33, pad: 0.20 },
-      rock:        { melody: 0.38, harmony: 0.32, bass: 0.35, pad: 0.22 },
-      classical:   { melody: 0.32, harmony: 0.26, bass: 0.28, pad: 0.15 }
+      ambient:      { melody: 0.30, harmony: 0.25, bass: 0.28, pad: 0.15 },
+      jazz:         { melody: 0.35, harmony: 0.28, bass: 0.32, pad: 0.18 },
+      electronic:   { melody: 0.35, harmony: 0.30, bass: 0.33, pad: 0.20 },
+      rock:         { melody: 0.38, harmony: 0.32, bass: 0.35, pad: 0.22 },
+      classical:    { melody: 0.32, harmony: 0.26, bass: 0.28, pad: 0.15 },
+      melodic:      { melody: 0.35, harmony: 0.28, bass: 0.30, pad: 0.18 },
+      rhythmic:     { melody: 0.33, harmony: 0.28, bass: 0.35, pad: 0.16 },
+      pop:          { melody: 0.36, harmony: 0.30, bass: 0.33, pad: 0.18 },
+      experimental: { melody: 0.32, harmony: 0.28, bass: 0.30, pad: 0.20 }
     }
     return configs[genre] || configs.ambient
   }

@@ -41,12 +41,12 @@ const GENRE_CHARACTERISTICS = {
     // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
-      accompaniment: ['pad'],    // Pad supportive, atmospheric
+      accompaniment: ['bass_accomp', 'pad'],    // Bass foundation + atmospheric pad
       velocities: {
         melody: 0.70,     // Atmospheric but audible
         harmony: 0.55,    // Inner voice
         bass_voice: 0.60, // Gentle bass foundation
-        bass_accomp: 0.20,
+        bass_accomp: 0.40,  // Entry #221: Audible bass foundation
         pad: 0.55,        // Supportive atmospheric pad
         keys: 0.20
       }
@@ -163,12 +163,12 @@ const GENRE_CHARACTERISTICS = {
     // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // Walking bass, melody, inner voice
-      accompaniment: ['pad'],  // Light comping pad, no heavy keys
+      accompaniment: ['bass_accomp', 'pad'],  // Walking bass + light pad
       velocities: {
         melody: 1.0,      // Lead voice prominent
         harmony: 0.70,    // Inner voice
         bass_voice: 0.85, // Walking bass clear
-        bass_accomp: 0.25,
+        bass_accomp: 0.45,  // Entry #221: Audible walking bass support
         pad: 0.40,
         keys: 0.30
       }
@@ -304,12 +304,12 @@ const GENRE_CHARACTERISTICS = {
     // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // Full voice leading
-      accompaniment: ['pad'],  // Orchestral sustain only
+      accompaniment: ['bass_accomp', 'pad'],  // Bass foundation + orchestral sustain
       velocities: {
         melody: 0.95,     // Soprano/lead
         harmony: 0.80,    // Alto/tenor balance
         bass_voice: 0.85, // Bass foundation
-        bass_accomp: 0.25,
+        bass_accomp: 0.40,  // Entry #221: Audible bass foundation
         pad: 0.50,
         keys: 0.20
       }
@@ -372,12 +372,12 @@ const GENRE_CHARACTERISTICS = {
     // Entry #219b: Full counterpoint always active, accompaniment supportive (louder overall)
     orchestration: {
       counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
-      accompaniment: ['pad', 'keys'],       // Full accompaniment support
+      accompaniment: ['bass_accomp', 'pad', 'keys'],  // Bass foundation + full support
       velocities: {
         melody: 1.0,      // Lead prominent
         harmony: 0.75,
         bass_voice: 0.70,
-        bass_accomp: 0.35,
+        bass_accomp: 0.40,
         pad: 0.50,
         keys: 0.45
       }
@@ -663,7 +663,7 @@ function getGenreCharacteristics(genre) {
       // Entry #219b: Full counterpoint always active (louder overall)
       orchestration: {
         counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
-        accompaniment: ['pad', 'keys'],
+        accompaniment: ['bass_accomp', 'pad', 'keys'],
         velocities: { melody: 1.0, harmony: 0.75, bass_voice: 0.70, bass_accomp: 0.40, pad: 0.45, keys: 0.45 }
       }
     }
@@ -834,7 +834,7 @@ function getOrchestration(genre) {
   // Entry #219b: Fallback orchestration - full counterpoint always active (louder overall)
   return {
     counterpoint: ['melody', 'harmony', 'bass_voice'],  // All 3 voices always
-    accompaniment: ['pad', 'keys'],
+    accompaniment: ['bass_accomp', 'pad', 'keys'],
     velocities: {
       melody: 1.0,
       harmony: 0.75,
