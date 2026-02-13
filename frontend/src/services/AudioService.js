@@ -3903,15 +3903,18 @@ class AudioService {
       return
     }
 
-    // Entry #226: Diagnostic log — tier, layers, stress, note counts
+    // Entry #226: Diagnostic log — tier, layers, stress, note counts, envelope, pool
     const _voices = composition.content?.voices?.length || 0
     const _melNotes = composition.content?.melody?.notes?.length || '-'
     const _voiceNotes = composition.content?.voices?.map(v => `${v.voiceRole}:${v.notes?.length||0}`).join(',') || '-'
     const _accompKeys = composition.content?.accompaniment ? Object.keys(composition.content.accompaniment).join(',') : '-'
+    const _bgHEnv = this.ambientLayers?.backgroundHigh?.envelope
+    const _atkRel = _bgHEnv ? `atk=${_bgHEnv.attack?.toFixed?.(3) || '?'} rel=${_bgHEnv.release?.toFixed?.(3) || '?'}` : 'no-env'
+    const _pool = this.generativeState?.activeVoices?.size || 0
     console.log(`[BG] type=${composition.type} voices=${_voices}(${_voiceNotes}) melody=${_melNotes} accomp=${_accompKeys} ` +
-      `tier=${this.audioProfile?.tier} poly=${this.maxTotalVoices} ` +
+      `tier=${this.audioProfile?.tier} poly=${this.maxTotalVoices} pool=${_pool} ` +
       `comp=[${this.audioProfile?.compositionLayers?.join(',') || '?'}] bg=[${this.audioProfile?.backgroundLayers?.join(',') || '?'}] ` +
-      `stress=${this.stressMonitor?.getMode() || '?'} isDrone=${isDrone}`)
+      `stress=${this.stressMonitor?.getMode() || '?'} isDrone=${isDrone} ${_atkRel}`)
 
     // v0.7.9: Drop compositions when tab is hidden — Chrome throttles AudioContext
     // and Transport events accumulate causing progressive slowdown on return
@@ -4216,6 +4219,11 @@ class AudioService {
     }
 
     // Apply envelope to melodic layers (backgroundHigh, backgroundMid, backgroundLow)
+    // Entry #226: Cap attack/release for counterpoint layers — ambient genre sets attackTime=1.5s
+    // but counterpoint notes are 0.3-0.6s, so the note is released before the attack completes
+    // making it inaudible. Cap attack at 0.15s and release at 1.0s for counterpoint audibility.
+    const maxCounterpointAttack = 0.15
+    const maxCounterpointRelease = 1.0
     const melodicLayers = ['backgroundHigh', 'backgroundMid', 'backgroundLow']
     for (const layerName of melodicLayers) {
       const layer = this.ambientLayers[layerName]
@@ -4223,10 +4231,10 @@ class AudioService {
         try {
           layer.set({
             envelope: {
-              attack: cfg.attack,
+              attack: Math.min(cfg.attack, maxCounterpointAttack),
               decay: cfg.decay,
               sustain: cfg.sustain,
-              release: cfg.release
+              release: Math.min(cfg.release, maxCounterpointRelease)
             }
           })
         } catch (e) {
