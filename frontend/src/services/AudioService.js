@@ -1519,14 +1519,14 @@ class AudioService {
         volume: +5,
         oscillator: { type: 'sine' },
         modulation: { type: 'sine' },
-        envelope: { attack: 0.02, decay: 0.15, sustain: 0.85, release: 0.3 },
-        modulationEnvelope: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.3 }
+        envelope: { attack: 0.01, decay: 0.3, sustain: 0.5, release: 0.4 },
+        modulationEnvelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.2 }
       })
     } else {
       this.ambientLayers.bass = new Tone.MonoSynth({
         oscillator: { type: bassConfig.oscillatorType || 'sine' },
         volume: +5,
-        envelope: { attack: 0.02, decay: 0.15, sustain: 0.85, release: 0.3 }
+        envelope: { attack: 0.01, decay: 0.3, sustain: 0.5, release: 0.4 }
       })
     }
 
@@ -2350,7 +2350,7 @@ class AudioService {
     // FIX: Only create filters if useAmbientFilters is enabled (saves CPU on low-end devices)
     if (this.audioProfile?.useAmbientFilters !== false) {
       this.ambientFilters = {
-        bass: new Tone.Filter({ type: 'lowpass', frequency: 300, Q: 1.2 }),   // Entry #216b: FM sub needs low-mids for richness
+        bass: new Tone.Filter({ type: 'lowpass', frequency: 700, Q: 0.8 }),   // Entry #224: 700Hz lets 3rd-4th harmonics through for bass presence/definition
         pad: new Tone.Filter({ type: 'lowpass', frequency: 2000, Q: 0.8 }),   // Entry #216b: Fattriangle shimmer needs highs
         chords: new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 1 }),  // Entry #216b: Warm FM needs less highs than bell
         backgroundHigh: new Tone.Filter({ type: 'lowpass', frequency: 5000, Q: 1 }),    // Entry #219c: Pulse needs brightness
@@ -4222,6 +4222,29 @@ class AudioService {
         } catch (e) {
           // Synth may be disposed, ignore
         }
+      }
+    }
+
+    // Entry #224: Apply genre-specific envelope to bass synth
+    // Bass needs different attack/decay per genre (snappy electronic vs round jazz vs slow ambient)
+    const bassLayer = this.ambientLayers.bass
+    if (bassLayer && bassLayer.set) {
+      const bassEnvelopes = {
+        ambient:      { attack: 0.08, decay: 0.5,  sustain: 0.6, release: 0.8  },
+        jazz:         { attack: 0.03, decay: 0.4,  sustain: 0.5, release: 0.4  },
+        electronic:   { attack: 0.005, decay: 0.2, sustain: 0.4, release: 0.15 },
+        rock:         { attack: 0.008, decay: 0.25, sustain: 0.5, release: 0.3 },
+        classical:    { attack: 0.04, decay: 0.4,  sustain: 0.6, release: 0.6  },
+        melodic:      { attack: 0.02, decay: 0.35, sustain: 0.5, release: 0.4  },
+        rhythmic:     { attack: 0.005, decay: 0.2, sustain: 0.4, release: 0.15 },
+        pop:          { attack: 0.01, decay: 0.3,  sustain: 0.5, release: 0.3  },
+        experimental: { attack: 0.03, decay: 0.4,  sustain: 0.5, release: 0.5  }
+      }
+      const bassEnv = bassEnvelopes[style.dominantGenre] || bassEnvelopes.ambient
+      try {
+        bassLayer.set({ envelope: bassEnv })
+      } catch (e) {
+        // Synth may be disposed, ignore
       }
     }
 
@@ -6901,9 +6924,8 @@ class AudioService {
 
     // Reset ambient filters to original values
     if (this.ambientFilters.bass) {
-      this.ambientFilters.bass.frequency.linearRampToValueAtTime(150, currentTime + 0.1)
-      this.ambientFilters.bass.Q.linearRampToValueAtTime(1, currentTime + 0.1)
-      // console.log('🔧 Bass filter reset: 150Hz, Q=1')
+      this.ambientFilters.bass.frequency.linearRampToValueAtTime(700, currentTime + 0.1)
+      this.ambientFilters.bass.Q.linearRampToValueAtTime(0.8, currentTime + 0.1)
     }
 
     if (this.ambientFilters.pad) {

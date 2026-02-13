@@ -268,11 +268,16 @@ class AccompanimentEngine {
       const root = voicedPitches[0] || targetRoot
       const fifth = voicedPitches[1] || targetFifth
 
+      // Entry #224: Compute next chord root for walking bass approach notes
+      const nextChord = progression[(chordIndex + 1) % progressionLength]
+      const nextPitchClass = (nextChord.root !== undefined && nextChord.root !== null) ? nextChord.root : pitchClass
+      const nextRoot = 36 + nextPitchClass
+
       // Generate pattern based on genre
       const patternNotes = this._generateBassPattern(
         root, fifth, chordTones, pitchClass,
         genre, chordDuration, chordStartBeat,
-        syncopation, swingAmount, compositionCount, chordIndex
+        syncopation, swingAmount, compositionCount, chordIndex, nextRoot
       )
 
       // Apply velocity curve and articulation
@@ -304,7 +309,7 @@ class AccompanimentEngine {
    * @private
    */
   _generateBassPattern(root, fifth, chordTones, rootPitchClass, genre, duration, startBeat,
-                       syncopation, swingAmount, compositionCount, chordIndex) {
+                       syncopation, swingAmount, compositionCount, chordIndex, nextRoot) {
     const notes = []
 
     // PHI-based pattern variation
@@ -312,7 +317,7 @@ class AccompanimentEngine {
 
     switch (genre) {
       case 'jazz':
-        return this._generateWalkingBass(root, chordTones, rootPitchClass, duration, startBeat, swingAmount)
+        return this._generateWalkingBass(root, chordTones, rootPitchClass, duration, startBeat, swingAmount, nextRoot)
 
       case 'electronic':
       case 'rhythmic':
@@ -345,22 +350,37 @@ class AccompanimentEngine {
    * @returns {Object[]} Array of note objects
    * @private
    */
-  _generateWalkingBass(root, chordTones, rootPitchClass, duration, startBeat, swingAmount) {
+  _generateWalkingBass(root, chordTones, rootPitchClass, duration, startBeat, swingAmount, nextRoot) {
     const notes = []
     const bassOctave = 36
 
     // chordTones are intervals: [0, 3, 7] for minor, [0, 4, 7] for major
     const third = chordTones[1] || 4
     const fifth = chordTones[2] || 7
-    // Use 7th if available (for jazz), otherwise use octave approach
-    const seventh = chordTones[3] || 10  // Minor 7th as default leading tone
 
-    // Classic walking bass pattern: root -> third -> fifth -> approach note
+    // Entry #224: Beat 4 approach note — chromatic half-step to next chord root
+    // This is the defining characteristic of professional walking bass
+    const currentRoot = bassOctave + rootPitchClass
+    let approachNote
+    if (nextRoot && nextRoot !== currentRoot) {
+      // Chromatic approach from below (most common in jazz)
+      approachNote = nextRoot - 1
+      // If that creates a leap >7 semitones from beat 3, approach from above
+      const beat3Pitch = currentRoot + fifth
+      if (Math.abs(approachNote - beat3Pitch) > 7) {
+        approachNote = nextRoot + 1
+      }
+    } else {
+      // Same chord repeating: use 7th as scalar approach
+      approachNote = currentRoot + (chordTones[3] || 10)
+    }
+
+    // Walking pattern: root → 3rd → 5th → approach to next root
     const walkingNotes = [
-      bassOctave + rootPitchClass,               // Beat 1: Root
-      bassOctave + rootPitchClass + third,       // Beat 2: Third
-      bassOctave + rootPitchClass + fifth,       // Beat 3: Fifth
-      bassOctave + rootPitchClass + seventh      // Beat 4: 7th (leading tone)
+      currentRoot,               // Beat 1: Root (harmonic anchor)
+      currentRoot + third,       // Beat 2: Third (chord color)
+      currentRoot + fifth,       // Beat 3: Fifth (harmonic tension)
+      approachNote               // Beat 4: Chromatic approach to next chord
     ]
 
     const notesPerBar = Math.min(4, Math.floor(duration))
@@ -407,9 +427,16 @@ class AccompanimentEngine {
       const syncSelector = ((i * PHI * 1.2) + temporalOffset * 0.6) % 1
       const isSyncopated = syncSelector < syncopation * 0.35
 
-      // Entry #223: PHI-based pitch selection (not just modulo)
+      // Entry #224: PHI-based pitch selection with octave variation for depth
       const pitchSelector = ((i * PHI * 0.8) + temporalOffset) % 1
-      const pitch = pitchSelector < 0.7 ? root : fifth  // More root, occasional fifth
+      let pitch
+      if (pitchSelector < 0.55) {
+        pitch = root                          // 55% root
+      } else if (pitchSelector < 0.75) {
+        pitch = Math.max(28, root - 12)       // 20% octave below (clamped to E1)
+      } else {
+        pitch = fifth                         // 25% fifth
+      }
 
       // Entry #223: PHI-based duration variation
       const phiDurationSelector = ((i * PHI) + temporalOffset) % 1
@@ -480,7 +507,7 @@ class AccompanimentEngine {
         duration: duration * 0.6
       })
       notes.push({
-        pitch: root - 5,  // Down a fourth
+        pitch: root + 7,  // Entry #224: Up a fifth — reinforces root harmony without V-I implication
         startBeat: startBeat + duration * 0.65,
         duration: duration * 0.3
       })
@@ -504,7 +531,7 @@ class AccompanimentEngine {
     const patterns = [
       [0, fifth, third, fifth],     // Classic Alberti
       [0, third, fifth, third],     // Inverted Alberti
-      [0, fifth, 0 + 12, fifth],    // Octave bounce
+      [0 + 12, fifth, third, 0],    // Entry #224: Descending arpeggio (stays in register)
       [0, third, fifth, 0 + 12]     // Ascending
     ]
 
