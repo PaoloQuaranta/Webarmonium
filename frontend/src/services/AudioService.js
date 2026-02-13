@@ -1264,7 +1264,7 @@ class AudioService {
           lookAhead: 0.1,
           updateInterval: 0.025,
           filterUpdateRate: 30,
-          maxPolyphony: 8,
+          maxPolyphony: 12,
           backgroundLayers: ['bass', 'pad', 'chords'],
           useAmbientFilters: true,
           synthComplexity: 'full',
@@ -1660,7 +1660,8 @@ class AudioService {
   /**
    * Entry #73: Apply audio degradation based on stress mode
    * Uses _disabledByStress Set + _isLayerEnabled() to actually release voices (saves CPU)
-   * Priority order: counterpoint (priority 1) disabled first, then accompaniment (priority 2)
+   * Degradation order follows voice priority: keys(1) → counterpoint(2) → bass(3) → pad(4)
+   * Also dynamically reduces maxTotalVoices: 12 → 10 → 8 → 6
    * @param {'normal'|'degraded'|'minimal'|'emergency'} mode
    */
   _applyStressDegradation(mode) {
@@ -1674,8 +1675,10 @@ class AudioService {
         case 'degraded':
           this.filterUpdateInterval = 100 // 10Hz
           this.ambientFilterUpdateInterval = 500 // 2Hz
-          // Disable counterpoint (priority 1 — lowest, first to go)
-          ;['backgroundHigh', 'backgroundMid', 'backgroundLow'].forEach(l => {
+          // Dynamic voice budget: reduce from 12 to 10
+          this.maxTotalVoices = 10
+          // Disable keys first (priority 1 — lowest, first to go)
+          ;['chords'].forEach(l => {
             this._disabledByStress.add(l)
             this._releaseLayer(l)
             this._removeLayerFromActiveVoices(l)
@@ -1685,8 +1688,10 @@ class AudioService {
         case 'minimal':
           this.filterUpdateInterval = 200 // 5Hz
           this.ambientFilterUpdateInterval = 1000 // 1Hz
-          // Disable counterpoint + accompaniment (priority 1 & 2)
-          ;['backgroundHigh', 'backgroundMid', 'backgroundLow', 'bass', 'pad', 'chords'].forEach(l => {
+          // Dynamic voice budget: reduce to 8
+          this.maxTotalVoices = 8
+          // Disable keys + counterpoint (priority 1 & 2)
+          ;['chords', 'backgroundHigh', 'backgroundMid', 'backgroundLow'].forEach(l => {
             this._disabledByStress.add(l)
             this._releaseLayer(l)
             this._removeLayerFromActiveVoices(l)
@@ -1694,11 +1699,13 @@ class AudioService {
           break
 
         case 'emergency':
+          // Dynamic voice budget: reduce to 6
+          this.maxTotalVoices = 6
           // Stop everything except direct gestures
           if (this.evolvingGenerationActive) {
             this.stopEvolvingGeneration()
           }
-          ;['backgroundHigh', 'backgroundMid', 'backgroundLow', 'bass', 'pad', 'chords'].forEach(l => {
+          ;['chords', 'backgroundHigh', 'backgroundMid', 'backgroundLow', 'bass', 'pad'].forEach(l => {
             this._disabledByStress.add(l)
             this._releaseLayer(l)
             this._removeLayerFromActiveVoices(l)
@@ -1707,8 +1714,9 @@ class AudioService {
 
         case 'normal':
         default:
-          // Restore: clear stress-disabled set, restore normal rates
+          // Restore: clear stress-disabled set, restore full voice budget and normal rates
           this._disabledByStress.clear()
+          this.maxTotalVoices = this.audioProfile?.maxPolyphony || 12
           const filterRate = this.audioProfile?.filterUpdateRate || 30
           this.filterUpdateInterval = Math.round(1000 / filterRate)
           this.ambientFilterUpdateInterval = 200
@@ -2202,19 +2210,24 @@ class AudioService {
     Object.values(this.delaySends).forEach(send => send.connect(this.delay))
     Object.values(this.reverbSends).forEach(send => send.connect(this.reverb))
 
-    // Voice stealing priority levels (higher = more protected)
-    this.VOICE_PRIORITY = { COUNTERPOINT: 1, ACCOMPANIMENT: 2, REMOTE_GESTURE: 3, LOCAL_GESTURE: 4 }
+    // Voice stealing priority levels (LOWER number = CUT FIRST, HIGHER = MORE PROTECTED)
+    // Stealing order: KEYS(1) → COUNTERPOINT(2) → BASS(3) → PAD(4) → REMOTE(5), LOCAL(6) never stolen
+    this.VOICE_PRIORITY = { KEYS: 1, COUNTERPOINT: 2, BASS: 3, PAD: 4, REMOTE_GESTURE: 5, LOCAL_GESTURE: 6 }
     this.LAYER_PRIORITY_MAP = {
-      backgroundHigh: 1, backgroundMid: 1, backgroundLow: 1,
-      bass: 2, pad: 2, chords: 2
+      chords: 1,
+      backgroundHigh: 2, backgroundMid: 2, backgroundLow: 2,
+      bass: 3,
+      pad: 4
     }
 
     // OPTIMIZATION: Bucketed voice stealing (Phase 2)
     // Group voices by priority for O(1) insertion, O(n) sorting only on small buckets
     this.voicesByPriority = {
-      1: [],  // COUNTERPOINT (lowest priority, steal first)
-      2: [],  // ACCOMPANIMENT
-      3: []   // REMOTE_GESTURE (never steal LOCAL_GESTURE priority 4)
+      1: [],  // KEYS (lowest priority, steal first)
+      2: [],  // COUNTERPOINT
+      3: [],  // BASS
+      4: [],  // PAD
+      5: []   // REMOTE_GESTURE (never steal LOCAL_GESTURE priority 6)
     }
 
     // Stress-disabled layers (populated by _applyStressDegradation)
@@ -2452,7 +2465,7 @@ class AudioService {
     // console.log('🔊 Gesture dry volume:', this.gestureVolume.volume.value, 'dB')
 
     // Polyphony management
-    this.maxTotalVoices = 8 // Maximum total voices across all synths
+    this.maxTotalVoices = 12 // Maximum total voices across all synths
 
     // Initialize UserSynthManager for per-user unique timbres
     // Each user (real or virtual) gets their own synth with unique patch
@@ -3421,7 +3434,7 @@ class AudioService {
 
       // OPTIMIZATION: Iterate through priority buckets (lowest to highest)
       // Only sort the small bucket we're stealing from
-      for (const priority of [1, 2, 3]) {
+      for (const priority of [1, 2, 3, 4, 5]) {
         if (cleaned >= voicesToCleanup) break
 
         const bucket = this.voicesByPriority[priority]
@@ -3470,7 +3483,7 @@ class AudioService {
    * @param {string} voiceId - Unique voice identifier
    * @param {Object} synth - Synth instance
    * @param {number} duration - Note duration in seconds
-   * @param {number} priority - Voice priority (1=counterpoint, 2=accompaniment, 3=remote, 4=local)
+   * @param {number} priority - Voice priority (1=keys, 2=counterpoint, 3=bass, 4=pad, 5=remote, 6=local)
    * @param {boolean} isPolySynth - If true, excluded from external stealing (Tone.js manages internally)
    * @returns {boolean} True if voice was tracked, false if rejected
    */
@@ -4458,7 +4471,7 @@ class AudioService {
             try {
               this.ambientLayers.pad.triggerAttackRelease(frequency, padDur, audioTime, velocity)
               // Track PolySynth voice (excluded from external stealing)
-              this.trackVoice(this._generateVoiceId('pad'), this.ambientLayers.pad, padDur, this.VOICE_PRIORITY.ACCOMPANIMENT, true)
+              this.trackVoice(this._generateVoiceId('pad'), this.ambientLayers.pad, padDur, this.VOICE_PRIORITY.PAD, true)
             } catch (e) { /* ignore */ }
           }
         }, scheduleTime)
@@ -4485,7 +4498,7 @@ class AudioService {
             try {
               this.ambientLayers.chords.triggerAttackRelease(frequency, keysDur, audioTime, velocity)
               // Track PolySynth voice (excluded from external stealing)
-              this.trackVoice(this._generateVoiceId('chords'), this.ambientLayers.chords, keysDur, this.VOICE_PRIORITY.ACCOMPANIMENT, true)
+              this.trackVoice(this._generateVoiceId('chords'), this.ambientLayers.chords, keysDur, this.VOICE_PRIORITY.KEYS, true)
             } catch (e) { /* ignore */ }
           }
         }, scheduleTime)
@@ -4887,7 +4900,7 @@ class AudioService {
           // console.log(`🎹 DRONE IMMEDIATE: freq=${frequency.toFixed(1)}Hz, time=${audioTime.toFixed(2)}s`)
           layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
           // Track PolySynth voice (excluded from external stealing, counted in budget)
-          this.trackVoice(this._generateVoiceId('ambient-pad'), layer, duration, this.VOICE_PRIORITY.ACCOMPANIMENT, true)
+          this.trackVoice(this._generateVoiceId('ambient-pad'), layer, duration, this.VOICE_PRIORITY.PAD, true)
         }
 
         // Schedule repeating drone using RELATIVE time syntax ("+8" means 8 seconds from now)
@@ -4908,7 +4921,7 @@ class AudioService {
             }
             this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
             // Track repeating PolySynth voice
-            this.trackVoice(this._generateVoiceId('ambient-pad'), this.ambientLayers.pad, duration, this.VOICE_PRIORITY.ACCOMPANIMENT, true)
+            this.trackVoice(this._generateVoiceId('ambient-pad'), this.ambientLayers.pad, duration, this.VOICE_PRIORITY.PAD, true)
           }
         }, duration, repeatStartTime)
         this.droneRepeatEventIds.push(repeatEventId)
@@ -4921,7 +4934,7 @@ class AudioService {
           const audioTime = Tone.now() + 0.1 + delay
           layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
           // Track PolySynth voice (excluded from external stealing, counted in budget)
-          this.trackVoice(this._generateVoiceId('ambient-pad'), layer, duration, this.VOICE_PRIORITY.ACCOMPANIMENT, true)
+          this.trackVoice(this._generateVoiceId('ambient-pad'), layer, duration, this.VOICE_PRIORITY.PAD, true)
         }
 
         // Schedule repeating (same pattern as drones)
@@ -4936,7 +4949,7 @@ class AudioService {
             } catch (e) { /* ignore */ }
             this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
             // Track repeating PolySynth voice
-            this.trackVoice(this._generateVoiceId('ambient-pad'), this.ambientLayers.pad, duration, this.VOICE_PRIORITY.ACCOMPANIMENT, true)
+            this.trackVoice(this._generateVoiceId('ambient-pad'), this.ambientLayers.pad, duration, this.VOICE_PRIORITY.PAD, true)
           }
         }, duration, repeatStartTime)
         this.droneRepeatEventIds.push(repeatEventId)

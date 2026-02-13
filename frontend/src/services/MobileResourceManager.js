@@ -43,7 +43,7 @@ class MobileResourceManager {
         particlesEnabled: true,
         nebulasEnabled: true,
         attractorsEnabled: true,
-        maxPolyphony: 8,
+        maxPolyphony: 10,
         audioBufferSize: 'interactive',
         gestureThrottle: 16.67,  // 60fps input
         hoverThrottle: 50

@@ -242,7 +242,7 @@ class DeviceCapabilities {
         lookAhead: 0.1,           // 100ms
         updateInterval: 0.025,    // 25ms
         filterUpdateRate: 30,     // Hz
-        maxPolyphony: 8,
+        maxPolyphony: 12,
         compositionLayers: ['backgroundHigh', 'backgroundMid', 'backgroundLow'],
         backgroundLayers: ['bass', 'pad', 'chords'],
         useAmbientFilters: true,

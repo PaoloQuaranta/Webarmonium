@@ -414,7 +414,7 @@ class PlatformDetection {
       lookAhead: PlatformDetection.getAudioLookAhead(),
       updateInterval: PlatformDetection.getAudioUpdateInterval(),
       filterUpdateRate: PlatformDetection.getFilterUpdateRate(),
-      maxPolyphony: PlatformDetection.isMobile() ? 4 : 8,
+      maxPolyphony: PlatformDetection.isMobile() ? 4 : 12,
       backgroundLayers: ['bass', 'pad', 'chords'],
       useAmbientFilters: true,
       synthComplexity: 'full',

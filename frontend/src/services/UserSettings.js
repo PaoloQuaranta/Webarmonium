@@ -21,7 +21,7 @@ class UserSettings {
       lookAhead: 0.1,
       updateInterval: 0.025,
       filterUpdateRate: 30,
-      maxPolyphony: 8,
+      maxPolyphony: 12,
       compositionLayers: ['backgroundHigh', 'backgroundMid', 'backgroundLow'],
       backgroundLayers: ['bass', 'pad', 'chords'],
       useAmbientFilters: true,
