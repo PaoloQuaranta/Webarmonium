@@ -4519,8 +4519,8 @@ class AudioService {
           if (this.ambientLayers && this.ambientLayers.pad && !this.ambientLayers.pad.disposed) {
             try {
               this.ambientLayers.pad.triggerAttackRelease(frequency, padDur, audioTime, velocity)
-              // Track PolySynth voice (excluded from external stealing)
-              this.trackVoice(this._generateVoiceId('pad'), this.ambientLayers.pad, padDur, this.VOICE_PRIORITY.PAD, true)
+              // Entry #226: Don't track PolySynth accompaniment in voice pool — pad has internal maxPolyphony=6
+              // Tracking with unique IDs caused pool exhaustion (pool=12 permanently), starving MonoSynth counterpoint
             } catch (e) { /* ignore */ }
           }
         }, scheduleTime)
@@ -4546,8 +4546,7 @@ class AudioService {
           if (this.ambientLayers && this.ambientLayers.chords && !this.ambientLayers.chords.disposed) {
             try {
               this.ambientLayers.chords.triggerAttackRelease(frequency, keysDur, audioTime, velocity)
-              // Track PolySynth voice (excluded from external stealing)
-              this.trackVoice(this._generateVoiceId('chords'), this.ambientLayers.chords, keysDur, this.VOICE_PRIORITY.KEYS, true)
+              // Entry #226: Don't track PolySynth accompaniment in voice pool — chords has internal maxPolyphony=8
             } catch (e) { /* ignore */ }
           }
         }, scheduleTime)
@@ -4949,8 +4948,7 @@ class AudioService {
           const audioTime = Tone.now() + 0.05 + delay
           // console.log(`🎹 DRONE IMMEDIATE: freq=${frequency.toFixed(1)}Hz, time=${audioTime.toFixed(2)}s`)
           layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
-          // Track PolySynth voice (excluded from external stealing, counted in budget)
-          this.trackVoice(this._generateVoiceId('ambient-pad'), layer, duration, this.VOICE_PRIORITY.PAD, true)
+          // Entry #226: Don't track drone PolySynth in voice pool — pad manages own polyphony
         }
 
         // Schedule repeating drone using RELATIVE time syntax ("+8" means 8 seconds from now)
@@ -4970,8 +4968,7 @@ class AudioService {
               // Ignore release errors
             }
             this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
-            // Track repeating PolySynth voice
-            this.trackVoice(this._generateVoiceId('ambient-pad'), this.ambientLayers.pad, duration, this.VOICE_PRIORITY.PAD, true)
+            // Entry #226: Don't track drone PolySynth in voice pool
           }
         }, duration, repeatStartTime)
         this.droneRepeatEventIds.push(repeatEventId)
@@ -4983,8 +4980,7 @@ class AudioService {
         if (layer) {
           const audioTime = Tone.now() + 0.1 + delay
           layer.triggerAttackRelease(frequency, duration, audioTime, velocity)
-          // Track PolySynth voice (excluded from external stealing, counted in budget)
-          this.trackVoice(this._generateVoiceId('ambient-pad'), layer, duration, this.VOICE_PRIORITY.PAD, true)
+          // Entry #226: Don't track non-drone PolySynth in voice pool
         }
 
         // Schedule repeating (same pattern as drones)
@@ -4998,8 +4994,7 @@ class AudioService {
               this.ambientLayers.pad.releaseAll(0.05)
             } catch (e) { /* ignore */ }
             this.ambientLayers.pad.triggerAttackRelease(frequency, duration, audioTime, velocity)
-            // Track repeating PolySynth voice
-            this.trackVoice(this._generateVoiceId('ambient-pad'), this.ambientLayers.pad, duration, this.VOICE_PRIORITY.PAD, true)
+            // Entry #226: Don't track repeating PolySynth in voice pool
           }
         }, duration, repeatStartTime)
         this.droneRepeatEventIds.push(repeatEventId)
@@ -5058,11 +5053,7 @@ class AudioService {
     // For PolySynth layers, just trigger normally (no MonoSynth timing logic)
     if (!this.monoSynthLastTrigger || !(layerName in this.monoSynthLastTrigger)) {
       layer.triggerAttackRelease(frequency, duration, time, velocity)
-      // Track PolySynth voice (excluded from external stealing)
-      if (this.generativeState) {
-        const polyVoiceId = this._generateVoiceId(layerName)
-        this.trackVoice(polyVoiceId, layer, durationSec, priority, true)
-      }
+      // Entry #226: Don't track PolySynth in voice pool — manages own polyphony internally
       return
     }
 
