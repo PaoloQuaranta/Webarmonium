@@ -87,6 +87,12 @@ class PrecomputedAttractorSystem {
     // Performance mode (kept for backwards compatibility)
     this.performanceMode = 'normal'
 
+    // Offscreen buffer for cached rendering (eliminates flickering when frame budget exceeded)
+    this.buffer = null
+    this.lastBufferWidth = 0
+    this.lastBufferHeight = 0
+    this._budgetExceeded = false
+
     // Precompute fuzzy offsets for all points (eliminates 4800 trig calls/frame)
     this.fuzzyOffsetsX = []
     this.fuzzyOffsetsY = []
@@ -322,16 +328,55 @@ class PrecomputedAttractorSystem {
   }
 
   /**
-   * Render the attractor points
+   * Set budget exceeded flag — when true, render() blits cached buffer instead of re-rendering
+   */
+  setBudgetExceeded(exceeded) {
+    this._budgetExceeded = exceeded
+  }
+
+  /**
+   * Render the attractor points (uses offscreen buffer to prevent flickering)
    */
   render(p) {
     if (this.performanceMode === 'disabled') return
 
     const width = p.width
     const height = p.height
+
+    // Create or resize buffer if needed
+    const bufferResized = !this.buffer || this.lastBufferWidth !== width || this.lastBufferHeight !== height
+    if (bufferResized) {
+      if (this.buffer) this.buffer.remove()
+      this.buffer = p.createGraphics(width, height)
+      this.lastBufferWidth = width
+      this.lastBufferHeight = height
+    }
+
+    // Re-render to buffer when budget allows (or on resize)
+    if (!this._budgetExceeded || bufferResized) {
+      this._renderToBuffer(this.buffer)
+    }
+
+    // Always blit cached buffer to main canvas
+    if (this.buffer) {
+      p.push()
+      p.imageMode(p.CORNER)
+      p.image(this.buffer, 0, 0, width, height)
+      p.pop()
+    }
+  }
+
+  /**
+   * Render attractor points to an offscreen buffer
+   */
+  _renderToBuffer(buf) {
+    const width = buf.width
+    const height = buf.height
     const centerX = width / 2
     const centerY = height / 2
     const displaySize = Math.min(width, height) * this.scale
+
+    buf.clear()
 
     // Get points from current attractor(s) — zero-allocation using pre-allocated buffers
     let points
@@ -359,14 +404,14 @@ class PrecomputedAttractorSystem {
     }
 
     // Render points with canvas-level rotation (preserves attractor geometry)
-    p.push()
-    p.colorMode(p.HSB, 360, 100, 100, 100)
-    p.noStroke()
+    buf.push()
+    buf.colorMode(buf.HSB, 360, 100, 100, 100)
+    buf.noStroke()
 
     // Apply rotation at canvas level - rotates the entire rendered scene
     // without altering the attractor's mathematical shape
-    p.translate(centerX, centerY)
-    p.rotate(this.rotationAngle)
+    buf.translate(centerX, centerY)
+    buf.rotate(this.rotationAngle)
 
     // Hysteresis for step transitions - prevents rapid oscillation
     const roundedStep = Math.round(this.currentStep)
@@ -410,16 +455,16 @@ class PrecomputedAttractorSystem {
 
       // Glow (larger, same vivid color) - gradual fade based on stress with easing
       if (glowOpacity > 0) {
-        p.fill(hue, sat, bright * 0.85, alpha * 0.4 * glowOpacity)
-        p.ellipse(screenX, screenY, this.glowSize * depthFactor, this.glowSize * depthFactor)
+        buf.fill(hue, sat, bright * 0.85, alpha * 0.4 * glowOpacity)
+        buf.ellipse(screenX, screenY, this.glowSize * depthFactor, this.glowSize * depthFactor)
       }
 
       // Core point - maximum saturation
-      p.fill(hue, sat, bright, alpha)
-      p.ellipse(screenX, screenY, this.pointSize * depthFactor, this.pointSize * depthFactor)
+      buf.fill(hue, sat, bright, alpha)
+      buf.ellipse(screenX, screenY, this.pointSize * depthFactor, this.pointSize * depthFactor)
     }
 
-    p.pop()
+    buf.pop()
   }
 
   /**
@@ -627,6 +672,10 @@ class PrecomputedAttractorSystem {
   dispose() {
     this.lorenzFrames = []
     this.rosslerFrames = []
+    if (this.buffer) {
+      this.buffer.remove()
+      this.buffer = null
+    }
     this.clear()
   }
 }

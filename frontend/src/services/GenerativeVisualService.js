@@ -343,17 +343,17 @@ class GenerativeVisualService {
         this.wavePackets.render(p)
       }
 
-      // PRIORITY 4: Attractors (expensive - 900+ ellipses)
-      if (performance.now() - frameStart < frameBudgetMs * 0.85) {
-        if (this.attractors) {
-          this.attractors.setPerformanceMode(this.performanceMode)
-          this.attractors.setStressFactor(this.stressFactor)
-          if (this.nebulas && this.nebulas.currentPalette) {
-            const nebulaColor = this.nebulas.currentPalette.colors[0]
-            this.attractors.setBaseColor(nebulaColor)
-          }
-          this.attractors.render(p)
+      // PRIORITY 4: Attractors — always render (uses cached buffer when budget exceeded)
+      if (this.attractors) {
+        const budgetExceeded = performance.now() - frameStart >= frameBudgetMs * 0.85
+        this.attractors.setBudgetExceeded(budgetExceeded)
+        this.attractors.setPerformanceMode(this.performanceMode)
+        this.attractors.setStressFactor(this.stressFactor)
+        if (this.nebulas && this.nebulas.colors) {
+          const nebulaColor = this.nebulas.colors[0]
+          this.attractors.setBaseColor(nebulaColor)
         }
+        this.attractors.render(p)
       }
 
       // PRIORITY 5: Particles
