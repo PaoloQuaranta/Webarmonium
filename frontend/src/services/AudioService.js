@@ -4149,13 +4149,15 @@ class AudioService {
    */
   getVelocityConfig(style) {
     const genre = style?.dominantGenre || 'ambient'
-    // Entry #188d: Background must be quieter than gestures (local/remote/virtual)
+    // Entry #188d: Background must be quieter than gestures but clearly audible
+    // Entry #221: Increased from ultra-conservative values (0.08-0.20) that made
+    // counterpoint voices inaudible after dropout fix relaxed voice reduction
     const configs = {
-      ambient:     { melody: 0.15, harmony: 0.12, bass: 0.14, pad: 0.08 },
-      jazz:        { melody: 0.18, harmony: 0.14, bass: 0.16, pad: 0.09 },
-      electronic:  { melody: 0.18, harmony: 0.15, bass: 0.17, pad: 0.10 },
-      rock:        { melody: 0.20, harmony: 0.16, bass: 0.18, pad: 0.11 },
-      classical:   { melody: 0.16, harmony: 0.13, bass: 0.14, pad: 0.08 }
+      ambient:     { melody: 0.30, harmony: 0.25, bass: 0.28, pad: 0.15 },
+      jazz:        { melody: 0.35, harmony: 0.28, bass: 0.32, pad: 0.18 },
+      electronic:  { melody: 0.35, harmony: 0.30, bass: 0.33, pad: 0.20 },
+      rock:        { melody: 0.38, harmony: 0.32, bass: 0.35, pad: 0.22 },
+      classical:   { melody: 0.32, harmony: 0.26, bass: 0.28, pad: 0.15 }
     }
     return configs[genre] || configs.ambient
   }
@@ -4419,10 +4421,10 @@ class AudioService {
     }
 
     const lookahead = 0.1
-    // Entry #208: Reduce all accompaniment velocities to prevent clipping
-    // when playing alongside counterpoint voices
-    // Entry #212: Increased from 0.35 to 0.55 to restore accompaniment presence
-    const accompVelocityScale = 0.55
+    // Entry #208: Scale accompaniment velocities relative to counterpoint
+    // Entry #212: Increased from 0.35 to 0.55
+    // Entry #221: Increased to 0.70 — bass_accomp was inaudible at 0.55
+    const accompVelocityScale = 0.70
 
     // Play bass accompaniment on bass synth (MonoSynth - requires strictly increasing times)
     // Entry #209: Sort notes and ensure minimum gap to prevent "Start time must be strictly greater" error
