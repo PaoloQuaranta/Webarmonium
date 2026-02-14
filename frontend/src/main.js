@@ -1769,6 +1769,8 @@ class WebarmoniumApp {
       if (now - lastCursorEmit >= cursorThrottleMs) {
         // Guard against null socket (can happen during page unload)
         if (!this.socketService || !this.socketService.socket) return
+        // Listeners should not emit cursor position
+        if (this.isListenMode) return
         // console.log(`📍 Emitting cursor-move: (${x.toFixed(2)}, ${y.toFixed(2)}), drawing: ${isDrawingState}`)
         this.socketService.socket.emit('cursor-move', {
           x,
@@ -2009,15 +2011,341 @@ class WebarmoniumApp {
   }
 
   /**
-   * Attach gesture callbacks (extracted for reuse in promotion)
+   * Attach gesture callbacks — full wiring for gesture→audio→network
+   * Called both from initializeServices() (normal jam) and after promotion
    * @private
    */
   _attachGestureCallbacks() {
     if (!this.gestureCapture) return
-    // Minimal setup — the full callback wiring happens in initializeServices
-    // For promoted listeners, we need to re-wire the key callbacks
+
     if (this.socketService) {
       this.gestureCapture.setRoomContext(this.roomId || 'main-room')
+    }
+
+    // Hover modulation callback
+    this.gestureCapture.setHoverModulationCallback((hoverData) => {
+      if (this.uiManager?.synthPanel?.isAuditionActive?.() || this.uiManager?.synthPanel?.isSequencerActive?.()) {
+        return
+      }
+      this._pendingHoverUpdate = hoverData
+      if (!this._hoverRafScheduled) {
+        this._hoverRafScheduled = true
+        requestAnimationFrame(() => {
+          this._hoverRafScheduled = false
+          if (this._pendingHoverUpdate && this.isAudioStarted && this.audioService && this.audioService.handleHoverModulation) {
+            this.audioService.handleHoverModulation(this._pendingHoverUpdate)
+          }
+        })
+      }
+    })
+
+    // Drag streaming note callback
+    this.gestureCapture.setDragStreamingNoteCallback((noteData) => {
+      if (!this.isAudioStarted || !this.audioService) return null
+
+      // Drum mode: drag → snare roll
+      if (this.audioService?.isDrumMode) {
+        const speed = noteData.velocity
+        const velocity = Math.max(0.2, Math.min(1.0, 0.3 + speed * 0.7))
+        this.audioService.playDrumHit('sn', velocity)
+        const streamNow = Date.now()
+        const MIN_STREAM_INTERVAL = 50
+        if (!this._lastNoteStreamTime || (streamNow - this._lastNoteStreamTime) >= MIN_STREAM_INTERVAL) {
+          this._lastNoteStreamTime = streamNow
+          if (this.socketService?.socket?.connected) {
+            this.socketService.socket.emit('hold:start', {
+              noteId: `drum-roll-${streamNow}-${Math.random().toString(36).substr(2, 5)}`,
+              userId: this.socketService.socket.id,
+              roomId: this.socketService.currentRoom?.roomId,
+              position: noteData.position,
+              isDrum: true, drumInstrument: 'sn', velocity, duration: 0.15,
+              timestamp: streamNow
+            })
+          }
+        }
+        return null
+      }
+
+      // Melodic mode
+      const x = noteData.position.x
+      const y = noteData.position.y
+      let frequency, midiNote, duration, envelope
+
+      if (this.dragStreamingHandler) {
+        const scale = this.cachedScale || window.MusicalScales.getScale('pentatonic')
+        const calculated = this.dragStreamingHandler.calculateMelodicNote(noteData, scale)
+        frequency = calculated.frequency
+        midiNote = calculated.midiNote
+        duration = calculated.duration
+        envelope = calculated.envelope
+      } else {
+        const scale = this.cachedScale || window.MusicalScales.getScale('pentatonic')
+        const baseOctave = window.MusicalConstants.getBaseOctaveFromY(y)
+        const xIndex = Math.floor(x * scale.length)
+        const scaleNote = scale[xIndex % scale.length]
+        midiNote = 60 + (baseOctave - 4) * 12 + scaleNote
+        frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
+        const durationMap = { '32n': 0.0625, '16n': 0.125, '8n': 0.25, '4n': 0.5 }
+        duration = durationMap[noteData.duration] || 0.25
+        envelope = { attack: 0.005, decay: 0.02, sustain: 0.1, release: 0.05 }
+      }
+
+      const eventVelocity = 0.8 + noteData.velocity * 0.2
+      const musicalEvent = {
+        pitch: midiNote,
+        velocity: eventVelocity * 100,
+        duration: duration,
+        articulation: noteData.articulation,
+        eventType: 'melodic',
+        userId: null,
+        properties: {
+          frequency, duration, velocity: eventVelocity * 100,
+          articulation: noteData.articulation,
+          noteIndex: noteData.noteIndex,
+          totalNotes: noteData.totalNotes || 1,
+          gestureAction: 'drag-streaming'
+        }
+      }
+
+      const style = this.audioService.currentStyle || null
+      this.audioService.playMusicalEvent(musicalEvent, style)
+
+      // Visual feedback during drag
+      const visualNow = Date.now()
+      const DRAG_VISUAL_INTERVAL = 400
+      if (!this._lastDragVisualEmit || (visualNow - this._lastDragVisualEmit) >= DRAG_VISUAL_INTERVAL) {
+        this._lastDragVisualEmit = visualNow
+        if (this.visualService && this.socketService?.socket) {
+          const userId = this.socketService.currentUserId || this.socketService.socket.id
+          const color = this.currentUserColor || '#22c55e'
+          this.visualService.updateCursorPosition(userId, x, y, color)
+          this.visualService.updateGestureData(userId, {
+            type: 'drag', velocity: noteData.velocity, isActive: true
+          })
+        }
+      }
+
+      // Stream to backend for remote users
+      const streamNow = Date.now()
+      const MIN_STREAM_INTERVAL = 50
+      if (!this._lastNoteStreamTime || (streamNow - this._lastNoteStreamTime) >= MIN_STREAM_INTERVAL) {
+        this._lastNoteStreamTime = streamNow
+        if (this.socketService?.socket && this.socketService.currentRoom) {
+          this.socketService.socket.emit('note:stream', {
+            frequency, duration: noteData.duration, articulation: noteData.articulation,
+            position: { x, y }, velocity: noteData.velocity,
+            noteIndex: noteData.noteIndex, timestamp: streamNow
+          })
+        }
+      }
+
+      return {
+        frequency, duration: noteData.duration, articulation: noteData.articulation,
+        position: { x, y }, velocity: noteData.velocity, timestamp: Date.now()
+      }
+    })
+
+    // Sustained hold start
+    this.gestureCapture.onSustainedHoldStart = (holdData) => {
+      // Drum mode: tap → snare hit
+      if (this.audioService?.isDrumMode) {
+        const velocity = 0.6 + (1 - holdData.position.y) * 0.4
+        if (this.isAudioStarted && this.socketService?.socket) {
+          this.socketService.socket.emit('hold:start', {
+            noteId: holdData.noteId,
+            userId: this.socketService.socket.id,
+            roomId: this.socketService.currentRoom?.roomId,
+            position: holdData.position,
+            isDrum: true, drumInstrument: 'sn', velocity, duration: 0.15,
+            timestamp: Date.now()
+          })
+        }
+        this.pendingHoldNoteData = { noteId: holdData.noteId, isDrum: true }
+        if (this.isAudioStarted && this.audioService) {
+          this.audioService.playDrumHit('sn', velocity)
+          this.audioService.registerDroneActivity()
+        }
+        return
+      }
+
+      // Melodic mode: calculate frequency from position
+      const x = holdData.position.x
+      const y = holdData.position.y
+      const scale = this.cachedScale || window.MusicalScales.getScale('pentatonic')
+      const baseOctave = window.MusicalConstants.getBaseOctaveFromY(y)
+      const scaleIndex = Math.floor(x * scale.length)
+      const scaleNote = scale[scaleIndex % scale.length]
+      const octaveOffset = Math.floor(scaleIndex / scale.length)
+      const midiNote = 60 + (baseOctave - 4) * 12 + scaleNote + octaveOffset * 12
+      const frequency = 440 * Math.pow(2, (midiNote - 69) / 12)
+      const velocity = 0.6 + (1 - y) * 0.4
+
+      // Emit to network
+      if (this.isAudioStarted && this.socketService?.socket) {
+        this.socketService.socket.emit('hold:start', {
+          noteId: holdData.noteId,
+          userId: this.socketService.socket.id,
+          roomId: this.socketService.currentRoom?.roomId,
+          position: holdData.position,
+          frequency, velocity, timestamp: Date.now()
+        }, (response) => {})
+      }
+
+      if (this.audioService) {
+        this.audioService.registerDroneActivity()
+        this.audioService.registerDroneNoteStart(holdData.noteId)
+      }
+
+      this.pendingHoldNoteData = {
+        noteId: holdData.noteId, frequency, velocity, startTime: Date.now()
+      }
+
+      // Local audio playback
+      if (!this.isAudioStarted || !this.audioService) return
+
+      const result = this.audioService.triggerSustainedNoteAttack(frequency, velocity, holdData.position, null, false)
+      if (result) {
+        this.activeLocalHold = {
+          noteId: holdData.noteId,
+          audioNoteId: result.noteId,
+          frequency, startTime: result.startTime,
+          position: holdData.position,
+          visualStartTime: Date.now()
+        }
+
+        if (this.visualService && this.socketService?.socket) {
+          const userId = this.socketService.currentUserId || this.socketService.socket.id
+          if (!userId) return
+          const color = this.currentUserColor || '#22c55e'
+          this.visualService.updateCursorPosition(userId, holdData.position.x, holdData.position.y, color)
+          this.visualService.updateGestureData(userId, {
+            type: 'hold', velocity: 0, holdStart: Date.now(), isActive: true
+          })
+        }
+      }
+    }
+
+    // Sustained hold end
+    this.gestureCapture.onSustainedHoldEnd = (endData) => {
+      // Drum mode: self-releasing
+      if (this.pendingHoldNoteData?.isDrum) {
+        if (this.visualService && this.socketService?.socket) {
+          const userId = this.socketService.currentUserId || this.socketService.socket.id
+          if (userId) {
+            this.visualService.updateGestureData(userId, { type: 'idle', velocity: 0, isActive: false })
+          }
+        }
+        this.activeLocalHold = null
+        this.pendingHoldNoteData = null
+        return
+      }
+
+      // Emit hold:end to network
+      if (this.isAudioStarted && this.socketService?.socket && this.pendingHoldNoteData) {
+        const holdNoteId = this.pendingHoldNoteData.noteId
+        this.socketService.socket.emit('hold:end', {
+          noteId: holdNoteId,
+          userId: this.socketService.socket.id,
+          roomId: this.socketService.currentRoom?.roomId,
+          duration: endData.duration,
+          finalPosition: endData.finalPosition,
+          timestamp: Date.now()
+        }, (response) => {})
+      }
+
+      if (this.audioService && this.pendingHoldNoteData?.noteId) {
+        this.audioService.registerDroneNoteEnd(this.pendingHoldNoteData.noteId)
+      }
+
+      // Release local audio
+      if (this.isAudioStarted && this.audioService && this.activeLocalHold) {
+        this.audioService.triggerSustainedNoteRelease(this.activeLocalHold.audioNoteId)
+      }
+
+      if (this.visualService && this.socketService?.socket) {
+        const userId = this.socketService.currentUserId || this.socketService.socket.id
+        if (userId) {
+          this.visualService.updateGestureData(userId, { type: 'idle', velocity: 0, isActive: false })
+        }
+      }
+
+      this.activeLocalHold = null
+      this.pendingHoldNoteData = null
+    }
+
+    // Main gesture callback
+    this.gestureCapture.onGesture = (gesture) => {
+      this.lastGestureRenderTime = performance.now()
+      const pos = gesture.coordinates || gesture.currentPosition || gesture.startPosition
+      if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
+        this._localCursorPosition = { x: pos.x, y: pos.y }
+        this._updateGradientMetricsFromCursors()
+      }
+      const gestureAction = this.gestureProcessor.determineGestureAction(gesture)
+      const enhancedGesture = { ...gesture, action: gestureAction }
+      this.handleGesture(enhancedGesture)
+    }
+
+    // Gesture start
+    this.gestureCapture.onGestureStart = (gesture) => {
+      // Pause audition/sequencer during real gesture
+      if (this.isAudioStarted && this.uiManager?.synthPanel?.isAuditionActive?.()) {
+        const pauseOpts = this.audioService?.isDrumMode ? { layer: 'sn' } : undefined
+        this.socketService?.socket?.emit('audition:pause', pauseOpts)
+      }
+      if (this.isAudioStarted && this.uiManager?.synthPanel?.isSequencerActive?.()) {
+        const pauseOpts = this.audioService?.isDrumMode ? { layer: 'sn' } : undefined
+        this.socketService?.socket?.emit('sequencer:pause', pauseOpts)
+      }
+
+      if (this.audioService && this.audioService.updateFilterParams) {
+        const position = gesture.coordinates || gesture.startPosition || { x: 0.5, y: 0.5 }
+        this.audioService.updateFilterParams({
+          frequency: 200 + (position.y * 2000),
+          resonance: 0.5 + (position.x * 3)
+        })
+      }
+
+      if (this.visualService && this.socketService?.socket) {
+        const userId = this.socketService.currentUserId || this.socketService.socket.id
+        if (!userId) return
+        const position = gesture.coordinates || gesture.startPosition || { x: 0.5, y: 0.5 }
+        const color = this.currentUserColor || '#22c55e'
+        this.visualService.updateCursorPosition(userId, position.x, position.y, color)
+        this.visualService.updateGestureData(userId, {
+          type: 'drag', velocity: gesture.speed || 0, isActive: true
+        })
+      }
+    }
+
+    // Gesture end
+    this.gestureCapture.onGestureEnd = (gesture, musicalEvent) => {
+      // Resume audition/sequencer
+      if (this.isAudioStarted && this.uiManager?.synthPanel?.isAuditionActive?.()) {
+        const resumeOpts = this.audioService?.isDrumMode ? { layer: 'sn' } : undefined
+        this.socketService?.socket?.emit('audition:resume', resumeOpts)
+      }
+      if (this.isAudioStarted && this.uiManager?.synthPanel?.isSequencerActive?.()) {
+        const resumeOpts = this.audioService?.isDrumMode ? { layer: 'sn' } : undefined
+        this.socketService?.socket?.emit('sequencer:resume', resumeOpts)
+      }
+
+      const gestureAction = gesture.action || this.gestureProcessor.determineGestureAction(gesture)
+
+      if (gestureAction === 'drag') {
+        if (this.visualService && this.visualService.onMusicalEvent) {
+          this.visualService.onMusicalEvent({ type: 'phrase', velocity: gesture.velocity || 0.5 })
+        }
+        return
+      }
+
+      if (this.visualService && this.socketService?.socket) {
+        const userId = this.socketService.currentUserId || this.socketService.socket.id
+        if (!userId) return
+        this.visualService.updateGestureData(userId, {
+          type: gestureAction || 'idle', velocity: 0, isActive: false
+        })
+      }
     }
   }
 

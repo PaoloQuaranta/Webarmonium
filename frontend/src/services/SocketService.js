@@ -713,9 +713,10 @@ class SocketService {
   handleUserJoined(data) {
     // console.log('User joined:', data.userId)
 
-    // Add user to room users list
-    if (!this.roomUsers.find(u => u.id === data.userId)) {
-      this.roomUsers.push(data.user)
+    // Add user to room users list (guard against missing user object)
+    const userData = data.user || { id: data.userId, color: data.color, slot: data.slot }
+    if (userData.id && !this.roomUsers.find(u => u?.id === data.userId)) {
+      this.roomUsers.push(userData)
     }
 
     // Track user's slot for synth timbre (check both data.slot and data.user.slot)
@@ -748,8 +749,8 @@ class SocketService {
   handleUserLeft(data) {
     // console.log('User left:', data.userId)
 
-    // Remove user from room users list
-    this.roomUsers = this.roomUsers.filter(u => u.id !== data.userId)
+    // Remove user from room users list (guard against undefined entries)
+    this.roomUsers = this.roomUsers.filter(u => u && u.id !== data.userId)
 
     // Remove user's slot from tracking
     if (data.userId) {
@@ -773,8 +774,8 @@ class SocketService {
   handleUserDisconnected(data) {
     // console.log('User disconnected:', data.userId)
 
-    // Remove user from room users list
-    this.roomUsers = this.roomUsers.filter(u => u.id !== data.userId)
+    // Remove user from room users list (guard against undefined entries)
+    this.roomUsers = this.roomUsers.filter(u => u && u.id !== data.userId)
 
     // Remove user's slots from tracking (Entry #SynthUI)
     if (data.userId) {

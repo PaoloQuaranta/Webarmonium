@@ -39,6 +39,11 @@ const CursorHandler = {
           return
         }
 
+        // Listeners should not broadcast cursor positions
+        if (room.isListener(socket.userId)) {
+          return
+        }
+
         const user = room.getUser(socket.userId)
         if (!user || !user.assignedColor) {
           // console.log('❌ cursor-move: No user or color')

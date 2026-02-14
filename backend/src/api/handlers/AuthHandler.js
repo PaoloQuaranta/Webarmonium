@@ -705,12 +705,14 @@ const AuthHandler = {
 
         // Broadcast user-joined to room (with promotedFromListener flag)
         const room = socket.services.roomManager.getRoom(socket.roomId)
+        const promotedUser = room ? room.getUser(socket.userId) : null
         socket.to(socket.roomId).emit('user-joined', {
           userId: socket.userId,
           color: result.assignedColor,
           slot: result.assignedSlot,
           synthPresetSlot: result.assignedSlot,
           synthParams: null,
+          user: promotedUser ? promotedUser.toUserProfile() : { id: socket.userId, color: result.assignedColor, slot: result.assignedSlot },
           promotedFromListener: true,
           userCount: room ? room.getUserCount() : 0,
           timestamp: Date.now()
