@@ -2962,13 +2962,26 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   left: 100%;
 }
 
-.room-controls .node-btn-wrapper:first-child::after {
+.room-controls > .node-btn-wrapper:first-child::after {
   content: '';
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   left: 100%;
   width: calc(1.5rem + 90px + 1.5rem);
+  height: 1px;
+  background: var(--line);
+  z-index: 0;
+}
+
+/* Line segments between buttons inside #roomRight (gap-spanning, not through buttons) */
+#roomRight .node-btn-wrapper:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 100%;
+  width: 1.5rem; /* matches #roomRight gap */
   height: 1px;
   background: var(--line);
   z-index: 0;
@@ -3291,7 +3304,8 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   /* Hide connection lines on mobile */
   .room-controls::before,
   .room-controls::after,
-  .room-controls .node-btn-wrapper:first-child::after {
+  .room-controls > .node-btn-wrapper:first-child::after,
+  #roomRight .node-btn-wrapper:not(:last-child)::after {
     display: none;
   }
 
