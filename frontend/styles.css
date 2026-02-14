@@ -695,7 +695,7 @@ header p {
 /* Landing page: user count to the right of Join button */
 .join-section .rooms-activity {
   position: absolute;
-  left: calc(100% + 1rem);
+  left: calc(100% + 2.5rem);
   top: 50%;
   transform: translateY(-50%);
   /* Match .node-label style but different color */
