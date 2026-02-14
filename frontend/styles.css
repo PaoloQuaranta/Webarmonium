@@ -2964,6 +2964,12 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   color: var(--light);
 }
 
+/* Listen mode Jam button - accent border to stand out */
+.desktop-settings-btn.listen-mode-jam {
+  border-color: var(--accent, #2dd4bf);
+  color: var(--accent, #2dd4bf);
+}
+
 /* Active state when audition/sequencer is running */
 .desktop-settings-btn.synth-active {
   border-color: var(--synth-btn-color, var(--accent));

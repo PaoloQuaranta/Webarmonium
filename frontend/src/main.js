@@ -1837,7 +1837,19 @@ class WebarmoniumApp {
         }
       }
 
-      const joinResponse = await this.socketService.joinRoom(this.roomId, userData, this.joinMode)
+      let joinResponse
+      try {
+        joinResponse = await this.socketService.joinRoom(this.roomId, userData, this.joinMode)
+      } catch (listenError) {
+        // If listen mode fails because room has no jammers, fall back to jam mode
+        if (this.isListenMode && listenError.message && listenError.message.includes('active jammers')) {
+          this.joinMode = 'jam'
+          this.isListenMode = false
+          joinResponse = await this.socketService.joinRoom(this.roomId, userData, 'jam')
+        } else {
+          throw listenError
+        }
+      }
 
       // Store assigned user color for p5.js visualization
       if (joinResponse && joinResponse.assignedColor) {

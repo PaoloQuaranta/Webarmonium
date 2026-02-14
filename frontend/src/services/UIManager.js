@@ -928,27 +928,22 @@ class UIManager {
     const roomRight = document.getElementById('roomRight')
     if (!roomRight) return
 
+    // Create wrapper (same structure as Synth/Settings buttons for connecting line)
+    const wrapper = document.createElement('div')
+    wrapper.className = 'node-btn-wrapper'
+    wrapper.id = 'listenModeJamBtn'
+
     const btn = document.createElement('button')
-    btn.id = 'listenModeJamBtn'
-    btn.className = 'jam-btn'
-    btn.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M9 18V5l12-2v13"/>
-        <circle cx="6" cy="18" r="3"/>
-        <circle cx="18" cy="16" r="3"/>
-      </svg>
-      Jam
-    `
+    btn.className = 'desktop-settings-btn listen-mode-jam'
+    btn.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'
     btn.title = 'Switch to jam mode'
     btn.setAttribute('aria-label', 'Switch to jam mode')
     btn.addEventListener('click', async () => {
       btn.disabled = true
       try {
-        // SocketService is accessed via the global app instance
         const app = window.webarmoniumApp
         if (app?.socketService) {
           await app.socketService.promoteToJammer()
-          // Success handled by promoted-to-jammer event in main.js
         }
       } catch (error) {
         btn.disabled = false
@@ -958,12 +953,19 @@ class UIManager {
       }
     })
 
+    const label = document.createElement('span')
+    label.className = 'node-label'
+    label.textContent = 'Jam'
+
+    wrapper.appendChild(btn)
+    wrapper.appendChild(label)
+
     // Insert before settings button
     const settingsWrapper = document.getElementById('desktopSettingsBtn')?.parentElement
     if (settingsWrapper) {
-      roomRight.insertBefore(btn, settingsWrapper)
+      roomRight.insertBefore(wrapper, settingsWrapper)
     } else {
-      roomRight.appendChild(btn)
+      roomRight.appendChild(wrapper)
     }
   }
 
@@ -977,19 +979,14 @@ class UIManager {
     const roomRight = document.getElementById('roomRight')
     if (!roomRight) return
 
+    // Create wrapper (same structure as other buttons for connecting line)
     const wrapper = document.createElement('div')
-    wrapper.className = 'room-selector-wrapper'
+    wrapper.className = 'node-btn-wrapper'
     wrapper.id = 'listenModeRoomSelector'
 
     const btn = document.createElement('button')
-    btn.className = 'room-selector-btn'
-    btn.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
-      </svg>
-      Rooms
-    `
+    btn.className = 'desktop-settings-btn'
+    btn.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'
     btn.title = 'Switch room'
     btn.setAttribute('aria-label', 'Switch listening room')
 
@@ -1061,7 +1058,12 @@ class UIManager {
       }
     })
 
+    const label = document.createElement('span')
+    label.className = 'node-label'
+    label.textContent = 'Rooms'
+
     wrapper.appendChild(btn)
+    wrapper.appendChild(label)
 
     // Insert after jam button or at start
     const jamBtn = document.getElementById('listenModeJamBtn')
@@ -1145,14 +1147,15 @@ class UIManager {
   updateJamButtonVisibility(canPromote) {
     if (!this.isListenMode) return
 
-    const jamBtn = document.getElementById('listenModeJamBtn')
-    if (canPromote && !jamBtn) {
+    const jamWrapper = document.getElementById('listenModeJamBtn')
+    if (canPromote && !jamWrapper) {
       this._createJamButton()
-    } else if (!canPromote && jamBtn) {
-      jamBtn.remove()
-    } else if (canPromote && jamBtn) {
-      // Re-enable if it was disabled
-      jamBtn.disabled = false
+    } else if (!canPromote && jamWrapper) {
+      jamWrapper.remove()
+    } else if (canPromote && jamWrapper) {
+      // Re-enable the button inside the wrapper if it was disabled
+      const btn = jamWrapper.querySelector('button')
+      if (btn) btn.disabled = false
     }
   }
 }
