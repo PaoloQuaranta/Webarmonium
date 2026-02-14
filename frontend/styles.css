@@ -1092,11 +1092,17 @@ button:disabled {
   align-items: center;
   justify-content: center;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.25s ease;
+}
+
+.join-modal[hidden] {
+  display: none;
 }
 
 .join-modal.visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .join-modal-backdrop {
