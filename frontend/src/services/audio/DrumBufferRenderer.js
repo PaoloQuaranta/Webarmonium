@@ -173,7 +173,7 @@ class DrumBufferRenderer {
     const buffer = await Tone.Offline(() => {
       const oh = new Tone.MetalSynth({
         envelope: { attack: 0.001, decay, release: 0.1 },
-        harmonicity: 6.0 + params.tone * 3.5, // 6.0-9.5 (brighter than HH's 5.1-8.1)
+        harmonicity: 5.5 + params.tone * 2.5, // 5.5-8.0 (slightly above HH's 5.1-8.1)
         resonance: 300,
         octaves: 4,
         volume: -12
