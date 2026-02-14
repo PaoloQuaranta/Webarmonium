@@ -172,7 +172,7 @@ const AuditionHandler = {
         }
 
         // Validate layer if provided (whitelist: bd, sn, hh)
-        const validLayers = ['bd', 'sn', 'hh']
+        const validLayers = ['bd', 'sn', 'hh', 'oh']
         const safeOptions = (options?.layer && validLayers.includes(options.layer))
           ? { layer: options.layer } : undefined
         auditionService.pauseAudition(socket.id, safeOptions)
@@ -197,7 +197,7 @@ const AuditionHandler = {
           return
         }
 
-        const validLayers = ['bd', 'sn', 'hh']
+        const validLayers = ['bd', 'sn', 'hh', 'oh']
         const safeOptions = (options?.layer && validLayers.includes(options.layer))
           ? { layer: options.layer } : undefined
         auditionService.resumeAudition(socket.id, safeOptions)

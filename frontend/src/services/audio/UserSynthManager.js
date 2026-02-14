@@ -657,9 +657,10 @@ class UserSynthManager {
         }
 
         cached = {
-          bd: buffers.bd, sn: buffers.sn, hh: buffers.hh,
+          bd: buffers.bd, sn: buffers.sn, hh: buffers.hh, oh: buffers.oh,
           presetSlot, outputGain,
-          lastUsedTime: Date.now(), lastTriggerTime: 0
+          lastUsedTime: Date.now(), lastTriggerTime: 0,
+          activeOhSource: null // OH choke tracking per user
         }
         this.userDrumKits.set(userId, cached)
       }
@@ -675,6 +676,20 @@ class UserSynthManager {
       cached.lastTriggerTime = safeTime
       const vel = Math.max(0.1, Math.min(1.0, velocity))
 
+      // CHOKE: HH chokes active OH, OH self-chokes previous OH (per-user)
+      if ((instrument === 'hh' || instrument === 'oh') && cached.activeOhSource) {
+        const { source: ohSrc, hitGain: ohGain, cleanupTimer } = cached.activeOhSource
+        cached.activeOhSource = null
+        clearTimeout(cleanupTimer)
+        try {
+          ohGain.gain.cancelScheduledValues(safeTime)
+          ohGain.gain.rampTo(0, 0.005, safeTime)
+          setTimeout(() => {
+            try { ohSrc.disconnect(); ohGain.disconnect(); ohGain.dispose() } catch (e) { /* ok */ }
+          }, 10)
+        } catch (e) { /* choke best-effort */ }
+      }
+
       const source = new Tone.ToneBufferSource(buffer)
       const hitGain = new Tone.Gain(vel)
       source.connect(hitGain)
@@ -684,9 +699,19 @@ class UserSynthManager {
       // Self-cleanup after buffer finishes playing
       // IMPORTANT: Do NOT call source.dispose() — it destroys the shared buffer
       const ms = (buffer.duration + 0.5) * 1000
-      setTimeout(() => {
-        try { source.disconnect(); hitGain.disconnect(); hitGain.dispose() } catch (e) { /* already cleaned up */ }
-      }, ms)
+
+      if (instrument === 'oh') {
+        // Store OH source ref for choke — cleanup via timer or choke, whichever first
+        const cleanupTimer = setTimeout(() => {
+          try { source.disconnect(); hitGain.disconnect(); hitGain.dispose() } catch (e) { /* ok */ }
+          if (cached.activeOhSource?.cleanupTimer === cleanupTimer) cached.activeOhSource = null
+        }, ms)
+        cached.activeOhSource = { source, hitGain, cleanupTimer }
+      } else {
+        setTimeout(() => {
+          try { source.disconnect(); hitGain.disconnect(); hitGain.dispose() } catch (e) { /* already cleaned up */ }
+        }, ms)
+      }
     } catch (error) {
       console.warn(`[UserSynthManager] playDrumHit failed for ${userId}:`, error.message)
     }
@@ -699,6 +724,12 @@ class UserSynthManager {
   cleanupUserDrumKit (userId) {
     const cached = this.userDrumKits.get(userId)
     if (!cached) return
+
+    // Clear active OH choke tracking
+    if (cached.activeOhSource) {
+      clearTimeout(cached.activeOhSource.cleanupTimer)
+      cached.activeOhSource = null
+    }
 
     if (cached.outputGain && !cached.outputGain.disposed) {
       try { cached.outputGain.disconnect(); cached.outputGain.dispose() } catch (e) { /* ok */ }

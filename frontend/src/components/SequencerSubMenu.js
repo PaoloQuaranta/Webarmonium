@@ -44,12 +44,13 @@ class SequencerSubMenu {
       }))
     }
 
-    // Drum sequencer layers (3 instruments, 4-state velocity per step)
-    // Default: basic 4/4 pattern — kick on 1/3, snare on 2/4, hat eighths
+    // Drum sequencer layers (4 instruments, 4-state velocity per step)
+    // Default: basic 4/4 pattern — kick on 1/3, snare on 2/4, hat eighths, open hat off-beats
     this.drumLayers = {
       bd: { muted: false, steps: Array(16).fill(null).map((_, i) => ({ state: i % 4 === 0 ? 'normal' : 'off' })) },
       sn: { muted: false, steps: Array(16).fill(null).map((_, i) => ({ state: (i === 4 || i === 12) ? 'normal' : 'off' })) },
-      hh: { muted: false, steps: Array(16).fill(null).map((_, i) => ({ state: i % 2 === 0 ? 'ghost' : 'off' })) }
+      hh: { muted: false, steps: Array(16).fill(null).map((_, i) => ({ state: i % 2 === 0 ? 'ghost' : 'off' })) },
+      oh: { muted: false, steps: Array(16).fill(null).map((_, i) => ({ state: (i === 6 || i === 14) ? 'normal' : 'off' })) }
     }
 
     this.activeStep = -1
@@ -355,10 +356,10 @@ class SequencerSubMenu {
   }
 
   _getDrumStepsHTML () {
-    const DRUM_LABELS = { bd: 'BD', sn: 'SN', hh: 'HH' }
+    const DRUM_LABELS = { bd: 'BD', sn: 'SN', hh: 'HH', oh: 'OH' }
     let html = '<div class="drum-seq-grid">'
 
-    for (const inst of ['bd', 'sn', 'hh']) {
+    for (const inst of ['bd', 'sn', 'hh', 'oh']) {
       const layer = this.drumLayers[inst]
       const mutedClass = layer.muted ? 'muted' : ''
 

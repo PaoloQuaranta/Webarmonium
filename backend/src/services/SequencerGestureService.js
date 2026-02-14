@@ -493,11 +493,11 @@ class SequencerGestureService {
 
     // Velocity map for 4 drum states
     const VELOCITY_MAP = { ghost: 0.3, normal: 0.7, accent: 1.0 }
-    const DURATION_MAP = { bd: 0.3, sn: 0.15, hh: 0.08 }
+    const DURATION_MAP = { bd: 0.3, sn: 0.15, hh: 0.08, oh: 0.4 }
 
     // v0.7.9: Batch drum hits into single event (30 events/sec → 10 events/sec)
     const hits = []
-    for (const inst of ['bd', 'sn', 'hh']) {
+    for (const inst of ['bd', 'sn', 'hh', 'oh']) {
       if (state.mutedLayers.has(inst)) continue // Skip muted layer (partial pause)
       const layer = state.params.layers?.[inst]
       if (!layer || layer.muted) continue

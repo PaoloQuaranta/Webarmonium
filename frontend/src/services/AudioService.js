@@ -7695,7 +7695,12 @@ class AudioService {
     hhGain.connect(routing.drumVolume)
     routing.hh = { gain: hhGain }
 
-    // Delay sends (SN + HH only, BD never gets delay)
+    // OH → gain → drumVolume
+    const ohGain = new Tone.Gain(1)
+    ohGain.connect(routing.drumVolume)
+    routing.oh = { gain: ohGain }
+
+    // Delay sends (SN + HH + OH, BD never gets delay)
     // Connect directly to FX processor, bypassing delaySends.gesture (style-immune)
     if (this.delay && !this.delay.disposed) {
       routing.drumDelaySendMaster = new Tone.Gain(0.25) // fixed level, style cannot scale this
@@ -7708,9 +7713,13 @@ class AudioService {
       routing.hh.delaySend = new Tone.Gain(inst.hh.delay || 0)
       hhGain.connect(routing.hh.delaySend)
       routing.hh.delaySend.connect(routing.drumDelaySendMaster)
+
+      routing.oh.delaySend = new Tone.Gain(inst.oh.delay || 0.05)
+      ohGain.connect(routing.oh.delaySend)
+      routing.oh.delaySend.connect(routing.drumDelaySendMaster)
     }
 
-    // Reverb sends (all 3, BD special: max 20%, only above 50% slider)
+    // Reverb sends (all 4, BD special: max 20%, only above 50% slider)
     // Connect directly to FX processor, bypassing reverbSends.gesture (style-immune)
     if (this.reverb && !this.reverb.disposed) {
       routing.drumReverbSendMaster = new Tone.Gain(0.3) // fixed level, style cannot scale this
@@ -7727,6 +7736,10 @@ class AudioService {
       routing.hh.reverbSend = new Tone.Gain(patch.reverb || 0)
       hhGain.connect(routing.hh.reverbSend)
       routing.hh.reverbSend.connect(routing.drumReverbSendMaster)
+
+      routing.oh.reverbSend = new Tone.Gain(patch.reverb || 0)
+      ohGain.connect(routing.oh.reverbSend)
+      routing.oh.reverbSend.connect(routing.drumReverbSendMaster)
     }
 
     this._drumRouting = routing
@@ -7735,7 +7748,8 @@ class AudioService {
   /**
    * Play a drum hit using pre-rendered buffer (one-shot, zero automation accumulation).
    * Creates a ToneBufferSource + Gain per hit, auto-disposed after playback.
-   * @param {string} instrument - 'bd', 'sn', or 'hh'
+   * OH/HH choke: closed HH cuts off ringing OH; new OH self-chokes previous OH.
+   * @param {string} instrument - 'bd', 'sn', 'hh', or 'oh'
    * @param {number} velocity - Hit velocity (0-1)
    */
   playDrumHit (instrument, velocity = 0.7) {
@@ -7749,6 +7763,20 @@ class AudioService {
       this._lastDrumTrigger = safeTime
       const vel = Math.max(0.1, Math.min(1.0, velocity))
 
+      // CHOKE: HH chokes active OH, OH self-chokes previous OH
+      if ((instrument === 'hh' || instrument === 'oh') && this._activeOhSource) {
+        const { source: ohSrc, hitGain: ohGain, cleanupTimer } = this._activeOhSource
+        this._activeOhSource = null
+        clearTimeout(cleanupTimer)
+        try {
+          ohGain.gain.cancelScheduledValues(safeTime)
+          ohGain.gain.rampTo(0, 0.005, safeTime)
+          setTimeout(() => {
+            try { ohSrc.disconnect(); ohGain.disconnect(); ohGain.dispose() } catch (e) { /* ok */ }
+          }, 10)
+        } catch (e) { /* choke best-effort */ }
+      }
+
       const source = new Tone.ToneBufferSource(buffer)
       const hitGain = new Tone.Gain(vel)
       source.connect(hitGain)
@@ -7760,9 +7788,19 @@ class AudioService {
       // this._buffer.dispose() which destroys the shared ToneAudioBuffer, muting all
       // subsequent hits. Just disconnect and let the native node be GC'd.
       const ms = (buffer.duration + 0.5) * 1000
-      setTimeout(() => {
-        try { source.disconnect(); hitGain.disconnect(); hitGain.dispose() } catch (e) { /* already cleaned up */ }
-      }, ms)
+
+      if (instrument === 'oh') {
+        // Store OH source ref for choke — cleanup via timer or choke, whichever comes first
+        const cleanupTimer = setTimeout(() => {
+          try { source.disconnect(); hitGain.disconnect(); hitGain.dispose() } catch (e) { /* ok */ }
+          if (this._activeOhSource?.cleanupTimer === cleanupTimer) this._activeOhSource = null
+        }, ms)
+        this._activeOhSource = { source, hitGain, cleanupTimer }
+      } else {
+        setTimeout(() => {
+          try { source.disconnect(); hitGain.disconnect(); hitGain.dispose() } catch (e) { /* already cleaned up */ }
+        }, ms)
+      }
     } catch (error) {
       console.warn('[AudioService] playDrumHit failed:', error.message)
     }
@@ -7782,6 +7820,7 @@ class AudioService {
     if (params.bd) this._currentDrumParams.bd = { ...(this._currentDrumParams.bd || {}), ...params.bd }
     if (params.sn) this._currentDrumParams.sn = { ...(this._currentDrumParams.sn || {}), ...params.sn }
     if (params.hh) this._currentDrumParams.hh = { ...(this._currentDrumParams.hh || {}), ...params.hh }
+    if (params.oh) this._currentDrumParams.oh = { ...(this._currentDrumParams.oh || {}), ...params.oh }
     if (params.volume !== undefined) this._currentDrumParams.volume = params.volume
     if (params.reverb !== undefined) this._currentDrumParams.reverb = params.reverb
 
@@ -7801,6 +7840,7 @@ class AudioService {
         const r = params.reverb
         if (routing.sn.reverbSend) routing.sn.reverbSend.gain.rampTo(r, 0.1)
         if (routing.hh.reverbSend) routing.hh.reverbSend.gain.rampTo(r, 0.1)
+        if (routing.oh?.reverbSend) routing.oh.reverbSend.gain.rampTo(r, 0.1)
         if (routing.bd.reverbSend) {
           routing.bd.reverbSend.gain.rampTo(r > 0.5 ? (r - 0.5) * 2 * 0.2 : 0, 0.1)
         }
@@ -7813,6 +7853,9 @@ class AudioService {
       if (params.hh?.delay !== undefined && routing.hh.delaySend) {
         routing.hh.delaySend.gain.rampTo(params.hh.delay, 0.1)
       }
+      if (params.oh?.delay !== undefined && routing.oh?.delaySend) {
+        routing.oh.delaySend.gain.rampTo(params.oh.delay, 0.1)
+      }
 
       // === TIMBRAL: debounce → re-render affected buffer ===
       if (params.bd && (params.bd.pitch !== undefined || params.bd.decay !== undefined || params.bd.tone !== undefined)) {
@@ -7824,6 +7867,9 @@ class AudioService {
       if (params.hh && (params.hh.pitch !== undefined || params.hh.decay !== undefined || params.hh.tone !== undefined)) {
         this._scheduleBufferRerender('hh')
       }
+      if (params.oh && (params.oh.pitch !== undefined || params.oh.decay !== undefined || params.oh.tone !== undefined)) {
+        this._scheduleBufferRerender('oh')
+      }
     } catch (error) {
       console.warn('[AudioService] setDrumParams failed:', error.message)
     }
@@ -7831,7 +7877,7 @@ class AudioService {
 
   /**
    * Schedule a debounced buffer re-render for a drum instrument.
-   * @param {string} instrument - 'bd', 'sn', or 'hh'
+   * @param {string} instrument - 'bd', 'sn', 'hh', or 'oh'
    */
   _scheduleBufferRerender (instrument) {
     if (!this._drumRerenderTimers) this._drumRerenderTimers = {}
@@ -7844,12 +7890,12 @@ class AudioService {
   /**
    * Re-render a single drum instrument buffer with updated parameters.
    * Uses generation counter to prevent stale renders from overwriting newer ones.
-   * @param {string} instrument - 'bd', 'sn', or 'hh'
+   * @param {string} instrument - 'bd', 'sn', 'hh', or 'oh'
    */
   async _rerenderBuffer (instrument) {
     if (!this.drumBuffers || !this._currentDrumParams?.[instrument] || !this.currentPatch) return
 
-    if (!this._drumRerenderGeneration) this._drumRerenderGeneration = { bd: 0, sn: 0, hh: 0 }
+    if (!this._drumRerenderGeneration) this._drumRerenderGeneration = { bd: 0, sn: 0, hh: 0, oh: 0 }
     this._drumRerenderGeneration[instrument]++
     const gen = this._drumRerenderGeneration[instrument]
 
@@ -7864,6 +7910,7 @@ class AudioService {
         case 'bd': newBuffer = await DrumBufferRenderer.renderBd(instParams); break
         case 'sn': newBuffer = await DrumBufferRenderer.renderSn(instParams); break
         case 'hh': newBuffer = await DrumBufferRenderer.renderHh(instParams); break
+        case 'oh': newBuffer = await DrumBufferRenderer.renderOh(instParams); break
       }
 
       // Race guard: discard if a newer render started
@@ -7890,7 +7937,7 @@ class AudioService {
     // Dispose routing nodes
     if (this._drumRouting) {
       const nodes = []
-      for (const inst of ['bd', 'sn', 'hh']) {
+      for (const inst of ['bd', 'sn', 'hh', 'oh']) {
         const r = this._drumRouting[inst]
         if (r) {
           if (r.gain) nodes.push(r.gain)
@@ -7908,6 +7955,12 @@ class AudioService {
         }
       })
       this._drumRouting = null
+    }
+
+    // Clear active OH choke tracking
+    if (this._activeOhSource) {
+      clearTimeout(this._activeOhSource.cleanupTimer)
+      this._activeOhSource = null
     }
 
     this.drumBuffers = null

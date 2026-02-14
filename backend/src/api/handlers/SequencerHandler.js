@@ -56,12 +56,12 @@ function validateSequencerParams (params) {
     validated.isDrumMode = params.isDrumMode
   }
 
-  // Drum layer params (3 layers: bd, sn, hh)
+  // Drum layer params (4 layers: bd, sn, hh, oh)
   if (params.layers && typeof params.layers === 'object') {
     const validDrumStates = ['off', 'ghost', 'normal', 'accent']
     const stepCount = validated.stepCount || params.stepCount || 8
     validated.layers = {}
-    for (const inst of ['bd', 'sn', 'hh']) {
+    for (const inst of ['bd', 'sn', 'hh', 'oh']) {
       const layer = params.layers[inst]
       if (layer && typeof layer === 'object') {
         validated.layers[inst] = {
@@ -206,7 +206,7 @@ const SequencerHandler = {
       try {
         const sequencerService = socket.services?.sequencerGestureService
         if (!sequencerService) return
-        const validLayers = ['bd', 'sn', 'hh']
+        const validLayers = ['bd', 'sn', 'hh', 'oh']
         const safeOptions = (options?.layer && validLayers.includes(options.layer))
           ? { layer: options.layer } : undefined
         sequencerService.pauseSequencer(socket.id, safeOptions)
@@ -227,7 +227,7 @@ const SequencerHandler = {
       try {
         const sequencerService = socket.services?.sequencerGestureService
         if (!sequencerService) return
-        const validLayers = ['bd', 'sn', 'hh']
+        const validLayers = ['bd', 'sn', 'hh', 'oh']
         const safeOptions = (options?.layer && validLayers.includes(options.layer))
           ? { layer: options.layer } : undefined
         sequencerService.resumeSequencer(socket.id, safeOptions)

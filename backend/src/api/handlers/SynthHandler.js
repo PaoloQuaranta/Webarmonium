@@ -45,7 +45,7 @@ function validateDrumParams (params) {
 
   const validated = { isDrum: true }
 
-  for (const inst of ['bd', 'sn', 'hh']) {
+  for (const inst of ['bd', 'sn', 'hh', 'oh']) {
     if (params[inst] && typeof params[inst] === 'object') {
       validated[inst] = {
         pitch: clamp(Number(params[inst].pitch) || 0.5, 0, 1),

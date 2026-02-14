@@ -410,7 +410,7 @@ class AuditionGestureService {
     ))
 
     // Duration for visual feedback only (drums are self-releasing)
-    const DURATION_MAP = { bd: 0.3, sn: 0.15, hh: 0.08 }
+    const DURATION_MAP = { bd: 0.3, sn: 0.15, hh: 0.08, oh: 0.4 }
 
     // Position for visual (instrument-based Y position)
     const position = {

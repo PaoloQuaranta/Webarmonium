@@ -310,7 +310,8 @@ const REAL_USER_PATCHES = {
     instruments: {
       bd: { pitch: 0.4, decay: 0.7, tone: 0.4 },
       sn: { pitch: 0.45, decay: 0.3, tone: 0.7, delay: 0.15 },
-      hh: { pitch: 0.3, decay: 0.2, tone: 0.3, delay: 0.0 }
+      hh: { pitch: 0.3, decay: 0.2, tone: 0.3, delay: 0.0 },
+      oh: { pitch: 0.35, decay: 0.5, tone: 0.4, delay: 0.05 }
     },
     reverb: 0.2,
     volume: 0
@@ -322,7 +323,8 @@ const REAL_USER_PATCHES = {
     instruments: {
       bd: { pitch: 0.55, decay: 0.5, tone: 0.6 },
       sn: { pitch: 0.6, decay: 0.6, tone: 0.5, delay: 0.25 },
-      hh: { pitch: 0.6, decay: 0.4, tone: 0.7, delay: 0.1 }
+      hh: { pitch: 0.6, decay: 0.4, tone: 0.7, delay: 0.1 },
+      oh: { pitch: 0.65, decay: 0.7, tone: 0.8, delay: 0.15 }
     },
     reverb: 0.45,
     volume: 0
@@ -334,7 +336,8 @@ const REAL_USER_PATCHES = {
     instruments: {
       bd: { pitch: 0.5, decay: 0.3, tone: 0.9 },
       sn: { pitch: 0.35, decay: 0.8, tone: 0.8, delay: 0.4 },
-      hh: { pitch: 0.7, decay: 0.1, tone: 0.9, delay: 0.35 }
+      hh: { pitch: 0.7, decay: 0.1, tone: 0.9, delay: 0.35 },
+      oh: { pitch: 0.75, decay: 0.3, tone: 0.95, delay: 0.4 }
     },
     reverb: 0.15,
     volume: 0

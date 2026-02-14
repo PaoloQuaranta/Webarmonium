@@ -155,20 +155,57 @@ class DrumBufferRenderer {
   }
 
   /**
-   * Render a complete drum kit (bd, sn, hh) sequentially.
+   * Render an open hi-hat buffer from parameters.
+   * Uses MetalSynth like HH but with longer decay for sustained metallic ring.
+   * Choked by closed HH in playback layer (AudioService / UserSynthManager).
+   * @param {Object} params - { pitch: 0-1, decay: 0-1, tone: 0-1 }
+   * @returns {Promise<ToneAudioBuffer>}
+   */
+  static async renderOh (params) {
+    return DrumBufferRenderer._enqueue(() => DrumBufferRenderer._renderOhInternal(params))
+  }
+
+  static async _renderOhInternal (params) {
+    const decay = 0.3 + params.decay * 0.7 // 0.3-1.0s (longer than HH's 0.08-0.4s)
+    const duration = 0.001 + decay + 0.1 + 0.2 // attack + decay + release + margin
+    const freq = 250 + params.pitch * 700 // 250-950Hz
+
+    const buffer = await Tone.Offline(() => {
+      const oh = new Tone.MetalSynth({
+        envelope: { attack: 0.001, decay, release: 0.1 },
+        harmonicity: 6.0 + params.tone * 3.5, // 6.0-9.5 (brighter than HH's 5.1-8.1)
+        resonance: 300,
+        octaves: 4,
+        volume: -12
+      }).toDestination()
+      // MetalSynth constructor IGNORES the frequency option — must set explicitly
+      oh.frequency.value = freq
+      // MetalSynth MUST receive frequency as first arg (inherited from Instrument)
+      oh.triggerAttackRelease(freq, '8n', 0, 1.0)
+    }, duration, 1, Tone.context?.sampleRate || 44100)
+
+    if (!buffer || buffer.duration === 0) {
+      throw new Error('[DrumBufferRenderer] Empty OH buffer')
+    }
+    return buffer
+  }
+
+  /**
+   * Render a complete drum kit (bd, sn, hh, oh) sequentially.
    * MUST be sequential: Tone.Offline temporarily swaps the global audio context.
    * Concurrent renders via Promise.all corrupt the context chain — each save/restore
    * captures the wrong context, leaving Tone.js pointed at an OfflineAudioContext
    * after completion. Nodes created afterwards end up in the wrong context.
    * @param {Object} patch - Drum patch from PatchDefinitions (must have .instruments)
-   * @returns {Promise<{bd: ToneAudioBuffer, sn: ToneAudioBuffer, hh: ToneAudioBuffer}>}
+   * @returns {Promise<{bd: ToneAudioBuffer, sn: ToneAudioBuffer, hh: ToneAudioBuffer, oh: ToneAudioBuffer}>}
    */
   static async renderKit (patch) {
     return DrumBufferRenderer._enqueue(async () => {
       const bd = await DrumBufferRenderer._renderBdInternal(patch.instruments.bd)
       const sn = await DrumBufferRenderer._renderSnInternal(patch.instruments.sn)
       const hh = await DrumBufferRenderer._renderHhInternal(patch.instruments.hh)
-      return { bd, sn, hh }
+      const oh = await DrumBufferRenderer._renderOhInternal(patch.instruments.oh)
+      return { bd, sn, hh, oh }
     })
   }
 }
