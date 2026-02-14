@@ -946,10 +946,10 @@ class UIManager {
           await app.socketService.promoteToJammer()
         }
       } catch (error) {
+        // promotion-failed socket event handles UI feedback;
+        // re-enable button as safety fallback
+        console.error('Jam promotion error:', error)
         btn.disabled = false
-        if (window.NotificationService) {
-          window.NotificationService.showModeTransition('Room is full', 3000)
-        }
       }
     })
 
@@ -1157,6 +1157,118 @@ class UIManager {
       const btn = jamWrapper.querySelector('button')
       if (btn) btn.disabled = false
     }
+  }
+
+  // ============================================================
+  // Empty Room Prompt (all jammers left)
+  // ============================================================
+
+  /**
+   * Show prompt when all jammers have left the room
+   * Offers: Jam (promote), Switch Room, or Home
+   */
+  showEmptyRoomPrompt() {
+    if (document.getElementById('empty-room-prompt')) return
+
+    const card = document.createElement('div')
+    card.id = 'empty-room-prompt'
+    card.className = 'empty-room-prompt'
+    card.setAttribute('role', 'dialog')
+    card.setAttribute('aria-labelledby', 'empty-room-text')
+
+    const text = document.createElement('p')
+    text.id = 'empty-room-text'
+    text.className = 'empty-room-text'
+    text.textContent = 'All jammers have left'
+
+    const btnRow = document.createElement('div')
+    btnRow.className = 'empty-room-actions'
+
+    // Jam button (accent)
+    const jamBtn = document.createElement('button')
+    jamBtn.className = 'empty-room-btn empty-room-btn-accent'
+    jamBtn.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> Jam'
+    jamBtn.addEventListener('click', async () => {
+      jamBtn.disabled = true
+      try {
+        const app = window.webarmoniumApp
+        if (app?.socketService) {
+          await app.socketService.promoteToJammer()
+        }
+      } catch (error) {
+        console.error('Failed to promote to jammer:', error)
+        jamBtn.disabled = false
+        if (window.NotificationService) {
+          window.NotificationService.showModeTransition('Could not join as jammer', 3000)
+        }
+      }
+    })
+
+    // Switch Room button
+    const switchBtn = document.createElement('button')
+    switchBtn.className = 'empty-room-btn'
+    switchBtn.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> Switch Room'
+    switchBtn.addEventListener('click', async () => {
+      try {
+        const isDev = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+        const baseUrl = isDev
+          ? 'http://localhost:3001'
+          : `${window.location.protocol}//${window.location.host}`
+        const response = await fetch(`${baseUrl}/api/rooms/lobby`)
+        const data = await response.json()
+        const rooms = (data.rooms || []).filter(r => r.userCount > 0)
+
+        if (rooms.length === 0) {
+          if (window.NotificationService) {
+            window.NotificationService.showModeTransition('No active rooms', 2000)
+          }
+          return
+        }
+
+        // Navigate to first room with jammers
+        const currentRoom = new URLSearchParams(window.location.search).get('room') || 'main-room'
+        const otherRoom = rooms.find(r => r.roomId !== currentRoom) || rooms[0]
+        window.location.href = `rooms.html?room=${encodeURIComponent(otherRoom.roomId)}&mode=listen`
+      } catch (error) {
+        console.error('Switch room failed:', error)
+        if (window.NotificationService) {
+          window.NotificationService.showModeTransition('Could not fetch rooms', 2000)
+        }
+      }
+    })
+
+    // Home button
+    const homeBtn = document.createElement('button')
+    homeBtn.className = 'empty-room-btn'
+    homeBtn.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><path d="M8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4.5a.5.5 0 0 0 .5-.5v-4h2v4a.5.5 0 0 0 .5.5H14a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L8.354 1.146z"/></svg> Home'
+    homeBtn.addEventListener('click', () => {
+      window.location.href = 'index.html'
+    })
+
+    // Keyboard: Escape dismisses prompt (navigates Home)
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        window.location.href = 'index.html'
+      }
+    })
+
+    btnRow.appendChild(jamBtn)
+    btnRow.appendChild(switchBtn)
+    btnRow.appendChild(homeBtn)
+    card.appendChild(text)
+    card.appendChild(btnRow)
+    document.body.appendChild(card)
+
+    // Focus first button after render for keyboard accessibility
+    requestAnimationFrame(() => jamBtn.focus())
+  }
+
+  /**
+   * Hide the empty room prompt (when jammers return or on promotion)
+   */
+  hideEmptyRoomPrompt() {
+    const prompt = document.getElementById('empty-room-prompt')
+    if (prompt) prompt.remove()
   }
 }
 

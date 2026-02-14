@@ -1965,26 +1965,44 @@ class WebarmoniumApp {
       if (window.NotificationService) {
         window.NotificationService.showModeTransition('You are now a jammer!', 3000)
       }
+
+      // Dismiss empty room prompt on promotion (don't wait for room-capacity-changed)
+      if (this.uiManager) {
+        this.uiManager.hideEmptyRoomPrompt()
+      }
     })
 
     // Listen for room capacity changes
     this.socketService.socket.on('room-capacity-changed', (data) => {
       if (this.isListenMode && this.uiManager) {
         this.uiManager.updateJamButtonVisibility(!data.isFull)
+
+        // All jammers left — stop audio and show prompt
+        if (data.userCount === 0) {
+          if (this.isAudioStarted) {
+            this._stopAudioForEmptyRoom()
+          }
+          this.uiManager.showEmptyRoomPrompt()
+        } else {
+          // Jammers returned — dismiss prompt if open
+          this.uiManager.hideEmptyRoomPrompt()
+        }
       }
     })
 
     // Listen for promotion failure
     this.socketService.socket.on('promotion-failed', (data) => {
-      // Re-enable the jam button before updating visibility
-      const jamBtn = document.getElementById('listenModeJamBtn')
+      // Re-enable the jam button (find the actual <button> inside the wrapper)
+      const jamWrapper = document.getElementById('listenModeJamBtn')
+      const jamBtn = jamWrapper?.querySelector('button')
       if (jamBtn) jamBtn.disabled = false
 
-      if (this.uiManager) {
+      // Only hide the button if the room is actually full
+      if (data.reason === 'ROOM_FULL' && this.uiManager) {
         this.uiManager.updateJamButtonVisibility(false)
       }
       if (window.NotificationService) {
-        window.NotificationService.showModeTransition(data.message || 'Room is full', 3000)
+        window.NotificationService.showModeTransition(data.message || 'Promotion failed', 3000)
       }
     })
   }
@@ -1998,6 +2016,33 @@ class WebarmoniumApp {
     this.socketService.socket.off('promoted-to-jammer')
     this.socketService.socket.off('room-capacity-changed')
     this.socketService.socket.off('promotion-failed')
+  }
+
+  /**
+   * Stop audio when all jammers leave (listener stays in empty room)
+   * Reuses stop logic from toggleAudio()
+   * @private
+   */
+  _stopAudioForEmptyRoom() {
+    if (!this.isAudioStarted) return
+    this.socketService.isPlaying = false
+    this.isAudioStarted = false
+
+    if (this.uiManager?.synthPanel) {
+      this.uiManager.synthPanel.stopAllPlayback()
+    }
+
+    this.audioService.stop()
+
+    // Update toggle button UI to "Play" state
+    const button = document.getElementById('audioToggle')
+    if (button) {
+      button.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><polygon points="4,2 14,8 4,14"/></svg>'
+      button.classList.remove('playing')
+    }
+    const roomLabel = document.querySelector('.room-controls .node-btn-wrapper:first-child .node-label')
+    if (roomLabel) roomLabel.textContent = 'Start'
+    document.body.classList.remove('audio-playing')
   }
 
   /**

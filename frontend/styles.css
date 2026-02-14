@@ -1477,6 +1477,108 @@ button:disabled {
   }
 }
 
+/* Empty room prompt (all jammers left — shown to listeners)
+   z-index hierarchy:  100 = explainer/panels, 200 = floating buttons,
+   1000-1003 = immersive/room controls, 2000 = notifications,
+   9990 = synth-overlay, 9995 = audition/sequencer submenus,
+   9999 = empty-room-prompt, 10000 = join-modal */
+.empty-room-prompt {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+  background: var(--ui-bg, rgba(10, 10, 20, 0.9));
+  border: 1px solid var(--line, rgba(42, 42, 56, 0.8));
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  animation: empty-room-fade-in 0.3s ease-out;
+}
+
+@keyframes empty-room-fade-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.empty-room-text {
+  color: var(--bright, #e0e0f0);
+  font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.empty-room-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.empty-room-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.9rem;
+  background: transparent;
+  border: 1.5px solid var(--line, rgba(42, 42, 56, 0.8));
+  border-radius: 6px;
+  color: var(--dim, #888);
+  font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+}
+
+.empty-room-btn:hover {
+  border-color: var(--light, #e0e0f0);
+  color: var(--light, #e0e0f0);
+}
+
+.empty-room-btn:active {
+  transform: scale(0.97);
+}
+
+.empty-room-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.empty-room-btn svg {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+
+.empty-room-btn-accent {
+  border-color: var(--accent, #2dd4bf);
+  color: var(--accent, #2dd4bf);
+}
+
+.empty-room-btn-accent:hover {
+  background: rgba(45, 212, 191, 0.12);
+  border-color: var(--accent, #2dd4bf);
+  color: var(--accent, #2dd4bf);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-room-prompt { animation: none; }
+}
+
+@media (max-width: 480px) {
+  .empty-room-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+  .empty-room-btn {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
 .node-label {
   margin-top: 0.4rem;
   font-family: var(--font-mono);

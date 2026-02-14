@@ -587,6 +587,19 @@ const AuthHandler = {
               timestamp: Date.now()
             })
           }
+
+          // Stop or update background composition
+          if (socket.services.backgroundCompositionService) {
+            const roomForComp = roomAfterLeave || socket.services.roomManager.getRoom(roomId)
+            if (!roomForComp || roomForComp.getUserCount() === 0) {
+              socket.services.backgroundCompositionService.stopComposition(roomId)
+            } else {
+              socket.services.backgroundCompositionService.updateRoomContext(roomId, {
+                userCount: roomForComp.getUserCount(),
+                activeUsers: roomForComp.getUsers().map(u => u.id)
+              })
+            }
+          }
         }
 
         // Emit rooms-activity update to landing page clients
@@ -844,17 +857,17 @@ const AuthHandler = {
           // Get room reference for subsequent operations
           const roomAfterLeave = roomManager.getRoom(socket.roomId)
 
-        // Stop background composition if room is now empty (no jammers)
-        if (socket.services.backgroundCompositionService) {
-          if (!roomAfterLeave || roomAfterLeave.users.size === 0) {
-            socket.services.backgroundCompositionService.stopComposition(socket.roomId)
-          } else {
-            socket.services.backgroundCompositionService.updateRoomContext(socket.roomId, {
-              userCount: roomAfterLeave.users.size,
-              activeUsers: Array.from(roomAfterLeave.users.values()).map(u => u.id)
-            })
+          // Stop background composition if room is now empty (no jammers)
+          if (socket.services.backgroundCompositionService) {
+            if (!roomAfterLeave || roomAfterLeave.getUserCount() === 0) {
+              socket.services.backgroundCompositionService.stopComposition(socket.roomId)
+            } else {
+              socket.services.backgroundCompositionService.updateRoomContext(socket.roomId, {
+                userCount: roomAfterLeave.getUserCount(),
+                activeUsers: roomAfterLeave.getUsers().map(u => u.id)
+              })
+            }
           }
-        }
 
         // Emit rooms-activity update to landing page clients
         if (socket.services.connectionTracker && socket.services.io) {
