@@ -839,6 +839,7 @@ class WebarmoniumApp {
     // Socket event listeners
     this.socketService.on('room-joined', (data) => {
       this.currentRoom = data.room
+      if (data.room?.userCount) this.userCount = data.room.userCount
       this.updateRoomDisplay()
       // console.log('🏠 Joined room:', data.room.roomId)
 
@@ -1922,6 +1923,12 @@ class WebarmoniumApp {
         }
       }
 
+      // Update user count (promoted listener is now counted as jammer)
+      if (data.userCount) {
+        this.userCount = data.userCount
+        this.updateRoomDisplay()
+      }
+
       // Initialize gesture capture (same as normal jam mode)
       if (!this.gestureCapture && this.canvas) {
         const basicGestureToMusicMapper = this._createGestureMapper()
@@ -1930,11 +1937,7 @@ class WebarmoniumApp {
         this._attachGestureCallbacks()
       }
 
-      // Show instructions
-      const instructions = document.querySelector('.instructions')
-      if (instructions) instructions.style.display = ''
-
-      // Switch UI to jam mode
+      // Switch UI to jam mode (handles instructions + ? button restore)
       if (this.uiManager) {
         this.uiManager.switchToJamMode()
         // Init synth panel now that we're a jammer

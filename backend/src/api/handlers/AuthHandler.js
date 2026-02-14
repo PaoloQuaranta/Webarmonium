@@ -694,11 +694,13 @@ const AuthHandler = {
         const latency = Date.now() - startTime
 
         // Emit promoted-to-jammer to the promoted user
+        const roomAfterPromote = socket.services.roomManager.getRoom(socket.roomId)
         socket.emit('promoted-to-jammer', {
           userId: socket.userId,
           assignedSlot: result.assignedSlot,
           assignedColor: result.assignedColor,
           userType: 'jammer',
+          userCount: roomAfterPromote ? roomAfterPromote.getUserCount() : 1,
           latency,
           timestamp: Date.now()
         })

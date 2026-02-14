@@ -898,6 +898,14 @@ class UIManager {
     if (synthBtnWrapper) synthBtnWrapper.remove()
     this.desktopSynthBtn = null
 
+    // Hide instructions (listeners can't interact)
+    const instructions = document.querySelector('.instructions')
+    if (instructions) instructions.style.display = 'none'
+
+    // Hide mobile "?" info button (not relevant for listeners)
+    if (this.mobileInfoBtn) this.mobileInfoBtn.style.display = 'none'
+    if (this.mobileInfoPopup) this.mobileInfoPopup.style.display = 'none'
+
     // Add jam button if room has space
     if (canPromote) {
       this._createJamButton()
@@ -1118,6 +1126,16 @@ class UIManager {
 
     // Create synth button (now we're a jammer)
     this._createDesktopSynthButton()
+
+    // Restore instructions/help for jammers
+    if (this.isMobile) {
+      // Mobile: restore "?" button (instructions remain behind toggle)
+      if (this.mobileInfoBtn) this.mobileInfoBtn.style.display = 'flex'
+    } else {
+      // Desktop: show instructions directly
+      const instructions = document.querySelector('.instructions')
+      if (instructions) instructions.style.display = ''
+    }
   }
 
   /**
