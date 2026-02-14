@@ -639,7 +639,7 @@ class CompositionEngine {
     })
 
     // Scale counterpoint velocities — keep voices present but not dominant
-    const cpVelocityScale = { melody: 0.75, harmony: 0.65, bass: 0.70, pad: 0.55 }
+    const cpVelocityScale = { melody: 0.60, harmony: 0.50, bass: 0.55, pad: 0.50 }
     voices.forEach(voice => {
       const scale = cpVelocityScale[voice.voiceRole] || 0.65
       voice.notes.forEach(note => {
