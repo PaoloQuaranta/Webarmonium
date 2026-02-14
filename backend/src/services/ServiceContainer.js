@@ -287,6 +287,10 @@ function wireServices (container, config = {}) {
       const virtualUserService = c.get('virtualUserService')
       service.setVirtualUserService(virtualUserService)
 
+      // Link RoomManager for activity density calculation
+      const roomManager = c.get('roomManager')
+      service.setRoomManager(roomManager)
+
       // Set Socket.IO for broadcasting
       if (config.io) {
         service.setSocketIO(config.io)

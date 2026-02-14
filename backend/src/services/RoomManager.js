@@ -878,6 +878,55 @@ class RoomManager {
   }
 
   /**
+   * Calculate total activity density for a room including real gestures,
+   * audition, sequencer, and virtual user contributions.
+   * @param {string} roomId
+   * @returns {number} 0-1 density (0=quiet, 1=very busy)
+   */
+  getTotalActivityDensity(roomId) {
+    const analyzer = this.metricsAnalyzers.get(roomId)
+    if (!analyzer) return 0
+
+    const metrics = analyzer.getMetrics()
+    const realActivity = metrics?.activityLevel || 0
+
+    // Snapshot maps to avoid race conditions during iteration
+    let auditionCount = 0
+    if (this.auditionGestureService?.activeAuditions) {
+      const snapshot = Array.from(this.auditionGestureService.activeAuditions.values())
+      auditionCount = snapshot.filter(
+        s => s.roomId === roomId && s.isActive && !s.isPaused
+      ).length
+    }
+
+    let sequencerCount = 0
+    if (this.sequencerGestureService?.activeSequencers) {
+      const snapshot = Array.from(this.sequencerGestureService.activeSequencers.values())
+      sequencerCount = snapshot.filter(
+        s => s.roomId === roomId && s.isActive && !s.isPaused
+      ).length
+    }
+
+    // Virtual users (active only in solo mode, deactivated in multi)
+    let virtualSourceCount = 0
+    if (this.virtualUserService?.activeRooms) {
+      const roomState = this.virtualUserService.activeRooms.get(roomId)
+      if (roomState?.isActive && roomState.sources) {
+        virtualSourceCount = roomState.sources.length
+      }
+    }
+
+    // Weights: audition/sequencer = 0.25 each, virtual user = 0.15
+    const rawDensity = realActivity
+      + (auditionCount * 0.25)
+      + (sequencerCount * 0.25)
+      + (virtualSourceCount * 0.15)
+
+    // Saturation curve: f(x) = x / (1 + x/2)
+    return Math.min(1.0, rawDensity / (1 + rawDensity / 2))
+  }
+
+  /**
    * Start periodic broadcast of compositional parameters
    * @deprecated Use _startUnifiedTimer instead (kept for backward compatibility)
    */

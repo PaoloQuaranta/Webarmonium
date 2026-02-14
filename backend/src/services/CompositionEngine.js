@@ -103,6 +103,21 @@ class CompositionEngine {
   }
 
   /**
+   * Smooth 5-zone counterpoint scaling based on room activity density.
+   * Higher density = more reduction of counterpoint voices and notes.
+   * @param {number} density - 0-1 activity density
+   * @returns {number} 0.20-1.0 scale factor
+   */
+  _calculateCounterpointScale(density) {
+    density = density || 0
+    if (density <= 0.25) return 1.0                                                    // quiet room
+    if (density <= 0.50) return 1.0 - ((density - 0.25) / 0.25) * 0.20                // 1.0  → 0.80
+    if (density <= 0.70) return 0.80 - ((density - 0.50) / 0.20) * 0.25               // 0.80 → 0.55
+    if (density <= 0.85) return 0.55 - ((density - 0.70) / 0.15) * 0.20               // 0.55 → 0.35
+    return Math.max(0.20, 0.35 - ((Math.min(density, 1.0) - 0.85) / 0.15) * 0.15)    // 0.35 → 0.20
+  }
+
+  /**
    * Generate a musical composition based on room context and current style
    *
    * Entry #224: Returns structure with formChanged/sectionChanged flags for SectionStateManager sync.
@@ -140,6 +155,9 @@ class CompositionEngine {
 
       // Entry #171: Store webMetrics for deterministic harmonic variety
       this.webMetrics = roomContext.webMetrics || null
+
+      // Store total activity density for counterpoint suppression
+      this.totalActivityDensity = roomContext.totalActivityDensity || 0
 
       // 1. Analyze current musical context
       const currentStyle = this.styleAnalyzer.getCurrentStyle()
@@ -559,7 +577,7 @@ class CompositionEngine {
     if (material.length > 1) {
       // Multi-user: create polyphonic texture
       // Entry #169: Pass sectionContext for voice role application
-      return this.composePolyphonic(material, progression, style, sectionLength, this.sectionContext)
+      return this.composePolyphonic(material, progression, style, sectionLength, this.sectionContext, this.totalActivityDensity)
     } else if (material.length === 1) {
       // Single-user: elaborate material with accompaniment
       return this.composeMonophonic(material[0], progression, style, sectionLength, this.sectionContext)
@@ -569,21 +587,26 @@ class CompositionEngine {
     }
   }
 
-  composePolyphonic(materials, progression, style, sectionLength, sectionContext = null) {
+  composePolyphonic(materials, progression, style, sectionLength, sectionContext = null, totalActivityDensity = 0) {
     // Entry #180: Get genre for genre-aware voice creation
     const genre = style?.forcedGenre || this._getDominantGenreFromWeights(style?.genreWeights) || 'melodic'
 
-    // Entry #180: Use genre-specific voice count instead of fixed 4
+    // Density-aware counterpoint scaling: reduce voice count when room is busy
+    const counterpointScale = this._calculateCounterpointScale(totalActivityDensity)
+
+    // Entry #180: Use genre-specific voice count, scaled by activity density
     const genreConfig = getGenreCharacteristics(genre)
     const genreVoiceCount = genreConfig?.voiceConfig?.voiceCount || 4
-    const maxVoices = Math.min(materials.length, genreVoiceCount)
+    const scaledVoiceCount = Math.max(1, Math.round(genreVoiceCount * counterpointScale))
+    const maxVoices = Math.min(materials.length, scaledVoiceCount)
     const selectedMaterials = materials.slice(0, maxVoices)
 
-    // Ensure at least 3 voices when genre supports them — derive from existing material
+    // Ensure at least 3 voices when genre supports them AND density allows
     // CounterpointEngine.createVoice() assigns different roles/ranges by voiceIndex
     // (soprano 60-79, alto 55-72, bass 36-55) so same material produces distinct voices
-    if (selectedMaterials.length < Math.min(genreVoiceCount, 3) && selectedMaterials.length > 0 && materials.length > 0) {
-      while (selectedMaterials.length < Math.min(genreVoiceCount, 3)) {
+    const minTargetVoices = Math.min(scaledVoiceCount, 3)
+    if (selectedMaterials.length < minTargetVoices && selectedMaterials.length > 0 && materials.length > 0) {
+      while (selectedMaterials.length < minTargetVoices) {
         const baseMaterial = selectedMaterials[selectedMaterials.length % materials.length]
         selectedMaterials.push({
           ...baseMaterial,
@@ -599,7 +622,7 @@ class CompositionEngine {
       // Entry #169: Pass sectionContext for voice role application
       // Entry #180: Pass genre for genre-aware voice creation
       // Entry #202: Pass sectionLength so notes span full composition duration
-      const voice = this.counterpointEngine.createVoice(material, i, progression, this.compositionCount, sectionContext, genre, sectionLength)
+      const voice = this.counterpointEngine.createVoice(material, i, progression, this.compositionCount, sectionContext, genre, sectionLength, counterpointScale)
 
       // Entry #180: Voice may be null if genre doesn't need this many voices
       if (!voice) return null
@@ -1195,29 +1218,34 @@ class CompositionEngine {
    */
   generateFullAccompaniment(progression, style, sectionLength) {
     const genre = style?.forcedGenre || this._getDominantGenreFromWeights(style?.genreWeights) || 'melodic'
+    const counterpointScale = this._calculateCounterpointScale(this.totalActivityDensity)
 
     // Entry #211: Delegate to AccompanimentEngine for sophisticated generation
+    // Pass counterpointScale for density-aware velocity reduction
     return {
       bass_accomp: this.accompanimentEngine.generateBassAccompaniment(
         progression,
         genre,
         sectionLength,
         this.sectionContext,
-        this.compositionCount || 0
+        this.compositionCount || 0,
+        counterpointScale
       ),
       pad: this.accompanimentEngine.generatePadAccompaniment(
         progression,
         genre,
         sectionLength,
         this.sectionContext,
-        this.compositionCount || 0
+        this.compositionCount || 0,
+        counterpointScale
       ),
       keys: this.accompanimentEngine.generateKeysAccompaniment(
         progression,
         genre,
         sectionLength,
         this.sectionContext,
-        this.compositionCount || 0
+        this.compositionCount || 0,
+        counterpointScale
       )
     }
   }

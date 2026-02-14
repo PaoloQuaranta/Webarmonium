@@ -57,13 +57,13 @@ class CounterpointEngine {
    * @param {string} genre - Optional genre for genre-specific voice characteristics
    * @returns {Object} Voice with notes and metadata
    */
-  createVoice(material, voiceIndex, progression, compositionCount = 0, sectionContext = null, genre = 'melodic', sectionLength = 8) {
+  createVoice(material, voiceIndex, progression, compositionCount = 0, sectionContext = null, genre = 'melodic', sectionLength = 8, counterpointScale = 1.0) {
     // Store genre for use in other methods
     this._currentGenre = genre
 
     // If we have a SectionContext, use section-aware voice creation
     if (sectionContext) {
-      return this.createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext, genre, sectionLength)
+      return this.createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext, genre, sectionLength, counterpointScale)
     }
 
     // Entry #180: Get genre-aware voice role
@@ -91,7 +91,7 @@ class CounterpointEngine {
 
     // Generate voice based on role (pass compositionCount for temporal variation - Entry #114)
     // Entry #202: Pass sectionLength to spread notes across full duration
-    const voiceNotes = this.generateVoiceNotes(material, range, melodicProfile, progression, compositionCount, sectionLength)
+    const voiceNotes = this.generateVoiceNotes(material, range, melodicProfile, progression, compositionCount, sectionLength, counterpointScale)
 
     return {
       voiceType,
@@ -118,7 +118,7 @@ class CounterpointEngine {
    * @param {string} genre - Genre for genre-specific voice characteristics
    * @returns {Object} Voice with notes and metadata
    */
-  createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext, genre = 'melodic', sectionLength = 8) {
+  createVoiceWithSection(material, voiceIndex, progression, compositionCount, sectionContext, genre = 'melodic', sectionLength = 8, counterpointScale = 1.0) {
     // Entry #180: Get genre-aware voice role
     const voiceRole = this.getVoiceRole(voiceIndex, genre)
 
@@ -160,7 +160,7 @@ class CounterpointEngine {
     // Generate voice based on role with section context
     // Entry #202: Pass sectionLength to spread notes across full duration
     const voiceNotes = this.generateVoiceNotesWithSection(
-      material, range, melodicProfile, progression, compositionCount, voiceContext, sectionLength
+      material, range, melodicProfile, progression, compositionCount, voiceContext, sectionLength, counterpointScale
     )
 
     return {
@@ -263,7 +263,7 @@ class CounterpointEngine {
    * Generate voice notes with section context awareness
    * Entry #202: Added sectionLength parameter to spread notes across full duration
    */
-  generateVoiceNotesWithSection(material, range, profile, progression, compositionCount, voiceContext, sectionLength = 8) {
+  generateVoiceNotesWithSection(material, range, profile, progression, compositionCount, voiceContext, sectionLength = 8, counterpointScale = 1.0) {
     const voiceNotes = []
 
     // Entry #202: Calculate total beats from sectionLength (bars * 4 beats per bar)
@@ -292,9 +292,12 @@ class CounterpointEngine {
 
       // Entry #226→reduced: Minimum coverage for ALL roles in material notes path
       // Increased melody/harmony durations ~20% to reduce counterpoint verbosity
+      // Scaled by counterpointScale for density-aware reduction
       const expectedDurations = { melody: 0.6, harmony: 0.8, bass: 2.2, pad: 4.0 }
       const expectedDuration = expectedDurations[role] || 1.0
-      const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
+      const minNotesForCoverage = Math.max(1, Math.round(
+        Math.ceil(totalBeats / (expectedDuration * 0.85)) * counterpointScale
+      ))
       let notesToUse = material.notes
       if (material.notes.length < minNotesForCoverage) {
         // Extend sparse materials by repeating notes to ensure coverage
@@ -373,15 +376,19 @@ class CounterpointEngine {
       const role = profile.role || 'melody'
 
       // Entry #226→reduced: Lowered baseCounts ~20% to reduce counterpoint verbosity
+      // Scaled by counterpointScale for density-aware reduction
       const baseCounts = { melody: 8, harmony: 6, bass: 5, pad: 3 }
       const densityMultiplier = 0.5 + (voiceContext.rhythmicDensity || 0.5) * 1.0
-      const densityBasedCount = Math.round((baseCounts[role] || 5) * densityMultiplier)
+      const densityBasedCount = Math.max(1, Math.round((baseCounts[role] || 5) * densityMultiplier * counterpointScale))
 
       // Entry #226→reduced: Minimum coverage for ALL roles
       // Increased melody/harmony durations ~20% to reduce counterpoint verbosity
+      // Scaled by counterpointScale for density-aware reduction
       const expectedDurations = { melody: 0.6, harmony: 0.8, bass: 2.2, pad: 4.0 }
       const expectedDuration = expectedDurations[role] || 1.0
-      const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
+      const minNotesForCoverage = Math.max(1, Math.round(
+        Math.ceil(totalBeats / (expectedDuration * 0.85)) * counterpointScale
+      ))
       const noteCount = Math.max(densityBasedCount, minNotesForCoverage)
 
       // Entry #207: For small noteCount (< 6), use connected timing
@@ -612,7 +619,7 @@ class CounterpointEngine {
     return profile
   }
 
-  generateVoiceNotes(material, range, profile, progression, compositionCount = 0, sectionLength = 8) {
+  generateVoiceNotes(material, range, profile, progression, compositionCount = 0, sectionLength = 8, counterpointScale = 1.0) {
     const voiceNotes = []
 
     // Entry #202: Calculate total beats from sectionLength (bars * 4 beats per bar)
@@ -634,11 +641,14 @@ class CounterpointEngine {
       const role = profile.role || 'melody'
 
       // Entry #225d: Material notes path also needs minimum coverage for sparse voices
+      // Scaled by counterpointScale for density-aware reduction
       let notesToUse = material.notes
       if ((role === 'bass' || role === 'pad') && material.notes.length < 4) {
         const expectedDurations = { bass: 3.0, pad: 7.0 }
         const expectedDuration = expectedDurations[role]
-        const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
+        const minNotesForCoverage = Math.max(1, Math.round(
+          Math.ceil(totalBeats / (expectedDuration * 0.85)) * counterpointScale
+        ))
         const repeatCount = Math.ceil(minNotesForCoverage / material.notes.length)
         notesToUse = []
         for (let r = 0; r < repeatCount; r++) {
@@ -711,15 +721,18 @@ class CounterpointEngine {
       const role = profile.role || 'melody'
 
       // Entry #225b/c→reduced: Lowered melody/harmony ~20% to reduce counterpoint verbosity
+      // Scaled by counterpointScale for density-aware reduction
       const baseCounts = { melody: 6, harmony: 4, bass: 3, pad: 2 }
-      const baseCount = baseCounts[role] || 5
+      const baseCount = Math.max(1, Math.round((baseCounts[role] || 5) * counterpointScale))
 
       // Only sparse roles (bass, pad) need minimum coverage enforcement
       let noteCount = baseCount
       if (role === 'bass' || role === 'pad') {
         const expectedDurations = { bass: 3.0, pad: 7.0 }
         const expectedDuration = expectedDurations[role]
-        const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
+        const minNotesForCoverage = Math.max(1, Math.round(
+          Math.ceil(totalBeats / (expectedDuration * 0.85)) * counterpointScale
+        ))
         noteCount = Math.max(baseCount, minNotesForCoverage)
       }
 

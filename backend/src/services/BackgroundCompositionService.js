@@ -319,6 +319,14 @@ class BackgroundCompositionService {
   }
 
   /**
+   * Set RoomManager reference for activity density calculation
+   * @param {RoomManager} roomManager
+   */
+  setRoomManager(roomManager) {
+    this.roomManager = roomManager
+  }
+
+  /**
    * Set shared StyleAnalyzer singleton to eliminate redundant computation
    * When 3 services each had their own instance, every gesture triggered
    * analyzeGestureStyle() 3 times. Now all services share one instance.
@@ -1947,6 +1955,11 @@ class BackgroundCompositionService {
       // Use per-room engines
       const engines = this._getEngines(roomId)
 
+      // Get total activity density (real gestures + audition + sequencer + virtual users)
+      const totalActivityDensity = this.roomManager
+        ? this.roomManager.getTotalActivityDensity(roomId)
+        : 0
+
       // Entry #115: Save keyCenter before composition to detect changes
       const previousKeyCenter = engines.compositionEngine.keyCenter
 
@@ -1962,7 +1975,8 @@ class BackgroundCompositionService {
         compositionCount: roomState.compositionCount,
         sectionContext: sectionContext, // Entry #169: Add section context
         webMetrics: this._normalizeWebMetrics(), // Entry #171: Add web metrics for harmonic variety
-        gestureWeight: roomState.lastGestureWeight || 0.5 // Entry #NEW: Pass gestureWeight for tensionLevel
+        gestureWeight: roomState.lastGestureWeight || 0.5, // Entry #NEW: Pass gestureWeight for tensionLevel
+        totalActivityDensity // Density-aware counterpoint suppression
       })
 
       // Entry #224: Sync form/section changes from CompositionEngine to SectionStateManager
@@ -2013,7 +2027,8 @@ class BackgroundCompositionService {
             forcedGenre: forcedGenre,
             currentBPM: roomState.styleCycling?.currentBPM,
             energy: currentStyle?.energy || 0.5,
-            synthParams: synthParams // Entry #180: Pass synth params for genre-aware audio
+            synthParams: synthParams, // Entry #180: Pass synth params for genre-aware audio
+            activityDensity: totalActivityDensity // Room activity density for debug/awareness
           }
         })
 

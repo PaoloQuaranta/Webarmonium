@@ -225,7 +225,7 @@ class AccompanimentEngine {
    * @param {number} compositionCount - For PHI-based variation
    * @returns {Object} Bass accompaniment layer
    */
-  generateBassAccompaniment(progression, genre, sectionLength, sectionContext, compositionCount) {
+  generateBassAccompaniment(progression, genre, sectionLength, sectionContext, compositionCount, counterpointScale = 1.0) {
     if (!progression || progression.length === 0) {
       return { type: 'bass_accomp', notes: [], genre }
     }
@@ -241,7 +241,9 @@ class AccompanimentEngine {
     // Dynamic contour from section context
     const dynamicContour = sectionContext?.dynamicContour || 'stable'
     const harmonicTension = Math.max(0, Math.min(1, sectionContext?.harmonicTension || 0.5))
-    const baseVelocity = BASS_BASE_VELOCITY + (sectionContext?.dynamicLevel || 0.5) * BASS_DYNAMIC_RANGE
+    // Density-aware velocity: reduce when room is busy (0.6-1.0 range)
+    const densityVelocityMultiplier = 0.6 + counterpointScale * 0.4
+    const baseVelocity = (BASS_BASE_VELOCITY + (sectionContext?.dynamicLevel || 0.5) * BASS_DYNAMIC_RANGE) * densityVelocityMultiplier
 
     let previousPitch = this._previousVoicings.bass_accomp?.[0] || null
 
@@ -649,7 +651,7 @@ class AccompanimentEngine {
    * @param {number} compositionCount - For PHI-based variation
    * @returns {Object} Pad accompaniment layer
    */
-  generatePadAccompaniment(progression, genre, sectionLength, sectionContext, compositionCount) {
+  generatePadAccompaniment(progression, genre, sectionLength, sectionContext, compositionCount, counterpointScale = 1.0) {
     if (!progression || progression.length === 0) {
       return { type: 'pad', notes: [], genre, sustain: true }
     }
@@ -662,7 +664,9 @@ class AccompanimentEngine {
     // Dynamic parameters
     const dynamicContour = sectionContext?.dynamicContour || 'stable'
     const harmonicTension = Math.max(0, Math.min(1, sectionContext?.harmonicTension || 0.5))
-    const baseVelocity = genre === 'ambient' ? PAD_BASE_VELOCITY_AMBIENT : PAD_BASE_VELOCITY_DEFAULT
+    // Density-aware velocity: reduce when room is busy (0.6-1.0 range)
+    const densityVelocityMultiplier = 0.6 + counterpointScale * 0.4
+    const baseVelocity = (genre === 'ambient' ? PAD_BASE_VELOCITY_AMBIENT : PAD_BASE_VELOCITY_DEFAULT) * densityVelocityMultiplier
 
     // Stagger parameters based on genre and PHI
     const temporalOffset = ((compositionCount || 0) * PHI) % 1
@@ -781,7 +785,7 @@ class AccompanimentEngine {
    * @param {number} compositionCount - For PHI-based variation
    * @returns {Object} Keys accompaniment layer
    */
-  generateKeysAccompaniment(progression, genre, sectionLength, sectionContext, compositionCount) {
+  generateKeysAccompaniment(progression, genre, sectionLength, sectionContext, compositionCount, counterpointScale = 1.0) {
     if (!progression || progression.length === 0) {
       return { type: 'keys', notes: [], genre }
     }
@@ -798,7 +802,9 @@ class AccompanimentEngine {
     // Dynamic parameters
     const dynamicContour = sectionContext?.dynamicContour || 'stable'
     const harmonicTension = Math.max(0, Math.min(1, sectionContext?.harmonicTension || 0.5))
-    const baseVelocity = KEYS_BASE_VELOCITY + (sectionContext?.dynamicLevel || 0.5) * KEYS_DYNAMIC_RANGE
+    // Density-aware velocity: reduce when room is busy (0.6-1.0 range)
+    const densityVelocityMultiplier = 0.6 + counterpointScale * 0.4
+    const baseVelocity = (KEYS_BASE_VELOCITY + (sectionContext?.dynamicLevel || 0.5) * KEYS_DYNAMIC_RANGE) * densityVelocityMultiplier
 
     let previousVoicing = this._previousVoicings.keys
 
