@@ -375,7 +375,8 @@ class VirtualUserService extends BaseVirtualUserBehavior {
       sources,
       musicalContext: resolvedContext,
       isActive: true,
-      gestureGenerationTimer: null,
+      gestureGenerationTimers: new Map(),  // Per-source timers for staggered gestures
+      staggerTimers: [],  // Initial stagger setTimeout IDs (cleaned on deactivation)
       cursorInterpolationTimer: null,
       currentPositions,
       targetPositions
@@ -447,7 +448,8 @@ class VirtualUserService extends BaseVirtualUserBehavior {
       musicalContext: currentContext,
       isActive: true,
       isLanding: true,  // Flag for landing-specific behavior
-      gestureGenerationTimer: null,
+      gestureGenerationTimers: new Map(),  // Per-source timers for staggered gestures
+      staggerTimers: [],  // Initial stagger setTimeout IDs (cleaned on deactivation)
       cursorInterpolationTimer: null,
       metricsEmissionTimer: null,  // Timer for dashboard metrics updates
       currentPositions,
@@ -520,10 +522,20 @@ class VirtualUserService extends BaseVirtualUserBehavior {
       roomState.cursorInterpolationTimer = null
     }
 
-    // Stop gesture generation timer
-    if (roomState.gestureGenerationTimer) {
-      clearTimeout(roomState.gestureGenerationTimer)
-      roomState.gestureGenerationTimer = null
+    // Stop initial stagger timers (may be pending during startup)
+    if (roomState.staggerTimers) {
+      for (const timerId of roomState.staggerTimers) {
+        clearTimeout(timerId)
+      }
+      roomState.staggerTimers = []
+    }
+
+    // Stop all per-source gesture generation timers
+    if (roomState.gestureGenerationTimers) {
+      for (const [, timerId] of roomState.gestureGenerationTimers.entries()) {
+        clearTimeout(timerId)
+      }
+      roomState.gestureGenerationTimers.clear()
     }
 
     // Emit deactivation event
@@ -571,40 +583,44 @@ class VirtualUserService extends BaseVirtualUserBehavior {
     const roomState = this.activeRooms.get(roomId)
     if (!roomState) return
 
-    // Gesture generation cycle (schedule first)
-    this._scheduleNextGestureGeneration(roomId)
+    // Per-source gesture generation with staggered offsets
+    const defaultTempo = roomState.musicalContext?.tempo || 120
+    const defaultBeats = 16  // midpoint of 12-20 range
+    const defaultInterval = defaultBeats * (60000 / defaultTempo)
+
+    // Stagger formula: (i / n) distributes n sources across [0, 1-1/n) of interval
+    // 2 sources: [0, 0.5] → wikipedia fires immediately, hackernews at ~4s (at 120bpm)
+    roomState.sources.forEach((source, i) => {
+      const staggerDelay = (i / roomState.sources.length) * defaultInterval
+      const staggerTimerId = setTimeout(() => {
+        if (this.activeRooms.has(roomId) && roomState.isActive) {
+          this._scheduleNextGestureForSource(roomId, source)
+        }
+      }, staggerDelay)
+      roomState.staggerTimers.push(staggerTimerId)
+    })
   }
 
   /**
-   * Schedule next gesture generation cycle
-   * UNIFIED: Uses SAME tempo-based interval as LandingCompositionService
-   * Composition frequency emerges from metric activity (not random)
+   * Schedule next gesture generation for a SINGLE source
+   * Per-source timers create staggered, alternating gesture distribution
    * @param {string} roomId
+   * @param {string} source - Source name (e.g. 'wikipedia', 'hackernews')
    * @private
    */
-  _scheduleNextGestureGeneration(roomId) {
+  _scheduleNextGestureForSource(roomId, source) {
     const roomState = this.activeRooms.get(roomId)
     if (!roomState || !roomState.isActive) return
 
     // Get tempo from musical context
     const tempo = roomState.musicalContext?.tempo || 120
 
-    // Calculate activity level for each active source
-    // Same formula as LandingCompositionService
-    // Pass room's sourceBalancing for context-aware calculation (landing vs rooms)
-    let totalActivity = 0
-    let sourceCount = 0
-    for (const source of roomState.sources) {
-      const activity = this.calculateActivityLevel(source, roomState.sourceBalancing)
-      totalActivity += activity
-      sourceCount++
-    }
-    const avgActivity = sourceCount > 0 ? totalActivity / sourceCount : 0.5
+    // Calculate activity level for THIS source only (not average of all)
+    const activity = this.calculateActivityLevel(source, roomState.sourceBalancing)
 
-    // UNIFIED: Map activity to beats (same as Landing)
-    // Entry #174 addendum: Increased from 10-16 to 16-24 beats to reduce prolixity
-    // High activity = more frequent (16 beats), Low activity = sparse (24 beats)
-    const beatsPerComposition = 24 - (avgActivity * 8)  // 16-24 beats, emerges from activity
+    // Per-source interval: 12-20 beats (reduced from 16-24 for better distribution)
+    // High activity = more frequent (12 beats), Low activity = sparse (20 beats)
+    const beatsPerComposition = 20 - (activity * 8)  // 12-20 beats
 
     const beatDuration = 60000 / tempo  // milliseconds per beat
     const baseInterval = beatsPerComposition * beatDuration
@@ -624,63 +640,65 @@ class VirtualUserService extends BaseVirtualUserBehavior {
       const variance = velocities.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / velocities.length
       // Jitter proportional to variance (±30% max)
       const jitterRange = variance * baseInterval * 0.6
-      // Use PHI for deterministic pseudo-randomness based on gesture counter sum
-      const totalGestureCount = Object.values(this.gestureCounters).reduce((sum, c) => sum + c, 0)
-      const jitterPhase = (totalGestureCount * BaseVirtualUserBehavior.PHI) % 1
+      // Use PHI for deterministic pseudo-randomness based on gesture counter for this source
+      const sourceGestureCount = this.gestureCounters[source] || 0
+      const jitterPhase = (sourceGestureCount * BaseVirtualUserBehavior.PHI) % 1
       jitter = (jitterPhase - 0.5) * jitterRange
     }
     const interval = baseInterval + jitter
 
-    // Entry #222: Track interval for adaptive bounds (replaces hardcoded 4-12s)
-    // Use percentile normalization to derive dynamic min/max bounds
+    // Entry #222: Track interval for adaptive bounds
     this.normalizeGestureParam('intervalTiming', interval)
 
-    // Entry #222: Adaptive interval bounds based on historical distribution
-    // Rooms need faster cycles than Landing (2 sources vs 3)
+    // Adaptive interval bounds (3-10s for per-source, was 4-12s for combined)
     const stats = this._gestureStats.intervalTiming
-    let minInterval = 4000  // Fallback minimum (4s)
-    let maxInterval = 12000 // Fallback maximum (12s)
+    let minInterval = 3000  // Fallback minimum (3s)
+    let maxInterval = 10000 // Fallback maximum (10s)
 
     if (stats.samples.length >= 10) {
-      // Use P10 and P90 of historical intervals for adaptive bounds
       const sorted = [...stats.samples].sort((a, b) => a - b)
       const p10Idx = Math.floor(sorted.length * 0.1)
       const p90Idx = Math.floor(sorted.length * 0.9)
-      // Clamp derived bounds to reasonable limits (2s-20s)
-      minInterval = Math.max(2000, Math.min(8000, sorted[p10Idx]))
-      maxInterval = Math.max(6000, Math.min(20000, sorted[p90Idx]))
+      // Clamp derived bounds to reasonable limits (2s-15s)
+      minInterval = Math.max(2000, Math.min(6000, sorted[p10Idx]))
+      maxInterval = Math.max(5000, Math.min(15000, sorted[p90Idx]))
     }
 
     const clampedInterval = Math.max(minInterval, Math.min(maxInterval, interval))
 
-    roomState.gestureGenerationTimer = setTimeout(() => {
+    // Store per-source timer
+    const timerId = setTimeout(() => {
       // Defensive check: if room was deleted without proper deactivation, don't reschedule
       if (!this.activeRooms.has(roomId)) {
         return
       }
 
       try {
-        this._generateAndEmitGestures(roomId)
+        this._generateAndEmitGestureForSource(roomId, source)
       } catch (error) {
-        console.error(`⚠️ Gesture generation error for room ${roomId}:`, error.message)
+        console.error(`⚠️ Gesture generation error for source "${source}" in room ${roomId}:`, error.message)
         // Continue scheduling despite error to maintain service
       }
 
       // Only reschedule if room still exists and is active
-      if (this.activeRooms.has(roomId)) {
-        this._scheduleNextGestureGeneration(roomId)
+      // Re-fetch roomState to avoid stale closure reference after deactivate/reactivate
+      const currentRoomState = this.activeRooms.get(roomId)
+      if (currentRoomState && currentRoomState.isActive) {
+        this._scheduleNextGestureForSource(roomId, source)
       }
     }, clampedInterval)
+
+    roomState.gestureGenerationTimers.set(source, timerId)
   }
 
   /**
-   * Generate and emit virtual gestures for a room
-   * UNIFIED: Same gesture generation logic as LandingCompositionService
-   * Uses dynamic gesture intent based on activity level
+   * Generate and emit a virtual gesture for a SINGLE source
+   * Per-source method enables staggered, alternating gesture distribution
    * @param {string} roomId
+   * @param {string} source - Source name (e.g. 'wikipedia', 'hackernews')
    * @private
    */
-  _generateAndEmitGestures(roomId) {
+  _generateAndEmitGestureForSource(roomId, source) {
     const roomState = this.activeRooms.get(roomId)
     if (!roomState || !roomState.isActive || !this.io) return
 
@@ -691,72 +709,55 @@ class VirtualUserService extends BaseVirtualUserBehavior {
       return
     }
 
-    // Validate sources array
-    if (!roomState.sources || !Array.isArray(roomState.sources) || roomState.sources.length === 0) {
-      return
-    }
+    try {
+      // Validate source config exists
+      const config = this.virtualUserConfigs[source]
+      if (!config) return
 
-    for (const source of roomState.sources) {
-      try {
-        // Validate source config exists
-        const config = this.virtualUserConfigs[source]
-        if (!config) {
-          continue
-        }
+      const velocity = this.webMetricsPoller?.getVelocity(source) || 0
+      const absVelocity = Math.abs(velocity)
 
-        const velocity = this.webMetricsPoller?.getVelocity(source) || 0
-        const absVelocity = Math.abs(velocity)
-
-        // Update statistics for ALL metrics (same as Landing)
-        this.updateStatistics(source, 'velocity', absVelocity)
-        if (metrics[source]) {
-          for (const [metricName, value] of Object.entries(metrics[source])) {
-            if (typeof value === 'number') {
-              this.updateStatistics(source, metricName, value)
-            }
+      // Update statistics for ALL metrics (same as Landing)
+      this.updateStatistics(source, 'velocity', absVelocity)
+      if (metrics[source]) {
+        for (const [metricName, value] of Object.entries(metrics[source])) {
+          if (typeof value === 'number') {
+            this.updateStatistics(source, metricName, value)
           }
         }
-
-        // Entry #187f: SIMPLIFIED - Removed velocity-based gating entirely for rooms
-        // Problem: Velocity check blocked ALL gestures when metrics were stable (velocity ≈ 0)
-        // even though sources were active. The bypass logic was also ineffective.
-        // Solution: Use ONLY density filter for gesture gating. This gives predictable
-        // ~45-55% pass rate per cycle, resulting in ~2-3 gestures/minute per source.
-        // Landing keeps velocity check since it uses all 3 sources with more permissive thresholds.
-
-        const activityLevel = this.calculateActivityLevel(source, roomState.sourceBalancing)
-
-        // DENSITY FILTER: Probabilistic gesture emission with INVERSE activity modulation
-        // Low activity → higher density (more gestures pass, prevents silence)
-        // High activity → lower density (fewer gestures pass, prevents chaos)
-        // Entry #222: Adaptive density using percentile normalization
-        const rawDensity = this.gestureConfig.maxDensity -
-          (activityLevel * (this.gestureConfig.maxDensity - this.gestureConfig.baseDensityMultiplier))
-        const density = this.adaptiveGestureValue('gestureDensity', rawDensity, 0.4, 0.85)
-
-        if (Math.random() > density) {
-          // Skip this gesture probabilistically based on density
-          continue
-        }
-
-        // Entry #174: Select duration category using PHI-based cycling
-        // Guarantees balanced distribution: 20% taps, 30% short, 30% medium, 20% long
-        const { category, durationRange } = this.selectDurationCategory(source, roomState.sourceBalancing)
-
-        // Entry #187f fix: Calculate normalizedVelocity for gesture emission
-        // (needed by _emitTapGesture and _emitDragGesture for intensity/velocity values)
-        const normalizedVelocity = this.normalizeValue(source, 'velocity', absVelocity)
-
-        if (category === 'tap') {
-          this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
-        } else {
-          // Short, medium, and long all use drag with different duration ranges
-          this._emitDragGesture(roomId, source, config, roomState, normalizedVelocity, velocity, durationRange)
-        }
-      } catch (sourceError) {
-        console.error(`⚠️ VirtualUserService: Error generating gesture for source "${source}" in room ${roomId}:`, sourceError.message)
-        // Continue with other sources
       }
+
+      // Entry #187f: SIMPLIFIED - Removed velocity-based gating entirely for rooms
+      // Use ONLY density filter for gesture gating (~45-55% pass rate per cycle)
+
+      const activityLevel = this.calculateActivityLevel(source, roomState.sourceBalancing)
+
+      // DENSITY FILTER: Probabilistic gesture emission with INVERSE activity modulation
+      // Low activity → higher density (more gestures pass, prevents silence)
+      // High activity → lower density (fewer gestures pass, prevents chaos)
+      const rawDensity = this.gestureConfig.maxDensity -
+        (activityLevel * (this.gestureConfig.maxDensity - this.gestureConfig.baseDensityMultiplier))
+      const density = this.adaptiveGestureValue('gestureDensity', rawDensity, 0.4, 0.85)
+
+      if (Math.random() > density) {
+        // Skip this gesture probabilistically based on density
+        return
+      }
+
+      // Entry #174: Select duration category using PHI-based cycling
+      const { category, durationRange } = this.selectDurationCategory(source, roomState.sourceBalancing)
+
+      // Calculate normalizedVelocity for gesture emission
+      const normalizedVelocity = this.normalizeValue(source, 'velocity', absVelocity)
+
+      if (category === 'tap') {
+        this._emitTapGesture(roomId, source, config, roomState, normalizedVelocity)
+      } else {
+        // Short, medium, and long all use drag with different duration ranges
+        this._emitDragGesture(roomId, source, config, roomState, normalizedVelocity, velocity, durationRange)
+      }
+    } catch (sourceError) {
+      console.error(`⚠️ VirtualUserService: Error generating gesture for source "${source}" in room ${roomId}:`, sourceError.message)
     }
   }
 

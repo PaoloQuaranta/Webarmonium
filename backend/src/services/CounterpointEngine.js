@@ -290,9 +290,9 @@ class CounterpointEngine {
       const transposeInterval = Math.floor(temporalOffset * 5) - 2
       const role = profile.role || 'melody'
 
-      // Entry #226: Minimum coverage for ALL roles in material notes path (was only bass/pad)
-      // Ensures materials with few notes are extended to fill the section
-      const expectedDurations = { melody: 0.5, harmony: 1.0, bass: 3.0, pad: 7.0 }
+      // Entry #226→reduced: Minimum coverage for ALL roles in material notes path
+      // Increased melody/harmony durations ~20% to reduce counterpoint verbosity
+      const expectedDurations = { melody: 0.6, harmony: 1.2, bass: 3.0, pad: 7.0 }
       const expectedDuration = expectedDurations[role] || 1.0
       const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
       let notesToUse = material.notes
@@ -372,14 +372,14 @@ class CounterpointEngine {
       // Generate new voice based on role with section parameters
       const role = profile.role || 'melody'
 
-      // Entry #226: Raised baseCounts (was melody:8, harmony:5, bass:3, pad:2)
-      const baseCounts = { melody: 10, harmony: 7, bass: 4, pad: 3 }
+      // Entry #226→reduced: Lowered baseCounts ~20% to reduce counterpoint verbosity
+      const baseCounts = { melody: 8, harmony: 5, bass: 3, pad: 2 }
       const densityMultiplier = 0.5 + (voiceContext.rhythmicDensity || 0.5) * 1.0
       const densityBasedCount = Math.round((baseCounts[role] || 5) * densityMultiplier)
 
-      // Entry #226: Minimum coverage for ALL roles (was only bass/pad)
-      // Ensures every voice has enough notes to fill the section without audible gaps
-      const expectedDurations = { melody: 0.5, harmony: 1.0, bass: 3.0, pad: 7.0 }
+      // Entry #226→reduced: Minimum coverage for ALL roles
+      // Increased melody/harmony durations ~20% to reduce counterpoint verbosity
+      const expectedDurations = { melody: 0.6, harmony: 1.2, bass: 3.0, pad: 7.0 }
       const expectedDuration = expectedDurations[role] || 1.0
       const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
       const noteCount = Math.max(densityBasedCount, minNotesForCoverage)
@@ -710,8 +710,8 @@ class CounterpointEngine {
       // Generate new voice based on ROLE (not just activity)
       const role = profile.role || 'melody'
 
-      // Entry #225b/c: Note count scales with section for sparse voices only
-      const baseCounts = { melody: 8, harmony: 5, bass: 3, pad: 2 }
+      // Entry #225b/c→reduced: Lowered melody/harmony ~20% to reduce counterpoint verbosity
+      const baseCounts = { melody: 6, harmony: 4, bass: 3, pad: 2 }
       const baseCount = baseCounts[role] || 5
 
       // Only sparse roles (bass, pad) need minimum coverage enforcement
