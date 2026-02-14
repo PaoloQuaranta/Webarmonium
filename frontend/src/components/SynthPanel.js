@@ -205,11 +205,10 @@ class SynthPanel {
       } else if (this.audioService?.playSimpleNote) {
         this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
       }
+      // Pulse the audition button for visual feedback (local user only)
+      this._pulseButton('#synth-generate-btn')
+      this._pulseExternalButton()
     }
-
-    // Pulse the audition button for visual feedback
-    this._pulseButton('#synth-generate-btn')
-    this._pulseExternalButton()
   }
 
   /**
@@ -274,10 +273,9 @@ class SynthPanel {
       } else if (this.audioService?.playSimpleNote) {
         this.audioService.playSimpleNote(data.frequency, data.duration, data.velocity)
       }
+      this._pulseButton('#synth-sequencer-btn')
+      this._pulseExternalButton()
     }
-
-    this._pulseButton('#synth-sequencer-btn')
-    this._pulseExternalButton()
   }
 
   /**
@@ -293,10 +291,9 @@ class SynthPanel {
           this.audioService.playDrumHit(hit.drumInstrument, hit.velocity)
         }
       }
+      this._pulseButton('#synth-sequencer-btn')
+      this._pulseExternalButton()
     }
-
-    this._pulseButton('#synth-sequencer-btn')
-    this._pulseExternalButton()
   }
 
   /**
