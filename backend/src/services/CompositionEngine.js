@@ -7,8 +7,7 @@ const {
   getRhythmPattern,
   getArticulation,
   getSwingAmount,
-  getSyncopation,
-  getOrchestration
+  getSyncopation
 } = require('../utils/GenreCharacteristics')
 
 class CompositionEngine {
@@ -390,9 +389,17 @@ class CompositionEngine {
       allMaterial.push(...rawGestureMaterial)
     }
 
+    // Deduplicate by material ID — getMaterialForSection and getRecentMaterial
+    // pull from the same MaterialLibrary, so the same material can appear in both
+    const seen = new Set()
+    const deduplicated = allMaterial.filter(m => {
+      if (!m.id || seen.has(m.id)) return false
+      seen.add(m.id)
+      return true
+    })
+
     // Entry #PERF: Use partial sort for top K instead of full sort
-    // O(k·n) for small k, which beats O(n log n) full sort when k << n
-    return this._partialSortTopK(allMaterial, 5, (a, b) => {
+    return this._partialSortTopK(deduplicated, 5, (a, b) => {
       const scoreA = this.calculateMaterialScore(a, roomContext)
       const scoreB = this.calculateMaterialScore(b, roomContext)
       return scoreB - scoreA // Descending order (highest score first)
@@ -566,16 +573,25 @@ class CompositionEngine {
     // Entry #180: Get genre for genre-aware voice creation
     const genre = style?.forcedGenre || this._getDominantGenreFromWeights(style?.genreWeights) || 'melodic'
 
-    // Entry #206: Get orchestration config for this genre
-    const orchestration = getOrchestration(genre)
-
     // Entry #180: Use genre-specific voice count instead of fixed 4
     const genreConfig = getGenreCharacteristics(genre)
     const genreVoiceCount = genreConfig?.voiceConfig?.voiceCount || 4
     const maxVoices = Math.min(materials.length, genreVoiceCount)
     const selectedMaterials = materials.slice(0, maxVoices)
 
-// console.log(`🎼 Composing polyphonic section with ${maxVoices} voices for genre ${genre}`)
+    // Ensure at least 3 voices when genre supports them — derive from existing material
+    // CounterpointEngine.createVoice() assigns different roles/ranges by voiceIndex
+    // (soprano 60-79, alto 55-72, bass 36-55) so same material produces distinct voices
+    if (selectedMaterials.length < Math.min(genreVoiceCount, 3) && selectedMaterials.length > 0 && materials.length > 0) {
+      while (selectedMaterials.length < Math.min(genreVoiceCount, 3)) {
+        const baseMaterial = selectedMaterials[selectedMaterials.length % materials.length]
+        selectedMaterials.push({
+          ...baseMaterial,
+          id: `${baseMaterial.id}_derived_v${selectedMaterials.length}`,
+          metadata: { ...baseMaterial.metadata, isDerived: true }
+        })
+      }
+    }
 
     // Create voices for each material/user with DISTINCT ROLES
     const voicesRaw = selectedMaterials.map((material, i) => {
@@ -622,64 +638,28 @@ class CompositionEngine {
       })
     })
 
-    // Entry #206: Generate full accompaniment
+    // Generate full accompaniment (bass_accomp, pad, keys)
     const fullAccompaniment = this.generateFullAccompaniment(progression, style, sectionLength)
 
-    // Entry #206: Filter counterpoint voices based on orchestration
-    const activeVoices = voices.filter(v => {
-      // Map voice roles to orchestration counterpoint roles
-      const roleMap = {
-        'melody': 'melody',
-        'harmony': 'harmony',
-        'bass': 'bass_voice',
-        'pad': 'harmony'  // Pad voices treated as harmony
-      }
-      const mappedRole = roleMap[v.voiceRole] || v.voiceRole
-      return orchestration.counterpoint.includes(mappedRole) ||
-             orchestration.counterpoint.includes(v.voiceRole)
-    })
-
-    // Entry #206: Filter accompaniment based on orchestration
-    const activeAccompaniment = {}
-    if (orchestration.accompaniment.includes('bass_accomp') && fullAccompaniment.bass_accomp) {
-      activeAccompaniment.bass_accomp = fullAccompaniment.bass_accomp
-    }
-    if (orchestration.accompaniment.includes('pad') && fullAccompaniment.pad) {
-      activeAccompaniment.pad = fullAccompaniment.pad
-    }
-    if (orchestration.accompaniment.includes('keys') && fullAccompaniment.keys) {
-      activeAccompaniment.keys = fullAccompaniment.keys
-    }
-
-    // Entry #206: Apply velocity scaling from orchestration
-    const velocities = orchestration.velocities || {}
-    activeVoices.forEach(voice => {
-      const velocityScale = velocities[voice.voiceRole] || velocities.melody || 1.0
-      voice.notes.forEach(note => {
-        note.velocity = (note.velocity || 0.7) * velocityScale
+    // Clamp accompaniment velocities to safe range (0.10-0.80)
+    if (fullAccompaniment) {
+      Object.keys(fullAccompaniment).forEach(layer => {
+        if (fullAccompaniment[layer]?.notes) {
+          fullAccompaniment[layer].notes.forEach(note => {
+            note.velocity = Math.max(0.10, Math.min(0.80, note.velocity || 0.5))
+          })
+        }
       })
-    })
-
-    // Entry #219b: Apply velocity to accompaniment with clamping for consistency
-    Object.keys(activeAccompaniment).forEach(layer => {
-      const velocityScale = velocities[layer] || 0.5
-      if (activeAccompaniment[layer].notes) {
-        activeAccompaniment[layer].notes.forEach(note => {
-          const rawVelocity = (note.velocity || 0.6) * velocityScale
-          note.velocity = Math.max(0.10, Math.min(0.80, rawVelocity))
-        })
-      }
-    })
+    }
 
     return {
       type: 'polyphonic',
-      voices: activeVoices,
-      accompaniment: Object.keys(activeAccompaniment).length > 0 ? activeAccompaniment : null,
-      orchestration,  // Include for frontend debugging
+      voices: voices,
+      accompaniment: fullAccompaniment || null,
       progression,
       validation,
       duration: sectionLength,
-      texture: this.classifyTexture(activeVoices)
+      texture: this.classifyTexture(voices)
     }
   }
 
@@ -1198,7 +1178,7 @@ class CompositionEngine {
   /**
    * Entry #211: Generate full accompaniment using AccompanimentEngine
    * Creates bass_accomp, pad, and keys with voice leading, dynamics, and PHI variation
-   * Filtered by orchestration in composePolyphonic
+   * Used by composePolyphonic for accompaniment layers
    * @param {Array} progression - Chord progression
    * @param {Object} style - Style object with forcedGenre or genreWeights
    * @param {number} sectionLength - Section length in bars

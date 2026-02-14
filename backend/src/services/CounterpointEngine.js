@@ -292,7 +292,7 @@ class CounterpointEngine {
 
       // Entry #226→reduced: Minimum coverage for ALL roles in material notes path
       // Increased melody/harmony durations ~20% to reduce counterpoint verbosity
-      const expectedDurations = { melody: 0.6, harmony: 1.2, bass: 3.0, pad: 7.0 }
+      const expectedDurations = { melody: 0.6, harmony: 0.8, bass: 2.2, pad: 4.0 }
       const expectedDuration = expectedDurations[role] || 1.0
       const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
       let notesToUse = material.notes
@@ -373,13 +373,13 @@ class CounterpointEngine {
       const role = profile.role || 'melody'
 
       // Entry #226→reduced: Lowered baseCounts ~20% to reduce counterpoint verbosity
-      const baseCounts = { melody: 8, harmony: 5, bass: 3, pad: 2 }
+      const baseCounts = { melody: 8, harmony: 6, bass: 5, pad: 3 }
       const densityMultiplier = 0.5 + (voiceContext.rhythmicDensity || 0.5) * 1.0
       const densityBasedCount = Math.round((baseCounts[role] || 5) * densityMultiplier)
 
       // Entry #226→reduced: Minimum coverage for ALL roles
       // Increased melody/harmony durations ~20% to reduce counterpoint verbosity
-      const expectedDurations = { melody: 0.6, harmony: 1.2, bass: 3.0, pad: 7.0 }
+      const expectedDurations = { melody: 0.6, harmony: 0.8, bass: 2.2, pad: 4.0 }
       const expectedDuration = expectedDurations[role] || 1.0
       const minNotesForCoverage = Math.ceil(totalBeats / (expectedDuration * 0.85))
       const noteCount = Math.max(densityBasedCount, minNotesForCoverage)
@@ -1085,12 +1085,12 @@ class CounterpointEngine {
    * @returns {number} Expected duration in beats
    */
   _getExpectedDurationForRole(role) {
-    // Average durations from generateDurationByRole pools
+    // Must match expectedDurations in generateVoiceNotesWithSection
     const avgDurations = {
-      melody: 0.5,    // Fast notes (0.25-0.75 range)
-      harmony: 1.0,   // Medium notes (0.5-1.5 range)
-      bass: 3.0,      // Long notes (2.0-4.0 range)
-      pad: 7.0        // Very long notes (5.0-9.0 range)
+      melody: 0.6,
+      harmony: 0.8,
+      bass: 2.2,
+      pad: 4.0
     }
     return avgDurations[role] || 1.0
   }
