@@ -911,6 +911,11 @@ class SynthPanel {
     // Re-bind slider events and update values
     this._updateSliderValues()
     this._updateOscillatorSection()
+
+    // Re-attach filter button click listeners (lost when innerHTML was replaced)
+    this.panel?.querySelectorAll('.synth-filter-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => this._onFilterTypeChange(e))
+    })
   }
 
   /**
