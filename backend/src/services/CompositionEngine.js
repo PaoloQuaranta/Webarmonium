@@ -638,6 +638,15 @@ class CompositionEngine {
       })
     })
 
+    // Scale counterpoint velocities — keep voices present but not dominant
+    const cpVelocityScale = { melody: 0.75, harmony: 0.65, bass: 0.70, pad: 0.55 }
+    voices.forEach(voice => {
+      const scale = cpVelocityScale[voice.voiceRole] || 0.65
+      voice.notes.forEach(note => {
+        note.velocity = Math.max(0.10, Math.min(0.85, (note.velocity || 0.7) * scale))
+      })
+    })
+
     // Generate full accompaniment (bass_accomp, pad, keys)
     const fullAccompaniment = this.generateFullAccompaniment(progression, style, sectionLength)
 
