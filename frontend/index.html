@@ -267,13 +267,46 @@
       <!-- Right: Join Room (node-based design) -->
       <div class="join-section">
         <div class="node-btn-wrapper">
-          <a href="rooms.html" class="node-btn primary join-btn" aria-label="Join a Room">Join</a>
+          <button id="join-btn" class="node-btn primary join-btn" aria-label="Join a Room">Join</button>
           <span class="node-label">Rooms</span>
           <span id="rooms-activity" class="rooms-activity"></span>
           <span class="join-tooltip" id="join-tooltip">Join rooms to interact with other hoomans, or web sources if the room is empty. Free. No account required. <button class="join-tooltip-gotit" id="join-tooltip-gotit">got it</button></span>
         </div>
       </div>
     </section>
+
+    <!-- Join Modal — Listen or Jam choice -->
+    <div id="join-modal" class="join-modal" hidden>
+      <div class="join-modal-backdrop"></div>
+      <div class="join-modal-content">
+        <button class="join-modal-close" aria-label="Close">&times;</button>
+        <h2 class="join-modal-title">How do you want to join?</h2>
+        <div class="join-modal-choices">
+          <button class="join-modal-choice" id="join-choice-listen" aria-label="Join in listen mode to hear others play">
+            <svg class="join-modal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3v5z"/>
+              <path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3v5z"/>
+            </svg>
+            <span class="join-modal-choice-label">Listen</span>
+            <span class="join-modal-choice-desc">Hear and watch others play</span>
+          </button>
+          <button class="join-modal-choice" id="join-choice-jam" aria-label="Join in jam mode to create music together">
+            <svg class="join-modal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+            <span class="join-modal-choice-label">Jam</span>
+            <span class="join-modal-choice-desc">Create music together</span>
+          </button>
+        </div>
+        <div class="join-modal-rooms" id="join-modal-rooms" hidden>
+          <h3 class="join-modal-rooms-title">Choose a room</h3>
+          <div class="join-modal-rooms-list" id="join-modal-rooms-list"></div>
+        </div>
+      </div>
+    </div>
 
     <!-- Metrics Dashboard (separated from controls bar) -->
     <section id="metrics-dashboard">

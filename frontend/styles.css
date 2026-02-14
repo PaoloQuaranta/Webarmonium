@@ -1081,6 +1081,396 @@ button:disabled {
   }
 }
 
+/* ============================================================
+   Join Modal — Listen / Jam choice
+   ============================================================ */
+.join-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.join-modal.visible {
+  opacity: 1;
+}
+
+.join-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.join-modal-content {
+  position: relative;
+  background: var(--ui-bg, rgba(10, 10, 20, 0.95));
+  border: 1px solid var(--line, rgba(42, 42, 56, 0.8));
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 440px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme="light"] .join-modal-content {
+  background: var(--ui-bg, rgba(245, 245, 248, 0.95));
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.join-modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: var(--dim, #888);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.15s;
+}
+
+.join-modal-close:hover {
+  color: var(--light, #e0e0f0);
+}
+
+.join-modal-title {
+  margin: 0 0 1.5rem 0;
+  font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--bright, #e0e0f0);
+  text-align: center;
+}
+
+.join-modal-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.join-modal-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem 1rem;
+  background: transparent;
+  border: 1.5px solid var(--line, rgba(42, 42, 56, 0.8));
+  border-radius: 10px;
+  color: var(--dim, #888);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.join-modal-choice:hover {
+  border-color: var(--accent, #2dd4bf);
+  color: var(--light, #e0e0f0);
+  background: rgba(45, 212, 191, 0.06);
+}
+
+:root[data-theme="light"] .join-modal-choice:hover {
+  background: rgba(45, 212, 191, 0.1);
+}
+
+.join-modal-choice:active {
+  transform: scale(0.97);
+}
+
+.join-modal-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.join-modal-choice-label {
+  font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+  font-size: 1rem;
+  font-weight: 600;
+  color: inherit;
+}
+
+.join-modal-choice-desc {
+  font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+  font-size: 0.75rem;
+  color: var(--muted, #555);
+  text-align: center;
+}
+
+/* Room selector within modal */
+.join-modal-rooms {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--line, rgba(42, 42, 56, 0.8));
+  padding-top: 1rem;
+}
+
+.join-modal-rooms-title {
+  margin: 0 0 0.75rem 0;
+  font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--dim, #888);
+  text-align: center;
+}
+
+.join-modal-rooms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.join-modal-room-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: 1px solid var(--line, rgba(42, 42, 56, 0.8));
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  color: var(--dim, #888);
+}
+
+.join-modal-room-card:hover {
+  border-color: var(--accent, #2dd4bf);
+  background: rgba(45, 212, 191, 0.06);
+}
+
+.room-card-name {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85rem;
+  color: var(--light, #e0e0f0);
+}
+
+.room-card-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.room-card-jammers {
+  font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+  font-size: 0.75rem;
+  color: var(--muted, #555);
+}
+
+.room-card-badge {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+
+.room-card-badge.available {
+  color: var(--accent, #2dd4bf);
+  border: 1px solid var(--accent, #2dd4bf);
+}
+
+.room-card-badge.full {
+  color: var(--node-1, #ff6b6b);
+  border: 1px solid var(--node-1, #ff6b6b);
+}
+
+/* Mobile: single column for modal choices */
+@media (max-width: 600px) {
+  .join-modal-choices {
+    grid-template-columns: 1fr;
+  }
+  .join-modal-content {
+    padding: 1.5rem;
+  }
+}
+
+/* ============================================================
+   Listen Mode — Jam button, Room selector, Listening indicator
+   ============================================================ */
+
+/* Jam button in room controls (listen mode) */
+.jam-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  width: auto;
+  min-width: 52px;
+  height: 52px;
+  padding: 0 0.75rem;
+  border: 1.5px solid var(--accent, #2dd4bf);
+  border-radius: 50px;
+  background: transparent;
+  color: var(--accent, #2dd4bf);
+  font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, opacity 0.2s;
+}
+
+.jam-btn:hover {
+  background: rgba(45, 212, 191, 0.12);
+}
+
+.jam-btn:active {
+  transform: scale(0.95);
+}
+
+.jam-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.jam-btn svg {
+  width: 1.1em;
+  height: 1.1em;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .jam-btn {
+    height: 44px;
+    min-width: 44px;
+    padding: 0 0.6rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* Room selector dropdown */
+.room-selector-wrapper {
+  position: relative;
+}
+
+.room-selector-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  width: auto;
+  min-width: 52px;
+  height: 52px;
+  padding: 0 0.75rem;
+  border: 1.5px solid var(--line, rgba(42, 42, 56, 0.8));
+  border-radius: 50px;
+  background: transparent;
+  color: var(--dim, #888);
+  font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.room-selector-btn:hover {
+  border-color: var(--light, #e0e0f0);
+  color: var(--light, #e0e0f0);
+}
+
+.room-selector-btn svg {
+  width: 1em;
+  height: 1em;
+}
+
+.room-dropdown {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  right: 0;
+  min-width: 200px;
+  background: var(--ui-bg, rgba(10, 10, 20, 0.95));
+  border: 1px solid var(--line, rgba(42, 42, 56, 0.8));
+  border-radius: 8px;
+  padding: 0.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+}
+
+:root[data-theme="light"] .room-dropdown {
+  background: var(--ui-bg, rgba(245, 245, 248, 0.95));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.room-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--dim, #888);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.room-dropdown-item:hover {
+  background: rgba(45, 212, 191, 0.08);
+  color: var(--light, #e0e0f0);
+}
+
+.room-dropdown-item.current {
+  color: var(--accent, #2dd4bf);
+}
+
+.room-dropdown-item .room-dropdown-count {
+  font-size: 0.7rem;
+  color: var(--muted, #555);
+}
+
+@media (max-width: 768px) {
+  .room-selector-btn {
+    height: 44px;
+    min-width: 44px;
+    padding: 0 0.6rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* Listening indicator pill */
+.listening-indicator {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  background: var(--ui-bg, rgba(10, 10, 20, 0.7));
+  border: 1px solid var(--line, rgba(42, 42, 56, 0.8));
+  border-radius: 50px;
+  font-family: var(--font-body, 'Space Grotesk', system-ui, sans-serif);
+  font-size: 0.75rem;
+  color: var(--dim, #888);
+  z-index: 100;
+  pointer-events: none;
+}
+
+.listening-indicator svg {
+  width: 0.9em;
+  height: 0.9em;
+  opacity: 0.7;
+}
+
+@media (max-width: 768px) {
+  .listening-indicator {
+    bottom: 0.75rem;
+    left: 0.75rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.7rem;
+  }
+}
+
 .node-label {
   margin-top: 0.4rem;
   font-family: var(--font-mono);

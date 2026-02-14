@@ -32,6 +32,7 @@ const socketHandlers = {
     AuthHandler.registerJoinLandingHandler(socket)
     AuthHandler.registerJoinRoomHandler(socket)
     AuthHandler.registerLeaveRoomHandler(socket)
+    AuthHandler.registerPromoteToJammerHandler(socket)
     AuthHandler.registerHeartbeatHandler(socket)
     AuthHandler.registerDisconnectionHandler(socket)
     AuthHandler.registerRequestDroneHandler(socket)  // Entry #27: drone restart support

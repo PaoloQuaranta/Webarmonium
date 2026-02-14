@@ -63,6 +63,12 @@ const MusicalHandler = {
     socket.on('hold:start', async (data, callback) => {
       const startTime = Date.now()
 
+      // Listener guard
+      const guardRoom = socket.services.roomManager.getRoom(socket.roomId)
+      if (guardRoom?.isListener(socket.userId)) {
+        return ValidationHandler.sendError(callback, 'PERMISSION_DENIED', 'Listeners cannot create gestures')
+      }
+
       try {
         // Centralized rate limiting
         const limitResult = RateLimiter.checkLimit('hold:start', socket)
@@ -154,6 +160,12 @@ const MusicalHandler = {
     socket.on('hold:end', async (data, callback) => {
       const startTime = Date.now()
 
+      // Listener guard
+      const guardRoom = socket.services.roomManager.getRoom(socket.roomId)
+      if (guardRoom?.isListener(socket.userId)) {
+        return ValidationHandler.sendError(callback, 'PERMISSION_DENIED', 'Listeners cannot create gestures')
+      }
+
       try {
         // Centralized rate limiting
         const limitResult = RateLimiter.checkLimit('hold:end', socket)
@@ -216,6 +228,12 @@ const MusicalHandler = {
    */
   registerNoteStreamHandler (socket) {
     socket.on('note:stream', async (data, callback) => {
+      // Listener guard
+      const guardRoom = socket.services.roomManager.getRoom(socket.roomId)
+      if (guardRoom?.isListener(socket.userId)) {
+        return ValidationHandler.sendError(callback, 'PERMISSION_DENIED', 'Listeners cannot create gestures')
+      }
+
       try {
         // Validate session
         if (!socket.userId || !socket.roomId) {

@@ -34,6 +34,9 @@ class Room {
 
     // SUSTAINED HOLD: Track active sustained holds for disconnect cleanup
     this.activeHolds = new Map() // noteId -> { userId, startTime, noteId, frequency, position }
+
+    // LISTEN MODE: Passive listeners (do NOT count toward maxUsers capacity)
+    this.listeners = new Map() // userId -> User object
   }
 
   /**
@@ -393,10 +396,12 @@ class Room {
    */
   shouldCleanup () {
     // Room can be cleaned up if:
-    // 1. Empty for more than 24 hours AND memory expired
+    // 1. Empty (no jammers AND no listeners) AND memory expired
     // 2. No activity for more than 48 hours (safety cleanup)
+    // 3. Listener-only rooms (0 jammers, >0 listeners) after 1 hour
 
-    if (this.isEmpty() && this.memoryState && this.memoryState.isExpired()) {
+    if (this.isEmpty() && this.listeners.size === 0 &&
+        this.memoryState && this.memoryState.isExpired()) {
       return true
     }
 
@@ -405,7 +410,17 @@ class Room {
       ? this.lastActivity.getTime()
       : (typeof this.lastActivity === 'number' ? this.lastActivity : Date.now())
     const hoursSinceActivity = (Date.now() - lastActivityTime) / (1000 * 60 * 60)
-    return hoursSinceActivity > 48
+
+    if (hoursSinceActivity > 48) {
+      return true
+    }
+
+    // Listener-only rooms: clean up after 1 hour to prevent accumulation
+    if (this.isEmpty() && this.listeners.size > 0 && hoursSinceActivity > 1) {
+      return true
+    }
+
+    return false
   }
 
   /**
@@ -414,6 +429,59 @@ class Room {
    */
   getActiveUsers () {
     return this.getUsers().filter(user => user.isActive)
+  }
+
+  // ── LISTEN MODE METHODS ──
+
+  /**
+   * Add a passive listener to the room (does NOT count toward capacity)
+   * @param {User} user - User instance to add as listener
+   * @throws {Error} If user is already listening
+   */
+  addListener (user) {
+    if (this.listeners.has(user.id)) {
+      throw new Error('User already listening to this room')
+    }
+    this.listeners.set(user.id, user)
+    user.joinRoom(this.id)
+    this.updateActivity()
+
+    if (!this.isActive) {
+      this.isActive = true
+    }
+  }
+
+  /**
+   * Remove a listener from the room
+   * @param {string} userId - Listener user ID to remove
+   * @returns {User|null} Removed user or null if not found
+   */
+  removeListener (userId) {
+    const user = this.listeners.get(userId)
+    if (!user) {
+      return null
+    }
+    this.listeners.delete(userId)
+    user.leaveRoom()
+    this.updateActivity()
+    return user
+  }
+
+  /**
+   * Check if a user is a listener in this room
+   * @param {string} userId - User ID to check
+   * @returns {boolean}
+   */
+  isListener (userId) {
+    return this.listeners.has(userId)
+  }
+
+  /**
+   * Get current listener count
+   * @returns {number}
+   */
+  getListenerCount () {
+    return this.listeners.size
   }
 
   /**

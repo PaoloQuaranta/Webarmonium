@@ -301,6 +301,9 @@ class LandingApp {
 
       requestAnimationFrame(() => initVisualService(0))
 
+      // Setup join modal (listen/jam choice)
+      this._setupJoinModal()
+
       // Setup socket connection immediately for metrics updates
       // (audio/visuals only start when user presses Start)
       this._setupSocketConnection()
@@ -339,6 +342,127 @@ class LandingApp {
       mockToggle.parentElement.remove()
       // console.log('🗑️ Mock mode toggle removed (backend handles metrics)')
     }
+  }
+
+  /**
+   * Setup join modal — Listen or Jam choice
+   * Fetches room lobby to determine if listeners can join
+   * @private
+   */
+  _setupJoinModal() {
+    const joinBtn = document.getElementById('join-btn')
+    const modal = document.getElementById('join-modal')
+    const backdrop = modal?.querySelector('.join-modal-backdrop')
+    const closeBtn = modal?.querySelector('.join-modal-close')
+    const listenBtn = document.getElementById('join-choice-listen')
+    const jamBtn = document.getElementById('join-choice-jam')
+    const roomsSection = document.getElementById('join-modal-rooms')
+    const roomsList = document.getElementById('join-modal-rooms-list')
+
+    if (!joinBtn || !modal) return
+
+    const showModal = () => {
+      modal.hidden = false
+      requestAnimationFrame(() => modal.classList.add('visible'))
+    }
+
+    const hideModal = () => {
+      modal.classList.remove('visible')
+      setTimeout(() => { modal.hidden = true }, 250)
+    }
+
+    // Close modal on backdrop click or close button
+    backdrop?.addEventListener('click', hideModal)
+    closeBtn?.addEventListener('click', hideModal)
+
+    // Join button click — fetch lobby, decide what to show
+    joinBtn.addEventListener('click', async () => {
+      try {
+        const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+        const baseUrl = isDevelopment
+          ? 'http://localhost:3001'
+          : `${window.location.protocol}//${window.location.host}`
+
+        const response = await fetch(`${baseUrl}/api/rooms/lobby`)
+        const data = await response.json()
+
+        // Filter rooms that have active jammers
+        const occupiedRooms = (data.rooms || []).filter(r => r.userCount > 0)
+
+        if (occupiedRooms.length === 0) {
+          // No active rooms — go directly to jam mode (current behavior)
+          window.location.href = 'rooms.html'
+          return
+        }
+
+        // Rooms have jammers — show modal with Listen/Jam choice
+        // Store lobby data for listen choice
+        this._lobbyRooms = occupiedRooms
+
+        // Reset room section visibility
+        if (roomsSection) roomsSection.hidden = true
+
+        showModal()
+      } catch (error) {
+        // Fetch failed — fallback to direct navigation (current behavior)
+        console.error('Lobby fetch failed:', error)
+        window.location.href = 'rooms.html'
+      }
+    })
+
+    // Jam button — go directly to rooms.html as jammer
+    jamBtn?.addEventListener('click', () => {
+      hideModal()
+      window.location.href = 'rooms.html?mode=jam'
+    })
+
+    // Listen button — show room selector or navigate directly
+    listenBtn?.addEventListener('click', () => {
+      const rooms = this._lobbyRooms || []
+
+      if (rooms.length === 1) {
+        // Single room — navigate directly
+        hideModal()
+        window.location.href = `rooms.html?room=${encodeURIComponent(rooms[0].roomId)}&mode=listen`
+        return
+      }
+
+      // Multiple rooms — show room selector
+      if (roomsSection && roomsList) {
+        roomsList.innerHTML = ''
+        for (const room of rooms) {
+          const card = document.createElement('button')
+          card.className = 'join-modal-room-card'
+          const count = parseInt(room.userCount, 10) || 0
+          const hasSpace = room.hasSpace === true
+          card.innerHTML = `
+            <span class="room-card-name">${this._escapeHtml(room.roomId)}</span>
+            <span class="room-card-info">
+              <span class="room-card-jammers">${count} jammer${count !== 1 ? 's' : ''}</span>
+              <span class="room-card-badge ${hasSpace ? 'available' : 'full'}">${hasSpace ? 'Available' : 'Full'}</span>
+            </span>
+          `
+          card.addEventListener('click', () => {
+            hideModal()
+            window.location.href = `rooms.html?room=${encodeURIComponent(room.roomId)}&mode=listen`
+          })
+          roomsList.appendChild(card)
+        }
+        roomsSection.hidden = false
+      }
+    })
+  }
+
+  /**
+   * Escape HTML to prevent XSS in dynamic content
+   * @param {string} str - String to escape
+   * @returns {string} Escaped string
+   * @private
+   */
+  _escapeHtml(str) {
+    const div = document.createElement('div')
+    div.textContent = str
+    return div.innerHTML
   }
 
   /**

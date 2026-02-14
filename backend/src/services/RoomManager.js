@@ -93,9 +93,10 @@ class RoomManager {
    * @param {string} userId - User ID
    * @param {string} roomId - Room ID to join
    * @param {Object} userData - User connection data
+   * @param {string} mode - Join mode: 'jam' (default) or 'listen'
    * @returns {Object} Room join result
    */
-  async joinRoom (userId, roomId, userData = {}) {
+  async joinRoom (userId, roomId, userData = {}, mode = 'jam') {
     // Validate inputs
     if (!userId || !roomId) {
       throw new Error('User ID and Room ID are required')
@@ -132,11 +133,52 @@ class RoomManager {
       this.metricsAnalyzers.set(roomId, metricsAnalyzer)
     }
 
+    // ── LISTEN MODE: Join as passive listener ──
+    if (mode === 'listen') {
+      // Listeners need someone to listen to
+      if (room.getUserCount() === 0) {
+        throw new Error('ROOM_EMPTY: No active jammers in this room')
+      }
+
+      const user = new User(userId, userData)
+      room.addListener(user)
+      this.userRoomMap.set(userId, roomId)
+
+      // Assign color for visual identity (cursor, etc.) but NO synth slot
+      const colorService = this.colorServices.get(roomId)
+      const assignedColor = colorService.assignColor(userId)
+      user.assignColor(assignedColor)
+
+      const allUsers = room.getUsers().map(u => ({
+        id: u.id,
+        color: u.assignedColor,
+        slot: u.assignedSlot
+      }))
+
+      return {
+        success: true,
+        userId: user.id,
+        assignedColor,
+        assignedSlot: null,
+        userType: 'listener',
+        canPromote: !room.isFull(),
+        users: allUsers,
+        room: room.toRoomJoinedResponse(),
+        user: user.toUserProfile(),
+        memoryInfluence: room.getMemoryInfluence(),
+        otherUsers: room.getUsers().map(u => u.toUserProfile()),
+        redirectedFrom: null,
+        modeTransition: null
+      }
+    }
+
+    // ── JAM MODE (existing logic, unchanged) ──
+
     // Check room capacity - if full, create overflow room
     if (room.isFull()) {
       const overflowRoomId = this.createOverflowRoom(roomId)
       // Recursively join the overflow room
-      return this.joinRoom(userId, overflowRoomId, { ...userData, redirectedFrom: roomId })
+      return this.joinRoom(userId, overflowRoomId, { ...userData, redirectedFrom: roomId }, mode)
     }
 
     // Create user instance
@@ -155,8 +197,6 @@ class RoomManager {
     let assignedSlot = null
     try {
       assignedSlot = room.assignSlotToUser(user)
-      // console.log(`🎹 Slot assignment SUCCESS: slot=${assignedSlot} for user ${userId.substring(0, 8)} in room ${roomId}`)
-      // console.log(`   Available slots remaining: ${room.availableSlots ? Array.from(room.availableSlots) : 'N/A'}`)
     } catch (slotError) {
       console.error(`⚠️ Slot assignment FAILED for ${userId.substring(0, 8)}: ${slotError.message}`)
       console.error(`   Available slots: ${room.availableSlots ? Array.from(room.availableSlots) : 'N/A'}`)
@@ -177,12 +217,9 @@ class RoomManager {
     const modeChange = room.updateMode()
     let modeTransitionInfo = null
 
-    // console.log(`🔄 RoomManager.joinRoom: roomId=${roomId}, userCount=${room.getUserCount()}, modeChange=${JSON.stringify(modeChange)}, hasVirtualUserService=${!!this.virtualUserService}`)
-
     if (room.getUserCount() === 1 && this.virtualUserService) {
       // First user joined: activate virtual users
       const activeSources = this.virtualUserService.getMostActiveSources()
-      // console.log(`🎭 Activating virtual users for room ${roomId}: ${activeSources.join(', ')}`)
       this.virtualUserService.activateForRoom(roomId, activeSources, {
         key: 'C',
         mode: 'ionian',
@@ -192,7 +229,6 @@ class RoomManager {
       room.addVirtualUser(activeSources[1] + '-metrics', this.virtualUserService.virtualUserConfigs[activeSources[1]])
     } else if (modeChange.changed && modeChange.to === 'multi' && this.virtualUserService) {
       // Transition from solo to multi: deactivate virtual users
-      // console.log(`🎭 Deactivating virtual users for room ${roomId} (mode: solo→multi)`)
       this.virtualUserService.deactivateForRoom(roomId, true)
       room.clearVirtualUsers()
 
@@ -212,6 +248,7 @@ class RoomManager {
     return {
       success: true,
       userId: user.id,
+      userType: 'jammer',
       assignedColor,
       assignedSlot,
       users: allUsers,
@@ -227,7 +264,7 @@ class RoomManager {
   }
 
   /**
-   * Remove user from room
+   * Remove user from room (handles both jammers and listeners)
    * @param {string} userId - User ID to remove
    * @returns {Object} Leave result
    */
@@ -242,6 +279,35 @@ class RoomManager {
       throw new Error('Room not found')
     }
 
+    // Check if user is a listener — different cleanup path
+    if (room.isListener(userId)) {
+      const user = room.removeListener(userId)
+      this.userRoomMap.delete(userId)
+
+      if (!user) {
+        throw new Error('Listener not found in room')
+      }
+
+      // Release listener's color back to pool
+      const colorService = this.colorServices.get(roomId)
+      if (colorService) {
+        colorService.releaseColor(userId)
+      }
+
+      // Remove cursor position
+      room.removeCursorPosition(userId)
+
+      return {
+        success: true,
+        userId,
+        roomId,
+        wasListener: true,
+        remainingUsers: room.getUserCount(),
+        remainingListeners: room.getListenerCount()
+      }
+    }
+
+    // ── JAMMER leave path (existing logic) ──
     const user = room.removeUser(userId)
     this.userRoomMap.delete(userId)
 
@@ -257,7 +323,6 @@ class RoomManager {
 
     // Release user's synth slot back to room pool
     room.releaseUserSlot(user)
-    // console.log(`🎹 Released slot from user ${userId.substring(0, 8)} in room ${roomId}`)
 
     // Cancel any active drawing stroke
     const drawingService = this.drawingServices.get(roomId)
@@ -272,17 +337,16 @@ class RoomManager {
       success: true,
       userId,
       roomId,
-      remainingUsers: room.getUserCount()
+      wasListener: false,
+      remainingUsers: room.getUserCount(),
+      remainingListeners: room.getListenerCount()
     }
 
     // Handle mode transitions
     const modeChange = room.updateMode()
 
-    // console.log(`🔄 RoomManager.leaveRoom: roomId=${roomId}, userCount=${room.getUserCount()}, isEmpty=${room.isEmpty()}, modeChange=${JSON.stringify(modeChange)}, hasVirtualUserService=${!!this.virtualUserService}`)
-
     if (room.isEmpty()) {
-      // Room is now empty: deactivate virtual users and start memory expiration
-      // console.log(`🎭 Deactivating virtual users for empty room ${roomId}`)
+      // Room is now empty of jammers: deactivate virtual users and start memory expiration
       if (this.virtualUserService) {
         this.virtualUserService.deactivateForRoom(roomId, false)
       }
@@ -292,7 +356,6 @@ class RoomManager {
     } else if (modeChange.changed && modeChange.to === 'solo' && this.virtualUserService) {
       // Transition from multi to solo: activate virtual users
       const activeSources = this.virtualUserService.getMostActiveSources()
-      // console.log(`🎭 Reactivating virtual users for room ${roomId} (mode: multi→solo): ${activeSources.join(', ')}`)
       this.virtualUserService.activateForRoom(roomId, activeSources, {
         key: 'C',
         mode: 'ionian',
@@ -302,7 +365,7 @@ class RoomManager {
       room.addVirtualUser(activeSources[1] + '-metrics', this.virtualUserService.virtualUserConfigs[activeSources[1]])
       result.modeTransition = { from: 'multi', to: 'solo' }
 
-      // Emit mode-transition event for multi→solo (consistent with solo→multi in joinRoom)
+      // Emit mode-transition event for multi→solo
       if (this.io) {
         this.io.to(roomId).emit('mode-transition', {
           from: 'multi',
@@ -315,6 +378,71 @@ class RoomManager {
     }
 
     return result
+  }
+
+  /**
+   * Promote a listener to jammer status (atomic check-and-promote)
+   * Node.js is single-threaded so isFull() check + addUser execute atomically
+   * @param {string} userId - Listener user ID
+   * @param {string} roomId - Room ID
+   * @returns {Object} Promotion result
+   */
+  promoteToJammer (userId, roomId) {
+    const room = this.rooms.get(roomId)
+    if (!room) {
+      return { success: false, error: 'ROOM_NOT_FOUND', message: 'Room not found' }
+    }
+
+    if (!room.isListener(userId)) {
+      return { success: false, error: 'NOT_LISTENER', message: 'User is not a listener in this room' }
+    }
+
+    // Atomic: check capacity before promotion
+    if (room.isFull()) {
+      return { success: false, error: 'ROOM_FULL', message: 'Room is full — cannot promote to jammer' }
+    }
+
+    // Move from listeners → users
+    const user = room.listeners.get(userId)
+    room.listeners.delete(userId)
+    room.addUser(user)
+
+    // Assign synth slot
+    let assignedSlot = null
+    try {
+      assignedSlot = room.assignSlotToUser(user)
+    } catch (slotError) {
+      console.error(`⚠️ Slot assignment FAILED during promotion for ${userId.substring(0, 8)}: ${slotError.message}`)
+    }
+
+    // Handle mode transitions (listener→jammer may change solo→multi)
+    const modeChange = room.updateMode()
+    let modeTransitionInfo = null
+
+    if (modeChange.changed && modeChange.to === 'multi' && this.virtualUserService) {
+      this.virtualUserService.deactivateForRoom(roomId, true)
+      room.clearVirtualUsers()
+
+      if (this.io) {
+        this.io.to(roomId).emit('mode-transition', {
+          from: 'solo',
+          to: 'multi',
+          message: 'Another user joined - virtual voices are being replaced',
+          duration: 3000,
+          timestamp: Date.now()
+        })
+      }
+      modeTransitionInfo = { from: 'solo', to: 'multi' }
+    }
+
+    return {
+      success: true,
+      userId: user.id,
+      assignedSlot,
+      assignedColor: user.assignedColor,
+      userType: 'jammer',
+      modeTransition: modeTransitionInfo
+    }
   }
 
   /**
@@ -639,10 +767,15 @@ class RoomManager {
       if (room.shouldCleanup()) {
         roomsToDelete.push(roomId)
 
-        // Remove all remaining users from room mapping
+        // Remove all remaining users (jammers) from room mapping
         room.getUsers().forEach(user => {
           this.userRoomMap.delete(user.id)
           stats.usersRemoved++
+        })
+
+        // Remove all remaining listeners from room mapping
+        room.listeners.forEach((listener, listenerId) => {
+          this.userRoomMap.delete(listenerId)
         })
 
         if (room.memoryState && room.memoryState.isExpired()) {
@@ -702,17 +835,16 @@ class RoomManager {
    */
   getRoomLobby (limit = 10) {
     return Array.from(this.rooms.values())
-      .filter(room => room.isActive && !room.isFull())
+      .filter(room => room.isActive && room.getUserCount() > 0) // Only rooms with active jammers
       .sort((a, b) => b.getUserCount() - a.getUserCount()) // Most active first
       .slice(0, limit)
       .map(room => ({
         roomId: room.id,
         userCount: room.getUserCount(),
+        listenerCount: room.getListenerCount(),
         maxUsers: room.maxUsers,
+        hasSpace: !room.isFull(),
         hasMemory: room.memoryState && !room.memoryState.isExpired(),
-        memoryAge: room.memoryState
-          ? Date.now() - room.memoryState.createdAt.getTime()
-          : 0,
         lastActivity: room.lastActivity.getTime(),
         createdAt: room.createdAt.getTime()
       }))
@@ -775,14 +907,14 @@ class RoomManager {
    * @throws {Error} If state is inconsistent
    */
   validateState () {
-    // Validate room-user mappings consistency
+    // Validate room-user mappings consistency (jammers + listeners)
     this.userRoomMap.forEach((roomId, userId) => {
       const room = this.rooms.get(roomId)
       if (!room) {
         throw new Error(`User ${userId} mapped to non-existent room ${roomId}`)
       }
 
-      const user = room.getUser(userId)
+      const user = room.getUser(userId) || (room.listeners ? room.listeners.get(userId) : null)
       if (!user) {
         throw new Error(`User ${userId} in mapping but not in room ${roomId}`)
       }

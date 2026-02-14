@@ -334,6 +334,26 @@ const adminAuth = (req, res, next) => {
   next()
 }
 
+// Room lobby endpoint (public, rate-limited)
+// Returns rooms with active jammers for listen mode room discovery
+app.get('/api/rooms/lobby', (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 10, 20)
+    const rooms = roomManager.getRoomLobby(limit)
+
+    res.json({
+      success: true,
+      rooms,
+      timestamp: Date.now()
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch room lobby'
+    })
+  }
+})
+
 // Room cleanup endpoint (protected)
 // Entry #Security: Audit logging for admin actions
 app.delete('/api/rooms/:id', adminAuth, (req, res) => {

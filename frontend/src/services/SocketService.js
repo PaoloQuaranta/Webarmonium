@@ -34,6 +34,7 @@ class SocketService {
     this.roomUsers = []
     this.userSlots = new Map() // userId → slot mapping for all users in room
     this.userPresetSlots = new Map() // userId → synthPresetSlot mapping (Entry #SynthUI)
+    this.isListenMode = false  // Listen mode flag (set during joinRoom)
 
     // Heartbeat management
     this.heartbeatInterval = null
@@ -303,17 +304,20 @@ class SocketService {
    * Join a room
    * @param {string} roomId - Room ID to join
    * @param {Object} userData - User device/capability data
+   * @param {string} mode - Join mode: 'jam' (default) or 'listen'
    */
-  async joinRoom(roomId, userData = {}) {
+  async joinRoom(roomId, userData = {}, mode = 'jam') {
     if (!this.isConnected) {
       throw new Error('Not connected to server')
     }
 
+    this.isListenMode = (mode === 'listen')
     const startTime = performance.now()
 
     try {
       const response = await this.sendWithResponse('join-room', {
         roomId,
+        mode,
         userData: {
           device: this.detectDevice(),
           platform: navigator.platform,
@@ -416,6 +420,40 @@ class SocketService {
 
     } catch (error) {
       // console.error('Leave room failed:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Promote from listener to jammer
+   * @returns {Promise<Object>} Promotion result with slot/color
+   */
+  async promoteToJammer() {
+    if (!this.isConnected || !this.currentRoom) {
+      throw new Error('Not in a room')
+    }
+
+    try {
+      const response = await this.sendWithResponse('promote-to-jammer', {})
+
+      if (response.success) {
+        this.isListenMode = false
+
+        // Save promoted slot and update userSlots
+        if (response.assignedSlot !== undefined && response.assignedSlot !== null) {
+          this.currentSlot = response.assignedSlot
+          if (this.currentUserId) {
+            this.userSlots.set(this.currentUserId, response.assignedSlot)
+            this.userPresetSlots.set(this.currentUserId, response.assignedSlot)
+          }
+        }
+
+        this.emit('promoted-to-jammer', response)
+        return response
+      } else {
+        throw new Error(response.error || response.message || 'Promotion failed')
+      }
+    } catch (error) {
       throw error
     }
   }

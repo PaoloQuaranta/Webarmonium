@@ -16,6 +16,12 @@ const GestureHandler = {
     socket.on('gesture', async (data, callback) => {
       const startTime = Date.now()
 
+      // Listener guard: listeners cannot send gestures
+      const guardRoom = socket.services.roomManager.getRoom(socket.roomId)
+      if (guardRoom?.isListener(socket.userId)) {
+        return ValidationHandler.sendError(callback, 'PERMISSION_DENIED', 'Listeners cannot create gestures')
+      }
+
       // Rate limiting check (except for gesture completion/end actions)
       const isCompletionAction = data && (data.action === 'end' || data.action === 'release')
       if (!isCompletionAction) {
@@ -295,6 +301,12 @@ const GestureHandler = {
     socket.on('gesture:record', async (data, callback) => {
       const startTime = Date.now()
 
+      // Listener guard
+      const guardRoom = socket.services.roomManager.getRoom(socket.roomId)
+      if (guardRoom?.isListener(socket.userId)) {
+        return ValidationHandler.sendError(callback, 'PERMISSION_DENIED', 'Listeners cannot create gestures')
+      }
+
       try {
         if (!data || !data.gesture || !socket.roomId || !socket.userId) {
           ValidationHandler.sendError(callback, 'validation_error', 'Missing required fields: gesture, roomId, userId')
@@ -427,6 +439,10 @@ const GestureHandler = {
   registerGestureCompleteHandler (socket) {
     socket.on('gesture-complete', async (data) => {
       const startTime = Date.now()
+
+      // Listener guard
+      const guardRoom = socket.services.roomManager.getRoom(socket.roomId)
+      if (guardRoom?.isListener(socket.userId)) return
 
       try {
         // Validate user is in a room
@@ -652,6 +668,10 @@ const GestureHandler = {
    */
   registerGestureTrailHandler (socket) {
     socket.on('gesture:trail', (data) => {
+      // Listener guard
+      const guardRoom = socket.services.roomManager.getRoom(socket.roomId)
+      if (guardRoom?.isListener(socket.userId)) return
+
       try {
         // Centralized rate limiting (cursor-move config: ~60/sec for 60fps)
         const limitResult = RateLimiter.checkLimit('cursor-move', socket)

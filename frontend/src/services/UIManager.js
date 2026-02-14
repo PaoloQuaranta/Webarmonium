@@ -50,6 +50,9 @@ class UIManager {
 
     // Entry #74: Settings panel
     this.settingsPanel = null
+
+    // Listen mode state
+    this.isListenMode = false
   }
 
   /**
@@ -877,6 +880,262 @@ class UIManager {
 
     this.currentRoom = null
     this.userCount = 1
+  }
+
+  // ============================================================
+  // Listen Mode UI
+  // ============================================================
+
+  /**
+   * Initialize listen mode UI — hide synth button, show jam button + listening indicator
+   * @param {boolean} canPromote - Whether user can promote to jammer
+   */
+  initListenMode(canPromote) {
+    this.isListenMode = true
+
+    // Remove synth button (listeners don't get synth controls)
+    const synthBtnWrapper = document.getElementById('desktopSynthBtn')?.parentElement
+    if (synthBtnWrapper) synthBtnWrapper.remove()
+    this.desktopSynthBtn = null
+
+    // Add jam button if room has space
+    if (canPromote) {
+      this._createJamButton()
+    }
+
+    // Add room selector button
+    this._createRoomSelector()
+
+    // Add listening indicator
+    this._createListeningIndicator()
+  }
+
+  /**
+   * Create Jam button for listen mode
+   * @private
+   */
+  _createJamButton() {
+    if (document.getElementById('listenModeJamBtn')) return
+
+    const roomRight = document.getElementById('roomRight')
+    if (!roomRight) return
+
+    const btn = document.createElement('button')
+    btn.id = 'listenModeJamBtn'
+    btn.className = 'jam-btn'
+    btn.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 18V5l12-2v13"/>
+        <circle cx="6" cy="18" r="3"/>
+        <circle cx="18" cy="16" r="3"/>
+      </svg>
+      Jam
+    `
+    btn.title = 'Switch to jam mode'
+    btn.setAttribute('aria-label', 'Switch to jam mode')
+    btn.addEventListener('click', async () => {
+      btn.disabled = true
+      try {
+        // SocketService is accessed via the global app instance
+        const app = window.webarmoniumApp
+        if (app?.socketService) {
+          await app.socketService.promoteToJammer()
+          // Success handled by promoted-to-jammer event in main.js
+        }
+      } catch (error) {
+        btn.disabled = false
+        if (window.NotificationService) {
+          window.NotificationService.showModeTransition('Room is full', 3000)
+        }
+      }
+    })
+
+    // Insert before settings button
+    const settingsWrapper = document.getElementById('desktopSettingsBtn')?.parentElement
+    if (settingsWrapper) {
+      roomRight.insertBefore(btn, settingsWrapper)
+    } else {
+      roomRight.appendChild(btn)
+    }
+  }
+
+  /**
+   * Create room selector button for listen mode
+   * @private
+   */
+  _createRoomSelector() {
+    if (document.getElementById('listenModeRoomSelector')) return
+
+    const roomRight = document.getElementById('roomRight')
+    if (!roomRight) return
+
+    const wrapper = document.createElement('div')
+    wrapper.className = 'room-selector-wrapper'
+    wrapper.id = 'listenModeRoomSelector'
+
+    const btn = document.createElement('button')
+    btn.className = 'room-selector-btn'
+    btn.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      Rooms
+    `
+    btn.title = 'Switch room'
+    btn.setAttribute('aria-label', 'Switch listening room')
+
+    let dropdownVisible = false
+    let dropdown = null
+
+    btn.addEventListener('click', async () => {
+      if (dropdownVisible && dropdown) {
+        dropdown.remove()
+        dropdown = null
+        dropdownVisible = false
+        return
+      }
+
+      try {
+        const isDevelopment = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+        const baseUrl = isDevelopment
+          ? 'http://localhost:3001'
+          : `${window.location.protocol}//${window.location.host}`
+
+        const response = await fetch(`${baseUrl}/api/rooms/lobby`)
+        const data = await response.json()
+        const rooms = (data.rooms || []).filter(r => r.userCount > 0)
+
+        if (rooms.length < 2) {
+          if (window.NotificationService) {
+            window.NotificationService.showModeTransition('No other rooms available', 2000)
+          }
+          return
+        }
+
+        // Create dropdown
+        dropdown = document.createElement('div')
+        dropdown.className = 'room-dropdown'
+
+        const currentRoom = new URLSearchParams(window.location.search).get('room') || 'main-room'
+
+        for (const room of rooms) {
+          const item = document.createElement('button')
+          item.className = 'room-dropdown-item' + (room.roomId === currentRoom ? ' current' : '')
+          const count = parseInt(room.userCount, 10) || 0
+          item.innerHTML = `
+            <span>${this._escapeHtml(room.roomId)}</span>
+            <span class="room-dropdown-count">${count} jammer${count !== 1 ? 's' : ''}</span>
+          `
+          if (room.roomId !== currentRoom) {
+            item.addEventListener('click', () => {
+              window.location.href = `rooms.html?room=${encodeURIComponent(room.roomId)}&mode=listen`
+            })
+          }
+          dropdown.appendChild(item)
+        }
+
+        wrapper.appendChild(dropdown)
+        dropdownVisible = true
+
+        // Close on outside click
+        const closeDropdown = (e) => {
+          if (!wrapper.contains(e.target)) {
+            if (dropdown) dropdown.remove()
+            dropdown = null
+            dropdownVisible = false
+            document.removeEventListener('click', closeDropdown)
+          }
+        }
+        setTimeout(() => document.addEventListener('click', closeDropdown), 0)
+      } catch (error) {
+        // Silently fail — room selector is optional
+      }
+    })
+
+    wrapper.appendChild(btn)
+
+    // Insert after jam button or at start
+    const jamBtn = document.getElementById('listenModeJamBtn')
+    const settingsWrapper = document.getElementById('desktopSettingsBtn')?.parentElement
+    if (jamBtn) {
+      jamBtn.after(wrapper)
+    } else if (settingsWrapper) {
+      roomRight.insertBefore(wrapper, settingsWrapper)
+    } else {
+      roomRight.appendChild(wrapper)
+    }
+  }
+
+  /**
+   * Escape HTML for safe rendering
+   * @param {string} str
+   * @returns {string}
+   * @private
+   */
+  _escapeHtml(str) {
+    const div = document.createElement('div')
+    div.textContent = str
+    return div.innerHTML
+  }
+
+  /**
+   * Create listening indicator pill (bottom-left)
+   * @private
+   */
+  _createListeningIndicator() {
+    if (document.getElementById('listeningIndicator')) return
+
+    const indicator = document.createElement('div')
+    indicator.id = 'listeningIndicator'
+    indicator.className = 'listening-indicator'
+    indicator.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3v5z"/>
+        <path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3v5z"/>
+      </svg>
+      Listening
+    `
+    document.body.appendChild(indicator)
+  }
+
+  /**
+   * Switch from listen mode to jam mode (after successful promotion)
+   */
+  switchToJamMode() {
+    this.isListenMode = false
+
+    // Remove listen mode UI elements
+    const jamBtn = document.getElementById('listenModeJamBtn')
+    if (jamBtn) jamBtn.remove()
+
+    const roomSelector = document.getElementById('listenModeRoomSelector')
+    if (roomSelector) roomSelector.remove()
+
+    const indicator = document.getElementById('listeningIndicator')
+    if (indicator) indicator.remove()
+
+    // Create synth button (now we're a jammer)
+    this._createDesktopSynthButton()
+  }
+
+  /**
+   * Update jam button visibility based on room capacity
+   * @param {boolean} canPromote - Whether promotion is possible
+   */
+  updateJamButtonVisibility(canPromote) {
+    if (!this.isListenMode) return
+
+    const jamBtn = document.getElementById('listenModeJamBtn')
+    if (canPromote && !jamBtn) {
+      this._createJamButton()
+    } else if (!canPromote && jamBtn) {
+      jamBtn.remove()
+    } else if (canPromote && jamBtn) {
+      // Re-enable if it was disabled
+      jamBtn.disabled = false
+    }
   }
 }
 

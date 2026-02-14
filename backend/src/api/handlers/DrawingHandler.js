@@ -10,6 +10,10 @@ const DrawingHandler = {
    */
   registerDrawStartHandler (socket) {
     socket.on('draw-start', async (data) => {
+      // Listener guard
+      const guardRoom = socket.services.roomManager.getRoom(socket.roomId)
+      if (guardRoom?.isListener(socket.userId)) return
+
       try {
         // Validate user is in a room
         if (!socket.userId || !socket.roomId) {
@@ -64,6 +68,10 @@ const DrawingHandler = {
    */
   registerDrawPointHandler (socket) {
     socket.on('draw-point', async (data) => {
+      // Listener guard
+      const guardRoom = socket.services.roomManager.getRoom(socket.roomId)
+      if (guardRoom?.isListener(socket.userId)) return
+
       try {
         // Validate user is in a room
         if (!socket.userId || !socket.roomId) {
@@ -95,6 +103,10 @@ const DrawingHandler = {
    */
   registerDrawEndHandler (socket) {
     socket.on('draw-end', async (data) => {
+      // Listener guard
+      const guardRoom = socket.services.roomManager.getRoom(socket.roomId)
+      if (guardRoom?.isListener(socket.userId)) return
+
       const startTime = Date.now()
 
       try {

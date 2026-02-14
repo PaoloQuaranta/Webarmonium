@@ -177,7 +177,11 @@ const AuthHandler = {
           return ValidationHandler.sendError(callback, 'MISSING_ROOM_ID', 'Room ID is required')
         }
 
-        const { roomId, userData = {} } = data
+        const { roomId, userData = {}, mode = 'jam' } = data
+
+        // Validate mode
+        const validModes = ['jam', 'listen']
+        const joinMode = validModes.includes(mode) ? mode : 'jam'
 
         // Validate room ID format
         if (!/^[a-z0-9-]{3,50}$/i.test(roomId)) {
@@ -228,7 +232,8 @@ const AuthHandler = {
         const result = await socket.services.roomManager.joinRoom(
           socket.userId,
           roomId,
-          validatedUserData
+          validatedUserData,
+          joinMode
         )
 
         // Handle redirect case - move socket to correct room
@@ -331,64 +336,137 @@ const AuthHandler = {
           response.roomMode = 'multi'
         }
 
+        // Add userType and canPromote to response for listen mode
+        if (result.userType === 'listener') {
+          response.userType = 'listener'
+          response.canPromote = result.canPromote
+        } else {
+          response.userType = 'jammer'
+        }
+
         ValidationHandler.sendResponse(callback, response)
 
-        // Emit room-joined event for test compatibility (use actualRoomId for overflow rooms)
-        socket.emit('room-joined', {
-          roomId: actualRoomId,
-          userId: socket.userId,
-          assignedSlot: result.assignedSlot,
-          users: result.users,
-          room: result.room,
-          timestamp: Date.now()
-        })
+        // ── LISTENER join path ──
+        if (result.userType === 'listener') {
+          // Emit room-joined to listener
+          socket.emit('room-joined', {
+            roomId: actualRoomId,
+            userId: socket.userId,
+            assignedSlot: null,
+            userType: 'listener',
+            canPromote: result.canPromote,
+            users: result.users,
+            room: result.room,
+            timestamp: Date.now()
+          })
 
-        // Broadcast user-joined to other users in room (use actualRoomId for overflow rooms)
-        socket.to(actualRoomId).emit('user-joined', {
-          userId: socket.userId,
-          color: result.assignedColor,
-          slot: result.assignedSlot,
-          synthPresetSlot: result.assignedSlot,  // Default synth preset = assigned slot
-          synthParams: null,  // New user has no custom params yet
-          user: result.user,
-          userCount: result.room.userCount,
-          timestamp: Date.now()
-        })
+          // Broadcast listener-joined to room
+          socket.to(actualRoomId).emit('listener-joined', {
+            userId: socket.userId,
+            color: result.assignedColor,
+            listenerCount: currentRoom ? currentRoom.getListenerCount() : 0,
+            timestamp: Date.now()
+          })
 
-        // Send user-joined events for existing users to the new user
-        const existingUsers = usersWithSynthData.filter(u => u.id !== socket.userId)
-        existingUsers.forEach(existingUser => {
-          socket.emit('user-joined', {
-            userId: existingUser.id,
-            color: existingUser.color,
-            slot: existingUser.slot,
-            synthPresetSlot: existingUser.synthPresetSlot,
-            synthParams: existingUser.synthParams,
-            user: existingUser,
+          // Send existing users info to listener
+          const existingListenerUsers = usersWithSynthData.filter(u => u.id !== socket.userId)
+          existingListenerUsers.forEach(existingUser => {
+            socket.emit('user-joined', {
+              userId: existingUser.id,
+              color: existingUser.color,
+              slot: existingUser.slot,
+              synthPresetSlot: existingUser.synthPresetSlot,
+              synthParams: existingUser.synthParams,
+              user: existingUser,
+              userCount: result.room.userCount,
+              timestamp: Date.now()
+            })
+          })
+
+          // Send drawing history to listener
+          const listenerDrawingHistory = socket.services.roomManager.getDrawingHistory(actualRoomId)
+          socket.emit('drawing-history', { strokes: listenerDrawingHistory })
+
+          // Emit drone to listener (they need to hear the music)
+          if (socket.services.backgroundCompositionService) {
+            setTimeout(() => {
+              socket.services.backgroundCompositionService.emitDroneToSocket(socket, actualRoomId)
+            }, 600)
+          }
+
+        } else {
+          // ── JAMMER join path (existing logic) ──
+
+          // Emit room-joined event for test compatibility (use actualRoomId for overflow rooms)
+          socket.emit('room-joined', {
+            roomId: actualRoomId,
+            userId: socket.userId,
+            assignedSlot: result.assignedSlot,
+            userType: 'jammer',
+            users: result.users,
+            room: result.room,
+            timestamp: Date.now()
+          })
+
+          // Broadcast user-joined to other users in room (use actualRoomId for overflow rooms)
+          socket.to(actualRoomId).emit('user-joined', {
+            userId: socket.userId,
+            color: result.assignedColor,
+            slot: result.assignedSlot,
+            synthPresetSlot: result.assignedSlot,  // Default synth preset = assigned slot
+            synthParams: null,  // New user has no custom params yet
+            user: result.user,
             userCount: result.room.userCount,
             timestamp: Date.now()
           })
-        })
 
-        // Send drawing history to new user (use actualRoomId for overflow rooms)
-        const drawingHistory = socket.services.roomManager.getDrawingHistory(actualRoomId)
-        socket.emit('drawing-history', {
-          strokes: drawingHistory
-        })
-
-        // Start background composition for the room
-        if (socket.services.backgroundCompositionService) {
-          socket.services.backgroundCompositionService.startComposition(actualRoomId, {
-            roomId: actualRoomId,
-            userCount: result.room.userCount,
-            activeUsers: result.users.map(u => u.id)
+          // Send user-joined events for existing users to the new user
+          const existingUsers = usersWithSynthData.filter(u => u.id !== socket.userId)
+          existingUsers.forEach(existingUser => {
+            socket.emit('user-joined', {
+              userId: existingUser.id,
+              color: existingUser.color,
+              slot: existingUser.slot,
+              synthPresetSlot: existingUser.synthPresetSlot,
+              synthParams: existingUser.synthParams,
+              user: existingUser,
+              userCount: result.room.userCount,
+              timestamp: Date.now()
+            })
           })
 
-          // Entry #27: Always emit drone to joining socket (fixes drone not playing after stop/start)
-          // Delayed to ensure socket is fully joined and composition is initialized
-          setTimeout(() => {
-            socket.services.backgroundCompositionService.emitDroneToSocket(socket, actualRoomId)
-          }, 600)
+          // Send drawing history to new user (use actualRoomId for overflow rooms)
+          const drawingHistory = socket.services.roomManager.getDrawingHistory(actualRoomId)
+          socket.emit('drawing-history', {
+            strokes: drawingHistory
+          })
+
+          // Start background composition for the room
+          if (socket.services.backgroundCompositionService) {
+            socket.services.backgroundCompositionService.startComposition(actualRoomId, {
+              roomId: actualRoomId,
+              userCount: result.room.userCount,
+              activeUsers: result.users.map(u => u.id)
+            })
+
+            // Entry #27: Always emit drone to joining socket (fixes drone not playing after stop/start)
+            // Delayed to ensure socket is fully joined and composition is initialized
+            setTimeout(() => {
+              socket.services.backgroundCompositionService.emitDroneToSocket(socket, actualRoomId)
+            }, 600)
+          }
+
+          // Broadcast room-capacity-changed to listeners
+          if (socket.services.io && currentRoom) {
+            socket.services.io.to(actualRoomId).emit('room-capacity-changed', {
+              roomId: actualRoomId,
+              userCount: currentRoom.getUserCount(),
+              listenerCount: currentRoom.getListenerCount(),
+              isFull: currentRoom.isFull(),
+              maxUsers: currentRoom.maxUsers,
+              timestamp: Date.now()
+            })
+          }
         }
 
         // Emit rooms-activity update to landing page clients
@@ -413,6 +491,10 @@ const AuthHandler = {
 
         if (error.message === 'ROOM_FULL') {
           return ValidationHandler.sendError(callback, 'ROOM_FULL', 'Room has reached maximum capacity')
+        }
+
+        if (error.message && error.message.startsWith('ROOM_EMPTY')) {
+          return ValidationHandler.sendError(callback, 'ROOM_EMPTY', 'No active jammers in this room')
         }
 
         if (error.message === 'User already in this room') {
@@ -443,12 +525,15 @@ const AuthHandler = {
 
         const roomId = socket.roomId
 
-        // Get user's color before leaving
+        // Get user info before leaving
         const room = socket.services.roomManager.getRoom(roomId)
-        const user = room ? room.getUser(socket.userId) : null
+        const isListener = room ? room.isListener(socket.userId) : false
+        const user = isListener
+          ? (room.listeners ? room.listeners.get(socket.userId) : null)
+          : (room ? room.getUser(socket.userId) : null)
         const userColor = user ? user.assignedColor : null
 
-        // Remove user from room
+        // Remove user from room (handles both jammers and listeners)
         const result = await socket.services.roomManager.leaveRoom(socket.userId)
 
         // Leave Socket.io room
@@ -465,6 +550,7 @@ const AuthHandler = {
           success: true,
           userId: socket.userId,
           roomId,
+          wasListener: result.wasListener,
           remainingUsers: result.remainingUsers,
           memoryExpirationStarted: result.memoryExpirationStarted,
           latency,
@@ -473,13 +559,35 @@ const AuthHandler = {
 
         ValidationHandler.sendResponse(callback, response)
 
-        // Broadcast user-left to remaining users
-        socket.to(roomId).emit('user-left', {
-          userId: socket.userId,
-          color: userColor,
-          userCount: result.remainingUsers,
-          timestamp: Date.now()
-        })
+        if (result.wasListener) {
+          // Broadcast listener-left
+          socket.to(roomId).emit('listener-left', {
+            userId: socket.userId,
+            listenerCount: result.remainingListeners,
+            timestamp: Date.now()
+          })
+        } else {
+          // Broadcast user-left to remaining users
+          socket.to(roomId).emit('user-left', {
+            userId: socket.userId,
+            color: userColor,
+            userCount: result.remainingUsers,
+            timestamp: Date.now()
+          })
+
+          // Broadcast room-capacity-changed to listeners
+          const roomAfterLeave = socket.services.roomManager.getRoom(roomId)
+          if (socket.services.io && roomAfterLeave) {
+            socket.services.io.to(roomId).emit('room-capacity-changed', {
+              roomId,
+              userCount: roomAfterLeave.getUserCount(),
+              listenerCount: roomAfterLeave.getListenerCount(),
+              isFull: roomAfterLeave.isFull(),
+              maxUsers: roomAfterLeave.maxUsers,
+              timestamp: Date.now()
+            })
+          }
+        }
 
         // Emit rooms-activity update to landing page clients
         if (socket.services.connectionTracker && socket.services.io) {
@@ -555,6 +663,94 @@ const AuthHandler = {
   },
 
   /**
+   * Register promote-to-jammer event handler
+   * Allows a listener to become a full jammer if room has space
+   * @param {Socket} socket - Socket instance
+   */
+  registerPromoteToJammerHandler (socket) {
+    socket.on('promote-to-jammer', async (data, callback) => {
+      const startTime = Date.now()
+
+      try {
+        if (!socket.userId || !socket.roomId) {
+          return ValidationHandler.sendError(callback, 'NO_SESSION', 'No active session')
+        }
+
+        const result = socket.services.roomManager.promoteToJammer(
+          socket.userId,
+          socket.roomId
+        )
+
+        if (!result.success) {
+          // Emit promotion-failed event
+          socket.emit('promotion-failed', {
+            reason: result.error,
+            message: result.message,
+            timestamp: Date.now()
+          })
+          return ValidationHandler.sendError(callback, result.error, result.message)
+        }
+
+        const latency = Date.now() - startTime
+
+        // Emit promoted-to-jammer to the promoted user
+        socket.emit('promoted-to-jammer', {
+          userId: socket.userId,
+          assignedSlot: result.assignedSlot,
+          assignedColor: result.assignedColor,
+          userType: 'jammer',
+          latency,
+          timestamp: Date.now()
+        })
+
+        // Broadcast user-joined to room (with promotedFromListener flag)
+        const room = socket.services.roomManager.getRoom(socket.roomId)
+        socket.to(socket.roomId).emit('user-joined', {
+          userId: socket.userId,
+          color: result.assignedColor,
+          slot: result.assignedSlot,
+          synthPresetSlot: result.assignedSlot,
+          synthParams: null,
+          promotedFromListener: true,
+          userCount: room ? room.getUserCount() : 0,
+          timestamp: Date.now()
+        })
+
+        // Broadcast room-capacity-changed
+        if (socket.services.io && room) {
+          socket.services.io.to(socket.roomId).emit('room-capacity-changed', {
+            roomId: socket.roomId,
+            userCount: room.getUserCount(),
+            listenerCount: room.getListenerCount(),
+            isFull: room.isFull(),
+            maxUsers: room.maxUsers,
+            timestamp: Date.now()
+          })
+        }
+
+        // Start/update background composition
+        if (socket.services.backgroundCompositionService && room) {
+          socket.services.backgroundCompositionService.startComposition(socket.roomId, {
+            roomId: socket.roomId,
+            userCount: room.getUserCount(),
+            activeUsers: room.getUsers().map(u => u.id)
+          })
+        }
+
+        ValidationHandler.sendResponse(callback, {
+          success: true,
+          assignedSlot: result.assignedSlot,
+          assignedColor: result.assignedColor,
+          latency
+        })
+      } catch (error) {
+        logger.error('Promote-to-jammer error', { error: error.message, userId: socket.userId })
+        return ValidationHandler.sendError(callback, 'PROMOTION_ERROR', 'Failed to promote to jammer')
+      }
+    })
+  },
+
+  /**
    * Register disconnect event handler
    * @param {Socket} socket - Socket instance
    */
@@ -583,14 +779,16 @@ const AuthHandler = {
 
       if (!isLandingRoom) {
         try {
-          // Get user's color before cleanup
+          // Get user info before cleanup
           const room = roomManager.getRoom(socket.roomId)
-          const user = room ? room.getUser(socket.userId) : null
+          const isListener = room ? room.isListener(socket.userId) : false
+          const user = isListener
+            ? (room.listeners ? room.listeners.get(socket.userId) : null)
+            : (room ? room.getUser(socket.userId) : null)
           const userColor = user ? user.assignedColor : null
 
-          // Clean up any active holds from disconnected user
-          if (room?.activeHolds) {
-            let cleanedCount = 0
+          // Clean up any active holds from disconnected user (jammers only)
+          if (!isListener && room?.activeHolds) {
             for (const [noteId, hold] of room.activeHolds.entries()) {
               if (hold.userId === socket.userId) {
                 socket.to(socket.roomId).emit('hold:end', {
@@ -602,32 +800,47 @@ const AuthHandler = {
                   timestamp: Date.now()
                 })
                 room.activeHolds.delete(noteId)
-                cleanedCount++
               }
-            }
-            if (cleanedCount > 0) {
-              // console.log(`🧹 Cleaned up ${cleanedCount} active holds from disconnected user ${socket.userId}`)
             }
           }
 
-          // Remove user from room and capture result
+          // Remove user from room (handles both jammers and listeners)
           const leaveResult = await roomManager.leaveRoom(socket.userId)
 
-          // Use remainingUsers from result (avoids stale room state query)
-          const userCount = leaveResult?.remainingUsers ?? 0
+          if (leaveResult.wasListener) {
+            // Broadcast listener-left
+            socket.to(socket.roomId).emit('listener-left', {
+              userId: socket.userId,
+              listenerCount: leaveResult.remainingListeners,
+              timestamp: Date.now()
+            })
+          } else {
+            // Broadcast user-left to remaining users
+            socket.to(socket.roomId).emit('user-left', {
+              userId: socket.userId,
+              color: userColor,
+              userCount: leaveResult.remainingUsers,
+              timestamp: Date.now()
+            })
 
-          // Broadcast user-left to remaining users
-          socket.to(socket.roomId).emit('user-left', {
-            userId: socket.userId,
-            color: userColor,
-            userCount,
-            timestamp: Date.now()
-          })
+            // Broadcast room-capacity-changed
+            const roomForCapacity = roomManager.getRoom(socket.roomId)
+            if (socket.services.io && roomForCapacity) {
+              socket.services.io.to(socket.roomId).emit('room-capacity-changed', {
+                roomId: socket.roomId,
+                userCount: roomForCapacity.getUserCount(),
+                listenerCount: roomForCapacity.getListenerCount(),
+                isFull: roomForCapacity.isFull(),
+                maxUsers: roomForCapacity.maxUsers,
+                timestamp: Date.now()
+              })
+            }
+          }
 
           // Get room reference for subsequent operations
           const roomAfterLeave = roomManager.getRoom(socket.roomId)
 
-        // Stop background composition if room is now empty
+        // Stop background composition if room is now empty (no jammers)
         if (socket.services.backgroundCompositionService) {
           if (!roomAfterLeave || roomAfterLeave.users.size === 0) {
             socket.services.backgroundCompositionService.stopComposition(socket.roomId)
@@ -649,8 +862,6 @@ const AuthHandler = {
             timestamp: Date.now()
           })
         }
-
-        // console.log(`User ${socket.userId} disconnected from room ${socket.roomId}`)
       } catch (error) {
         // console.error('Disconnection cleanup error:', error)
       }

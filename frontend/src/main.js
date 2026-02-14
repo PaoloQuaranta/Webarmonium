@@ -66,6 +66,11 @@ class WebarmoniumApp {
     this._audioRecoveryClickHandler = null
     this._audioRecoveryTouchHandler = null
 
+    // Listen mode state
+    this.isListenMode = false
+    this.joinMode = 'jam'
+    this.roomId = 'main-room'
+
     // Initialize the application
     this.init()
   }
@@ -1801,6 +1806,13 @@ class WebarmoniumApp {
 
   async connectToServer() {
     try {
+      // Parse URL params for room and mode
+      const urlParams = new URLSearchParams(window.location.search)
+      this.roomId = urlParams.get('room') || 'main-room'
+      const rawMode = urlParams.get('mode')
+      this.joinMode = (rawMode === 'listen' || rawMode === 'jam') ? rawMode : 'jam'
+      this.isListenMode = (this.joinMode === 'listen')
+
       // Determine backend URL based on environment
       // In production (webarmonium.net), use the same origin (nginx proxy)
       // In development (localhost/127.0.0.1), use port 3001 directly
@@ -1822,7 +1834,7 @@ class WebarmoniumApp {
         }
       }
 
-      const joinResponse = await this.socketService.joinRoom('main-room', userData)
+      const joinResponse = await this.socketService.joinRoom(this.roomId, userData, this.joinMode)
 
       // Store assigned user color for p5.js visualization
       if (joinResponse && joinResponse.assignedColor) {
@@ -1830,8 +1842,25 @@ class WebarmoniumApp {
         // console.log('✅ User color assigned:', this.currentUserColor)
       }
 
-      // Entry #SynthUI: Initialize synth panel with services and user color
-      if (this.uiManager && this.audioService && this.socketService) {
+      // Handle listen mode response
+      if (joinResponse.userType === 'listener') {
+        this.isListenMode = true
+        // Disable gesture capture for listeners
+        if (this.gestureCapture) {
+          this.gestureCapture.stop()
+          this.gestureCapture = null
+        }
+        // Hide instructions
+        const instructions = document.querySelector('.instructions')
+        if (instructions) instructions.style.display = 'none'
+        // Init listen mode UI
+        if (this.uiManager) {
+          this.uiManager.initListenMode(joinResponse.canPromote)
+        }
+      }
+
+      // Entry #SynthUI: Initialize synth panel with services and user color (jammers only)
+      if (!this.isListenMode && this.uiManager && this.audioService && this.socketService) {
         this.uiManager.setSynthPanelServices(
           this.audioService,
           this.socketService,
@@ -1861,8 +1890,134 @@ class WebarmoniumApp {
         }
       }
 
+      // Setup listen mode event listeners
+      this._setupListenModeListeners()
+
     } catch (error) {
       throw new Error('Failed to connect to server: ' + error.message)
+    }
+  }
+
+  /**
+   * Setup socket listeners for listen mode events
+   * (promoted-to-jammer, room-capacity-changed, promotion-failed)
+   */
+  _setupListenModeListeners() {
+    if (!this.socketService?.socket) return
+
+    // Listen for promotion success
+    this.socketService.socket.on('promoted-to-jammer', (data) => {
+      this.isListenMode = false
+      this.socketService.isListenMode = false
+      this._cleanupListenModeListeners()
+
+      // Save assigned slot
+      if (data.assignedSlot !== undefined && data.assignedSlot !== null) {
+        this.socketService.currentSlot = data.assignedSlot
+        if (this.socketService.currentUserId) {
+          this.socketService.userSlots.set(this.socketService.currentUserId, data.assignedSlot)
+          this.socketService.userPresetSlots.set(this.socketService.currentUserId, data.assignedSlot)
+        }
+      }
+
+      // Initialize gesture capture (same as normal jam mode)
+      if (!this.gestureCapture && this.canvas) {
+        const basicGestureToMusicMapper = this._createGestureMapper()
+        this.gestureCapture = new EnhancedGestureCapture(this.canvas, basicGestureToMusicMapper, this.socketService)
+        this.gestureCapture.start()
+        this._attachGestureCallbacks()
+      }
+
+      // Show instructions
+      const instructions = document.querySelector('.instructions')
+      if (instructions) instructions.style.display = ''
+
+      // Switch UI to jam mode
+      if (this.uiManager) {
+        this.uiManager.switchToJamMode()
+        // Init synth panel now that we're a jammer
+        if (this.audioService && this.socketService) {
+          this.uiManager.setSynthPanelServices(
+            this.audioService,
+            this.socketService,
+            this.currentUserColor
+          )
+        }
+      }
+
+      if (window.NotificationService) {
+        window.NotificationService.showModeTransition('You are now a jammer!', 3000)
+      }
+    })
+
+    // Listen for room capacity changes
+    this.socketService.socket.on('room-capacity-changed', (data) => {
+      if (this.isListenMode && this.uiManager) {
+        this.uiManager.updateJamButtonVisibility(!data.isFull)
+      }
+    })
+
+    // Listen for promotion failure
+    this.socketService.socket.on('promotion-failed', (data) => {
+      // Re-enable the jam button before updating visibility
+      const jamBtn = document.getElementById('listenModeJamBtn')
+      if (jamBtn) jamBtn.disabled = false
+
+      if (this.uiManager) {
+        this.uiManager.updateJamButtonVisibility(false)
+      }
+      if (window.NotificationService) {
+        window.NotificationService.showModeTransition(data.message || 'Room is full', 3000)
+      }
+    })
+  }
+
+  /**
+   * Cleanup listen mode socket listeners
+   * @private
+   */
+  _cleanupListenModeListeners() {
+    if (!this.socketService?.socket) return
+    this.socketService.socket.off('promoted-to-jammer')
+    this.socketService.socket.off('room-capacity-changed')
+    this.socketService.socket.off('promotion-failed')
+  }
+
+  /**
+   * Create basic gesture to music mapper (extracted for reuse in promotion)
+   * @returns {Object} Gesture mapper object
+   * @private
+   */
+  _createGestureMapper() {
+    return {
+      gestureToMusicalEvent: (gesture) => {
+        const yValue = gesture.coordinates?.y || 0.5
+        const pitch = 60 + Math.floor(yValue * 24)
+        const velocity = Math.floor((gesture.intensity || 0.5) * 127)
+        const duration = 0.2 + (1 - (gesture.speed || 0.5)) * 0.8
+        return {
+          pitch,
+          velocity,
+          duration,
+          articulation: gesture.speed > 0.7 ? 'staccato' : gesture.speed < 0.3 ? 'legato' : 'default',
+          eventType: 'note'
+        }
+      },
+      setTempo: () => {},
+      setScale: () => {}
+    }
+  }
+
+  /**
+   * Attach gesture callbacks (extracted for reuse in promotion)
+   * @private
+   */
+  _attachGestureCallbacks() {
+    if (!this.gestureCapture) return
+    // Minimal setup — the full callback wiring happens in initializeServices
+    // For promoted listeners, we need to re-wire the key callbacks
+    if (this.socketService) {
+      this.gestureCapture.setRoomContext(this.roomId || 'main-room')
     }
   }
 
