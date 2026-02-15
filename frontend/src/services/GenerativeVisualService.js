@@ -511,6 +511,25 @@ class GenerativeVisualService {
   }
 
   /**
+   * Unblock a user, allowing their node to be recreated (e.g., when they rejoin)
+   * @param {string} userId - User identifier to unblock
+   */
+  unblockUser(userId) {
+    if (this.springMesh) {
+      this.springMesh.unblockUser(userId)
+    }
+  }
+
+  /**
+   * Clear all blocked users (e.g., on room transition)
+   */
+  clearBlockedUsers() {
+    if (this.springMesh) {
+      this.springMesh.clearBlockedUsers()
+    }
+  }
+
+  /**
    * Resize canvas to match container
    * Called by CanvasManager on window resize
    * @param {number} width - New width

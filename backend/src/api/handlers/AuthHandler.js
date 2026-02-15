@@ -795,14 +795,19 @@ const AuthHandler = {
       const isLandingRoom = socket.roomId === LANDING_ROOM_ID
 
       if (!isLandingRoom) {
+        // Hoist variables before try so they're accessible in catch for fallback broadcast
+        let room = null
+        let isListener = false
+        let userColor = null
+
         try {
           // Get user info before cleanup
-          const room = roomManager.getRoom(socket.roomId)
-          const isListener = room ? room.isListener(socket.userId) : false
+          room = roomManager.getRoom(socket.roomId)
+          isListener = room ? room.isListener(socket.userId) : false
           const user = isListener
             ? (room.listeners ? room.listeners.get(socket.userId) : null)
             : (room ? room.getUser(socket.userId) : null)
-          const userColor = user ? user.assignedColor : null
+          userColor = user ? user.assignedColor : null
 
           // Clean up any active holds from disconnected user (jammers only)
           if (!isListener && room?.activeHolds) {
@@ -880,7 +885,27 @@ const AuthHandler = {
           })
         }
       } catch (error) {
-        // console.error('Disconnection cleanup error:', error)
+        logger.error(`Disconnection cleanup error for user ${socket.userId} in room ${socket.roomId}:`, error.message)
+
+        // FIX: Even if leaveRoom fails, broadcast user-left so clients clean up cursors/nodes
+        try {
+          if (!isListener) {
+            socket.to(socket.roomId).emit('user-left', {
+              userId: socket.userId,
+              color: userColor,
+              userCount: room ? room.getUserCount() : 0,
+              timestamp: Date.now()
+            })
+          } else {
+            socket.to(socket.roomId).emit('listener-left', {
+              userId: socket.userId,
+              listenerCount: room ? room.getListenerCount() : 0,
+              timestamp: Date.now()
+            })
+          }
+        } catch (broadcastError) {
+          logger.error(`Failed to broadcast user-left fallback for ${socket.userId}:`, broadcastError.message)
+        }
       }
       }
     }

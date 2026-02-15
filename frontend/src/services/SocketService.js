@@ -157,10 +157,6 @@ class SocketService {
       this.handleUserLeft(data)
     })
 
-    this.socket.on('user-disconnected', (data) => {
-      this.handleUserDisconnected(data)
-    })
-
     // Gesture events
     this.socket.on('gesture-echo', (data) => {
       this.handleGestureEcho(data)
@@ -762,29 +758,6 @@ class SocketService {
     this.emit('user-left', {
       userId: data.userId,
       userCount: data.userCount
-    })
-
-    // Notify that available presets may have changed
-    this.emit('synth:slots-changed')
-  }
-
-  /**
-   * Handle user disconnected event
-   */
-  handleUserDisconnected(data) {
-    // console.log('User disconnected:', data.userId)
-
-    // Remove user from room users list (guard against undefined entries)
-    this.roomUsers = this.roomUsers.filter(u => u && u.id !== data.userId)
-
-    // Remove user's slots from tracking (Entry #SynthUI)
-    if (data.userId) {
-      this.userSlots.delete(data.userId)
-      this.userPresetSlots.delete(data.userId)
-    }
-
-    this.emit('user-disconnected', {
-      userId: data.userId
     })
 
     // Notify that available presets may have changed

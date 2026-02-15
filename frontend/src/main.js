@@ -846,6 +846,9 @@ class WebarmoniumApp {
       // FIX: Clear leftUsers set when joining a new room (prevents memory leak)
       // Previous room's userIds are no longer relevant
       this.leftUsers.clear()
+      if (this.visualService) {
+        this.visualService.clearBlockedUsers()
+      }
       this.virtualUsersActive = false
 
       // CRITICAL FIX: Set room context in gesture capture so gestures include roomId
@@ -866,6 +869,9 @@ class WebarmoniumApp {
       // FIX: Remove from leftUsers set if user rejoins (new session with same ID unlikely but safe)
       if (data.user?.id) {
         this.leftUsers.delete(data.user.id)
+        if (this.visualService) {
+          this.visualService.unblockUser(data.user.id)
+        }
       }
     })
 
@@ -895,29 +901,7 @@ class WebarmoniumApp {
       }
     })
 
-    // FIX: Handle user-disconnected for unexpected disconnects (e.g., browser close)
-    this.socketService.on('user-disconnected', (data) => {
-      // console.log('🔌 User disconnected unexpectedly:', data.userId)
 
-      // FIX: Add to leftUsers set BEFORE removing cursor
-      if (data.userId) {
-        this.leftUsers.add(data.userId)
-      }
-
-      // Remove user's cursor from visualization
-      if (data.userId && this.cursorManager) {
-        this.cursorManager.removeCursor(data.userId)
-      }
-      if (data.userId && this.visualService) {
-        this.visualService.removeUser(data.userId)
-      }
-
-      // Clean up remote user's synth to prevent memory leak
-      if (data.userId && this.audioService?.userSynthManager) {
-        this.audioService.userSynthManager.usersWithCustomParams.delete(data.userId)
-        this.audioService.userSynthManager.cleanupUserSynth(data.userId)
-      }
-    })
 
     // SUSTAINED HOLD: Handle remote user hold:start events
     this.socketService.on('hold:start', (data) => {
@@ -1376,6 +1360,7 @@ class WebarmoniumApp {
     // These use real user identity and should move local cursor during audition
     this.socketService.on('cursor:move', (data) => {
       if (!data || data.x === undefined || data.y === undefined) return
+      if (this.leftUsers.has(data.userId)) return
 
       // Check if this is for the local user (audition-generated cursor for self)
       // CRITICAL: Use currentUserId (backend-assigned UUID), NOT socket.id (Socket.io ID)
@@ -1666,6 +1651,8 @@ class WebarmoniumApp {
 
       if (this.visualService && data.virtualUsers) {
         data.virtualUsers.forEach(user => {
+          // Unblock virtual user IDs in case they were previously deactivated
+          this.visualService.unblockUser(user.userId)
           // Initialize cursor at center position so it appears immediately
           this.visualService.updateCursorPosition?.(user.userId, 0.5, 0.5, user.color)
         })

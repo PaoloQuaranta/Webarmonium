@@ -309,13 +309,13 @@ describe('Multi-User Collaboration Integration', () => {
     // Wait for disconnection to propagate
     await new Promise(resolve => setTimeout(resolve, 200))
 
-    // Verify remaining users received user-disconnected event
+    // Verify remaining users received user-left event (backend emits user-left on disconnect)
     const remainingUsers = users.filter(u => u !== disconnectingUser)
     remainingUsers.forEach(user => {
-      const disconnectEvents = user.receivedEvents.filter(e => e.event === 'user-disconnected')
+      const leftEvents = user.receivedEvents.filter(e => e.event === 'user-left')
 
-      expect(disconnectEvents.length).toBe(1)
-      expect(disconnectEvents[0].data.userId).toBe(disconnectUserId)
+      expect(leftEvents.length).toBe(1)
+      expect(leftEvents[0].data.userId).toBe(disconnectUserId)
     })
   })
 

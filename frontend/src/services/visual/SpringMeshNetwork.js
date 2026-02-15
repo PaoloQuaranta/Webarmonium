@@ -63,6 +63,20 @@ class SpringMeshNetwork {
     // Node storage: userId -> Node object
     this.nodes = new Map()
 
+    // Blocked user IDs -> timestamp: prevents ghost node recreation from late socket events
+    this.blockedUserIds = new Map()
+    this.BLOCKED_USER_TTL_MS = 30000
+
+    // Periodic cleanup of expired blocks (every 60 seconds)
+    this._blockCleanupInterval = setInterval(() => {
+      const now = Date.now()
+      for (const [userId, blockTime] of this.blockedUserIds.entries()) {
+        if (now - blockTime >= this.BLOCKED_USER_TTL_MS) {
+          this.blockedUserIds.delete(userId)
+        }
+      }
+    }, 60000)
+
     // Background nodes: Static nodes distributed across canvas to fill space
     this.backgroundNodes = new Map()
     // OPTIMIZATION: Mobile devices use fewer nodes for better performance
@@ -422,6 +436,15 @@ class SpringMeshNetwork {
    * @param {Object} gestureData - Gesture state info
    */
   updateNode(userId, x, y, color, gestureData) {
+    // Reject updates for blocked users (ghost node prevention after user-left)
+    if (this.blockedUserIds.has(userId)) {
+      const blockTime = this.blockedUserIds.get(userId)
+      if (Date.now() - blockTime < this.BLOCKED_USER_TTL_MS) {
+        return false
+      }
+      this.blockedUserIds.delete(userId)
+    }
+
     const existing = this.nodes.get(userId)
     let wasNew = false
 
@@ -643,8 +666,24 @@ class SpringMeshNetwork {
    * @param {string} userId - User identifier to remove
    */
   removeNode(userId) {
+    this.blockedUserIds.set(userId, Date.now())
     this.nodes.delete(userId)
     this.rebuildEdges()
+  }
+
+  /**
+   * Unblock a user, allowing their node to be recreated (e.g., when they rejoin)
+   * @param {string} userId - User identifier to unblock
+   */
+  unblockUser(userId) {
+    this.blockedUserIds.delete(userId)
+  }
+
+  /**
+   * Clear all blocked users (e.g., on room transition)
+   */
+  clearBlockedUsers() {
+    this.blockedUserIds.clear()
   }
 
   /**
@@ -1003,6 +1042,7 @@ class SpringMeshNetwork {
   clear() {
     this.nodes.clear()
     this.edges = []
+    this.blockedUserIds.clear()
   }
 
   /**
@@ -1010,6 +1050,10 @@ class SpringMeshNetwork {
    */
   dispose() {
     this.clear()
+    if (this._blockCleanupInterval) {
+      clearInterval(this._blockCleanupInterval)
+      this._blockCleanupInterval = null
+    }
   }
 }
 
