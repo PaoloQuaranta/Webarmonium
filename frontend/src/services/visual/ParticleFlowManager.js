@@ -172,7 +172,6 @@ class ParticleFlowManager {
 
     const sourceNode = this.springMesh.nodes.get(sourceUserId)
     if (!sourceNode) {
-      console.warn('🔴 emitParticles: node NOT found for', sourceUserId.substring(0, 8))
       return
     }
 
@@ -187,9 +186,6 @@ class ParticleFlowManager {
     const connectedEdges = this.springMesh.edges.filter(
       edge => edge.sourceId === sourceUserId || edge.targetId === sourceUserId
     )
-
-    // DEBUG: Remote particle investigation
-    console.log('🟢 emitParticles:', sourceUserId.substring(0, 8), 'edges:', connectedEdges.length, 'particles:', this.particles.size, '/', adjustedMaxParticles)
 
     // Emit initial particles on all connected edges
     // These particles will CASCADE on arrival at their destinations

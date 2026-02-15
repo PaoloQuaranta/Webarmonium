@@ -441,8 +441,12 @@ class GenerativeVisualService {
       node.gestureType = gestureData.type || 'idle'
       node.isActive = gestureData.isActive || false
 
-      // DEBUG: Remote particle investigation
-      console.log('🎨 updateGestureData:', userId.substring(0, 8), gestureData.type, 'active:', gestureData.isActive, 'nodes:', this.springMesh.nodes.size, 'edges:', this.springMesh.edges.length)
+      // console.log('🎨 Node updated:', {
+//        userId: userId.substring(0, 8),
+//        gestureType: node.gestureType,
+//        isActive: node.isActive,
+//        color: node.color
+////      })
 
       // Trigger visual effects based on gesture state
       if (gestureData.isActive) {
@@ -488,8 +492,8 @@ class GenerativeVisualService {
         }
       }
     } else {
-      // DEBUG: Remote particle investigation
-      console.warn('⚠️ Node NOT found for:', userId.substring(0, 8), 'Available:', Array.from(this.springMesh.nodes.keys()).map(id => id.substring(0, 8)))
+      // console.warn('⚠️ Node not found in spring mesh for userId:', userId.substring(0, 8))
+      // console.log('🎨 Available nodes:', Array.from(this.springMesh.nodes.keys()).map(id => id.substring(0, 8)))
     }
 
     this.lastActivityTime = Date.now()
