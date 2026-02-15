@@ -105,21 +105,28 @@ class WavePacketSystem {
     const waveContext = new WaveContext(waveId, sourceUserId, color)
     this.waveContexts.set(waveId, waveContext)
 
-    // Find all edges from the source cursor
-    const outgoingEdges = this.springMesh.edges.filter(
-      edge => edge.sourceId === sourceUserId
+    // Find all connected edges (bidirectional traversal)
+    // Remote users may appear as targetId (not sourceId) on topology edges
+    // due to Map iteration order in TopologyGenerator.generateCircuitPath()
+    const connectedEdges = this.springMesh.edges.filter(
+      edge => edge.sourceId === sourceUserId || edge.targetId === sourceUserId
     )
 
     // PERF: Apply stress factor to max pulses for graceful degradation
     const stressFactor = window.visualService?.stressFactor ?? 1.0
     const adjustedMaxPulses = Math.ceil(this.maxPulses * stressFactor)
 
-    // Emit initial pulses ONLY on edges from the source cursor
+    // Emit initial pulses on all connected edges
     // These pulses will CASCADE on arrival at their destinations
-    for (const edge of outgoingEdges) {
+    for (const edge of connectedEdges) {
       if (this.activePulses.size >= adjustedMaxPulses) break
 
-      const pulse = this.createCascadePulse(edge, color, this.baseIntensity, waveContext, 0)
+      // Determine direction: forward if user is sourceId, reverse if user is targetId
+      const isForward = edge.sourceId === sourceUserId
+      const destinationNodeId = isForward ? edge.targetId : edge.sourceId
+      const pulse = this.createCascadePulseBidirectional(
+        edge, color, this.baseIntensity, waveContext, 0, isForward, destinationNodeId
+      )
       if (pulse) {
         waveContext.activePulseCount++
       }

@@ -180,20 +180,27 @@ class ParticleFlowManager {
     const waveContext = new ParticleWaveContext(waveId, sourceUserId, sourceNode.color, count)
     this.waveContexts.set(waveId, waveContext)
 
-    // Find all edges from the source cursor
-    const outgoingEdges = this.springMesh.edges.filter(
-      edge => edge.sourceId === sourceUserId
+    // Find all connected edges (bidirectional traversal)
+    // Remote users may appear as targetId (not sourceId) on topology edges
+    // due to Map iteration order in TopologyGenerator.generateCircuitPath()
+    const connectedEdges = this.springMesh.edges.filter(
+      edge => edge.sourceId === sourceUserId || edge.targetId === sourceUserId
     )
 
-    // Emit initial particles ONLY on edges from the source cursor
+    // Emit initial particles on all connected edges
     // These particles will CASCADE on arrival at their destinations
-    for (const edge of outgoingEdges) {
+    for (const edge of connectedEdges) {
       // Create multiple particles per edge for visual density
       const particleCount = Math.min(count, 3)  // Cap initial burst
       for (let i = 0; i < particleCount; i++) {
         if (this.particles.size >= adjustedMaxParticles) break
 
-        const particle = this.createCascadeParticle(edge, sourceNode.color, 1.0, waveContext, 0)
+        // Determine direction: forward if user is sourceId, reverse if user is targetId
+        const isForward = edge.sourceId === sourceUserId
+        const destinationNodeId = isForward ? edge.targetId : edge.sourceId
+        const particle = this.createCascadeParticleBidirectional(
+          edge, sourceNode.color, 1.0, waveContext, 0, isForward, destinationNodeId
+        )
         if (particle) {
           waveContext.activeParticleCount++
         }
