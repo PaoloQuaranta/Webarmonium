@@ -546,6 +546,13 @@ class CompositionEngine {
       }
     }
 
+    // Audition/sequencer material: ensure minimum viable score so these
+    // actively-generated sources maintain composition vibrancy even when
+    // canvas gesture material has aged out
+    if (material.content?.isAudition) {
+      score = Math.max(score, 0.45)
+    }
+
     return score
   }
 
@@ -804,6 +811,17 @@ class CompositionEngine {
   selectElaborationTechnique(material) {
     const lifetime = this.materialLibrary.lifetimes.get(material.id)
     if (!lifetime) return 'repeat'
+
+    // Single-note material (audition/sequencer): skip 'repeat' which creates
+    // monotone ostinato. Use techniques that generate melodic variety by
+    // transposing through the harmonic progression or adding variation.
+    const noteCount = material.content?.notes?.length || 0
+    if (noteCount === 1) {
+      const techniques = ['sequence', 'vary', 'invert']
+      const safeUsage = lifetime.usageCount || 0
+      const idx = Math.floor((safeUsage * PHI) % 1 * techniques.length)
+      return techniques[idx]
+    }
 
     const age = lifetime.age || 0
     const usage = lifetime.usageCount || 0

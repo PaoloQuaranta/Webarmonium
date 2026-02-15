@@ -167,6 +167,40 @@ class BackgroundCompositionService {
   }
 
   /**
+   * Transition from DRONE to FULL COMPOSITION after enough gestures.
+   * Shared by both normal and rawParams (audition/sequencer) paths so that
+   * audition-only or sequencer-only sessions can start the composition loop.
+   * @param {string} roomId
+   * @param {Object} roomState
+   * @private
+   */
+  _checkCompositionLoopStart (roomId, roomState) {
+    if (roomState.gestureCount >= 2 && !roomState.compositionStarted) {
+      roomState.compositionStarted = true
+
+      // Entry #192: Generate first real composition, then schedule continuous compositions
+      this.generateAndBroadcastComposition(roomId, roomState.roomContext)
+        .then(() => {
+          if (this.compositionTimers.has(roomId) || this.roomCompositions.has(roomId)) {
+            this.scheduleNextComposition(roomId, roomState.roomContext)
+          }
+        })
+        .catch((error) => {
+          console.error(`Failed to generate initial composition for room ${roomId}:`, error.message)
+          // Entry #194: Reduced recovery delay from 5s to 1s
+          if (this.roomCompositions.has(roomId)) {
+            const recoveryTimer = setTimeout(() => {
+              if (this.roomCompositions.has(roomId)) {
+                this.scheduleNextComposition(roomId, roomState.roomContext)
+              }
+            }, 1000)
+            this.compositionTimers.set(roomId, recoveryTimer)
+          }
+        })
+    }
+  }
+
+  /**
    * Get engine instances for a specific room, falling back to global engines.
    * @param {string} roomId
    * @returns {Object} { materialLibrary, styleAnalyzer, harmonicEngine, compositionEngine }
@@ -1309,7 +1343,11 @@ class BackgroundCompositionService {
         isAudition: true
       }
       engines.materialLibrary.addMaterial(material)
-      // console.log(`🎵 Audition gesture added (skipping StyleAnalyzer)`)
+
+      // Allow audition/sequencer gestures to start the composition loop
+      // Without this, rawParams path returns before the transition check,
+      // so audition-only sessions would never leave drone mode
+      this._checkCompositionLoopStart(roomId, roomState)
       return
     }
 
@@ -1476,32 +1514,7 @@ class BackgroundCompositionService {
     this.applyStyleToComposition(roomId)
 
     // TRANSITION from DRONE to FULL COMPOSITION after initial gestures
-    if (roomState.gestureCount >= 2 && !roomState.compositionStarted) {
-// console.log('🎼 Transitioning from drone to full composition (2+ gestures collected)')
-      roomState.compositionStarted = true
-
-      // Entry #192: Generate first real composition, then schedule continuous compositions
-      // Use .then() to ensure composition completes before scheduling next
-      this.generateAndBroadcastComposition(roomId, roomState.roomContext)
-        .then(() => {
-          // Check if room still active before scheduling
-          if (this.compositionTimers.has(roomId) || this.roomCompositions.has(roomId)) {
-            this.scheduleNextComposition(roomId, roomState.roomContext)
-          }
-        })
-        .catch((error) => {
-          console.error(`Failed to generate initial composition for room ${roomId}:`, error.message)
-          // Entry #194: Reduced recovery delay from 5s to 1s
-          if (this.roomCompositions.has(roomId)) {
-            const recoveryTimer = setTimeout(() => {
-              if (this.roomCompositions.has(roomId)) {
-                this.scheduleNextComposition(roomId, roomState.roomContext)
-              }
-            }, 1000)
-            this.compositionTimers.set(roomId, recoveryTimer)
-          }
-        })
-    }
+    this._checkCompositionLoopStart(roomId, roomState)
 
 // console.log(`🎼 Added material ${materialId} (gesture #${roomState.gestureCount}):`, {
 //      notesCount: material.notes.length,
