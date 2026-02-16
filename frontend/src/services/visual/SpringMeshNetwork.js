@@ -143,6 +143,13 @@ class SpringMeshNetwork {
     this._rgbBuffer1 = [0, 0, 0]
     this._rgbBuffer2 = [0, 0, 0]
     this._rgbBufferTemp = [0, 0, 0]  // For intermediate/background node rendering
+
+    // PixiJS rendering state
+    this._pixiAdapter = null
+    this._pixiEdgeGfx = null          // PIXI.Graphics for all edges
+    this._pixiBgSprites = new Map()   // bgNodeId -> PIXI.Sprite
+    this._pixiIntSprites = new Map()  // intNodeId -> PIXI.Sprite
+    this._pixiCursorNodes = new Map() // userId -> { glow: Sprite, circle: Sprite, text: Text }
   }
 
   /**
@@ -155,6 +162,22 @@ class SpringMeshNetwork {
     if (clamped === this.curveSegments) return
     this.curveSegments = clamped
     this.bezierBasisCache = this._precomputeBezierBasis(clamped)
+  }
+
+  /**
+   * Adjust rendering for light/dark theme
+   * Light mode: switch node glow from additive to normal blending, reduce alpha
+   */
+  setLightMode(isLight) {
+    this._isLightMode = !!isLight
+    // Update existing cursor node glow sprites
+    if (this._pixiCursorNodes) {
+      for (const sprites of this._pixiCursorNodes.values()) {
+        if (sprites.glow) {
+          sprites.glow.blendMode = isLight ? 'normal' : 'add'
+        }
+      }
+    }
   }
 
   /**
@@ -192,6 +215,45 @@ class SpringMeshNetwork {
   setShadowBlurEnabled (enabled) {
     // Coerce to boolean for defensive programming
     this._shadowBlurEnabled = Boolean(enabled)
+  }
+
+  /**
+   * Initialize PixiJS rendering for the spring mesh network
+   * Edges: PIXI.Graphics with quadraticCurveTo (replaces 800 individual line segments)
+   * Nodes: Individual PIXI.Sprites with pre-baked glow textures (replaces shadowBlur)
+   * @param {PixiAdapter} adapter - PixiAdapter instance
+   */
+  initPixi(adapter) {
+    // Clean up previous PixiJS state (for context loss recovery)
+    if (this._pixiEdgeGfx) {
+      if (this._pixiEdgeGfx.parent) {
+        this._pixiEdgeGfx.parent.removeChild(this._pixiEdgeGfx)
+      }
+      this._pixiEdgeGfx.destroy()
+      this._pixiEdgeGfx = null
+    }
+    if (this._pixiBgSprites) {
+      this._pixiBgSprites.forEach(s => s.destroy())
+      this._pixiBgSprites.clear()
+    }
+    if (this._pixiIntSprites) {
+      this._pixiIntSprites.forEach(s => s.destroy())
+      this._pixiIntSprites.clear()
+    }
+    if (this._pixiCursorNodes) {
+      this._pixiCursorNodes.forEach(n => {
+        if (n.glow) n.glow.destroy()
+        if (n.circle) n.circle.destroy()
+        if (n.text) n.text.destroy()
+      })
+      this._pixiCursorNodes.clear()
+    }
+
+    this._pixiAdapter = adapter
+
+    // Edge rendering: single Graphics object on edgeLayer
+    this._pixiEdgeGfx = new PIXI.Graphics()
+    adapter.getLayer('edgeLayer').addChild(this._pixiEdgeGfx)
   }
 
   /**
@@ -711,37 +773,286 @@ class SpringMeshNetwork {
 
   /**
    * Render the network with curved Bezier edges
+   * PixiJS path: PIXI.Graphics for edges, Sprites for nodes (pre-baked glow replaces shadowBlur)
    * @param {p5} p - p5.js instance
    */
   render(p) {
-    // AUDIO PRIORITY: Simplify or skip TERTIARY edges under stress
+    if (this._pixiAdapter) {
+      this._renderPixi()
+      return
+    }
+
+    // Legacy Canvas 2D fallback
     const stressFactor = window.visualService?.stressFactor ?? 1.0
 
-    // Draw edges first (behind nodes)
     for (const edge of this.edges) {
       if (edge.type === this.EDGE_TYPES.TERTIARY) {
-        if (stressFactor < 0.5) continue  // Skip entirely under high stress
+        if (stressFactor < 0.5) continue
         if (stressFactor < 0.7) {
-          this.renderSimpleLine(p, edge)  // Single line instead of gradient Bezier
+          this.renderSimpleLine(p, edge)
           continue
         }
       }
       this.renderEdge(p, edge)
     }
 
-    // Draw background nodes (subtle)
     for (const node of this.backgroundNodes.values()) {
       this.renderBackgroundNode(p, node)
     }
 
-    // Draw intermediate nodes (circuit and radial)
     for (const node of this.intermediateNodes.values()) {
       this.renderIntermediateNode(p, node)
     }
 
-    // Draw cursor nodes on top
     for (const node of this.nodes.values()) {
       this.renderNode(p, node)
+    }
+  }
+
+  /**
+   * PixiJS render: update edges (Graphics) + node sprites
+   * @private
+   */
+  _renderPixi() {
+    if (!this._pixiAdapter || !this._pixiEdgeGfx) return
+    const w = this._pixiAdapter.width
+    const h = this._pixiAdapter.height
+    const stressFactor = window.visualService?.stressFactor ?? 1.0
+
+    this._renderEdgesPixi(w, h, stressFactor)
+    this._renderBgNodesPixi(w, h)
+    this._renderIntNodesPixi(w, h)
+    this._renderCursorNodesPixi(w, h)
+  }
+
+  /**
+   * PixiJS: Draw all edges as quadratic Bezier curves using PIXI.Graphics
+   * Replaces 800+ individual line segment draw calls with native GPU-tessellated curves
+   * @private
+   */
+  _renderEdgesPixi(w, h, stressFactor) {
+    const gfx = this._pixiEdgeGfx
+    gfx.clear()
+
+    for (const edge of this.edges) {
+      if (edge.type === this.EDGE_TYPES.TERTIARY && stressFactor < 0.5) continue
+
+      const nodeA = this.getNodeOrIntermediate(edge.sourceId)
+      const nodeB = this.getNodeOrIntermediate(edge.targetId)
+      if (!nodeA || !nodeB) continue
+
+      // Viewport culling
+      const margin = 50 / Math.max(w, h)
+      if ((nodeA.x < -margin || nodeA.x > 1 + margin || nodeA.y < -margin || nodeA.y > 1 + margin) &&
+          (nodeB.x < -margin || nodeB.x > 1 + margin || nodeB.y < -margin || nodeB.y > 1 + margin)) continue
+
+      const x1 = nodeA.x * w, y1 = nodeA.y * h
+      const cx = edge.controlPoint.x * w, cy = edge.controlPoint.y * h
+      const x2 = nodeB.x * w, y2 = nodeB.y * h
+
+      // Visual properties by edge type
+      let thickness, alpha, color
+      const hasEnergy = (edge.pulses?.length > 0) || (edge.particles?.length > 0) ||
+                        (nodeA.energyLevel > 0) || (nodeB.energyLevel > 0)
+
+      if (edge.type === this.EDGE_TYPES.PRIMARY) {
+        thickness = this.EDGE_CONFIG.activeThickness
+        alpha = 0.7
+        color = hexStringToPixiColor(nodeA.color || '#ffffff')
+      } else if (edge.type === this.EDGE_TYPES.SECONDARY) {
+        thickness = hasEnergy ? 2.5 : 1.5
+        alpha = hasEnergy ? 0.6 : 0.3
+        color = 0x808090
+      } else if (edge.type === this.EDGE_TYPES.TERTIARY) {
+        thickness = hasEnergy ? 2 : 1
+        alpha = hasEnergy ? 0.4 : 0.12
+        color = 0x808090
+      } else {
+        thickness = (nodeA.isActive || nodeB.isActive)
+          ? this.EDGE_CONFIG.activeThickness
+          : this.EDGE_CONFIG.idleThickness
+        alpha = 0.5
+        color = hexStringToPixiColor(nodeA.color || '#ffffff')
+      }
+
+      gfx.moveTo(x1, y1)
+        .quadraticCurveTo(cx, cy, x2, y2)
+        .stroke({ width: thickness, color, alpha })
+    }
+  }
+
+  /**
+   * PixiJS: Update background node sprites (create lazily on first render)
+   * @private
+   */
+  _renderBgNodesPixi(w, h) {
+    const nodeLayer = this._pixiAdapter.getLayer('nodeLayer')
+    const dotTexture = this._pixiAdapter.getTexture('attractorPoint')
+
+    for (const [bgId, bgNode] of this.backgroundNodes) {
+      let sprite = this._pixiBgSprites.get(bgId)
+      if (!sprite) {
+        sprite = new PIXI.Sprite(dotTexture)
+        sprite.anchor.set(0.5)
+        nodeLayer.addChild(sprite)
+        this._pixiBgSprites.set(bgId, sprite)
+      }
+
+      // Decay energy level
+      if (bgNode.energyLevel > 0) {
+        bgNode.energyLevel *= 0.98
+        if (bgNode.energyLevel < 0.01) bgNode.energyLevel = 0
+      }
+
+      // Wave propagation: distance-based lerp creates ripple effect
+      // Close nodes react fast, far nodes react slowly
+      if (bgNode._displayEnergy === undefined) bgNode._displayEnergy = 0
+
+      let minCursorDist = 1.0
+      for (const [, cursor] of this.nodes) {
+        const dx = bgNode.x - cursor.x
+        const dy = bgNode.y - cursor.y
+        const d = Math.sqrt(dx * dx + dy * dy)
+        if (d < minCursorDist) minCursorDist = d
+      }
+
+      // Responsiveness: 0.35 close → 0.02 far (wave speed ~10-15 frames spread)
+      const responsiveness = Math.max(0.02, 0.35 - minCursorDist * 0.6)
+      bgNode._displayEnergy += (bgNode.energyLevel - bgNode._displayEnergy) * responsiveness
+
+      const size = 5 + bgNode._displayEnergy * 8
+      const alpha = (40 + bgNode._displayEnergy * 180) / 255
+
+      sprite.x = bgNode.x * w
+      sprite.y = bgNode.y * h
+      sprite.scale.set(size / 6) // attractorPoint diameter = 6
+      sprite.alpha = alpha
+      sprite.tint = 0x646478 // rgb(100, 100, 120)
+    }
+  }
+
+  /**
+   * PixiJS: Sync intermediate node sprites with current topology
+   * @private
+   */
+  _renderIntNodesPixi(w, h) {
+    const nodeLayer = this._pixiAdapter.getLayer('nodeLayer')
+    const dotTexture = this._pixiAdapter.getTexture('particleDot')
+
+    // Remove sprites for deleted intermediate nodes
+    for (const [intId, sprite] of this._pixiIntSprites) {
+      if (!this.intermediateNodes.has(intId)) {
+        sprite.destroy()
+        this._pixiIntSprites.delete(intId)
+      }
+    }
+
+    // Create/update sprites
+    for (const [intId, node] of this.intermediateNodes) {
+      let sprite = this._pixiIntSprites.get(intId)
+      if (!sprite) {
+        sprite = new PIXI.Sprite(dotTexture)
+        sprite.anchor.set(0.5)
+        nodeLayer.addChild(sprite)
+        this._pixiIntSprites.set(intId, sprite)
+      }
+
+      const baseSize = this.topologyGenerator.traceTopology?.nodeSize || 6
+      const size = baseSize * 0.5
+
+      sprite.x = node.x * w
+      sprite.y = node.y * h
+      sprite.scale.set(size / 8) // particleDot diameter = 8
+      sprite.alpha = 0.5
+      sprite.tint = hexStringToPixiColor(node.color || '#ffffff')
+    }
+  }
+
+  /**
+   * PixiJS: Sync cursor node sprites (glow + circle + text label)
+   * Pre-baked nodeGlow texture replaces expensive shadowBlur
+   * @private
+   */
+  _renderCursorNodesPixi(w, h) {
+    const nodeLayer = this._pixiAdapter.getLayer('nodeLayer')
+    const textLayer = this._pixiAdapter.getLayer('textLayer')
+
+    // Remove sprites for deleted cursor nodes
+    for (const [userId, sprites] of this._pixiCursorNodes) {
+      if (!this.nodes.has(userId)) {
+        if (sprites.glow) sprites.glow.destroy()
+        if (sprites.circle) sprites.circle.destroy()
+        if (sprites.text) sprites.text.destroy()
+        this._pixiCursorNodes.delete(userId)
+      }
+    }
+
+    // Create/update cursor node sprites
+    for (const [userId, node] of this.nodes) {
+      let sprites = this._pixiCursorNodes.get(userId)
+
+      if (!sprites) {
+        const glow = new PIXI.Sprite(this._pixiAdapter.getTexture('nodeGlow'))
+        glow.anchor.set(0.5)
+        glow.blendMode = this._isLightMode ? 'normal' : 'add'
+        nodeLayer.addChild(glow)
+
+        const circle = new PIXI.Sprite(this._pixiAdapter.getTexture('particleDot'))
+        circle.anchor.set(0.5)
+        nodeLayer.addChild(circle)
+
+        const text = new PIXI.Text({
+          text: userId.substring(0, 8),
+          style: { fontSize: 10, fill: '#ffffff' }
+        })
+        text.anchor.set(0.5, 0)
+        textLayer.addChild(text)
+
+        sprites = { glow, circle, text }
+        this._pixiCursorNodes.set(userId, sprites)
+      }
+
+      const x = node.x * w
+      const y = node.y * h
+
+      // Size based on gesture type
+      let size = this.NODE_CONFIG.idleSize
+      if (node.gestureType === 'tap') {
+        size = this.NODE_CONFIG.tapSize
+      } else if (node.gestureType === 'drag') {
+        size = this.NODE_CONFIG.dragSize
+      } else if (node.gestureType === 'hold' || node.gestureType === 'sequencer') {
+        const pulse = Math.sin(performance.now() * this.NODE_CONFIG.holdPulseSpeed) * 5
+        size = (this.NODE_CONFIG.holdPulseMin + this.NODE_CONFIG.holdPulseMax) / 2 + pulse
+      }
+
+      const color = hexStringToPixiColor(node.color || '#ffffff')
+
+      // Circle sprite
+      sprites.circle.x = x
+      sprites.circle.y = y
+      sprites.circle.scale.set(size / 8) // particleDot diameter = 8
+      sprites.circle.tint = color
+
+      // Glow sprite (pre-baked radial gradient replaces shadowBlur)
+      // Texture already has quadratic alpha falloff — no need to add shadowBlur extent
+      if (node.isActive && this._shadowBlurEnabled) {
+        const glowTexSize = this._pixiAdapter.getTexture('nodeGlow')?.width || 80
+        const glowScale = (size * 3.5) / glowTexSize
+        sprites.glow.x = x
+        sprites.glow.y = y
+        sprites.glow.scale.set(glowScale)
+        sprites.glow.tint = color
+        sprites.glow.alpha = this._isLightMode ? 0.25 : 0.6
+        sprites.glow.visible = true
+      } else {
+        sprites.glow.visible = false
+      }
+
+      // Text label (tint = colored, avoids texture regeneration)
+      sprites.text.x = x
+      sprites.text.y = y + size / 2 + 4
+      sprites.text.tint = color
     }
   }
 
@@ -1049,6 +1360,23 @@ class SpringMeshNetwork {
    * Dispose of resources
    */
   dispose() {
+    // PixiJS cleanup
+    if (this._pixiEdgeGfx) {
+      this._pixiEdgeGfx.destroy()
+      this._pixiEdgeGfx = null
+    }
+    for (const sprite of this._pixiBgSprites.values()) sprite.destroy()
+    this._pixiBgSprites.clear()
+    for (const sprite of this._pixiIntSprites.values()) sprite.destroy()
+    this._pixiIntSprites.clear()
+    for (const sprites of this._pixiCursorNodes.values()) {
+      if (sprites.glow) sprites.glow.destroy()
+      if (sprites.circle) sprites.circle.destroy()
+      if (sprites.text) sprites.text.destroy()
+    }
+    this._pixiCursorNodes.clear()
+    this._pixiAdapter = null
+
     this.clear()
     if (this._blockCleanupInterval) {
       clearInterval(this._blockCleanupInterval)

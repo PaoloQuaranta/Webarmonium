@@ -83,6 +83,52 @@ class ParticleFlowManager {
 
     // Entry #74: Graphics quality controls
     this._cascadeEnabled = true
+
+    // PixiJS rendering state
+    this._pixiAdapter = null
+    this._pixiContainer = null
+    this._pixiSprites = new Map()  // particleId -> PIXI.Particle
+    this._pixiSpritePool = []      // reusable PIXI.Particle objects
+    this._pixiTexDiameter = 8      // actual texture diameter (updated in initPixi)
+  }
+
+  /**
+   * Initialize PixiJS rendering for particles
+   * @param {PixiAdapter} adapter - PixiAdapter instance
+   */
+  initPixi(adapter) {
+    // Clean up previous PixiJS state (for context loss recovery)
+    if (this._pixiContainer) {
+      if (this._pixiContainer.parent) {
+        this._pixiContainer.parent.removeChild(this._pixiContainer)
+      }
+      this._pixiContainer.destroy()
+      this._pixiContainer = null
+      this._pixiSpritePool = []
+    }
+
+    this._pixiAdapter = adapter
+    const layer = adapter.getLayer('particleLayer')
+    if (!layer) return
+
+    // Container + Sprite (ParticleContainer + Particle has pool visibility bug in PixiJS v8)
+    this._pixiContainer = new PIXI.Container()
+    layer.addChild(this._pixiContainer)
+
+    // Pre-allocate particle sprites in pool
+    const texture = adapter.getTexture('particleDot')
+    this._pixiTexDiameter = texture?.width || 8
+    for (let i = 0; i < 80; i++) {
+      const s = new PIXI.Sprite(texture)
+      s.anchor.set(0.5)
+      s.x = -9999
+      s.y = -9999
+      s.scale.set(0.001)
+      s.alpha = 0
+      s.visible = false
+      this._pixiSpritePool.push(s)
+      this._pixiContainer.addChild(s)
+    }
   }
 
   /**
@@ -272,6 +318,7 @@ class ParticleFlowManager {
 
     // Track in active particles
     this.particles.set(particleId, particle)
+    this._onParticleAdded(particleId)
 
     // Increase energy level of nodes
     const sourceNode = this.springMesh.backgroundNodes.get(edge.sourceId)
@@ -432,6 +479,7 @@ class ParticleFlowManager {
 
     // Track in active particles
     this.particles.set(particleId, particle)
+    this._onParticleAdded(particleId)
 
     // Increase energy level of nodes
     const sourceNode = this.springMesh.backgroundNodes.get(edge.sourceId)
@@ -483,6 +531,7 @@ class ParticleFlowManager {
 
     // Track in active particles
     this.particles.set(particleId, particle)
+    this._onParticleAdded(particleId)
 
     return particle
   }
@@ -618,6 +667,7 @@ class ParticleFlowManager {
 
       // Remove from active particles map
       this.particles.delete(particleId)
+      this._onParticleRemoved(particleId)
 
       // PERFORMANCE: Release particle back to pool for reuse
       if (this.particlePool) {
@@ -631,64 +681,57 @@ class ParticleFlowManager {
    * @param {p5} p - p5.js instance
    */
   render(p) {
-    // DEBUG: Log particle count occasionally
-    if (p.frameCount % 60 === 0 && this.particles.size > 0) {
-      // console.log('✨ Rendering', this.particles.size, 'particles')
+    if (this._pixiAdapter) {
+      this._renderPixi()
     }
-
-    for (const particle of this.particles.values()) {
-      this.renderParticle(p, particle)
-    }
+    // Legacy Canvas 2D path removed — all rendering through PixiJS
   }
 
   /**
-   * Render a single particle
-   * @param {p5} p - p5.js instance
-   * @param {Object} particle - Particle object
+   * PixiJS render: update sprite positions/alpha/tint from particle data
+   * @private
    */
-  renderParticle(p, particle) {
-    const edge = particle.edge
-    const nodeA = this.springMesh.getNodeOrIntermediate(edge.sourceId)
-    const nodeB = this.springMesh.getNodeOrIntermediate(edge.targetId)
+  _renderPixi() {
+    if (!this._pixiAdapter || !this._pixiContainer) return
+    const w = this._pixiAdapter.width
+    const h = this._pixiAdapter.height
 
-    if (!nodeA || !nodeB) {
-      // console.warn('⚠️ Particle render: Missing nodes for edge', edge.sourceId.substring(0, 8), '->', edge.targetId.substring(0, 8))
-      return
+    for (const [particleId, particle] of this.particles) {
+      const sprite = this._pixiSprites.get(particleId)
+      if (!sprite) continue
+
+      const edge = particle.edge
+      const nodeA = this.springMesh.getNodeOrIntermediate(edge.sourceId)
+      const nodeB = this.springMesh.getNodeOrIntermediate(edge.targetId)
+
+      if (!nodeA || !nodeB) {
+        sprite.alpha = 0
+        continue
+      }
+
+      // Calculate position on Bezier curve
+      const pos = this.calculateBezierPosition(
+        nodeA.x * w,
+        nodeA.y * h,
+        edge.controlPoint.x * w,
+        edge.controlPoint.y * h,
+        nodeB.x * w,
+        nodeB.y * h,
+        particle.progress
+      )
+
+      // Update sprite properties
+      sprite.x = pos.x
+      sprite.y = pos.y
+      sprite.alpha = particle.life * 0.7  // Max ~0.7 opacity
+      const scale = particle.size / this._pixiTexDiameter
+      sprite.scale.set(scale)
+      sprite.visible = true
+
+      // Update tint color (must use .tint, not .color — .color is packed BGRA)
+      const rgb = this.hexToRgbArray(particle.color)
+      sprite.tint = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2]
     }
-
-    // Calculate position on Bezier curve
-    const pos = this.calculateBezierPosition(
-      nodeA.x * p.width,
-      nodeA.y * p.height,
-      edge.controlPoint.x * p.width,
-      edge.controlPoint.y * p.height,
-      nodeB.x * p.width,
-      nodeB.y * p.height,
-      particle.progress
-    )
-
-    // Calculate alpha based on life
-    const alpha = Math.floor(particle.life * 180) // Max 180/255
-
-    // DEBUG: Log first few renders
-    if (this.particles.size <= 5 && p.frameCount % 10 === 0) {
-      // console.log('✨ Rendering particle:', {
-//        pos: `(${Math.round(pos.x)}, ${Math.round(pos.y)})`,
-//        progress: particle.progress.toFixed(2),
-//        life: particle.life.toFixed(2),
-//        size: particle.size.toFixed(1),
-//        alpha: alpha,
-//        color: particle.color
-////      })
-    }
-
-    // Parse color
-    const rgb = this.hexToRgbArray(particle.color)
-
-    // Draw particle
-    p.noStroke()
-    p.fill(rgb[0], rgb[1], rgb[2], alpha)
-    p.circle(pos.x, pos.y, particle.size)
   }
 
   /**
@@ -745,12 +788,60 @@ class ParticleFlowManager {
    * @returns {Array} [r, g, b] values
    */
   hexToRgbArray(hex) {
+    if (typeof hex !== 'string') return [255, 255, 255]
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
     return result ? [
       parseInt(result[1], 16),
       parseInt(result[2], 16),
       parseInt(result[3], 16)
     ] : [255, 255, 255]
+  }
+
+  /**
+   * Assign a PixiJS sprite when a particle is added
+   * @param {string} particleId
+   * @private
+   */
+  _onParticleAdded(particleId) {
+    if (!this._pixiAdapter) return
+
+    // Get sprite from pool or create new
+    let sprite = this._pixiSpritePool.pop()
+    if (!sprite) {
+      const texture = this._pixiAdapter.getTexture('particleDot')
+      sprite = new PIXI.Sprite(texture)
+      sprite.anchor.set(0.5)
+      sprite.x = -9999
+      sprite.y = -9999
+      sprite.scale.set(0.001)
+      sprite.alpha = 0
+      sprite.visible = false
+      this._pixiContainer.addChild(sprite)
+    }
+
+    sprite.alpha = 1
+    sprite.visible = true
+    this._pixiSprites.set(particleId, sprite)
+  }
+
+  /**
+   * Return PixiJS sprite to pool when particle is removed
+   * @param {string} particleId
+   * @private
+   */
+  _onParticleRemoved(particleId) {
+    if (!this._pixiAdapter) return
+
+    const sprite = this._pixiSprites.get(particleId)
+    if (sprite) {
+      sprite.visible = false
+      sprite.alpha = 0
+      sprite.scale.set(0.001)
+      sprite.x = -9999
+      sprite.y = -9999
+      this._pixiSprites.delete(particleId)
+      this._pixiSpritePool.push(sprite)
+    }
   }
 
   /**
@@ -770,6 +861,16 @@ class ParticleFlowManager {
     }
 
     this.clear()
+
+    // Cleanup PixiJS resources
+    if (this._pixiContainer) {
+      this._pixiContainer.destroy({ children: true })
+      this._pixiContainer = null
+    }
+    this._pixiSprites.clear()
+    this._pixiSpritePool = []
+    this._pixiAdapter = null
+
     this.springMesh = null
   }
 }

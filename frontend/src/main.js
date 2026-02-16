@@ -54,9 +54,16 @@ class WebarmoniumApp {
 
     // Trail fade animation for gesture trails
     this._trailFadeFrameId = null
-    this._trailFadeRate = 0.02  // Alpha reduction per frame (lower = slower fade)
+    this._trailFadeRate = 0.006  // Alpha reduction per frame (lower = slower fade)
     this._trailFadeFrameCounter = 0   // AUDIO PRIORITY: Frame counter for skip logic
     this._trailFadeSkipFrames = 0     // AUDIO PRIORITY: 0 = no skip, set by _adjustTrailFadeForAudioStress
+
+    // Trail system PixiJS state (Step 9: alpha-decaying sprites)
+    this._trailPixiContainer = null
+    this._trailPixiParticles = []
+    this._trailPixiNextIndex = 0
+    this._trailColorToTint = new Map()  // Hex color string → PixiJS tint number cache
+    this._trailLightMode = false  // Reduced alpha on light background
 
     // FIX: Track if virtual users are currently active
     this.virtualUsersActive = false
@@ -109,7 +116,29 @@ class WebarmoniumApp {
       // p5.js container is visible after showApp()
       const p5Container = document.getElementById('p5-container')
       if (p5Container && this.visualService) {
-        this.visualService.initialize(p5Container)
+        await this.visualService.initialize(p5Container)
+        // Wire CanvasManager to PixiAdapter for resize coordination
+        if (this.visualService.pixiAdapter) {
+          this.canvasManager.setPixiAdapter(this.visualService.pixiAdapter)
+          // Initialize trail system on PixiJS trailLayer
+          this._initTrailPixi(this.visualService.pixiAdapter)
+          // Re-initialize trail on WebGL context restore
+          this.visualService.onContextRestored((adapter) => {
+            if (adapter && adapter.layers && adapter.textures) {
+              this._initTrailPixi(adapter)
+            }
+          })
+
+          // Set initial trail light mode from current theme
+          const initTheme = document.documentElement.getAttribute('data-theme') || 'dark'
+          this.setTrailLightMode(initTheme === 'light')
+
+          // Listen for theme changes to update trail rendering
+          window.addEventListener('theme-change', (e) => {
+            const theme = e?.detail?.theme || (document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark')
+            this.setTrailLightMode(theme === 'light')
+          })
+        }
         // Register visual service for resize notifications
         this.canvasManager.addResizeListener({
           setCanvasSize: (width, height) => {
@@ -2952,73 +2981,131 @@ class WebarmoniumApp {
   }
 
   /**
+   * Initialize PixiJS trail system on trailLayer
+   * Creates a ParticleContainer with pre-allocated Particle pool
+   * @param {PixiAdapter} adapter - PixiJS adapter with trailLayer and textures
+   * @private
+   */
+  _initTrailPixi(adapter) {
+    // Validate adapter has required resources
+    if (!adapter || !adapter.layers || !adapter.layers.trailLayer || !adapter.textures || !adapter.textures.trailHalo) {
+      return
+    }
+
+    // Clean up previous state (for context loss recovery)
+    if (this._trailPixiContainer) {
+      if (this._trailPixiContainer.parent) {
+        this._trailPixiContainer.parent.removeChild(this._trailPixiContainer)
+      }
+      this._trailPixiContainer.destroy({ children: true })
+      this._trailPixiContainer = null
+      this._trailPixiParticles = []
+    }
+
+    const MAX_TRAIL_SPRITES = 200
+
+    // Use regular Container + Sprite (not ParticleContainer + Particle)
+    // for maximum rendering reliability across PixiJS v8 implementations
+    this._trailPixiContainer = new PIXI.Container()
+    this._trailPixiContainer.blendMode = 'add'
+    const trailLayer = adapter.layers.trailLayer
+    trailLayer.addChild(this._trailPixiContainer)
+
+    const tex = adapter.textures.trailHalo
+    this._trailTexDiameter = tex.width || 48
+
+    this._trailPixiParticles = []
+    for (let i = 0; i < MAX_TRAIL_SPRITES; i++) {
+      const s = new PIXI.Sprite(tex)
+      s.anchor.set(0.5)
+      s.x = -9999
+      s.y = -9999
+      s.scale.set(0.001)
+      s.alpha = 0
+      s.visible = false
+      this._trailPixiContainer.addChild(s)
+      this._trailPixiParticles.push(s)
+    }
+    this._trailPixiNextIndex = 0
+  }
+
+  /**
    * Render a trail halo at the given position
-   * Used for both local and remote trails
-   * Entry #80: Optimized with cached RGB conversion and simpler compositing
+   * Uses PixiJS alpha-decaying sprites (Step 9) with Canvas 2D fallback
    * @param {number} normX - Normalized X position (0-1)
    * @param {number} normY - Normalized Y position (0-1)
    * @param {number} intensity - Trail intensity (0-1)
    * @param {string} color - Hex color string
    */
   _renderTrailHalo(normX, normY, intensity, color) {
-    // CRITICAL FIX #3: Validate all numeric inputs to prevent NaN propagation
-    if (!this.ctx ||
-        !isFinite(normX) || !isFinite(normY) || !isFinite(intensity)) {
+    if (!isFinite(normX) || !isFinite(normY) || !isFinite(intensity)) {
       return
     }
 
     const x = normX * window.innerWidth
     const y = normY * window.innerHeight
+    const alpha = Math.max(0, Math.min(1, intensity))
+    const size = 15 + (alpha * 30)
 
-    // Entry #80: Cache RGB conversion per color to avoid repeated parsing
-    // MEDIUM FIX #7: Validate color before caching
-    if (!this._trailColorCache) {
-      this._trailColorCache = new Map()
+    // PixiJS path: spawn a sprite from the circular pool
+    if (this._trailPixiContainer && this._trailPixiParticles.length > 0) {
+      const idx = this._trailPixiNextIndex
+      this._trailPixiNextIndex = (idx + 1) % this._trailPixiParticles.length
+      const s = this._trailPixiParticles[idx]
+
+      s.x = x
+      s.y = y
+      s.alpha = Math.min(alpha * 2, 1.0) * (this._trailLightMode ? 0.35 : 1.0)
+      const scale = size / this._trailTexDiameter
+      s.scale.set(scale)
+      s.visible = true
+
+      // Convert hex color to PixiJS tint with caching
+      const colorKey = typeof color === 'string' && color.length > 0 ? color : '#2dd4bf'
+      let tint = this._trailColorToTint.get(colorKey)
+      if (tint === undefined) {
+        tint = window.hexStringToPixiColor
+          ? window.hexStringToPixiColor(colorKey)
+          : parseInt(colorKey.replace('#', ''), 16) || 0x2DD4BF
+        this._trailColorToTint.set(colorKey, tint)
+        if (this._trailColorToTint.size > 20) {
+          const firstKey = this._trailColorToTint.keys().next().value
+          this._trailColorToTint.delete(firstKey)
+        }
+      }
+      s.tint = tint
+
+      return
     }
 
-    // Only cache valid color strings
-    // Default color #2dd4bf (teal) = RGB(45, 212, 191)
+    // Legacy Canvas 2D fallback (before PixiJS init)
+    if (!this.ctx) return
+
     const colorKey = typeof color === 'string' && color.length > 0 ? color : '#2dd4bf'
+    if (!this._trailColorCache) this._trailColorCache = new Map()
     let rgb = this._trailColorCache.get(colorKey)
     if (!rgb) {
-      if (!window.VisualUtils) {
-      }
       rgb = window.VisualUtils?.hexToRgb(colorKey) || { r: 45, g: 212, b: 191 }
-      // Validate RGB values are finite
       if (!isFinite(rgb.r) || !isFinite(rgb.g) || !isFinite(rgb.b)) {
         rgb = { r: 45, g: 212, b: 191 }
       }
       this._trailColorCache.set(colorKey, rgb)
-      // Keep cache size bounded (max 20 colors)
-      if (this._trailColorCache.size > 20) {
-        const firstKey = this._trailColorCache.keys().next().value
-        this._trailColorCache.delete(firstKey)
-      }
     }
 
-    // HIGH FIX #5: Consistent fallback with clamp 0-1
-    const alpha = Math.max(0, Math.min(1, intensity))
-    const size = 5 + (alpha * 15)
-
     this.ctx.save()
-
-    // Use globalAlpha + solid fill + shadowBlur for glow effect
-    // More performant than creating gradient every frame
     this.ctx.globalAlpha = alpha * 0.8
     this.ctx.fillStyle = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
     this.ctx.shadowColor = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
     this.ctx.shadowBlur = size * 0.6
-
     this.ctx.beginPath()
     this.ctx.arc(x, y, size * 0.5, 0, Math.PI * 2)
     this.ctx.fill()
-
     this.ctx.restore()
   }
 
   /**
    * Start the trail fade animation loop
-   * Fades existing trails by drawing a semi-transparent overlay each frame
+   * Decays trail halo alpha each frame (PixiJS sprites or Canvas 2D overlay)
    * @private
    */
   _startTrailFade() {
@@ -3066,6 +3153,17 @@ class WebarmoniumApp {
   }
 
   /**
+   * Adjust trail halo rendering for light/dark theme
+   * Light mode: reduce alpha, use normal blending (additive washes out on light bg)
+   */
+  setTrailLightMode(isLight) {
+    this._trailLightMode = !!isLight
+    if (this._trailPixiContainer) {
+      this._trailPixiContainer.blendMode = isLight ? 'normal' : 'add'
+    }
+  }
+
+  /**
    * Stop the trail fade animation loop
    * @private
    */
@@ -3077,45 +3175,38 @@ class WebarmoniumApp {
   }
 
   /**
-   * Fade the trail canvas by drawing a semi-transparent black overlay
-   * This creates a natural decay effect for trail halos
+   * Fade trail halos via alpha decay
+   * PixiJS: multiplicative alpha decay on each Particle
+   * Legacy Canvas 2D: destination-out composite overlay
    * Uses delta time for frame-rate independent fading
    * @private
    */
   _fadeTrailCanvas() {
-    // CRITICAL: Stop animation if canvas is gone
-    if (!this.ctx || !this.canvas) {
-      this._stopTrailFade()
-      return
-    }
-
-    try {
-      // Frame-rate independent fading using delta time
+    // PixiJS path: multiplicative alpha decay on sprite pool
+    if (this._trailPixiContainer && this._trailPixiParticles.length > 0) {
       const now = performance.now()
       const deltaTime = now - (this._lastFadeTime || now)
       this._lastFadeTime = now
 
-      // Target 60fps behavior: scale alpha by actual delta time
-      // AUDIO PRIORITY: Clamp to 0.12 — at 5fps emergency this yields ~0.6 alpha/sec
-      // (slower than normal 1.2 alpha/sec, preserving trails during stress)
-      const targetDelta = 16.67  // 60fps target
-      const scaledAlpha = Math.min(0.12, this._trailFadeRate * (deltaTime / targetDelta))
+      const targetDelta = 16.67
+      const scaledFade = Math.min(0.12, this._trailFadeRate * (deltaTime / targetDelta))
+      const fadeMultiplier = 1 - scaledFade
 
-      // Use logical (CSS) dimensions since context is scaled by DPR
-      // canvas.width/height are scaled by devicePixelRatio, but ctx has scale(dpr,dpr)
-      const logicalWidth = window.innerWidth
-      const logicalHeight = window.innerHeight
-
-      // Use destination-out composite to fade existing content
-      this.ctx.save()
-      this.ctx.globalCompositeOperation = 'destination-out'
-      this.ctx.fillStyle = `rgba(0, 0, 0, ${scaledAlpha})`
-      this.ctx.fillRect(0, 0, logicalWidth, logicalHeight)
-      this.ctx.restore()
-    } catch (error) {
-      console.error('Trail fade error:', error)
-      this._stopTrailFade()  // Stop on error to prevent runaway animation
+      for (let i = 0; i < this._trailPixiParticles.length; i++) {
+        const s = this._trailPixiParticles[i]
+        if (s.alpha > 0.01) {
+          s.alpha *= fadeMultiplier
+          if (s.alpha < 0.01) {
+            s.alpha = 0
+            s.visible = false
+          }
+        }
+      }
+      return
     }
+
+    // No renderer available yet — skip frame, loop continues
+    // (PixiJS will become available after async init)
   }
 
   /**
@@ -3310,6 +3401,15 @@ class WebarmoniumApp {
 
     // Stop trail fade animation
     this._stopTrailFade()
+
+    // Cleanup trail PixiJS resources
+    if (this._trailPixiContainer) {
+      this._trailPixiContainer.destroy({ children: true })
+      this._trailPixiContainer = null
+    }
+    this._trailPixiParticles = []
+    this._trailPixiNextIndex = 0
+    if (this._trailColorToTint) this._trailColorToTint.clear()
 
     // Sprint 2: Delegate cleanup to extracted components
     if (this.canvasManager) {

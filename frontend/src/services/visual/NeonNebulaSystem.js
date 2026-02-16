@@ -116,6 +116,13 @@ class NeonNebulaSystem {
     this._bufferAge = 0
     this._bufferRefreshInterval = 2
 
+    // PixiJS rendering state
+    this._pixiAdapter = null
+    this._pixiSprite = null          // Sprite displaying nebula texture
+    this._pixiTexture = null         // Texture created from offscreen canvas
+    this._offscreenCanvas = null     // Plain Canvas 2D for noise computation
+    this._offscreenCtx = null
+
     // Initialize blobs with staggered lifecycle phases
     this.initializeBlobs()
   }
@@ -235,6 +242,42 @@ class NeonNebulaSystem {
   }
 
   /**
+   * Initialize PixiJS rendering for nebula system
+   * Uses offscreen Canvas 2D for noise computation, uploaded as PIXI.Texture
+   * Only RenderTexture in the entire system — at 0.25x resolution
+   * @param {PixiAdapter} adapter - PixiAdapter instance
+   */
+  initPixi(adapter) {
+    // Clean up previous PixiJS state (for context loss recovery)
+    if (this._pixiSprite) {
+      if (this._pixiSprite.parent) {
+        this._pixiSprite.parent.removeChild(this._pixiSprite)
+      }
+      this._pixiSprite.destroy()
+      this._pixiSprite = null
+    }
+    if (this._pixiTexture) {
+      this._pixiTexture.destroy(true)
+      this._pixiTexture = null
+    }
+
+    this._pixiAdapter = adapter
+    const layer = adapter.getLayer('nebulaLayer')
+    if (!layer) return
+
+    // Offscreen canvas for CPU-bound noise computation (reuse if exists)
+    if (!this._offscreenCanvas) {
+      this._offscreenCanvas = document.createElement('canvas')
+      this._offscreenCtx = this._offscreenCanvas.getContext('2d')
+    }
+
+    // Sprite to display the nebula (scaled up = free bilinear blur)
+    this._pixiSprite = new PIXI.Sprite()
+    this._pixiSprite.anchor.set(0)
+    layer.addChild(this._pixiSprite)
+  }
+
+  /**
    * Calculate opacity based on lifecycle phase
    * @param {Object} blob - Blob object
    * @returns {number} Opacity multiplier 0-1
@@ -325,46 +368,177 @@ class NeonNebulaSystem {
 
   /**
    * Main render function - renders to low-res buffer then scales up for natural blur
+   * PixiJS path: render to offscreen Canvas 2D, upload as texture to scene graph
    * @param {p5} p - p5.js instance
    */
   render(p) {
     if (this.performanceMode === 'disabled') return
 
-    const C = NeonNebulaSystem.CONFIG
-    const scale = this.performanceMode === 'degraded' ? C.BUFFER_SCALE_DEGRADED : this.bufferScale
-    const bufferWidth = Math.floor(p.width * scale)
-    const bufferHeight = Math.floor(p.height * scale)
+    if (this._pixiAdapter) {
+      this._renderPixi()
+      return
+    }
+  }
 
-    // Create or resize buffer if needed
-    const bufferResized = !this.buffer || this.lastBufferWidth !== bufferWidth || this.lastBufferHeight !== bufferHeight
-    if (bufferResized) {
-      this.buffer = p.createGraphics(bufferWidth, bufferHeight)
-      this.lastBufferWidth = bufferWidth
-      this.lastBufferHeight = bufferHeight
+  /**
+   * PixiJS render: draw blobs to offscreen Canvas 2D, upload as texture
+   * Noise computation is CPU-bound — canvas upload at 0.25x is fast (~320x180 pixels)
+   * @private
+   */
+  _renderPixi() {
+    if (!this._pixiAdapter || !this._pixiSprite) return
+    const C = NeonNebulaSystem.CONFIG
+    const w = this._pixiAdapter.width
+    const h = this._pixiAdapter.height
+    const scale = this.performanceMode === 'degraded' ? C.BUFFER_SCALE_DEGRADED : this.bufferScale
+    const bufW = Math.floor(w * scale)
+    const bufH = Math.floor(h * scale)
+
+    // Resize offscreen canvas if needed
+    let resized = false
+    if (this._offscreenCanvas.width !== bufW || this._offscreenCanvas.height !== bufH) {
+      this._offscreenCanvas.width = bufW
+      this._offscreenCanvas.height = bufH
+      resized = true
     }
 
-    // Only re-render buffer every N frames (noise moves imperceptibly between frames)
+    // Only re-render every N frames (noise moves imperceptibly between frames)
     this._bufferAge++
-    const needsRefresh = bufferResized || this._bufferAge >= this._bufferRefreshInterval
-    if (needsRefresh) {
+    if (resized || this._bufferAge >= this._bufferRefreshInterval) {
       this._bufferAge = 0
 
-      // Clear buffer with transparent background
-      this.buffer.clear()
-      this.buffer.colorMode(this.buffer.HSB, 360, 100, 100, 100)
-      this.buffer.noStroke()
+      const ctx = this._offscreenCtx
+      ctx.clearRect(0, 0, bufW, bufH)
 
-      // Render each blob to the low-res buffer
+      // Render each blob to the offscreen canvas
       for (const blob of this.blobs) {
-        this.renderBlobToBuffer(this.buffer, blob, scale)
+        this._renderBlobToCanvas(ctx, blob, scale, bufW, bufH)
+      }
+
+      // Upload canvas as PixiJS texture
+      if (!this._pixiTexture) {
+        this._pixiTexture = PIXI.Texture.from(this._offscreenCanvas)
+        this._pixiSprite.texture = this._pixiTexture
+      } else {
+        this._pixiTexture.source.update()
       }
     }
 
-    // Always blit cached buffer to main canvas (bilinear interpolation = free blur)
-    p.push()
-    p.imageMode(p.CORNER)
-    p.image(this.buffer, 0, 0, p.width, p.height)
-    p.pop()
+    // Scale sprite to fill screen (bilinear interpolation = free blur)
+    this._pixiSprite.width = w
+    this._pixiSprite.height = h
+  }
+
+  /**
+   * Render a blob to an offscreen Canvas 2D context
+   * Uses PerlinNoise.noise() and hsbToRgb() from standalone modules
+   * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
+   * @param {Object} blob - Blob object
+   * @param {number} scale - Buffer scale (0.25 = 1/4 resolution)
+   * @param {number} bufW - Buffer width in pixels
+   * @param {number} bufH - Buffer height in pixels
+   * @private
+   */
+  _renderBlobToCanvas(ctx, blob, scale, bufW, bufH) {
+    const C = NeonNebulaSystem.CONFIG
+    const lifecycleOpacity = this.getLifecycleOpacity(blob)
+    if (lifecycleOpacity < 0.01) return
+
+    const cx = blob.x * bufW
+    const cy = blob.y * bufH
+    const rx = blob.rx * scale
+    const ry = blob.ry * scale
+
+    const baseCellSize = this.performanceMode === 'degraded' ? C.CELL_SIZE_DEGRADED : C.CELL_SIZE_NORMAL
+    const cellSize = Math.max(4, baseCellSize * scale)
+
+    const minX = Math.max(0, cx - rx - cellSize)
+    const maxX = Math.min(bufW, cx + rx + cellSize)
+    const minY = Math.max(0, cy - ry - cellSize)
+    const maxY = Math.min(bufH, cy + ry + cellSize)
+
+    // Base hue from noise (uses standalone PerlinNoise module)
+    const blobNoiseX = (cx + blob.noiseOffsetX) * this.noiseScale * 0.3
+    const blobNoiseY = (cy + blob.noiseOffsetY) * this.noiseScale * 0.3
+    const blobNoiseVal = PerlinNoise.noise(blobNoiseX, blobNoiseY, this.time)
+    const noiseHue = this.noiseToHue(blobNoiseVal)
+    const biasWeight = this.currentBias.weight
+    const baseHue = (noiseHue * (1 - biasWeight) + this.currentBias.center * biasWeight + 360) % 360
+
+    const chaos = blob.edgeChaos || 0.3
+    const rot = blob.rotation || 0
+    const blobAlpha = blob.alphaMultiplier || 1.0
+    const cosR = Math.cos(rot)
+    const sinR = Math.sin(rot)
+
+    for (let x = minX; x < maxX; x += cellSize) {
+      for (let y = minY; y < maxY; y += cellSize) {
+        const relX = x + cellSize / 2 - cx
+        const relY = y + cellSize / 2 - cy
+        const rotX = relX * cosR - relY * sinR
+        const rotY = relX * sinR + relY * cosR
+        const dx = rotX / rx
+        const dy = rotY / ry
+        let dist = Math.sqrt(dx * dx + dy * dy)
+
+        const angle = Math.atan2(dy, dx)
+        const edgeNoise = PerlinNoise.noise(
+          blob.noiseOffsetX * 0.01 + Math.cos(angle) * 2,
+          blob.noiseOffsetY * 0.01 + Math.sin(angle) * 2,
+          this.time * 0.3
+        )
+        dist = dist * (1 + (edgeNoise - 0.5) * chaos * 2)
+
+        if (dist > 1.0) continue
+
+        const falloff = Math.pow(1 - dist, 2)
+        const texNoiseX = (x + blob.noiseOffsetX) * this.noiseScale * 2
+        const texNoiseY = (y + blob.noiseOffsetY) * this.noiseScale * 2
+        const texNoise = PerlinNoise.noise(texNoiseX, texNoiseY, this.time * 0.5)
+
+        // Enhanced hue variation with per-blob offset
+        const hueVariation = (texNoise - 0.5) * C.HUE_VARIATION_RANGE
+        const blobHueOffset = blob.hueOffset || 0
+        const hue = (baseHue + hueVariation + blobHueOffset + 360) % 360
+
+        // Noise-based saturation and lightness variation
+        const satVariation = (texNoise - 0.5) * C.SATURATION_VARIATION * 2
+        const lightVariation = (texNoise - 0.5) * C.LIGHTNESS_VARIATION * 2
+        const sat = Math.max(50, Math.min(100, this.baseSaturation + satVariation))
+        const light = Math.max(40, Math.min(80, this.baseLightness + lightVariation))
+
+        const alphaVariation = 0.7 + texNoise * 0.3
+        const alpha = this.baseAlpha * falloff * alphaVariation * lifecycleOpacity * blobAlpha
+
+        if (alpha < C.MIN_ALPHA_THRESHOLD) continue
+
+        // Skip ~40% of cells (decorrelated noise)
+        const skipNoise = PerlinNoise.noise(x * 0.05 + blob.noiseOffsetX, y * 0.05 + blob.noiseOffsetY, 0)
+        if (skipNoise < C.CELL_SKIP_THRESHOLD) continue
+
+        // Smooth jitter
+        const jitterX = Math.sin(x * 0.3 + y * 0.7 + blob.noiseOffsetX) * cellSize * 0.4
+        const jitterY = Math.cos(x * 0.5 + y * 0.3 + blob.noiseOffsetY) * cellSize * 0.4
+        const cellCenterX = x + cellSize / 2 + jitterX
+        const cellCenterY = y + cellSize / 2 + jitterY
+
+        // Outer glow (HSB → RGB, alpha 0-100 → 0-1)
+        const [r1, g1, b1] = hsbToRgb(hue / 360, sat * 0.92 / 100, light * 0.88 / 100)
+        const a1 = alpha * 0.4 / 100
+        ctx.fillStyle = `rgba(${r1},${g1},${b1},${a1})`
+        ctx.beginPath()
+        ctx.ellipse(cellCenterX, cellCenterY, cellSize, cellSize, 0, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Inner core (brighter, more opaque)
+        const [r2, g2, b2] = hsbToRgb(hue / 360, sat / 100, light / 100)
+        const a2 = alpha * 0.7 / 100
+        ctx.fillStyle = `rgba(${r2},${g2},${b2},${a2})`
+        ctx.beginPath()
+        ctx.ellipse(cellCenterX, cellCenterY, cellSize / 2, cellSize / 2, 0, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
   }
 
   /**
@@ -593,6 +767,19 @@ class NeonNebulaSystem {
       this.buffer.remove()
       this.buffer = null
     }
+
+    // PixiJS cleanup
+    if (this._pixiTexture) {
+      this._pixiTexture.destroy(true)
+      this._pixiTexture = null
+    }
+    if (this._pixiSprite) {
+      this._pixiSprite.destroy()
+      this._pixiSprite = null
+    }
+    this._offscreenCanvas = null
+    this._offscreenCtx = null
+    this._pixiAdapter = null
   }
 }
 

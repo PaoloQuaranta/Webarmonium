@@ -8,12 +8,10 @@ class CursorManager {
    * @param {HTMLCanvasElement} canvas - Canvas element for cursor overlay
    */
   constructor (canvas) {
-    if (!canvas || !(canvas instanceof HTMLCanvasElement)) {
-      throw new Error('Valid HTMLCanvasElement is required')
-    }
-
-    this.canvas = canvas
-    this.ctx = canvas.getContext('2d')
+    // Canvas is optional — cursor rendering migrated to PixiJS SpringMeshNetwork
+    // CursorManager now only handles data tracking (position, fade state)
+    this.canvas = canvas || null
+    this.ctx = canvas ? canvas.getContext('2d') : null
 
     // Map of userId -> cursor data {x, y, color, isDrawing, timestamp, isVirtual, alpha}
     this.cursors = new Map()

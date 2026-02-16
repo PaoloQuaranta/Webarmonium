@@ -74,6 +74,17 @@ class WavePacketSystem {
     // Entry #74: Glow control (user settings override)
     this._glowEnabled = true  // Default: enabled
     this._glowOverride = null  // null = use stressFactor, true/false = force
+
+    // PixiJS rendering state
+    this._pixiAdapter = null
+    this._pixiGlowContainer = null   // ParticleContainer for glow sprites
+    this._pixiCoreContainer = null   // ParticleContainer for core sprites
+    this._pixiSpriteMap = new Map()  // pulseId -> { glow: PIXI.Particle, core: PIXI.Particle }
+    this._pixiGlowPool = []         // available glow particles
+    this._pixiCorePool = []         // available core particles
+    this._glowTexSize = 64          // cached glow texture diameter
+    this._coreTexSize = 16          // cached core texture diameter
+    this._isLightMode = false
   }
 
   /**
@@ -82,6 +93,84 @@ class WavePacketSystem {
    */
   setGlowEnabled (enabled) {
     this._glowOverride = enabled
+  }
+
+  /**
+   * Adjust rendering for light/dark theme
+   * Light mode: reduce glow alpha, switch from additive to normal blending
+   */
+  setLightMode(isLight) {
+    this._isLightMode = !!isLight
+    if (this._pixiGlowContainer) {
+      this._pixiGlowContainer.blendMode = isLight ? 'normal' : 'add'
+    }
+  }
+
+  /**
+   * Initialize PixiJS rendering for wave pulses
+   * Pre-baked glow texture replaces shadowBlur entirely (zero-cost GPU glow)
+   * @param {PixiAdapter} adapter - PixiAdapter instance
+   */
+  initPixi(adapter) {
+    // Clean up previous PixiJS state (for context loss recovery)
+    if (this._pixiGlowContainer) {
+      if (this._pixiGlowContainer.parent) {
+        this._pixiGlowContainer.parent.removeChild(this._pixiGlowContainer)
+      }
+      if (this._pixiCoreContainer && this._pixiCoreContainer.parent) {
+        this._pixiCoreContainer.parent.removeChild(this._pixiCoreContainer)
+      }
+      this._pixiGlowContainer.destroy()
+      this._pixiCoreContainer.destroy()
+      this._pixiGlowContainer = null
+      this._pixiCoreContainer = null
+      this._pixiSpriteMap.clear()
+      this._pixiGlowPool = []
+      this._pixiCorePool = []
+    }
+
+    this._pixiAdapter = adapter
+    const layer = adapter.getLayer('waveLayer')
+    if (!layer) return
+
+    // Glow layer — Container + Sprite (ParticleContainer + Particle has pool visibility bug)
+    this._pixiGlowContainer = new PIXI.Container()
+    this._pixiGlowContainer.blendMode = 'add'
+    layer.addChild(this._pixiGlowContainer)
+
+    // Core layer — Container + Sprite (on top of glow)
+    this._pixiCoreContainer = new PIXI.Container()
+    layer.addChild(this._pixiCoreContainer)
+
+    // Pre-allocate sprite pairs for max pulse count
+    const glowTexture = adapter.getTexture('glowCircle')
+    const coreTexture = adapter.getTexture('pulseCore')
+    this._glowTexSize = glowTexture?.width || 64
+    this._coreTexSize = coreTexture?.width || 16
+    console.log('[WavePacketSystem] Texture sizes — glow:', this._glowTexSize, 'core:', this._coreTexSize)
+
+    for (let i = 0; i < this.maxPulses; i++) {
+      const glow = new PIXI.Sprite(glowTexture)
+      glow.anchor.set(0.5)
+      glow.x = -9999
+      glow.y = -9999
+      glow.scale.set(0.001)
+      glow.alpha = 0
+      glow.visible = false
+      this._pixiGlowPool.push(glow)
+      this._pixiGlowContainer.addChild(glow)
+
+      const core = new PIXI.Sprite(coreTexture)
+      core.anchor.set(0.5)
+      core.x = -9999
+      core.y = -9999
+      core.scale.set(0.001)
+      core.alpha = 0
+      core.tint = 0xFFFFFF
+      core.visible = false
+      this._pixiCorePool.push(core)
+      this._pixiCoreContainer.addChild(core)
+    }
   }
 
   /**
@@ -611,22 +700,119 @@ class WavePacketSystem {
 
   /**
    * Render all active pulses
+   * PixiJS path: update sprite positions/colors — pre-baked glow replaces shadowBlur
    * @param {p5} p - p5.js instance
    */
   render(p) {
-    // DEBUG: Log pulse count occasionally
-    if (p.frameCount % 60 === 0 && this.activePulses.size > 0) {
-      // console.log('🌊 Rendering', this.activePulses.size, 'pulses')
+    if (this._pixiAdapter) {
+      this._renderPixi()
+      // Periodic cleanup still needed for orphaned pulses
+      this._frameCounter = (this._frameCounter || 0) + 1
+      if (this._frameCounter % 60 === 0) {
+        this._cleanupOrphanedPulses()
+      }
+      return
     }
 
     for (const pulse of this.activePulses.values()) {
       this.renderPulse(p, pulse)
     }
 
-    // FIX: Periodic cleanup of orphaned pulses (every 60 frames)
-    // This catches any pulses marked for removal during render
     if (p.frameCount % 60 === 0) {
       this._cleanupOrphanedPulses()
+    }
+  }
+
+  /**
+   * PixiJS render: update glow + core sprite properties for each active pulse
+   * Pre-baked glow texture replaces shadowBlur (from ~200 draw calls + shadowBlur to 2 batched calls)
+   * @private
+   */
+  _renderPixi() {
+    if (!this._pixiAdapter || !this._pixiGlowContainer) return
+    const w = this._pixiAdapter.width
+    const h = this._pixiAdapter.height
+    const glowTexSize = this._glowTexSize
+    const coreTexSize = this._coreTexSize
+
+    for (const [pulseId, pulse] of this.activePulses) {
+      // Lazy sprite assignment from pool
+      let sprites = this._pixiSpriteMap.get(pulseId)
+      if (!sprites) {
+        if (this._pixiGlowPool.length === 0) continue
+        sprites = {
+          glow: this._pixiGlowPool.pop(),
+          core: this._pixiCorePool.pop(),
+        }
+        this._pixiSpriteMap.set(pulseId, sprites)
+      }
+
+      const edge = pulse.edge
+      if (!edge || !edge.controlPoint) {
+        sprites.glow.visible = false
+        sprites.core.visible = false
+        continue
+      }
+
+      const nodeA = this.springMesh.getNodeOrIntermediate(edge.sourceId)
+      const nodeB = this.springMesh.getNodeOrIntermediate(edge.targetId)
+      if (!nodeA || !nodeB) {
+        sprites.glow.visible = false
+        sprites.core.visible = false
+        continue
+      }
+
+      // Position on Bezier curve
+      const pos = this.calculateBezierPosition(
+        nodeA.x * w, nodeA.y * h,
+        edge.controlPoint.x * w, edge.controlPoint.y * h,
+        nodeB.x * w, nodeB.y * h,
+        pulse.progress
+      )
+
+      if (!isFinite(pos.x) || !isFinite(pos.y)) {
+        sprites.glow.visible = false
+        sprites.core.visible = false
+        continue
+      }
+
+      // Visual properties
+      const size = pulse.width * pulse.intensity
+      const alpha = pulse.intensity
+
+      // Color tint
+      const rgb = this.hexToRgbArray(pulse.color)
+      const tint = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2]
+
+      // Glow sprite (pre-baked radial gradient, additive blending on container)
+      const glowVisualSize = size * 7
+      const glowScale = glowVisualSize / glowTexSize
+      sprites.glow.x = pos.x
+      sprites.glow.y = pos.y
+      sprites.glow.tint = tint
+      sprites.glow.alpha = alpha * (this._isLightMode ? 0.25 : 0.6)
+      sprites.glow.scale.set(glowScale)
+      sprites.glow.visible = true
+
+      // Core sprite (bright white center — subtle highlight)
+      const coreScale = (size * 0.6) / coreTexSize
+      sprites.core.x = pos.x
+      sprites.core.y = pos.y
+      sprites.core.tint = 0xFFFFFF
+      sprites.core.alpha = alpha * 0.9
+      sprites.core.scale.set(coreScale)
+      sprites.core.visible = true
+    }
+
+    // Reclaim sprites from removed pulses
+    for (const [pulseId, sprites] of this._pixiSpriteMap) {
+      if (!this.activePulses.has(pulseId)) {
+        sprites.glow.visible = false
+        sprites.core.visible = false
+        this._pixiGlowPool.push(sprites.glow)
+        this._pixiCorePool.push(sprites.core)
+        this._pixiSpriteMap.delete(pulseId)
+      }
     }
   }
 
@@ -817,6 +1003,7 @@ class WavePacketSystem {
    * @returns {Array} [r, g, b] values
    */
   hexToRgbArray(hex) {
+    if (typeof hex !== 'string') return [255, 255, 255]
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
     return result ? [
       parseInt(result[1], 16),
@@ -830,6 +1017,21 @@ class WavePacketSystem {
    */
   dispose() {
     this.clear()
+
+    // PixiJS cleanup
+    if (this._pixiGlowContainer) {
+      this._pixiGlowContainer.destroy({ children: true })
+      this._pixiGlowContainer = null
+    }
+    if (this._pixiCoreContainer) {
+      this._pixiCoreContainer.destroy({ children: true })
+      this._pixiCoreContainer = null
+    }
+    this._pixiSpriteMap.clear()
+    this._pixiGlowPool = []
+    this._pixiCorePool = []
+    this._pixiAdapter = null
+
     this.springMesh = null
   }
 }

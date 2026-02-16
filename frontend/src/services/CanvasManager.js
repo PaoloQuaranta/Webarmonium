@@ -4,18 +4,17 @@
  * Extracted from WebarmoniumApp (main.js) as part of Sprint 2 modularization
  *
  * Responsibilities:
- * - Canvas initialization and DOM setup
- * - Canvas resizing with device pixel ratio handling
- * - Overlay canvas management (for multi-user cursors)
+ * - gestureCanvas initialization as input-only overlay (no 2D rendering)
+ * - PixiJS renderer resize coordination
  * - Window resize event handling
  * - Cleanup on destroy
  */
 
 class CanvasManager {
   /**
-   * @param {string} canvasId - Main gesture canvas ID
-   * @param {string} overlayId - Cursor overlay canvas ID
-   * @param {string} p5ContainerId - p5.js container div ID
+   * @param {string} canvasId - Main gesture canvas ID (input-only overlay)
+   * @param {string} overlayId - Cursor overlay canvas ID (deprecated, kept for compat)
+   * @param {string} p5ContainerId - PixiJS container div ID
    */
   constructor(canvasId = 'gestureCanvas', overlayId = 'cursorOverlay', p5ContainerId = 'p5-container') {
     this.canvasId = canvasId
@@ -24,9 +23,12 @@ class CanvasManager {
 
     // Canvas references
     this.canvas = null
-    this.ctx = null
+    this.ctx = null  // Legacy compat — null after Step 9 (trail rendering moved to PixiJS)
     this.cursorOverlayCanvas = null
     this.p5Container = null
+
+    // PixiAdapter reference for resize coordination
+    this.pixiAdapter = null
 
     // Resize handler reference for cleanup
     this.boundResizeHandler = null
@@ -40,25 +42,21 @@ class CanvasManager {
    * @returns {Object} Canvas references {canvas, ctx, cursorOverlayCanvas}
    */
   setup() {
-    // Get main gesture canvas
+    // Get main gesture canvas (input-only overlay — pointer events target)
     this.canvas = document.getElementById(this.canvasId)
     if (!this.canvas) {
       throw new Error(`Canvas element #${this.canvasId} not found`)
     }
 
-    this.ctx = this.canvas.getContext('2d')
+    // Step 9: No 2D context needed — trail rendering migrated to PixiJS
+    // gestureCanvas is now purely an input-event overlay
+    this.ctx = null
 
-    // Create or get cursor overlay canvas
-    this.cursorOverlayCanvas = document.getElementById(this.overlayId)
-    if (!this.cursorOverlayCanvas) {
-      this.cursorOverlayCanvas = this.createOverlayCanvas()
-    }
+    // Cursor overlay is deprecated/removed
+    this.cursorOverlayCanvas = document.getElementById(this.overlayId) || null
 
-    // Get p5.js container
+    // Get PixiJS container
     this.p5Container = document.getElementById(this.p5ContainerId)
-    if (!this.p5Container) {
-      // console.warn(`CanvasManager: p5.js container #${this.p5ContainerId} not found`)
-    }
 
     // Initial resize
     this.resize()
@@ -72,32 +70,19 @@ class CanvasManager {
       window.visualViewport.addEventListener('resize', this.boundResizeHandler)
     }
 
-    // console.log('✅ CanvasManager: Canvases initialized')
-
     return this.getCanvasRefs()
   }
 
   /**
-   * Create overlay canvas for multi-user cursors
-   * @private
-   * @returns {HTMLCanvasElement} Created overlay canvas
+   * Set the PixiAdapter for resize coordination
+   * @param {PixiAdapter} adapter
    */
-  createOverlayCanvas() {
-    const overlay = document.createElement('canvas')
-    overlay.id = this.overlayId
-    overlay.style.position = 'absolute'
-    overlay.style.top = '0'
-    overlay.style.left = '0'
-    overlay.style.pointerEvents = 'none'
-    overlay.style.zIndex = '10'
-
-    this.canvas.parentElement.appendChild(overlay)
-
-    return overlay
+  setPixiAdapter(adapter) {
+    this.pixiAdapter = adapter
   }
 
   /**
-   * Resize canvases to match viewport with device pixel ratio
+   * Resize canvases to match viewport
    */
   resize() {
     if (!this.canvas) return
@@ -106,19 +91,15 @@ class CanvasManager {
     const width = window.innerWidth
     const height = window.innerHeight
 
-    // Resize main canvas
+    // Resize gestureCanvas (input-only overlay — no 2D rendering)
     this.canvas.width = width * devicePixelRatio
     this.canvas.height = height * devicePixelRatio
     this.canvas.style.width = width + 'px'
     this.canvas.style.height = height + 'px'
-    this.ctx.scale(devicePixelRatio, devicePixelRatio)
 
-    // Resize cursor overlay canvas
-    if (this.cursorOverlayCanvas) {
-      this.cursorOverlayCanvas.width = width * devicePixelRatio
-      this.cursorOverlayCanvas.height = height * devicePixelRatio
-      this.cursorOverlayCanvas.style.width = width + 'px'
-      this.cursorOverlayCanvas.style.height = height + 'px'
+    // Resize PixiJS renderer if available
+    if (this.pixiAdapter && this.pixiAdapter.app) {
+      this.pixiAdapter.resize(width, height)
     }
 
     // Notify registered listeners (services that need to know about resize)
@@ -146,7 +127,7 @@ class CanvasManager {
       try {
         service.setCanvasSize(width, height)
       } catch (error) {
-        // console.warn('CanvasManager: Error notifying resize listener:', error)
+        // silent
       }
     })
   }
@@ -196,8 +177,7 @@ class CanvasManager {
     this.ctx = null
     this.cursorOverlayCanvas = null
     this.p5Container = null
-
-    // console.log('✅ CanvasManager: Cleaned up')
+    this.pixiAdapter = null
   }
 }
 

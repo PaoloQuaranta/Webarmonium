@@ -264,9 +264,7 @@
             <!-- Main gesture canvas -->
             <canvas id="gestureCanvas" role="img" aria-label="Collaborative music canvas - tap, hold, or drag to create sounds with other users"></canvas>
 
-            <!-- Cursor overlay canvas DISABLED - cursors now rendered in p5.js SpringMeshNetwork -->
-            <canvas id="cursorOverlay"
-                style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
+            <!-- Cursor overlay removed — cursors rendered in PixiJS SpringMeshNetwork -->
 
             <!-- Instructions -->
             <div class="instructions">
@@ -312,7 +310,9 @@
     </div>
 
     <!-- External dependencies -->
-    <script src="src/services/CanvasAdapter.js?v=2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js"></script>
+    <script src="src/utils/PerlinNoise.js?v=1"></script>
+    <script src="src/services/PixiAdapter.js?v=1"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     <script src="https://unpkg.com/tone@14.7.77/build/Tone.js"></script>
 
@@ -355,14 +355,14 @@
     <script src="src/services/visual/VisualConstants.js?v=9"></script>
     <script src="src/services/visual/VisualUtils.js?v=6"></script>
     <script src="src/services/visual/TopologyGenerator.js?v=2"></script>
-    <script src="src/services/visual/SpringMeshNetwork.js?v=9"></script>
+    <script src="src/services/visual/SpringMeshNetwork.js?v=17"></script>
     <script src="src/services/visual/ParticlePool.js?v=1"></script>
     <script src="src/services/visual/PulsePool.js?v=1"></script>
-    <script src="src/services/visual/WavePacketSystem.js?v=11"></script>
-    <script src="src/services/visual/ParticleFlowManager.js?v=11"></script> <!-- PERF: Object pooling -->
+    <script src="src/services/visual/WavePacketSystem.js?v=24"></script>
+    <script src="src/services/visual/ParticleFlowManager.js?v=18"></script> <!-- PERF: Object pooling -->
     <script src="src/services/visual/NeonNebulaSystem.js?v=3"></script>
-    <script src="src/services/visual/PrecomputedAttractorSystem.js?v=11"></script>
-    <script src="src/services/GenerativeVisualService.js?v=14"></script> <!-- Entry #123: Removed hold indicator rendering -->
+    <script src="src/services/visual/PrecomputedAttractorSystem.js?v=17"></script>
+    <script src="src/services/GenerativeVisualService.js?v=15"></script> <!-- Entry #123: Removed hold indicator rendering -->
 
     <!-- Musical Architecture (from commit a3c12b9) - PHASE 2 FIX -->
     <script src="src/services/MusicalScheduler.js?v=1"></script>
@@ -439,7 +439,7 @@
             }
         }, 1000)
     </script>
-    <script src="src/main.js?v=77"></script> <!-- Entry #SynthUI: Synth cursor-move listener -->
+    <script src="src/main.js?v=89"></script> <!-- Entry #SynthUI: Synth cursor-move listener -->
 </body>
 
 </html>

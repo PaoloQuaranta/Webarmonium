@@ -87,11 +87,19 @@ class PrecomputedAttractorSystem {
     // Performance mode (kept for backwards compatibility)
     this.performanceMode = 'normal'
 
-    // Offscreen buffer for cached rendering (eliminates flickering when frame budget exceeded)
+    // Offscreen buffer for cached rendering (legacy Canvas 2D fallback)
     this.buffer = null
     this.lastBufferWidth = 0
     this.lastBufferHeight = 0
     this._budgetExceeded = false
+
+    // PixiJS rendering state
+    this._pixiAdapter = null
+    this._pixiWrapper = null         // Container with translation + rotation
+    this._pixiCoreContainer = null   // ParticleContainer for core points
+    this._pixiGlowContainer = null   // ParticleContainer for glow points
+    this._pixiCoreParticles = []     // Pre-allocated core PIXI.Particle objects
+    this._pixiGlowParticles = []     // Pre-allocated glow PIXI.Particle objects
 
     // Precompute fuzzy offsets for all points (eliminates 4800 trig calls/frame)
     this.fuzzyOffsetsX = []
@@ -123,6 +131,82 @@ class PrecomputedAttractorSystem {
 
     this.rosslerFrames = this._computeRosslerFrames()
 
+  }
+
+  /**
+   * Initialize PixiJS rendering for attractor points
+   * Creates wrapper container (position + rotation) with two ParticleContainers
+   * @param {PixiAdapter} adapter - PixiAdapter instance
+   */
+  initPixi(adapter) {
+    // Clean up previous PixiJS state (for context loss recovery / setPointLimit)
+    if (this._pixiWrapper) {
+      if (this._pixiWrapper.parent) {
+        this._pixiWrapper.parent.removeChild(this._pixiWrapper)
+      }
+      this._pixiWrapper.destroy({ children: true })
+      this._pixiWrapper = null
+      this._pixiCoreContainer = null
+      this._pixiGlowContainer = null
+      this._pixiCoreParticles = []
+      this._pixiGlowParticles = []
+    }
+
+    this._pixiAdapter = adapter
+    const layer = adapter.getLayer('attractorLayer')
+    if (!layer) return
+
+    // Wrapper container for center-translate + rotation (GPU-free transform)
+    this._pixiWrapper = new PIXI.Container()
+    this._pixiWrapper.rotation = this.rotationAngle
+    layer.addChild(this._pixiWrapper)
+
+    // Glow layer (rendered first = behind core)
+    // Container + Sprite (ParticleContainer + Particle has pool visibility bug in PixiJS v8)
+    this._pixiGlowContainer = new PIXI.Container()
+    this._pixiWrapper.addChild(this._pixiGlowContainer)
+
+    // Core layer (rendered second = on top)
+    this._pixiCoreContainer = new PIXI.Container()
+    this._pixiWrapper.addChild(this._pixiCoreContainer)
+
+    // Pre-allocate sprites for all points
+    this._allocatePixiParticles(adapter)
+  }
+
+  /**
+   * Allocate PIXI.Sprite objects for current pointCount
+   * @param {PixiAdapter} adapter
+   * @private
+   */
+  _allocatePixiParticles(adapter) {
+    const coreTexture = adapter.getTexture('attractorPoint')
+    this._pixiTexDiameter = coreTexture?.width || 6
+
+    this._pixiCoreParticles = []
+    this._pixiGlowParticles = []
+
+    for (let i = 0; i < this.pointCount; i++) {
+      const glowSprite = new PIXI.Sprite(coreTexture)
+      glowSprite.anchor.set(0.5)
+      glowSprite.x = -9999
+      glowSprite.y = -9999
+      glowSprite.scale.set(0.001)
+      glowSprite.alpha = 0
+      glowSprite.visible = false
+      this._pixiGlowParticles.push(glowSprite)
+      this._pixiGlowContainer.addChild(glowSprite)
+
+      const coreSprite = new PIXI.Sprite(coreTexture)
+      coreSprite.anchor.set(0.5)
+      coreSprite.x = -9999
+      coreSprite.y = -9999
+      coreSprite.scale.set(0.001)
+      coreSprite.alpha = 0
+      coreSprite.visible = false
+      this._pixiCoreParticles.push(coreSprite)
+      this._pixiCoreContainer.addChild(coreSprite)
+    }
   }
 
   /**
@@ -335,60 +419,47 @@ class PrecomputedAttractorSystem {
   }
 
   /**
-   * Render the attractor points (uses offscreen buffer to prevent flickering)
+   * Render the attractor points
+   * PixiJS path: update sprite positions/colors in ParticleContainers
+   * Budget exceeded: skip update — retained mode keeps sprites visible (no flicker)
    */
   render(p) {
     if (this.performanceMode === 'disabled') return
 
-    const width = p.width
-    const height = p.height
-
-    // Create or resize buffer if needed
-    const bufferResized = !this.buffer || this.lastBufferWidth !== width || this.lastBufferHeight !== height
-    if (bufferResized) {
-      if (this.buffer) this.buffer.remove()
-      this.buffer = p.createGraphics(width, height)
-      this.lastBufferWidth = width
-      this.lastBufferHeight = height
-    }
-
-    // Re-render to buffer when budget allows (or on resize)
-    if (!this._budgetExceeded || bufferResized) {
-      this._renderToBuffer(this.buffer)
-    }
-
-    // Always blit cached buffer to main canvas
-    if (this.buffer) {
-      p.push()
-      p.imageMode(p.CORNER)
-      p.image(this.buffer, 0, 0, width, height)
-      p.pop()
+    // PixiJS path — update sprite properties in scene graph
+    if (this._pixiAdapter) {
+      if (!this._budgetExceeded) {
+        this._renderPixi()
+      }
+      return
     }
   }
 
   /**
-   * Render attractor points to an offscreen buffer
+   * PixiJS render: update particle positions/colors/alpha in scene graph
+   * Wrapper container handles center translation + rotation (GPU-free)
+   * @private
    */
-  _renderToBuffer(buf) {
-    const width = buf.width
-    const height = buf.height
+  _renderPixi() {
+    if (!this._pixiAdapter || !this._pixiWrapper) return
+    const width = this._pixiAdapter.width
+    const height = this._pixiAdapter.height
     const centerX = width / 2
     const centerY = height / 2
     const displaySize = Math.min(width, height) * this.scale
 
-    buf.clear()
+    // Update wrapper container transform (center + rotation)
+    this._pixiWrapper.x = centerX
+    this._pixiWrapper.y = centerY
+    this._pixiWrapper.rotation = this.rotationAngle
 
-    // Get points from current attractor(s) — zero-allocation using pre-allocated buffers
+    // Get interpolated points — zero-allocation using pre-allocated buffers
     let points
     if (this.morphProgress < 1.0) {
-      // Morphing between attractors
       const fromFrames = this.currentAttractor === 'lorenz' ? this.lorenzFrames : this.rosslerFrames
       const toFrames = this.targetAttractor === 'lorenz' ? this.lorenzFrames : this.rosslerFrames
-
       const fromPoints = this._getInterpolatedPoints(fromFrames, this._interpBuffer1)
       const toPoints = this._getInterpolatedPoints(toFrames, this._interpBuffer2)
-
-      // Blend between attractors into morphOutput buffer
       const t = this._easeInOutCubic(this.morphProgress)
       for (let i = 0; i < fromPoints.length; i++) {
         const fp = fromPoints[i], tp = toPoints[i], out = this._morphOutput[i]
@@ -398,73 +469,89 @@ class PrecomputedAttractorSystem {
       }
       points = this._morphOutput
     } else {
-      // Single attractor
       const frames = this.currentAttractor === 'lorenz' ? this.lorenzFrames : this.rosslerFrames
       points = this._getInterpolatedPoints(frames, this._interpBuffer1)
     }
 
-    // Render points with canvas-level rotation (preserves attractor geometry)
-    buf.push()
-    buf.colorMode(buf.HSB, 360, 100, 100, 100)
-    buf.noStroke()
-
-    // Apply rotation at canvas level - rotates the entire rendered scene
-    // without altering the attractor's mathematical shape
-    buf.translate(centerX, centerY)
-    buf.rotate(this.rotationAngle)
-
-    // Hysteresis for step transitions - prevents rapid oscillation
+    // Hysteresis for step transitions — prevents rapid oscillation
     const roundedStep = Math.round(this.currentStep)
     if (this.lastRenderedStep === 1 && this.currentStep < 1.7) {
-      // Stay at step 1 until currentStep reaches 1.7
       this.lastRenderedStep = 1
     } else if (this.lastRenderedStep === 2 && this.currentStep > 1.3) {
-      // Stay at step 2 until currentStep drops below 1.3
       this.lastRenderedStep = 2
     } else {
       this.lastRenderedStep = roundedStep
     }
     const step = Math.max(1, this.lastRenderedStep)
 
-    // Gradual glow opacity with easing
-    // Wider transition range (0.35 to 0.75) with cubic easing
+    // Glow opacity with easing (wider transition range 0.35-0.75)
     const glowFactor = Math.max(0, Math.min(1, (this.stressFactor - 0.35) / 0.4))
     const glowOpacity = this._easeInOutCubic(glowFactor)
+    const showGlow = glowOpacity > 0
 
-    for (let i = 0; i < points.length; i += step) {
+    // Color: HSB hue to 0-1 range for hsbToPixiColor
+    const hue = ((this.baseColor.hue || 180) % 360) / 360
+
+    // Use actual texture diameter for scale calculation
+    const texDiam = this._pixiTexDiameter || 6
+
+    for (let i = 0; i < this.pointCount; i++) {
+      const coreP = this._pixiCoreParticles[i]
+      const glowP = this._pixiGlowParticles[i]
+
+      // Hide particles skipped by stress step or out of range
+      if (i % step !== 0 || i >= points.length) {
+        coreP.visible = false
+        glowP.visible = false
+        continue
+      }
+
       const point = points[i]
-
-      // Use attractor coordinates directly (no axis rotation)
-      // Canvas rotation handles scene orientation
       const nx = point.x - 0.5
       const ny = point.y - 0.5
 
-      // Use precomputed fuzzy offsets - eliminates 4800 trig calls/frame
-      // Apply offsets to position attractor on canvas
+      // Position with precomputed fuzzy offsets + pixel offsets
       const screenX = nx * displaySize + this.fuzzyOffsetsX[i] + this.offsetXPixels
       const screenY = (ny + this.centerOffsetY) * displaySize + this.fuzzyOffsetsY[i] + this.offsetYPixels
 
-      // Depth-based appearance - closer points (higher z) are brighter and larger
+      // Depth-based appearance
       const depthFactor = 0.8 + point.z * 0.2
+      const bright = (70 + point.z * 25) / 100   // 0.70-0.95
+      let alpha = (60 + point.z * 25) / 100       // 0.60-0.85
 
-      // VIVID COLORS with slight variation for organic feel
-      const hue = this.baseColor.hue || 180
-      const sat = 100  // Full saturation
-      const bright = 70 + point.z * 25  // 70-95 brightness based on depth
-      const alpha = 60 + point.z * 25   // 60-85 alpha (slightly lower for blur effect)
-
-      // Glow (larger, same vivid color) - gradual fade based on stress with easing
-      if (glowOpacity > 0) {
-        buf.fill(hue, sat, bright * 0.85, alpha * 0.4 * glowOpacity)
-        buf.ellipse(screenX, screenY, this.glowSize * depthFactor, this.glowSize * depthFactor)
+      // Endpoint fading: taper trajectory at head/tail to avoid abrupt cutoff
+      // (Canvas 2D shadowBlur masked endpoints; PixiJS needs explicit fade)
+      const fadeZone = 60  // number of points to fade at each end
+      const activeCount = Math.ceil(points.length / step)
+      const activeIdx = Math.floor(i / step)
+      if (activeIdx < fadeZone) {
+        alpha *= activeIdx / fadeZone
+      } else if (activeIdx > activeCount - fadeZone) {
+        alpha *= (activeCount - activeIdx) / fadeZone
       }
 
-      // Core point - maximum saturation
-      buf.fill(hue, sat, bright, alpha)
-      buf.ellipse(screenX, screenY, this.pointSize * depthFactor, this.pointSize * depthFactor)
-    }
+      // Core particle
+      coreP.x = screenX
+      coreP.y = screenY
+      coreP.alpha = alpha
+      coreP.tint = hsbToPixiColor(hue, 1.0, bright)
+      const coreScale = this.pointSize * depthFactor / texDiam
+      coreP.scale.set(coreScale)
+      coreP.visible = alpha > 0.01
 
-    buf.pop()
+      // Glow particle (larger, semi-transparent)
+      if (showGlow && alpha > 0.01) {
+        glowP.x = screenX
+        glowP.y = screenY
+        glowP.alpha = alpha * 0.4 * glowOpacity
+        glowP.tint = hsbToPixiColor(hue, 1.0, bright * 0.85)
+        const glowScale = this.glowSize * depthFactor / texDiam
+        glowP.scale.set(glowScale)
+        glowP.visible = true
+      } else {
+        glowP.visible = false
+      }
+    }
   }
 
   /**
@@ -523,7 +610,11 @@ class PrecomputedAttractorSystem {
    * Set base color (inherits from nebula palette)
    */
   setBaseColor(color) {
-    this.baseColor = { ...color }
+    // Only drive targetHue from nebula — don't overwrite baseColor directly,
+    // otherwise the smooth hue transition in update() gets reset every frame
+    if (color && typeof color.hue === 'number') {
+      this.targetHue = color.hue
+    }
   }
 
   /**
@@ -654,6 +745,12 @@ class PrecomputedAttractorSystem {
         this._interpBuffer2[i] = { x: 0, y: 0, z: 0 }
         this._morphOutput[i] = { x: 0, y: 0, z: 0 }
       }
+
+      // Re-allocate PixiJS particles if initialized
+      if (this._pixiAdapter && this._pixiWrapper) {
+        // Full re-init (idempotent — cleans up old containers before creating new ones)
+        this.initPixi(this._pixiAdapter)
+      }
     }
   }
 
@@ -676,6 +773,24 @@ class PrecomputedAttractorSystem {
       this.buffer.remove()
       this.buffer = null
     }
+
+    // PixiJS cleanup
+    if (this._pixiGlowContainer) {
+      this._pixiGlowContainer.destroy({ children: true })
+      this._pixiGlowContainer = null
+    }
+    if (this._pixiCoreContainer) {
+      this._pixiCoreContainer.destroy({ children: true })
+      this._pixiCoreContainer = null
+    }
+    if (this._pixiWrapper) {
+      this._pixiWrapper.destroy({ children: true })
+      this._pixiWrapper = null
+    }
+    this._pixiCoreParticles = []
+    this._pixiGlowParticles = []
+    this._pixiAdapter = null
+
     this.clear()
   }
 }

@@ -125,8 +125,10 @@
 
   <link rel="stylesheet" href="styles.css?v=42">
 
-  <!-- CanvasAdapter (lightweight p5-compatible replacement) -->
-  <script src="src/services/CanvasAdapter.js?v=1"></script>
+  <!-- PixiJS WebGL rendering + noise/color utilities -->
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js"></script>
+  <script src="src/utils/PerlinNoise.js?v=1"></script>
+  <script src="src/services/PixiAdapter.js?v=1"></script>
 
   <!-- Tone.js for audio generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
@@ -154,10 +156,10 @@
   <script src="src/services/visual/SpringMeshNetwork.js?v=9"></script>
   <script src="src/services/visual/ParticlePool.js?v=1"></script>
   <script src="src/services/visual/PulsePool.js?v=1"></script>
-  <script src="src/services/visual/WavePacketSystem.js?v=11"></script>
-  <script src="src/services/visual/ParticleFlowManager.js?v=11"></script>
+  <script src="src/services/visual/WavePacketSystem.js?v=12"></script>
+  <script src="src/services/visual/ParticleFlowManager.js?v=12"></script>
   <script src="src/services/visual/NeonNebulaSystem.js?v=1"></script>
-  <script src="src/services/visual/PrecomputedAttractorSystem.js?v=11"></script>
+  <script src="src/services/visual/PrecomputedAttractorSystem.js?v=12"></script>
   <script src="src/services/GenerativeVisualService.js?v=12"></script>
 
   <!-- Existing Webarmonium audio subsystems -->
