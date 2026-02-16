@@ -27,6 +27,14 @@ class AudioService {
     this._audioState = 'IDLE'
     this._handlersRegistered = false
 
+    // AUDIO PRIORITY: Window blur state tracking for OS deprioritization resilience
+    // When Chrome loses focus on Windows, OS deprioritizes renderer process,
+    // starving main thread and preventing Transport callbacks from firing
+    this._isWindowBlurred = false
+    this._blurRestoreInterval = null
+    this._blurVisualResumeTimeout = null
+    this._blurLookAhead = 1.0  // lookAhead during blur (1s buffer for main thread starvation)
+
     // Entry #73: Device-Adaptive Audio Architecture
     this.stressMonitor = null
     this.audioProfile = null
@@ -482,7 +490,8 @@ class AudioService {
 
   /**
    * Handle window focus - SMART RECOVERY VERSION
-   * Only show overlay if context actually needs recovery
+   * Gradually restores lookAhead and visuals after blur-mode deprioritization.
+   * Only show overlay if context actually needs recovery.
    */
   async _handleWindowFocus() {
     // Small delay to let the system stabilize after wake
@@ -490,21 +499,124 @@ class AudioService {
 
     // Only check if we're supposed to be playing
     if (this._audioState === 'PLAYING') {
+      // Restore from blur mode if active
+      if (this._isWindowBlurred) {
+        this._restoreFromBlur()
+      }
+
       const contextState = Tone.context?.state
       if (contextState !== 'running') {
         if (DEBUG_AUDIO_STATE) console.log(`[AudioState] Focus returned, context is ${contextState}, needs recovery`)
         this._setState('RESUMING', 'focus-context-suspended')
         this._requestTapToResume()
+      } else {
+        // Context still running — restart health check
+        this._startAudioHealthCheck()
       }
     }
   }
 
   /**
-   * Handle window blur - prepare for potential sleep
+   * Gradually restore from blur state to avoid sudden main-thread spike.
+   * Restores lookAhead over 1.2s (8 steps × 150ms) and resumes visuals after 400ms.
+   * @private
+   */
+  _restoreFromBlur() {
+    if (!this._isWindowBlurred) return
+
+    if (DEBUG_AUDIO_STATE) console.log('[AudioState] Focus: starting gradual restoration from blur')
+
+    // Cancel any previous restoration in progress (rapid focus/blur cycles)
+    this._cancelBlurRestoration()
+
+    // Dispatch event immediately so main.js can start resuming visuals with delay
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('audio-blur-mode', {
+        detail: { active: false }
+      }))
+    }
+
+    // Gradually restore lookAhead: 1.0s → _originalLookAhead in 8 steps over 1.2s
+    const startLookAhead = Tone.context?.lookAhead || this._blurLookAhead
+    const targetLookAhead = this._originalLookAhead || 0.25
+    const totalSteps = 8
+    let currentStep = 0
+
+    this._blurRestoreInterval = setInterval(() => {
+      currentStep++
+      const progress = currentStep / totalSteps
+
+      if (Tone?.context) {
+        // Linear interpolation from blur lookAhead to original
+        Tone.context.lookAhead = startLookAhead + (targetLookAhead - startLookAhead) * progress
+      }
+
+      if (currentStep >= totalSteps) {
+        clearInterval(this._blurRestoreInterval)
+        this._blurRestoreInterval = null
+        this._isWindowBlurred = false
+        if (DEBUG_AUDIO_STATE) console.log(`[AudioState] Focus: restoration complete, lookAhead=${targetLookAhead}s`)
+      }
+    }, 150)
+  }
+
+  /**
+   * Handle window blur - reduce main thread load and increase audio scheduling buffer.
+   * When Chrome loses focus on Windows, the OS deprioritizes the renderer process,
+   * starving the main thread. Transport.schedule() callbacks can't fire within the
+   * lookAhead window, breaking the composition scheduling chain.
+   *
+   * Strategy: pause visuals + increase lookAhead so Transport has 1s buffer.
    */
   _handleWindowBlur() {
-    if (this._audioState === 'PLAYING') {
-      this._stopAudioHealthCheck()
+    if (this._audioState !== 'PLAYING') return
+
+    // Visibility change handler takes precedence (flushes composition queue)
+    if (document.hidden) return
+
+    // Guard: already in blur mode (e.g., rapid blur events from notifications)
+    if (this._isWindowBlurred) return
+
+    // Cancel any in-progress restoration timers from a previous focus event
+    this._cancelBlurRestoration()
+
+    this._stopAudioHealthCheck()
+
+    // Increase lookAhead to 1.0s (bypasses stress monitor's 350ms cap)
+    if (this._originalLookAhead === undefined) {
+      this._originalLookAhead = Tone.context.lookAhead
+    }
+    Tone.context.lookAhead = this._blurLookAhead
+
+    // Force audio stress degradation to reduce complexity
+    if (this.stressMonitor) {
+      this.stressMonitor.forceStressFactor(0.6)
+    }
+
+    this._isWindowBlurred = true
+
+    // Dispatch event for visual/loop pause (main.js listens)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('audio-blur-mode', {
+        detail: { active: true, lookAhead: this._blurLookAhead }
+      }))
+    }
+
+    if (DEBUG_AUDIO_STATE) console.log(`[AudioState] Blur: lookAhead=${this._blurLookAhead}s, visuals paused`)
+  }
+
+  /**
+   * Cancel all blur restoration timers (cleanup for rapid blur/focus cycles)
+   * @private
+   */
+  _cancelBlurRestoration() {
+    if (this._blurRestoreInterval) {
+      clearInterval(this._blurRestoreInterval)
+      this._blurRestoreInterval = null
+    }
+    if (this._blurVisualResumeTimeout) {
+      clearTimeout(this._blurVisualResumeTimeout)
+      this._blurVisualResumeTimeout = null
     }
   }
 
@@ -1736,6 +1848,10 @@ class AudioService {
   _adjustLookAheadForStress(mode) {
     if (!window.Tone || !Tone.context) return
 
+    // Blur mode and Performance Mode control lookAhead directly — don't let
+    // the stress monitor's 350ms cap undo the higher blur/performance lookAhead
+    if (this._isWindowBlurred) return
+
     // Save original lookAhead on first invocation (final value after all overrides)
     if (this._originalLookAhead === undefined) {
       this._originalLookAhead = Tone.context.lookAhead
@@ -1997,6 +2113,9 @@ class AudioService {
 
         const isWindowsChromePure = typeof PlatformDetection !== 'undefined' && PlatformDetection.isWindowsChromePure()
         Tone.context.lookAhead = targetLookAhead
+
+        // Capture definitive lookAhead BEFORE any stress/blur adjustments can corrupt it
+        this._originalLookAhead = targetLookAhead
 
         // PERF: Entry #59: Use platform-specific updateInterval for Chrome Windows
         // Default is 0.025s (25ms). Higher values reduce scheduler CPU overhead

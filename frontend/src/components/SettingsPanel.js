@@ -170,6 +170,7 @@ class SettingsPanel {
       }
     }
 
+
     // Add Theme toggle listener with ARIA support
     const themeToggle = this.panel.querySelector('#settings-theme')
     if (themeToggle) {
@@ -490,6 +491,7 @@ class SettingsPanel {
       this._showCanvasNotification('Settings applied')
     }, SettingsPanel.TOAST_DELAY_AFTER_CLOSE)
   }
+
 
   /**
    * Escape HTML entities to prevent XSS

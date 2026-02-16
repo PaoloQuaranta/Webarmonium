@@ -2492,6 +2492,45 @@ class WebarmoniumApp {
             })
           }
 
+          // AUDIO PRIORITY: Wire window blur mode → visual/loop pause
+          // When Chrome loses focus on Windows, AudioService increases lookAhead
+          // and dispatches this event so we pause visuals to free main thread.
+          if (!this._audioBlurListenerWired) {
+            this._audioBlurListenerWired = true
+            this._audioBlurHandler = (event) => {
+              const { active } = event.detail
+
+              if (active) {
+                // Cancel any pending visual resume from a previous focus event
+                if (this._blurVisualResumeTimeout) {
+                  clearTimeout(this._blurVisualResumeTimeout)
+                  this._blurVisualResumeTimeout = null
+                }
+                // Pause visuals immediately to free main thread for audio scheduling
+                if (this.visualService) {
+                  this.visualService.isPaused = true
+                }
+                if (typeof UnifiedUpdateLoop !== 'undefined') {
+                  const loop = UnifiedUpdateLoop.getInstance()
+                  if (loop) loop.pause()
+                }
+              } else {
+                // Resume UnifiedUpdateLoop immediately (low overhead)
+                if (typeof UnifiedUpdateLoop !== 'undefined') {
+                  const loop = UnifiedUpdateLoop.getInstance()
+                  if (loop) loop.resume()
+                }
+                // Resume visuals after 400ms delay to let audio scheduling stabilize
+                this._blurVisualResumeTimeout = setTimeout(() => {
+                  if (this.visualService) {
+                    this.visualService.isPaused = false
+                  }
+                }, 400)
+              }
+            }
+            window.addEventListener('audio-blur-mode', this._audioBlurHandler)
+          }
+
           // Play pending drone if saved
           // Entry #175: Pass saved style for genre-aware audio
           if (this.pendingDrone) {
