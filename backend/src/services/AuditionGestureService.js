@@ -468,6 +468,15 @@ class AuditionGestureService {
       }, delay)
       state.pendingTimers.push(timerId)
     }
+
+    // Prune pendingTimers array if too large (memory safeguard)
+    if (state.pendingTimers.length > 200) {
+      const toDiscard = state.pendingTimers.length - 100
+      for (let i = 0; i < toDiscard; i++) {
+        clearTimeout(state.pendingTimers[i])
+      }
+      state.pendingTimers = state.pendingTimers.slice(-100)
+    }
   }
 
   // ============================================================
@@ -725,6 +734,15 @@ class AuditionGestureService {
       })
     }, durationMs)
     state.pendingTimers.push(holdEndTimer)
+
+    // Prune pendingTimers array if too large (memory safeguard)
+    if (state.pendingTimers.length > 200) {
+      const toDiscard = state.pendingTimers.length - 100
+      for (let i = 0; i < toDiscard; i++) {
+        clearTimeout(state.pendingTimers[i])
+      }
+      state.pendingTimers = state.pendingTimers.slice(-100)
+    }
   }
 
   /**
@@ -838,6 +856,15 @@ class AuditionGestureService {
         state.pendingTimers.push(noteEndTimer)
       }, i * noteInterval)
       state.pendingTimers.push(noteStartTimer)
+    }
+
+    // Prune pendingTimers array if too large (memory safeguard)
+    if (state.pendingTimers.length > 200) {
+      const toDiscard = state.pendingTimers.length - 100
+      for (let i = 0; i < toDiscard; i++) {
+        clearTimeout(state.pendingTimers[i])
+      }
+      state.pendingTimers = state.pendingTimers.slice(-100)
     }
 
     // Add drag material to BackgroundCompositionService (RAW params)

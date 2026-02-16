@@ -267,13 +267,35 @@ setInterval(() => {
   const heapMB = Math.round(mem.heapUsed / 1024 / 1024)
   const rssMB = Math.round(mem.rss / 1024 / 1024)
   const seqCount = container.get('sequencerGestureService')?.activeSequencers?.size || 0
-  console.log(`[MEM] heap=${heapMB}MB rss=${rssMB}MB lag=${lagMs}ms seq=${seqCount}`)
+  const audCount = container.get('auditionGestureService')?.activeAuditions?.size || 0
+  console.log(`[MEM] heap=${heapMB}MB rss=${rssMB}MB lag=${lagMs}ms seq=${seqCount} aud=${audCount}`)
   if (heapMB > HEAP_WARN_MB) {
-    console.warn(`[MEM] WARNING: heap ${heapMB}MB exceeds ${HEAP_WARN_MB}MB threshold - forcing cleanup`)
+    console.warn(`[MEM] WARNING: heap ${heapMB}MB exceeds ${HEAP_WARN_MB}MB - emergency cleanup`)
     try {
       backgroundService.forceGlobalCleanup()
     } catch (err) {
       console.error('[MEM] Cleanup error:', err.message)
+    }
+    // Emergency: stop all audition/sequencer sessions to free memory, notify clients
+    try {
+      const audService = container.get('auditionGestureService')
+      if (audService) {
+        for (const socketId of [...audService.activeAuditions.keys()]) {
+          audService.stopAudition(socketId)
+          const sock = io.sockets.sockets.get(socketId)
+          if (sock) sock.emit('audition:stopped', { reason: 'memory-pressure' })
+        }
+      }
+      const seqService = container.get('sequencerGestureService')
+      if (seqService) {
+        for (const socketId of [...seqService.activeSequencers.keys()]) {
+          seqService.stopSequencer(socketId)
+          const sock = io.sockets.sockets.get(socketId)
+          if (sock) sock.emit('sequencer:stopped', { reason: 'memory-pressure' })
+        }
+      }
+    } catch (err) {
+      console.error('[MEM] Session cleanup error:', err.message)
     }
   }
 }, 60000)
@@ -768,6 +790,48 @@ function gracefulShutdown (signal) {
   if (compositionMonitor) {
     compositionMonitor.shutdown()
   }
+
+  // Stop all active services — individual try-catch to ensure each cleanup runs
+  try {
+    const audService = container.get('auditionGestureService')
+    if (audService) {
+      for (const socketId of [...audService.activeAuditions.keys()]) {
+        audService.stopAudition(socketId)
+      }
+    }
+  } catch (err) { serverLogger.error('Shutdown: audition cleanup error:', err.message) }
+
+  try {
+    const seqService = container.get('sequencerGestureService')
+    if (seqService) {
+      for (const socketId of [...seqService.activeSequencers.keys()]) {
+        seqService.stopSequencer(socketId)
+      }
+    }
+  } catch (err) { serverLogger.error('Shutdown: sequencer cleanup error:', err.message) }
+
+  try {
+    const vus = container.get('virtualUserService')
+    if (vus) {
+      for (const roomId of [...vus.activeRooms.keys()]) {
+        vus.deactivateForRoom(roomId, false)
+      }
+    }
+  } catch (err) { serverLogger.error('Shutdown: virtual user cleanup error:', err.message) }
+
+  try {
+    const bcs = container.get('backgroundCompositionService')
+    if (bcs) {
+      for (const roomId of [...roomManager.rooms.keys()]) {
+        bcs.stopComposition(roomId)
+      }
+    }
+  } catch (err) { serverLogger.error('Shutdown: composition cleanup error:', err.message) }
+
+  try {
+    const envMem = container.get('environmentalMemoryCoordinator')
+    if (envMem) envMem.shutdown()
+  } catch (err) { serverLogger.error('Shutdown: env memory cleanup error:', err.message) }
 
   server.close(() => {
     serverLogger.info('HTTP server closed')

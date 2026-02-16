@@ -417,12 +417,12 @@ class SequencerGestureService {
 
     // Prune pendingTimers array if too large (memory safeguard)
     // Clear old timers before discarding their IDs to prevent uncancellable ghost notes
-    if (state.pendingTimers.length > 500) {
-      const toDiscard = state.pendingTimers.length - 250
+    if (state.pendingTimers.length > 200) {
+      const toDiscard = state.pendingTimers.length - 100
       for (let i = 0; i < toDiscard; i++) {
         clearTimeout(state.pendingTimers[i])
       }
-      state.pendingTimers = state.pendingTimers.slice(-250)
+      state.pendingTimers = state.pendingTimers.slice(-100)
     }
 
     // Add material to composition — use RAW pitch (pre-quantization) to avoid harmonic feedback

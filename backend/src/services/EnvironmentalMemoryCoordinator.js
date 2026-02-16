@@ -436,6 +436,11 @@ class EnvironmentalMemoryCoordinator {
       cleanedRooms++
     })
 
+    // Clean up adaptation engine data for expired rooms
+    if (this.adaptationEngine && roomsToDelete.length > 0) {
+      this.adaptationEngine.cleanup(roomsToDelete)
+    }
+
     return {
       expiredMemories,
       expiredPatterns,
@@ -541,6 +546,10 @@ class EnvironmentalMemoryCoordinator {
    */
   shutdown() {
     this.stopMemoryCleanup()
+    // Clean up adaptation engine data before clearing memory states
+    if (this.adaptationEngine) {
+      this.adaptationEngine.cleanup(Array.from(this.memoryStates.keys()))
+    }
     this.memoryStates.clear()
     this.patternRegistry.clear()
   }

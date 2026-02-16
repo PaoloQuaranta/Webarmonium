@@ -806,6 +806,10 @@ class RoomManager {
       if (this.sequencerGestureService) {
         this.sequencerGestureService.cleanupRoom(roomId)
       }
+      // Cleanup virtual user timers for deleted rooms
+      if (this.virtualUserService) {
+        this.virtualUserService.deactivateForRoom(roomId, false)
+      }
       // Stop composition and free per-room engines (MaterialLibrary, HarmonicEngine, etc.)
       if (this.backgroundCompositionService) {
         this.backgroundCompositionService.stopComposition(roomId)
