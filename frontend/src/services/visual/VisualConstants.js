@@ -22,8 +22,8 @@ const PULSE_CONFIG = {
   decayRate: 1.5,         // Intensity decay per second - slower for longer travel
   width: 10,              // Pulse width in pixels - increased for better visibility
   maxPulses: 25,          // Maximum active pulses - reduced for performance
-  maxHops: 2,             // Maximum cascade hops - reduced from 4
-  intensityDecayPerHop: 0.4  // Faster decay per hop - was 0.55
+  maxHops: 3,             // Match particle cascade depth (3 hops)
+  intensityDecayPerHop: 0.55  // Gentler decay — glow visible across all segments
 }
 
 // Particle Configuration
