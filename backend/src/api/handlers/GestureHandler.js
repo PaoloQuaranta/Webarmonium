@@ -714,7 +714,7 @@ const GestureHandler = {
           y,
           intensity,
           color,
-          timestamp: now
+          timestamp: Date.now()
         })
       } catch (error) {
         // Silent fail - don't break gesture handling

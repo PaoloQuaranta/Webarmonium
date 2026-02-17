@@ -608,8 +608,8 @@ class LandingApp {
       this.socket.on('connect', () => {
         // console.log('✅ Socket connected to backend')
 
-        // Join landing room
-        this.socket.emit('join-landing', (response) => {
+        // Join landing room (pass empty data so server handler receives callback correctly)
+        this.socket.emit('join-landing', {}, (response) => {
           // console.log('📡 join-landing response:', response?.success)
           if (response && response.success) {
             // console.log('✅ Joined landing room:', response.roomId)

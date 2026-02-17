@@ -20,7 +20,8 @@ const RATE_LIMIT_CONFIG = {
   'hold:end': { windowMs: 1000, maxRequests: 30 },       // 30/sec
   'synth:params': { windowMs: 1000, maxRequests: 5 },    // 5/sec for synth param updates
   'room-creation': { windowMs: 3600000, maxRequests: 5 }, // 5/hour
-  'connection': { windowMs: 60000, maxRequests: 10 }     // 10/minute
+  'connection': { windowMs: 60000, maxRequests: 10 },    // 10/minute
+  'sequencer-config': { windowMs: 1000, maxRequests: 10 } // 10/sec for sequencer param updates
 }
 
 /**

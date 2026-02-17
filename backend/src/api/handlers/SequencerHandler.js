@@ -11,11 +11,12 @@
  *
  * Uses static methods pattern consistent with other handlers.
  * All parameters are validated before processing.
- * Rate limiting on config updates (max 10/sec per socket).
+ * Rate limiting on config updates (max 10/sec per user via centralized RateLimiter).
  */
 
-// Per-socket rate limiter for config updates
-const configRateLimits = new Map()
+const { createLogger } = require('../../utils/Logger')
+const logger = createLogger('sequencer')
+const RateLimiter = require('../../utils/RateLimiter')
 
 /**
  * Validate sequencer parameters
@@ -98,25 +99,25 @@ const SequencerHandler = {
         const roomManager = socket.services?.roomManager
 
         if (!roomId) {
-          console.warn(`[SequencerHandler] No roomId for socket ${socket.id}`)
+          logger.warn(`No roomId for socket ${socket.id}`)
           return
         }
 
         if (!sequencerService) {
-          console.warn(`[SequencerHandler] SequencerGestureService not available`)
+          logger.warn('SequencerGestureService not available')
           return
         }
 
         // Validate room existence and user membership
         const room = roomManager?.getRoom(roomId)
         if (!room) {
-          console.warn(`[SequencerHandler] Room ${roomId} not found for socket ${socket.id}`)
+          logger.warn(`Room ${roomId} not found for socket ${socket.id}`)
           return
         }
 
         const user = room.getUser(socket.userId)
         if (!user) {
-          console.warn(`[SequencerHandler] User ${socket.userId} not member of room ${roomId}`)
+          logger.warn(`User ${socket.userId} not member of room ${roomId}`)
           return
         }
 
@@ -137,10 +138,10 @@ const SequencerHandler = {
         // Get real user identity from room
         const userColor = user.assignedColor || '#6bcf7f'
 
-        console.log(`[SequencerHandler] Start request from ${socket.userId} (socket ${socket.id}) in room ${roomId}`)
+        logger.info(`Start request from ${socket.userId} in room ${roomId}`)
         sequencerService.startSequencer(socket.id, roomId, validatedParams, socket.userId, userColor)
       } catch (error) {
-        console.error(`[SequencerHandler] Error starting sequencer:`, error.message)
+        logger.error(`Error starting sequencer: ${error.message}`)
       }
     })
   },
@@ -157,10 +158,10 @@ const SequencerHandler = {
 
         if (!sequencerService) return
 
-        console.log(`[SequencerHandler] Stop request from ${socket.id}`)
+        logger.info(`Stop request from ${socket.id}`)
         sequencerService.stopSequencer(socket.id)
       } catch (error) {
-        console.error(`[SequencerHandler] Error stopping sequencer:`, error.message)
+        logger.error(`Error stopping sequencer: ${error.message}`)
       }
     })
   },
@@ -173,11 +174,9 @@ const SequencerHandler = {
   registerSequencerConfigHandler (socket) {
     socket.on('sequencer:config', (params) => {
       try {
-        // Rate limiting: max 10 updates/sec per socket
-        const now = Date.now()
-        const last = configRateLimits.get(socket.id) || 0
-        if (now - last < 100) return // Drop if < 100ms since last
-        configRateLimits.set(socket.id, now)
+        // Rate limiting: max 10 updates/sec per user (centralized, survives reconnects)
+        const limitResult = RateLimiter.checkLimit('sequencer-config', socket)
+        if (!limitResult.allowed) return
 
         const sequencerService = socket.services?.sequencerGestureService
 
@@ -191,7 +190,7 @@ const SequencerHandler = {
           sequencerService.updateParams(socket.id, validatedParams)
         }
       } catch (error) {
-        console.error(`[SequencerHandler] Error updating params:`, error.message)
+        logger.error(`Error updating params: ${error.message}`)
       }
     })
   },
@@ -211,7 +210,7 @@ const SequencerHandler = {
           ? { layer: options.layer } : undefined
         sequencerService.pauseSequencer(socket.id, safeOptions)
       } catch (error) {
-        console.error(`[SequencerHandler] Error pausing sequencer:`, error.message)
+        logger.error(`Error pausing sequencer: ${error.message}`)
       }
     })
   },
@@ -232,7 +231,7 @@ const SequencerHandler = {
           ? { layer: options.layer } : undefined
         sequencerService.resumeSequencer(socket.id, safeOptions)
       } catch (error) {
-        console.error(`[SequencerHandler] Error resuming sequencer:`, error.message)
+        logger.error(`Error resuming sequencer: ${error.message}`)
       }
     })
   },
@@ -249,10 +248,8 @@ const SequencerHandler = {
         if (sequencerService) {
           sequencerService.stopSequencer(socket.id)
         }
-        // Clean up rate limiter
-        configRateLimits.delete(socket.id)
       } catch (error) {
-        console.warn(`[SequencerHandler] Error during disconnect cleanup for socket ${socket.id}:`, error.message)
+        logger.warn(`Error during disconnect cleanup for socket ${socket.id}: ${error.message}`)
       }
     })
   }

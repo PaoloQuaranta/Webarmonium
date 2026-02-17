@@ -19,6 +19,13 @@ const AuthHandler = {
    */
   registerJoinLandingHandler (socket) {
     socket.on('join-landing', async (data, callback) => {
+      // Defensive: tolerate clients that omit the data argument and pass the
+      // ack function as the first positional arg (Socket.IO argument shifting).
+      // The canonical call is: emit('join-landing', {}, callback)
+      if (typeof data === 'function' && !callback) {
+        callback = data
+        data = {}
+      }
       const startTime = Date.now()
 
       try {
@@ -106,13 +113,10 @@ const AuthHandler = {
           callback(response)
         }
 
-        // Emit landing-joined event
+        // Emit landing-joined as minimal signal (all data already in ack callback)
         socket.emit('landing-joined', {
           roomId: landingRoomId,
           userId: socket.userId,
-          cursors,
-          metrics,
-          roomsActivity,
           timestamp: Date.now()
         })
 

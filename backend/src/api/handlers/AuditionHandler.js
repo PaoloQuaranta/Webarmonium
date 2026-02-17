@@ -11,6 +11,9 @@
  * Issue #3 fix: All parameters are validated before processing.
  */
 
+const { createLogger } = require('../../utils/Logger')
+const logger = createLogger('audition')
+
 /**
  * Validate audition parameters
  * Issue #3 fix: Security - validate all numeric parameters are within bounds
@@ -60,25 +63,25 @@ const AuditionHandler = {
         const roomManager = socket.services?.roomManager
 
         if (!roomId) {
-          console.warn(`[AuditionHandler] No roomId for socket ${socket.id}`)
+          logger.warn(`No roomId for socket ${socket.id}`)
           return
         }
 
         if (!auditionService) {
-          console.warn(`[AuditionHandler] AuditionGestureService not available`)
+          logger.warn('AuditionGestureService not available')
           return
         }
 
         // Critical: Validate room existence and user membership
         const room = roomManager?.getRoom(roomId)
         if (!room) {
-          console.warn(`[AuditionHandler] Room ${roomId} not found for socket ${socket.id}`)
+          logger.warn(`Room ${roomId} not found for socket ${socket.id}`)
           return
         }
 
         const user = room.getUser(socket.userId)
         if (!user) {
-          console.warn(`[AuditionHandler] User ${socket.userId} not member of room ${roomId}`)
+          logger.warn(`User ${socket.userId} not member of room ${roomId}`)
           return
         }
 
@@ -100,10 +103,10 @@ const AuditionHandler = {
           validatedParams.drumPresetSlot = user.synthPresetSlot
         }
 
-        console.log(`[AuditionHandler] Start request from ${socket.userId} (socket ${socket.id}) in room ${roomId}`)
+        logger.info(`Start request from ${socket.userId} in room ${roomId}`)
         auditionService.startAudition(socket.id, roomId, validatedParams, socket.userId, userColor)
       } catch (error) {
-        console.error(`[AuditionHandler] Error starting audition:`, error.message)
+        logger.error(`Error starting audition: ${error.message}`)
       }
     })
   },
@@ -122,10 +125,10 @@ const AuditionHandler = {
           return
         }
 
-        console.log(`[AuditionHandler] Stop request from ${socket.id}`)
+        logger.info(`Stop request from ${socket.id}`)
         auditionService.stopAudition(socket.id)
       } catch (error) {
-        console.error(`[AuditionHandler] Error stopping audition:`, error.message)
+        logger.error(`Error stopping audition: ${error.message}`)
       }
     })
   },
@@ -152,7 +155,7 @@ const AuditionHandler = {
           auditionService.updateParams(socket.id, validatedParams)
         }
       } catch (error) {
-        console.error(`[AuditionHandler] Error updating params:`, error.message)
+        logger.error(`Error updating params: ${error.message}`)
       }
     })
   },
@@ -177,7 +180,7 @@ const AuditionHandler = {
           ? { layer: options.layer } : undefined
         auditionService.pauseAudition(socket.id, safeOptions)
       } catch (error) {
-        console.error(`[AuditionHandler] Error pausing audition:`, error.message)
+        logger.error(`Error pausing audition: ${error.message}`)
       }
     })
   },
@@ -202,7 +205,7 @@ const AuditionHandler = {
           ? { layer: options.layer } : undefined
         auditionService.resumeAudition(socket.id, safeOptions)
       } catch (error) {
-        console.error(`[AuditionHandler] Error resuming audition:`, error.message)
+        logger.error(`Error resuming audition: ${error.message}`)
       }
     })
   },
@@ -221,7 +224,7 @@ const AuditionHandler = {
         }
       } catch (error) {
         // Log errors during disconnect cleanup (don't throw to avoid breaking disconnect flow)
-        console.warn(`[AuditionHandler] Error during disconnect cleanup for socket ${socket.id}:`, error.message)
+        logger.warn(`Error during disconnect cleanup for socket ${socket.id}: ${error.message}`)
       }
     })
   }
