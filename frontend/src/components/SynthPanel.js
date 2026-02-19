@@ -357,10 +357,10 @@ class SynthPanel {
    * @private
    */
   _pulseExternalButton () {
-    // Shares throttle with _pulseButton — max 4 pulses/sec total
+    // Own throttle (independent from _pulseButton) — max 4 pulses/sec
     const now = performance.now()
-    if (now - (this._lastPulseTime || 0) < 250) return
-    this._lastPulseTime = now
+    if (now - (this._lastExternalPulseTime || 0) < 250) return
+    this._lastExternalPulseTime = now
 
     const btn = this._externalBtn
     if (!btn) return
