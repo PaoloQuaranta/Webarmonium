@@ -350,8 +350,14 @@
       </p>
 
       <p>
-        <strong>Multi-user composition</strong>: Up to 4 users can create polyphonic compositions together, with background accompaniment. The system validates counterpoint rules to ensure musical coherence.
+        <strong>Multi-user composition</strong>: Up to 4 jammers can create polyphonic compositions together, with background accompaniment. The system validates counterpoint rules to ensure musical coherence.
         When only one real user is present, two virtual users (from web metrics) automatically join in.
+      </p>
+
+      <p>
+        <strong>Listen Mode</strong>: You can also join a room as a listener&mdash;hear the music and watch the visuals without
+        performing gestures. Listeners don&rsquo;t count toward the room&rsquo;s 4-jammer capacity. When a jammer slot
+        becomes available, listeners can promote themselves to full jammer status with a single tap.
       </p>
 
       <p>
@@ -365,9 +371,12 @@
       <p>
         <strong>Synth Panel</strong>: In collaborative rooms, each user can customize their sound through a
         hardware-synth-inspired channel strip. It provides controls for oscillator parameters, filter (lowpass, highpass,
-        bandpass) with cutoff and resonance, ADSR envelope, and effects (volume, pan, delay, reverb). Eight presets are
-        available, with server-side conflict resolution ensuring unique timbres. All controls are themed with the user's
-        assigned color, and changes sync in real-time across the room.
+        bandpass) with cutoff and resonance, ADSR envelope, and effects (volume, pan, delay, reverb). Eight synth presets
+        and three drum kits (808 Kit, Acoustic Kit, Electronic Kit) are available, with server-side conflict resolution
+        ensuring unique timbres. In drum mode, the panel switches to per-instrument controls (Pitch, Decay, Tone) for
+        bass drum, snare, and hi-hat, with a global volume and reverb send. Canvas gestures also change: tap triggers
+        the snare, and drag produces a snare roll. All controls are themed with the user&rsquo;s assigned color, and
+        changes sync in real-time across the room.
       </p>
 
       <p>
@@ -378,13 +387,14 @@
       </p>
 
       <p>
-        <strong>Sequencer</strong>: The Synth Panel also includes a step sequencer for creating repeating melodic
-        patterns synchronized to the room&rsquo;s composition tempo. Users configure 3 to 16 steps, each with a
-        pitch slider (scale degree I&ndash;VII across four octaves) and a tri-state mode: Normal (plays the set
-        pitch), Mute (skips audio), or Random (picks a random degree and octave each cycle). A speed multiplier
-        (0.25&times;&ndash;8&times;) scales the base BPM. Like audition, the sequencer runs server-side so all
-        room participants hear it, auto-pauses during real gestures, and is mutually exclusive with the audition
-        feature.
+        <strong>Sequencer</strong>: The Synth Panel also includes a step sequencer for creating repeating
+        patterns synchronized to the room&rsquo;s composition tempo. In melodic mode, users configure 3 to 16 steps,
+        each with a pitch slider (scale degree I&ndash;VII across four octaves) and a tri-state mode: Normal (plays
+        the set pitch), Mute (skips audio), or Random (picks a random degree and octave each cycle). In drum mode,
+        the sequencer switches to a four-instrument grid (bass drum, snare, hi-hat, open hi-hat) where each step
+        can be toggled on or off per instrument. A speed multiplier (0.25&times;&ndash;8&times;) scales the base BPM.
+        Like audition, the sequencer runs server-side so all room participants hear it, auto-pauses during real
+        gestures, and is mutually exclusive with the audition feature.
       </p>
     </section>
 

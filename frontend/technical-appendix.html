@@ -333,7 +333,7 @@
           </tr>
           <tr>
             <td class="color-github">GitHub</td>
-            <td>commitsPerMinute</td>
+            <td>pushesPerMinute</td>
             <td>createsPerMinute, deletesPerMinute</td>
           </tr>
         </tbody>
@@ -390,14 +390,19 @@
         </thead>
         <tbody>
           <tr>
-            <td>Max users</td>
+            <td>Max jammers</td>
             <td>4</td>
-            <td>Each user receives a unique timbre/patch</td>
+            <td>Each jammer receives a unique timbre/patch</td>
+          </tr>
+          <tr>
+            <td>Listen mode</td>
+            <td>Unlimited listeners</td>
+            <td>Passive observers who hear music and see visuals; can promote to jammer when a slot opens</td>
           </tr>
           <tr>
             <td>Timbre assignment</td>
             <td>Sequential (slots 0-7)</td>
-            <td>8 presets: Retro Square, Nasal Reed, Warm Chorus, Bell Chime, Soft Square, Wide Pulse, Bright Chorus, Deep Bell</td>
+            <td>8 synth presets + 3 drum kits: Retro Square, Nasal Reed, Warm Chorus, Bell Chime, Soft Square, Wide Pulse, Bright Chorus, Deep Bell; 808 Kit, Acoustic Kit, Electronic Kit</td>
           </tr>
           <tr>
             <td>Synth customization</td>
@@ -901,7 +906,7 @@
         </tbody>
       </table>
 
-      <h3>Real User Patches (8 presets)</h3>
+      <h3>Real User Synth Patches (8 presets)</h3>
       <table>
         <thead>
           <tr>
@@ -963,6 +968,43 @@
         </tbody>
       </table>
 
+      <h3>Drum Kit Presets (3 kits)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Slot</th>
+            <th>Name</th>
+            <th>Instruments</th>
+            <th>Character</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>8</td>
+            <td>808 Kit</td>
+            <td>BD, SN, HH, OH</td>
+            <td>Deep sub-bass kick, tight snare, closed hi-hat, open hi-hat with choke</td>
+          </tr>
+          <tr>
+            <td>9</td>
+            <td>Acoustic Kit</td>
+            <td>BD, SN, HH, OH</td>
+            <td>Natural resonant kick, bright snare, shimmering hi-hat</td>
+          </tr>
+          <tr>
+            <td>10</td>
+            <td>Electronic Kit</td>
+            <td>BD, SN, HH, OH</td>
+            <td>Punchy synthetic kick, noisy snare, glitchy hi-hat</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <strong>Hi-Hat Choke:</strong> Closed hi-hat (HH) chokes any active open hi-hat (OH), and OH self-chokes
+        the previous OH hit&mdash;per-user tracking ensures correct choke behavior in multi-user rooms.
+      </div>
+
       <h3>Synth Panel</h3>
       <p>
         In collaborative rooms, each user can customize their synth sound in real-time through a channel-strip
@@ -1006,6 +1048,44 @@
           </tr>
         </tbody>
       </table>
+
+      <h3>Drum Mode Controls</h3>
+      <p>
+        When a drum kit preset is selected, the Synth Panel switches to drum-specific controls.
+        Each instrument (bass drum, snare, hi-hat) has independent parameter sliders. Canvas gestures
+        also change in drum mode: tap triggers the snare, and drag produces a snare roll (repeated hits
+        at drag speed).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Instrument</th>
+            <th>Parameters</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Bass Drum (BD)</td>
+            <td>Pitch, Decay, Tone</td>
+            <td>Sub-bass fundamental with tone-controlled harmonics</td>
+          </tr>
+          <tr>
+            <td>Snare (SN)</td>
+            <td>Pitch, Decay, Tone, Delay</td>
+            <td>Noise + membrane blend; delay adds pre-attack rattle</td>
+          </tr>
+          <tr>
+            <td>Hi-Hat (HH)</td>
+            <td>Pitch, Decay, Tone, Delay</td>
+            <td>MetalSynth-based; short decay for closed, longer for open character</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        A global Volume and Reverb send apply to the entire drum kit. All parameter changes sync
+        in real-time via WebSocket, identical to synth mode.
+      </p>
 
       <div class="note">
         <strong>Color Theming:</strong> All Synth Panel controls are themed with the user's assigned color
@@ -1146,6 +1226,18 @@
         for overall presence control, allowing the amplitude LFO to continue providing subtle breathing
         modulation even while the drone fades in/out.
       </div>
+    </section>
+
+    <!-- Section 9b: Visual Rendering -->
+    <section class="tech-section">
+      <h2>9b. Visual Rendering</h2>
+      <p>
+        All visual rendering uses <strong>PixiJS 8 (WebGL GPU)</strong> on both the landing page and collaborative rooms.
+        The rendering pipeline includes spring-mesh network topology, particle pools, pulse pools, wave packet systems,
+        precomputed attractor fields, and neon nebula layers&mdash;all composited at 60fps through PixiJS&rsquo;s
+        WebGL batching. A <em>PixiAdapter</em> service bridges the application&rsquo;s visual subsystems to the
+        PixiJS renderer.
+      </p>
     </section>
 
     <!-- Section 10: Musical Scheduler -->
@@ -1332,13 +1424,15 @@
     <section class="tech-section">
       <h2>13. Sequencer System</h2>
       <p>
-        The Sequencer generates repeating step-based melodic patterns synchronized to the room&rsquo;s composition
-        tempo. Like the Audition feature, generation occurs server-side (via the <em>SequencerGestureService</em>),
-        so all room participants hear the output. Each step emits <code>hold:start</code> / <code>hold:end</code>
-        gestures and feeds raw pitch material into the <em>BackgroundCompositionService</em>.
+        The Sequencer generates repeating step-based patterns synchronized to the room&rsquo;s composition
+        tempo. It operates in two modes: <strong>melodic</strong> (pitch-based steps) and <strong>drum</strong>
+        (per-instrument grid). Like the Audition feature, generation occurs server-side (via the
+        <em>SequencerGestureService</em>), so all room participants hear the output. In melodic mode, each step
+        emits <code>hold:start</code> / <code>hold:end</code> gestures and feeds raw pitch material into the
+        <em>BackgroundCompositionService</em>.
       </p>
 
-      <h3>Sequencer Parameters</h3>
+      <h3>Melodic Sequencer Parameters</h3>
       <table>
         <thead>
           <tr><th>Parameter</th><th>Range</th><th>Description</th></tr>
@@ -1366,6 +1460,29 @@
         // Raw pitch &rarr; addMaterial() (composition input)<br>
         // Quantized pitch &rarr; hold:start (playback only)
       </div>
+
+      <h3>Drum Sequencer Mode</h3>
+      <p>
+        When a drum kit preset is active, the sequencer switches to a four-instrument grid.
+        Instead of pitch sliders, each row represents an instrument (BD, SN, HH, OH) and each
+        step can be toggled on or off. The open hi-hat (OH) follows the same choke rules as
+        live playback: HH chokes active OH, OH self-chokes previous OH.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Row</th>
+            <th>Instrument</th>
+            <th>Step States</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>Bass Drum (BD)</td><td>On / Off per step</td></tr>
+          <tr><td>2</td><td>Snare (SN)</td><td>On / Off per step</td></tr>
+          <tr><td>3</td><td>Hi-Hat (HH)</td><td>On / Off per step</td></tr>
+          <tr><td>4</td><td>Open Hi-Hat (OH)</td><td>On / Off per step</td></tr>
+        </tbody>
+      </table>
 
       <div class="note">
         <strong>Sequencer Behaviour:</strong> The sequencer auto-pauses when the user performs a real gesture

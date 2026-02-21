@@ -491,7 +491,7 @@ class SocketEventCoordinator {
     this.socketService.on('room-full', (data) => {
       // console.error('❌ Room is full:', data.error)
       if (this.onError) {
-        this.onError(`Unable to join room: ${data.error}. Maximum capacity (10 users) reached.`)
+        this.onError(`Unable to join room: ${data.error}. Maximum capacity reached.`)
       }
     })
   }

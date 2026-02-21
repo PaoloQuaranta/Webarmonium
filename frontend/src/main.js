@@ -1662,7 +1662,7 @@ class WebarmoniumApp {
 
     this.socketService.on('room-full', (data) => {
       // console.error('❌ Room is full:', data.error)
-      this.showError(`Unable to join room: ${data.error}. The room has reached maximum capacity (10 users). Please try again later.`)
+      this.showError(`Unable to join room: ${data.error}. The room has reached maximum capacity. Please try again later.`)
     })
 
     // Virtual user events for solo mode
