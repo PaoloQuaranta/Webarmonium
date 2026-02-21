@@ -472,6 +472,13 @@ io.on('connection', (socket) => {
 
   // Properly initialize socket handlers using the object structure
   socketHandlers.initializeSocket(socket, services)
+
+  // Recording status relay: landing page → monitor dashboard (gated to landing-room sockets)
+  socket.on('recording:status', (data) => {
+    if (socket.rooms?.has('landing-room')) {
+      monitorNamespace.emit('monitor:recording-update', data)
+    }
+  })
 })
 
 // Composition Monitor WebSocket namespace (protected)
@@ -639,6 +646,33 @@ monitorNamespace.on('connection', (socket) => {
       socket.emit('monitor:all-override-states', { error: error.message })
       serverLogger.error('Failed to get override states', { error: error.message })
     }
+  })
+
+  // =========================================================================
+  // Recording command relay (monitor → landing page)
+  // =========================================================================
+
+  socket.on('monitor:start-recording', (data) => {
+    const format = ['desktop', 'mobile'].includes(data?.format) ? data.format : 'desktop'
+
+    io.to('landing-room').emit('recording:command', {
+      action: 'start',
+      format,
+      timestamp: Date.now()
+    })
+
+    serverLogger.info('[Recording] Start command relayed', { format })
+    socket.emit('monitor:recording-status', { success: true, action: 'start', format })
+  })
+
+  socket.on('monitor:stop-recording', () => {
+    io.to('landing-room').emit('recording:command', {
+      action: 'stop',
+      timestamp: Date.now()
+    })
+
+    serverLogger.info('[Recording] Stop command relayed')
+    socket.emit('monitor:recording-status', { success: true, action: 'stop' })
   })
 
   socket.on('disconnect', () => {

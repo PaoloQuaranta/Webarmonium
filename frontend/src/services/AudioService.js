@@ -54,6 +54,9 @@ class AudioService {
     this._lastReverbDecayChange = 0
     this._reverbDecayThrottleMs = 2000 // Minimum 2s between decay changes
 
+    // Recording bypass: skip blur/visibility degradation during in-page recording
+    this._recordingBypass = false
+
     // PERF: Platform detection for audio buffer optimization
     // Windows Chrome has higher audio latency and needs larger buffers
     this._isWindowsChrome = this._detectWindowsChrome()
@@ -445,6 +448,9 @@ class AudioService {
    */
   async _handleVisibilityChange() {
     if (document.hidden) {
+      // During recording, keep audio running uninterrupted
+      if (this._recordingBypass) return
+
       // Tab becoming hidden - audio keeps playing, just stop monitoring
       if (this._audioState === 'PLAYING') {
         this._stopAudioHealthCheck()
@@ -569,6 +575,9 @@ class AudioService {
    * Strategy: pause visuals + increase lookAhead so Transport has 1s buffer.
    */
   _handleWindowBlur() {
+    // During recording, skip blur degradation to keep visuals + audio running
+    if (this._recordingBypass) return
+
     if (this._audioState !== 'PLAYING') return
 
     // Visibility change handler takes precedence (flushes composition queue)

@@ -15,6 +15,7 @@
  */
 
 import { DashboardUI } from './DashboardUI.js'
+import { LandingPageRecorder } from './LandingPageRecorder.js'
 import { isValidStyle } from '../utils/StyleValidator.js'
 
 /**
@@ -181,6 +182,9 @@ class LandingApp {
     this._immersiveAutoHideTimeout = null
     this._immersiveAutoHideDelay = 3000  // 3 seconds
 
+    // In-page recorder (triggered from composition monitor)
+    this.recorder = null
+
   }
 
   /**
@@ -253,6 +257,14 @@ class LandingApp {
       // Audio will only START on user click, but the service exists before
       if (typeof AudioService !== 'undefined' && !this.audioService) {
         this.audioService = new AudioService()
+      }
+
+      // Initialize in-page recorder (triggered from composition monitor)
+      if (this.visualService && this.audioService) {
+        this.recorder = new LandingPageRecorder({
+          visualService: this.visualService,
+          audioService: this.audioService
+        })
       }
 
       // Wait for user interaction to START audio (browser policy)
@@ -474,6 +486,8 @@ class LandingApp {
     this._resizeHandlerAttached = true
 
     window.addEventListener('resize', () => {
+      // Skip resize during recording (recorder controls canvas dimensions)
+      if (this.recorder?._isRecording) return
       if (this.visualService && this.canvasContainer) {
         const rect = this.canvasContainer.getBoundingClientRect()
         if (rect.width > 0 && rect.height > 0) {
@@ -642,6 +656,10 @@ class LandingApp {
 
       this.socket.on('disconnect', () => {
         // console.log('❌ Disconnected from backend')
+        // Stop any in-progress recording to prevent orphaned audio connections
+        if (this.recorder?._isRecording) {
+          this.recorder.stopRecording().catch(() => {})
+        }
       })
 
       this.socket.on('connect_error', (error) => {
@@ -665,6 +683,36 @@ class LandingApp {
       // Listen for landing-joined event
       this.socket.on('landing-joined', (data) => {
         // console.log('✅ Landing joined:', data.roomId)
+      })
+
+      // Recording commands from composition monitor (via backend relay)
+      this.socket.on('recording:command', async (data) => {
+        if (!this.recorder || !data || typeof data !== 'object') return
+
+        let result
+        if (data.action === 'start') {
+          // Set up periodic status reporting via socket
+          this.recorder.setStatusCallback((status) => {
+            if (this.socket?.connected) {
+              this.socket.emit('recording:status', { state: 'recording', ...status })
+            }
+          })
+          result = await this.recorder.startRecording(data.format || 'desktop')
+          if (this.socket?.connected) {
+            this.socket.emit('recording:status', {
+              state: result.success ? 'started' : 'error',
+              ...result
+            })
+          }
+        } else if (data.action === 'stop') {
+          result = await this.recorder.stopRecording()
+          if (this.socket?.connected) {
+            this.socket.emit('recording:status', {
+              state: result.success ? 'stopped' : 'error',
+              ...result
+            })
+          }
+        }
       })
 
       // Listen for background compositions from backend
@@ -1961,6 +2009,8 @@ class LandingApp {
 
     // Handle window resize in immersive mode (store handler for cleanup)
     this._immersiveResizeHandler = () => {
+      // Skip resize during recording (recorder controls canvas dimensions)
+      if (this.recorder?._isRecording) return
       if (document.body.classList.contains('immersive-mode') && this.visualService) {
         this.visualService.resize(window.innerWidth, window.innerHeight)
         this._resizeTrailCanvas()

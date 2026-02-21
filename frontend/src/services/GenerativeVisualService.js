@@ -67,6 +67,10 @@ class GenerativeVisualService {
     this._lastQualityTransition = 0
     this._consecutiveOverruns = 0
 
+    // Recording support: post-render hook and idle bypass
+    this._postRenderCallback = null
+    this._recordingBypass = false
+
     // P&P emission throttling per user
     this._lastEmitByUser = new Map()
     this.MIN_EMIT_INTERVAL = 300
@@ -382,6 +386,11 @@ class GenerativeVisualService {
 
     // Render PixiJS scene graph (single GPU draw call batch)
     this.pixiAdapter.render()
+
+    // Post-render hook for recording compositing (same event loop tick = framebuffer still valid)
+    if (this._postRenderCallback) {
+      this._postRenderCallback(this.pixiAdapter.app.canvas)
+    }
   }
 
   /**
@@ -603,7 +612,7 @@ class GenerativeVisualService {
       }
     }
 
-    if (Date.now() - this.lastActivityTime > this.idleThreshold) {
+    if (!this._recordingBypass && Date.now() - this.lastActivityTime > this.idleThreshold) {
       if (!this.isPaused) {
         this.isPaused = true
       }

@@ -621,6 +621,88 @@
       font-size: 0.875rem;
       margin-top: 4px;
     }
+
+    /* Recording Control Styles */
+    .rec-format-btn {
+      padding: 8px 12px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .rec-format-btn:hover {
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+
+    .rec-format-btn.selected {
+      background: var(--accent);
+      color: var(--bg-primary);
+      border-color: var(--accent);
+    }
+
+    .btn-record {
+      padding: 10px 16px;
+      background: var(--accent-green);
+      border: 1px solid var(--accent-green);
+      border-radius: 6px;
+      color: var(--bg-primary);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex: 1;
+    }
+
+    .btn-record:hover { opacity: 0.9; }
+    .btn-record:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-stop-rec {
+      padding: 10px 16px;
+      background: var(--accent-red);
+      border: 1px solid var(--accent-red);
+      border-radius: 6px;
+      color: var(--bg-primary);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex: 1;
+    }
+
+    .btn-stop-rec:hover { opacity: 0.9; }
+    .btn-stop-rec:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .rec-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+      font-size: 0.8rem;
+    }
+
+    .rec-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+    }
+
+    .rec-dot.recording {
+      background: var(--accent-red);
+      animation: rec-pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes rec-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
   </style>
 </head>
 <body>
@@ -717,6 +799,16 @@
       socket.on('disconnect', () => {
         document.getElementById('statusDot').classList.remove('connected');
         document.getElementById('statusText').textContent = 'Disconnected';
+        // Clean up recording UI state on disconnect
+        stopRecTimer();
+        if (recIsRecording) {
+          recIsRecording = false;
+          updateRecordingButtonState();
+          const recState = document.getElementById('recState');
+          const recDot = document.getElementById('recDot');
+          if (recState) { recState.textContent = 'Connection lost'; recState.style.color = 'var(--accent-yellow)'; }
+          if (recDot) recDot.classList.remove('recording');
+        }
       });
 
       socket.on('connect_error', (err) => {
@@ -826,6 +918,19 @@
       setTimeout(() => {
         socket.emit('monitor:get-override-states');
       }, 500);
+
+      // Recording status handlers
+      socket.on('monitor:recording-status', (data) => {
+        if (data.success) {
+          addEvent('RECORDING', `Command acknowledged: ${data.action} (${data.format || ''})`);
+        } else {
+          addEvent('ERROR', `Recording: ${data.error || 'unknown error'}`);
+        }
+      });
+
+      socket.on('monitor:recording-update', (data) => {
+        updateRecordingUI(data);
+      });
     }
 
     // Entry #210: Genre Override Control functions
@@ -954,6 +1059,122 @@
         ? 'Landing Page'
         : `Room: ${roomId.slice(0, 8)}...`;
       select.appendChild(option);
+    }
+
+    // =========================================================================
+    // Recording Control functions
+    // =========================================================================
+
+    let recSelectedFormat = 'desktop';
+    let recIsRecording = false;
+    let recTimerInterval = null;
+    let recStartTime = 0;
+
+    function selectRecFormat(format) {
+      recSelectedFormat = format;
+      document.querySelectorAll('.rec-format-btn').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.recFormat === format);
+      });
+    }
+
+    function startRecording() {
+      if (!socket || recIsRecording) return;
+      socket.emit('monitor:start-recording', { format: recSelectedFormat });
+
+      // Optimistic UI update
+      recIsRecording = true;
+      recStartTime = Date.now();
+      updateRecordingButtonState();
+      startRecTimer();
+
+      const dot = document.getElementById('recDot');
+      const state = document.getElementById('recState');
+      if (dot) dot.classList.add('recording');
+      if (state) { state.textContent = 'Recording'; state.style.color = 'var(--accent-red)'; }
+    }
+
+    function stopRecording() {
+      if (!socket || !recIsRecording) return;
+      socket.emit('monitor:stop-recording');
+
+      // Optimistic UI update
+      recIsRecording = false;
+      updateRecordingButtonState();
+      stopRecTimer();
+
+      const dot = document.getElementById('recDot');
+      const state = document.getElementById('recState');
+      if (dot) dot.classList.remove('recording');
+      if (state) { state.textContent = 'Stopping...'; state.style.color = 'var(--text-secondary)'; }
+    }
+
+    function updateRecordingUI(data) {
+      const state = document.getElementById('recState');
+      const sizeEl = document.getElementById('recSize');
+      const dot = document.getElementById('recDot');
+
+      if (data.state === 'started') {
+        recIsRecording = true;
+        recStartTime = Date.now();
+        updateRecordingButtonState();
+        startRecTimer();
+        if (dot) dot.classList.add('recording');
+        if (state) { state.textContent = 'Recording'; state.style.color = 'var(--accent-red)'; }
+        addEvent('RECORDING', `Started: ${data.format || 'desktop'} (${data.mimeType || 'webm'})`);
+      } else if (data.state === 'stopped') {
+        recIsRecording = false;
+        updateRecordingButtonState();
+        stopRecTimer();
+        if (dot) dot.classList.remove('recording');
+        if (state) { state.textContent = 'Idle'; state.style.color = 'var(--text-secondary)'; }
+        if (data.fileSize && sizeEl) sizeEl.textContent = formatRecSize(data.fileSize);
+        addEvent('RECORDING', `Stopped: ${formatRecDuration(data.duration || 0)}, ${formatRecSize(data.fileSize || 0)}`);
+      } else if (data.state === 'recording') {
+        // Periodic status update
+        if (data.size && sizeEl) sizeEl.textContent = formatRecSize(data.size);
+      } else if (data.state === 'error') {
+        recIsRecording = false;
+        updateRecordingButtonState();
+        stopRecTimer();
+        if (dot) dot.classList.remove('recording');
+        if (state) { state.textContent = 'Error'; state.style.color = 'var(--accent-yellow)'; }
+        addEvent('ERROR', `Recording: ${data.error || 'unknown'}`);
+      }
+    }
+
+    function updateRecordingButtonState() {
+      const btnRec = document.getElementById('btnRecord');
+      const btnStop = document.getElementById('btnStopRec');
+      if (btnRec) btnRec.disabled = recIsRecording;
+      if (btnStop) btnStop.disabled = !recIsRecording;
+    }
+
+    function startRecTimer() {
+      stopRecTimer();
+      recTimerInterval = setInterval(() => {
+        const elapsed = Date.now() - recStartTime;
+        const durEl = document.getElementById('recDuration');
+        if (durEl) durEl.textContent = formatRecDuration(elapsed);
+      }, 1000);
+    }
+
+    function stopRecTimer() {
+      if (recTimerInterval) {
+        clearInterval(recTimerInterval);
+        recTimerInterval = null;
+      }
+    }
+
+    function formatRecDuration(ms) {
+      const totalSec = Math.floor(ms / 1000);
+      const min = Math.floor(totalSec / 60).toString().padStart(2, '0');
+      const sec = (totalSec % 60).toString().padStart(2, '0');
+      return `${min}:${sec}`;
+    }
+
+    function formatRecSize(bytes) {
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     }
 
     async function loadInitialData() {
@@ -1247,6 +1468,34 @@
             <button id="clearOverride" class="btn-clear" style="width: 100%;" disabled>
               Return to Automatic Mode
             </button>
+          </div>
+
+          <!-- Recording Control -->
+          <div class="card">
+            <div class="card-title">Recording Control</div>
+
+            <!-- Format selector -->
+            <div style="margin-bottom: 12px;">
+              <label class="param-label">Format</label>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
+                <button class="rec-format-btn selected" data-rec-format="desktop" onclick="selectRecFormat('desktop')">Desktop (1920x1080)</button>
+                <button class="rec-format-btn" data-rec-format="mobile" onclick="selectRecFormat('mobile')">Mobile (1080x1920)</button>
+              </div>
+            </div>
+
+            <!-- Record / Stop buttons -->
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+              <button id="btnRecord" class="btn-record" onclick="startRecording()">Record</button>
+              <button id="btnStopRec" class="btn-stop-rec" onclick="stopRecording()" disabled>Stop</button>
+            </div>
+
+            <!-- Status -->
+            <div class="rec-status">
+              <div id="recDot" class="rec-dot"></div>
+              <span id="recState">Idle</span>
+              <span id="recDuration" style="margin-left: auto; font-family: monospace;">00:00</span>
+              <span id="recSize" style="color: var(--text-secondary);">0 MB</span>
+            </div>
           </div>
 
           <!-- Statistics -->
