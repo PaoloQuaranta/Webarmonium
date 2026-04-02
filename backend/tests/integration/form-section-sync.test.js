@@ -106,15 +106,15 @@ describe('Entry #224: Form/Section Synchronization', () => {
         sectionContext: context1
       })
 
-      // sectionChanged should be false (only 1 composition, need 3 to advance)
+      // sectionChanged should be false (only 1 composition, need 5 to advance)
       expect(composition1.structure.sectionChanged).toBe(false)
     })
 
-    test('should be true after minCompositionsPerSection (3) compositions', () => {
+    test('should be true after minCompositionsPerSection (5) compositions', () => {
       ssm.initializeState('test-room', 'ABA')
 
       let lastComposition
-      for (let i = 1; i <= 3; i++) {
+      for (let i = 1; i <= 5; i++) {
         const context = ssm.updateProgress('test-room')
         lastComposition = engine.compose({
           roomId: 'test-room',
@@ -128,7 +128,7 @@ describe('Entry #224: Form/Section Synchronization', () => {
         }
       }
 
-      // Third composition should trigger section change
+      // Fifth composition should trigger section change
       expect(lastComposition.structure.sectionChanged).toBe(true)
     })
 
@@ -136,7 +136,7 @@ describe('Entry #224: Form/Section Synchronization', () => {
       ssm.initializeState('test-room', 'ABA')
 
       let lastComposition
-      for (let i = 1; i <= 3; i++) {
+      for (let i = 1; i <= 5; i++) {
         const context = ssm.updateProgress('test-room')
         lastComposition = engine.compose({
           roomId: 'test-room',

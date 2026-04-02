@@ -293,7 +293,7 @@ class CounterpointEngine {
       // Entry #226→reduced: Minimum coverage for ALL roles in material notes path
       // Increased melody/harmony durations ~20% to reduce counterpoint verbosity
       // Scaled by counterpointScale for density-aware reduction
-      const expectedDurations = { melody: 0.6, harmony: 0.8, bass: 2.2, pad: 4.0 }
+      const expectedDurations = { melody: 1.5, harmony: 2.0, bass: 2.5, pad: 4.0 }
       const expectedDuration = expectedDurations[role] || 1.0
       const minNotesForCoverage = Math.max(1, Math.round(
         Math.ceil(totalBeats / (expectedDuration * 0.85)) * counterpointScale
@@ -377,14 +377,14 @@ class CounterpointEngine {
 
       // Entry #226→reduced: Lowered baseCounts ~20% to reduce counterpoint verbosity
       // Scaled by counterpointScale for density-aware reduction
-      const baseCounts = { melody: 8, harmony: 6, bass: 5, pad: 3 }
+      const baseCounts = { melody: 6, harmony: 4, bass: 4, pad: 2 }
       const densityMultiplier = 0.5 + (voiceContext.rhythmicDensity || 0.5) * 1.0
       const densityBasedCount = Math.max(1, Math.round((baseCounts[role] || 5) * densityMultiplier * counterpointScale))
 
       // Entry #226→reduced: Minimum coverage for ALL roles
-      // Increased melody/harmony durations ~20% to reduce counterpoint verbosity
+      // Increased melody/harmony durations to reduce counterpoint verbosity
       // Scaled by counterpointScale for density-aware reduction
-      const expectedDurations = { melody: 0.6, harmony: 0.8, bass: 2.2, pad: 4.0 }
+      const expectedDurations = { melody: 1.5, harmony: 2.0, bass: 2.5, pad: 4.0 }
       const expectedDuration = expectedDurations[role] || 1.0
       const minNotesForCoverage = Math.max(1, Math.round(
         Math.ceil(totalBeats / (expectedDuration * 0.85)) * counterpointScale
@@ -1100,9 +1100,9 @@ class CounterpointEngine {
   _getExpectedDurationForRole(role) {
     // Must match expectedDurations in generateVoiceNotesWithSection
     const avgDurations = {
-      melody: 0.6,
-      harmony: 0.8,
-      bass: 2.2,
+      melody: 1.5,
+      harmony: 2.0,
+      bass: 2.5,
       pad: 4.0
     }
     return avgDurations[role] || 1.0
@@ -1138,11 +1138,11 @@ class CounterpointEngine {
 
     switch (role) {
       case 'melody':
-        const melodyOptions = [0.25, 0.5, 0.25, 0.75, 0.375, 0.625]
+        const melodyOptions = [0.5, 1.0, 0.75, 1.5, 1.0, 1.25]
         return melodyOptions[phiIndex(melodyOptions)]
 
       case 'harmony':
-        const harmonyOptions = [1.0, 1.5, 0.75, 1.0, 1.25, 0.5]
+        const harmonyOptions = [1.5, 2.0, 1.0, 2.0, 1.5, 1.0]
         return harmonyOptions[phiIndex(harmonyOptions)]
 
       case 'bass':

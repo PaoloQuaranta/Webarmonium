@@ -30,9 +30,9 @@ class CompositionEngine {
     this.lastComposedSection = 'A' // Entry #163: Track what was actually composed (for monitor)
     this.sectionHistory = []      // History of sections visited
     this.sectionLengths = {}      // Length of each section in bars
-    this.formCycleLength = 1      // Minimum sections to complete one full cycle (Entry #163)
+    this.formCycleLength = 2      // Minimum sections to complete one full cycle (Entry #163)
     this.compositionsInSection = 0 // Entry #163: Track compositions within current section
-    this.minCompositionsPerSection = 3 // Entry #163: Minimum compositions before section can advance
+    this.minCompositionsPerSection = 5 // Entry #163: Minimum compositions before section can advance
 
     // Composition parameters
     this.tempo = 120
@@ -669,7 +669,7 @@ class CompositionEngine {
     })
 
     // Scale counterpoint velocities — keep voices present but not dominant
-    const cpVelocityScale = { melody: 0.60, harmony: 0.50, bass: 0.55, pad: 0.50 }
+    const cpVelocityScale = { melody: 0.55, harmony: 0.40, bass: 0.50, pad: 0.40 }
     voices.forEach(voice => {
       const scale = cpVelocityScale[voice.voiceRole] || 0.65
       voice.notes.forEach(note => {

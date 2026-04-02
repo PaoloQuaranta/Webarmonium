@@ -789,14 +789,14 @@ const SECTION_MODULATION_RULES = {
  */
 const GENRE_MODULATION_PROFILES = {
   jazz: {
-    modulationFrequency: 'high',
-    preferredTargets: ['tritone', 'chromatic', 'dominant'],
-    temperatureMultiplier: 1.3  // Jazz accepts more distant modulations
+    modulationFrequency: 'medium',
+    preferredTargets: ['dominant', 'relative', 'mediant'],
+    temperatureMultiplier: 1.0  // Jazz accepts moderate modulations
   },
   classical: {
-    modulationFrequency: 'medium',
+    modulationFrequency: 'low',
     preferredTargets: ['dominant', 'relative'],
-    temperatureMultiplier: 0.8  // Classical prefers close modulations
+    temperatureMultiplier: 0.6  // Classical prefers close modulations
   },
   rock: {
     modulationFrequency: 'low',
@@ -819,9 +819,9 @@ const GENRE_MODULATION_PROFILES = {
     temperatureMultiplier: 0.7
   },
   melodic: {
-    modulationFrequency: 'medium',
+    modulationFrequency: 'low',
     preferredTargets: ['relative', 'dominant'],
-    temperatureMultiplier: 0.8
+    temperatureMultiplier: 0.6
   },
   rhythmic: {
     modulationFrequency: 'low',
@@ -829,9 +829,9 @@ const GENRE_MODULATION_PROFILES = {
     temperatureMultiplier: 0.5
   },
   experimental: {
-    modulationFrequency: 'high',
-    preferredTargets: ['tritone', 'chromatic', 'mediant'],
-    temperatureMultiplier: 1.5
+    modulationFrequency: 'medium',
+    preferredTargets: ['mediant', 'relative', 'chromatic'],
+    temperatureMultiplier: 1.2
   }
 }
 

@@ -19,11 +19,11 @@ const { PHI, getSwingAmount, getSyncopation, getArticulation } = require('../uti
 
 // Velocity parameters (0-1 float range, not MIDI 0-127)
 // Entry #219b: Increased from #219 to balance with user gestures while keeping counterpoint > accompaniment
-const BASS_BASE_VELOCITY = 0.45      // Base velocity for bass layer
+const BASS_BASE_VELOCITY = 0.35      // Base velocity for bass layer
 const BASS_DYNAMIC_RANGE = 0.15      // Dynamic range added based on section level
-const PAD_BASE_VELOCITY_AMBIENT = 0.08   // Quiet pads for ambient (drones)
-const PAD_BASE_VELOCITY_DEFAULT = 0.12   // Standard pad velocity
-const KEYS_BASE_VELOCITY = 0.40      // Base velocity for keys layer
+const PAD_BASE_VELOCITY_AMBIENT = 0.06   // Quiet pads for ambient (drones)
+const PAD_BASE_VELOCITY_DEFAULT = 0.10   // Standard pad velocity
+const KEYS_BASE_VELOCITY = 0.30      // Base velocity for keys layer
 const KEYS_DYNAMIC_RANGE = 0.12      // Dynamic range for keys
 
 // Velocity curve limits

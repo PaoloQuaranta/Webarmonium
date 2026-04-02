@@ -157,8 +157,8 @@ class HarmonicEngine {
       dominant: [7],
       subdominant: [-7],
       mediant: [4, -4],
-      chromatic: [1, -1, 2, -2],
-      tritone: [6]
+      chromatic: [2, -2],
+      tritone: [7]
     }
   }
 
@@ -205,10 +205,10 @@ class HarmonicEngine {
 
     // Apply genre-specific modulation frequency
     const frequencyThresholds = {
-      'very_low': 0.15,
-      'low': 0.30,
-      'medium': 0.50,
-      'high': 0.70
+      'very_low': 0.10,
+      'low': 0.20,
+      'medium': 0.35,
+      'high': 0.50
     }
     const threshold = frequencyThresholds[genreProfile?.modulationFrequency] || 0.30
     const selector = (this.compositionCount * PHI) % 1
@@ -492,10 +492,10 @@ class HarmonicEngine {
     const modeSelector = ((compositionCount * PHI * 2) % 1)
 
     // Only change mode at section transitions and with 25% probability
-    if (modeSelector > 0.75 && shouldModulate) {
+    if (modeSelector > 0.88 && shouldModulate) {
       if (blendedTension > 0.7) {
         // High tension: prefer darker modes (phrygian, locrian, aeolian)
-        const darkModes = ['phrygian', 'locrian', 'aeolian']
+        const darkModes = ['aeolian', 'dorian']
         const darkIndex = Math.floor(modeSelector * darkModes.length * 4) % darkModes.length
         this.currentMode = darkModes[darkIndex]
       } else if (blendedTension < 0.3) {
