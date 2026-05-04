@@ -130,6 +130,40 @@ class VirtualUserService extends BaseVirtualUserBehavior {
   }
 
   /**
+   * Strada A: Convert a frequency in Hz to a human-readable note name (e.g. "C#4").
+   * Used to label virtual notes with their pitch in the visible-causality feed.
+   * @param {number} frequency - Frequency in Hz
+   * @returns {string} Note name with octave, or '' if invalid
+   * @private
+   */
+  _frequencyToNoteName(frequency) {
+    if (!Number.isFinite(frequency) || frequency <= 0) return ''
+    const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+    const midi = Math.round(12 * Math.log2(frequency / 440) + 69)
+    if (!Number.isFinite(midi)) return ''
+    const noteIdx = ((midi % 12) + 12) % 12
+    const octave = Math.floor(midi / 12) - 1
+    return `${NOTE_NAMES[noteIdx]}${octave}`
+  }
+
+  /**
+   * Strada A: Build the sourceEvent payload attached to virtual user notes,
+   * making the data → note causality legible on the frontend.
+   * @param {string} source - 'wikipedia' | 'hackernews' | 'github'
+   * @param {number} frequency - Note frequency in Hz
+   * @returns {Object|null} { source, title, kind, detail, noteName } or null
+   * @private
+   */
+  _buildSourceEvent(source, frequency) {
+    const event = this.webMetricsPoller?.getRecentSourceEvent?.(source)
+    if (!event) return null
+    return {
+      ...event,
+      noteName: this._frequencyToNoteName(frequency)
+    }
+  }
+
+  /**
    * HIGH FIX #6: Validate position object has finite x and y coordinates
    * @param {Object} position - Position with x, y properties
    * @returns {boolean} True if valid
@@ -840,6 +874,9 @@ class VirtualUserService extends BaseVirtualUserBehavior {
     const genreMultiplier = getGenreVelocityMultiplier(style)
     const tapVelocity = adaptiveBaseVelocity * genreMultiplier
 
+    // Strada A: Build human-readable source event label (page title / repo / post)
+    const sourceEvent = this._buildSourceEvent(source, frequency)
+
     // 4. Emit hold:start with reverse-mapped position
     this.io.to(roomId).emit('hold:start', {
       type: 'hold:start',
@@ -853,7 +890,8 @@ class VirtualUserService extends BaseVirtualUserBehavior {
       isRemote: true,
       isVirtual: true,
       timestamp: Date.now(),
-      style: style  // Entry #175b fix
+      style: style,  // Entry #175b fix
+      sourceEvent  // Strada A: data→note causality label
     })
 
     // CRITICAL: Add material to BackgroundCompositionService
@@ -1056,6 +1094,11 @@ class VirtualUserService extends BaseVirtualUserBehavior {
 
     // Entry #175b: style already retrieved above for genre velocity calculation
 
+    // Strada A: Build phrase-level source event label (using first note's freq).
+    // The same sourceEvent is reused for each note of the phrase below — one
+    // gesture = one labeled "cause" so the feed reads naturally.
+    const phraseSourceEvent = this._buildSourceEvent(source, noteData[0].audioFreq)
+
     // Emit phrase event for visual system
     this.io.to(roomId).emit('musical:event', {
       type: 'phrase',
@@ -1065,7 +1108,8 @@ class VirtualUserService extends BaseVirtualUserBehavior {
       isRemote: true,
       isVirtual: true,
       timestamp: Date.now(),
-      style: style  // Entry #175b: Include style for genre-aware playback
+      style: style,  // Entry #175b: Include style for genre-aware playback
+      sourceEvent: phraseSourceEvent  // Strada A: data→note causality label
     })
 
     // VISUAL CONSOLIDATION: Single visual event for entire phrase
@@ -1106,7 +1150,11 @@ class VirtualUserService extends BaseVirtualUserBehavior {
           isVirtual: true,
           suppressVisual: true,
           timestamp: Date.now(),
-          style: style
+          style: style,
+          // Strada A: only label the FIRST note of a phrase to avoid feed spam
+          sourceEvent: noteIndex === 0
+            ? { ...phraseSourceEvent, noteName: this._frequencyToNoteName(note.audioFreq) }
+            : null
         })
 
         setTimeout(() => {

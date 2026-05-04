@@ -16,6 +16,7 @@
 
 import { DashboardUI } from './DashboardUI.js'
 import { LandingPageRecorder } from './LandingPageRecorder.js'
+import { EventLabelFeed } from './EventLabelFeed.js'
 import { isValidStyle } from '../utils/StyleValidator.js'
 
 /**
@@ -125,6 +126,7 @@ class LandingApp {
   constructor() {
     // Services
     this.dashboardUI = new DashboardUI()
+    this.eventFeed = new EventLabelFeed()  // Strada A: visible-causality feed
 
     // Reused services (loaded via global scripts)
     this.visualService = null
@@ -280,6 +282,9 @@ class LandingApp {
         onStop: () => this.stop(),
         onVolumeChange: (volume) => this.handleVolumeChange(volume)
       })
+
+      // Strada A: visible-causality event feed (Wikipedia/HN/GH → note)
+      this.eventFeed.initialize()
 
       // Remove mock mode toggle (no longer needed - backend handles metrics)
       this._removeMockModeToggle()
@@ -801,6 +806,11 @@ class LandingApp {
         if (this.audioService) {
           this.audioService.registerDroneActivity()
           this.audioService.registerDroneNoteStart(data.noteId || data.userId)
+        }
+
+        // Strada A: surface the web event that triggered this note
+        if (data.sourceEvent && this.eventFeed) {
+          this.eventFeed.push(data.sourceEvent)
         }
 
         this._handleVirtualHoldStart(data)

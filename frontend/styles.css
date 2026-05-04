@@ -4703,3 +4703,191 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   }
 }
 
+/* =====================================================================
+   Strada A — Visible-causality event feed
+   Surfaces the web event (page edit / post / commit) that triggered
+   each note. Shares the landing-page tokens so it feels native to the
+   rest of the UI (--ui-bg, --line, --bright, --font-mono, --node-1/2/3).
+   ===================================================================== */
+.event-label-feed {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 150;
+  width: min(360px, calc(100vw - 2rem));
+  background: var(--ui-bg);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 0.6rem 0.85rem 0.7rem;
+  font-family: var(--font-body);
+  color: var(--bright);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  pointer-events: none; /* purely informational, never blocks canvas */
+  transition: opacity 0.3s ease;
+}
+
+.event-label-feed.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Header row: small dot + "live web → notes" label */
+.event-label-feed-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.4rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.event-label-feed-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  animation: event-feed-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes event-feed-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.25); }
+}
+
+.event-label-feed-title {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--light);
+}
+
+/* Feed list */
+.event-label-feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.event-label-feed-item {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 2px solid var(--line);
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.event-label-feed-item.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.event-label-feed-item.fading {
+  opacity: 0;
+  transform: translateY(-2px);
+}
+
+/* Source-coloured accent bar */
+.event-label-feed-item.source-wikipedia  { border-left-color: var(--node-1); }
+.event-label-feed-item.source-hackernews { border-left-color: var(--node-2); }
+.event-label-feed-item.source-github     { border-left-color: var(--node-3); }
+
+/* Two-row layout */
+.event-label-feed-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.event-label-feed-source {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--light);
+  flex-shrink: 0;
+}
+
+.event-label-feed-item.source-wikipedia  .event-label-feed-source { color: var(--node-1); }
+.event-label-feed-item.source-hackernews .event-label-feed-source { color: var(--node-2); }
+.event-label-feed-item.source-github     .event-label-feed-source { color: var(--node-3); }
+
+.event-label-feed-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bright);
+  font-weight: 500;
+}
+
+.event-label-feed-meta {
+  margin-top: 0.15rem;
+  justify-content: space-between;
+}
+
+.event-label-feed-kind {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--dim);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-label-feed-note {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  flex-shrink: 0;
+  padding: 0 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(45, 212, 191, 0.06);
+}
+
+/* Light theme adjustments */
+:root[data-theme="light"] .event-label-feed-item {
+  background: rgba(0, 0, 0, 0.03);
+}
+:root[data-theme="light"] .event-label-feed-note {
+  background: rgba(45, 212, 191, 0.12);
+}
+
+/* Mobile: keep above the bottom-left explainer button */
+@media (max-width: 768px) {
+  .event-label-feed {
+    width: calc(100vw - 1.5rem);
+    right: 0.75rem;
+    left: 0.75rem;
+    bottom: 4.25rem;
+  }
+}
+
+/* Hide feed when explainer is open (covers bottom 40% on desktop, popup on mobile) */
+body:has(.landing-explainer:not(.collapsed)) .event-label-feed,
+body:has(#mapping-explainer:not(.collapsed)) .event-label-feed {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-label-feed-dot { animation: none; }
+  .event-label-feed-item { transition: opacity 0.01ms ease; transform: none; }
+}
+

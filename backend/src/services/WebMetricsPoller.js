@@ -706,6 +706,77 @@ class WebMetricsPoller {
   }
 
   /**
+   * Get a human-readable description of the most recent activity for a source.
+   * Used by Strada A (visible-causality layer) to label virtual notes with the
+   * web event that effectively triggered them.
+   *
+   * @param {string} source - 'wikipedia' | 'hackernews' | 'github'
+   * @returns {Object|null} { source, title, kind, detail } or null if no data
+   */
+  getRecentSourceEvent(source) {
+    if (!source || !this.sources[source]) return null
+
+    if (source === 'wikipedia') {
+      const history = this.sources.wikipedia.history
+      if (!history || history.length === 0) return null
+      // Pick a recent change (rotate through the last few to vary the labels)
+      const candidates = history.slice(-12)
+      const change = candidates[Math.floor(Math.random() * candidates.length)]
+      if (!change || !change.title) return null
+      const sizeDelta = (change.newlen || 0) - (change.oldlen || 0)
+      const sizeStr = sizeDelta > 0 ? `+${sizeDelta}b` : sizeDelta < 0 ? `${sizeDelta}b` : ''
+      return {
+        source: 'wikipedia',
+        title: change.title,
+        kind: change.type === 'new' ? 'new article' : 'edit',
+        detail: sizeStr
+      }
+    }
+
+    if (source === 'hackernews') {
+      const history = this.sources.hackernews.history
+      if (!history || history.length === 0) return null
+      const candidates = history.slice(-10)
+      const story = candidates[Math.floor(Math.random() * candidates.length)]
+      if (!story || !story.title) return null
+      const detail = story.by ? `by ${story.by}` : ''
+      return {
+        source: 'hackernews',
+        title: story.title,
+        kind: 'post',
+        detail
+      }
+    }
+
+    if (source === 'github') {
+      const history = this.sources.github.history
+      if (!history || history.length === 0) return null
+      const candidates = history.slice(-20)
+      const event = candidates[Math.floor(Math.random() * candidates.length)]
+      if (!event || !event.repo?.name) return null
+      const kindMap = {
+        PushEvent: 'push',
+        CreateEvent: 'create',
+        DeleteEvent: 'delete',
+        PullRequestEvent: 'PR',
+        IssuesEvent: 'issue',
+        WatchEvent: 'star',
+        ForkEvent: 'fork'
+      }
+      const kind = kindMap[event.type] || event.type?.replace(/Event$/, '').toLowerCase() || 'event'
+      const detail = event.actor?.login ? `by ${event.actor.login}` : ''
+      return {
+        source: 'github',
+        title: event.repo.name,
+        kind,
+        detail
+      }
+    }
+
+    return null
+  }
+
+  /**
    * Get the 2 most active sources in the last 5 minutes
    * Used by VirtualUserService to select which virtual users to activate
    * @returns {string[]} Array of 2 source names, sorted by activity (most active first)
