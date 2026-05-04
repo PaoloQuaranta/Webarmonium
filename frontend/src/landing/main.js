@@ -285,6 +285,7 @@ class LandingApp {
 
       // Strada A: visible-causality event feed (Wikipedia/HN/GH → note)
       this.eventFeed.initialize()
+      this.eventFeed.setMuted(true)  // pre-roll: "press Start to hear" hint
 
       // Remove mock mode toggle (no longer needed - backend handles metrics)
       this._removeMockModeToggle()
@@ -785,6 +786,14 @@ class LandingApp {
 
       // Listen for hold:start events from virtual users (for particles/pulses)
       this.socket.on('hold:start', (data) => {
+        // Strada A pre-roll: surface the web event in the feed even before
+        // the user presses Start, so a passive visitor sees the mechanism
+        // (Wikipedia/HN/GitHub event -> note name) within a few seconds.
+        // Audio/visual side-effects below remain gated by isRunning.
+        if (data.isRemote && data.sourceEvent && this.eventFeed) {
+          this.eventFeed.push(data.sourceEvent)
+        }
+
         if (!this.isRunning) return
         if (!data.isRemote) return // Only handle virtual user events
 
@@ -806,11 +815,6 @@ class LandingApp {
         if (this.audioService) {
           this.audioService.registerDroneActivity()
           this.audioService.registerDroneNoteStart(data.noteId || data.userId)
-        }
-
-        // Strada A: surface the web event that triggered this note
-        if (data.sourceEvent && this.eventFeed) {
-          this.eventFeed.push(data.sourceEvent)
         }
 
         this._handleVirtualHoldStart(data)
@@ -1330,6 +1334,9 @@ class LandingApp {
       // Entry #214: Fix bug where isRunning was set AFTER request-drone, causing drone to be dropped
       this.isRunning = true
 
+      // Strada A: feed is no longer in "press Start to hear" state
+      this.eventFeed?.setMuted(false)
+
       // Socket is already connected from initialize() - just request drone if needed
       if (this.socket?.connected) {
         // Request drone for audio playback
@@ -1394,6 +1401,9 @@ class LandingApp {
 
       // Update state
       this.isRunning = false
+
+      // Strada A: re-enable "press Start to hear" hint
+      this.eventFeed?.setMuted(true)
 
       // Entry #93: Remove canvas glow effect
       this.canvasContainer?.classList.remove('active')

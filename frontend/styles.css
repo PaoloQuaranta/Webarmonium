@@ -4763,6 +4763,39 @@ body.audio-playing .immersive-controls .node-btn-wrapper:first-child .node-label
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--light);
+  flex: 0 0 auto;
+}
+
+/* Pre-roll hint: shown only when feed is in "muted" state (audio not started) */
+.event-label-feed-hint {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-left: auto;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(45, 212, 191, 0.06);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.event-label-feed.muted .event-label-feed-hint {
+  opacity: 1;
+}
+
+/* In muted state, dim the live indicator and the note badges to signal silence */
+.event-label-feed.muted .event-label-feed-dot {
+  background: var(--light);
+  box-shadow: none;
+  animation: none;
+}
+
+.event-label-feed.muted .event-label-feed-note {
+  opacity: 0.55;
 }
 
 /* Feed list */

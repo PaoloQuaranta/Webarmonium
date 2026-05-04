@@ -45,7 +45,8 @@ export class EventLabelFeed {
     header.className = 'event-label-feed-header'
     header.innerHTML =
       '<span class="event-label-feed-dot"></span>' +
-      '<span class="event-label-feed-title">live web → notes</span>'
+      '<span class="event-label-feed-title">live web → notes</span>' +
+      '<span class="event-label-feed-hint">press Start to hear</span>'
     container.appendChild(header)
 
     const list = document.createElement('ul')
@@ -160,6 +161,16 @@ export class EventLabelFeed {
   setVisible(visible) {
     if (!this.container) return
     this.container.classList.toggle('hidden', !visible)
+  }
+
+  /**
+   * Strada A pre-roll: when muted (audio not started yet), the feed shows a
+   * "press Start to hear" hint so the visitor connects feed entries to the
+   * upcoming sound rather than thinking the page is broken.
+   */
+  setMuted(muted) {
+    if (!this.container) return
+    this.container.classList.toggle('muted', !!muted)
   }
 
   /**
