@@ -253,26 +253,52 @@ export class LandingPageRecorder {
       this._format = format
       const { width: targetW, height: targetH } = formatConfig
 
-      // 1. Request tab capture from user. preferCurrentTab pre-selects this
-      //    tab in Chrome's picker; in other browsers the user picks manually.
+      // 1. Request tab capture from user.
+      //
+      // In Chrome with preferCurrentTab: true the user sees a SIMPLIFIED dialog
+      // ("This page wants to share its content. Share / Cancel.") with no
+      // picker — the current tab is the implicit source. Combining
+      // preferCurrentTab with displaySurface caused the picker to render
+      // empty in some Chrome versions, so we drop displaySurface and let
+      // preferCurrentTab fully define the surface.
+      //
+      // If preferCurrentTab is not supported (TypeError on construction), fall
+      // back to the standard 3-section picker (Tab / Window / Screen). The
+      // user then has to manually click "Chrome Tab" → their tab → Share.
+      const baseConstraints = {
+        frameRate: { ideal: CAPTURE_FPS, max: CAPTURE_FPS },
+        width: { ideal: targetW },
+        height: { ideal: targetH }
+      }
       let displayStream
       try {
         displayStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            // Chrome-only hints; ignored on browsers that don't support them
-            preferCurrentTab: true,
-            displaySurface: 'browser',
-            frameRate: { ideal: CAPTURE_FPS, max: CAPTURE_FPS },
-            width: { ideal: targetW },
-            height: { ideal: targetH }
-          },
-          // We mix audio from Tone.js master, not from the tab
+          video: { preferCurrentTab: true, ...baseConstraints },
           audio: false
         })
       } catch (err) {
-        // User cancelled or permission denied
-        this._isRecording = false
-        return { success: false, error: err.name === 'NotAllowedError' ? 'share-cancelled' : err.message }
+        // TypeError = preferCurrentTab unsupported; retry with standard picker.
+        // Anything else = user cancelled / permission denied / hardware issue.
+        if (err && err.name === 'TypeError') {
+          try {
+            displayStream = await navigator.mediaDevices.getDisplayMedia({
+              video: { displaySurface: 'browser', ...baseConstraints },
+              audio: false
+            })
+          } catch (err2) {
+            this._isRecording = false
+            return {
+              success: false,
+              error: err2.name === 'NotAllowedError' ? 'share-cancelled' : err2.message
+            }
+          }
+        } else {
+          this._isRecording = false
+          return {
+            success: false,
+            error: err.name === 'NotAllowedError' ? 'share-cancelled' : err.message
+          }
+        }
       }
 
       this._displayStream = displayStream

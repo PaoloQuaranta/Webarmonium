@@ -128,6 +128,21 @@ class CaptureHotkeys {
     this._hud.textContent = `● REC · ${this._formatLabel(this._currentFormat)} · R to stop`
   }
 
+  /**
+   * Recording HUD with actual captured dims. Color-codes orange if the actual
+   * dims don't match the target (most often because the Chrome share-indicator
+   * bar took ~30-40px of vertical space).
+   */
+  _showRecordingWith(actualDims, targetDims, color) {
+    if (!this._hud) return
+    this._hud.style.color = color || '#FF4040'
+    const mismatch = actualDims && targetDims && actualDims !== targetDims
+    const dimsPart = actualDims
+      ? (mismatch ? `${actualDims} (target ${targetDims})` : actualDims)
+      : this._formatLabel(this._currentFormat)
+    this._hud.textContent = `● REC · ${dimsPart} · R to stop`
+  }
+
   async _onKeyDown(e) {
     // Ignore when typing in an input
     const t = e.target
@@ -179,12 +194,25 @@ class CaptureHotkeys {
         this._flash(`stop error: ${err.message}`, '#FFA500', 4000)
       })
     } else {
-      // Use full-tab display capture (includes feed + DOM UI). Browser will
-      // prompt the user to pick a tab — preferCurrentTab pre-selects this one.
-      this._flash('pick this tab in the share dialog…', '#FFFF55', 0)
+      // Full-tab display capture (includes feed + DOM UI). Chrome shows a
+      // simplified "Share / Cancel" dialog when preferCurrentTab is honored,
+      // otherwise the standard picker.
+      this._flash('Chrome will ask: click Share…', '#FFFF55', 0)
       const result = await rec.startDisplayRecording(this._currentFormat)
       if (result.success) {
-        this._showRecording()
+        // Show actual captured dimensions so the operator can see immediately
+        // if the Chrome share-indicator bar shrunk the viewport (e.g. 1920×1040
+        // instead of 1920×1080). They can then resize the window to compensate.
+        const aw = result.actualWidth
+        const ah = result.actualHeight
+        const target = result.format === 'desktop' ? '1920×1080'
+          : result.format === 'mobile' ? '1080×1920'
+          : result.format === 'square' ? '1080×1080'
+          : ''
+        const dimsLine = (aw && ah) ? `${aw}×${ah}` : ''
+        const targetMatch = aw === 1920 && ah === 1080 || aw === 1080 && ah === 1920 || aw === 1080 && ah === 1080
+        const color = targetMatch ? '#FF4040' : '#FFA500'
+        this._showRecordingWith(dimsLine, target, color)
       } else if (result.error === 'share-cancelled') {
         this._flash('share cancelled', '#FFA500', 2000)
       } else {
