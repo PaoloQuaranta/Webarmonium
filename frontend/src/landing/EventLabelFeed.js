@@ -10,7 +10,7 @@
  * --font-mono, --node-1/2/3) so the panel feels native to the rest of the UI.
  */
 
-const MAX_ENTRIES = 5
+const MAX_ENTRIES = 4
 const FADE_MS = 600        // CSS fade-out duration (must match transition)
 const TITLE_MAX_CHARS = 42
 
