@@ -27,16 +27,24 @@ const RECORDING_FORMATS = {
   square: { width: 1080, height: 1080, label: 'Square (Instagram/social)' }
 }
 
-// MP4 first when supported (Chrome 126+) — saves the post-process step.
-// WebM fallbacks remain for Firefox and older Chromium.
+// VP8 first: software encoding is ~2× lighter than H.264 software, and most
+// systems without dedicated H.264 hardware encoders fall back to software for
+// MP4 — that path can saturate the main thread enough to cause audio dropouts.
+// VP9 and MP4 follow as opt-in upgrades. Final delivery to MP4 happens in post
+// (lossless ffmpeg recode at the same bitrate).
 const CODEC_FALLBACK_CHAIN = [
-  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-  'video/webm;codecs=vp9,opus',
   'video/webm;codecs=vp8,opus',
+  'video/webm;codecs=vp9,opus',
+  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
   'video/webm'
 ]
 
-const VIDEO_BITRATE = 4_000_000   // 4 Mbps — sufficient for smooth generative art
+// Tuned for stable A/V capture on integrated-GPU laptops without thermal
+// throttling. 24fps is festival-accepted (cinema standard); 2.5 Mbps is plenty
+// for generative art with smooth gradients (visually identical to 4 Mbps).
+const CAPTURE_FPS = 24
+const FRAME_INTERVAL_MS = 1000 / CAPTURE_FPS   // ~41.67 ms
+const VIDEO_BITRATE = 2_500_000   // 2.5 Mbps
 const AUDIO_BITRATE = 128_000     // 128 kbps
 const TIMESLICE_MS = 10_000       // 10-second chunks
 const STATUS_INTERVAL_MS = 2_000  // Status updates every 2s
@@ -61,6 +69,7 @@ export class LandingPageRecorder {
     this._totalSize = 0
     this._mimeType = null
     this._fileExt = null
+    this._lastFrameMs = 0   // Throttle for compositing (matches capture fps)
 
     // Canvas
     this._compositingCanvas = null
@@ -132,7 +141,7 @@ export class LandingPageRecorder {
       const audioStream = this._setupAudioCapture()
 
       // 6. Create combined A/V stream
-      const videoStream = this._compositingCanvas.captureStream(30)
+      const videoStream = this._compositingCanvas.captureStream(CAPTURE_FPS)
       const audioTracks = audioStream ? audioStream.getAudioTracks() : []
       const combinedStream = new MediaStream([
         ...videoStream.getVideoTracks(),
@@ -182,6 +191,7 @@ export class LandingPageRecorder {
       this._recorder.start(TIMESLICE_MS)
       this._startTime = Date.now()
       this._totalSize = 0
+      this._lastFrameMs = 0
 
       // Global flag so resize handlers (landing main.js, CanvasManager in rooms)
       // skip layout resizes that would stomp the target resolution mid-capture.
@@ -281,11 +291,22 @@ export class LandingPageRecorder {
    * Post-render callback — composites each frame from the PixiJS canvas.
    * Called in the same event loop tick as pixiAdapter.render() to ensure
    * the WebGL framebuffer is still valid (not yet cleared by the compositor).
+   *
+   * PixiJS renders at display refresh (typically 60fps); captureStream samples
+   * the compositing canvas at CAPTURE_FPS. Compositing every PixiJS frame is
+   * therefore wasteful — and the GPU→CPU readback inside drawImage on a WebGL
+   * canvas is exactly the kind of synchronous main-thread work that starves
+   * the audio worklet and produces crackles. Throttle to one composite per
+   * capture interval.
+   *
    * @param {HTMLCanvasElement} pixiCanvas
    * @private
    */
   _onFrame(pixiCanvas) {
     if (!this._isRecording || !this._compositingCtx) return
+    const now = performance.now()
+    if (now - this._lastFrameMs < FRAME_INTERVAL_MS - 1) return
+    this._lastFrameMs = now
     // Draw with explicit scaling to handle any size mismatch
     this._compositingCtx.drawImage(pixiCanvas,
       0, 0, pixiCanvas.width, pixiCanvas.height,
