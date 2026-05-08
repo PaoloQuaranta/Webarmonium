@@ -443,13 +443,13 @@
          to reuse the same class as the landing page. The shim exposes the class
          on window so main.js (regular script) can construct it lazily. -->
     <script type="module">
-      import('./src/landing/LandingPageRecorder.js?v=6')
+      import('./src/landing/LandingPageRecorder.js?v=8')
         .then((m) => { window.LandingPageRecorder = m.LandingPageRecorder })
         .catch((err) => console.error('[Recorder] module load failed:', err))
     </script>
     <!-- Capture hotkeys (?capture=1) — in-page record toggle to avoid tab-switch glitches -->
     <script src="src/services/CaptureHotkeys.js?v=3"></script>
-    <script src="src/main.js?v=94"></script> <!-- v94: selfBrowserSurface include -->
+    <script src="src/main.js?v=95"></script> <!-- v95: audio context resume + track diagnostics -->
 </body>
 
 </html>

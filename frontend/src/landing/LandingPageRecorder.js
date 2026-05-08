@@ -309,15 +309,46 @@ export class LandingPageRecorder {
         this._visualService.lastActivityTime = Date.now()
       }
 
+      // 2b. Resume any suspended audio contexts before fan-out so the
+      //     MediaStreamDestination doesn't bake in a silent prefix. App-mode
+      //     Chrome occasionally leaves contexts suspended after a window
+      //     resize or focus jitter, even after the user pressed Start.
+      try {
+        if (typeof Tone !== 'undefined' && Tone.context && Tone.context.state === 'suspended') {
+          await Tone.context.resume()
+        }
+        const directCtx = this._audioService.audioContext
+        if (directCtx && typeof directCtx.resume === 'function' && directCtx.state === 'suspended') {
+          await directCtx.resume()
+        }
+      } catch (e) {
+        console.warn('[Recorder] Audio context resume failed (non-fatal):', e?.message || e)
+      }
+
       // 3. Audio capture from Tone.js master
       const audioStream = this._setupAudioCapture()
       const audioTracks = audioStream ? audioStream.getAudioTracks() : []
+      if (audioTracks.length === 0) {
+        console.warn('[Recorder] No audio tracks — recording will be silent. Check that you pressed Start before R, and that masterVolume is initialized.')
+      }
 
       // 4. Combined stream: tab video + Tone.js audio
       const combinedStream = new MediaStream([
         ...displayStream.getVideoTracks(),
         ...audioTracks
       ])
+
+      // 4b. Surface track inventory in console so the operator can see at a
+      //     glance whether the recording is silent / video-only.
+      console.log('[Recorder] Tracks in combined stream:',
+        combinedStream.getTracks().map(t => ({
+          kind: t.kind,
+          label: t.label || '(unnamed)',
+          enabled: t.enabled,
+          muted: t.muted,
+          readyState: t.readyState
+        }))
+      )
 
       // 5. Storage
       await this._setupStorage()
