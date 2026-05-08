@@ -33,6 +33,7 @@ class CaptureHotkeys {
     this._idleHudTimer = null
     this._keyHandler = null
     this._enabled = false
+    this._subscribedRecorder = null   // recorder we've already wired onRecordingEnded on
   }
 
   /**
@@ -160,16 +161,23 @@ class CaptureHotkeys {
       return
     }
 
+    // Subscribe once per recorder instance so the HUD updates regardless of
+    // how stop was triggered: hotkey toggle, browser "stop sharing" button,
+    // or any future programmatic stop. Without this hook the HUD stays on
+    // "● REC" after the user clicks Chrome's Stop and then mis-fires on the
+    // next keypress.
+    if (rec !== this._subscribedRecorder) {
+      this._subscribedRecorder = rec
+      rec.onRecordingEnded = (result) => this._onRecordingEnded(result)
+    }
+
     if (rec._isRecording) {
       this._flash('stopping…', '#FFFF55', 0)
-      const result = await rec.stopRecording()
-      if (result.success) {
-        const sizeMB = ((result.fileSize || 0) / (1024 * 1024)).toFixed(1)
-        const dur = Math.round((result.duration || 0) / 1000)
-        this._flash(`saved · ${dur}s · ${sizeMB} MB`, '#7CFC7A', 4000)
-      } else {
-        this._flash(`stop failed: ${result.error || 'unknown'}`, '#FFA500', 4000)
-      }
+      // Fire-and-forget — onRecordingEnded callback will land the final HUD
+      // update (saved / error). Awaiting here would only duplicate the flash.
+      rec.stopRecording().catch((err) => {
+        this._flash(`stop error: ${err.message}`, '#FFA500', 4000)
+      })
     } else {
       // Use full-tab display capture (includes feed + DOM UI). Browser will
       // prompt the user to pick a tab — preferCurrentTab pre-selects this one.
@@ -182,6 +190,20 @@ class CaptureHotkeys {
       } else {
         this._flash(`start failed: ${result.error || 'unknown'}`, '#FFA500', 4000)
       }
+    }
+  }
+
+  /**
+   * Called by the recorder via onRecordingEnded for any stop path —
+   * hotkey, browser "stop sharing" button, or programmatic stop.
+   */
+  _onRecordingEnded(result) {
+    if (result && result.success) {
+      const sizeMB = ((result.fileSize || 0) / (1024 * 1024)).toFixed(1)
+      const dur = Math.round((result.duration || 0) / 1000)
+      this._flash(`saved · ${dur}s · ${sizeMB} MB`, '#7CFC7A', 4000)
+    } else {
+      this._flash(`ended: ${result?.error || 'no file'}`, '#FFA500', 4000)
     }
   }
 }

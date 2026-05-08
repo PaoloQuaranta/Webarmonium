@@ -370,6 +370,13 @@ export class LandingPageRecorder {
 
   /**
    * Stop recording and trigger download.
+   *
+   * Fires `this.onRecordingEnded(result)` (if set) regardless of how stop was
+   * triggered — manual hotkey, browser "stop sharing" button via the
+   * videoTrack.onended hook, or programmatic call. This is the single
+   * notification point external UI (e.g. CaptureHotkeys HUD) can rely on to
+   * update its state when the recording transitions to stopped.
+   *
    * @returns {Promise<Object>} Result with file info
    */
   async stopRecording() {
@@ -377,6 +384,7 @@ export class LandingPageRecorder {
       return { success: false, error: 'Not recording' }
     }
 
+    let result
     try {
       const duration = Date.now() - this._startTime
 
@@ -400,7 +408,7 @@ export class LandingPageRecorder {
       // Cleanup (restores canvas size, clears bypass flags)
       this._cleanup()
 
-      return {
+      result = {
         success: true,
         duration,
         fileSize: totalSize,
@@ -409,8 +417,16 @@ export class LandingPageRecorder {
     } catch (error) {
       console.error('[Recorder] Stop failed:', error)
       this._cleanup()
-      return { success: false, error: error.message }
+      result = { success: false, error: error.message }
     }
+
+    // Notify external listeners (HUD, monitor) — fire even on error so the
+    // HUD doesn't get stuck on "● REC" if something went wrong.
+    if (typeof this.onRecordingEnded === 'function') {
+      try { this.onRecordingEnded(result) } catch (e) { /* never let HUD throw break the result */ }
+    }
+
+    return result
   }
 
   /**
