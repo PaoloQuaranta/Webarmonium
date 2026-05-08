@@ -11,7 +11,6 @@
  */
 
 const MAX_ENTRIES = 5
-const ENTRY_TTL_MS = 7000  // Each entry stays ~7s before fading
 const FADE_MS = 600        // CSS fade-out duration (must match transition)
 const TITLE_MAX_CHARS = 42
 
@@ -75,23 +74,27 @@ export class EventLabelFeed {
     this.list.insertBefore(item.el, this.list.firstChild)
     this._entries.unshift(item)
 
-    // Trim to MAX_ENTRIES
+    // Trim to MAX_ENTRIES — animate displaced (oldest) entries out the bottom.
+    // Entries persist until pushed out by newer ones; no time-based fade.
     while (this._entries.length > MAX_ENTRIES) {
       const old = this._entries.pop()
-      this._removeEntry(old)
+      this._fadeOutEntry(old)
     }
-
-    // Schedule fade-out
-    item.timeoutId = setTimeout(() => {
-      if (!item.el || !item.el.parentNode) return
-      item.el.classList.add('fading')
-      item.fadeTimeoutId = setTimeout(() => this._removeEntry(item), FADE_MS)
-    }, ENTRY_TTL_MS)
 
     // Trigger entrance animation on next frame
     requestAnimationFrame(() => {
       if (item.el) item.el.classList.add('visible')
     })
+  }
+
+  _fadeOutEntry(entry) {
+    if (!entry || !entry.el) return
+    entry.el.classList.add('fading')
+    entry.fadeTimeoutId = setTimeout(() => {
+      if (entry.el && entry.el.parentNode) {
+        entry.el.parentNode.removeChild(entry.el)
+      }
+    }, FADE_MS)
   }
 
   /**
