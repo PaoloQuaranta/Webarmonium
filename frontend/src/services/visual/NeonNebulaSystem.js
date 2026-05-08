@@ -415,8 +415,15 @@ class NeonNebulaSystem {
         this._renderBlobToCanvas(ctx, blob, scale, bufW, bufH)
       }
 
-      // Upload canvas as PixiJS texture
-      if (!this._pixiTexture) {
+      // Upload canvas as PixiJS texture. After a canvas resize the previous
+      // texture's source dimensions are stale — calling source.update() only
+      // re-uploads pixels, it doesn't re-read the size, so the sprite would
+      // sample with wrong UV bounds and render straight-line edges. Recreate
+      // the texture in that case.
+      if (!this._pixiTexture || resized) {
+        if (this._pixiTexture) {
+          try { this._pixiTexture.destroy(true) } catch (e) { /* best effort */ }
+        }
         this._pixiTexture = PIXI.Texture.from(this._offscreenCanvas)
         this._pixiSprite.texture = this._pixiTexture
       } else {
