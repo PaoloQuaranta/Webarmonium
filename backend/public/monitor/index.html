@@ -1588,11 +1588,22 @@
           <div class="card wide">
             <div class="card-title">Event Log</div>
             <div class="event-log" id="eventLog">
-              ${events.map(e => renderEvent(e)).join('') || '<div class="event-entry"><span class="event-time">Waiting for events...</span></div>'}
+              <div class="event-entry"><span class="event-time">Waiting for events...</span></div>
             </div>
           </div>
         </div>
       `;
+
+      // Re-populate the event log with safe DOM nodes. Re-rendering the
+      // dashboard wipes the previous list (innerHTML assignment above), so we
+      // rebuild here without ever feeding event.data into HTML parsing.
+      const logEl = document.getElementById('eventLog');
+      if (logEl && events.length > 0) {
+        while (logEl.firstChild) logEl.removeChild(logEl.firstChild);
+        for (const e of events) {
+          logEl.appendChild(renderEventEl(e));
+        }
+      }
     }
 
     function renderGenreBars(weights) {
@@ -1621,14 +1632,27 @@
       return maxGenre;
     }
 
-    function renderEvent(event) {
-      return `
-        <div class="event-entry">
-          <span class="event-time">${event.time}</span>
-          <span class="event-type">[${event.type}]</span>
-          <span class="event-data">${event.data}</span>
-        </div>
-      `;
+    // Build event row with DOM API + textContent so any payload is rendered as
+    // text, never parsed as HTML. Keeps the event log XSS-safe even if upstream
+    // sanitization on the server is changed or bypassed.
+    function renderEventEl(event) {
+      const row = document.createElement('div');
+      row.className = 'event-entry';
+      const t = document.createElement('span');
+      t.className = 'event-time';
+      t.textContent = event.time;
+      const ty = document.createElement('span');
+      ty.className = 'event-type';
+      ty.textContent = '[' + event.type + ']';
+      const d = document.createElement('span');
+      d.className = 'event-data';
+      d.textContent = event.data == null ? '' : String(event.data);
+      row.appendChild(t);
+      row.appendChild(document.createTextNode(' '));
+      row.appendChild(ty);
+      row.appendChild(document.createTextNode(' '));
+      row.appendChild(d);
+      return row;
     }
 
     function updateFromSnapshot(snapshot, eventCounts) {
@@ -1712,7 +1736,11 @@
 
       const logEl = document.getElementById('eventLog');
       if (logEl) {
-        logEl.innerHTML = events.map(e => renderEvent(e)).join('');
+        // Replace children using DOM API; never use innerHTML with event payload.
+        while (logEl.firstChild) logEl.removeChild(logEl.firstChild);
+        for (const e of events) {
+          logEl.appendChild(renderEventEl(e));
+        }
       }
     }
 

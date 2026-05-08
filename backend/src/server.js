@@ -476,16 +476,76 @@ io.on('connection', (socket) => {
   // Recording status relay: capture client (landing or jam room) → monitor dashboard.
   // Allowed if the socket is in landing-room OR has a roomId set (i.e. joined a jam room).
   // Includes the source room so the monitor can correlate when multiple sources exist.
+  //
+  // Hardened for v0.8.20:
+  //   - Whitelist + type-check every relayed field (no spread of attacker-controlled
+  //     data; the monitor renders some of these into HTML and any XSS would run in
+  //     the authenticated admin context)
+  //   - Per-socket rate limit (~1/s) so a noisy or malicious client cannot flood
+  //     the monitor's event log
+  const ALLOWED_RECORDING_STATES = new Set([
+    'started', 'stopped', 'recording', 'error'
+  ])
+  const ALLOWED_RECORDING_FORMATS = new Set(['desktop', 'mobile', 'square'])
+  const RECORDING_STATUS_MIN_INTERVAL_MS = 900
+  let lastRecordingStatusAt = 0
+
+  const sanitizeRecordingStatus = (raw) => {
+    if (!raw || typeof raw !== 'object') return null
+    const safe = {}
+
+    if (typeof raw.state === 'string' && ALLOWED_RECORDING_STATES.has(raw.state)) {
+      safe.state = raw.state
+    }
+    if (typeof raw.success === 'boolean') {
+      safe.success = raw.success
+    }
+    if (typeof raw.format === 'string' && ALLOWED_RECORDING_FORMATS.has(raw.format)) {
+      safe.format = raw.format
+    }
+    if (typeof raw.mimeType === 'string') {
+      // MIME types are short ASCII; reject anything with HTML-meaningful chars or
+      // that exceeds a reasonable length.
+      const mt = raw.mimeType
+      if (mt.length <= 96 && /^[A-Za-z0-9./+;,= -]+$/.test(mt)) {
+        safe.mimeType = mt
+      }
+    }
+    if (typeof raw.duration === 'number' && Number.isFinite(raw.duration) && raw.duration >= 0) {
+      safe.duration = raw.duration
+    }
+    if (typeof raw.fileSize === 'number' && Number.isFinite(raw.fileSize) && raw.fileSize >= 0) {
+      safe.fileSize = raw.fileSize
+    }
+    if (typeof raw.size === 'number' && Number.isFinite(raw.size) && raw.size >= 0) {
+      safe.size = raw.size
+    }
+    if (typeof raw.error === 'string') {
+      // Strip control chars and clamp length; no HTML rendering downstream after
+      // the monitor fix, but keep belt + suspenders.
+      safe.error = raw.error.replace(/[\x00-\x1f<>]/g, '').slice(0, 200)
+    }
+    return safe
+  }
+
   socket.on('recording:status', (data) => {
     const inLanding = socket.rooms?.has('landing-room')
     const inJamRoom = !!socket.roomId
     if (!inLanding && !inJamRoom) return
 
-    monitorNamespace.emit('monitor:recording-update', {
-      ...data,
-      source: inLanding ? 'landing' : 'room',
-      roomId: inLanding ? 'landing-room' : socket.roomId
-    })
+    const now = Date.now()
+    if (now - lastRecordingStatusAt < RECORDING_STATUS_MIN_INTERVAL_MS) return
+    lastRecordingStatusAt = now
+
+    const safe = sanitizeRecordingStatus(data)
+    if (!safe) return
+
+    // Server-set fields override anything the client might have sent under the
+    // same names (e.g. forging source/roomId).
+    safe.source = inLanding ? 'landing' : 'room'
+    safe.roomId = inLanding ? 'landing-room' : socket.roomId
+
+    monitorNamespace.emit('monitor:recording-update', safe)
   })
 })
 
