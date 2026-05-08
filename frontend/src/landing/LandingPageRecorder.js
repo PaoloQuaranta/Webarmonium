@@ -255,17 +255,20 @@ export class LandingPageRecorder {
 
       // 1. Request tab capture from user.
       //
-      // In Chrome with preferCurrentTab: true the user sees a SIMPLIFIED dialog
-      // ("This page wants to share its content. Share / Cancel.") with no
-      // picker — the current tab is the implicit source. Combining
-      // preferCurrentTab with displaySurface caused the picker to render
-      // empty in some Chrome versions, so we drop displaySurface and let
-      // preferCurrentTab fully define the surface.
+      // Chrome by default EXCLUDES the current tab from the picker for privacy
+      // reasons — without selfBrowserSurface:'include' the operator looking
+      // at webarmonium.net sees an empty "Chrome Tab" list (their only tab is
+      // hidden). preferCurrentTab is meant to invert this and even skip the
+      // picker, but it's silently ignored on some Chrome configs.
       //
-      // If preferCurrentTab is not supported (TypeError on construction), fall
-      // back to the standard 3-section picker (Tab / Window / Screen). The
-      // user then has to manually click "Chrome Tab" → their tab → Share.
+      // selfBrowserSurface:'include' is the spec-compliant way to ensure the
+      // current tab IS a candidate. Both options below are unknown-property-safe:
+      // browsers that don't recognize them ignore them rather than throw.
       const baseConstraints = {
+        selfBrowserSurface: 'include',     // Make current tab selectable in picker
+        surfaceSwitching: 'include',       // Allow operator to switch source mid-session
+        preferCurrentTab: true,            // Bonus: simplified dialog when honored
+        displaySurface: 'browser',         // Filter picker to browser tabs only
         frameRate: { ideal: CAPTURE_FPS, max: CAPTURE_FPS },
         width: { ideal: targetW },
         height: { ideal: targetH }
@@ -273,31 +276,14 @@ export class LandingPageRecorder {
       let displayStream
       try {
         displayStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { preferCurrentTab: true, ...baseConstraints },
+          video: baseConstraints,
           audio: false
         })
       } catch (err) {
-        // TypeError = preferCurrentTab unsupported; retry with standard picker.
-        // Anything else = user cancelled / permission denied / hardware issue.
-        if (err && err.name === 'TypeError') {
-          try {
-            displayStream = await navigator.mediaDevices.getDisplayMedia({
-              video: { displaySurface: 'browser', ...baseConstraints },
-              audio: false
-            })
-          } catch (err2) {
-            this._isRecording = false
-            return {
-              success: false,
-              error: err2.name === 'NotAllowedError' ? 'share-cancelled' : err2.message
-            }
-          }
-        } else {
-          this._isRecording = false
-          return {
-            success: false,
-            error: err.name === 'NotAllowedError' ? 'share-cancelled' : err.message
-          }
+        this._isRecording = false
+        return {
+          success: false,
+          error: err && err.name === 'NotAllowedError' ? 'share-cancelled' : (err && err.message) || 'unknown'
         }
       }
 
