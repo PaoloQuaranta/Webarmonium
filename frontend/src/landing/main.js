@@ -270,6 +270,15 @@ class LandingApp {
         })
       }
 
+      // Optional in-page capture hotkeys (?capture=1) — avoids the audio
+      // glitch caused by tab-switching to the monitor to click Record.
+      if (window.CaptureHotkeys) {
+        this._captureHotkeys = new window.CaptureHotkeys({
+          getRecorder: () => this.recorder
+        })
+        this._captureHotkeys.enableIfRequested()
+      }
+
       // Wait for user interaction to START audio (browser policy)
       this._setupAudioInitialization()
 

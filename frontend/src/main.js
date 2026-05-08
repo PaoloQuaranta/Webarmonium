@@ -164,6 +164,16 @@ class WebarmoniumApp {
       // Wire recording:command listener once socket is connected
       this._setupRecordingHandlers()
 
+      // In-page capture hotkeys (?capture=1) — eliminates the audio glitch from
+      // switching to the monitor tab during a take.
+      if (window.CaptureHotkeys) {
+        this._captureHotkeys = new window.CaptureHotkeys({
+          getRecorder: () => this.recorder,
+          constructRecorder: () => this._ensureRecorder()
+        })
+        this._captureHotkeys.enableIfRequested()
+      }
+
       // console.log('✅ Webarmonium initialized successfully')
     } catch (error) {
       // console.error('❌ Failed to initialize Webarmonium:', error)
@@ -2034,6 +2044,29 @@ class WebarmoniumApp {
   }
 
   /**
+   * Lazily construct the in-page recorder. Used both by the socket handler
+   * (monitor → recording:command) and by the in-page capture hotkeys.
+   * Throws if prerequisites are missing.
+   * @returns {Object} the recorder instance
+   * @private
+   */
+  _ensureRecorder() {
+    if (this.recorder) return this.recorder
+    if (!window.LandingPageRecorder) {
+      throw new Error('LandingPageRecorder not loaded yet')
+    }
+    if (!this.visualService || !this.audioService) {
+      throw new Error('services not ready')
+    }
+    this.recorder = new window.LandingPageRecorder({
+      visualService: this.visualService,
+      audioService: this.audioService,
+      sourceLabel: 'room'
+    })
+    return this.recorder
+  }
+
+  /**
    * Set up recording:command socket listener.
    * Composition monitor sends start/stop commands via backend relay.
    * The recorder class is loaded as an ES module shim (see rooms.html) and
@@ -2050,20 +2083,13 @@ class WebarmoniumApp {
 
       // Lazy construction once the module shim has resolved
       if (!this.recorder) {
-        if (!window.LandingPageRecorder) {
-          console.warn('[Recorder] LandingPageRecorder not loaded yet')
-          socket.emit('recording:status', { state: 'error', error: 'recorder-not-loaded' })
+        try {
+          this._ensureRecorder()
+        } catch (err) {
+          console.warn('[Recorder]', err.message)
+          socket.emit('recording:status', { state: 'error', error: err.message })
           return
         }
-        if (!this.visualService || !this.audioService) {
-          socket.emit('recording:status', { state: 'error', error: 'services-not-ready' })
-          return
-        }
-        this.recorder = new window.LandingPageRecorder({
-          visualService: this.visualService,
-          audioService: this.audioService,
-          sourceLabel: 'room'
-        })
       }
 
       let result

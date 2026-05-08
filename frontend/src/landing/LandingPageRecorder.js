@@ -82,6 +82,9 @@ export class LandingPageRecorder {
     this._nativeOutputNode = null
     this._captureGain = null
 
+    // Display capture (getDisplayMedia path) — captures full tab incl. DOM
+    this._displayStream = null
+
     // Storage
     this._fileWriter = null   // OPFS WritableStream
     this._chunks = null       // In-memory fallback
@@ -212,6 +215,154 @@ export class LandingPageRecorder {
       }
     } catch (error) {
       console.error('[Recorder] Start failed:', error)
+      this._cleanup()
+      return { success: false, error: error.message }
+    }
+  }
+
+  /**
+   * Start full-tab recording via getDisplayMedia (captures DOM + canvas).
+   * MUST be called from a user gesture (e.g. keypress handler) — the browser
+   * shows a picker prompting the user to pick the source. With Chrome's
+   * `preferCurrentTab: true` the current tab is pre-selected; one click and
+   * the share starts.
+   *
+   * Compared to startRecording():
+   * - Captures the visible-causality feed, dashboard UI, all DOM content
+   * - Eliminates the per-frame drawImage GPU readback (the main-thread cost
+   *   that produced the live audio crackle)
+   * - Audio path is identical (Tone.js master → MediaStreamDestination)
+   *
+   * @param {string} format - 'desktop' / 'mobile' / 'square' (used for filename + size hint)
+   * @returns {Promise<Object>} { success, format, mimeType, ... } | { success:false, error }
+   */
+  async startDisplayRecording(format = 'desktop') {
+    if (this._isRecording) {
+      return { success: false, error: 'Already recording' }
+    }
+
+    const formatConfig = RECORDING_FORMATS[format]
+    if (!formatConfig) {
+      return { success: false, error: `Unknown format: ${format}` }
+    }
+
+    // Lock immediately to prevent concurrent calls
+    this._isRecording = true
+
+    try {
+      this._format = format
+      const { width: targetW, height: targetH } = formatConfig
+
+      // 1. Request tab capture from user. preferCurrentTab pre-selects this
+      //    tab in Chrome's picker; in other browsers the user picks manually.
+      let displayStream
+      try {
+        displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            // Chrome-only hints; ignored on browsers that don't support them
+            preferCurrentTab: true,
+            displaySurface: 'browser',
+            frameRate: { ideal: CAPTURE_FPS, max: CAPTURE_FPS },
+            width: { ideal: targetW },
+            height: { ideal: targetH }
+          },
+          // We mix audio from Tone.js master, not from the tab
+          audio: false
+        })
+      } catch (err) {
+        // User cancelled or permission denied
+        this._isRecording = false
+        return { success: false, error: err.name === 'NotAllowedError' ? 'share-cancelled' : err.message }
+      }
+
+      this._displayStream = displayStream
+
+      // If the user hits the browser's "Stop sharing" button mid-recording,
+      // gracefully stop. Otherwise the encoder keeps writing silence.
+      const videoTrack = displayStream.getVideoTracks()[0]
+      if (videoTrack) {
+        videoTrack.onended = () => {
+          if (this._isRecording) {
+            this.stopRecording().catch(() => {})
+          }
+        }
+      }
+
+      // 2. Bypass on AudioService only — visualService doesn't need bypass
+      //    here (no compositing path), but setting it costs nothing and keeps
+      //    behavior consistent if blur happens.
+      this._audioService._recordingBypass = true
+      if (this._visualService) {
+        this._visualService._recordingBypass = true
+        this._visualService.lastActivityTime = Date.now()
+      }
+
+      // 3. Audio capture from Tone.js master
+      const audioStream = this._setupAudioCapture()
+      const audioTracks = audioStream ? audioStream.getAudioTracks() : []
+
+      // 4. Combined stream: tab video + Tone.js audio
+      const combinedStream = new MediaStream([
+        ...displayStream.getVideoTracks(),
+        ...audioTracks
+      ])
+
+      // 5. Storage
+      await this._setupStorage()
+
+      // 6. Codec + recorder
+      const mimeType = this._selectCodec()
+      this._mimeType = mimeType
+      this._fileExt = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'
+      this._recorder = new MediaRecorder(combinedStream, {
+        mimeType,
+        videoBitsPerSecond: VIDEO_BITRATE,
+        audioBitsPerSecond: AUDIO_BITRATE
+      })
+
+      this._lastWritePromise = Promise.resolve()
+      this._recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          this._totalSize += event.data.size
+          if (this._fileWriter) {
+            this._lastWritePromise = this._lastWritePromise.then(async () => {
+              try { await this._fileWriter.write(event.data) } catch (e) { console.error('[Recorder] OPFS write error:', e) }
+            })
+          } else if (this._chunks) {
+            this._chunks.push(event.data)
+          }
+        }
+      }
+      this._recorder.onerror = (event) => {
+        console.error('[Recorder] MediaRecorder error:', event.error)
+        this._cleanup()
+      }
+
+      this._recorder.start(TIMESLICE_MS)
+      this._startTime = Date.now()
+      this._totalSize = 0
+      this._lastFrameMs = 0
+
+      if (typeof window !== 'undefined') {
+        window.__webarmoniumRecording = true
+      }
+
+      this._startStatusReporting()
+
+      const settings = videoTrack ? videoTrack.getSettings() : {}
+      console.log(`[Recorder] Display capture started (${settings.width || '?'}x${settings.height || '?'} @ ${settings.frameRate || '?'}fps, ${mimeType})`)
+
+      return {
+        success: true,
+        format,
+        method: 'display',
+        actualWidth: settings.width,
+        actualHeight: settings.height,
+        actualFrameRate: settings.frameRate,
+        mimeType
+      }
+    } catch (error) {
+      console.error('[Recorder] startDisplayRecording failed:', error)
       this._cleanup()
       return { success: false, error: error.message }
     }
@@ -513,6 +664,14 @@ export class LandingPageRecorder {
     if (this._statusInterval) {
       clearInterval(this._statusInterval)
       this._statusInterval = null
+    }
+
+    // Stop display-capture tracks (releases the share indicator and frees encoder)
+    if (this._displayStream) {
+      try {
+        this._displayStream.getTracks().forEach(t => t.stop())
+      } catch (e) { /* best effort */ }
+      this._displayStream = null
     }
 
     // Disconnect audio capture
