@@ -265,7 +265,8 @@ class LandingApp {
       if (this.visualService && this.audioService) {
         this.recorder = new LandingPageRecorder({
           visualService: this.visualService,
-          audioService: this.audioService
+          audioService: this.audioService,
+          sourceLabel: 'landing'
         })
       }
 

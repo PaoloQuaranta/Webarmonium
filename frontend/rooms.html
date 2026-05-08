@@ -439,7 +439,15 @@
             }
         }, 1000)
     </script>
-    <script src="src/main.js?v=89"></script> <!-- Entry #SynthUI: Synth cursor-move listener -->
+    <!-- In-page A/V recorder (composition monitor → record). Loaded as ES module
+         to reuse the same class as the landing page. The shim exposes the class
+         on window so main.js (regular script) can construct it lazily. -->
+    <script type="module">
+      import('./src/landing/LandingPageRecorder.js?v=2')
+        .then((m) => { window.LandingPageRecorder = m.LandingPageRecorder })
+        .catch((err) => console.error('[Recorder] module load failed:', err))
+    </script>
+    <script src="src/main.js?v=90"></script> <!-- v90: in-page recorder wired in rooms -->
 </body>
 
 </html>

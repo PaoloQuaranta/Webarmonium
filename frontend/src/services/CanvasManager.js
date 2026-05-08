@@ -82,10 +82,14 @@ class CanvasManager {
   }
 
   /**
-   * Resize canvases to match viewport
+   * Resize canvases to match viewport.
+   * Skipped when window.__webarmoniumRecording is truthy — the in-page recorder
+   * controls canvas dimensions during a capture session and a window resize would
+   * stomp the target resolution mid-recording.
    */
   resize() {
     if (!this.canvas) return
+    if (typeof window !== 'undefined' && window.__webarmoniumRecording) return
 
     const devicePixelRatio = window.devicePixelRatio || 1
     const width = window.innerWidth

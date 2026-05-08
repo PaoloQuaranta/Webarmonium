@@ -473,11 +473,19 @@ io.on('connection', (socket) => {
   // Properly initialize socket handlers using the object structure
   socketHandlers.initializeSocket(socket, services)
 
-  // Recording status relay: landing page → monitor dashboard (gated to landing-room sockets)
+  // Recording status relay: capture client (landing or jam room) → monitor dashboard.
+  // Allowed if the socket is in landing-room OR has a roomId set (i.e. joined a jam room).
+  // Includes the source room so the monitor can correlate when multiple sources exist.
   socket.on('recording:status', (data) => {
-    if (socket.rooms?.has('landing-room')) {
-      monitorNamespace.emit('monitor:recording-update', data)
-    }
+    const inLanding = socket.rooms?.has('landing-room')
+    const inJamRoom = !!socket.roomId
+    if (!inLanding && !inJamRoom) return
+
+    monitorNamespace.emit('monitor:recording-update', {
+      ...data,
+      source: inLanding ? 'landing' : 'room',
+      roomId: inLanding ? 'landing-room' : socket.roomId
+    })
   })
 })
 
@@ -649,30 +657,76 @@ monitorNamespace.on('connection', (socket) => {
   })
 
   // =========================================================================
-  // Recording command relay (monitor → landing page)
+  // Recording command relay (monitor → landing page or specific jam room)
   // =========================================================================
 
-  socket.on('monitor:start-recording', (data) => {
-    const format = ['desktop', 'mobile'].includes(data?.format) ? data.format : 'desktop'
+  // Resolve the socket.io room name to broadcast a recording command into.
+  // - target === 'landing' (or unset) → 'landing-room'
+  // - target === 'room' with roomId    → that roomId
+  // Returns null if the spec is invalid.
+  const resolveRecordingTarget = (data) => {
+    const target = data?.target || 'landing'
+    if (target === 'landing') return 'landing-room'
+    if (target === 'room') {
+      const roomId = typeof data?.roomId === 'string' ? data.roomId.trim() : ''
+      if (!roomId) return null
+      return roomId
+    }
+    return null
+  }
 
-    io.to('landing-room').emit('recording:command', {
+  socket.on('monitor:start-recording', (data) => {
+    const allowedFormats = ['desktop', 'mobile', 'square']
+    const format = allowedFormats.includes(data?.format) ? data.format : 'desktop'
+    const targetRoom = resolveRecordingTarget(data)
+
+    if (!targetRoom) {
+      socket.emit('monitor:recording-status', {
+        success: false,
+        action: 'start',
+        error: 'invalid-target'
+      })
+      return
+    }
+
+    io.to(targetRoom).emit('recording:command', {
       action: 'start',
       format,
       timestamp: Date.now()
     })
 
-    serverLogger.info('[Recording] Start command relayed', { format })
-    socket.emit('monitor:recording-status', { success: true, action: 'start', format })
+    serverLogger.info('[Recording] Start command relayed', { format, targetRoom })
+    socket.emit('monitor:recording-status', {
+      success: true,
+      action: 'start',
+      format,
+      target: targetRoom
+    })
   })
 
-  socket.on('monitor:stop-recording', () => {
-    io.to('landing-room').emit('recording:command', {
+  socket.on('monitor:stop-recording', (data) => {
+    const targetRoom = resolveRecordingTarget(data)
+
+    if (!targetRoom) {
+      socket.emit('monitor:recording-status', {
+        success: false,
+        action: 'stop',
+        error: 'invalid-target'
+      })
+      return
+    }
+
+    io.to(targetRoom).emit('recording:command', {
       action: 'stop',
       timestamp: Date.now()
     })
 
-    serverLogger.info('[Recording] Stop command relayed')
-    socket.emit('monitor:recording-status', { success: true, action: 'stop' })
+    serverLogger.info('[Recording] Stop command relayed', { targetRoom })
+    socket.emit('monitor:recording-status', {
+      success: true,
+      action: 'stop',
+      target: targetRoom
+    })
   })
 
   socket.on('disconnect', () => {

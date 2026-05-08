@@ -150,9 +150,19 @@ class WebarmoniumApp {
         // Hold indicator rendering REMOVED - SpringMeshNetwork handles hold visualization via node pulsing
       }
 
+      // In-page recorder for capture sessions (triggered from composition monitor).
+      // Constructed lazily — the LandingPageRecorder class is loaded by a small
+      // <script type="module"> shim in rooms.html and may not be on window yet
+      // when init runs. The recording:command socket handler does the actual
+      // construction once needed.
+      this.recorder = null
+
       // Entry #69: Connect to server AFTER visual service is initialized
       // This ensures springMesh exists when virtual user events arrive
       await this.connectToServer()
+
+      // Wire recording:command listener once socket is connected
+      this._setupRecordingHandlers()
 
       // console.log('✅ Webarmonium initialized successfully')
     } catch (error) {
@@ -2019,6 +2029,65 @@ class WebarmoniumApp {
       }
       if (window.NotificationService) {
         window.NotificationService.showModeTransition(data.message || 'Promotion failed', 3000)
+      }
+    })
+  }
+
+  /**
+   * Set up recording:command socket listener.
+   * Composition monitor sends start/stop commands via backend relay.
+   * The recorder class is loaded as an ES module shim (see rooms.html) and
+   * exposed on window.LandingPageRecorder. We construct it lazily here so we
+   * don't race with the module loader at init time.
+   * @private
+   */
+  _setupRecordingHandlers() {
+    if (!this.socketService?.socket) return
+    const socket = this.socketService.socket
+
+    socket.on('recording:command', async (data) => {
+      if (!data || typeof data !== 'object') return
+
+      // Lazy construction once the module shim has resolved
+      if (!this.recorder) {
+        if (!window.LandingPageRecorder) {
+          console.warn('[Recorder] LandingPageRecorder not loaded yet')
+          socket.emit('recording:status', { state: 'error', error: 'recorder-not-loaded' })
+          return
+        }
+        if (!this.visualService || !this.audioService) {
+          socket.emit('recording:status', { state: 'error', error: 'services-not-ready' })
+          return
+        }
+        this.recorder = new window.LandingPageRecorder({
+          visualService: this.visualService,
+          audioService: this.audioService,
+          sourceLabel: 'room'
+        })
+      }
+
+      let result
+      if (data.action === 'start') {
+        this.recorder.setStatusCallback((status) => {
+          if (socket.connected) {
+            socket.emit('recording:status', { state: 'recording', ...status })
+          }
+        })
+        result = await this.recorder.startRecording(data.format || 'desktop')
+        if (socket.connected) {
+          socket.emit('recording:status', {
+            state: result.success ? 'started' : 'error',
+            ...result
+          })
+        }
+      } else if (data.action === 'stop') {
+        result = await this.recorder.stopRecording()
+        if (socket.connected) {
+          socket.emit('recording:status', {
+            state: result.success ? 'stopped' : 'error',
+            ...result
+          })
+        }
       }
     })
   }

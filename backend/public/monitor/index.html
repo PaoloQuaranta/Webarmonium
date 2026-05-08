@@ -922,7 +922,8 @@
       // Recording status handlers
       socket.on('monitor:recording-status', (data) => {
         if (data.success) {
-          addEvent('RECORDING', `Command acknowledged: ${data.action} (${data.format || ''})`);
+          const tgt = data.target ? ` → ${data.target}` : '';
+          addEvent('RECORDING', `Command acknowledged: ${data.action} (${data.format || ''})${tgt}`);
         } else {
           addEvent('ERROR', `Recording: ${data.error || 'unknown error'}`);
         }
@@ -1066,20 +1067,42 @@
     // =========================================================================
 
     let recSelectedFormat = 'desktop';
+    let recSelectedSource = 'landing';
     let recIsRecording = false;
     let recTimerInterval = null;
     let recStartTime = 0;
 
     function selectRecFormat(format) {
       recSelectedFormat = format;
-      document.querySelectorAll('.rec-format-btn').forEach(btn => {
+      document.querySelectorAll('.rec-format-btn[data-rec-format]').forEach(btn => {
         btn.classList.toggle('selected', btn.dataset.recFormat === format);
       });
     }
 
+    function selectRecSource(source) {
+      recSelectedSource = source;
+      document.querySelectorAll('.rec-format-btn[data-rec-source]').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.recSource === source);
+      });
+      const roomRow = document.getElementById('recRoomIdRow');
+      if (roomRow) roomRow.style.display = source === 'room' ? 'block' : 'none';
+    }
+
+    function _buildRecPayload(extra) {
+      const base = { ...(extra || {}) };
+      if (recSelectedSource === 'room') {
+        base.target = 'room';
+        const roomInput = document.getElementById('recRoomIdInput');
+        base.roomId = (roomInput?.value || '').trim() || 'main-room';
+      } else {
+        base.target = 'landing';
+      }
+      return base;
+    }
+
     function startRecording() {
       if (!socket || recIsRecording) return;
-      socket.emit('monitor:start-recording', { format: recSelectedFormat });
+      socket.emit('monitor:start-recording', _buildRecPayload({ format: recSelectedFormat }));
 
       // Optimistic UI update
       recIsRecording = true;
@@ -1095,7 +1118,7 @@
 
     function stopRecording() {
       if (!socket || !recIsRecording) return;
-      socket.emit('monitor:stop-recording');
+      socket.emit('monitor:stop-recording', _buildRecPayload({}));
 
       // Optimistic UI update
       recIsRecording = false;
@@ -1113,6 +1136,8 @@
       const sizeEl = document.getElementById('recSize');
       const dot = document.getElementById('recDot');
 
+      const sourceTag = data.source ? `[${data.source}${data.roomId && data.source === 'room' ? ':' + data.roomId : ''}] ` : '';
+
       if (data.state === 'started') {
         recIsRecording = true;
         recStartTime = Date.now();
@@ -1120,7 +1145,7 @@
         startRecTimer();
         if (dot) dot.classList.add('recording');
         if (state) { state.textContent = 'Recording'; state.style.color = 'var(--accent-red)'; }
-        addEvent('RECORDING', `Started: ${data.format || 'desktop'} (${data.mimeType || 'webm'})`);
+        addEvent('RECORDING', `${sourceTag}Started: ${data.format || 'desktop'} (${data.mimeType || 'webm'})`);
       } else if (data.state === 'stopped') {
         recIsRecording = false;
         updateRecordingButtonState();
@@ -1128,7 +1153,7 @@
         if (dot) dot.classList.remove('recording');
         if (state) { state.textContent = 'Idle'; state.style.color = 'var(--text-secondary)'; }
         if (data.fileSize && sizeEl) sizeEl.textContent = formatRecSize(data.fileSize);
-        addEvent('RECORDING', `Stopped: ${formatRecDuration(data.duration || 0)}, ${formatRecSize(data.fileSize || 0)}`);
+        addEvent('RECORDING', `${sourceTag}Stopped: ${formatRecDuration(data.duration || 0)}, ${formatRecSize(data.fileSize || 0)}`);
       } else if (data.state === 'recording') {
         // Periodic status update
         if (data.size && sizeEl) sizeEl.textContent = formatRecSize(data.size);
@@ -1474,12 +1499,26 @@
           <div class="card">
             <div class="card-title">Recording Control</div>
 
+            <!-- Source selector -->
+            <div style="margin-bottom: 12px;">
+              <label class="param-label">Source</label>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
+                <button class="rec-format-btn selected" data-rec-source="landing" onclick="selectRecSource('landing')">Landing</button>
+                <button class="rec-format-btn" data-rec-source="room" onclick="selectRecSource('room')">Room</button>
+              </div>
+              <div id="recRoomIdRow" style="display: none; margin-top: 8px;">
+                <input id="recRoomIdInput" type="text" placeholder="Room ID (e.g. main-room)" value="main-room"
+                       style="width: 100%; padding: 6px 8px; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); border-radius: 4px; font-family: monospace; font-size: 12px;" />
+              </div>
+            </div>
+
             <!-- Format selector -->
             <div style="margin-bottom: 12px;">
               <label class="param-label">Format</label>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
-                <button class="rec-format-btn selected" data-rec-format="desktop" onclick="selectRecFormat('desktop')">Desktop (1920x1080)</button>
-                <button class="rec-format-btn" data-rec-format="mobile" onclick="selectRecFormat('mobile')">Mobile (1080x1920)</button>
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 4px;">
+                <button class="rec-format-btn selected" data-rec-format="desktop" onclick="selectRecFormat('desktop')">Desktop 1920x1080</button>
+                <button class="rec-format-btn" data-rec-format="mobile" onclick="selectRecFormat('mobile')">Mobile 1080x1920</button>
+                <button class="rec-format-btn" data-rec-format="square" onclick="selectRecFormat('square')">Square 1080x1080</button>
               </div>
             </div>
 

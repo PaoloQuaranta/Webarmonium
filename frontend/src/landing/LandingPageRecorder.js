@@ -1,23 +1,36 @@
 /**
  * LandingPageRecorder
  * In-page recording of PixiJS canvas visuals + Tone.js audio via MediaRecorder API.
+ * Used by both the landing page and jam rooms (same GenerativeVisualService /
+ * AudioService surface). The class is exposed as both an ES-module export and on
+ * `window.LandingPageRecorder` so non-module pages (rooms.html) can reuse it via
+ * a small <script type="module"> shim.
  *
  * Architecture:
- * - Resizes PixiJS canvas to target resolution (1920x1080 or 1080x1920)
+ * - Resizes PixiJS canvas to target resolution (1920x1080, 1080x1920, or 1080x1080)
  * - Compositing Canvas 2D copies each frame via post-render hook (avoids WebGL preserveDrawingBuffer issues)
  * - Audio captured via MediaStreamDestination fan-out from masterVolume
  * - OPFS streaming for 30-min recordings (~900 MB); in-memory fallback for short recordings
  * - Bypass flags on GenerativeVisualService + AudioService prevent blur/idle pauses
+ * - Codec preference: MP4 (avc1+aac, Chrome 126+) → WebM VP9/VP8 fallbacks
+ * - Sets `window.__webarmoniumRecording` so resize handlers in main.js / CanvasManager
+ *   skip layout changes that would stomp the target resolution mid-capture
  *
  * Triggered remotely from composition monitor via Socket.io recording:command events.
+ * The monitor selects source (landing vs jam room) and the backend relays the
+ * command to the right socket.io room.
  */
 
 const RECORDING_FORMATS = {
   desktop: { width: 1920, height: 1080, label: 'Desktop (YouTube)' },
-  mobile: { width: 1080, height: 1920, label: 'Mobile (TikTok/Instagram)' }
+  mobile: { width: 1080, height: 1920, label: 'Mobile (TikTok/Instagram)' },
+  square: { width: 1080, height: 1080, label: 'Square (Instagram/social)' }
 }
 
+// MP4 first when supported (Chrome 126+) — saves the post-process step.
+// WebM fallbacks remain for Firefox and older Chromium.
 const CODEC_FALLBACK_CHAIN = [
+  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
   'video/webm;codecs=vp9,opus',
   'video/webm;codecs=vp8,opus',
   'video/webm'
@@ -29,9 +42,16 @@ const TIMESLICE_MS = 10_000       // 10-second chunks
 const STATUS_INTERVAL_MS = 2_000  // Status updates every 2s
 
 export class LandingPageRecorder {
-  constructor({ visualService, audioService }) {
+  /**
+   * @param {Object} opts
+   * @param {Object} opts.visualService - GenerativeVisualService instance (lands or room)
+   * @param {Object} opts.audioService - AudioService instance
+   * @param {string} [opts.sourceLabel] - Tag for filename, e.g. 'landing' or 'room'
+   */
+  constructor({ visualService, audioService, sourceLabel }) {
     this._visualService = visualService
     this._audioService = audioService
+    this._sourceLabel = sourceLabel || ''
 
     // Recording state
     this._isRecording = false
@@ -39,6 +59,8 @@ export class LandingPageRecorder {
     this._recorder = null
     this._startTime = 0
     this._totalSize = 0
+    this._mimeType = null
+    this._fileExt = null
 
     // Canvas
     this._compositingCanvas = null
@@ -63,7 +85,7 @@ export class LandingPageRecorder {
 
   /**
    * Start recording in the specified format.
-   * @param {string} format - 'desktop' (1920x1080) or 'mobile' (1080x1920)
+   * @param {string} format - 'desktop' (1920x1080), 'mobile' (1080x1920), or 'square' (1080x1080)
    * @returns {Promise<Object>} Result with success status
    */
   async startRecording(format = 'desktop') {
@@ -122,6 +144,8 @@ export class LandingPageRecorder {
 
       // 8. Select codec and create MediaRecorder
       const mimeType = this._selectCodec()
+      this._mimeType = mimeType
+      this._fileExt = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'
       this._recorder = new MediaRecorder(combinedStream, {
         mimeType,
         videoBitsPerSecond: VIDEO_BITRATE,
@@ -158,6 +182,12 @@ export class LandingPageRecorder {
       this._recorder.start(TIMESLICE_MS)
       this._startTime = Date.now()
       this._totalSize = 0
+
+      // Global flag so resize handlers (landing main.js, CanvasManager in rooms)
+      // skip layout resizes that would stomp the target resolution mid-capture.
+      if (typeof window !== 'undefined') {
+        window.__webarmoniumRecording = true
+      }
 
       // 10. Start status reporting
       this._startStatusReporting()
@@ -322,13 +352,16 @@ export class LandingPageRecorder {
   /**
    * Set up OPFS storage for streaming chunks to disk.
    * Falls back to in-memory chunks if OPFS is unavailable.
+   * Note: file extension is set later in startRecording() once codec is known;
+   * here we use a temp suffix and rename at finalize. We just use a unique name.
    * @private
    */
   async _setupStorage() {
     try {
       if (navigator.storage && navigator.storage.getDirectory) {
         const root = await navigator.storage.getDirectory()
-        this._opfsFileName = `webarmonium-${this._format}-${Date.now()}.webm`
+        // Provisional .bin extension — final blob is wrapped with correct MIME later
+        this._opfsFileName = `webarmonium-${this._format}-${Date.now()}.bin`
         const fileHandle = await root.getFileHandle(this._opfsFileName, { create: true })
         this._fileWriter = await fileHandle.createWritable()
         return
@@ -365,7 +398,10 @@ export class LandingPageRecorder {
    */
   async _finalizeAndDownload(duration) {
     const durationSec = Math.round(duration / 1000)
-    const fileName = `webarmonium-${this._format}-${durationSec}s.webm`
+    const ext = this._fileExt || 'webm'
+    const blobMime = ext === 'mp4' ? 'video/mp4' : 'video/webm'
+    const sourcePrefix = this._sourceLabel ? `${this._sourceLabel}-` : ''
+    const fileName = `webarmonium-${sourcePrefix}${this._format}-${durationSec}s.${ext}`
 
     let blob
 
@@ -387,7 +423,7 @@ export class LandingPageRecorder {
         const fileHandle = await root.getFileHandle(this._opfsFileName)
         const file = await fileHandle.getFile()
         // Read the File into an in-memory Blob to decouple from OPFS entry
-        blob = new Blob([await file.arrayBuffer()], { type: 'video/webm' })
+        blob = new Blob([await file.arrayBuffer()], { type: blobMime })
 
         // Clean up OPFS file after blob is in memory
         root.removeEntry(this._opfsFileName).catch(() => {})
@@ -397,7 +433,7 @@ export class LandingPageRecorder {
       }
     } else if (this._chunks && this._chunks.length > 0) {
       // In-memory path: assemble blob
-      blob = new Blob(this._chunks, { type: 'video/webm' })
+      blob = new Blob(this._chunks, { type: blobMime })
       this._chunks = null
     }
 
@@ -446,6 +482,11 @@ export class LandingPageRecorder {
    */
   _cleanup() {
     this._isRecording = false
+
+    // Clear global recording flag so resize handlers go back to normal
+    if (typeof window !== 'undefined') {
+      window.__webarmoniumRecording = false
+    }
 
     // Stop status reporting
     if (this._statusInterval) {
@@ -512,4 +553,10 @@ export class LandingPageRecorder {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
+}
+
+// Expose globally so non-module pages (rooms.html) can use it via
+// `<script type="module">` shim or dynamic import.
+if (typeof window !== 'undefined') {
+  window.LandingPageRecorder = LandingPageRecorder
 }
