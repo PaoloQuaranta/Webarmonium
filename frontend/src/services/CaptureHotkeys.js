@@ -168,8 +168,17 @@ class CaptureHotkeys {
     if (e.key === 'r' || e.key === 'R') {
       e.preventDefault()
       // Snap window once more right before recording, in case the operator
-      // moved/resized after the format keypress.
+      // moved/resized after the format keypress. Browsers don't always honor
+      // resizeTo synchronously — give the OS/window manager up to 200ms to
+      // settle before we ask for the display stream. (resizeTo can also be
+      // silently ignored entirely in some Chrome contexts; in that case the
+      // operator should relaunch app-mode with --window-size matching the
+      // format.)
+      const before = [window.innerWidth, window.innerHeight]
       this._tryResizeForFormat(this._currentFormat)
+      if (window.innerWidth !== before[0] || window.innerHeight !== before[1]) {
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
       await this._toggleRecord()
     }
   }
@@ -276,7 +285,27 @@ class CaptureHotkeys {
     if (result && result.success) {
       const sizeMB = ((result.fileSize || 0) / (1024 * 1024)).toFixed(1)
       const dur = Math.round((result.duration || 0) / 1000)
-      this._flash(`saved · ${dur}s · ${sizeMB} MB`, '#7CFC7A', 4000)
+      const aw = result.actualWidth
+      const ah = result.actualHeight
+      if (aw && ah) {
+        // Authoritative file dimensions (read post-encode from the blob).
+        // Compare to format target and warn loudly if they don't match — the
+        // HUD-during-recording reads videoTrack.getSettings() which can
+        // mis-report; this is the truth-in-the-file check.
+        const targets = { desktop: [1920, 1080], mobile: [1080, 1920], square: [1080, 1080] }
+        const fmt = result.format || this._currentFormat
+        const target = targets[fmt]
+        const matches = target && aw === target[0] && ah === target[1]
+        const dimStr = `${aw}×${ah}`
+        if (matches) {
+          this._flash(`saved · ${dur}s · ${sizeMB} MB · ${dimStr}`, '#7CFC7A', 5000)
+        } else {
+          const tgtStr = target ? `target ${target[0]}×${target[1]}` : ''
+          this._flash(`saved ${dimStr} (${tgtStr}) · ${sizeMB} MB`, '#FFA500', 7000)
+        }
+      } else {
+        this._flash(`saved · ${dur}s · ${sizeMB} MB`, '#7CFC7A', 4000)
+      }
     } else {
       this._flash(`ended: ${result?.error || 'no file'}`, '#FFA500', 4000)
     }

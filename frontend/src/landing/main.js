@@ -19,7 +19,7 @@ import { DashboardUI } from './DashboardUI.js'
 // hold onto module URLs aggressively across deploys, which can leave the page
 // running v0.8.18-era recorder code (no startDisplayRecording) even after a
 // hard reload. Bump the ?v= when changing LandingPageRecorder.js.
-import { LandingPageRecorder } from './LandingPageRecorder.js?v=9'
+import { LandingPageRecorder } from './LandingPageRecorder.js?v=10'
 import { EventLabelFeed } from './EventLabelFeed.js'
 import { isValidStyle } from '../utils/StyleValidator.js'
 

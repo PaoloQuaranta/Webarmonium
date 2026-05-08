@@ -465,9 +465,11 @@ export class LandingPageRecorder {
 
       // Capture metrics before cleanup resets them
       const totalSize = this._totalSize
+      const format = this._format
 
       // Finalize storage and trigger download
-      const fileName = await this._finalizeAndDownload(duration)
+      const finalized = await this._finalizeAndDownload(duration)
+      const fileName = typeof finalized === 'string' ? finalized : finalized.fileName
 
       // Cleanup (restores canvas size, clears bypass flags)
       this._cleanup()
@@ -476,7 +478,10 @@ export class LandingPageRecorder {
         success: true,
         duration,
         fileSize: totalSize,
-        fileName
+        fileName,
+        format,
+        actualWidth: finalized?.actualWidth || null,
+        actualHeight: finalized?.actualHeight || null
       }
     } catch (error) {
       console.error('[Recorder] Stop failed:', error)
@@ -681,7 +686,7 @@ export class LandingPageRecorder {
         root.removeEntry(this._opfsFileName).catch(() => {})
       } catch (error) {
         console.error('[Recorder] OPFS read-back error:', error)
-        return fileName
+        return { fileName, actualWidth: null, actualHeight: null }
       }
     } else if (this._chunks && this._chunks.length > 0) {
       // In-memory path: assemble blob
@@ -689,11 +694,54 @@ export class LandingPageRecorder {
       this._chunks = null
     }
 
+    // Read the ACTUAL encoded video dimensions from the blob's video element.
+    // videoTrack.getSettings() reported at start can lie (Chrome sometimes
+    // returns the constraint values, not what really got encoded), so
+    // verifying the file is the only authoritative answer for the HUD.
+    let actualWidth = null
+    let actualHeight = null
     if (blob) {
+      try {
+        const dims = await this._readBlobDimensions(blob)
+        if (dims) {
+          actualWidth = dims.width
+          actualHeight = dims.height
+          console.log(`[Recorder] Encoded video dims: ${actualWidth}x${actualHeight}`)
+        }
+      } catch (e) {
+        console.warn('[Recorder] Could not read encoded dimensions:', e?.message || e)
+      }
       this._triggerDownload(blob, fileName)
     }
 
-    return fileName
+    return { fileName, actualWidth, actualHeight }
+  }
+
+  /**
+   * Probe a video Blob's actual encoded width/height via a hidden HTMLVideoElement.
+   * Resolves to {width, height} or null on failure.
+   * @private
+   */
+  _readBlobDimensions(blob) {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(blob)
+      const video = document.createElement('video')
+      video.muted = true
+      video.preload = 'metadata'
+      const cleanup = () => {
+        try { URL.revokeObjectURL(url) } catch (_) {}
+      }
+      video.onloadedmetadata = () => {
+        const w = video.videoWidth
+        const h = video.videoHeight
+        cleanup()
+        resolve(w && h ? { width: w, height: h } : null)
+      }
+      video.onerror = () => { cleanup(); resolve(null) }
+      // 4-second cap so we never block stop on a corrupted file
+      setTimeout(() => { cleanup(); resolve(null) }, 4000)
+      video.src = url
+    })
   }
 
   /**
