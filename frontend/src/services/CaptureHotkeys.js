@@ -153,13 +153,56 @@ class CaptureHotkeys {
     if (e.key === '1' || e.key === '2' || e.key === '3') {
       const fmt = ({ '1': 'desktop', '2': 'mobile', '3': 'square' })[e.key]
       this._currentFormat = fmt
-      this._flash(`format → ${this._formatLabel(fmt)}`)
+      // In window-mode capture (--app=URL) the recorder receives whatever
+      // dimensions the window actually has, not the format constraints.
+      // Try to snap the window to the target now so the next R press records
+      // at the right aspect ratio. resizeTo is silently ignored in regular
+      // tab contexts; that's fine — the operator will size manually there.
+      const resized = this._tryResizeForFormat(fmt)
+      this._flash(resized
+        ? `format → ${this._formatLabel(fmt)} · resized`
+        : `format → ${this._formatLabel(fmt)}`)
       return
     }
 
     if (e.key === 'r' || e.key === 'R') {
       e.preventDefault()
+      // Snap window once more right before recording, in case the operator
+      // moved/resized after the format keypress.
+      this._tryResizeForFormat(this._currentFormat)
       await this._toggleRecord()
+    }
+  }
+
+  /**
+   * Resize the window so its inner dimensions match the target format.
+   * Compensates for browser-chrome / title-bar overhead by adjusting OUTER
+   * dimensions by the delta needed on inner. Returns true if a resize
+   * actually happened (within a few pixels of target).
+   * @private
+   */
+  _tryResizeForFormat(format) {
+    const TARGETS = {
+      desktop: [1920, 1080],
+      mobile: [1080, 1920],
+      square: [1080, 1080]
+    }
+    const target = TARGETS[format]
+    if (!target) return false
+    const [targetW, targetH] = target
+    try {
+      // Single-shot resize: outer = current outer + delta needed on inner.
+      // Browsers settle inner-dim updates async, so we don't iterate — operator
+      // can press the format key again if convergence didn't happen first try.
+      const dw = targetW - window.innerWidth
+      const dh = targetH - window.innerHeight
+      if (Math.abs(dw) <= 2 && Math.abs(dh) <= 2) return true
+      window.resizeTo(window.outerWidth + dw, window.outerHeight + dh)
+      return true
+    } catch (e) {
+      // resizeTo throws / is no-op in regular tab contexts (security). The
+      // operator must size their browser manually there. Not a failure.
+      return false
     }
   }
 
