@@ -15,7 +15,11 @@
  */
 
 import { DashboardUI } from './DashboardUI.js'
-import { LandingPageRecorder } from './LandingPageRecorder.js'
+// Cache-buster on the recorder import: app-mode Chrome and some service workers
+// hold onto module URLs aggressively across deploys, which can leave the page
+// running v0.8.18-era recorder code (no startDisplayRecording) even after a
+// hard reload. Bump the ?v= when changing LandingPageRecorder.js.
+import { LandingPageRecorder } from './LandingPageRecorder.js?v=7'
 import { EventLabelFeed } from './EventLabelFeed.js'
 import { isValidStyle } from '../utils/StyleValidator.js'
 
