@@ -325,11 +325,32 @@ export class LandingPageRecorder {
         console.warn('[Recorder] Audio context resume failed (non-fatal):', e?.message || e)
       }
 
-      // 3. Audio capture from Tone.js master
-      const audioStream = this._setupAudioCapture()
+      // 3. Audio capture from Tone.js master.
+      //    Critical readiness check: masterVolume is created lazily when the
+      //    operator clicks Start on the landing (not at page load). Pressing R
+      //    before Start gives the right Tone.context but no masterVolume node,
+      //    so the file ends up video-only / silent. Detect this early so the
+      //    operator gets an actionable HUD message instead of a wasted take.
+      const audioReady = !!this._audioService?.masterVolume
+      const audioStream = audioReady ? this._setupAudioCapture() : null
       const audioTracks = audioStream ? audioStream.getAudioTracks() : []
+      if (!audioReady) {
+        console.warn('[Recorder] masterVolume not ready — press Start on the landing before R. Aborting to avoid a silent take.')
+        try { displayStream.getTracks().forEach(t => t.stop()) } catch (_) {}
+        this._isRecording = false
+        return {
+          success: false,
+          error: 'audio-not-ready'
+        }
+      }
       if (audioTracks.length === 0) {
-        console.warn('[Recorder] No audio tracks — recording will be silent. Check that you pressed Start before R, and that masterVolume is initialized.')
+        console.warn('[Recorder] Audio fan-out yielded zero tracks despite masterVolume being present — aborting.')
+        try { displayStream.getTracks().forEach(t => t.stop()) } catch (_) {}
+        this._isRecording = false
+        return {
+          success: false,
+          error: 'audio-fanout-failed'
+        }
       }
 
       // 4. Combined stream: tab video + Tone.js audio

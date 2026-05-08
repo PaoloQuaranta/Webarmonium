@@ -258,6 +258,10 @@ class CaptureHotkeys {
         this._showRecordingWith(dimsLine, target, color)
       } else if (result.error === 'share-cancelled') {
         this._flash('share cancelled', '#FFA500', 2000)
+      } else if (result.error === 'audio-not-ready') {
+        this._flash('press Start on the page first, then R', '#FF4040', 5000)
+      } else if (result.error === 'audio-fanout-failed') {
+        this._flash('audio fan-out failed — check console', '#FF4040', 5000)
       } else {
         this._flash(`start failed: ${result.error || 'unknown'}`, '#FFA500', 4000)
       }
