@@ -155,42 +155,42 @@ class CaptureHotkeys {
       this._currentFormat = fmt
       // In window-mode capture (--app=URL) the recorder receives whatever
       // dimensions the window actually has, not the format constraints.
-      // Try to snap the window to the target now so the next R press records
-      // at the right aspect ratio. resizeTo is silently ignored in regular
-      // tab contexts; that's fine — the operator will size manually there.
-      const resized = this._tryResizeForFormat(fmt)
-      this._flash(resized
-        ? `format → ${this._formatLabel(fmt)} · resized`
-        : `format → ${this._formatLabel(fmt)}`)
+      // Iterate the resize so chrome-decoration and DPR quirks converge to
+      // the exact target inner viewport.
+      const converged = await this._tryResizeForFormat(fmt)
+      const dimStr = `${window.innerWidth}×${window.innerHeight}`
+      this._flash(converged
+        ? `format → ${this._formatLabel(fmt)} · ${dimStr}`
+        : `format → ${this._formatLabel(fmt)} · ${dimStr} (off)`,
+        converged ? '#7CFC7A' : '#FFA500',
+        converged ? 1500 : 4000)
       return
     }
 
     if (e.key === 'r' || e.key === 'R') {
       e.preventDefault()
-      // Snap window once more right before recording, in case the operator
-      // moved/resized after the format keypress. Browsers don't always honor
-      // resizeTo synchronously — give the OS/window manager up to 200ms to
-      // settle before we ask for the display stream. (resizeTo can also be
-      // silently ignored entirely in some Chrome contexts; in that case the
-      // operator should relaunch app-mode with --window-size matching the
-      // format.)
-      const before = [window.innerWidth, window.innerHeight]
-      this._tryResizeForFormat(this._currentFormat)
-      if (window.innerWidth !== before[0] || window.innerHeight !== before[1]) {
-        await new Promise(resolve => setTimeout(resolve, 200))
-      }
+      // One more convergence pass right before recording, in case the operator
+      // moved/resized after the format keypress.
+      await this._tryResizeForFormat(this._currentFormat)
       await this._toggleRecord()
     }
   }
 
   /**
-   * Resize the window so its inner dimensions match the target format.
-   * Compensates for browser-chrome / title-bar overhead by adjusting OUTER
-   * dimensions by the delta needed on inner. Returns true if a resize
-   * actually happened (within a few pixels of target).
+   * Resize the window so its inner dimensions match the target format. Iterates
+   * up to N times because:
+   *   - resizeTo is asynchronous in practice; one pass measures stale inner
+   *   - Some Chrome configs don't decorate-by-deltas linearly, so a single
+   *     adjustment can under-shoot or over-shoot
+   *   - The operator's chrome height isn't constant across launches (DevTools
+   *     dock state, theme, accessibility settings)
+   *
+   * Returns true if convergence reached (within 2px on both axes), false if
+   * resizeTo isn't supported (regular-tab contexts) or the OS clamped further
+   * resizing (e.g. screen smaller than target at current DPR).
    * @private
    */
-  _tryResizeForFormat(format) {
+  async _tryResizeForFormat(format) {
     const TARGETS = {
       desktop: [1920, 1080],
       mobile: [1080, 1920],
@@ -199,20 +199,41 @@ class CaptureHotkeys {
     const target = TARGETS[format]
     if (!target) return false
     const [targetW, targetH] = target
-    try {
-      // Single-shot resize: outer = current outer + delta needed on inner.
-      // Browsers settle inner-dim updates async, so we don't iterate — operator
-      // can press the format key again if convergence didn't happen first try.
+
+    const TOL = 2
+    const MAX_ITERATIONS = 6
+    const SETTLE_MS = 80
+
+    let lastInnerW = -1
+    let lastInnerH = -1
+
+    for (let i = 0; i < MAX_ITERATIONS; i++) {
       const dw = targetW - window.innerWidth
       const dh = targetH - window.innerHeight
-      if (Math.abs(dw) <= 2 && Math.abs(dh) <= 2) return true
-      window.resizeTo(window.outerWidth + dw, window.outerHeight + dh)
-      return true
-    } catch (e) {
-      // resizeTo throws / is no-op in regular tab contexts (security). The
-      // operator must size their browser manually there. Not a failure.
-      return false
+      if (Math.abs(dw) <= TOL && Math.abs(dh) <= TOL) return true
+
+      // Stop if the previous iteration made no progress — OS/Chrome has
+      // clamped the window. Returning false signals the caller (HUD) so the
+      // operator knows to take action (relaunch with bigger --window-size,
+      // auto-hide taskbar, etc.).
+      if (i > 0 && window.innerWidth === lastInnerW && window.innerHeight === lastInnerH) {
+        return false
+      }
+      lastInnerW = window.innerWidth
+      lastInnerH = window.innerHeight
+
+      try {
+        window.resizeTo(window.outerWidth + dw, window.outerHeight + dh)
+      } catch (e) {
+        // resizeTo throws / is no-op in regular tab contexts (security).
+        return false
+      }
+      await new Promise(resolve => setTimeout(resolve, SETTLE_MS))
     }
+
+    const finalDw = targetW - window.innerWidth
+    const finalDh = targetH - window.innerHeight
+    return Math.abs(finalDw) <= TOL && Math.abs(finalDh) <= TOL
   }
 
   async _toggleRecord() {
